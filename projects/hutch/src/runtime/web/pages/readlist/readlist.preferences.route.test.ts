@@ -573,6 +573,18 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		);
 	});
 
+	it("reads a form that posts no purpose as an empty one", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await agent.post(withPreferencesFeature(preferencesPath(slug))).type("form").send({});
+
+		expect(response.headers.location).toBe(
+			`${preferencesPath(slug)}?preferences_error=invalid-purpose&feature=pref`,
+		);
+	});
+
 	it("refuses to describe the built-in readlist, which has no row to describe", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

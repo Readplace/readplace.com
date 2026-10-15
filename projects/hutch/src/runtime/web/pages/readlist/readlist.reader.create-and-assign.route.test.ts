@@ -304,6 +304,47 @@ describe("the reader's create dialog, posted through htmx", () => {
 		expect(readlistTagLabels(await openReader(agent, articleId))).toEqual([]);
 	});
 
+	it("files into the readlist that already carries the typed name, landing back on the reader with the filing flash", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		await createReadlist(agent, "Deep Work");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		const [deepWork] = pickerOptions(await openReader(agent, articleId));
+
+		const response = await createAndAssign({ agent, articleId, label: "deep work", htmx: true });
+
+		expect(response.status).toBe(204);
+		expect(hxLocation(response)).toEqual({
+			path: `/queue/${articleId}/view?filed_readlist=${deepWork}`,
+			source: "#reader-readlist-create",
+			target: "main",
+			select: "main",
+			swap: "outerHTML show:none",
+		});
+		const reader = parse((await agent.get(hxLocation(response).path)).text);
+		expect(toastMessage(reader)).toBe("Added to Deep Work");
+		expect(readlistTagLabels(reader)).toEqual(["Deep Work"]);
+		expect(pickerOptions(reader)).toEqual([]);
+	});
+
+	it("refuses a dialog that posts no name as an empty one, writing nothing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const response = await agent
+			.post(`/queue/${articleId}/create-and-assign`)
+			.type("form")
+			.set("HX-Request", "true")
+			.send({ returnTo: `/queue/${articleId}/view` });
+
+		expect(response.status).toBe(422);
+		expect(parse(response.text).querySelector("[data-test-readlist-create-error]")?.textContent).toBe(
+			`Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`,
+		);
+		expect(readlistTagLabels(await openReader(agent, articleId))).toEqual([]);
+	});
+
 	it("refuses an eighth readlist in the dialog, naming the cap", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

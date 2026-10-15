@@ -534,6 +534,32 @@ describe("custom readlist chrome", () => {
 	});
 });
 
+describe("a naming form that posts no name", () => {
+	it("is refused as an empty name when it creates a readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const nameless = await agent.post("/queue/queues").type("form").send({});
+		const blank = await agent.post("/queue/queues").type("form").send({ label: "" });
+
+		expect([nameless.status, nameless.headers.location]).toEqual([blank.status, blank.headers.location]);
+		expect(nameless.status).toBe(303);
+	});
+
+	it("is refused as an empty name when it renames a readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await agent.post(`/queue/queues/${slug}/rename`).type("form").send({});
+
+		expect([response.status, response.headers.location]).toEqual([
+			303,
+			`/queue?queue=${slug}&queue_error=rename_invalid-name`,
+		]);
+	});
+});
+
 describe("the save error", () => {
 	it("renders the save error as an alert in the page's feedback area, leaving the dialog's field fresh", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
