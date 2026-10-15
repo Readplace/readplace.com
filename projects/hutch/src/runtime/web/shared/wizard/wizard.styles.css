@@ -48,16 +48,15 @@
   }
 }
 
-.htmx-request.wizard__form,
-.htmx-request .wizard__form,
-.htmx-request .wizard__save {
+.wizard__form.htmx-request,
+.wizard__form.htmx-request .wizard__save {
   cursor: progress;
 }
 
-.htmx-request .wizard__save-label {
+.wizard__form.htmx-request .wizard__save-label {
   visibility: hidden;
 }
 
-.htmx-request .wizard__save-loader {
+.wizard__form.htmx-request .wizard__save-loader {
   display: flex;
 }
