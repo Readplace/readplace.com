@@ -686,7 +686,7 @@ describe("GET /account (headed sections)", () => {
 		const alert = subscriptionSection(doc).querySelector('[data-test-alert="payment-methods"]');
 		assert(alert, "the provider error must render inside the subscription section");
 		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
-			"We couldn't load your saved cards just now. Refresh the page to try again.",
+			"Couldn't load your saved cards. Refresh the page to try again.",
 		);
 	});
 
@@ -2788,7 +2788,7 @@ describe("GET /account — card management section", () => {
 		expect(providerAlert.getAttribute("role")).toBe("alert");
 		expect(providerAlert.classList.contains("alert--visible")).toBe(true);
 		expect(providerAlert.querySelector("[data-test-alert-message]")?.textContent).toBe(
-			"We couldn't load your saved cards just now. Refresh the page to try again.",
+			"Couldn't load your saved cards. Refresh the page to try again.",
 		);
 		assert(doc.querySelector("[data-test-account-card]"), "subscription card still renders");
 	});
@@ -3621,7 +3621,7 @@ describe("GET /account/invoices", () => {
 		assert(alert, "the provider error must render as an alert");
 		expect(alert.getAttribute("data-test-alert-variant")).toBe("error");
 		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
-			"We couldn't load your invoices just now. Refresh the page to try again.",
+			"Couldn't load your invoices. Refresh the page to try again.",
 		);
 		expect(invoiceRows(doc)).toHaveLength(0);
 	});

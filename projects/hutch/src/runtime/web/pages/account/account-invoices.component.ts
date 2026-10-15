@@ -13,7 +13,7 @@ const PAGER_CLASS: Record<InvoicesPagerState, string> = {
 	hidden: "pagination pagination--hidden",
 };
 
-const PROVIDER_ERROR_MESSAGE = "We couldn't load your invoices just now. Refresh the page to try again.";
+const PROVIDER_ERROR_MESSAGE = "Couldn't load your invoices. Refresh the page to try again.";
 
 export function AccountInvoicesPage(vm: AccountInvoicesViewModel): PageBody {
 	return {

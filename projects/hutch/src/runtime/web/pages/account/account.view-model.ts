@@ -455,7 +455,7 @@ const CARD_NOTICES: Record<CardError, string> = {
 };
 
 const PROVIDER_ERROR_MESSAGE =
-	"We couldn't load your saved cards just now. Refresh the page to try again.";
+	"Couldn't load your saved cards. Refresh the page to try again.";
 const LIMIT_HINT = "You've reached the 3-card limit. Remove a backup to add a different card.";
 const BACKUP_CARD_HINT =
 	"A new card is added as a backup. Make it primary to pay with it from your next payment.";

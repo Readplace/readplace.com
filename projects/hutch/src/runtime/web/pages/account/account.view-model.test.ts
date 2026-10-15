@@ -793,7 +793,7 @@ describe("buildPaymentSectionViewModel", () => {
 		assert.equal(vm.state, "provider-error");
 		assert.equal(vm.isShown, true);
 		assert.equal(vm.isError, true);
-		assert.equal(vm.message, "We couldn't load your saved cards just now. Refresh the page to try again.");
+		assert.equal(vm.message, "Couldn't load your saved cards. Refresh the page to try again.");
 		assert.deepEqual(vm.actions, []);
 		assert.deepEqual(vm.panel, CLOSED_PANEL);
 	});
