@@ -13,6 +13,7 @@ import {
 } from "@packages/onboarding-extension-signal";
 import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
 import { createReadlistFromReader, markReadWithConfirmation, openAddLink } from "./page-interactions";
+import { CONNECTOR_REDIRECT_URI, gotoConsent, registerConnector } from "./oauth-consent";
 import { seedChromeGrant } from "./oauth-revoke/seed-grant";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
 
@@ -399,6 +400,23 @@ test.describe("Auth colour roles hold their WCAG contrast in both themes", () =>
 			await page.locator('[data-test-action="signup"]').click();
 			await expect(page.locator('[data-test-error="email"]')).toBeVisible({ timeout: SETTLE_MS });
 			await auditAuth(page, { theme, view: "signup/field-error" });
+		}
+	});
+
+	test("every consent surface clears its contrast minimum", async ({ page }, testInfo) => {
+		await signUpFreshUser(page, `colour-contrast-consent-${testInfo.workerIndex}-${Date.now()}@example.com`);
+		const connectorId = await registerConnector(page, { baseUrl: BASE_URL });
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await gotoConsent(page, {
+				baseUrl: BASE_URL,
+				clientId: "hutch-chrome-extension",
+				redirectUri: `http://127.0.0.1:${E2E_PORT}/oauth/callback`,
+			});
+			await auditAuth(page, { theme, view: "oauth-consent/extension" });
+			await gotoConsent(page, { baseUrl: BASE_URL, clientId: connectorId, redirectUri: CONNECTOR_REDIRECT_URI });
+			await auditAuth(page, { theme, view: "oauth-consent/connector" });
 		}
 	});
 });

@@ -1,0 +1,90 @@
+.oauth-authorize__title {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 8px;
+  color: var(--foreground);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.oauth-authorize__request {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.oauth-authorize__text {
+  font-size: var(--text-sm);
+  line-height: 22px;
+  color: var(--muted-foreground);
+  margin: 0;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.oauth-authorize__account--visible {
+  display: block;
+  margin-top: 16px;
+}
+
+.oauth-authorize__account--hidden {
+  display: none;
+}
+
+.oauth-authorize__heading {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 4px;
+  color: var(--foreground);
+}
+
+.oauth-authorize__signed-in {
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.oauth-authorize__email {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.oauth-authorize__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 32px;
+}
+
+.oauth-authorize__buttons .btn {
+  padding-inline: 24px;
+}
+
+.oauth-authorize__switch {
+  display: block;
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--foreground);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.oauth-authorize__switch:hover {
+  text-decoration-thickness: 2px;
+}

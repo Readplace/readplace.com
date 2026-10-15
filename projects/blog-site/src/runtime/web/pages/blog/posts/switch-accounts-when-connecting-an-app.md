@@ -2,22 +2,23 @@
 title: "A Reused Session Shouldn't Choose Your Account"
 description: "Connect an app to Readplace on a phone and the fastest login binds the approval to whichever account your browser already holds, with no email shown. The consent screen now names that account and gives you a one-tap way to switch to the one you meant."
 excerpt: "With work and personal accounts on one phone, the consent screen picked one without saying which."
-tldr: "With two Google accounts on one phone, work and personal, connecting a reading app should let you say which one it links to. Readplace's fastest login did the reverse. When you sign in on a phone, the browser often reuses a session Chrome already holds, so the consent screen approved that account, printed no email, and gave no way to pick the other one. The screen now names the account it is bound to, \"Signed in as\", with the email under the app's request, and carries a \"Use a different account\" link. The link ends this one browser session, clears its cookie, and returns you to the login page with the pending connection preserved, so you sign in as the account you meant and the app still links on the first try. When you switch, Readplace also asks Google to show its own account list instead of auto-selecting its single signed-in account. All of it runs on the server, so the iPhone app, the browser extensions, and an AI assistant connecting over the same screen got it at once, with no new release to ship."
+tldr: "With two Google accounts on one phone, work and personal, connecting a reading app should let you say which one it links to. Readplace's fastest login did the reverse. When you sign in on a phone, the browser often reuses a session Chrome already holds, so the consent screen approved that account, printed no email, and gave no way to pick the other one. The screen now names the account it is bound to, \"You're signed in as\" and the email under an \"Account\" heading, and carries a \"Use a different account\" link. The link ends this one browser session, clears its cookie, and returns you to the login page with the pending connection preserved, so you sign in as the account you meant and the app still links on the first try. When you switch, Readplace also asks Google to show its own account list instead of auto-selecting its single signed-in account. All of it runs on the server, so the iPhone app, the browser extensions, and an AI assistant connecting over the same screen got it at once, with no new release to ship."
 slug: "switch-accounts-when-connecting-an-app"
 date: "2026-07-12"
 author: "Fayner Brack"
+lastModified: "2026-10-15"
 keywords: "connect app to read it later, sign in with the wrong google account, use a different account readplace, switch google account at login, multiple google accounts sign in, oauth consent wrong account, choose which account an app connects to, read it later account picker, connect browser extension right account, sign in with the account you meant"
 tags: ["changelog"]
 banner: "I let you pick which account an app connects to"
 ---
 
-The screen that connects an app to Readplace shows two buttons, Approve and Deny. On a phone it used to leave out the one fact those buttons act on, which account the approval belongs to.
+The screen that connects an app to Readplace shows two buttons, Cancel and Allow access. On a phone it used to leave out the one fact those buttons act on, which account the approval belongs to.
 
 That gap came from a convenience. I built the login to be fast, and fast meant reusing a session the browser already had.
 
 ## The login that skips the question
 
-When the iPhone app or a browser extension needs a signed-in user, it opens the authorize page in Chrome. Most people read in Chrome and stay signed in there, so Chrome usually holds a live Readplace session already. The page finds that session and treats the visitor as logged in. No password to type and no form to fill, just Approve or Deny.
+When the iPhone app or a browser extension needs a signed-in user, it opens the authorize page in Chrome. Most people read in Chrome and stay signed in there, so Chrome usually holds a live Readplace session already. The page finds that session and treats the visitor as logged in. No password to type and no form to fill, just Cancel or Allow access.
 
 The reused session carries one account. For a reader with a single account that is the whole point, the login gets out of the way. For a reader with two, work and personal on the same phone, it makes the call for them without asking.
 
@@ -31,9 +32,9 @@ The old screen printed no email at all. It said an app wanted access to a Readpl
 
 ## The link that hands the choice back
 
-The consent screen names the account now. Under the app's request sits a line, Signed in as, and the email of the account the approval would use. If Readplace can't read the email for that session it drops the line rather than guess at it, and the switch below still works.
+The consent screen names the account now. Under the app's request sits an Account heading and a line, You're signed in as, with the email of the account the approval would use. If Readplace can't read the email for that session it drops the heading and the line rather than guess at it, and the switch below still works.
 
-That switch is a third control under Approve and Deny, marked Use a different account. It does the sign-out a reader used to do by hand, in one place. It ends this browser session, clears the cookie, and returns to the login page. The connection already in progress rides along in a `return` value, so signing in as the other account links the app without retracing a step.
+That switch is a third control under Cancel and Allow access, marked Use a different account. It does the sign-out a reader used to do by hand, in one place. It ends this browser session, clears the cookie, and returns to the login page. The connection already in progress rides along in a `return` value, so signing in as the other account links the app without retracing a step.
 
 One line in that handler is worth naming. Ending a session is a rough thing to do to a request that might be malformed or hostile, so the code checks the app's redirect address is valid before it touches the session at all. A bad request gets a plain error, not a surprise logout.
 

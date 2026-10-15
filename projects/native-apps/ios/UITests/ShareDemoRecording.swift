@@ -76,7 +76,7 @@ final class ShareDemoRecording: XCTestCase {
 		}
 		capture("after-consent")
 
-		let approveButton = app.buttons.matching(NSPredicate(format: "label ==[c] 'approve'")).firstMatch
+		let approveButton = app.buttons.matching(NSPredicate(format: "label ==[c] 'allow access'")).firstMatch
 		if !approveButton.waitForExistence(timeout: 8) {
 			let email = app.textFields.firstMatch
 			XCTAssertTrue(email.waitForExistence(timeout: 30), "the sign-in form must load")
@@ -118,7 +118,7 @@ final class ShareDemoRecording: XCTestCase {
 		}
 		capture("password-prompt-dismissed")
 
-		let approve = app.buttons.matching(NSPredicate(format: "label ==[c] 'approve'")).firstMatch
+		let approve = app.buttons.matching(NSPredicate(format: "label ==[c] 'allow access'")).firstMatch
 		if approve.waitForExistence(timeout: 25) {
 			approve.tap()
 			Thread.sleep(forTimeInterval: 8)

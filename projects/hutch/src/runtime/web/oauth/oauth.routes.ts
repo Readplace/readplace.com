@@ -16,7 +16,6 @@ import type {
 	DestroyUserSessions,
 	FindEmailByUserId,
 } from "@packages/provider-contracts/auth";
-import { getBuiltInClient } from "@packages/domain/oauth";
 import assert from "node:assert";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { Base } from "../base.component";
@@ -246,7 +245,6 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				clientId: client_id,
 				redirectUri: redirect_uri,
 				redirectHost: new URL(redirect_uri).host,
-				selfRegistered: getBuiltInClient(client_id) === undefined,
 				codeChallenge: parsed.data.code_challenge,
 				state,
 				userEmail: userEmail ?? undefined,

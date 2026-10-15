@@ -15,6 +15,12 @@ import { initIngestRefreshRefusal } from "../../oauth-refresh/ingest-refusal";
 
 const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 
+function textOf(root: ParentNode, selector: string): string {
+	const element = root.querySelector(selector);
+	assert(element, `"${selector}" must render`);
+	return (element.textContent ?? "").trim();
+}
+
 function generatePKCE() {
 	const verifier = randomBytes(32).toString("base64url");
 	const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -162,20 +168,81 @@ describe("OAuth routes", () => {
 			});
 
 			expect(response.status).toBe(200);
-			expect(response.text).toContain("Authorize");
-			expect(response.text).toContain("Firefox Extension");
-			// A built-in first-party client shows no self-registered disclosure.
-			expect(response.text).toContain(
-				"wants full read and write access to your Readplace reading readlist",
+			const document = new JSDOM(response.text).window.document;
+			expect(document.title).toBe("Connect the Readplace Firefox Extension — Readplace");
+			expect(textOf(document, ".oauth-authorize__title")).toBe("Connect the Readplace Firefox Extension");
+			expect(textOf(document, ".oauth-authorize__text")).toBe(
+				"Allow the Readplace Firefox Extension to access your readlists so you can save, manage, and remove articles directly from your browser.",
 			);
-			expect(response.text).not.toContain("registered itself");
-			// The consent screen names the account it is bound to and offers a switch.
-			expect(response.text).toContain("Signed in as");
-			expect(response.text).toContain("test@example.com");
-			expect(response.text).toContain("Use a different account");
+			const notice = document.querySelector('[data-test-alert="consent-notice"]');
+			assert(notice, "the consent notice slot must render");
+			expect(notice.classList.contains("alert--hidden")).toBe(true);
+			const account = document.querySelector("[data-test-consent-account]");
+			assert(account, "the account section must render");
+			expect(account.classList.contains("oauth-authorize__account--visible")).toBe(true);
+			expect(textOf(account, "h2")).toBe("Account");
+			expect(textOf(account, "p")).toBe("You're signed in as test@example.com");
+			const form = document.querySelector('form[action^="/oauth/authorize"]');
+			assert(form, "the consent form must render");
+			expect(
+				Array.from(form.querySelectorAll('button[name="action"]'), (button) => [
+					button.getAttribute("value"),
+					button.textContent?.trim(),
+					button.className,
+				]),
+			).toEqual([
+				["deny", "Cancel", "btn btn--neutral"],
+				["approve", "Allow access", "btn btn--primary"],
+				["switch", "Use a different account", "oauth-authorize__switch"],
+			]);
 		});
 
-		it("gives Approve, Deny and Use a different account their own tracked formaction, each still reaching the authorize handler", async () => {
+		it.each([
+			{
+				clientId: "hutch-chrome-extension",
+				redirectUri: "http://127.0.0.1:3000/oauth/callback",
+				heading: "Connect the Readplace Chrome Extension",
+				body: "Allow the Readplace Chrome Extension to access your readlists so you can save, manage, and remove articles directly from your browser.",
+			},
+			{
+				clientId: "ios-app",
+				redirectUri: "readplace://oauth-callback",
+				heading: "Connect the Readplace iOS App",
+				body: "Allow the Readplace iOS App to access your readlists so you can save, manage, and remove articles from your phone.",
+			},
+			{
+				clientId: "android-app",
+				redirectUri: "readplace://oauth-callback/android",
+				heading: "Connect the Readplace Android App",
+				body: "Allow the Readplace Android App to access your readlists so you can save, manage, and remove articles from your phone.",
+			},
+		])("asks to connect $clientId in the words of its client group", async ({ clientId, redirectUri, heading, body }) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const response = await agent.get("/oauth/authorize").query({
+				client_id: clientId,
+				redirect_uri: redirectUri,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+			});
+
+			expect(response.status).toBe(200);
+			const document = new JSDOM(response.text).window.document;
+			expect(textOf(document, ".oauth-authorize__title")).toBe(heading);
+			expect(textOf(document, ".oauth-authorize__text")).toBe(body);
+		});
+
+		it("gives Cancel, Allow access and Use a different account their own tracked formaction, each still reaching the authorize handler", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			await harness.auth.createUser({
 				email: "test@example.com",
@@ -208,14 +275,14 @@ describe("OAuth routes", () => {
 				formaction: button.getAttribute("formaction") ?? "",
 			}));
 			expect(buttons).toEqual([
-				{ action: "approve", formaction: "/oauth/authorize?utm_source=oauth-authorize&utm_medium=internal&utm_content=approve" },
 				{ action: "deny", formaction: "/oauth/authorize?utm_source=oauth-authorize&utm_medium=internal&utm_content=deny" },
+				{ action: "approve", formaction: "/oauth/authorize?utm_source=oauth-authorize&utm_medium=internal&utm_content=approve" },
 				{ action: "switch", formaction: "/oauth/authorize?utm_source=oauth-authorize&utm_medium=internal&utm_content=switch-account" },
 			]);
 
 			const submit = (button: { action: string; formaction: string }) =>
 				agent.post(button.formaction).type("form").send({ ...hiddenFields, action: button.action });
-			const [approve, deny, switchAccount] = buttons;
+			const [deny, approve, switchAccount] = buttons;
 
 			const approved = await submit(approve);
 			expect(approved.status).toBe(302);
@@ -254,8 +321,11 @@ describe("OAuth routes", () => {
 			});
 
 			expect(response.status).toBe(200);
-			expect(response.text).not.toContain("Signed in as");
-			expect(response.text).toContain("Use a different account");
+			const document = new JSDOM(response.text).window.document;
+			const account = document.querySelector("[data-test-consent-account]");
+			assert(account, "the account section must render");
+			expect(account.classList.contains("oauth-authorize__account--hidden")).toBe(true);
+			expect(textOf(document, 'button[value="switch"]')).toBe("Use a different account");
 		});
 
 		it("shows a self-registered client's redirect destination host with a recognise-it notice", async () => {
@@ -281,8 +351,22 @@ describe("OAuth routes", () => {
 			});
 
 			expect(response.status).toBe(200);
-			expect(response.text).toContain("registered itself with Readplace");
-			expect(response.text).toContain("to <strong>claude.ai</strong>");
+			const document = new JSDOM(response.text).window.document;
+			expect(textOf(document, ".oauth-authorize__title")).toBe("Connect Definitely Readplace");
+			expect(textOf(document, ".oauth-authorize__text")).toBe(
+				"Allow Definitely Readplace full read and write access to your readlists, including saving and deleting articles.",
+			);
+			const notice = document.querySelector('[data-test-alert="consent-notice"]');
+			assert(notice, "the consent notice must render");
+			expect(notice.classList.contains("alert--visible")).toBe(true);
+			expect(notice.getAttribute("data-test-alert-variant")).toBe("warning");
+			expect(textOf(notice, "[data-test-alert-message]")).toBe(
+				"Definitely Readplace registered itself with Readplace and will send your authorization to claude.ai. Continue only if you recognise it.",
+			);
+			expect(Array.from(notice.querySelectorAll("strong"), (strong) => strong.textContent)).toEqual([
+				"Definitely Readplace",
+				"claude.ai",
+			]);
 		});
 
 		it("returns 400 for unknown client", async () => {

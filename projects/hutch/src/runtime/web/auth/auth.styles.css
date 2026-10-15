@@ -39,6 +39,15 @@
   }
 }
 
+.auth-page--oauth-authorize {
+  justify-content: flex-start;
+}
+
+.auth-card--oauth-authorize {
+  max-width: 534px;
+  padding: 24px;
+}
+
 .auth-card__title {
   font-family: var(--font-sans);
   font-size: var(--text-lg);

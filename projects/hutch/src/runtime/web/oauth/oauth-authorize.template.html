@@ -1,11 +1,14 @@
-    <main class="auth-page">
-      <div class="auth-card">
-        <h1 class="oauth-authorize__title">Authorize {{clientName}}</h1>
-        {{#if selfRegistered}}
-        <p class="oauth-authorize__notice"><strong>{{clientName}}</strong> registered itself with Readplace and will send your authorization to <strong>{{redirectHost}}</strong>. Continue only if you recognise it.</p>
-        {{/if}}
-        <p class="oauth-authorize__text"><strong>{{clientName}}</strong> wants full read and write access to your Readplace reading readlist, including saving and deleting links.</p>
-        {{#if userEmail}}<p class="oauth-authorize__account">Signed in as <strong>{{userEmail}}</strong></p>{{/if}}
+    <main class="auth-page auth-page--oauth-authorize">
+      <div class="auth-card auth-card--oauth-authorize">
+        <h1 class="oauth-authorize__title">{{heading}}</h1>
+        <div class="oauth-authorize__request">
+          <p class="oauth-authorize__text">{{body}}</p>
+          {{{noticeHtml}}}
+        </div>
+        <section class="oauth-authorize__account {{accountStateClass}}" aria-labelledby="oauth-authorize-account" data-test-consent-account>
+          <h2 class="oauth-authorize__heading" id="oauth-authorize-account">Account</h2>
+          <p class="oauth-authorize__signed-in">You're signed in as <strong class="oauth-authorize__email">{{userEmail}}</strong></p>
+        </section>
         <form method="POST" action="{{track '/oauth/authorize' source='oauth-authorize' content='approve'}}">
           <input type="hidden" name="client_id" value="{{clientId}}">
           <input type="hidden" name="redirect_uri" value="{{redirectUri}}">
@@ -15,8 +18,8 @@
           {{#if state}}<input type="hidden" name="state" value="{{state}}">{{/if}}
           {{#if screenHint}}<input type="hidden" name="screen_hint" value="{{screenHint}}">{{/if}}
           <div class="oauth-authorize__buttons">
-            <button type="submit" name="action" value="approve" formaction="{{track '/oauth/authorize' source='oauth-authorize' content='approve'}}" class="btn btn--primary oauth-authorize__button">Approve</button>
-            <button type="submit" name="action" value="deny" formaction="{{track '/oauth/authorize' source='oauth-authorize' content='deny'}}" class="btn btn--secondary oauth-authorize__button">Deny</button>
+            <button type="submit" name="action" value="deny" formaction="{{track '/oauth/authorize' source='oauth-authorize' content='deny'}}" class="btn btn--neutral">Cancel</button>
+            <button type="submit" name="action" value="approve" formaction="{{track '/oauth/authorize' source='oauth-authorize' content='approve'}}" class="btn btn--primary">Allow access</button>
           </div>
           <button type="submit" name="action" value="switch" formaction="{{track '/oauth/authorize' source='oauth-authorize' content='switch-account'}}" class="oauth-authorize__switch">Use a different account</button>
         </form>
