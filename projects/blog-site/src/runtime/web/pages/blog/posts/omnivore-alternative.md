@@ -1,6 +1,7 @@
 ---
 title: "Omnivore Alternative: A Read-It-Later App With No Investors"
 description: "Why Omnivore shut down 2 weeks after its team joined ElevenLabs, and a table of what Readplace matches and still lacks, like highlights and full-text search."
+excerpt: "Omnivore users had 17 days between the ElevenLabs announcement and the start of data deletion."
 tldr: "Omnivore shut down 2 weeks after its team joined ElevenLabs. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law."
 slug: "omnivore-alternative"
 date: "2026-05-06"

@@ -1,6 +1,7 @@
 ---
 title: "Readplace Now Reads Plain Text Pages"
 description: "A .txt link, like a Project Gutenberg book or an old internet spec, used to show a 'not a webpage' error even after Readplace had read and summarised it. Now plain text opens in the same reader as web articles and PDFs."
+excerpt: "A Project Gutenberg book got its summary, then a screen saying the link was not a webpage."
 tldr: "Readplace now reads plain text pages. A `.txt` link used to show a \"not a webpage\" message, even though Readplace had already fetched and summarised it. Now plain text opens in the same reader as web articles and PDFs, with a title, readable paragraphs, and a short summary on top. That covers Project Gutenberg books, old internet specs, mailing-list archives, and any page served as raw text."
 slug: "read-plain-text-pages"
 date: "2026-06-03"

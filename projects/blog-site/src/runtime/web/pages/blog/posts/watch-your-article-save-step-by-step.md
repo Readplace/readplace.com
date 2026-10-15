@@ -1,6 +1,7 @@
 ---
 title: "Watch Your Article Save, Step by Step"
 description: "Readplace's browser extension used to play a fake loading animation. Now the progress bar tracks the real save: it reads the page in your tab, then uploads it to Readplace, then fills to done. You see each step and know the save worked."
+excerpt: "The old save bar filled to 90 percent on a timer, whether or not the save had moved at all."
 tldr: "The Readplace browser extension used to play a loading animation that ran on a fixed timer, which looked busy but tracked nothing about the real save. The bar now follows the actual work. It reads \"Reading page…\" for the step that pulls the page from your tab, then \"Saving…\" for the upload to Readplace, then snaps to done. Each step holds on screen long enough to read, in both Chrome and Firefox."
 slug: "watch-your-article-save-step-by-step"
 date: "2026-06-08"

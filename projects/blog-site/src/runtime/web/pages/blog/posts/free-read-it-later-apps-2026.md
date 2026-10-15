@@ -1,6 +1,7 @@
 ---
 title: "Free Read-It-Later Apps in 2026: 5 Options and Their Costs"
 description: "Instapaper and Raindrop free tiers, self-hosted Karakeep and Wallabag, and bookmarks, with the catch in each: shutdown risk, a server bill or no reader view."
+excerpt: "Instapaper and Raindrop run free tiers, and Pocket and Omnivore were free until both shut down."
 tldr: "Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, is paid, and the subscription is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there."
 slug: "free-read-it-later-apps-2026"
 date: "2026-05-06"

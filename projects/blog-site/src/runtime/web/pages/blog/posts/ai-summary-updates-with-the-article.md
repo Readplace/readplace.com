@@ -1,6 +1,7 @@
 ---
 title: "Your AI Summary Updates When the Article Does"
 description: "Readplace keeps one TL;DR per link. When it later reads a cleaner copy of a page, it rebuilds the summary instead of serving the stale one, so your saved articles stay accurate without a manual refresh."
+excerpt: "A two-line summary sat over a full article, still describing a thin copy that was gone."
 tldr: "Readplace keeps one TL;DR per link, shared across anyone who saves it. The first save sometimes grabs a thin copy of a page, like a paywall screen or a half-loaded article, and the summary matches that thin copy. Readplace re-reads pages it saved and often lands a cleaner, fuller version. It now rebuilds the summary against that better copy on its own. The refreshed TL;DR replaces the stale one for the next reader who opens that link. You get an accurate summary without asking for a refresh."
 slug: "ai-summary-updates-with-the-article"
 date: "2026-05-31"

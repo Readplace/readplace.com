@@ -59,6 +59,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../../src/packages/hutch-storage-client
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../../src/packages/provider-contracts
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env

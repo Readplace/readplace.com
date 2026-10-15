@@ -1,6 +1,7 @@
 ---
 title: "You Don't Need an Analytics Vendor to Count Pageviews"
 description: "The HTTP request already contains the fields that matter. The rest is a hash function and a log line, not a third-party tracker and a consent banner."
+excerpt: "A Hacker News spike got counted with a salted hash and a log line, and no tracker."
 tldr: "Readplace counts pageviews without an analytics vendor, tracking scripts, or a consent banner. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. The same IP yields the same hash, so distinct visitors are countable, and because the hash is one-way it cannot be reversed into an IP. The logs flow to CloudWatch and the dashboard ships as infrastructure-as-code. About 80 lines of TypeScript stand in for an analytics vendor."
 slug: "analytics-without-a-vendor"
 date: "2026-05-06"

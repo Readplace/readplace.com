@@ -1,6 +1,7 @@
 ---
 title: "Read Any Article in a Clean Reader, No Account Needed"
 description: "Paste any link into the box on the readplace.com homepage and the article opens in a clean reader with a short summary, no signup. Share the link, and anyone reads it the same way. One button saves it to your own readlist."
+excerpt: "Paste a link on the homepage and the article opens clean, with a summary and no signup."
 tldr: "You can read any article in Readplace without an account. Paste a link into the box at the top of the readplace.com homepage and the page opens in a clean reader, clutter stripped out, with a short summary on top. Share that link and the next person reads it the same way, no signup. One button saves the article to your own readlist. Readplace can also hand back the same article as plain markdown, which helps notes apps and AI assistants read it cleanly."
 slug: "read-any-article-clean-reader"
 date: "2026-06-05"

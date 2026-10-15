@@ -20,11 +20,17 @@ export interface TldrDisclosure {
 	toggleUrl?: string;
 }
 
-function buildPreview(input: TldrDisclosure): string {
+function rawPreview(input: TldrDisclosure): string {
 	if (input.excerpt) return input.excerpt;
 	assert("text" in input.body, "an html TL;DR body needs an excerpt");
 	const flattened = input.body.text.replace(/\s+/g, " ").trim();
 	return truncateAtWordBoundary(flattened, MAX_EXCERPT_LENGTH);
+}
+
+function buildPreview(input: TldrDisclosure): string {
+	// Strips a trailing ellipsis so it never doubles up with the "view more …" the
+	// template appends after the preview.
+	return rawPreview(input).replace(/…\s*$/u, "").trimEnd();
 }
 
 export function renderTldrDisclosure(input: TldrDisclosure): string {

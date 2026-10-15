@@ -1,6 +1,7 @@
 ---
 title: "Find a Saved Article the Way You Remember It"
 description: "Memory keeps a saved article as fragments: part of a title, the site it came from, roughly how long it runs, roughly when it was saved. The readlist now takes those fragments as the question. A search field under the tabs matches titles, sites and addresses, a filter drawer narrows by reading time and saved date, and the narrowed list keeps its own URL and works without JavaScript."
+excerpt: "A search field and a filter drawer now narrow the readlist from half a memory of an article."
 tldr: "Scrolling is no longer the way to find a saved article. The readlist in Readplace now has a search field under its tabs and a filter drawer beside it: type any part of a title, a site's name or its address and press Enter, or tick chips for reading time and saved date, and the open tab narrows to what matches. The narrowed list keeps its own URL, survives paging and tab switches, works without JavaScript, and when nothing matches, 1 button clears exactly what was set."
 slug: "find-a-saved-article-the-way-you-remember-it"
 date: "2026-10-11"

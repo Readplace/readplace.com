@@ -86,6 +86,15 @@ export const TLDR_DISCLOSURE_STYLES = `
 		display: none;
 	}
 
+	.tldr-disclosure__more {
+		color: var(--primary-text);
+		font-weight: 600;
+		text-decoration: underline;
+		text-decoration-thickness: 1px;
+		text-underline-offset: 3px;
+		white-space: nowrap;
+	}
+
 	.tldr-disclosure__text {
 		font-family: var(--font-sans);
 		font-size: 1rem;
@@ -110,10 +119,18 @@ export const TLDR_DISCLOSURE_STYLES = `
 	}
 
 	.tldr-disclosure__body a {
-		color: inherit;
+		color: var(--primary-text);
 		text-decoration: underline;
 		text-decoration-thickness: 1px;
 		text-underline-offset: 3px;
+	}
+
+	.tldr-disclosure__body code {
+		font-family: var(--font-mono);
+		font-size: 0.875em;
+		padding: 0.15em 0.3em;
+		background: var(--card);
+		border-radius: var(--radius-sm);
 	}
 
 	@media (prefers-reduced-motion: reduce) {

@@ -1,6 +1,7 @@
 ---
 title: "Your Saved Articles Keep Their Pictures"
 description: "Most read-it-later apps store the text and link the photos back to the source site, so they break when the site changes. Readplace saves a copy of every image on its own CDN. A recent fix makes sure each photo in a multi-image article gets saved, at every screen size."
+excerpt: "Each photo shipped at 8 widths used to spend 8 of the 20 image slots a saved article gets."
 tldr: "Readplace saves a copy of an article's images on its own CDN, so your saved copy keeps its pictures after the source site changes. A recent fix makes sure each photo in a multi-image article gets saved, at every screen size, not just the first few. A second fix keeps the fresh images when an article gets re-checked and its pictures changed."
 slug: "saved-articles-keep-their-images"
 date: "2026-06-01"

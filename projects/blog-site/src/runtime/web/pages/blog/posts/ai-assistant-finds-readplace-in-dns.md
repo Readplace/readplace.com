@@ -1,6 +1,7 @@
 ---
 title: "Your AI Assistant Finds Readplace in DNS, Before It Loads a Page"
 description: "Readplace publishes agent-discovery records in DNS, so an AI assistant can find your readlist's tools the same way a browser finds the site. Readplace signs the zone with DNSSEC, so the agent trusts the answer it gets back."
+excerpt: "DNS can tell an AI assistant where Readplace keeps its tools before any page loads."
 tldr: "Readplace now answers a question in DNS that AI agents used to guess at: where do my reading tools live? Two records under `_agents.readplace.com` point an assistant to the front door and to the save tool. The agent reads DNS, follows the record, and lands on the right page with no setup from you. Readplace signs the zone with DNSSEC, so the agent gets an answer it can verify rather than a forged one. You ask your assistant to save an article, and it finds Readplace the rest of the way."
 slug: "ai-assistant-finds-readplace-in-dns"
 date: "2026-06-19"

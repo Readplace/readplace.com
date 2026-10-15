@@ -1,6 +1,7 @@
 ---
 title: "Saved Articles That Hold Up on an E-ink Screen"
 description: "11 pairs of ink and background across the Readplace reader and readlist sat under their WCAG contrast floor, with article links rendering fainter than the prose around them. All 11 now clear it, thumbnails and the logout menu work with scripting off, and 3 test suites measure both pages the way an e-ink panel sees them."
+excerpt: "Article links were rendering fainter than the prose around them, at 3.62:1 against a 4.5:1 floor."
 tldr: "An e-reader's built-in browser keeps 16 shades of grey, fires no hover, and often runs no script. Measured under those conditions, Readplace came up short in 11 places: article links fainter than the prose around them, a Mark as read button at 2.95:1 in dark mode, thumbnails a scriptless browser would show as a blank strip, and a menu that kept the logout link out of reach without JavaScript. All 11 are fixed, the worst of them by darkening the one amber button the whole product leans on, and 3 test suites now measure contrast, greyscale ink, and script-free reading on each build."
 slug: "saved-articles-hold-up-on-e-ink"
 date: "2026-08-22"

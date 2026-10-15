@@ -1,6 +1,7 @@
 ---
 title: "Why Readplace Blocks Disposable Email at Signup"
 description: "Readplace turns away disposable inboxes at signup. A read-it-later list only pays off in the gap between saving and reading, and a throwaway address is gone before the gap opens, so the form asks for an inbox you keep."
+excerpt: "More than 7,000 email domains are refused at signup, each from a service whose inboxes last minutes."
 tldr: "A throwaway inbox works for 10 minutes and then forgets you, which is the opposite of a reading list you mean to come back to. So Readplace turns those addresses away at signup. The form reads the domain after the @, checks it against a list of more than 7,000 disposable services, and walks up the name so a fresh subdomain does not slip past. The list comes from an open, community-maintained project, synced by a script and topped up by hand. Sign up with the inbox you actually open, and the account is one that can still reach you next month."
 slug: "disposable-email-blocked-at-signup"
 date: "2026-06-20"

@@ -1,6 +1,7 @@
 ---
 title: "A Deleted Page Now Gets a Straight Answer"
 description: "Save a link whose page the site later deleted and Readplace used to blame a bot wall, then pitch the browser extension as the fix. A deleted page now gets a straight answer: the notice says the page is gone, your link stays saved, and the capture offer appears only on failures a capture can still rescue."
+excerpt: "22 failed crawls last week ended at a 404, and each one got advice written for a bot wall."
 tldr: "Save a link to a page its site has since deleted, and the explanation under it used to blame a bot wall and pitch the browser extension as the cure. Readplace now tells that page's story straight: when a site answers 404 or 410, the notice says the page no longer exists at that address, your link and its place in the readlist stay saved, and the capture offer is left out, because a browser capture cannot reach a page that isn't there. The bot-wall explanation and the capture path stay on the failures they're true for, where opening the page in your own browser still rescues the save. 22 of last week's failed crawls ended at a 404, so the wrong advice was showing more often than a corner case would."
 slug: "a-deleted-page-gets-a-straight-answer"
 date: "2026-08-18"

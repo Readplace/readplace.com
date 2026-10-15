@@ -1,6 +1,7 @@
 ---
 title: "Still Signed In After a Month Away"
 description: "A fortnight away from the iPhone app, the browser extensions or a connected assistant used to end with Readplace signing you out, because nothing had ever set a sign-in's lifetime and a library default answered instead: 14 days. The code's own comments promised 180. Production measured 13.96. One configuration line now makes the comments true, and any visit resets the clock."
+excerpt: "Code comments promised a 180-day sign-in, while 40 of 40 sampled tokens expired after 14 days."
 tldr: "Nothing had ever told Readplace's sign-in system how long a sign-in should last, so a library default decided: 14 days. Anyone who left the iPhone app, a browser extension or a connected assistant alone for a fortnight came back signed out, with no message saying why. A sign-in now survives 180 days of absence, any visit resets the clock, and signing out on purpose still takes effect right away."
 slug: "still-signed-in-after-a-month-away"
 date: "2026-09-20"

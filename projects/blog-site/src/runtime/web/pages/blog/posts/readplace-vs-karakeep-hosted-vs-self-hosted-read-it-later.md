@@ -1,6 +1,7 @@
 ---
 title: "Karakeep vs Readeck, wallabag and Hosted Readplace"
 description: "Karakeep (formerly Hoarder), Readeck and wallabag compared as self-hosted read-it-later apps on install, AI and search, then Karakeep vs hosted Readplace."
+excerpt: "Self-hosting Karakeep, Readeck or wallabag leaves updates, backups and any 2am outage to the reader."
 tldr: "Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readeck and wallabag are 2 more open-source, self-hosted options, compared with Karakeep in their own table. Readplace is a paid hosted service with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"

@@ -1,6 +1,7 @@
 ---
 title: "Best Read-It-Later Apps in 2026: 7 Compared, Pros and Cons"
 description: "7 read-it-later apps compared on AI, offline reading, platforms and price: Readwise Reader, Instapaper, Raindrop.io, Karakeep, Wallabag, Matter, Readplace."
+excerpt: "After Pocket and Omnivore shut down, 7 alternatives get compared on price, AI and offline reading."
 tldr: "Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For most readers I would start with Readplace: AI TL;DR summaries included on every plan ([current plans](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing)), funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading."
 slug: "best-read-it-later-apps-2026"
 date: "2026-05-06"

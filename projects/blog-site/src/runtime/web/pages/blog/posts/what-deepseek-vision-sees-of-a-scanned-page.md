@@ -1,6 +1,7 @@
 ---
 title: "What DeepSeek's Vision Model Actually Sees of a Scanned Page"
 description: "DeepSeek shipped a vision model, so I checked whether it could read scanned PDFs better than the Tesseract pipeline Readplace runs today. The answer sat in their own documentation, published as running JavaScript rather than prose, and it also killed the one argument I had been making in favour of the upgrade."
+excerpt: "A JavaScript constructor in DeepSeek's docs shows its vision model sees a Letter page at 76 dpi."
 tldr: "DeepSeek shipped a vision model, and the obvious question was whether it could read scanned PDFs better than the Tesseract pipeline that handles them today. It cannot, for a reason the vendor publishes as running code rather than prose: every image is resized before inference, which puts a US Letter page at 76 dots per inch. Measuring that also killed the one argument I had been making for the upgrade, and pointed at layout data Tesseract had been computing all along and throwing away."
 slug: "what-deepseek-vision-sees-of-a-scanned-page"
 date: "2026-08-22"

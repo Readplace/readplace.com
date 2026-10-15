@@ -1,6 +1,7 @@
 ---
 title: "A Saved Article Can Hold More Than One Version"
 description: "Readplace re-fetches a page you kept, and when the text comes back changed it stores that version too, dated. The reader bookmark now lists those dates newest first, with the copy you're reading marked best, and every version is held in storage that keeps them."
+excerpt: "When a saved page comes back with different words, the old version stays and the new one is dated."
 tldr: "Pages you save keep changing on the live web. Readplace stores your copy the moment it fetches the page, and it now stores more than one. Each time it re-fetches a saved page and the article text comes back different, it snapshots that version and stamps it with the minute it changed, then keeps every one. The reader bookmark, the small tab down the right edge that used to show a single \"last crawled at\" date, now lists those versions newest first. The copy you're reading sits on top with a \"best\" badge, and the dates under it mark the earlier versions the page moved through. Readplace cuts a version only when the words actually change, so a re-fetch that brings back the same text adds nothing to the list. The bookmark shows the older dates, and Readplace holds their snapshots, one per minute, in storage with no cap. Reading a past version back from the tab isn't wired up yet, so the reader still opens on the current copy. For now the list is a record of what the page has done since you saved it."
 slug: "saved-article-version-history"
 date: "2026-07-13"

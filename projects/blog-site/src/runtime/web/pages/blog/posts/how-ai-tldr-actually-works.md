@@ -1,6 +1,7 @@
 ---
 title: "How AI TL;DR Actually Works in Readplace (And Why It's Not Slop)"
 description: "Readplace uses AI to generate short article summaries for triage, not replacement. Here's how it works technically, and why it avoids the usual AI content problems."
+excerpt: "One summary per URL, cached globally, so 10 people saving a link cost a single model call."
 tldr: "Readplace generates a short TL;DR for each saved article using DeepSeek V3. Summaries are cached globally by URL, so one API call serves anyone who saves the same link. The prompt bans corporate jargon and forces plain language. The summary is a triage tool to help you decide when to read, not a replacement for reading. Readplace skips smart highlights, AI commentary, and daily briefings."
 slug: "how-ai-tldr-actually-works"
 date: "2026-05-06"

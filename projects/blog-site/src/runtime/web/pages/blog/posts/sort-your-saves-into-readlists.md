@@ -1,6 +1,7 @@
 ---
 title: "Introducing readlists"
 description: "Work reading and weekend reading used to share one pile of saved links. The saved-links page now opens on a rail of tabs: All still catches every save, and beside it sit readlists you name yourself. A list can start from inside the article that made you want one, and an article filed in several lists is marked read in all of them at once."
+excerpt: "A 40-minute technical paper and a 5-minute weekend essay used to land in the same pile of saves."
 tldr: "Saved links stop being one long pile. The saved-links page in Readplace now opens on a rail of tabs: All, which still catches every save, and readlists of your own beside it. Filing happens inside the reader, where the menu also takes a name, so a first list can start from the article that made you want one. An article can sit in more than one list, and marking it read once marks it read in every list that holds it."
 slug: "sort-your-saves-into-readlists"
 date: "2026-09-06"

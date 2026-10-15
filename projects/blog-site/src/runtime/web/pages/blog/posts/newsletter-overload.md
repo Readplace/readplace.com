@@ -1,6 +1,7 @@
 ---
 title: "You're Subscribed to 30 Newsletters. You Read 3. Here's a Better System."
 description: "Most developers subscribe to far more newsletters than they read. The problem isn't the newsletters. It's the lack of a system to extract the few links worth reading from each one."
+excerpt: "Each issue carries 10 to 15 links, and in a typical week only 2 or 3 of them touch the work at hand."
 tldr: "You subscribe to dozens of newsletters and read almost none. The fix is plumbing, not discipline. Route the links into a read-it-later app, triage them with summaries, and archive the email. Each issue then costs about 30 seconds of triage instead of a low background guilt. Readplace automates this with a forwarding address per newsletter, so the article links in each issue land in your reading list with AI summaries."
 slug: "newsletter-overload"
 date: "2026-04-06"

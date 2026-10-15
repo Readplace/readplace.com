@@ -37,7 +37,8 @@ The schema is a zod object in the post loader — the module that scans the post
 |---|---|---|
 | `title` | yes | Rendered as the post `<h1>`. Posts carry no H1 of their own — see [Post Body Format](#post-body-format). |
 | `description` | yes | The field is `description`. There is no `summary` field. |
-| `tldr` | yes | One markdown paragraph (inline code and links are fine). Rendered by the shared disclosure before the body; `description` doubles as its collapsed preview line. |
+| `tldr` | yes | One markdown paragraph (inline code and links are fine). Rendered by the shared disclosure before the body; `excerpt` is its collapsed preview line. |
+| `excerpt` | yes | One line, at most 100 characters (the reader's excerpt budget, enforced at load). The collapsed TL;DR preview, followed on the page by "view more …". A hook sentence written for the post, not a cut-down `description`. |
 | `slug` | yes | Must equal the filename — see [Slug-Filename Invariant](#slug-filename-invariant). |
 | `date` | yes | `YYYY-MM-DD`, regex-enforced. Drives ordering. |
 | `author` | yes | |
@@ -61,9 +62,9 @@ The `slug` value in frontmatter **must** match the filename (minus `.md`). For e
 
 **No H1.** The template renders `title` as the `<h1>`. The body's own headings start at `##`. There is no subtitle element either — `description` plays that role, on the index card and in the page metadata.
 
-**Every post opens with a TL;DR disclosure, and the body carries none of it.** The paragraph lives in the `tldr:` frontmatter field; the body holds no TL;DR HTML. The page draws the disclosure before the body from that field, collapsed, with `description` as the one preview line a reader sees before opening it. The `text/markdown` representation carries the same paragraph as a `> [!summary]` callout ahead of the body.
+**Every post opens with a TL;DR disclosure, and the body carries none of it.** The paragraph lives in the `tldr:` frontmatter field; the body holds no TL;DR HTML. The page draws the disclosure before the body from that field, collapsed, with `excerpt` as the one preview line a reader sees before opening it. The `text/markdown` representation carries the same paragraph as a `> [!summary]` callout ahead of the body.
 
-Write `tldr:` as one double-quoted YAML string on one line, so a colon or a `#` in the paragraph cannot end the value early. Escape a literal `"` as `\"` and a literal backslash as `\\`.
+Write `tldr:` and `excerpt:` each as one double-quoted YAML string on one line, so a colon or a `#` in the paragraph cannot end the value early. Escape a literal `"` as `\"` and a literal backslash as `\\`.
 
 The disclosure is one component shared with the reader's article summary, so a design change lands on both. To open it, grep the non-test sources of the shared presentational shell package (`pnpm nx show projects` lists it; its description says so) for the `data-summary-toggle-url` attribute — the `<details>` template that writes it is the component.
 

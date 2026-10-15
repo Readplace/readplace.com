@@ -1,6 +1,7 @@
 ---
 title: "The iPhone Reader That Kept Loading a Login Screen"
 description: "The Readplace iPhone app now opens a saved article inside the app, the clean reader and the AI summary, instead of sending you to the source site. Swipe marks an article read and keeps it. Getting the in-app reader to open as you took a server endpoint that trades the app's sign-in token for the session cookie the web reader trusts."
+excerpt: "Tapping a saved article in the iPhone app loaded a login screen for an account already signed in."
 tldr: "Tapping a saved article in the iPhone app used to send you out to the original website, login walls and pop-ups and all. Now it opens the clean Readplace reader and the AI summary inside the app, off your saved copy. Swiping a row marks the article read and keeps it, instead of deleting it. Getting the reader to open as you took a small server endpoint that trades the app's sign-in token for the session cookie the web reader trusts, plus a short script so the reader's own Mark as read reaches the app around it. The iPhone app is on the App Store, at [readplace.com/install](https://readplace.com/install?client=iphone)."
 slug: "read-saved-articles-in-the-iphone-app"
 date: "2026-06-24"

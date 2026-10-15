@@ -1,6 +1,7 @@
 ---
 title: "Save Articles to Readplace Straight From Your AI Assistant"
 description: "Readplace runs an MCP server. Connect Claude, ChatGPT, Perplexity, or any MCP client, then ask it to save a page to your readlist or list what you have saved. You log in once with OAuth, and your assistant does the rest."
+excerpt: "Ask Claude, ChatGPT or Perplexity to keep an article, and it lands in the Readplace readlist."
 tldr: "Readplace runs an MCP server at `readplace.com/mcp`. Connect Claude, ChatGPT, Perplexity, or another MCP client and your assistant can save pages and read your list back. `save_link` adds a page to your readlist. `list_readlist_articles` reads back what you have saved. You approve a one-time OAuth login, so the assistant acts on your account without holding your password. The step-by-step for each client lives at [readplace.com/mcp](https://readplace.com/mcp)."
 slug: "save-articles-with-your-ai-assistant"
 date: "2026-06-16"

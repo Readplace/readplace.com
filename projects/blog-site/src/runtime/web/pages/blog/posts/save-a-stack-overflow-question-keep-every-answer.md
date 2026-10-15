@@ -1,6 +1,7 @@
 ---
 title: "Save a Stack Overflow Question, Keep Every Answer"
 description: "A Stack Overflow thread saved to Readplace now comes back whole: the question, its code, and the answers under it. The stored copy of the site's most upvoted question grew from 1,196 words and a lone answer to 10,302 words and all 25, and the save stopped depending on winning a race against a bot wall."
+excerpt: "One saved Stack Overflow thread grew from 1,196 words and 1 answer to 10,302 words and all 25."
 tldr: "The reason to save a Stack Overflow thread is rarely 1 answer. 1 answer was all Readplace kept: its stored copy of the site's most upvoted question held 1,196 words, with no question and no code. The crawl now reads the question's own Atom feed, which Stack Overflow serves without the bot wall that guards the page, so the same save stores the question and all 25 answers, 10,302 words, in about 10 seconds. When the feed doesn't answer, the old path still runs underneath."
 slug: "save-a-stack-overflow-question-keep-every-answer"
 date: "2026-09-01"

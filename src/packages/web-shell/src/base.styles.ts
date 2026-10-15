@@ -249,6 +249,7 @@ ${generateCssVariables(DARK_THEME_VARIABLES)}
 export const BASE_CSS_VARIABLES = `${SYSTEM_THEME_VARIABLES}
 	:root {
 		--frame-max-width: 1200px;
+		--reading-main-max: 812px;
 		--page-gutter: 20px;
 		--page-top: 20px;
 		--stack-gap: 24px;

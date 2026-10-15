@@ -1,6 +1,7 @@
 ---
 title: "Dark Mode That Travels With Your Account"
 description: "Dark mode in a reading app usually obeys the operating system, or a toggle buried in one browser's storage. Readplace now takes the reader's own answer: System, Light, or Dark, picked once on the account, rendered into the page before it leaves the server, and read by the iPhone app from the same setting. There is no flash of the wrong theme on the way in."
+excerpt: "The phone flips at sunset and the laptop stays dark, so the theme now lives on the account."
 tldr: "Dark, Light, or System is now a choice on the account instead of a property of each screen. Picked once under Account, it reaches the web pages, the reader inside the app, and the native chrome of the iPhone app, because Readplace resolves it on the server while the page renders. A dark page doesn't open light first. System stays the default and follows the OS exactly as before."
 slug: "dark-mode-that-travels-with-your-account"
 date: "2026-09-04"

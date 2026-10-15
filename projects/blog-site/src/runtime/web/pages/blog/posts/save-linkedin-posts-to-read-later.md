@@ -1,6 +1,7 @@
 ---
 title: "Save a LinkedIn Post and Keep Its Paragraphs"
 description: "Readplace now saves LinkedIn posts with their paragraph breaks intact. The page hides its paragraphs inside an inline tag split by double line breaks, and most readers flatten that into one block. Readplace rebuilds the paragraphs, so a saved post reads the way it was written. The same fix helps Substack notes and plain blog posts."
+excerpt: "LinkedIn hides its paragraph breaks in a way most reader tools flatten into one solid block."
 tldr: "Readplace now saves LinkedIn posts with their paragraph breaks intact. A LinkedIn post separates thoughts with blank lines, but the page builds those breaks in a way most readers flatten into one block of text. Readplace reads that layout and rebuilds the paragraphs, so a saved post reads the way the author spaced it. The same fix helps Substack notes and plain blog posts built the same way. You save the link as usual, and the reader does the rest."
 slug: "save-linkedin-posts-to-read-later"
 date: "2026-06-14"
