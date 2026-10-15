@@ -12,7 +12,7 @@
       <form class="readlist-inboxes__form" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
         <input type="hidden" name="address" value="{{address}}">
         <input type="hidden" name="destination" value="{{destination}}">
-        <button class="btn btn--toggle btn--compact" type="submit" aria-describedby="{{nameId}}" data-test-action="{{testAction}}">{{submitLabel}}</button>
+        <button class="btn btn--secondary btn--m" type="submit" aria-describedby="{{nameId}}" data-test-action="{{testAction}}">{{submitLabel}}</button>
       </form>
     </li>
     {{/each}}
