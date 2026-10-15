@@ -25,7 +25,7 @@ function dialogAction(slug: string): string {
 	return `/queue/queues/${slug}/rename?utm_source=queue-nav&utm_medium=internal&utm_content=rename-readlist`;
 }
 
-async function renameFromDialog(agent: TestAgent, slug: string, label: string) {
+async function renameFromDialog(agent: TestAgent, { slug, label }: { slug: string; label: string }) {
 	return agent.post(dialogAction(slug)).set("HX-Request", "true").type("form").send({ label });
 }
 
@@ -66,7 +66,7 @@ function refusedForm(response: { text: string }) {
 
 const BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
-async function renameFromBrowser(agent: TestAgent, slug: string, label: string) {
+async function renameFromBrowser(agent: TestAgent, { slug, label }: { slug: string; label: string }) {
 	return agent
 		.post(`/queue/queues/${slug}/rename`)
 		.set("Accept", BROWSER_ACCEPT)
@@ -86,7 +86,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlist(agent, "New Readlist");
 
-		const response = await renameFromDialog(agent, readlist, "Work Reading");
+		const response = await renameFromDialog(agent, { slug: readlist, label: "Work Reading" });
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/plain; charset=utf-8");
@@ -103,7 +103,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlist(agent, "New Readlist");
 
-		const response = await renameFromDialog(agent, readlist, "   Deep Work   ");
+		const response = await renameFromDialog(agent, { slug: readlist, label: "   Deep Work   " });
 
 		expect(response.text).toBe("Readlist renamed to Deep Work.");
 		expect(readlistTab(parse((await agent.get("/queue")).text), readlist).textContent).toBe(
@@ -115,9 +115,9 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlist(agent, "New Readlist");
-		await renameFromDialog(agent, readlist, "Work Reading");
+		await renameFromDialog(agent, { slug: readlist, label: "Work Reading" });
 
-		const response = await renameFromDialog(agent, readlist, "Work Reading");
+		const response = await renameFromDialog(agent, { slug: readlist, label: "Work Reading" });
 
 		expect(response.status).toBe(200);
 		expect(response.text).toBe("Readlist renamed to Work Reading.");
@@ -127,10 +127,10 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const first = await createReadlist(agent, "New Readlist");
-		await renameFromDialog(agent, first, "Work Reading");
+		await renameFromDialog(agent, { slug: first, label: "Work Reading" });
 		const second = await createReadlist(agent, "New Readlist 2");
 
-		const response = await renameFromDialog(agent, second, "Work Reading");
+		const response = await renameFromDialog(agent, { slug: second, label: "Work Reading" });
 
 		expect(response.status).toBe(200);
 		expect(hxLocation(response)).toEqual(landingFromDialog({ path: `/queue?queue=${second}`, slug: second }));
@@ -146,10 +146,10 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const first = await createReadlist(agent, "New Readlist");
-		await renameFromDialog(agent, first, "Work Reading");
+		await renameFromDialog(agent, { slug: first, label: "Work Reading" });
 		const second = await createReadlist(agent, "New Readlist 2");
 
-		const response = await renameFromDialog(agent, second, "Work Reading");
+		const response = await renameFromDialog(agent, { slug: second, label: "Work Reading" });
 
 		expect(response.text).toBe("Readlist renamed to Work Reading 2.");
 		const doc = parse((await agent.get("/queue")).text);
@@ -160,10 +160,10 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const first = await createReadlist(agent, "New Readlist");
-		await renameFromDialog(agent, first, "Work");
+		await renameFromDialog(agent, { slug: first, label: "Work" });
 		const second = await createReadlist(agent, "New Readlist 2");
 
-		const response = await renameFromDialog(agent, second, "work");
+		const response = await renameFromDialog(agent, { slug: second, label: "work" });
 
 		expect(response.status).toBe(200);
 		expect(response.text).toBe("Readlist renamed to work 2.");
@@ -174,10 +174,10 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const longest = "a".repeat(READLIST_LABEL_MAX_LENGTH);
 		const first = await createReadlist(agent, "New Readlist");
-		await renameFromDialog(agent, first, longest);
+		await renameFromDialog(agent, { slug: first, label: longest });
 		const second = await createReadlist(agent, "New Readlist 2");
 
-		const response = await renameFromDialog(agent, second, longest);
+		const response = await renameFromDialog(agent, { slug: second, label: longest });
 
 		expect(response.status).toBe(422);
 		expect(response.headers["content-type"]).toBe("text/html; charset=utf-8");
@@ -196,7 +196,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlist(agent, "New Readlist");
 
-		const response = await renameFromDialog(agent, readlist, "All");
+		const response = await renameFromDialog(agent, { slug: readlist, label: "All" });
 
 		expect(response.status).toBe(200);
 		expect(
@@ -215,7 +215,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const readlist = await createReadlist(agent, "New Readlist");
 		const tooLong = "a".repeat(READLIST_LABEL_MAX_LENGTH + 1);
 
-		const response = await renameFromDialog(agent, readlist, tooLong);
+		const response = await renameFromDialog(agent, { slug: readlist, label: tooLong });
 
 		expect(response.status).toBe(422);
 		expect(refusedForm(response)).toEqual({
@@ -233,7 +233,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlist(agent, "New Readlist");
 
-		const response = await renameFromDialog(agent, readlist, "   ");
+		const response = await renameFromDialog(agent, { slug: readlist, label: "   " });
 
 		expect(response.status).toBe(422);
 		expect(refusedForm(response)).toEqual({
@@ -251,7 +251,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlist(agent, "New Readlist");
 
-		const response = await renameFromDialog(agent, readlist, "🎉🎉");
+		const response = await renameFromDialog(agent, { slug: readlist, label: "🎉🎉" });
 
 		expect(response.status).toBe(200);
 		expect(readlistTab(parse((await agent.get("/queue")).text), readlist).textContent).toBe(
@@ -263,7 +263,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await renameFromDialog(agent, "ffffffffffffffff", "Mine");
+		const response = await renameFromDialog(agent, { slug: "ffffffffffffffff", label: "Mine" });
 
 		expect(response.status).toBe(204);
 		expect(response.text).toBe("");
@@ -276,7 +276,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await renameFromDialog(agent, "default", "Everything");
+		const response = await renameFromDialog(agent, { slug: "default", label: "Everything" });
 
 		expect(response.status).toBe(204);
 		expect(hxLocation(response)).toEqual(
@@ -294,7 +294,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await renameFromDialog(agent, "Not A Slug", "Mine");
+		const response = await renameFromDialog(agent, { slug: "Not A Slug", label: "Mine" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?queue_error=rename_unknown-readlist");
@@ -312,7 +312,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const readlist = await createReadlist(agent, "New Readlist");
 
-		const response = await renameFromDialog(agent, readlist, "Work Reading");
+		const response = await renameFromDialog(agent, { slug: readlist, label: "Work Reading" });
 
 		expect(response.status).toBe(204);
 		expect(hxLocation(response)).toEqual(
@@ -338,7 +338,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const readlist = await createReadlist(agent, "New Readlist");
 
-			const response = await renameFromBrowser(agent, readlist, "Work Reading");
+			const response = await renameFromBrowser(agent, { slug: readlist, label: "Work Reading" });
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(`/queue?queue=${readlist}`);
@@ -384,11 +384,10 @@ describe("POST /queue/queues/:slug/rename", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const readlist = await createReadlist(agent, "New Readlist");
 
-			const response = await renameFromBrowser(
-				agent,
-				readlist,
-				"a".repeat(READLIST_LABEL_MAX_LENGTH + 1),
-			);
+			const response = await renameFromBrowser(agent, {
+				slug: readlist,
+				label: "a".repeat(READLIST_LABEL_MAX_LENGTH + 1),
+			});
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
@@ -400,7 +399,7 @@ describe("POST /queue/queues/:slug/rename", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await renameFromBrowser(agent, "ffffffffffffffff", "Mine");
+			const response = await renameFromBrowser(agent, { slug: "ffffffffffffffff", label: "Mine" });
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue?queue_error=rename_unknown-readlist");

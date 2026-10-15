@@ -16,7 +16,7 @@ function init() {
 	const document = dom.window.document;
 	initAccountDialogs({ document });
 
-	function element<T extends HTMLElement = HTMLElement>(selector: string, description: string): T {
+	function element<T extends HTMLElement = HTMLElement>({ selector, description }: { selector: string; description: string }): T {
 		const el = document.querySelector<T>(selector);
 		assert(el, description);
 		return el;
@@ -30,13 +30,13 @@ function init() {
 
 	return {
 		document,
-		trigger: () => element("[data-test-trigger]", "the dialog's trigger must be in the document"),
-		cancel: () => element("[data-test-dialog-cancel]", "the dialog must hold its Cancel"),
-		outside: () => element("[data-test-outside]", "an outside control must be in the document"),
+		trigger: () => element({ selector: "[data-test-trigger]", description: "the dialog's trigger must be in the document" }),
+		cancel: () => element({ selector: "[data-test-dialog-cancel]", description: "the dialog must hold its Cancel" }),
+		outside: () => element({ selector: "[data-test-outside]", description: "an outside control must be in the document" }),
 		closeDialog: (name: string) =>
-			dispatchToggle(element(`[data-test-dialog='${name}']`, `the ${name} dialog must be in the document`), "closed"),
+			dispatchToggle(element({ selector: `[data-test-dialog='${name}']`, description: `the ${name} dialog must be in the document` }), "closed"),
 		openDialog: (name: string) =>
-			dispatchToggle(element(`[data-test-dialog='${name}']`, `the ${name} dialog must be in the document`), "open"),
+			dispatchToggle(element({ selector: `[data-test-dialog='${name}']`, description: `the ${name} dialog must be in the document` }), "open"),
 		toggleOnDocument: () => dispatchToggle(document, "closed"),
 	};
 }
