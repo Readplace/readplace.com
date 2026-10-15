@@ -6,7 +6,7 @@ import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
 
 /**
- * Worker-side stage strings for the unified article-body progress bar.
+ * Worker-side stage strings.
  * Kept as a literal type, duplicating the consumer's stage union, to avoid
  * a cross-project relative import.
  * Terminal stages are omitted because by the time the worker would write

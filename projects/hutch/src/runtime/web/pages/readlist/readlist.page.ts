@@ -1451,10 +1451,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		req.verificationStatus?.state !== "locked" && canConnectGmail(access);
 
 	/** Resolves the onboarding-checklist signals for an authenticated `/queue`
-	 * HTML render. Shared by the top-of-page GET and the save-bar 422 error
-	 * re-render so both surface the same card for the device — resolving it in one
-	 * place is what stops the 422 path from defaulting `hasInstallableClient` to
-	 * false and rendering the no-client card to devices that do have a client.
+	 * HTML render.
 	 *
 	 * Completion source is resolved by platform: iPhone reads the per-user
 	 * server-side iOS signal (Safari can't see the app's cookies); every other

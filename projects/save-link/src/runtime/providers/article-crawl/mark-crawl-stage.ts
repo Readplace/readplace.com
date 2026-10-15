@@ -6,7 +6,7 @@ import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
 
 /**
- * Worker-side stage strings for the unified article-body progress bar. The
+ * Worker-side stage strings. The
  * stage union is duplicated as a literal here rather than imported so this
  * package takes no cross-project dependency on the stage → percentage table.
  * The worker only writes the stage name; the reader maps stage → pct at render

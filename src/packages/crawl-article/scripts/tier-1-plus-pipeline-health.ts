@@ -138,7 +138,7 @@ async function checkReader(source: HealthSource): Promise<void> {
 	}
 	if (source.expectedDestinationUrl !== undefined) {
 		const savedLink = parseHTML(html).document.querySelector("[data-test-original-link]")?.getAttribute("href");
-		assert(savedLink, `${source.label}: no "View original" link in the parsed output for ${source.url}`);
+		assert(savedLink, `${source.label}: no "Original" link in the parsed output for ${source.url}`);
 		assert.equal(
 			ArticleResourceUniqueId.parse(savedLink).value,
 			ArticleResourceUniqueId.parse(source.expectedDestinationUrl).value,

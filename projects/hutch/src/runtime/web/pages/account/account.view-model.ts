@@ -998,13 +998,13 @@ export function buildSecuritySection(input: {
 	};
 }
 
-/** Rewrites the account view model for the iOS app's in-app web surface: strips
+/** Rewrites the account view model for the app's in-app web surface: strips
  * every in-app purchase path — the subscribe and reactivate CTAs and the whole
  * payment-methods section — so the build satisfies App Store review Guideline
  * 3.1.1. Kept: the subscription status line, the cancel control, and the
  * delete-account danger zone (Apple requires in-app account deletion; cancelling
  * buys nothing). Commerce-stripping itself is
- * keyed on the iOS surface, not the app shell: a store build predating the shell
+ * keyed on the surface, not the app shell: a store build predating the shell
  * marker must keep satisfying Guideline 3.1.1. */
 export function withoutCommerce(
 	vm: AccountViewModel,

@@ -28,7 +28,7 @@ export interface HealthSource {
 	/** Substrings that MUST NOT appear in the parsed HTML — surfaces parser regressions where site chrome leaks into the article body (e.g. Medium byline, read-time, publish-date, "Press enter…" tooltip). */
 	forbiddenContent?: readonly string[];
 	/** The article a wrapper URL (newsletter tracker, Apple News shell, archive
-	 * snapshot) must have been saved as: the "View original" href in the final
+	 * snapshot) must have been saved as: the href in the final
 	 * reader output is compared to it by `ArticleResourceUniqueId`, so scheme,
 	 * fragment and tracking-param differences do not matter. */
 	expectedDestinationUrl?: string;

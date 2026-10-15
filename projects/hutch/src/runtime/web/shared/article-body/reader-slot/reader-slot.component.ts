@@ -57,7 +57,7 @@ function withEmptyNotice(slot: string, noticeOob: boolean): ReaderRegions {
  * if present, otherwise treat it as pending.
  *
  * Pending without a poll URL (the worker is still going but the page has
- * exhausted its 40-tick budget) routes to the same `Your link is saved`
+ * exhausted its budget) routes to the same `Your link is saved`
  * reframe as the failure variants — the URL is recoverable on the source.
  */
 /* The message tells readers this pipeline prefers visible OCR artifacts over
