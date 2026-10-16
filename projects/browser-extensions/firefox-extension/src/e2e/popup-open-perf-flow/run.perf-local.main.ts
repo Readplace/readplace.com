@@ -188,7 +188,7 @@ async function prepareProfile(driver: Driver, tokens?: Tokens): Promise<void> {
 						const store = tx.objectStore('auth'); const request = store.get('state'); let saved = false;
 						request.onsuccess = () => {
 							const state = request.result; if (!state) return;
-							state.credentials = ${JSON.stringify(tokens ? { ...tokens, bound: false } : null)};
+							state.credentials = content.wrappedJSObject.JSON.parse(${JSON.stringify(JSON.stringify(tokens ? { ...tokens, bound: false } : null))});
 							state.pending = null; state.epoch = content.wrappedJSObject.crypto.randomUUID();
 							store.put(state, 'state'); saved = true;
 						};
