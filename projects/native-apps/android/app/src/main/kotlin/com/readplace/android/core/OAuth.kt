@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -53,15 +54,21 @@ class OAuth(
 	private val store: TokenStore,
 	private val http: OkHttpClient,
 	private val nativeUserAgent: String,
+	private val recovery: NativeRefreshRecovery? = null,
 ) {
-	data class Snapshot(val tokens: OAuthTokens, val generation: Long)
+	data class Snapshot(val tokens: OAuthTokens, val generation: Long, val accountEpoch: String = "")
 
 	private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 	private var generation = 0L
+	private var loginDiagnosticIdentity: String? = null
 	private var pending: Deferred<Snapshot>? = null
 
 	@Synchronized
-	fun snapshot(): Snapshot? = store.tokens?.let { Snapshot(it, generation) }
+	fun snapshot(): Snapshot? {
+		val record = store.authRecords?.read()
+		val tokens = if (record == null) store.tokens else record.tokens
+		return tokens?.let { Snapshot(it, generation, record?.accountEpoch ?: "") }
+	}
 
 	@Synchronized
 	fun endSession() {
@@ -92,6 +99,17 @@ class OAuth(
 	 * scheme the auth flow redirects to.
 	 */
 	suspend fun exchangeCode(code: String, verifier: String, redirectUri: String): OAuthTokens {
+		val started = synchronized(this) {
+			generation += 1; pending = null
+			val identity = loginDiagnosticIdentity ?: java.util.UUID.randomUUID().toString()
+			loginDiagnosticIdentity = null
+			store.authRecords?.update {
+				it.generation++; it.pending = null; it.accountEpoch = java.util.UUID.randomUUID().toString()
+				it.diagnosticIdentity = identity; it.diagnosticsPermit = null
+				it.generation
+			}
+		}
+		recovery?.record("login_started")
 		val form = FormBody.Builder()
 			.add("grant_type", "authorization_code")
 			.add("code", code)
@@ -99,10 +117,23 @@ class OAuth(
 			.add("client_id", AppConfig.CLIENT_ID)
 			.add("code_verifier", verifier)
 			.build()
-		val answer = send(tokenRequest(form))
+		val request = tokenRequest(form).newBuilder()
+		recovery?.requestHeaders()?.forEach { (name, value) -> request.header(name, value) }
+		val answer = send(request.build())
 		if (answer.status != 200) throw OAuthError.TokenExchangeFailed(answer.status)
 		val minted = tokensFrom(answer.body, fallbackRefresh = null)
-		store.save(minted)
+		val permit = stringOf(jsonObjectOf(answer.body)?.get("diagnostics_permit"))
+		val records = store.authRecords
+		if (records != null) records.update {
+			if (it.generation != started) throw OAuthError.SessionChanged()
+			it.access = minted.accessToken.raw; it.refresh = minted.refreshToken.raw; it.bound = false
+			if (permit != null) {
+				it.diagnosticsPermit = permit
+				it.diagnostics = it.diagnostics.map { entry -> if (entry.identity == it.diagnosticIdentity && entry.permit == null) entry.copy(permit = permit) else entry }
+			}
+		} else store.save(minted)
+		recovery?.record("login_completed", "success")
+		refreshScope.launch { recovery?.flush() }
 		return minted
 	}
 
@@ -111,13 +142,24 @@ class OAuth(
 	@Synchronized
 	private fun joinOrStart(failed: Snapshot): Deferred<Snapshot> {
 		val current = snapshot() ?: throw OAuthError.NoRefreshToken()
-		if (current.generation != failed.generation) throw OAuthError.SessionChanged()
+		if (current.generation != failed.generation || current.accountEpoch != failed.accountEpoch) throw OAuthError.SessionChanged()
 		if (current.tokens != failed.tokens) return CompletableDeferred(current)
 		pending?.takeIf { it.isActive }?.let { return it }
 		return refreshScope.async { performRefresh(failed) }.also { pending = it }
 	}
 
 	private suspend fun performRefresh(failed: Snapshot): Snapshot {
+		val restored = recovery?.refresh(failed.tokens)
+		if (restored != null) {
+			val result = synchronized(this) {
+				if (generation != failed.generation) throw OAuthError.SessionChanged()
+				val current = snapshot() ?: throw OAuthError.NoRefreshToken()
+				if (current.accountEpoch != failed.accountEpoch) throw OAuthError.SessionChanged()
+				current
+			}
+			refreshScope.launch { recovery?.flush() }
+			return result
+		}
 		val form = FormBody.Builder()
 			.add("grant_type", "refresh_token")
 			.add("refresh_token", failed.tokens.refreshToken.raw)
@@ -134,24 +176,46 @@ class OAuth(
 	@Synchronized
 	private fun settle(failed: Snapshot, answer: Answer?): Snapshot {
 		if (generation != failed.generation) throw OAuthError.SessionChanged()
+		val current = snapshot() ?: throw OAuthError.NoRefreshToken()
+		if (current.accountEpoch != failed.accountEpoch) throw OAuthError.SessionChanged()
+		if (current.tokens != failed.tokens) return current
 		if (answer == null) throw OAuthError.RefreshFailed()
-		if (answer.status != 200) throw refusalOf(answer)
+		if (answer.status != 200) throw refusalOf(answer, failed)
 		val minted = tokensFrom(answer.body, fallbackRefresh = failed.tokens.refreshToken)
-		store.save(minted)
-		return Snapshot(minted, generation)
+		val records = store.authRecords
+		if (records == null) store.save(minted) else records.update {
+			if (it.tokens != failed.tokens || it.accountEpoch != failed.accountEpoch) throw OAuthError.SessionChanged()
+			it.generation++; it.access = minted.accessToken.raw; it.refresh = minted.refreshToken.raw
+		}
+		return Snapshot(minted, generation, failed.accountEpoch)
 	}
 
-	private fun refusalOf(answer: Answer): OAuthError {
+	private fun refusalOf(answer: Answer, failed: Snapshot): OAuthError {
 		if (answer.status != 400 || stringOf(jsonObjectOf(answer.body)?.get("error")) != "invalid_grant") {
 			return OAuthError.RefreshFailed()
 		}
-		endSession()
+		val records = store.authRecords
+		if (records == null) endSession() else {
+			records.update {
+				if (it.tokens != failed.tokens || it.accountEpoch != failed.accountEpoch) throw OAuthError.SessionChanged()
+				it.generation++; it.access = null; it.refresh = null; it.pending = null; it.bound = false
+			}
+			generation++; pending = null
+		}
 		return OAuthError.NoRefreshToken()
 	}
 
-	/** Best-effort token revocation (logout), then clears the local tokens. */
 	suspend fun revoke() {
+		val previous = store.authRecords?.read()
 		val stored = store.tokens?.refreshToken
+		endSession()
+		recovery?.record("logout_started", reason = "user_requested")
+		if (recovery != null && previous != null && (previous.bound || previous.pending != null)) {
+			runCatching { recovery?.revoke(previous) }
+			recovery.record("logout_completed")
+			refreshScope.launch { recovery?.flush() }
+			return
+		}
 		if (stored != null) {
 			val payload = JsonObject(mapOf("token" to JsonPrimitive(stored.raw))).toString()
 			val request = Request.Builder()
@@ -164,7 +228,23 @@ class OAuth(
 			} catch (_: IOException) {
 			}
 		}
-		endSession()
+		recovery?.record("logout_completed")
+		refreshScope.launch { recovery?.flush() }
+	}
+
+	fun recordAuthEvent(event: String, outcome: String? = null, reason: String? = null) {
+		if (event == "login_started") synchronized(this) {
+			val identity = java.util.UUID.randomUUID().toString()
+			runCatching { store.authRecords?.update { state ->
+				state.diagnostics = state.diagnostics.map {
+					if (it.identity == state.diagnosticIdentity && it.permit == null && it.event.event == "login_prompt_shown") it.copy(identity = identity) else it
+				}
+				state.diagnosticIdentity = identity; state.diagnosticsPermit = null
+			} }
+			loginDiagnosticIdentity = identity
+		}
+		recovery?.record(event, outcome, reason)
+		refreshScope.launch { recovery?.flush() }
 	}
 
 	private data class Answer(val status: Int, val body: String)

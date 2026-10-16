@@ -91,6 +91,7 @@ private suspend fun completeSignIn(
 	request: AuthorizationRequest,
 	oauth: OAuth,
 ): Result<Unit> {
+	oauth.recordAuthEvent("login_callback_received")
 	val items = queryItemsOf(callbackUrl)
 	fun value(name: String): String? = items.firstOrNull { it.first == name }?.second
 

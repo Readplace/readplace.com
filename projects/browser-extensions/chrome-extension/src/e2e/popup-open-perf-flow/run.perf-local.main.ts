@@ -158,10 +158,28 @@ async function measure(input: { tokens?: Tokens; holdApplicationAssets: boolean 
 	try {
 		driver = await launch(profile);
 		cdp = await connect(driver);
+		const preparationConnection = cdp;
 		const preparationWorker = await attachWorker(cdp);
 		const settings = await evaluate<{ isOnToolbar: boolean }>(cdp, { sessionId: preparationWorker, expression: "chrome.action.getUserSettings()" });
 		assert(settings.isOnToolbar, "Native popup measurements require a pinned toolbar action");
-		await evaluate(cdp, { sessionId: preparationWorker, expression: `chrome.storage.local.set(${JSON.stringify(input.tokens ? { hutch_oauth_tokens: input.tokens } : {})})` });
+		await until(async () => await evaluate<boolean>(preparationConnection, { sessionId: preparationWorker, expression: `(async () => {
+			if (!(await indexedDB.databases()).some(database => database.name === 'hutch-auth')) return false;
+			const db = await new Promise((resolve, reject) => {
+				const request = indexedDB.open('hutch-auth', 1);
+				request.onsuccess = () => resolve(request.result);
+				request.onerror = () => reject(request.error);
+			});
+			try { return await new Promise((resolve, reject) => {
+				const tx = db.transaction('auth', 'readwrite', { durability: 'strict' });
+				const store = tx.objectStore('auth'); const request = store.get('state'); let prepared = false;
+				request.onsuccess = () => {
+					const state = request.result; if (!state) return;
+					state.credentials = ${JSON.stringify(input.tokens ? { ...input.tokens, bound: false } : null)};
+					state.pending = null; state.epoch = crypto.randomUUID(); store.put(state, 'state'); prepared = true;
+				};
+				tx.oncomplete = () => resolve(prepared); tx.onabort = () => reject(tx.error);
+			}); } finally { db.close(); }
+		})()` }) ? true : undefined, "durable auth preparation");
 		cdp.close();
 		await driver.quit();
 		driver = await launch(profile);

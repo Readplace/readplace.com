@@ -1,10 +1,13 @@
 /* c8 ignore start -- composition root, all browser API glue, tested via Selenium E2E */
 import {
 	BrowserExtensionCore,
+	OAuthTokensSchema,
 	initIndexedDbBulkPayloadStore,
 	initIndexedDbBulkSaveJobStore,
 	initIndexedDbPayloadStore,
-	initOAuthAuth,
+	initRecoverableOAuthAuth,
+	initIndexedDbAuthState,
+	initRefreshProof,
 	initSirenReadingList,
 	initBulkSaveQueue,
 	initSyncContextMenus,
@@ -23,7 +26,6 @@ import {
 	commandBindingsFromGetAll,
 	type AdvertisedCapabilityStore,
 	type BrowserShell,
-	type OAuthTokens,
 	type PopupMessage,
 	captureActiveTabBytes,
 	type LoadPageResult,
@@ -36,7 +38,6 @@ import {
 	type RescueAttemptStore,
 	type SaveableTab,
 	type Timers,
-	type TokenStorage,
 	type UploadJobStore,
 	type UploadQueue,
 	type WakeScheduler,
@@ -141,31 +142,6 @@ declare const __SERVER_URL__: string;
 const SERVER_URL = __SERVER_URL__;
 const CLIENT_ID: BuiltInOAuthClientId = "hutch-firefox-extension";
 
-function isOAuthTokens(value: unknown): value is OAuthTokens {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"accessToken" in value &&
-		typeof value.accessToken === "string" &&
-		"refreshToken" in value &&
-		typeof value.refreshToken === "string"
-	);
-}
-
-const tokenStorage: TokenStorage = {
-	async getTokens(): Promise<OAuthTokens | null> {
-		const result = await browser.storage.local.get(STORAGE_KEY);
-		const raw = result[STORAGE_KEY];
-		if (!isOAuthTokens(raw)) return null;
-		return raw;
-	},
-	async setTokens(tokens: OAuthTokens): Promise<void> {
-		await browser.storage.local.set({ [STORAGE_KEY]: tokens });
-	},
-	async clearTokens(): Promise<void> {
-		await browser.storage.local.remove(STORAGE_KEY);
-	},
-};
 
 const shell: BrowserShell = {
 	onShortcutPressed(_handler) {
@@ -239,7 +215,26 @@ const shell: BrowserShell = {
 };
 
 async function initCore() {
-	const auth = await initOAuthAuth({
+	const proof = initRefreshProof({ crypto, now: Date.now, uuid: () => crypto.randomUUID() });
+	const store = await initIndexedDbAuthState({
+		indexedDB,
+		async loadLegacy() {
+			const raw = (await browser.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
+			const parsed = OAuthTokensSchema.safeParse(raw);
+			return parsed.success ? parsed.data : null;
+		},
+		removeLegacy: () => browser.storage.local.remove(STORAGE_KEY),
+		createKey: proof.createKey,
+		uuid: () => crypto.randomUUID(),
+	});
+	const auth = await initRecoverableOAuthAuth({
+		store, proof,
+		keepAlive: work => work,
+		client: "firefox",
+		version: browser.runtime.getManifest().version,
+		contextId: crypto.randomUUID(),
+		now: Date.now,
+		uuid: () => crypto.randomUUID(),
 		serverUrl: SERVER_URL,
 		clientId: CLIENT_ID,
 		async openTab(url: string): Promise<number> {
@@ -273,7 +268,6 @@ async function initCore() {
 			await browser.tabs.remove(tabId);
 		},
 		fetchFn: (...args) => fetch(...args),
-		tokenStorage,
 		logger,
 	});
 
@@ -282,15 +276,10 @@ async function initCore() {
 		getAccessToken: auth.getAccessToken,
 		fetchFn: (...args) => fetch(...args),
 		refreshTokens: auth.refreshTokens,
-		/** A 401 that survived the refresh-and-replay ends the session, not just an
-		 * explicit logout, so the captured page bytes go with it rather than waiting
-		 * on the readlist's own next wake. Not awaited: the readlist's own upload reaches
-		 * this through the same serialised chain the purge joins, so awaiting it
-		 * here would deadlock that pass — it is already purging for itself. */
-		onUnauthorized: async () => {
+		onUnauthorized: async (accessToken) => {
+			await auth.resourceRejected(accessToken);
 			void uploadQueue.purge();
 			void bulkSaveQueue.purge();
-			await auth.logout();
 		},
 		logger,
 		onAdvertisedActions: (names) => {
@@ -436,6 +425,7 @@ const POPUP_MESSAGE_TYPES = new Set([
 	"load-page",
 	"load-sort",
 	"login",
+	"login-prompt-shown",
 	"logout",
 ]);
 
@@ -502,8 +492,12 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 	const message = raw;
 
 	appPromise
-		.then(({ core, uploadQueue, bulkSaveQueue }) => {
+		.then(({ core, uploadQueue, bulkSaveQueue, auth }) => {
 			switch (message.type) {
+				case "login-prompt-shown": {
+					auth.reportLoginPrompt().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+					break;
+				}
 				case "login": {
 					const pending = new Promise<unknown>((resolve) => {
 						core.once("logged-in", {

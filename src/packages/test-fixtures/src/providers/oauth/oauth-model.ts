@@ -1,4 +1,6 @@
 import assert from "node:assert";
+import { createHash, randomUUID } from "node:crypto";
+import { initOAuthRefresh, type RefreshCredential, type RefreshGrant, type RefreshHistory, type RefreshStore } from "@packages/domain/oauth";
 import type {
 	Client,
 	Token,
@@ -35,6 +37,8 @@ import { UserIdSchema } from "@packages/domain/user";
 import { generateToken } from "@packages/domain/oauth";
 
 interface StoredAuthorizationCode {
+	grantId?: string;
+	epoch?: number;
 	code: AuthorizationCodeBrand;
 	clientId: OAuthClientId;
 	userId: UserId;
@@ -47,6 +51,10 @@ interface StoredAuthorizationCode {
 }
 
 interface StoredToken {
+	keyThumbprint?: string;
+	grantId?: string;
+	epoch?: number;
+	generation?: number;
 	accessToken: AccessTokenBrand;
 	accessTokenExpiresAt: Date;
 	refreshToken: RefreshTokenBrand;
@@ -58,6 +66,11 @@ interface StoredToken {
 }
 
 interface OAuthModelDeps {
+	deletedAccounts: Set<string>;
+	grants: Map<string, RefreshGrant>;
+	history: Map<string, RefreshHistory>;
+	epochs: Map<string, number>;
+	proofs: Map<string, number>;
 	codes: Map<string, StoredAuthorizationCode>;
 	tokens: Map<string, StoredToken>;
 	refreshTokenIndex: Map<string, string>;
@@ -66,6 +79,8 @@ interface OAuthModelDeps {
 
 export function initInMemoryOAuthModel(): OAuthModelDeps {
 	return {
+		deletedAccounts: new Set(),
+		grants: new Map(), history: new Map(), epochs: new Map(), proofs: new Map(),
 		codes: new Map(),
 		tokens: new Map(),
 		refreshTokenIndex: new Map(),
@@ -75,12 +90,21 @@ export function initInMemoryOAuthModel(): OAuthModelDeps {
 
 export type { OAuthModel };
 
+function retainRevocation(deps: OAuthModelDeps, stored: StoredToken, cause: "logout-all" | "account-deletion" | "disconnect"): void {
+	const fingerprint = createHash("sha256").update(stored.refreshToken).digest("hex");
+	stored.grantId ??= randomUUID();
+	deps.history.set(fingerprint, { grantId: stored.grantId, fingerprint, expiresAt: stored.refreshTokenExpiresAt.getTime(), revocation: { cause, completedAt: Date.now() } });
+}
+
 export function createRevokeAllUserOAuthTokens(deps: OAuthModelDeps): RevokeAllUserOAuthTokens {
-	return async (userId) => {
+	return async (userId, cause) => {
+		deps.epochs.set(userId, (deps.epochs.get(userId) ?? 0) + 1);
+		if (cause === "account-deletion") deps.deletedAccounts.add(userId);
 		const accessTokens = deps.userIdIndex.get(userId);
 		if (accessTokens) {
 			for (const accessToken of accessTokens) {
 				const stored = deps.tokens.get(accessToken);
+				if (stored) retainRevocation(deps, stored, cause);
 				if (stored?.refreshToken) deps.refreshTokenIndex.delete(stored.refreshToken);
 				deps.tokens.delete(accessToken);
 			}
@@ -107,8 +131,12 @@ export function createListUserOAuthClients(deps: OAuthModelDeps): ListUserOAuthC
 
 export function createRevokeUserOAuthClient(deps: OAuthModelDeps): RevokeUserOAuthClient {
 	return async ({ userId, clientId }) => {
+		for (const [id, grant] of deps.grants) {
+			if (grant.userId === userId && grant.clientId === clientId) deps.grants.set(id, { ...grant, state: "revoked" });
+		}
 		for (const [accessToken, stored] of deps.tokens) {
 			if (stored.userId !== userId || stored.clientId !== clientId) continue;
+			retainRevocation(deps, stored, "disconnect");
 			deps.refreshTokenIndex.delete(stored.refreshToken);
 			deps.tokens.delete(accessToken);
 			const userTokens = deps.userIdIndex.get(userId);
@@ -124,6 +152,7 @@ export function createRevokeUserOAuthClient(deps: OAuthModelDeps): RevokeUserOAu
 export function createOAuthModel(
 	deps: OAuthModelDeps,
 	options?: {
+		refreshEnrollmentEnabled?: boolean;
 		appOrigin?: string;
 		findUserById?: FindUserById;
 		findClient?: FindOAuthClient;
@@ -153,7 +182,58 @@ export function createOAuthModel(
 		return resolved;
 	}
 
+	const fingerprint = (token: string) => createHash("sha256").update(token).digest("hex");
+	function credential(row: StoredToken): RefreshCredential {
+		row.grantId ??= randomUUID();
+		return { ...row, grantId: row.grantId, epoch: row.epoch ?? 0, generation: row.generation ?? 0, emailVerified: row.emailVerified === true,
+			accessExpiresAt: row.accessTokenExpiresAt.getTime(), refreshExpiresAt: row.refreshTokenExpiresAt.getTime() };
+	}
+	function saveCredential(value: RefreshCredential) {
+		const row: StoredToken = { ...value, accessToken: AccessTokenSchema.parse(value.accessToken), refreshToken: RefreshTokenSchema.parse(value.refreshToken),
+			clientId: OAuthClientIdSchema.parse(value.clientId), userId: UserIdSchema.parse(value.userId), accessTokenExpiresAt: new Date(value.accessExpiresAt), refreshTokenExpiresAt: new Date(value.refreshExpiresAt) };
+		deps.tokens.set(value.accessToken, row);
+		deps.refreshTokenIndex.set(value.refreshToken, value.accessToken);
+		const userTokens = deps.userIdIndex.get(value.userId) ?? new Set<string>();
+		userTokens.add(value.accessToken); deps.userIdIndex.set(value.userId, userTokens);
+	}
+	const store: RefreshStore = {
+		async locate(token) {
+			const row = deps.tokens.get(deps.refreshTokenIndex.get(token) ?? token);
+			return { credential: row ? credential(row) : undefined, history: deps.history.get(fingerprint(token)) };
+		},
+		async readGrant(id) { return deps.grants.get(id); },
+		async readEpoch(userId) { return deps.epochs.get(userId) ?? 0; },
+		async readCredential(accessToken) { const row = deps.tokens.get(accessToken); return row ? credential(row) : undefined; },
+		async commit(input) {
+			const current = deps.grants.get(input.grant.id);
+			if (deps.deletedAccounts.has(input.grant.userId) || (deps.epochs.get(input.grant.userId) ?? 0) !== input.grant.epoch || JSON.stringify(current) !== JSON.stringify(input.expectedGrant)) return "conflict";
+			const proofKey = input.proof ? `${input.proof.keyThumbprint}:${input.proof.id}` : undefined;
+			if (proofKey && (deps.proofs.get(proofKey) ?? 0) > input.now) return "proof_replayed";
+			if (input.parent && !deps.tokens.has(input.parent.accessToken)) return "conflict";
+			if (proofKey && input.proof) deps.proofs.set(proofKey, input.proof.expiresAt);
+			if (input.parent) {
+				deps.tokens.delete(input.parent.accessToken); deps.refreshTokenIndex.delete(input.parent.refreshToken);
+				deps.userIdIndex.get(input.parent.userId)?.delete(input.parent.accessToken);
+				deps.history.set(fingerprint(input.parent.refreshToken), { grantId: input.parent.grantId, fingerprint: fingerprint(input.parent.refreshToken), expiresAt: input.parent.refreshExpiresAt,
+					revocation: { cause: input.cause === "logout" ? "logout" : "rotation", completedAt: input.now } });
+			}
+			if (input.child) saveCredential(input.child);
+			deps.grants.set(input.grant.id, input.grant);
+			return "committed";
+		},
+	};
+	const refresh = initOAuthRefresh({ enrollmentEnabled: options?.refreshEnrollmentEnabled ?? true, store, fingerprint, generateToken,
+		resolveEmailVerified: async value => {
+			if (markClientActive) await markClientActive(value.clientId);
+			return value.emailVerified || (findUserById ? (await findUserById(UserIdSchema.parse(value.userId)))?.emailVerified === true : false);
+		},
+	});
+	function active(row: StoredToken): boolean {
+		const grant = row.grantId ? deps.grants.get(row.grantId) : undefined;
+		return (deps.epochs.get(row.userId) ?? 0) === (row.epoch ?? 0) && (!grant || (grant.state === "active" && grant.generation === (row.generation ?? 0)));
+	}
 	return {
+		refresh,
 		async getClient(clientId: string, _clientSecret: string): Promise<Client | Falsey> {
 			const client = await resolveClient(clientId);
 			if (!client) return null;
@@ -173,6 +253,7 @@ export function createOAuthModel(
 			assert(code.codeChallenge, "PKCE code_challenge is required for authorization_code grants");
 			const stored: StoredAuthorizationCode = {
 				code: AuthorizationCodeSchema.parse(code.authorizationCode),
+				grantId: randomUUID(), epoch: deps.epochs.get(user.id) ?? 0,
 				clientId: OAuthClientIdSchema.parse(client.id),
 				userId: UserIdSchema.parse(user.id),
 				redirectUri: code.redirectUri,
@@ -194,7 +275,7 @@ export function createOAuthModel(
 			authorizationCode: string,
 		): Promise<AuthorizationCode | Falsey> {
 			const stored = deps.codes.get(authorizationCode);
-			if (!stored) return null;
+			if (!stored || (deps.epochs.get(stored.userId) ?? 0) !== (stored.epoch ?? 0)) return null;
 
 			if (stored.expiresAt < new Date()) {
 				deps.codes.delete(authorizationCode);
@@ -216,7 +297,7 @@ export function createOAuthModel(
 					grants: client.grants,
 					redirectUris: client.redirectUris,
 				},
-				user: { id: stored.userId, emailVerified: stored.emailVerified },
+				user: { id: stored.userId, emailVerified: stored.emailVerified, grantId: stored.grantId, epoch: stored.epoch ?? 0 },
 			};
 		},
 
@@ -233,7 +314,10 @@ export function createOAuthModel(
 			const refreshTokenExpiresAt =
 				token.refreshTokenExpiresAt ?? new Date(Date.now() + 180 * 24 * 3600000);
 
+			const epoch = typeof user.epoch === "number" ? user.epoch : deps.epochs.get(user.id) ?? 0;
+			if (deps.deletedAccounts.has(user.id) || epoch !== (deps.epochs.get(user.id) ?? 0)) throw new Error("Authorization was revoked");
 			const stored: StoredToken = {
+				grantId: typeof user.grantId === "string" ? user.grantId : randomUUID(), epoch, generation: 0,
 				accessToken: AccessTokenSchema.parse(token.accessToken),
 				accessTokenExpiresAt,
 				refreshToken: RefreshTokenSchema.parse(refreshToken),
@@ -258,13 +342,13 @@ export function createOAuthModel(
 			return {
 				...token,
 				client,
-				user,
+				user: { ...user, grantId: stored.grantId },
 			};
 		},
 
 		async getAccessToken(accessToken: string): Promise<Token | Falsey> {
 			const stored = deps.tokens.get(accessToken);
-			if (!stored) return null;
+			if (!stored || !active(stored)) return null;
 
 			if (stored.accessTokenExpiresAt < new Date()) {
 				return null;
@@ -284,7 +368,7 @@ export function createOAuthModel(
 					grants: client.grants,
 					redirectUris: client.redirectUris,
 				},
-				user: { id: stored.userId, emailVerified: stored.emailVerified },
+				user: { id: stored.userId, emailVerified: stored.emailVerified, grantId: stored.grantId, epoch: stored.epoch ?? 0 },
 			};
 		},
 
@@ -293,7 +377,7 @@ export function createOAuthModel(
 			if (!accessToken) return null;
 
 			const stored = deps.tokens.get(accessToken);
-			if (!stored) return null;
+			if (!stored || !active(stored) || (stored.grantId && deps.grants.get(stored.grantId)?.keyThumbprint)) return null;
 
 			if (stored.refreshTokenExpiresAt < new Date()) {
 				return null;
@@ -324,7 +408,7 @@ export function createOAuthModel(
 					grants: client.grants,
 					redirectUris: client.redirectUris,
 				},
-				user: { id: stored.userId, emailVerified },
+				user: { id: stored.userId, emailVerified, grantId: stored.grantId, epoch: stored.epoch ?? 0 },
 			};
 		},
 

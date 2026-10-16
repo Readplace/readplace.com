@@ -345,15 +345,10 @@ type DoFetchInit = Omit<RequestInit, "headers"> & {
 
 type DoFetch = (url: string, init?: DoFetchInit) => Promise<Response>;
 
-/** The only place a 401 may be answered, because it is the only one still
- * holding the request to replay — a caller that refreshes has already lost it,
- * and a rotating refresh token spent twice invalidates the session it was
- * meant to save. `onUnauthorized` ends the session, so it runs only once a
- * replay behind a fresh token is refused too. */
 function createAuthorizedFetch(deps: {
 	getAccessToken: () => Promise<string | null>;
 	fetchFn: typeof fetch;
-	onUnauthorized: () => Promise<void>;
+	onUnauthorized: (refusedAccessToken: string) => Promise<void>;
 	refreshTokens: RefreshTokens;
 }): DoFetch {
 	async function attempt(url: string, init?: DoFetchInit): Promise<{ response: Response; accessToken: string }> {
@@ -369,14 +364,16 @@ function createAuthorizedFetch(deps: {
 	return async (url, init) => {
 		const first = await attempt(url, init);
 		if (first.response.status !== 401) return first.response;
-		const refreshed = await deps.refreshTokens({ refusedAccessToken: first.accessToken });
+		let refusedAccessToken = first.accessToken;
+		const refreshed = await deps.refreshTokens({ refusedAccessToken });
 		if (refreshed.ok) {
 			const retried = await attempt(url, init);
+			refusedAccessToken = retried.accessToken;
 			if (retried.response.status !== 401) return retried.response;
 		} else if (refreshed.reason === "unavailable") {
 			throw new RefreshUnavailableError();
 		}
-		await deps.onUnauthorized();
+		await deps.onUnauthorized(refusedAccessToken);
 		throw new UnauthorizedError();
 	};
 }
@@ -949,7 +946,7 @@ export interface ExtensionDeps {
 	serverUrl: string;
 	getAccessToken: () => Promise<string | null>;
 	fetchFn: typeof fetch;
-	onUnauthorized: () => Promise<void>;
+	onUnauthorized: (refusedAccessToken: string) => Promise<void>;
 	refreshTokens: RefreshTokens;
 }
 
@@ -1091,7 +1088,7 @@ export interface SirenReadingListDeps {
 	serverUrl: string;
 	getAccessToken: () => Promise<string | null>;
 	fetchFn: typeof fetch;
-	onUnauthorized: () => Promise<void>;
+	onUnauthorized: (refusedAccessToken: string) => Promise<void>;
 	refreshTokens: RefreshTokens;
 	logger: HutchLogger;
 	onAdvertisedActions: (names: string[]) => void;

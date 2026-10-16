@@ -2249,11 +2249,12 @@ describe("Auth routes", () => {
 				.options("/auth/session")
 				.set("Origin", extensionOrigin)
 				.set("Access-Control-Request-Method", "POST")
-				.set("Access-Control-Request-Headers", "authorization");
+				.set("Access-Control-Request-Headers", "authorization,x-readplace-auth-attempt-id,x-readplace-auth-context-id,x-readplace-client-version,x-readplace-installation-id");
 
 			expect(response.status).toBe(204);
 			expect(response.headers["access-control-allow-origin"]).toBe(extensionOrigin);
 			expect(response.headers["access-control-allow-credentials"]).toBe("true");
+			expect(response.headers["access-control-allow-headers"].toLowerCase().split(",")).toEqual(["authorization", "content-type", "x-readplace-auth-attempt-id", "x-readplace-auth-context-id", "x-readplace-client-version", "x-readplace-installation-id"]);
 		});
 
 		it("returns credentialed CORS headers so the extension can store the minted cookie", async () => {

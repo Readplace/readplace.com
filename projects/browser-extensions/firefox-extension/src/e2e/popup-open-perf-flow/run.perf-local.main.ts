@@ -172,9 +172,33 @@ async function prepareProfile(driver: Driver, tokens?: Tokens): Promise<void> {
 		Promise.resolve().then(async () => {
 			const storage = content.wrappedJSObject.browser.storage.local;
 			await storage.clear();
-			await storage.set(${JSON.stringify(tokens ? { hutch_oauth_tokens: tokens } : {})});
-			const saved = await storage.get('hutch_oauth_tokens');
-			sendAsyncMessage('Readplace:Prepared', { authenticated: Boolean(saved.hutch_oauth_tokens) });
+			for (let attempt = 0; attempt < 200; attempt++) {
+				if ((await content.wrappedJSObject.indexedDB.databases()).some(database => database.name === 'hutch-auth')) break;
+				await new Promise(resolve => setTimeout(resolve, 25));
+			}
+			const db = await new Promise((resolve, reject) => {
+				const request = content.wrappedJSObject.indexedDB.open('hutch-auth', 1);
+				request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
+			});
+			try {
+				let prepared = false;
+				for (let attempt = 0; !prepared && attempt < 200; attempt++) {
+					prepared = await new Promise((resolve, reject) => {
+						const tx = db.transaction('auth', 'readwrite', { durability: 'strict' });
+						const store = tx.objectStore('auth'); const request = store.get('state'); let saved = false;
+						request.onsuccess = () => {
+							const state = request.result; if (!state) return;
+							state.credentials = ${JSON.stringify(tokens ? { ...tokens, bound: false } : null)};
+							state.pending = null; state.epoch = content.wrappedJSObject.crypto.randomUUID();
+							store.put(state, 'state'); saved = true;
+						};
+						tx.oncomplete = () => resolve(saved); tx.onabort = () => reject(tx.error);
+					});
+					if (!prepared) await new Promise(resolve => setTimeout(resolve, 25));
+				}
+				if (!prepared) throw new Error('Durable auth preparation timed out');
+			} finally { db.close(); }
+			sendAsyncMessage('Readplace:Prepared', { authenticated: ${Boolean(tokens)} });
 		}).catch(error => sendAsyncMessage('Readplace:Prepared', { error: String(error) }));
 	})();`;
 	await driver.executeScript(

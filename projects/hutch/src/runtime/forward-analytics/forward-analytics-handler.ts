@@ -42,6 +42,7 @@ export interface ForwardAnalyticsDeps {
 	putLogEvents: PutLogEvents;
 	analyticsLogGroupName: string;
 	errorsLogGroupName: string;
+	authDiagnosticsLogGroupName: string;
 	/** The streams whose lines are business history and belong in the analytics
 	 * group. Passed in rather than imported so this module stays free of the
 	 * observability constants it would otherwise couple to. */
@@ -51,7 +52,7 @@ export interface ForwardAnalyticsDeps {
 
 /** Which funnel a forwarded line belongs in, or `undefined` for a line the
  * subscription filter matched but neither destination wants. */
-export type ForwardDestination = "analytics" | "errors";
+export type ForwardDestination = "analytics" | "errors" | "auth-diagnostics";
 
 /**
  * The subscription filter is a coarse text match — it has to be, because a JSON
@@ -72,6 +73,7 @@ export function classifyForwardedLine(input: {
 	const payload = extractJsonPayload(message);
 	const parsed = ClassifiableLineSchema.safeParse(safeJsonParse(payload));
 	if (parsed.success) {
+		if (parsed.data.stream === "auth-diagnostics") return "auth-diagnostics";
 		if (parsed.data.stream !== undefined && analyticsStreams.includes(parsed.data.stream)) {
 			return "analytics";
 		}
@@ -217,7 +219,7 @@ export function initForwardAnalyticsHandler(
 	deps: ForwardAnalyticsDeps,
 ): Handler<CloudWatchLogsEvent, void> {
 	const ingest = initIngestRefreshRefusal(deps.recordRefreshRefusal);
-	const { createLogStream, putLogEvents, analyticsLogGroupName, errorsLogGroupName, analyticsStreams, logger } = deps;
+	const { createLogStream, putLogEvents, analyticsLogGroupName, errorsLogGroupName, authDiagnosticsLogGroupName, analyticsStreams, logger } = deps;
 
 	async function deliver(input: {
 		destinationLogGroupName: string;
@@ -288,7 +290,7 @@ export function initForwardAnalyticsHandler(
 
 		for (const entry of sorted) await ingest({ ...entry, source: logStreamName });
 
-		const routed: Record<ForwardDestination, ForwardLogEvent[]> = { analytics: [], errors: [] };
+		const routed: Record<ForwardDestination, ForwardLogEvent[]> = { analytics: [], errors: [], "auth-diagnostics": [] };
 		for (const entry of sorted) {
 			// The subscription filter over-forwards on purpose; a line neither
 			// destination claims is dropped here rather than polluting a funnel.
@@ -299,6 +301,7 @@ export function initForwardAnalyticsHandler(
 		const destinations: readonly { key: ForwardDestination; logGroupName: string }[] = [
 			{ key: "analytics", logGroupName: analyticsLogGroupName },
 			{ key: "errors", logGroupName: errorsLogGroupName },
+			{ key: "auth-diagnostics", logGroupName: authDiagnosticsLogGroupName },
 		];
 
 		let batches = 0;
@@ -331,6 +334,7 @@ export function initForwardAnalyticsHandler(
 			events: forwarded,
 			analytics: routed.analytics.length,
 			errors: routed.errors.length,
+			authDiagnostics: routed["auth-diagnostics"].length,
 			batches,
 		});
 	};

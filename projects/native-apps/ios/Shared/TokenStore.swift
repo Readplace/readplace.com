@@ -1,7 +1,7 @@
 import Foundation
 
 /// The OAuth token pair persisted for the app and share extension.
-struct OAuthTokens: Equatable {
+struct OAuthTokens: Equatable, Codable {
 	let accessToken: String
 	let refreshToken: String
 }
@@ -10,6 +10,7 @@ struct OAuthTokens: Equatable {
 enum TokenKey: String, CaseIterable {
 	case accessToken = "oauth.accessToken"
 	case refreshToken = "oauth.refreshToken"
+	case authRecord = "oauth.authRecord.v1"
 }
 
 /// Why a Keychain read failed, carrying the raw `OSStatus`. A read that finds no
@@ -19,10 +20,11 @@ enum TokenKey: String, CaseIterable {
 /// a misleading "not signed in".
 enum KeychainError: Error, Equatable {
 	case read(status: OSStatus)
+	case write(status: OSStatus)
 
 	var status: OSStatus {
 		switch self {
-		case .read(let status): return status
+		case .read(let status), .write(let status): return status
 		}
 	}
 }
@@ -38,9 +40,14 @@ protocol TokenStorage {
 	func readValue(for key: TokenKey) -> Result<String?, KeychainError>
 	func setValue(_ value: String, for key: TokenKey)
 	func removeValue(for key: TokenKey)
+	func writeChecked(_ value: String, for key: TokenKey) throws
 }
 
 extension TokenStorage {
+	func writeChecked(_ value: String, for key: TokenKey) throws {
+		setValue(value, for: key)
+		guard try readValue(for: key).get() == value else { throw KeychainError.write(status: errSecIO) }
+	}
 	/// The token string, or nil when it is absent OR unreadable. The app's own
 	/// session gating collapses both to "signed out" (it will re-authenticate); the
 	/// share extension reads through `readValue` to tell the two apart.
@@ -72,6 +79,7 @@ struct UserDefaultsTokenStorage: TokenStorage {
 /// target is fixed at compile time in `AppConfig.serverBaseURL`, not stored here.
 struct TokenStore {
 	private let storage: TokenStorage
+	let authRecords: NativeAuthRecords
 
 	init() {
 		let group = TokenStore.resolvedAppGroupId
@@ -80,6 +88,12 @@ struct TokenStore {
 			TokenStore.migrateLegacyDefaults(from: legacy, into: keychain)
 		}
 		self.storage = keychain
+		self.authRecords = NativeAuthRecords(storage: keychain, lockURL: {
+			guard let container = AppGroupContainer.entitled(appGroupId: group) else {
+				throw KeychainError.write(status: errSecMissingEntitlement)
+			}
+			return container.url.appendingPathComponent("oauth-auth-record.lock")
+		})
 	}
 
 	/// Injectable backing store for tests.
@@ -91,6 +105,7 @@ struct TokenStore {
 	/// supply its own `TokenStorage` (e.g. one that models an unreadable Keychain).
 	init(storage: TokenStorage) {
 		self.storage = storage
+		self.authRecords = NativeAuthRecords(storage: storage, lockURL: { nil })
 	}
 
 	/// The App Group id this process is actually entitled to. A sideloader
@@ -130,11 +145,7 @@ struct TokenStore {
 	}
 
 	var tokens: OAuthTokens? {
-		guard
-			let access = storage.value(for: .accessToken),
-			let refresh = storage.value(for: .refreshToken)
-		else { return nil }
-		return OAuthTokens(accessToken: access, refreshToken: refresh)
+		try? loadTokens().get()
 	}
 
 	/// Reads the token pair, distinguishing a genuinely signed-out store
@@ -144,29 +155,17 @@ struct TokenStore {
 	/// "not signed in"; the app's `tokens`/`isLoggedIn` collapse a failure to
 	/// "signed out" and re-authenticate.
 	func loadTokens() -> Result<OAuthTokens?, KeychainError> {
-		switch storage.readValue(for: .accessToken) {
-		case .failure(let error):
-			return .failure(error)
-		case .success(let access):
-			guard let access else { return .success(nil) }
-			switch storage.readValue(for: .refreshToken) {
-			case .failure(let error):
-				return .failure(error)
-			case .success(let refresh):
-				guard let refresh else { return .success(nil) }
-				return .success(OAuthTokens(accessToken: access, refreshToken: refresh))
-			}
-		}
+		do { return .success(try authRecords.read().tokens) }
+		catch let error as KeychainError { return .failure(error) }
+		catch { return .failure(.read(status: errSecDecode)) }
 	}
 
 	func save(_ tokens: OAuthTokens) {
-		storage.setValue(tokens.accessToken, for: .accessToken)
-		storage.setValue(tokens.refreshToken, for: .refreshToken)
+		try? authRecords.replace(tokens)
 	}
 
 	func clear() {
-		storage.removeValue(for: .accessToken)
-		storage.removeValue(for: .refreshToken)
+		try? authRecords.replace(nil)
 	}
 
 	var isLoggedIn: Bool { tokens != nil }

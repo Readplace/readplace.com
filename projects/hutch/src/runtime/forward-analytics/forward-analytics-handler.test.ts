@@ -35,6 +35,7 @@ function createHandler(overrides: Partial<ForwardAnalyticsDeps> = {}) {
 		putLogEvents: jest.fn().mockResolvedValue(undefined),
 		analyticsLogGroupName: DESTINATION,
 		errorsLogGroupName: ERRORS_DESTINATION,
+		authDiagnosticsLogGroupName: "/readplace/auth-diagnostics",
 		analyticsStreams: ANALYTICS_STREAMS,
 		logger: noopLogger,
 		...overrides,
@@ -73,6 +74,10 @@ describe("classifyForwardedLine", () => {
 
 	it("routes a structured logError line to the errors funnel", () => {
 		expect(classify('{"level":"ERROR","message":"boom"}')).toBe("errors");
+	});
+
+	it("keeps authentication failures in the dedicated diagnostics stream", () => {
+		expect(classify('{"stream":"auth-diagnostics","level":"ERROR","event":"storage_failed"}')).toBe("auth-diagnostics");
 	});
 
 	it("routes the parse-errors stream to the errors funnel — it is operational, not business history", () => {
@@ -130,6 +135,18 @@ describe("classifyForwardedLine", () => {
 });
 
 describe("initForwardAnalyticsHandler", () => {
+	it("routes authentication checkpoints to their retained stream and retries a failed delivery without changing event identity", async () => {
+		const putLogEvents = jest.fn().mockRejectedValueOnce(new Error("destination unavailable")).mockResolvedValue(undefined);
+		const { handler, deps } = createHandler({ putLogEvents });
+		const message = '{"stream":"auth-diagnostics","event_id":"stable-id","event":"storage_completed"}';
+		const delivery = dataMessage([{ timestamp: BASE_TS, message }]);
+		await expect(run(handler, delivery)).rejects.toThrow("destination unavailable");
+		await run(handler, delivery);
+		expect(deps.putLogEvents).toHaveBeenCalledTimes(2);
+		expect(putLogEvents.mock.calls.map(call => call[0])).toEqual([0, 1].map(() => ({
+			logGroupName: "/readplace/auth-diagnostics", logStreamName: DEST_STREAM, logEvents: [{ timestamp: BASE_TS, message }],
+		})));
+	});
 	it("splits one delivery across both funnels, so a single subscription filter feeds them and the second filter slot stays free", async () => {
 		const { handler, deps } = createHandler();
 

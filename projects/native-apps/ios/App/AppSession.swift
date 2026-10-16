@@ -40,13 +40,14 @@ final class AppSession: ObservableObject {
 		store: TokenStore = TokenStore(),
 		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration,
+		recovery: NativeRefreshRecovery? = nil,
 		wipeReaderWebStore: @escaping () async -> Void = AppSession.removeReaderWebStoreData,
 		purgeShareArtifacts: @escaping () -> Void = AppSession.removeShareArtifacts,
 		forgetReaderChoices: @escaping () -> Void = AppSession.removeReaderChoices,
 		forgetOfflineCopies: @escaping () -> Void = AppSession.removeOfflineCopies
 	) {
 		self.oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store,
-			nativeUserAgent: nativeUserAgent, sessionConfiguration: sessionConfiguration)
+			nativeUserAgent: nativeUserAgent, sessionConfiguration: sessionConfiguration, recovery: recovery)
 		self.store = store
 		self.nativeUserAgent = nativeUserAgent
 		self.sessionConfiguration = sessionConfiguration
@@ -72,6 +73,7 @@ final class AppSession: ObservableObject {
 		expectedState: String,
 		redirectURI: String
 	) async -> Result<Void, Error> {
+		await oauth.recordAuthEvent("login_callback_received")
 		let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
 		func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
 

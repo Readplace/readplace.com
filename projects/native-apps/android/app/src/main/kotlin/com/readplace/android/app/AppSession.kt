@@ -116,7 +116,10 @@ class AppSession(
 	/** Runs one attempt; the flow answers `null` when the user dismissed the
 	 * sign-in page. */
 	private suspend fun authenticate(request: AuthorizationRequest): Result<Unit>? {
+		oauth.recordAuthEvent("login_started")
 		val outcome = makeWebAuthFlow(oauth).start(request)
+		if (outcome == null) oauth.recordAuthEvent("login_cancelled", "cancelled", "user_cancelled")
+		if (outcome?.isFailure == true) oauth.recordAuthEvent("login_failed", "failure", "unknown")
 		refreshLoginState()
 		return outcome
 	}
@@ -134,6 +137,7 @@ class AppSession(
 		expectedState: String,
 		redirectUri: String,
 	): Result<Unit> {
+		oauth.recordAuthEvent("login_callback_received")
 		val query = queryOf(callbackUrl)
 		fun value(name: String): String? = query.queryParameter(name)
 

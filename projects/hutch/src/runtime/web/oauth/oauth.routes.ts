@@ -25,6 +25,8 @@ import { sendComponent } from "@packages/web-shell";
 import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics";
 import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
 import { initObserveTokenOutcome } from "./token-refusal";
+import { initTokenExchange } from "./token-exchange";
+import { captureOAuthBody } from "../../oauth-refresh/request-body";
 import { initTokenRevocation } from "./token-revocation";
 
 const authorizeQuerySchema = z.object({
@@ -136,6 +138,7 @@ function validateRegistration(
 }
 
 interface OAuthRouteDeps {
+	baseUrl: string;
 	model: OAuthModel;
 	buildBannerState: BuildBannerState;
 	findClient: FindOAuthClient;
@@ -360,13 +363,14 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 			bucket: "oauth-token",
 			rule: deps.tokenRateLimitRule,
 		}),
-		oauthServer.token(),
+		initTokenExchange({ server: oauthServer.server, model: deps.model, findClient: deps.findClient, baseUrl: deps.baseUrl, salt: deps.salt, now: deps.now }),
 	);
 
 	router.post(
 		"/revoke",
-		express.json(),
+		express.json({ verify: captureOAuthBody }),
 		initTokenRevocation({
+			baseUrl: deps.baseUrl,
 			model: deps.model,
 			destroyUserSessions: deps.destroyUserSessions,
 			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,

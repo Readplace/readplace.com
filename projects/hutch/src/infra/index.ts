@@ -1,3 +1,4 @@
+import { AUTH_DIAGNOSTICS_LOG_GROUP, buildAuthDiagnosticsDashboard } from "../runtime/auth-diagnostics/dashboard";
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
@@ -288,6 +289,11 @@ const webUsersScan = new HutchDynamoDBAccess("hutch-web-users-scan", {
 	actions: ["dynamodb:Scan"],
 });
 
+const oauthConditions = new HutchDynamoDBAccess("hutch-oauth-conditions", {
+	tables: [{ arn: storage.oauthTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:ConditionCheckItem"],
+});
+
 const webIssueLinksRead = new HutchDynamoDBAccess("hutch-web-issue-links-read", {
 	tables: [
 		{ arn: inboxTableArn(tableNames.inboxEmailLinks), includeIndexes: false },
@@ -443,6 +449,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		RATE_LIMIT_FORGOT_PASSWORD: rateLimitRules.forgotPassword,
 		RATE_LIMIT_OAUTH_REGISTER: rateLimitRules.oauthRegister,
 		RATE_LIMIT_OAUTH_TOKEN: rateLimitRules.oauthToken,
+		OAUTH_REFRESH_ENROLLMENT_ENABLED: String(config.requireBoolean("oauthRefreshEnrollmentEnabled")),
 		RATE_LIMIT_IMPORT: rateLimitRules.import,
 		RATE_LIMIT_IMPORT_FROM_URL: rateLimitRules.importFromUrl,
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
@@ -474,6 +481,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	},
 	policies: [
 		...dynamodb.policies,
+		...oauthConditions.policies,
 		...oauthOutcomesWrite.policies,
 		...webUsersScan.policies,
 		...webIssueLinksRead.policies,
@@ -1247,6 +1255,7 @@ const sendTrialFeedbackEmailLambda = new HutchLambda(
 		memorySize: 256,
 		timeout: 60,
 		environment: {
+			ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
 			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 			DYNAMODB_USERS_TABLE: storage.usersTable.name,
 			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
@@ -1297,6 +1306,7 @@ const sendFirstInboxEmailNoticeLambda = new HutchLambda("send-first-inbox-email-
 	memorySize: 256,
 	timeout: 60,
 	environment: {
+		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
@@ -1458,6 +1468,7 @@ const gmailNewsletterNoticeLambda = new HutchLambda("gmail-newsletter-notice", {
 	memorySize: 256,
 	timeout: 60,
 	environment: {
+		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
@@ -1891,6 +1902,16 @@ const errorsLogGroup = new aws.cloudwatch.LogGroup("errors-log-group", {
 	retentionInDays: ERRORS_LOG_GROUP_RETENTION_DAYS,
 }, { retainOnDelete: true });
 
+const authDiagnosticsLogGroup = new aws.cloudwatch.LogGroup("auth-diagnostics-log-group", {
+	name: AUTH_DIAGNOSTICS_LOG_GROUP,
+	retentionInDays: 365,
+}, { retainOnDelete: true });
+
+new aws.cloudwatch.Dashboard("auth-diagnostics-dashboard", {
+	dashboardName: "readplace-authentication",
+	dashboardBody: authDiagnosticsLogGroup.name.apply(logGroupName => buildAuthDiagnosticsDashboard({ region, logGroupName })),
+});
+
 // Async invokes that still fail after their retries park the original awslogs
 // envelope here for replay. 14-day retention matches PutLogEvents' oldest-event
 // limit, so a parked delivery is always still forwardable when it is drained.
@@ -1904,13 +1925,13 @@ const forwardAnalyticsFailures = new aws.sqs.Queue("forward-analytics-failures",
 // stores and the failure queue its on-failure sink, so the policy names all three.
 const analyticsWritePolicy = {
 	name: "forward-analytics-write",
-	policy: pulumi.all([analyticsLogGroup.arn, errorsLogGroup.arn]).apply(([analyticsArn, errorsArn]) =>
+	policy: pulumi.all([analyticsLogGroup.arn, errorsLogGroup.arn, authDiagnosticsLogGroup.arn]).apply(([analyticsArn, errorsArn, authDiagnosticsArn]) =>
 		JSON.stringify({
 			Version: "2012-10-17",
 			Statement: [{
 				Effect: "Allow",
 				Action: ["logs:CreateLogStream", "logs:PutLogEvents"],
-				Resource: [`${analyticsArn}:*`, `${errorsArn}:*`],
+				Resource: [`${analyticsArn}:*`, `${errorsArn}:*`, `${authDiagnosticsArn}:*`],
 			}],
 		}),
 	),
@@ -1945,6 +1966,7 @@ const forwardAnalyticsLambda = new HutchLambda(FORWARD_ANALYTICS_LAMBDA_NAME, {
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
 		ANALYTICS_LOG_GROUP_NAME: analyticsLogGroup.name,
 		ERRORS_LOG_GROUP_NAME: errorsLogGroup.name,
+		AUTH_DIAGNOSTICS_LOG_GROUP_NAME: authDiagnosticsLogGroup.name,
 	},
 	policies: [analyticsWritePolicy, analyticsFailurePolicy, ...oauthOutcomesWrite.policies, ...oauthHistoryRead.policies],
 });

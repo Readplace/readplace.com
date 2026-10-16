@@ -1014,6 +1014,7 @@ describe("OAuth routes", () => {
 					event: "oauth_token_revoked",
 					timestamp: expect.any(String),
 					client_id: TEST_CLIENT_ID,
+					grant_id: expect.any(String),
 					outcome: "revoked",
 					token_kind: "refresh",
 					visitor_hash: expect.any(String),

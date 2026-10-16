@@ -10,6 +10,7 @@ export type RateLimitBucket =
 	| "forgot-password"
 	| "oauth-register"
 	| "oauth-token"
+	| "auth-diagnostics"
 	| "import"
 	| "import-from-url";
 

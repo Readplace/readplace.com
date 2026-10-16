@@ -1,5 +1,5 @@
 import express, { type Express } from "express";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
@@ -353,6 +353,7 @@ function flattenFixtureToAppDependencies(
 		conversionLogger: fixture.conversions.logger,
 		subscriptionLogger: subscriptionBundle.logger,
 		analytics: analyticsBundle.logger,
+		authDiagnosticsLogger: noopLogger,
 		salt: "test-analytics-salt",
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,

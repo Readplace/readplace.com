@@ -4,7 +4,7 @@ import serverless from "serverless-http";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initBase, GlobalNav, HtmxOmitted } from "@packages/web-shell";
-import { initGetSessionUserId, initResolveLogin } from "@packages/web-session";
+import { initGetSessionUserId, initResolveLogin, initObserveSession } from "@packages/web-session";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { createEmbedApp } from "./app";
 import { getEnv, requireEnv } from "@packages/require-env";
@@ -20,6 +20,7 @@ const base = initBase({
 });
 
 const getSessionUserId = initGetSessionUserId({
+	observeSession: initObserveSession({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>(), context: () => ({ client: "web", surface: "website" }) }),
 	client: createDynamoDocumentClient(),
 	sessionsTableName: requireEnv("DYNAMODB_SESSIONS_TABLE"),
 });

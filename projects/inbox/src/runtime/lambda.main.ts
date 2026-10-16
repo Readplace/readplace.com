@@ -8,7 +8,7 @@ import serverless from "serverless-http";
 import { S3Client } from "@aws-sdk/client-s3";
 import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { initGetSessionUserId, initResolveLogin } from "@packages/web-session";
+import { initGetSessionUserId, initResolveLogin, initObserveSession } from "@packages/web-session";
 import {
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
@@ -33,7 +33,10 @@ const s3Client = new S3Client({});
 
 const sessionsTableName = requireEnv("DYNAMODB_SESSIONS_TABLE");
 
-const getSessionUserId = initGetSessionUserId({ client, sessionsTableName });
+const getSessionUserId = initGetSessionUserId({
+	client, sessionsTableName,
+	observeSession: initObserveSession({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>(), context: () => ({ client: "web", surface: "website" }) }),
+});
 const resolveLogin = initResolveLogin({ getSessionUserId, logger });
 
 const userStanding = initDynamoDbUserStanding({

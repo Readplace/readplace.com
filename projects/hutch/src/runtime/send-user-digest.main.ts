@@ -1,3 +1,4 @@
+import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 /* c8 ignore start -- composition root, no logic to test */
 import { S3Client } from "@aws-sdk/client-s3";
 import { z } from "zod";
@@ -82,6 +83,7 @@ const articleStore = initDynamoDbSavedArticleStore({
 });
 
 const auth = initDynamoDbAuth({
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: usersTable,
 	sessionsTableName: sessionsTable,

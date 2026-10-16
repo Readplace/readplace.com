@@ -278,6 +278,7 @@ final class ReadplaceAPI {
 		}
 		let cookies = sessionCookies(from: http, url: url, excluding: priorCookies)
 		guard !cookies.isEmpty else { throw APIError.decoding }
+		await oauth.recordAuthEvent("session_bridge_completed", outcome: "success", reason: "oauth_bridge")
 		return cookies
 	}
 

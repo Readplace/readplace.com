@@ -263,7 +263,7 @@ describe("Forgot password", () => {
 			expect(await auth.getSessionUserId(stolenSession)).toBeNull();
 		});
 
-		it("keeps every connected app signed in, since a reset is how a reader who lost the password gets back in", async () => {
+		it("invalidates connected app credentials when the password is reset", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, email } = harness;
 			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
@@ -307,7 +307,8 @@ describe("Forgot password", () => {
 				refresh_token: granted.body.refresh_token,
 				client_id: "hutch-chrome-extension",
 			});
-			expect(refreshed.status).toBe(200);
+			expect(refreshed.status).toBe(400);
+			expect(refreshed.body).toMatchObject({ error: "invalid_grant", readplace_reason: "revoked" });
 		});
 
 		it("a reset records when the password last changed", async () => {

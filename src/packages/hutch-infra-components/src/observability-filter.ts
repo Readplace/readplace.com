@@ -59,6 +59,7 @@ export function buildObservabilityFilterPattern(): string {
 	return [
 		...ANALYTICS_FILTER_STREAMS.map(streamTerm),
 		...ERROR_STREAMS.map(streamTerm),
+		streamTerm("auth-diagnostics"),
 		ERROR_LEVEL_TERM,
 		RAW_ERROR_TERM,
 		...RUNTIME_FAILURE_MARKERS,

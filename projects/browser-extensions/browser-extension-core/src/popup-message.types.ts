@@ -9,4 +9,5 @@ export type PopupMessage =
 	| { type: "load-page"; index: number }
 	| { type: "load-sort"; index: number }
 	| { type: "login" }
+	| { type: "login-prompt-shown" }
 	| { type: "logout" };

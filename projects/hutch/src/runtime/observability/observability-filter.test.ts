@@ -64,6 +64,7 @@ describe("observability filter", () => {
 	// packages. A line the classifier claims but the filter drops is invisible.
 	it("delivers every line the classifier claims", () => {
 		const claimed = [
+			'{"stream":"auth-diagnostics","event":"refresh_completed"}',
 			...FORWARDED_STREAMS.map((s) => `{"stream":"${s}","event":"x"}`),
 			...ERROR_STREAMS.map((s) => `{"stream":"${s}","reason":"x"}`),
 			'{"level":"ERROR","message":"boom"}',

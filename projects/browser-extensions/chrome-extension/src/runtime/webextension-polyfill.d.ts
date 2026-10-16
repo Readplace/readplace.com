@@ -43,6 +43,7 @@ declare module "webextension-polyfill" {
 	}
 
 	namespace Runtime {
+		function getManifest(): { version: string };
 		interface MessageSender {
 			tab?: Tabs.Tab;
 		}

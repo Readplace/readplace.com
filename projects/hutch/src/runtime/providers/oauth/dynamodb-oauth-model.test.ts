@@ -3,6 +3,7 @@ import { z } from "zod";
 import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { OAuthClientIdSchema, getBuiltInClient } from "@packages/domain/oauth";
+import { authDiagnosticContext, type AuthDiagnosticContext } from "../../auth-diagnostics/record";
 import { initDynamoDbOAuthModel } from "./dynamodb-oauth-model";
 import { initRefreshProof, refreshContext, type RefreshContext } from "../../oauth-refresh/evidence";
 
@@ -12,6 +13,8 @@ const commandSchema = z.object({
 	ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
 	UpdateExpression: z.string().optional(),
 	TransactItems: z.array(z.object({
+		Put: z.object({ Item: z.record(z.string(), z.unknown()), ConditionExpression: z.string().optional(), ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional() }).optional(),
+		ConditionCheck: z.object({ Key: z.object({ pk: z.string() }), ConditionExpression: z.string(), ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional() }).optional(),
 		Delete: z.object({ Key: z.object({ pk: z.string() }), ConditionExpression: z.string().optional() }).optional(),
 		Update: z.object({ Key: z.object({ pk: z.string() }), UpdateExpression: z.string(), ExpressionAttributeValues: z.record(z.string(), z.unknown()) }).optional(),
 	})).optional(),
@@ -21,11 +24,13 @@ function setup() {
 	const controls: {
 		beforeSend?: (input: z.infer<typeof commandSchema>) => Promise<void>;
 		transactionFailure?: Error;
+		activationFailure?: Error;
 		queryPageSize?: number;
 		afterQuery?: () => void;
 	} = {};
 	const rows = new Map<string, Record<string, unknown>>();
 	const transactions: unknown[] = [];
+	const activations: string[] = [];
 	const send: DynamoDBDocumentClient["send"] = (async (command: { input: unknown; constructor: { name: string } }) => {
 		const input = commandSchema.parse(command.input);
 		if (controls.beforeSend) await controls.beforeSend(input);
@@ -38,6 +43,9 @@ function setup() {
 				credentialExpiresAt: expression.includes("if_not_exists(credentialExpiresAt, :expiry)") ? old?.credentialExpiresAt ?? values[":expiry"] : values[":expiry"],
 				expiresAt: expression.includes("if_not_exists(expiresAt, :ttl)") ? old?.expiresAt ?? values[":ttl"] : values[":ttl"],
 			});
+			if (":deletedAt" in values) Object.assign(row, { deletedAt: values[":deletedAt"] });
+			if (":one" in values) Object.assign(row, { epoch: Number(old?.epoch ?? 0) + Number(values[":one"]) });
+			if (":revoked" in values) Object.assign(row, { state: values[":revoked"] });
 			if (":revocation" in values) Object.assign(row, { revocation: values[":revocation"] });
 			rows.set(pk, row);
 			return row;
@@ -45,10 +53,25 @@ function setup() {
 		if (input.TransactItems) {
 			transactions.push(command.input);
 			if (controls.transactionFailure) throw controls.transactionFailure;
+			const reasons = input.TransactItems.map(entry => {
+				const action = entry.Put ?? entry.ConditionCheck ?? entry.Delete;
+				if (!action?.ConditionExpression) return { Code: "None" };
+				const pk = "Item" in action ? String(action.Item.pk) : action.Key.pk;
+				const row = rows.get(pk);
+				const expression = action.ConditionExpression;
+				const values = "ExpressionAttributeValues" in action ? action.ExpressionAttributeValues : undefined;
+				let accepted = true;
+				if (expression === "attribute_exists(pk)") accepted = Boolean(row);
+				else if (expression === "attribute_not_exists(pk)") accepted = !row;
+				else if (expression.includes("expiresAt <= :now")) accepted = !row || Number(row.expiresAt) <= Number(values?.[":now"]);
+				else if (expression.includes("generation = :generation")) accepted = row?.generation === values?.[":generation"] && row?.state === values?.[":state"] && row?.accessToken === values?.[":access"] && row?.epoch === values?.[":epoch"];
+				else if (expression.includes("epoch = :epoch")) accepted = (row?.epoch ?? 0) === values?.[":epoch"] && !Object.hasOwn(row ?? {}, "deletedAt");
+				else throw new Error(`Unhandled condition: ${expression}`);
+				return { Code: accepted ? "None" : "ConditionalCheckFailed" };
+			});
+			if (reasons.some(reason => reason.Code !== "None")) throw new TransactionCanceledException({ $metadata: {}, message: "lost race", CancellationReasons: reasons });
 			for (const entry of input.TransactItems) {
-				if (entry.Delete?.ConditionExpression && !rows.has(entry.Delete.Key.pk)) throw new TransactionCanceledException({ $metadata: {}, message: "lost race", CancellationReasons: [{ Code: "ConditionalCheckFailed" }] });
-			}
-			for (const entry of input.TransactItems) {
+				if (entry.Put) rows.set(String(entry.Put.Item.pk), entry.Put.Item);
 				if (entry.Delete) rows.delete(entry.Delete.Key.pk);
 				if (entry.Update) update(entry.Update.Key.pk, entry.Update.ExpressionAttributeValues, entry.Update.UpdateExpression);
 			}
@@ -71,8 +94,8 @@ function setup() {
 		}
 	}) as DynamoDBDocumentClient["send"];
 	const client: Partial<DynamoDBDocumentClient> = { send };
-	const model = initDynamoDbOAuthModel({ client: client as DynamoDBDocumentClient, tableName: "oauth", secret: "secret", findUserById: async () => null, findClient: async id => getBuiltInClient(id), markClientActive: async () => {} });
-	return { model, rows, transactions, controls };
+	const model = initDynamoDbOAuthModel({ enrollmentEnabled: true, client: client as DynamoDBDocumentClient, tableName: "oauth", secret: "secret", findUserById: async () => null, findClient: async id => getBuiltInClient(id), markClientActive: async id => { if (controls.activationFailure) throw controls.activationFailure; activations.push(id); } });
+	return { model, rows, transactions, controls, activations };
 }
 
 const user = { id: "user", emailVerified: true };
@@ -99,7 +122,7 @@ it("retains one grant through rotation and atomically admits only one competing 
 	expect(fresh?.parentFingerprint).toBe(old?.fingerprint);
 	expect(old?.revocation).toMatchObject({ cause: "rotation" });
 	expect(old?.expiresAt).toBe(expiry.getTime() / 1000 + 30 * 86400);
-	expect(transactions).toHaveLength(2);
+	expect(transactions).toHaveLength(4);
 	expect(await model.getAccessToken("a1")).toBeNull();
 });
 
@@ -275,7 +298,7 @@ it("does not publish successful issuance context when the refresh lookup cannot 
 	const { model, rows, controls } = setup();
 	const failure = new Error("index write failed");
 	controls.beforeSend = async input => {
-		if (input.Item?.pk === "refresh#r") throw failure;
+		if (input.TransactItems?.some(entry => entry.Put?.Item.pk === "refresh#r")) throw failure;
 	};
 	const context: RefreshContext = {};
 	await expect(refreshContext.run(context, () => model.saveToken(token({ access: "a", refresh: "r" }), client, user))).rejects.toBe(failure);
@@ -327,6 +350,7 @@ it("does not list a client whose stale user-index entry no longer has a token", 
 it("records no revocation when a disconnect finds a stale user-index entry", async () => {
 	const { model, rows, controls, transactions } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	transactions.length = 0;
 	controls.afterQuery = () => { rows.delete("token#a"); };
 	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
 	expect(transactions).toEqual([]);
@@ -340,7 +364,7 @@ it("deletes only the disconnected client's pending codes", async () => {
 	rows.set("code#chrome", { pk: "code#chrome", userId: user.id, clientId: "hutch-chrome-extension" });
 	rows.set("other#unrelated", { pk: "other#unrelated", userId: user.id, clientId: "ios-app" });
 	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
-	expect([...rows.keys()].filter(pk => !pk.startsWith("credential#") && !pk.startsWith("refresh#")).sort()).toEqual(["code#chrome", "other#unrelated", "token#f"]);
+	expect([...rows.keys()].filter(pk => !pk.startsWith("credential#") && !pk.startsWith("refresh#") && !pk.startsWith("grant#")).sort()).toEqual(["code#chrome", "other#unrelated", "token#f"]);
 });
 
 it("does not record a disconnect revocation when storage rejects it", async () => {
@@ -351,4 +375,236 @@ it("does not record a disconnect revocation when storage rejects it", async () =
 	await expect(model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })).rejects.toBe(failure);
 	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.revocation).toBeUndefined();
 	expect(await model.getAccessToken("a")).toMatchObject({ accessToken: "a" });
+});
+
+it("commits one successor and recovers the same token after a lost response using an atomic proof claim", async () => {
+	const { model, rows, transactions } = setup();
+	await model.saveToken({ ...token({ access: "a", refresh: "r" }), refreshTokenExpiresAt: new Date(Date.now() + 60_000) }, client, user);
+	const now = Date.now();
+	const input = { clientId: client.id, refreshToken: "r", now, operationId: "operation", bodyHash: "body", proof: { keyThumbprint: "key", id: "jti", expiresAt: now + 300_000 } };
+	const first = await model.refresh.rotate(input); assert(first.ok);
+	const recovered = await model.refresh.rotate({ ...input, now: now + 86_400_000, proof: { ...input.proof, id: "fresh", expiresAt: now + 86_700_000 } });
+	expect(recovered).toEqual({ ...first, recovered: true });
+	expect(rows.has("token#a")).toBe(false);
+	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.expiresAt).toBe(Math.ceil(first.credential.refreshExpiresAt / 1000) + 30 * 86400);
+	const transaction = commandSchema.parse(transactions[1]);
+	expect(transaction.TransactItems?.filter(entry => entry.ConditionCheck)).toHaveLength(1);
+	expect(transaction.TransactItems?.filter(entry => entry.Put)).toHaveLength(5);
+	expect(await model.refresh.rotate(input)).toMatchObject({ reason: "proof_replayed" });
+	expect(await model.getRefreshToken(first.credential.refreshToken)).toBeNull();
+});
+
+it("admits one concurrent refresh and lets the identical operation recover its winner", async () => {
+	const { model } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const input = { clientId: client.id, refreshToken: "r", now: Date.now(), operationId: "op", bodyHash: "body", proof: { keyThumbprint: "key", id: "jti", expiresAt: Date.now() + 300_000 } };
+	const result = await Promise.all([model.refresh.rotate(input), model.refresh.rotate({ ...input, proof: { ...input.proof, id: "other" } })]);
+	assert(result[0].ok && result[1].ok);
+	expect(result[0].credential).toEqual(result[1].credential);
+	expect([result[0].recovered, result[1].recovered].sort()).toEqual([false, true]);
+});
+
+it("does not consume any token or proof when the transaction fails", async () => {
+	const { model, rows, controls } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	controls.transactionFailure = new Error("unavailable");
+	const input = { clientId: client.id, refreshToken: "r", now: Date.now(), operationId: "op", bodyHash: "body", proof: { keyThumbprint: "key", id: "jti", expiresAt: Date.now() + 300_000 } };
+	await expect(model.refresh.rotate(input)).rejects.toThrow("unavailable");
+	expect(rows.has("token#a")).toBe(true);
+	controls.transactionFailure = undefined;
+	expect(await model.refresh.rotate(input)).toMatchObject({ ok: true });
+});
+
+it("fences a rotation that read its parent before logout-all committed", async () => {
+	const { model, controls, rows } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	let injected = false;
+	controls.beforeSend = async input => {
+		if (input.TransactItems && !injected) {
+			injected = true;
+			rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 1 });
+		}
+	};
+	expect(await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() })).toMatchObject({ reason: "revoked" });
+	expect(await model.getAccessToken("a")).toBeNull();
+});
+
+it("fences bound-grant logout and client disconnect against historical result recovery", async () => {
+	for (const disconnect of [false, true]) {
+		const { model } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+		const input = { clientId: client.id, refreshToken: "r", now: Date.now(), operationId: "op", bodyHash: "body", proof: { keyThumbprint: "key", id: "jti", expiresAt: Date.now() + 300_000 } };
+		const first = await model.refresh.rotate(input); assert(first.ok);
+		if (disconnect) await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+		else expect(await model.refresh.revoke({ token: "r", now: Date.now(), proof: { ...input.proof, id: "logout" } })).toMatchObject({ ok: true });
+		expect(await model.refresh.rotate({ ...input, proof: { ...input.proof, id: "retry" } })).toMatchObject({ reason: "revoked" });
+		expect(await model.getAccessToken(first.credential.accessToken)).toBeNull();
+	}
+});
+
+it("fails closed if a bound grant disappears while its token still exists", async () => {
+	const { model, rows } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const first = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now(), operationId: "op", bodyHash: "body", proof: { keyThumbprint: "key", id: "jti", expiresAt: Date.now() + 300_000 } }); assert(first.ok);
+	rows.delete(`grant#${first.credential.grantId}`);
+	await expect(model.refresh.rotate({ clientId: client.id, refreshToken: first.credential.refreshToken, now: Date.now() })).rejects.toThrow("Bound refresh grant is missing");
+	await expect(model.getAccessToken(first.credential.accessToken)).rejects.toThrow("Bound refresh grant is missing");
+});
+
+it("renews a client's lifetime before spending its refresh credential and preserves it on renewal failure", async () => {
+	const { model, controls, activations, rows } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const input = { clientId: client.id, refreshToken: "r", now: Date.now() };
+	controls.activationFailure = new Error("client renewal unavailable");
+	await expect(model.refresh.rotate(input)).rejects.toThrow("client renewal unavailable");
+	expect(rows.has("token#a")).toBe(true);
+	controls.activationFailure = undefined;
+	expect(await model.refresh.rotate(input)).toMatchObject({ ok: true });
+	expect(activations).toEqual([client.id, client.id]);
+});
+
+it("correlates authenticated resources and rejected historical refreshes without logging credentials", async () => {
+	const { model } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const context: AuthDiagnosticContext = { request_id: "request", context_id: "context", client: "external", surface: "external" };
+	await authDiagnosticContext.run(context, () => model.getAccessToken("a"));
+	expect(context).toMatchObject({ client: "ios", surface: "app", subject_ref: expect.stringMatching(/^[a-f0-9]{64}$/), grant_id: expect.any(String) });
+	const rotate = { clientId: client.id, refreshToken: "r", now: Date.now() };
+	await model.refresh.rotate(rotate);
+	const refused: AuthDiagnosticContext = { request_id: "request", context_id: "context", client: "web", surface: "website" };
+	expect(await authDiagnosticContext.run(refused, () => model.refresh.rotate(rotate))).toMatchObject({ reason: "superseded" });
+	expect(refused.subject_ref).toBe(context.subject_ref);
+	expect(refused.grant_id).toBe(context.grant_id);
+	expect(refused).toMatchObject({ client: "ios", surface: "app" });
+});
+
+it.each([
+	["hutch-chrome-extension", "chrome", "background"],
+	["hutch-firefox-extension", "firefox", "background"],
+	["ios-app", "ios", "app"],
+	["android-app", "android", "app"],
+	["external-client", "external", "external"],
+])("attributes bearer-resource surfaces from the stored client %s", async (id, expectedClient, surface) => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), { ...client, id }, user);
+	const context: AuthDiagnosticContext = { request_id: "request", context_id: "context", client: "web", surface: "website" };
+	await authDiagnosticContext.run(context, () => model.getAccessToken("a"));
+	expect(context).toMatchObject({ client: expectedClient, surface });
+});
+
+it("uses the credential owner for revoke diagnostics even when a different client is claimed", async () => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const context: AuthDiagnosticContext = { request_id: "request", context_id: "context", client: "chrome", surface: "background" };
+	expect(await authDiagnosticContext.run(context, () => model.refresh.revoke({ token: "r", clientId: "hutch-chrome-extension", now: Date.now() }))).toEqual({ ok: true });
+	expect(context).toMatchObject({ client: "ios", surface: "app", grant_id: expect.any(String), subject_ref: expect.any(String) });
+	expect(await model.getAccessToken("a")).toMatchObject({ accessToken: "a" });
+});
+
+it("keeps deletion fenced when an authorization already in progress observes the new account epoch", async () => {
+	const { model, rows } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	await model.revokeAllUserOAuthTokens(reader, "account-deletion");
+	expect(rows.get(`oauth-account#${user.id}`)).toMatchObject({ epoch: 1, deletedAt: expect.any(Number) });
+	await expect(model.saveToken(token({ access: "new", refresh: "new-refresh" }), client, user)).rejects.toBeInstanceOf(TransactionCanceledException);
+	expect(rows.has("token#new")).toBe(false);
+});
+
+it("attributes expired and epoch-revoked resource credentials before returning an authentication refusal", async () => {
+	const { model, rows } = setup();
+	await model.saveToken({ ...token({ access: "expired", refresh: "r" }), accessTokenExpiresAt: new Date(1) }, client, user);
+	await model.saveToken(token({ access: "active", refresh: "s" }), client, user);
+	const expired: AuthDiagnosticContext = { request_id: "request", context_id: "context", client: "external", surface: "external" };
+	expect(await authDiagnosticContext.run(expired, () => model.getAccessToken("expired"))).toBeNull();
+	expect(expired).toMatchObject({ auth_refusal_reason: "expired", client: "ios", subject_ref: expect.any(String), grant_id: expect.any(String) });
+	rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 1 });
+	const revoked: AuthDiagnosticContext = { request_id: "request", context_id: "context", client: "external", surface: "external" };
+	expect(await authDiagnosticContext.run(revoked, () => model.getAccessToken("active"))).toBeNull();
+	expect(revoked).toMatchObject({ auth_refusal_reason: "revoked", client: "ios", subject_ref: expired.subject_ref, grant_id: expect.any(String) });
+});
+
+it("atomically migrates legacy rows with no grant, epoch, generation or retained history", async () => {
+	const { model, rows } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const row = rows.get("token#a"); assert(row); delete row.grantId; delete row.epoch; delete row.generation;
+	rows.delete(`credential#${proof.fingerprint("r")}`);
+	expect(await model.getAccessToken("a")).toMatchObject({ accessToken: "a" });
+	const context: RefreshContext = {};
+	const diagnostics: AuthDiagnosticContext = { request_id: "request", context_id: "context", client: "ios", surface: "app" };
+	const result = await authDiagnosticContext.run(diagnostics, () => refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() })));
+	expect(result).toMatchObject({ ok: true, credential: { generation: 1, epoch: 0 } });
+	expect(diagnostics).toMatchObject({ grant_id: expect.any(String), subject_ref: expect.any(String) });
+	expect(context.reason).toBe("unknown");
+	expect(await model.getAccessToken("a")).toBeNull();
+});
+
+it("reports unknown, retained revocation, and a missing cached result through the real store", async () => {
+	const { model, rows } = setup();
+	const context: RefreshContext = {};
+	await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: "absent", now: Date.now() }));
+	expect(context.reason).toBe("unknown");
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const input = { clientId: client.id, refreshToken: "r", now: Date.now(), operationId: "op", bodyHash: "body", proof: { keyThumbprint: "key", id: "proof", expiresAt: Date.now() + 300_000 } };
+	const first = await model.refresh.rotate(input); assert(first.ok);
+	rows.delete(`token#${first.credential.accessToken}`);
+	await expect(model.refresh.rotate(input)).rejects.toThrow("Refresh result credential is missing");
+	await model.refresh.revoke({ token: "r", proof: { ...input.proof, id: "logout" }, now: Date.now() });
+	const refusal: RefreshContext = {};
+	expect(await refreshContext.run(refusal, () => model.refresh.rotate(input))).toMatchObject({ reason: "revoked" });
+	expect(refusal.reason).toBe("rotation");
+});
+
+it("keeps the account epoch advanced while allowing newly authorized sessions after ordinary logout-all", async () => {
+	const { model } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	await model.revokeAllUserOAuthTokens(reader, "logout-all");
+	await model.saveToken(token({ access: "b", refresh: "s" }), client, user);
+	expect(await model.refresh.rotate({ clientId: client.id, refreshToken: "s", now: Date.now() })).toMatchObject({ ok: true, credential: { epoch: 1 } });
+});
+
+it.each([
+	new TransactionCanceledException({ $metadata: {}, message: "throttled", CancellationReasons: [{ Code: "ProvisionedThroughputExceeded" }] }),
+	new TransactionCanceledException({ $metadata: {}, message: "unspecified cancellation" }),
+])("preserves the parent on non-conditional transaction cancellation: %s", async failure => {
+	const { model, rows, controls } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	controls.transactionFailure = failure;
+	await expect(model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() })).rejects.toBe(failure);
+	expect(rows.has("token#a")).toBe(true);
+});
+
+it("marks a migrated grant revoked during bulk cleanup and keeps new access-only tokens out of the refresh index", async () => {
+	const { model, rows } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const first = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }); assert(first.ok);
+	await model.revokeAllUserOAuthTokens(reader, "logout-all");
+	expect(rows.get(`grant#${first.credential.grantId}`)?.state).toBe("revoked");
+	const context: RefreshContext = {};
+	await refreshContext.run(context, () => model.saveToken({ ...token({ access: "only-access", refresh: "" }), refreshTokenExpiresAt: new Date(1) }, client, user));
+	expect(context.credential).toBeUndefined();
+	expect(rows.has("refresh#")).toBe(false);
+	expect(rows.get("token#only-access")?.expiresAt).toBe(expiry.getTime() / 1000);
+});
+
+it("retries a disconnect that loses to rotation and bounds sustained transaction contention", async () => {
+	const { model, controls } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	let commits = 0;
+	const conflict = new TransactionCanceledException({ $metadata: {}, message: "conflict", CancellationReasons: [{ Code: "ConditionalCheckFailed" }] });
+	controls.beforeSend = async input => { if (input.TransactItems) controls.transactionFailure = ++commits === 1 ? conflict : undefined; };
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	expect(commits).toBe(2);
+	await model.saveToken(token({ access: "b", refresh: "s" }), client, user);
+	controls.beforeSend = undefined; controls.transactionFailure = conflict;
+	await expect(model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })).rejects.toThrow("Concurrent disconnect could not settle");
+});
+
+it("settles a disconnect when the account epoch already invalidated its token", async () => {
+	const { model, rows, transactions } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 1 });
+	transactions.length = 0;
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	expect(transactions).toEqual([]);
+});
+
+it("settles a disconnect whose credential disappears after the user-index lookup", async () => {
+	for (const keepHistory of [false, true]) {
+		const { model, rows, controls } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+		controls.beforeSend = async input => {
+			if (input.Key?.pk === "refresh#r") {
+				rows.delete("token#a");
+				if (!keepHistory) rows.delete(`credential#${proof.fingerprint("r")}`);
+			}
+		};
+		await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+		expect(rows.has("token#a")).toBe(false);
+	}
 });

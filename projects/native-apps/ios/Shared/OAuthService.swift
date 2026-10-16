@@ -35,13 +35,16 @@ actor OAuthService {
 	let store: TokenStore
 	private let nativeUserAgent: String
 	private let session: URLSession
+	private let recovery: NativeRefreshRecovery?
 	private var generation = UUID()
+	private var loginDiagnosticIdentity: String?
 	private var pending: (id: UUID, task: Task<RefreshResult, Error>)?
 	private static let refreshTimeout: TimeInterval = 10
 
 	struct Snapshot: Equatable {
 		let tokens: OAuthTokens
 		let generation: UUID
+		let accountEpoch: String
 	}
 
 	struct RefreshResult {
@@ -50,31 +53,39 @@ actor OAuthService {
 	}
 
 	func snapshot() throws -> Snapshot {
-		guard let tokens = try store.loadTokens().get() else { throw OAuthError.noRefreshToken }
-		return Snapshot(tokens: tokens, generation: generation)
+		let record = try store.authRecords.read()
+		guard let tokens = record.tokens else { throw OAuthError.noRefreshToken }
+		return Snapshot(tokens: tokens, generation: generation, accountEpoch: record.accountEpoch)
 	}
 
 	func clear(ifUnchanged tokens: OAuthTokens?) {
-		guard store.tokens == tokens else { return }
-		clear()
+		let cleared = try? store.authRecords.update { record in
+			guard record.tokens == tokens else { return false }
+			record.generation += 1; record.tokens = nil; record.pending = nil; record.bound = false
+			return true
+		}
+		if cleared == true { generation = UUID(); pending = nil }
 	}
 
-	func clear() {
+	@discardableResult
+	func clear() -> Result<Void, Error> {
 		generation = UUID()
 		pending = nil
-		store.clear()
+		return Result { try store.authRecords.replace(nil) }
 	}
 
 	init(
 		baseURL: String,
 		store: TokenStore,
 		nativeUserAgent: String,
-		sessionConfiguration: URLSessionConfiguration = .default
+		sessionConfiguration: URLSessionConfiguration = .default,
+		recovery: NativeRefreshRecovery? = nil
 	) {
 		self.baseURL = baseURL
 		self.store = store
 		self.nativeUserAgent = nativeUserAgent
 		self.session = URLSession(configuration: sessionConfiguration)
+		self.recovery = recovery
 	}
 
 	private var tokenEndpoint: URL { URL(string: "\(baseURL)/oauth/token")! }
@@ -133,6 +144,15 @@ actor OAuthService {
 		generation = UUID()
 		pending = nil
 		let started = generation
+		let diagnosticIdentity = loginDiagnosticIdentity ?? UUID().uuidString.lowercased()
+		loginDiagnosticIdentity = nil
+		let storedGeneration = try store.authRecords.update { record in
+			record.generation += 1; record.pending = nil
+			record.accountEpoch = UUID().uuidString.lowercased()
+			record.diagnosticIdentity = diagnosticIdentity; record.diagnosticsPermit = nil
+			return record.generation
+		}
+		await recovery?.record("login_started")
 		let body = formBody([
 			"grant_type": "authorization_code",
 			"code": code,
@@ -140,12 +160,29 @@ actor OAuthService {
 			"client_id": AppConfig.clientId,
 			"code_verifier": verifier,
 		])
-		let (data, response) = try await session.data(for: tokenRequest(body))
+		var request = tokenRequest(body)
+		if let recovery {
+			for (name, value) in try await recovery.requestHeaders() { request.setValue(value, forHTTPHeaderField: name) }
+		}
+		let (data, response) = try await session.data(for: request)
 		let status = (response as? HTTPURLResponse)?.statusCode ?? -1
 		guard status == 200 else { throw OAuthError.tokenExchangeFailed(status: status) }
 		let tokens = try parseTokens(data, fallbackRefresh: nil)
+		struct Diagnostics: Decodable { let diagnostics_permit: String? }
+		let permit = (try? JSONDecoder().decode(Diagnostics.self, from: data))?.diagnostics_permit
 		guard generation == started else { throw OAuthError.sessionChanged }
-		store.save(tokens)
+		try store.authRecords.update { record in
+			guard record.generation == storedGeneration else { throw OAuthError.sessionChanged }
+			record.tokens = tokens; record.bound = false
+			if let permit {
+				record.diagnosticsPermit = permit
+				for index in record.diagnostics.indices where record.diagnostics[index].identity == record.diagnosticIdentity && record.diagnostics[index].permit == nil {
+					record.diagnostics[index].permit = permit
+				}
+			}
+		}
+		await recovery?.record("login_completed", outcome: "success")
+		Task { await recovery?.flush() }
 		return tokens
 	}
 
@@ -156,7 +193,7 @@ actor OAuthService {
 
 	func refresh(after failed: Snapshot) async throws -> RefreshResult {
 		let current = try snapshot()
-		guard current.generation == failed.generation else { throw OAuthError.sessionChanged }
+		guard current.generation == failed.generation, current.accountEpoch == failed.accountEpoch else { throw OAuthError.sessionChanged }
 		if current.tokens != failed.tokens {
 			return RefreshResult(snapshot: current, recoveryProof: nil)
 		}
@@ -169,6 +206,12 @@ actor OAuthService {
 	}
 
 	private func performRefresh(_ failed: Snapshot) async throws -> RefreshResult {
+		if let recovery, let _ = try await recovery.refresh(after: failed.tokens) {
+			guard generation == failed.generation else { throw OAuthError.sessionChanged }
+			let current = try snapshot()
+			guard current.accountEpoch == failed.accountEpoch else { throw OAuthError.sessionChanged }
+			return RefreshResult(snapshot: current, recoveryProof: nil)
+		}
 		let body = formBody([
 			"grant_type": "refresh_token",
 			"refresh_token": failed.tokens.refreshToken,
@@ -182,12 +225,14 @@ actor OAuthService {
 		catch {
 			guard generation == failed.generation else { throw OAuthError.sessionChanged }
 			let current = try snapshot()
+			guard current.accountEpoch == failed.accountEpoch else { throw OAuthError.sessionChanged }
 			if current.tokens != failed.tokens { return RefreshResult(snapshot: current, recoveryProof: nil) }
 			throw OAuthError.refreshUnreachable(error)
 		}
 		guard generation == failed.generation else { throw OAuthError.sessionChanged }
 		let http = response as? HTTPURLResponse
 		let current = try snapshot()
+		guard current.accountEpoch == failed.accountEpoch else { throw OAuthError.sessionChanged }
 		if current.tokens != failed.tokens {
 			return RefreshResult(snapshot: current, recoveryProof: http?.value(forHTTPHeaderField: "X-Readplace-Refresh-Attempt"))
 		}
@@ -196,19 +241,33 @@ actor OAuthService {
 			if http?.statusCode == 400,
 				let refusal = try? JSONDecoder().decode(Refusal.self, from: data),
 				refusal.error == "invalid_grant" {
-				clear()
+				try store.authRecords.update { record in
+					guard record.tokens == failed.tokens, record.accountEpoch == failed.accountEpoch else { throw OAuthError.sessionChanged }
+					record.generation += 1; record.tokens = nil; record.pending = nil
+				}
 				throw OAuthError.noRefreshToken
 			}
 			throw OAuthError.refreshFailed
 		}
 		let tokens = try parseTokens(data, fallbackRefresh: failed.tokens.refreshToken)
-		store.save(tokens)
+		try store.authRecords.update { record in
+			guard record.tokens == failed.tokens, record.accountEpoch == failed.accountEpoch else { throw OAuthError.sessionChanged }
+			record.generation += 1; record.tokens = tokens
+		}
 		return RefreshResult(snapshot: try snapshot(), recoveryProof: nil)
 	}
 
 	func revoke() async {
+		let previous = try? store.authRecords.read()
 		let refresh = store.tokens?.refreshToken
-		clear()
+		let cleared = clear()
+		await recovery?.record("logout_started", reason: "user_requested")
+		if let recovery, let previous, previous.bound || previous.pending != nil {
+			try? await recovery.revoke(previous)
+			await recordLogout(cleared)
+			await recovery.flush()
+			return
+		}
 		if let refresh {
 			var request = URLRequest(url: revokeEndpoint)
 			request.httpMethod = "POST"
@@ -216,6 +275,31 @@ actor OAuthService {
 			request.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")
 			request.httpBody = try? JSONSerialization.data(withJSONObject: ["token": refresh])
 			_ = try? await session.data(for: request)
+		}
+		await recordLogout(cleared)
+		await recovery?.flush()
+	}
+
+	func recordAuthEvent(_ event: String, outcome: String? = nil, reason: String? = nil) async {
+		if event == "login_started" {
+			let identity = UUID().uuidString.lowercased()
+			try? store.authRecords.update { record in
+				for index in record.diagnostics.indices where record.diagnostics[index].identity == record.diagnosticIdentity && record.diagnostics[index].permit == nil && record.diagnostics[index].event.event == "login_prompt_shown" {
+					record.diagnostics[index] = NativeAuthJournalEntry(event: record.diagnostics[index].event, identity: identity, permit: nil)
+				}
+				record.diagnosticIdentity = identity; record.diagnosticsPermit = nil
+			}
+			loginDiagnosticIdentity = identity
+		}
+		await recovery?.record(event, outcome: outcome, reason: reason)
+		Task { await recovery?.flush() }
+	}
+
+	private func recordLogout(_ result: Result<Void, Error>) async {
+		switch result {
+		case .success: await recovery?.record("logout_completed", outcome: "success")
+		case .failure(let error):
+			await recovery?.record("logout_completed", outcome: "failure", reason: "storage_write_failed", storageStatus: (error as? KeychainError)?.status)
 		}
 	}
 

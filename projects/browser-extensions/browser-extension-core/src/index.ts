@@ -24,6 +24,9 @@ export type {
 } from "./auth/auth.types";
 export { OAuthTokensSchema } from "./auth/oauth-tokens";
 export { initOAuthAuth } from "./auth/oauth-auth";
+export { initRecoverableOAuthAuth } from "./auth/recoverable-oauth";
+export { initIndexedDbAuthState } from "./auth/indexed-db-auth-state.browser";
+export { initRefreshProof } from "./auth/refresh-proof";
 export { UnauthorizedError } from "./auth/unauthorized-error";
 export {
 	initSirenReadingList,

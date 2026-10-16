@@ -1,3 +1,4 @@
+import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 /* c8 ignore start -- composition root, no logic to test */
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -29,6 +30,7 @@ const subscriptionProviders = initDynamoDbSubscriptionProviders({
 });
 
 const auth = initDynamoDbAuth({
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: usersTable,
 	sessionsTableName: sessionsTable,

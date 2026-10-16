@@ -177,6 +177,9 @@ importers:
       '@packages/article-resource-unique-id':
         specifier: workspace:*
         version: link:../../../src/packages/article-resource-unique-id
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../../src/packages/domain
       '@packages/hutch-logger':
         specifier: workspace:*
         version: link:../../../src/packages/hutch-logger

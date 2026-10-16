@@ -134,7 +134,8 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		res.clearCookie(STATE_COOKIE, { path: "/" });
 
-		const renderError = async (message: string) => {
+		const renderError = async (message: string, reason: "callback_invalid" | "expired" | "provider_rejected" = "provider_rejected") => {
+			res.locals.authDiagnosticReason = reason;
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req,
@@ -152,20 +153,20 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		};
 
 		if (!parsedQuery.success || !stateCookie || parsedQuery.data.state !== stateCookie) {
-			await renderError("Google sign-in failed. Please try again.");
+			await renderError("Google sign-in failed. Please try again.", "callback_invalid");
 			return;
 		}
 		const { code, state: stateParam } = parsedQuery.data;
 
 		const payload = verifyState({ signed: stateParam, secret: deps.googleClientSecret });
 		if (!payload) {
-			await renderError("Google sign-in failed. Please try again.");
+			await renderError("Google sign-in failed. Please try again.", "callback_invalid");
 			return;
 		}
 
 		const stateData = StatePayloadSchema.parse(JSON.parse(payload));
 		if (Date.now() - stateData.createdAt > STATE_TTL_MS) {
-			await renderError("Google sign-in expired. Please try again.");
+			await renderError("Google sign-in expired. Please try again.", "expired");
 			return;
 		}
 

@@ -1,3 +1,4 @@
+import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 import { S3Client } from "@aws-sdk/client-s3";
 import { initDynamoDbReadlistDefinitions } from "@packages/article-store";
 import { initCatalogNewsletterDetector } from "@packages/domain/newsletter-catalog";
@@ -20,7 +21,8 @@ const monitoring = initDynamoDbGmailMonitoring({ client, tableName: requireEnv("
 const connections = initDynamoDbGmailConnection({ client, tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"), now });
 const mappings = initDynamoDbGmailMapping({ client, tableName: requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE"), now });
 const catalog = initS3NewsletterCatalog({ client: new S3Client({}), bucketName: requireEnv("NEWSLETTER_CATALOG_BUCKET_NAME"), key: NEWSLETTER_CATALOG_OBJECT_KEY, logger });
-const auth = initDynamoDbAuth({ client, usersTableName: requireEnv("DYNAMODB_USERS_TABLE"), sessionsTableName: requireEnv("DYNAMODB_SESSIONS_TABLE") });
+const auth = initDynamoDbAuth({
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession, client, usersTableName: requireEnv("DYNAMODB_USERS_TABLE"), sessionsTableName: requireEnv("DYNAMODB_SESSIONS_TABLE") });
 const { sendEmail } = initSkipReservedDomain({ ...initResendEmail(requireEnv("RESEND_API_KEY")), logger });
 
 export const handler = initSendGmailNewsletterNoticeHandler({

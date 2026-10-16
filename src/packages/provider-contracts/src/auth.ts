@@ -58,6 +58,17 @@ export type DestroySession = (sessionId: string) => Promise<void>;
 
 export type DestroyUserSessions = (userId: UserId) => Promise<void>;
 
+export type SessionObservation = {
+	event: "session_created" | "session_renewed" | "session_deleted" | "session_unavailable";
+	sessionId: string;
+	userId?: UserId;
+	expiresAt?: number;
+	previousExpiresAt?: number;
+	reason?: "row_missing" | "expired" | "lookup_error";
+};
+
+export type ObserveSession = (event: SessionObservation) => void;
+
 export type CloseUserAccount = (userId: UserId) => Promise<void>;
 
 export type MarkAccountDeleted = (input: { userId: UserId; at: string }) => Promise<void>;

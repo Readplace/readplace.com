@@ -169,7 +169,12 @@ export function initPopup(deps: {
 
 	async function performLogout() {
 		await send({ type: "logout" });
+		showLoginPrompt();
+	}
+
+	function showLoginPrompt() {
 		showView("login-view");
+		void send({ type: "login-prompt-shown" }).catch(() => {});
 	}
 
 	function isNotLoggedIn(result: { ok: boolean; reason?: string }): boolean {
@@ -374,7 +379,7 @@ export function initPopup(deps: {
 						});
 
 						if (isNotLoggedIn(result)) {
-							await performLogout();
+							showLoginPrompt();
 							return;
 						}
 
@@ -492,7 +497,7 @@ export function initPopup(deps: {
 		});
 
 		if (isNotLoggedIn(result)) {
-			await performLogout();
+			showLoginPrompt();
 			return "logged-out";
 		}
 
@@ -521,7 +526,7 @@ export function initPopup(deps: {
 		const result = await send<GuardedResult<LoadPageResult>>(request);
 
 		if (isNotLoggedIn(result)) {
-			await performLogout();
+			showLoginPrompt();
 			return;
 		}
 
@@ -717,7 +722,7 @@ export function initPopup(deps: {
 		}
 
 		if (isNotLoggedIn(saveResult)) {
-			await performLogout();
+			showLoginPrompt();
 			return;
 		}
 
@@ -809,7 +814,7 @@ export function initPopup(deps: {
 		});
 
 		if (isNotLoggedIn(result)) {
-			await performLogout();
+			showLoginPrompt();
 			return;
 		}
 
@@ -838,10 +843,6 @@ export function initPopup(deps: {
 		);
 
 		if (result.value.unauthorized) {
-			/** The session died mid-run: the painted partial report must stay on
-			 * screen, so end the session without performLogout's swap to the login
-			 * view. The next popup open lands on login as usual. */
-			await send({ type: "logout" });
 			performance.mark(SAVE_ALL_RENDERED_MARK);
 			return;
 		}

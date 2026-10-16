@@ -4,10 +4,16 @@ import UIKit
 @main
 struct ReadplaceApp: App {
 	@UIApplicationDelegateAdaptor(BackgroundSessionAppDelegate.self) private var backgroundSessions
-	@StateObject private var session = AppSession(
-		nativeUserAgent: AppSession.processNativeUserAgent(),
-		sessionConfiguration: ReadplaceApp.readlistCachingConfiguration()
-	)
+	@StateObject private var session = ReadplaceApp.makeSession()
+
+	private static func makeSession() -> AppSession {
+		let store = TokenStore()
+		let configuration = readlistCachingConfiguration()
+		let recovery = NativeRefreshRecovery(baseURL: AppConfig.serverBaseURL, records: store.authRecords,
+			configuration: configuration, surface: "app", version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown")
+		Task { await recovery.record("context_started"); await recovery.flush() }
+		return AppSession(store: store, nativeUserAgent: AppSession.processNativeUserAgent(), sessionConfiguration: configuration, recovery: recovery)
+	}
 
 	var body: some Scene {
 		WindowGroup {

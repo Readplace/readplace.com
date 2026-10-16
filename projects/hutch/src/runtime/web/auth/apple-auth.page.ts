@@ -171,6 +171,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		 * return quietly to /login — a deliberate cancel is not an error and a 400
 		 * would only pollute monitoring. */
 		if (CancelBodySchema.safeParse(req.body).success) {
+			res.locals.authDiagnosticReason = "user_cancelled";
 			res.redirect(303, "/login");
 			return;
 		}
@@ -178,7 +179,8 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const parsedBody = CallbackBodySchema.safeParse(req.body);
 		const stateCookie = req.cookies?.[STATE_COOKIE];
 
-		const renderError = async (message: string) => {
+		const renderError = async (message: string, reason: "callback_invalid" | "expired" | "provider_rejected" = "provider_rejected") => {
+			res.locals.authDiagnosticReason = reason;
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req,
@@ -196,20 +198,20 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		};
 
 		if (!parsedBody.success || !stateCookie || parsedBody.data.state !== stateCookie) {
-			await renderError("Apple sign-in failed. Please try again.");
+			await renderError("Apple sign-in failed. Please try again.", "callback_invalid");
 			return;
 		}
 		const { code, state: stateParam } = parsedBody.data;
 
 		const payload = verifyState({ signed: stateParam, secret: deps.stateSigningSecret });
 		if (!payload) {
-			await renderError("Apple sign-in failed. Please try again.");
+			await renderError("Apple sign-in failed. Please try again.", "callback_invalid");
 			return;
 		}
 
 		const stateData = StatePayloadSchema.parse(JSON.parse(payload));
 		if (Date.now() - stateData.createdAt > STATE_TTL_MS) {
-			await renderError("Apple sign-in expired. Please try again.");
+			await renderError("Apple sign-in expired. Please try again.", "expired");
 			return;
 		}
 

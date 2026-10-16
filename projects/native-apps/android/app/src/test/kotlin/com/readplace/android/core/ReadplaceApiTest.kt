@@ -338,6 +338,40 @@ class ReadplaceApiTest {
 	}
 
 	@Test
+	fun `account switch after refresh completion prevents replaying its old bearer`() = runTest {
+		val store = loggedInStore(access = "stale", refresh = "r1")
+		val oauth = oauthFor(store)
+		server.handle { record ->
+			when (record.path) {
+				"/oauth/token" -> Stub.json(200, Fixtures.tokenResponse(access = "fresh-access", refresh = "r2"))
+				else -> Stub.json(401, "{}")
+			}
+		}
+		val delegate = StandardTestDispatcher(testScheduler)
+		var switched = false
+		val resumeAfterSwitch = object : CoroutineDispatcher() {
+			override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) {
+				delegate.dispatch(context, Runnable {
+					if (!switched && store.tokens?.accessToken?.raw == "fresh-access") {
+						switched = true
+						oauth.endSession()
+						store.save(OAuthTokens(AccessToken("other-account"), RefreshToken("other-refresh")))
+					}
+					block.run()
+				})
+			}
+		}
+		val error = withContext(resumeAfterSwitch) {
+			runCatching { api(store, oauth = oauth, ioDispatcher = Dispatchers.IO).loadReadlist() }.exceptionOrNull()
+		}
+		assertTrue(switched)
+		assertTrue(error is OAuthError.SessionChanged)
+		assertEquals(1, server.records("/").size)
+		assertEquals("Bearer stale", server.records("/").single().header("Authorization"))
+		assertEquals("other-account", store.tokens?.accessToken?.raw)
+	}
+
+	@Test
 	fun `a refresh the network never delivers keeps the pair and reports a retryable failure`() = runTest {
 		val store = loggedInStore(access = "stale", refresh = "r1")
 		server.handle { Stub.json(401, "{}") }

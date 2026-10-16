@@ -293,6 +293,7 @@ class ReadplaceApi(
 		if (answer.status !in 200..299) throw apiError(answer)
 		val cookies = sessionCookies(answer, url, priorCookies)
 		if (cookies.isEmpty()) throw ApiError.Decoding()
+		oauth.recordAuthEvent("session_bridge_completed", "success", "oauth_bridge")
 		return cookies
 	}
 
@@ -438,7 +439,8 @@ class ReadplaceApi(
 	}
 
 	private suspend fun send(request: Request, refreshed: OAuth.Snapshot? = null): Answer {
-		val credentials = refreshed ?: oauth.snapshot() ?: throw ApiError.NoToken()
+		val credentials = oauth.snapshot() ?: throw ApiError.NoToken()
+		if (refreshed != null && credentials != refreshed) throw OAuthError.SessionChanged()
 		val authed = request.newBuilder()
 			.header("Authorization", "Bearer ${credentials.tokens.accessToken.raw}")
 			.header("Accept", AppConfig.SIREN_MEDIA_TYPE)

@@ -46,6 +46,7 @@ import type {
 	MarkEmailVerified,
 	RenewSession,
 	MarkSessionEmailVerified,
+	ObserveSession,
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
 	SetSessionReadlistFilter,
@@ -100,6 +101,7 @@ export function initDynamoDbAuth(deps: {
 	client: DynamoDBDocumentClient;
 	usersTableName: string;
 	sessionsTableName: string;
+	observeSession: ObserveSession;
 }): {
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
@@ -347,6 +349,7 @@ export function initDynamoDbAuth(deps: {
 		await sessions.put({
 			Item: { sessionId, userId, emailVerified, expiresAt },
 		});
+		deps.observeSession({ event: "session_created", sessionId, userId, expiresAt });
 
 		return sessionId;
 	};
@@ -354,12 +357,14 @@ export function initDynamoDbAuth(deps: {
 	const renewSession: RenewSession = async ({ sessionId }) => {
 		const now = Math.floor(Date.now() / 1000);
 		try {
-			await sessions.update({
+			const previous = await sessions.update({
 				Key: { sessionId },
 				UpdateExpression: "SET expiresAt = :expiresAt",
+				ReturnValues: "ALL_OLD",
 				ConditionExpression: "attribute_exists(sessionId) AND expiresAt >= :now",
 				ExpressionAttributeValues: { ":expiresAt": now + SESSION_TTL_SECONDS, ":now": now },
 			});
+			deps.observeSession({ event: "session_renewed", sessionId, userId: previous.Attributes?.userId, previousExpiresAt: previous.Attributes?.expiresAt, expiresAt: now + SESSION_TTL_SECONDS });
 			return "renewed";
 		} catch (error) {
 			if (error instanceof ConditionalCheckFailedException) return "session-gone";
@@ -370,10 +375,12 @@ export function initDynamoDbAuth(deps: {
 	const getSessionUserId: GetSessionUserId = initGetSessionUserId({
 		client: deps.client,
 		sessionsTableName: deps.sessionsTableName,
+		observeSession: deps.observeSession,
 	});
 
 	const destroySession: DestroySession = async (sessionId) => {
-		await sessions.delete({ Key: { sessionId } });
+		const previous = await sessions.delete({ Key: { sessionId }, ReturnValues: "ALL_OLD" });
+		deps.observeSession({ event: "session_deleted", sessionId, userId: previous.Attributes?.userId, expiresAt: previous.Attributes?.expiresAt });
 	};
 
 	const destroyUserSessions: DestroyUserSessions = async (userId) => {
@@ -385,7 +392,7 @@ export function initDynamoDbAuth(deps: {
 				ExpressionAttributeValues: { ":userId": userId },
 			},
 			async (rows) => {
-				await Promise.all(rows.map((row) => sessions.delete({ Key: { sessionId: row.sessionId } })));
+				await Promise.all(rows.map((row) => destroySession(row.sessionId)));
 			},
 		);
 	};

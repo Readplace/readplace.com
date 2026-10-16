@@ -41,12 +41,13 @@ interface TokenStorage {
  * agree on one identity. The server they target is fixed at build time, not stored
  * here.
  */
-class TokenStore(private val storage: TokenStorage) {
+class TokenStore(private val storage: TokenStorage, val authRecords: NativeAuthRecords? = null) {
 	/** The pair, or null when either token is absent OR unreadable: the app's own
 	 * session gating re-authenticates either way. A caller that must tell the two
 	 * apart reads [loadTokens] instead. */
 	val tokens: OAuthTokens?
 		get() {
+			authRecords?.let { records -> return runCatching { records.read().tokens }.getOrNull() }
 			val access = readOrNull(TokenKey.ACCESS_TOKEN) ?: return null
 			val refresh = readOrNull(TokenKey.REFRESH_TOKEN) ?: return null
 			return OAuthTokens(AccessToken(access), RefreshToken(refresh))
@@ -57,6 +58,7 @@ class TokenStore(private val storage: TokenStorage) {
 	/** The pair, keeping a genuinely signed-out store (success carrying null) apart
 	 * from one that could not be READ (failure carrying the store's error). */
 	fun loadTokens(): Result<OAuthTokens?> {
+		authRecords?.let { records -> return runCatching { records.read().tokens } }
 		val access: String = storage.readValue(TokenKey.ACCESS_TOKEN)
 			.getOrElse { return Result.failure(it) } ?: return Result.success(null)
 		val refresh: String = storage.readValue(TokenKey.REFRESH_TOKEN)
@@ -65,11 +67,13 @@ class TokenStore(private val storage: TokenStorage) {
 	}
 
 	fun save(tokens: OAuthTokens) {
+		if (authRecords != null) { authRecords.replace(tokens); return }
 		storage.setValue(TokenKey.ACCESS_TOKEN, tokens.accessToken.raw)
 		storage.setValue(TokenKey.REFRESH_TOKEN, tokens.refreshToken.raw)
 	}
 
 	fun clear() {
+		if (authRecords != null) { authRecords.replace(null); return }
 		storage.removeValue(TokenKey.ACCESS_TOKEN)
 		storage.removeValue(TokenKey.REFRESH_TOKEN)
 	}

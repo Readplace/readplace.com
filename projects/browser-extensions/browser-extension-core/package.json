@@ -67,6 +67,7 @@
   },
   "dependencies": {
     "@packages/article-resource-unique-id": "workspace:*",
+    "@packages/domain": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/ui-icons": "workspace:*",
     "@packages/web-shell": "workspace:*",

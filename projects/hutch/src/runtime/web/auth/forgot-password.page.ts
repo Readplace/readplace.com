@@ -23,6 +23,7 @@ import { ForgotPasswordSchema, ResetPasswordSchema } from "./auth.schema";
 import { ForgotPasswordPage, ResetPasswordPage } from "./auth.component";
 import { buildPasswordResetEmailHtml } from "./password-reset-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
+import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
 
 const TokenQuerySchema = z.looseObject({ token: z.string().optional() });
 
@@ -34,6 +35,7 @@ interface ForgotPasswordDependencies {
 	findUserByEmail: FindUserByEmail;
 	updatePassword: UpdatePassword;
 	destroyUserSessions: DestroyUserSessions;
+	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	baseUrl: string;
@@ -160,6 +162,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 		// A password reset invalidates the credential, so no session issued before
 		// it may keep working — an attacker holding a stolen session must be locked
 		// out by the victim's reset.
+		await deps.revokeAllUserOAuthTokens(account.userId, "logout-all");
 		await deps.destroyUserSessions(account.userId);
 
 		sendComponent(req, res, Base(ResetPasswordPage({ success: true }), bannerStateFromRequest(req)));

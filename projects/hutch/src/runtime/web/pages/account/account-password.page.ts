@@ -225,8 +225,8 @@ export function initAccountPasswordRoutes(deps: {
 			password: parsed.data.password,
 			updatedAt: deps.now().toISOString(),
 		});
-		await deps.destroyUserSessions(user.userId);
 		await deps.revokeAllUserOAuthTokens(user.userId, "logout-all");
+		await deps.destroyUserSessions(user.userId);
 		const sessionId = await deps.createSession({ userId: user.userId, emailVerified: verified.emailVerified });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, persistentSessionCookieOptions(deps.secureCookies));
 		answer({ landing: buildAccountUrl({ passwordChanged: true, ...markers }) });

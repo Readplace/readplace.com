@@ -85,6 +85,7 @@ function cancelled(codes: (string | undefined)[]): TransactionCanceledException 
 
 function initAuth(client: DynamoDBDocumentClient) {
 	return initDynamoDbAuth({
+		observeSession: () => {},
 		client,
 		usersTableName: "users",
 		sessionsTableName: "sessions",
@@ -104,6 +105,7 @@ describe("initDynamoDbAuth", () => {
 				registeredAt: "2026-04-20T00:00:00.000Z",
 			});
 			const auth = initDynamoDbAuth({
+		observeSession: () => {},
 				client: client as typeof client & DynamoDBDocumentClient,
 				usersTableName: "users",
 				sessionsTableName: "sessions",
@@ -129,6 +131,7 @@ describe("initDynamoDbAuth", () => {
 				deletedAt: "2026-08-31T00:00:00.000Z",
 			});
 			const auth = initDynamoDbAuth({
+		observeSession: () => {},
 				client: client as typeof client & DynamoDBDocumentClient,
 				usersTableName: "users",
 				sessionsTableName: "sessions",
@@ -201,6 +204,7 @@ describe("initDynamoDbAuth", () => {
 				send: (async () => ({ Count: 1 })) as DynamoDBDocumentClient["send"],
 			};
 			const auth = initDynamoDbAuth({
+		observeSession: () => {},
 				client: client as typeof client & DynamoDBDocumentClient,
 				usersTableName: "users",
 				sessionsTableName: "sessions",
@@ -216,6 +220,7 @@ describe("initDynamoDbAuth", () => {
 				send: (async () => ({ Count: 0 })) as DynamoDBDocumentClient["send"],
 			};
 			const auth = initDynamoDbAuth({
+		observeSession: () => {},
 				client: client as typeof client & DynamoDBDocumentClient,
 				usersTableName: "users",
 				sessionsTableName: "sessions",
@@ -820,6 +825,24 @@ describe("initDynamoDbAuth", () => {
 	});
 
 	describe("renewSession", () => {
+		it("attributes renewal and deletion to the previous session row", async () => {
+			const observations: unknown[] = [];
+			const userId = UserIdSchema.parse("session-owner");
+			const previous = { sessionId: "sid", userId, expiresAt: 123, emailVerified: true };
+			const commands: CapturedCommand[] = [];
+			const client = { send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+				commands.push({ name: command.constructor.name, input: command.input });
+				return { Attributes: previous };
+			}) as DynamoDBDocumentClient["send"] } as DynamoDBDocumentClient;
+			const auth = initDynamoDbAuth({ client, usersTableName: "users", sessionsTableName: "sessions", observeSession: event => { observations.push(event); } });
+			await auth.renewSession({ sessionId: "sid" });
+			await auth.destroySession("sid");
+			expect(commands.map(command => command.input.ReturnValues)).toEqual(["ALL_OLD", "ALL_OLD"]);
+			expect(observations).toEqual([
+				{ event: "session_renewed", sessionId: "sid", userId, previousExpiresAt: 123, expiresAt: expect.any(Number) },
+				{ event: "session_deleted", sessionId: "sid", userId, expiresAt: 123 },
+			]);
+		});
 		it("renews conditionally so a deleted or expired row is never resurrected", async () => {
 			const { client, commands } = createWriteFakeClient();
 			const auth = initAuth(client);

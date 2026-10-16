@@ -5,6 +5,10 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
+    "./auth-diagnostics": {
+      "types": "./dist/auth-diagnostics/index.d.ts",
+      "default": "./dist/auth-diagnostics/index.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
@@ -60,6 +64,7 @@
   },
   "typesVersions": {
     "*": {
+      "auth-diagnostics": ["./dist/auth-diagnostics/index.d.ts"],
       "article": ["./dist/article/index.d.ts"],
       "article-aggregate": ["./dist/article-aggregate/index.d.ts"],
       "user": ["./dist/user/index.d.ts"],

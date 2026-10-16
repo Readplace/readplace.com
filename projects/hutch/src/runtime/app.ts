@@ -38,6 +38,7 @@ type AssemblyProvidedKeys =
 	| "conversionLogger"
 	| "subscriptionLogger"
 	| "analytics"
+	| "authDiagnosticsLogger"
 	| "salt"
 	| "foundingAllocation"
 	| "newsletterCatalogSeed";
@@ -93,6 +94,7 @@ export function assembleReadplaceApp(input: {
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
 		subscriptionLogger: HutchLogger.fromJSON<SubscriptionLogEvent>(),
 		analytics: analyticsLogger,
+		authDiagnosticsLogger: HutchLogger.fromJSON<Record<string, unknown>>(),
 		salt,
 		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
 		newsletterCatalogSeed: readNewsletterCatalogSeed(),

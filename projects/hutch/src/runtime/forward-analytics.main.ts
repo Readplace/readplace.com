@@ -28,6 +28,7 @@ export const handler = initForwardAnalyticsHandler({
 	putLogEvents,
 	analyticsLogGroupName,
 	errorsLogGroupName,
+	authDiagnosticsLogGroupName: requireEnv("AUTH_DIAGNOSTICS_LOG_GROUP_NAME"),
 	analyticsStreams: FORWARDED_STREAMS,
 	logger: HutchLogger.from(consoleLogger),
 });

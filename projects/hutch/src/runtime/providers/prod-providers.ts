@@ -1,4 +1,5 @@
 /* c8 ignore start -- composition root, no logic to test */
+import { initAuthDiagnosticRecorder } from "../auth-diagnostics/record";
 import assert from "node:assert";
 import {
 	initRecordEngagementActivity,
@@ -172,7 +173,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const s3Client = new S3Client({});
 	const schedulerClient = new SchedulerClient({});
 
-	const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
+	const auth = initDynamoDbAuth({
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession, client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 	const engagementStarter = initDynamoDbEngagementStarter({
 		client,
 		onboardingTableName: onboardingTable,
@@ -213,6 +215,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const oauthClients = initDynamoDbOAuthClients({ client, tableName: oauthTable, now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
 	const oauthModel = initDynamoDbOAuthModel({
+		enrollmentEnabled: requireEnv("OAUTH_REFRESH_ENROLLMENT_ENABLED") === "true",
 		client,
 		tableName: oauthTable,
 		findUserById: auth.findUserById,

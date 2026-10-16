@@ -53,16 +53,22 @@ struct KeychainTokenStorage: TokenStorage {
 	}
 
 	func setValue(_ value: String, for key: TokenKey) {
+		try? writeChecked(value, for: key)
+	}
+
+	func writeChecked(_ value: String, for key: TokenKey) throws {
 		let payload: [String: Any] = [
 			kSecValueData as String: Data(value.utf8),
 			kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
 		]
-		let status = SecItemUpdate(baseQuery(for: key) as CFDictionary, payload as CFDictionary)
+		var status = SecItemUpdate(baseQuery(for: key) as CFDictionary, payload as CFDictionary)
 		if status == errSecItemNotFound {
 			var insert = baseQuery(for: key)
 			insert.merge(payload) { _, new in new }
-			SecItemAdd(insert as CFDictionary, nil)
+			status = SecItemAdd(insert as CFDictionary, nil)
 		}
+		guard status == errSecSuccess else { throw KeychainError.write(status: status) }
+		guard try readValue(for: key).get() == value else { throw KeychainError.write(status: errSecIO) }
 	}
 
 	func removeValue(for key: TokenKey) {

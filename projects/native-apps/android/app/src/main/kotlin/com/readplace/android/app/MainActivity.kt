@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
 		// API 35+ enforces this; the call brings 29-34 in line so the intro fills behind the system bars.
 		enableEdgeToEdge()
 		val credentials = ProcessCredentials.of(this)
+		credentials.oauth.recordAuthEvent("context_started")
 		val store = credentials.store
 		val flags = PreferenceFlags(getSharedPreferences(PreferenceFlags.PREFERENCES_NAME, Context.MODE_PRIVATE))
 		val jobs = UploadJobStore(filesDir, Dispatchers.IO)
@@ -340,6 +341,7 @@ private fun Root(
 			}
 		} else {
 			val surface = if (introBackdropIsDark) SystemBarSurface.LAUNCH_INTRO else SystemBarSurface.LOGIN
+			LaunchedEffect(Unit) { ProcessCredentials.of(context).oauth.recordAuthEvent("login_prompt_shown", reason = "no_credentials") }
 			SideEffect { applySystemBarIcons(AppearancePresentation.systemBarsNeedLightIcons(surface)) }
 			LoginScreen(
 				rotation = rotation,

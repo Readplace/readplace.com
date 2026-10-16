@@ -12,6 +12,7 @@ function createFakeClient(row?: Record<string, unknown>): DynamoDBDocumentClient
 
 function initWith(row?: Record<string, unknown>) {
 	return initGetSessionUserId({
+		observeSession: () => {},
 		client: createFakeClient(row),
 		sessionsTableName: "sessions",
 	});
@@ -21,6 +22,14 @@ const FUTURE = Math.floor(Date.now() / 1000) + 3600;
 const PAST = Math.floor(Date.now() / 1000) - 3600;
 
 describe("initGetSessionUserId", () => {
+	it("records a storage failure separately from a missing or expired session", async () => {
+		const observed: unknown[] = [];
+		const error = new Error("database unavailable");
+		const client: Partial<DynamoDBDocumentClient> = { send: (async () => { throw error; }) as DynamoDBDocumentClient["send"] };
+		const lookup = initGetSessionUserId({ client: client as DynamoDBDocumentClient, sessionsTableName: "sessions", observeSession: event => { observed.push(event); } });
+		await expect(lookup("cookie")).rejects.toBe(error);
+		expect(observed).toEqual([{ event: "session_unavailable", sessionId: "cookie", reason: "lookup_error" }]);
+	});
 	it("returns the principal for a live session row", async () => {
 		const getSessionUserId = initWith({
 			sessionId: "sid",

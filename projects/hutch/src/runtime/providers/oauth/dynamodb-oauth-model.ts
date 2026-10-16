@@ -1,6 +1,11 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import assert from "node:assert";
+import { authDiagnosticContext } from "../../auth-diagnostics/record";
+import { attributeOAuthClient } from "../../auth-diagnostics/oauth-context";
+import { initAuthDiagnosticPermits } from "../../auth-diagnostics/permit";
 import { randomUUID } from "node:crypto";
+import { initDynamoRefreshStore } from "./dynamodb-refresh-store";
+import { initRefreshProof } from "../../oauth-refresh/evidence";
 import { OAuthGrantId } from "../../oauth-refresh/evidence";
 import { OAuthTokenRow, initOAuthCredentialLifecycle } from "./oauth-credential-lifecycle";
 import {
@@ -26,7 +31,7 @@ import type {
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
-import { generateToken } from "@packages/domain/oauth";
+import { generateToken, initOAuthRefresh } from "@packages/domain/oauth";
 
 function toEpochSeconds(date: Date): number {
 	return Math.floor(date.getTime() / 1000);
@@ -43,6 +48,7 @@ const AuthCodeRow = z.object({
 	scope: z.array(z.string()).optional(),
 	emailVerified: z.boolean(),
 	grantId: OAuthGrantId.optional(),
+	epoch: z.number().optional(),
 });
 
 export function initRevokeAllUserOAuthTokens(deps: {
@@ -54,6 +60,7 @@ export function initRevokeAllUserOAuthTokens(deps: {
 }
 
 export function initDynamoDbOAuthModel(deps: {
+	enrollmentEnabled: boolean;
 	client: DynamoDBDocumentClient;
 	tableName: string;
 	findUserById: FindUserById;
@@ -69,6 +76,14 @@ export function initDynamoDbOAuthModel(deps: {
 	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
 	const tokens = defineDynamoTable({ client, tableName, schema: OAuthTokenRow });
 	const credentials = initOAuthCredentialLifecycle(deps);
+	const atomic = initDynamoRefreshStore(deps);
+	const references = initAuthDiagnosticPermits({ salt: deps.secret, now: () => new Date() });
+	const refresh = initOAuthRefresh({ enrollmentEnabled: deps.enrollmentEnabled, store: atomic.store, fingerprint: initRefreshProof(deps.secret).fingerprint, generateToken,
+		resolveEmailVerified: async value => {
+			await markClientActive(value.clientId);
+			return value.emailVerified || (await findUserById(UserIdSchema.parse(value.userId)))?.emailVerified === true;
+		},
+	});
 
 	async function resolveClient(clientId: string): Promise<Client | null> {
 		const found = await findClient(clientId);
@@ -77,6 +92,7 @@ export function initDynamoDbOAuthModel(deps: {
 	}
 
 	return {
+		refresh,
 		revokeAllUserOAuthTokens: credentials.revokeAll,
 		listUserOAuthClients: credentials.listClients,
 		revokeUserOAuthClient: credentials.revokeClient,
@@ -95,6 +111,7 @@ export function initDynamoDbOAuthModel(deps: {
 				Item: {
 					pk: `code#${code.authorizationCode}`,
 					grantId: OAuthGrantId.parse(randomUUID()),
+					epoch: await atomic.store.readEpoch(user.id),
 					clientId: oauthClient.id,
 					userId: user.id,
 					redirectUri: code.redirectUri,
@@ -113,7 +130,7 @@ export function initDynamoDbOAuthModel(deps: {
 			authorizationCode: string,
 		): Promise<AuthorizationCode | Falsey> {
 			const row = await authCodes.get({ pk: `code#${authorizationCode}` });
-			if (!row) return null;
+			if (!row || await atomic.store.readEpoch(row.userId) !== (row.epoch ?? 0)) return null;
 
 			const expiresAt = new Date(row.expiresAt * 1000);
 			if (expiresAt < new Date()) {
@@ -132,7 +149,7 @@ export function initDynamoDbOAuthModel(deps: {
 				codeChallenge: row.codeChallenge,
 				codeChallengeMethod: row.codeChallengeMethod,
 				client: oauthClient,
-				user: { id: row.userId, emailVerified: row.emailVerified, grantId: row.grantId },
+				user: { id: row.userId, emailVerified: row.emailVerified, grantId: row.grantId, epoch: row.epoch ?? 0 },
 			};
 		},
 
@@ -152,42 +169,43 @@ export function initDynamoDbOAuthModel(deps: {
 			const refreshTokenExpiresAt =
 				token.refreshTokenExpiresAt ?? new Date(Date.now() + 180 * 24 * 3600000);
 
-			const ttl = toEpochSeconds(
-				refreshTokenExpiresAt > accessTokenExpiresAt
-					? refreshTokenExpiresAt
-					: accessTokenExpiresAt,
-			);
-
-			await credentials.save({
-				pk: `token#${token.accessToken}`,
-				...grant,
-				userId: user.id,
-				clientId: oauthClient.id,
-				accessToken: token.accessToken,
-				refreshToken,
-				accessTokenExpiresAt: toEpochSeconds(accessTokenExpiresAt),
-				refreshTokenExpiresAt: toEpochSeconds(refreshTokenExpiresAt),
-				scope: token.scope,
-				expiresAt: ttl,
-				emailVerified: user.emailVerified === true,
+			await atomic.saveInitial({
+				grantId: grant.grantId, parentFingerprint: grant.parentFingerprint, epoch: typeof user.epoch === "number" ? user.epoch : await atomic.store.readEpoch(user.id), generation: 0,
+				userId: user.id, clientId: oauthClient.id, accessToken: token.accessToken, refreshToken,
+				accessExpiresAt: accessTokenExpiresAt.getTime(), refreshExpiresAt: refreshTokenExpiresAt.getTime(),
+				scope: token.scope, emailVerified: user.emailVerified === true,
 			});
 
 			// Token issuance is the "used" signal that extends a dynamic client's
 			// sliding TTL past the refresh-token lifetime; no-op for built-ins.
 			await markClientActive(oauthClient.id);
 
-			return { ...token, client: oauthClient, user };
+			return { ...token, client: oauthClient, user: { ...user, grantId: grant.grantId } };
 		},
 
 		async getAccessToken(accessToken: string): Promise<Token | Falsey> {
 			const row = await tokens.get({ pk: `token#${accessToken}` }, { consistentRead: true });
 			if (!row) return null;
+			attributeOAuthClient(row.clientId);
+			const context = authDiagnosticContext.getStore();
+			if (context) {
+				context.grant_id = row.grantId;
+				context.subject_ref = references.reference({ kind: "subject", value: row.userId });
+			}
+			if (!await atomic.active(row)) {
+				if (context) context.auth_refusal_reason = "revoked";
+				return null;
+			}
 
 			const accessTokenExpiresAt = new Date(row.accessTokenExpiresAt * 1000);
-			if (accessTokenExpiresAt < new Date()) return null;
+			if (accessTokenExpiresAt < new Date()) {
+				if (context) context.auth_refusal_reason = "expired";
+				return null;
+			}
 
 			const oauthClient = await resolveClient(row.clientId);
 			if (!oauthClient) return null;
+
 
 			return {
 				accessToken: row.accessToken,
@@ -204,6 +222,7 @@ export function initDynamoDbOAuthModel(deps: {
 			const found = await credentials.findRefresh(refreshToken);
 			if (!found) return null;
 			const { row, credential } = found;
+			if (!await atomic.active(row) || (await atomic.store.readGrant(credential.grantId))?.keyThumbprint) return null;
 			const refreshTokenExpiresAt = new Date(row.refreshTokenExpiresAt * 1000);
 
 			const oauthClient = await resolveClient(row.clientId);

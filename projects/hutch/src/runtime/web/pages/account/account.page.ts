@@ -657,10 +657,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	/** Irreversible account deletion. The synchronous work here revokes every
 	 * *existing* credential the instant the user confirms — all sessions and bearer
 	 * tokens die at once — after which the durable, at-least-once scrub of every
-	 * user-owned store runs asynchronously via DeleteAccountCommand. Sessions
-	 * are destroyed before tokens are revoked (mirroring /oauth/revoke) so a failed
-	 * step leaves the account still usable for a safe retry rather than
-	 * half-torn-down. */
+	 * user-owned store runs asynchronously via DeleteAccountCommand. */
 	router.post("/delete", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -679,8 +676,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			return;
 		}
 		await deps.markAccountDeleted({ userId, at: deps.now().toISOString() });
-		await deps.destroyUserSessions(userId);
 		await deps.revokeAllUserOAuthTokens(userId, "account-deletion");
+		await deps.destroyUserSessions(userId);
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
 		res.set("Clear-Site-Data", '"storage"');
 		await deps.publishDeleteAccountCommand({ userId });

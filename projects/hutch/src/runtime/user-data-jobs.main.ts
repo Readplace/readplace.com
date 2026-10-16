@@ -1,3 +1,4 @@
+import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -55,6 +56,7 @@ const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
 
 const auth = initDynamoDbAuth({
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: requireEnv("DYNAMODB_USERS_TABLE"),
 	sessionsTableName: requireEnv("DYNAMODB_SESSIONS_TABLE"),

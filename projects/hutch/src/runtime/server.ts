@@ -1,5 +1,9 @@
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
+import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
+import { initAuthDiagnosticMiddleware } from "./auth-diagnostics/middleware";
+import { initIngestAuthDiagnostics } from "./auth-diagnostics/ingest";
 import { initRecordImportRequest } from "./domain/engagement/record-import-request";
+import { captureOAuthBody } from "./oauth-refresh/request-body";
 import { refreshContext } from "./oauth-refresh/evidence";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
@@ -542,6 +546,7 @@ interface AppDependencies {
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	subscriptionLogger: HutchLogger.Typed<SubscriptionLogEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	authDiagnosticsLogger: HutchLogger.Typed<Record<string, unknown>>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -599,6 +604,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const recordSubscriptionEvent = initRecordAudienceEvent({ logger: subscriptionLogger });
 	const recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent> = (event) => analytics.info(event);
 	const app: Express = express();
+	const authDiagnostics = initAuthDiagnosticRecorder({ salt: deps.salt, now: deps.now, logger: deps.authDiagnosticsLogger });
 	app.use((req, _res, next) => refreshContext.run({ recoveryProof: req.get("X-Readplace-Refresh-Recovery") }, next));
 
 	app.use(createCspNonceMiddleware({ generateCspNonce }));
@@ -770,8 +776,9 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const secureCookies = isHttpsOrigin(appOrigin);
 
-	app.use(express.urlencoded({ extended: true }));
+	app.use(express.urlencoded({ extended: true, verify: captureOAuthBody }));
 	app.use(cookieParser());
+	app.use(initAuthDiagnosticMiddleware({ diagnostics: authDiagnostics, now: deps.now, secureCookies }));
 	app.use(
 		createVisitorIdMiddleware({
 			generateVisitorId: randomUUID,
@@ -931,10 +938,14 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	app.get("/.well-known/oauth-authorization-server", (_req: Request, res: Response) => {
+		res.set("Access-Control-Allow-Origin", "*");
 		res.json({
 			issuer: dependencies.baseUrl,
 			authorization_endpoint: `${dependencies.baseUrl}/oauth/authorize`,
 			token_endpoint: `${dependencies.baseUrl}/oauth/token`,
+			readplace_refresh_protocols_supported: [1],
+			readplace_refresh_enrollment_enabled: deps.oauthModel.refresh.enrollmentEnabled,
+			readplace_auth_diagnostics_endpoint: `${dependencies.baseUrl}/diagnostics/auth`,
 			registration_endpoint: `${dependencies.baseUrl}/oauth/register`,
 			revocation_endpoint: `${dependencies.baseUrl}/oauth/revoke`,
 			response_types_supported: ["code"],
@@ -1045,9 +1056,17 @@ export function createApp(dependencies: AppDependencies): Express {
 	const extensionCors = cors({
 		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),
 		methods: ["GET", "POST", "PUT", "DELETE"],
-		allowedHeaders: ["Authorization", "Content-Type", "Accept", "Prefer"],
+		allowedHeaders: ["Authorization", "Content-Type", "Accept", "Prefer", "DPoP", "X-Readplace-Auth-Attempt-Id", "X-Readplace-Auth-Context-Id", "X-Readplace-Client-Version", "X-Readplace-Installation-Id"],
+		exposedHeaders: ["DPoP-Nonce", "X-Readplace-Refresh-Attempt"],
 		maxAge: 86400,
 	});
+	app.options("/diagnostics/auth", extensionCors);
+	app.post("/diagnostics/auth", extensionCors, express.json({ limit: "32kb" }), initIngestAuthDiagnostics({
+		verifyPermit: authDiagnostics.permits.verify,
+		consumeRateLimit: deps.consumeRateLimit,
+		record: authDiagnostics.write,
+		now: deps.now,
+	}));
 
 	/** The session-cookie bridge is the only extension endpoint that needs
 	 * credentialed CORS: the extension POSTs with credentials:"include" so the
@@ -1057,7 +1076,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const sessionBridgeCors = cors({
 		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),
 		methods: ["POST"],
-		allowedHeaders: ["Authorization", "Content-Type"],
+		allowedHeaders: ["Authorization", "Content-Type", "X-Readplace-Auth-Attempt-Id", "X-Readplace-Auth-Context-Id", "X-Readplace-Client-Version", "X-Readplace-Installation-Id"],
 		credentials: true,
 		maxAge: 86400,
 	});
@@ -1368,6 +1387,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(appleAuthRouter);
 
 	const forgotPasswordRouter = initForgotPasswordRoutes({
+		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
 		sendEmail: deps.sendEmail,
 		userExistsByEmail: deps.userExistsByEmail,
 		findUserByEmail: deps.findUserByEmail,
@@ -1766,6 +1786,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(integrationsRoutes.gmailCallback);
 
 	const oauthRouter = initOAuthRoutes({
+		baseUrl: dependencies.baseUrl,
 		model: deps.oauthModel,
 		buildBannerState,
 		findClient: deps.findOAuthClient,

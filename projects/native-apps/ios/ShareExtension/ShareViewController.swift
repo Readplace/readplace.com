@@ -4,7 +4,9 @@ import UIKit
 final class ShareViewController: UIViewController {
 	private static let sharedStore = TokenStore()
 	private static let oauth = OAuthService(baseURL: AppConfig.serverBaseURL,
-		store: sharedStore, nativeUserAgent: processNativeUserAgent())
+		store: sharedStore, nativeUserAgent: processNativeUserAgent(),
+		recovery: NativeRefreshRecovery(baseURL: AppConfig.serverBaseURL, records: sharedStore.authRecords,
+			configuration: .default, surface: "share", version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"))
 	private let store = ShareViewController.sharedStore
 	private let haptics = UINotificationFeedbackGenerator()
 
@@ -25,6 +27,8 @@ final class ShareViewController: UIViewController {
 	}
 
 	private func run() async {
+		await Self.oauth.recordAuthEvent("context_started")
+		if !store.isLoggedIn { await Self.oauth.recordAuthEvent("login_prompt_shown", reason: "no_credentials") }
 		setStatus("Saving…")
 		haptics.prepare()
 		let shared = await ShareURLExtractor.extract(from: extensionContext)
