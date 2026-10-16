@@ -144,6 +144,17 @@ describe("Gmail details pickers", () => {
 		assert.equal(dom.window.document.activeElement, element(dom, "#readlist-name"));
 	});
 
+	it("leaves focus alone when an edit renders the readlist picker open, then focuses on a later opening", () => {
+		const dom = new JSDOM(`<button id="outside">Outside</button>
+			<details data-gmail-picker id="readlist" open data-gmail-picker-quiet-open><summary data-gmail-picker-trigger>Readlist</summary><input id="readlist-name" data-gmail-picker-focus></details>`);
+		initGmailPicker({ document: dom.window.document });
+		element(dom, "#outside").focus();
+		element(dom, "#readlist").dispatchEvent(new dom.window.Event("toggle"));
+		assert.equal(dom.window.document.activeElement, element(dom, "#outside"));
+		element(dom, "#readlist").dispatchEvent(new dom.window.Event("toggle"));
+		assert.equal(dom.window.document.activeElement, element(dom, "#readlist-name"));
+	});
+
 	it("opens a capped readlist picker, which has no name box, on its first tickable readlist", () => {
 		const dom = new JSDOM(`<details data-gmail-picker id="readlist"><summary data-gmail-picker-trigger>Readlist</summary><input id="all" type="checkbox" disabled checked data-gmail-readlist-checkbox><input id="tech" type="checkbox" data-gmail-picker-option data-gmail-readlist-checkbox><input id="news" type="checkbox" data-gmail-picker-option data-gmail-readlist-checkbox></details>`);
 		initGmailPicker({ document: dom.window.document });

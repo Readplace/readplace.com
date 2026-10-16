@@ -264,7 +264,15 @@ describe("GMail Newsletters readlist choice", () => {
 	});
 
 	it.each(["readlist_invalid", "readlist_name_invalid", "readlist_limit"])("opens the readlist picker for %s", (error) => {
-		assert.equal(toGmailPageViewModel(input({ state: { sender: [TLDR] }, error })).readlistPicker.open, true);
+		const picker = toGmailPageViewModel(input({ state: { sender: [TLDR] }, error })).readlistPicker;
+		assert.equal(picker.open, true);
+		assert.equal(picker.openedForEdit, false);
+	});
+
+	it("opens the readlist picker without moving focus when editing a mapping", () => {
+		const picker = toGmailPageViewModel(input({ state: { sender: [TLDR], edit: "1" } })).readlistPicker;
+		assert.equal(picker.open, true);
+		assert.equal(picker.openedForEdit, true);
 	});
 
 	it("keeps the picker closed for other errors and ignores unknown banner keys", () => {

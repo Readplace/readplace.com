@@ -130,6 +130,10 @@ async function readlistPickerOpen(page: Page, input: { options: number }): Promi
 	await expect(page.locator(READLIST_OPTION)).toHaveCount(input.options);
 }
 
+async function editLeavesFocusAlone(page: Page): Promise<void> {
+	await expect(page.locator(`${READLIST_PICKER} :focus`)).toHaveCount(0);
+}
+
 async function readlistChosen(page: Page): Promise<void> {
 	await expect(page.locator(READLIST_PICKER)).not.toHaveAttribute("open");
 	await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeChecked();
@@ -435,6 +439,7 @@ test.describe("GMail Newsletters mapping", () => {
 			state: "remap",
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
+				await editLeavesFocusAlone(settling);
 				await expect(tick(settling, { group: "editing", email: TLDR.email })).toBeChecked();
 				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(2);
 				await expect(settling.locator(IMPORT_CHECKBOX)).toHaveCount(0);
@@ -468,6 +473,20 @@ test.describe("GMail Newsletters mapping", () => {
 		});
 	});
 
+	test("Edit opens the readlist picker without focusing New readlist, because a focus ring there reads as a field the reader must fill and scrolls the page away from the mapping they chose", async ({ page }, testInfo) => {
+		await openGmail(page, { stamp: `edit-focus-${testInfo.workerIndex}-${Date.now()}`, seed: { readlists: ["Tech"], mappings: [{ destination: "readlist", email: TLDR.email, readlist: "Tech" }] } });
+		await mappingRow(page, TLDR.email).locator('[data-test-gmail-mapping-action="edit"]').click();
+		await captureMatrix(page, {
+			state: "edit-without-focus",
+			settled: async (settling) => {
+				await readlistPickerOpen(settling, { options: 2 });
+				await editLeavesFocusAlone(settling);
+				await expect(settling.locator(CREATE_NAME)).not.toBeFocused();
+			},
+			geometry: readlistMenuFitsInsidePage,
+		});
+	});
+
 	test("shows All with multiple destinations and restores the full selection while editing", async ({ page }, testInfo) => {
 		await openGmail(page, { stamp: `multiple-${testInfo.workerIndex}-${Date.now()}`, seed: { readlists: ["Tech", "Science"], mappings: [{ destination: "readlist", email: TLDR.email, readlist: "Tech", additionalReadlists: ["Science"] }] } });
 		await captureMatrix(page, { state: "multiple-mapped", settled: async (settling) => { await expect(mappingRow(settling, TLDR.email).locator("[data-test-gmail-mapping-destination]")).toContainText("All, Tech, Science"); }, geometry: mappingRowsStayInsideTheirList });
@@ -476,6 +495,7 @@ test.describe("GMail Newsletters mapping", () => {
 			state: "multiple-edit",
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 3 });
+				await editLeavesFocusAlone(settling);
 				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(3);
 				await expect(settling.locator(".gmail__readlist-option > span:first-of-type")).toHaveText(["All", "Tech", "Science"]);
 				await expect(settling.locator("#gmail-readlist-choice")).toHaveText("All, Tech, Science");
@@ -511,6 +531,7 @@ test.describe("GMail Newsletters mapping", () => {
 			state: "unresolved-choose",
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
+				await editLeavesFocusAlone(settling);
 				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(1);
 				await expect(settling.locator(SAVE)).toBeEnabled();
 			},

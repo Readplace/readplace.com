@@ -74,6 +74,10 @@ export function initGmailPicker({ document }: GmailPickerDeps): void {
 	document.addEventListener("toggle", (event) => {
 		for (const picker of pickers()) {
 			if (picker !== event.target || !picker.open) continue;
+			if (picker.hasAttribute("data-gmail-picker-quiet-open")) {
+				picker.removeAttribute("data-gmail-picker-quiet-open");
+				continue;
+			}
 			(picker.querySelector<HTMLElement>("[data-gmail-picker-focus]") ?? picker.querySelector<HTMLElement>("[data-gmail-picker-option]"))?.focus();
 		}
 	}, true);

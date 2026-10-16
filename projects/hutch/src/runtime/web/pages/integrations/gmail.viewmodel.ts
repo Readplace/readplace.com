@@ -112,6 +112,7 @@ interface GmailReadlistOption { slug: string; label: string; selected: boolean; 
 
 interface GmailReadlistPickerViewModel {
 	open: boolean;
+	openedForEdit: boolean;
 	choiceLabel: string;
 	options: GmailReadlistOption[];
 	pagePath: string;
@@ -336,6 +337,7 @@ function readlistPicker(input: {
 	const { readlist: _readlist, import: _import, readlist_name: _name, delivery: _delivery, sender: _sender, added: _added, search: _search, ...fieldsState } = input.state;
 	return {
 		open: input.state.edit === "1" || (input.page.error !== undefined && READLIST_PICKER_ERRORS.has(input.page.error)),
+		openedForEdit: input.state.edit === "1",
 		choiceLabel: input.selected.map((readlist) => readlist.label).join(", "),
 		options: [DEFAULT_READLIST, ...input.page.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG)].map((readlist) => ({
 			slug: readlist.slug,
