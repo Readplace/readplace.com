@@ -13,7 +13,7 @@ async function createWorkspace(): Promise<Workspace> {
 	return { projectRoot, testDir };
 }
 
-async function commitBaseline(workspace: Workspace, relativePath: string, pixels: string): Promise<void> {
+async function commitBaseline(workspace: Workspace, { relativePath, pixels }: { relativePath: string; pixels: string }): Promise<void> {
 	const file = path.join(workspace.testDir, relativePath);
 	await mkdir(path.dirname(file), { recursive: true });
 	await writeFile(file, pixels);
@@ -35,7 +35,7 @@ async function readGallery(workspace: Workspace): Promise<string> {
 	return readFile(path.join(galleryFolder(workspace), "index.html"), "utf-8");
 }
 
-function sectionOf(html: string, spec: string): string {
+function sectionOf({ html, spec }: { html: string; spec: string }): string {
 	const start = html.indexOf(`data-gallery-spec="${spec}"`);
 	assert.notEqual(start, -1, `gallery must have a section for ${spec}`);
 	return html.slice(start, html.indexOf("</section>", start));
@@ -74,16 +74,16 @@ describe("ScreenshotGalleryReporter", () => {
 
 	it("lays every checkpoint of a spec out by state, with width and theme columns, from committed baselines alone", async () => {
 		const snapshots = "gmail-imports-visual.e2e-local.ts-snapshots";
-		await commitBaseline(workspace, `${snapshots}/imports-running-mobile-dark-chromium.png`, "running mobile dark");
-		await commitBaseline(workspace, `${snapshots}/imports-running-desktop-light-chromium.png`, "running desktop light");
-		await commitBaseline(workspace, `${snapshots}/imports-running-mobile-light-chromium.png`, "running mobile light");
-		await commitBaseline(workspace, `${snapshots}/imports-running-desktop-dark-chromium.png`, "running desktop dark");
-		await commitBaseline(workspace, `${snapshots}/imports-consent-desktop-light-chromium.png`, "consent desktop light");
+		await commitBaseline(workspace, { relativePath: `${snapshots}/imports-running-mobile-dark-chromium.png`, pixels: "running mobile dark" });
+		await commitBaseline(workspace, { relativePath: `${snapshots}/imports-running-desktop-light-chromium.png`, pixels: "running desktop light" });
+		await commitBaseline(workspace, { relativePath: `${snapshots}/imports-running-mobile-light-chromium.png`, pixels: "running mobile light" });
+		await commitBaseline(workspace, { relativePath: `${snapshots}/imports-running-desktop-dark-chromium.png`, pixels: "running desktop dark" });
+		await commitBaseline(workspace, { relativePath: `${snapshots}/imports-consent-desktop-light-chromium.png`, pixels: "consent desktop light" });
 		const reporter = startedReporter(workspace);
 
 		await reporter.onEnd({ status: "passed" });
 
-		const section = sectionOf(await readGallery(workspace), "gmail-imports-visual.e2e-local.ts");
+		const section = sectionOf({ html: await readGallery(workspace), spec: "gmail-imports-visual.e2e-local.ts" });
 		expect(columnHeadings(section)).toEqual([
 			"State",
 			"desktop · light",
@@ -107,8 +107,8 @@ describe("ScreenshotGalleryReporter", () => {
 
 	it("shows this run's successful captures and failure diffs beside the baseline of the same checkpoint", async () => {
 		const snapshots = "admin-visual.e2e-local.ts-snapshots";
-		await commitBaseline(workspace, `${snapshots}/admin-index-desktop-light-chromium.png`, "baseline index");
-		await commitBaseline(workspace, `${snapshots}/admin-conflict-desktop-light-chromium.png`, "baseline conflict");
+		await commitBaseline(workspace, { relativePath: `${snapshots}/admin-index-desktop-light-chromium.png`, pixels: "baseline index" });
+		await commitBaseline(workspace, { relativePath: `${snapshots}/admin-conflict-desktop-light-chromium.png`, pixels: "baseline conflict" });
 		const failureDiffDir = path.join(workspace.projectRoot, "test-results", "admin-conflict");
 		await mkdir(failureDiffDir, { recursive: true });
 		await writeFile(path.join(failureDiffDir, "actual.png"), "actual conflict");
@@ -147,7 +147,7 @@ describe("ScreenshotGalleryReporter", () => {
 		await reporter.onEnd({ status: "failed" });
 
 		const html = await readGallery(workspace);
-		const rows = rowsOf(sectionOf(html, "admin-visual.e2e-local.ts"));
+		const rows = rowsOf(sectionOf({ html, spec: "admin-visual.e2e-local.ts" }));
 		const described = await Promise.all(
 			rows.map(async (row) => ({
 				state: row.state,
@@ -172,7 +172,7 @@ describe("ScreenshotGalleryReporter", () => {
 		const snapshots = "gmail-visual.e2e-local.ts-snapshots";
 		const expectedPath = path.join(workspace.testDir, snapshots, "gmail-setup-mobile-dark-chromium.png");
 		const actualPath = path.join(workspace.projectRoot, "test-results", "gmail-setup", "gmail-setup-mobile-dark-actual.png");
-		await commitBaseline(workspace, `${snapshots}/gmail-setup-mobile-dark-chromium.png`, "written baseline");
+		await commitBaseline(workspace, { relativePath: `${snapshots}/gmail-setup-mobile-dark-chromium.png`, pixels: "written baseline" });
 		await mkdir(path.dirname(actualPath), { recursive: true });
 		await writeFile(actualPath, "written baseline");
 		const reporter = startedReporter(workspace);
@@ -191,7 +191,7 @@ describe("ScreenshotGalleryReporter", () => {
 		await reporter.onEnd({ status: "passed" });
 
 		const html = await readGallery(workspace);
-		const [row] = rowsOf(sectionOf(html, "gmail-visual.e2e-local.ts"));
+		const [row] = rowsOf(sectionOf({ html, spec: "gmail-visual.e2e-local.ts" }));
 		expect(row.state).toBe("gmail-setup");
 		expect(row.cells.map((cell) => cell.map((figure) => figure.caption))).toEqual([
 			["Committed baseline", "Captured this run"],
@@ -217,7 +217,7 @@ describe("ScreenshotGalleryReporter", () => {
 		await reporter.onEnd({ status: "failed" });
 
 		const html = await readGallery(workspace);
-		const section = sectionOf(html, "inbox-visual.e2e-local.ts");
+		const section = sectionOf({ html, spec: "inbox-visual.e2e-local.ts" });
 		expect(columnHeadings(section)).toEqual(["State", "desktop · light"]);
 		const [row] = rowsOf(section);
 		expect(row.state).toBe("inbox-list");
@@ -230,11 +230,11 @@ describe("ScreenshotGalleryReporter", () => {
 	});
 
 	it("keeps each spec in its own section, including specs in nested folders and checkpoints named without a width or theme", async () => {
-		await commitBaseline(workspace, "readlist-flow/run.e2e-local.ts-snapshots/readlist-empty-chromium.png", "empty");
-		await commitBaseline(workspace, "alert-visual.e2e-local.ts-snapshots/alert-notice-dark-chromium.png", "dark");
-		await commitBaseline(workspace, "alert-visual.e2e-local.ts-snapshots/alert-notice-light-chromium.png", "light");
-		await commitBaseline(workspace, "alert-visual.e2e-local.ts-snapshots/alert-notice-firefox.png", "other engine");
-		await commitBaseline(workspace, "fixtures/logo-chromium.png", "not a baseline");
+		await commitBaseline(workspace, { relativePath: "readlist-flow/run.e2e-local.ts-snapshots/readlist-empty-chromium.png", pixels: "empty" });
+		await commitBaseline(workspace, { relativePath: "alert-visual.e2e-local.ts-snapshots/alert-notice-dark-chromium.png", pixels: "dark" });
+		await commitBaseline(workspace, { relativePath: "alert-visual.e2e-local.ts-snapshots/alert-notice-light-chromium.png", pixels: "light" });
+		await commitBaseline(workspace, { relativePath: "alert-visual.e2e-local.ts-snapshots/alert-notice-firefox.png", pixels: "other engine" });
+		await commitBaseline(workspace, { relativePath: "fixtures/logo-chromium.png", pixels: "not a baseline" });
 
 		const reporter = startedReporter(workspace);
 		await reporter.onEnd({ status: "passed" });
@@ -244,8 +244,8 @@ describe("ScreenshotGalleryReporter", () => {
 			"alert-visual.e2e-local.ts",
 			"readlist-flow/run.e2e-local.ts",
 		]);
-		expect(columnHeadings(sectionOf(html, "alert-visual.e2e-local.ts"))).toEqual(["State", "light", "dark"]);
-		const nested = sectionOf(html, "readlist-flow/run.e2e-local.ts");
+		expect(columnHeadings(sectionOf({ html, spec: "alert-visual.e2e-local.ts" }))).toEqual(["State", "light", "dark"]);
+		const nested = sectionOf({ html, spec: "readlist-flow/run.e2e-local.ts" });
 		expect(columnHeadings(nested)).toEqual(["State", "Screenshot"]);
 		expect(rowsOf(nested).map((row) => row.state)).toEqual(["readlist-empty"]);
 		expect(await readdir(path.join(galleryFolder(workspace), "images"))).toHaveLength(3);
@@ -255,7 +255,7 @@ describe("ScreenshotGalleryReporter", () => {
 		const staleImage = path.join(galleryFolder(workspace), "images", "0000-removed-checkpoint-baseline.png");
 		await mkdir(path.dirname(staleImage), { recursive: true });
 		await writeFile(staleImage, "stale");
-		await commitBaseline(workspace, "a-visual.e2e-local.ts-snapshots/a-state-chromium.png", "fresh");
+		await commitBaseline(workspace, { relativePath: "a-visual.e2e-local.ts-snapshots/a-state-chromium.png", pixels: "fresh" });
 
 		const reporter = startedReporter(workspace);
 		await reporter.onEnd({ status: "passed" });
@@ -293,7 +293,7 @@ describe("ScreenshotGalleryReporter", () => {
 		await reporter.onEnd({ status: "passed" });
 
 		const html = await readGallery(workspace);
-		expect(rowsOf(sectionOf(html, "odd-visual.e2e-local.ts")).map((row) => row.state)).toEqual([
+		expect(rowsOf(sectionOf({ html, spec: "odd-visual.e2e-local.ts" })).map((row) => row.state)).toEqual([
 			"&lt;b&gt;&quot;x&quot;&amp;y",
 		]);
 	});

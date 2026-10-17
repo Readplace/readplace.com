@@ -162,7 +162,7 @@ function partsSitInsidePanel(panel: Box, parts: readonly Box[]): void {
 	}
 }
 
-function relativeTo(panel: Box, box: Box): Box {
+function relativeTo({ panel, box }: { panel: Box; box: Box }): Box {
 	return { x: box.x - panel.x, y: box.y - panel.y, width: box.width, height: box.height };
 }
 
@@ -184,9 +184,9 @@ async function desktopDialogGeometry(page: Page): Promise<PanelRelativeBoxes> {
 	partsSitInsidePanel(panel, [...boxes.rows, boxes.badge, dismiss, boxes.submit]);
 
 	return {
-		rows: boxes.rows.map((row) => relativeTo(panel, row)),
-		badge: relativeTo(panel, boxes.badge),
-		buttons: [dismiss, boxes.submit].map((button) => relativeTo(panel, button)),
+		rows: boxes.rows.map((row) => relativeTo({ panel, box: row })),
+		badge: relativeTo({ panel, box: boxes.badge }),
+		buttons: [dismiss, boxes.submit].map((button) => relativeTo({ panel, box: button })),
 	};
 }
 

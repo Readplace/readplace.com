@@ -32,7 +32,7 @@ function rowFor(section: Element, clientId: string): Element {
 	return row;
 }
 
-function panelFor(section: Element, trigger: Element): Element {
+function panelFor({ section, trigger }: { section: Element; trigger: Element }): Element {
 	const panel = section.querySelector(`[data-test-confirm-popover="disconnect-app"][id="${trigger.getAttribute("popovertarget")}"]`);
 	assert(panel, "every Disconnect trigger must open a rendered panel");
 	return panel;
@@ -70,7 +70,7 @@ describe("renderConnectedApps", () => {
 
 		for (const clientId of ["hutch-chrome-extension", "dyn-claude"]) {
 			const trigger = triggerIn(rowFor(section, clientId));
-			const panel = panelFor(section, trigger);
+			const panel = panelFor({ section, trigger });
 			expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
 			expect(trigger.className).toBe("btn btn--destructive btn--m connected-apps__trigger");
 			expect(panel.getAttribute("data-test-confirm-subject")).toBe(clientId);
@@ -87,7 +87,7 @@ describe("renderConnectedApps", () => {
 	it("titles the panel with the app and states what Disconnect does", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
-		const panel = panelFor(section, triggerIn(rowFor(section, "hutch-chrome-extension")));
+		const panel = panelFor({ section, trigger: triggerIn(rowFor(section, "hutch-chrome-extension")) });
 		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe("Disconnect Chrome extension?");
 		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
 			"It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
@@ -149,7 +149,7 @@ describe("renderConnectedApps", () => {
 
 		const row = rowFor(section, "hutch-chrome-extension");
 		const fallbackForm = row.querySelector("details.connected-apps__fallback form");
-		const panelForm = panelFor(section, triggerIn(row)).querySelector("form");
+		const panelForm = panelFor({ section, trigger: triggerIn(row) }).querySelector("form");
 		assert(fallbackForm && panelForm, "both the fallback and the panel must post through a form");
 		expect(fallbackForm.getAttribute("method")).toBe("POST");
 		expect(fallbackForm.getAttribute("action")).toBe(panelForm.getAttribute("action"));

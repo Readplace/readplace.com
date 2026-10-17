@@ -43,7 +43,7 @@ const payDigest = (items: QueueDigestEmailItem[]) =>
 const documentOf = (html: string) => new JSDOM(html).window.document;
 const anchorsOf = (html: string) => [...documentOf(html).querySelectorAll<HTMLAnchorElement>("a[href]")];
 const urlOf = (anchor: Element) => new URL(anchor.getAttribute("href") ?? "");
-const linksTo = (html: string, pathname: string) =>
+const linksTo = ({ html, pathname }: { html: string; pathname: string }) =>
 	anchorsOf(html)
 		.map(urlOf)
 		.filter((url) => url.pathname === pathname);
@@ -207,7 +207,7 @@ describe("QueueDigestEmail", () => {
 		it("carries exactly one keep-Readplace link to the plans page in a pay digest, tagged with the pay campaign and the send id, beside charge terms that stay true whenever the email is read", () => {
 			const html = payDigest([item()]).to("text/html");
 
-			const plansLinks = linksTo(html, "/account/plans");
+			const plansLinks = linksTo({ html, pathname: "/account/plans" });
 			expect(plansLinks).toHaveLength(1);
 			expect(Object.fromEntries(plansLinks[0].searchParams)).toEqual({
 				utm_source: "queue-digest",
@@ -222,7 +222,7 @@ describe("QueueDigestEmail", () => {
 		it("leaves the plans link and the charge terms out of a regular digest", () => {
 			const html = regularDigest([item()]).to("text/html");
 
-			expect(linksTo(html, "/account/plans")).toEqual([]);
+			expect(linksTo({ html, pathname: "/account/plans" })).toEqual([]);
 			expect(readableTextOf(html)).not.toContain("Choose a plan");
 		});
 
@@ -290,7 +290,7 @@ describe("QueueDigestEmail", () => {
 		])("closes a %s digest with why it arrived, its unsubscribe link and the postal address", (kind, buildDigest, footerReason) => {
 			const html = buildDigest([item()]).to("text/html");
 
-			const unsubscribeLinks = linksTo(html, "/email/queue-digest/unsubscribe");
+			const unsubscribeLinks = linksTo({ html, pathname: "/email/queue-digest/unsubscribe" });
 			expect(unsubscribeLinks).toHaveLength(1);
 			expect(Object.fromEntries(unsubscribeLinks[0].searchParams)).toEqual({
 				t: UNSUBSCRIBE_TOKEN,

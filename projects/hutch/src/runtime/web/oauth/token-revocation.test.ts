@@ -42,7 +42,7 @@ async function setup(clientId = "ios-app", diagnostics = false) {
 	app.use(express.urlencoded({ extended: false, verify: captureOAuthBody }));
 	app.post("/oauth/token", initTokenExchange({ model, server: new OAuthServer({ model, requireClientAuthentication: { authorization_code: false, refresh_token: false } }), findClient: async id => getBuiltInClient(id), baseUrl, now, salt: "test-salt" }));
 	app.post("/oauth/revoke", express.json({ verify: captureOAuthBody }), initTokenRevocation({ model, baseUrl, destroyUserSessions: async id => { revokedSessions.push(id); }, recordUngatedAnalyticsEvent: event => captured.push(event), now, salt: "test-salt" }));
-	function proof(body: string, path: string, op: string, nonce?: string, proofId = randomUUID()) {
+	function proof({ body, path, op, nonce, proofId = randomUUID() }: { body: string; path: string; op: string; nonce?: string; proofId?: string }) {
 		const header = Buffer.from(JSON.stringify({ typ: "dpop+jwt", alg: "ES256", jwk })).toString("base64url");
 		const claims = Buffer.from(JSON.stringify({ htu: `${baseUrl}${path}`, htm: "POST", iat: Math.floor(clock.now / 1000), jti: proofId, nonce,
 			readplace_operation_id: op, readplace_body_sha256: createHash("sha256").update(body).digest("base64url") })).toString("base64url");
@@ -51,11 +51,11 @@ async function setup(clientId = "ios-app", diagnostics = false) {
 	const body = new URLSearchParams({ grant_type: "refresh_token", client_id: clientId, refresh_token: "parent", readplace_refresh_protocol: "1", readplace_refresh_operation_id: operation }).toString();
 	function refresh(input: { body?: string; proof?: string; nonce?: string; missingNonce?: boolean } = {}) {
 		const encoded = input.body ?? body;
-		return request(app).post("/oauth/token").type("form").set("X-Readplace-Installation-Id", installation).set("DPoP", input.proof ?? proof(encoded, "/oauth/token", operation, input.missingNonce ? undefined : input.nonce ?? dpop.nonce(thumbprint))).send(encoded);
+		return request(app).post("/oauth/token").type("form").set("X-Readplace-Installation-Id", installation).set("DPoP", input.proof ?? proof({ body: encoded, path: "/oauth/token", op: operation, nonce: input.missingNonce ? undefined : input.nonce ?? dpop.nonce(thumbprint) })).send(encoded);
 	}
 	function revoke(input: { token?: string; proof?: string; missingNonce?: boolean } = {}) {
 		const op = randomUUID(); const encoded = JSON.stringify({ token: input.token ?? "parent", client_id: clientId, readplace_refresh_protocol: 1, readplace_refresh_operation_id: op });
-		return request(app).post("/oauth/revoke").type("json").set("DPoP", input.proof ?? proof(encoded, "/oauth/revoke", op, input.missingNonce ? undefined : dpop.nonce(thumbprint))).send(encoded);
+		return request(app).post("/oauth/revoke").type("json").set("DPoP", input.proof ?? proof({ body: encoded, path: "/oauth/revoke", op, nonce: input.missingNonce ? undefined : dpop.nonce(thumbprint) })).send(encoded);
 	}
 	return { app, model, state, clock, now, user, client, operation, body, proof, refresh, revoke, dpop, thumbprint, captured, revokedSessions, installation, diagnosticContexts };
 }
@@ -75,7 +75,7 @@ it("enrolls without signing in again and recovers an interrupted response overni
 });
 
 it("recovers a browser's automatic replay using a new proof and the same operation", async () => {
-	const s = await setup(); const proof = s.proof(s.body, "/oauth/token", s.operation, s.dpop.nonce(s.thumbprint));
+	const s = await setup(); const proof = s.proof({ body: s.body, path: "/oauth/token", op: s.operation, nonce: s.dpop.nonce(s.thumbprint) });
 	const first = await s.refresh({ proof }); expect(first.status).toBe(200);
 	const replay = await s.refresh({ proof }); expect(replay.body).toMatchObject({ error: "invalid_dpop_proof", readplace_reason: "proof_replayed" });
 	const recovered = await s.refresh({ nonce: replay.headers["dpop-nonce"] }); expect(recovered.body.refresh_token).toBe(first.body.refresh_token);
@@ -162,16 +162,16 @@ it("returns a retryable 503 when a committed response is missing or revocation s
 it("rejects a revocation that reuses a consumed proof identifier and allows a fresh signed retry", async () => {
 	const s = await setup("ios-app", true);
 	const proofId = randomUUID();
-	expect((await s.refresh({ proof: s.proof(s.body, "/oauth/token", s.operation, s.dpop.nonce(s.thumbprint), proofId) })).status).toBe(200);
+	expect((await s.refresh({ proof: s.proof({ body: s.body, path: "/oauth/token", op: s.operation, nonce: s.dpop.nonce(s.thumbprint), proofId }) })).status).toBe(200);
 	const operation = randomUUID();
 	const body = JSON.stringify({ token: "parent", client_id: s.client.id, readplace_refresh_protocol: 1, readplace_refresh_operation_id: operation });
-	const replay = await request(s.app).post("/oauth/revoke").type("json").set("DPoP", s.proof(body, "/oauth/revoke", operation, s.dpop.nonce(s.thumbprint), proofId)).send(body);
+	const replay = await request(s.app).post("/oauth/revoke").type("json").set("DPoP", s.proof({ body, path: "/oauth/revoke", op: operation, nonce: s.dpop.nonce(s.thumbprint), proofId })).send(body);
 	expect(replay.status).toBe(400);
 	expect(replay.body).toEqual({ error: "invalid_dpop_proof", readplace_reason: "proof_replayed" });
 	expect(s.diagnosticContexts.at(-1)).toMatchObject({ client: "ios", surface: "app", operation_id: operation });
 	expect(typeof replay.headers["dpop-nonce"]).toBe("string");
 	expect(s.revokedSessions).toEqual([]);
-	const retry = await request(s.app).post("/oauth/revoke").type("json").set("DPoP", s.proof(body, "/oauth/revoke", operation, replay.headers["dpop-nonce"])).send(body);
+	const retry = await request(s.app).post("/oauth/revoke").type("json").set("DPoP", s.proof({ body, path: "/oauth/revoke", op: operation, nonce: replay.headers["dpop-nonce"] })).send(body);
 	expect(retry.status).toBe(200);
 	expect(s.revokedSessions).toEqual([s.user.id]);
 });

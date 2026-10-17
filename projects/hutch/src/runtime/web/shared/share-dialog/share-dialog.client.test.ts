@@ -51,7 +51,7 @@ function pageWithShare(fake: FakeClipboard | undefined) {
 	return { dom, shareDialog };
 }
 
-function inside(dom: JSDOM, scope: string, selector: string): HTMLElement {
+function inside(dom: JSDOM, { scope, selector }: { scope: string; selector: string }): HTMLElement {
 	const element = dom.window.document.querySelector<HTMLElement>(`${scope} ${selector}`);
 	assert(element, `"${scope} ${selector}" must be in the page`);
 	return element;
@@ -63,9 +63,9 @@ function click(dom: JSDOM, element: Element): void {
 
 function copyState(dom: JSDOM, scope: string): { idleHidden: boolean; doneHidden: boolean; status: string } {
 	return {
-		idleHidden: inside(dom, scope, "[data-share-copy-idle]").hasAttribute("hidden"),
-		doneHidden: inside(dom, scope, "[data-share-copy-done]").hasAttribute("hidden"),
-		status: inside(dom, scope, "[data-share-status]").textContent ?? "",
+		idleHidden: inside(dom, { scope, selector: "[data-share-copy-idle]" }).hasAttribute("hidden"),
+		doneHidden: inside(dom, { scope, selector: "[data-share-copy-done]" }).hasAttribute("hidden"),
+		status: inside(dom, { scope, selector: "[data-share-status]" }).textContent ?? "",
 	};
 }
 
@@ -84,7 +84,7 @@ describe("share dialog copy", () => {
 	it("reveals every Copy button when the page can write the clipboard", () => {
 		const { dom } = pageWithShare(clipboardThat("grants"));
 
-		expect([inside(dom, DIALOG, "[data-share-copy]").hasAttribute("hidden"), inside(dom, FALLBACK, "[data-share-copy]").hasAttribute("hidden")]).toEqual([
+		expect([inside(dom, { scope: DIALOG, selector: "[data-share-copy]" }).hasAttribute("hidden"), inside(dom, { scope: FALLBACK, selector: "[data-share-copy]" }).hasAttribute("hidden")]).toEqual([
 			false,
 			false,
 		]);
@@ -95,7 +95,7 @@ describe("share dialog copy", () => {
 
 		shareDialog.reveal();
 
-		expect([inside(dom, DIALOG, "[data-share-copy]").hasAttribute("hidden"), inside(dom, FALLBACK, "[data-share-copy]").hasAttribute("hidden")]).toEqual([
+		expect([inside(dom, { scope: DIALOG, selector: "[data-share-copy]" }).hasAttribute("hidden"), inside(dom, { scope: FALLBACK, selector: "[data-share-copy]" }).hasAttribute("hidden")]).toEqual([
 			true,
 			true,
 		]);
@@ -107,18 +107,18 @@ describe("share dialog copy", () => {
 		swapped.id = "swapped";
 		swapped.innerHTML = renderSharePanel(ARTICLE);
 		dom.window.document.body.append(swapped);
-		expect(inside(dom, "#swapped", "[data-share-copy]").hasAttribute("hidden")).toBe(true);
+		expect(inside(dom, { scope: "#swapped", selector: "[data-share-copy]" }).hasAttribute("hidden")).toBe(true);
 
 		shareDialog.reveal();
 
-		expect(inside(dom, "#swapped", "[data-share-copy]").hasAttribute("hidden")).toBe(false);
+		expect(inside(dom, { scope: "#swapped", selector: "[data-share-copy]" }).hasAttribute("hidden")).toBe(false);
 	});
 
 	it("copies the tagged link, shows the check and announces it, then restores after two seconds", async () => {
 		const fake = clipboardThat("grants");
 		const { dom } = pageWithShare(fake);
 
-		click(dom, inside(dom, DIALOG, "[data-share-copy]"));
+		click(dom, inside(dom, { scope: DIALOG, selector: "[data-share-copy]" }));
 		await fake.settled();
 
 		expect(fake.writes).toEqual([COPIED_LINK]);
@@ -133,10 +133,10 @@ describe("share dialog copy", () => {
 		const fake = clipboardThat("refuses");
 		const { dom } = pageWithShare(fake);
 
-		click(dom, inside(dom, DIALOG, "[data-share-copy-idle]"));
+		click(dom, inside(dom, { scope: DIALOG, selector: "[data-share-copy-idle]" }));
 		await fake.settled();
 
-		const field = inside(dom, DIALOG, "[data-share-field]");
+		const field = inside(dom, { scope: DIALOG, selector: "[data-share-field]" });
 		assert(field instanceof dom.window.HTMLInputElement, "the link sits in a text field");
 		expect([field.selectionStart, field.selectionEnd]).toEqual([0, COPIED_LINK.length]);
 		expect(copyState(dom, DIALOG)).toEqual({ idleHidden: false, doneHidden: true, status: "Press Ctrl+C" });
@@ -147,7 +147,7 @@ describe("share dialog copy", () => {
 	it("keeps a single restore timer when Copy is pressed twice in quick succession", async () => {
 		const fake = clipboardThat("grants");
 		const { dom } = pageWithShare(fake);
-		const copy = inside(dom, DIALOG, "[data-share-copy]");
+		const copy = inside(dom, { scope: DIALOG, selector: "[data-share-copy]" });
 
 		click(dom, copy);
 		await fake.settled();
@@ -166,7 +166,7 @@ describe("share dialog copy", () => {
 		const fake = clipboardThat("grants");
 		const { dom } = pageWithShare(fake);
 
-		click(dom, inside(dom, FALLBACK, "[data-share-copy]"));
+		click(dom, inside(dom, { scope: FALLBACK, selector: "[data-share-copy]" }));
 		await fake.settled();
 
 		expect([copyState(dom, FALLBACK), copyState(dom, DIALOG)]).toEqual([COPIED, IDLE]);
@@ -187,7 +187,7 @@ describe("share dialog copy", () => {
 	it("fails loudly on a Copy button that carries no link", () => {
 		const fake = clipboardThat("grants");
 		const { dom } = pageWithShare(fake);
-		const copy = inside(dom, DIALOG, "[data-share-copy]");
+		const copy = inside(dom, { scope: DIALOG, selector: "[data-share-copy]" });
 		copy.removeAttribute("data-share-url");
 		const errors: string[] = [];
 		dom.window.addEventListener("error", (event) => {

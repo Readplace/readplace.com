@@ -87,7 +87,7 @@ async function useCatalog(
 	assert.equal(seeded.status(), 201, "the newsletter catalog namespace must be seeded");
 }
 
-function approved(from: string, name: string): CatalogRecord {
+function approved({ from, name }: { from: string; name: string }): CatalogRecord {
 	return { from, name, status: "approved" };
 }
 
@@ -174,7 +174,7 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 	test("ticks a known newsletter, adds a searched sender, picks and creates readlists, saves and removes the mappings without a pointer", async ({ page }, testInfo) => {
 		await signInGmailReader(page, {
 			stamp: uniqueStamp("keyboard", testInfo.workerIndex),
-			catalog: [approved(TLDR, "TLDR"), approved(BREW, "Morning Brew")],
+			catalog: [approved({ from: TLDR, name: "TLDR" }), approved({ from: BREW, name: "Morning Brew" })],
 			seed: {
 				readlists: ["Tech"],
 				discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: BREW, name: "Morning Brew" }, { email: KALE }],
@@ -271,7 +271,7 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 	test("opens a readlist picker at the readlist cap on its first tickable readlist", async ({ page }, testInfo) => {
 		await signInGmailReader(page, {
 			stamp: uniqueStamp("keyboard-cap", testInfo.workerIndex),
-			catalog: [approved(LONG_SENDER, LONG_NAME)],
+			catalog: [approved({ from: LONG_SENDER, name: LONG_NAME })],
 			seed: {
 				readlists: Array.from({ length: 7 }, (_, index) => `Capped ${index}`),
 				discoveredSenders: [{ email: LONG_SENDER, name: LONG_NAME }],
@@ -302,7 +302,7 @@ test.describe("GMail Newsletters without JavaScript", () => {
 			});
 			await signInGmailReader(page, {
 				stamp: uniqueStamp("nojs-gmail", testInfo.workerIndex),
-				catalog: [approved(TLDR, "TLDR")],
+				catalog: [approved({ from: TLDR, name: "TLDR" })],
 				seed: {
 					readlists: ["Tech"],
 					discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: KALE, name: "Hacker Newsletter" }],
@@ -405,7 +405,7 @@ test.describe("GMail Newsletters polling keeps the reader's choices", () => {
 	test("discovery and import polls keep the search, the ticked senders and the readlist in the URL and the page", async ({ page }, testInfo) => {
 		await signInGmailReader(page, {
 			stamp: uniqueStamp("polling", testInfo.workerIndex),
-			catalog: [approved(TLDR, "TLDR"), approved(BREW, "Morning Brew")],
+			catalog: [approved({ from: TLDR, name: "TLDR" }), approved({ from: BREW, name: "Morning Brew" })],
 			seed: {
 				readlists: ["Tech"],
 				discoveryState: "running",
@@ -530,7 +530,7 @@ function gmailScenario(input: {
 		open: async (page, stamp) => {
 			await signInGmailReader(page, {
 				stamp,
-				catalog: input.catalog ?? [approved(LONG_SENDER, LONG_NAME), approved(TLDR, "TLDR")],
+				catalog: input.catalog ?? [approved({ from: LONG_SENDER, name: LONG_NAME }), approved({ from: TLDR, name: "TLDR" })],
 				catalogMode: input.catalogMode,
 				seed: input.seed,
 			});
@@ -577,21 +577,21 @@ const GMAIL_OVERFLOW_SCENARIOS: readonly OverflowScenario[] = [
 	gmailScenario({
 		name: "checklist-named-newsletters",
 		shows: '[data-test-gmail-checklist][data-checklist-state="listed"]',
-		catalog: MANY_APPROVED.map((sender) => approved(sender.email, sender.name)),
+		catalog: MANY_APPROVED.map((sender) => approved({ from: sender.email, name: sender.name })),
 		seed: { discoveredSenders: MANY_APPROVED },
 		query: { discovery: "started", select: "all" },
 	}),
 	gmailScenario({
 		name: "checklist-added-sender",
 		shows: '[data-test-gmail-checklist-group="added"]',
-		catalog: [approved(TLDR, "TLDR")],
+		catalog: [approved({ from: TLDR, name: "TLDR" })],
 		seed: { discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: LONG_SENDER }] },
 		query: { discovery: "started", sender: LONG_SENDER, added: LONG_SENDER },
 	}),
 	gmailScenario({
 		name: "picker-open-named-newsletters",
 		shows: '[data-test-gmail-sender-results][data-results-state="listed"]',
-		catalog: MANY_APPROVED.map((sender) => approved(sender.email, sender.name)),
+		catalog: MANY_APPROVED.map((sender) => approved({ from: sender.email, name: sender.name })),
 		seed: { discoveredSenders: MANY_APPROVED },
 		prepare: openSenderPicker,
 	}),

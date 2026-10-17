@@ -1014,7 +1014,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		});
 	}
 
-	function dropped(ordinal: string, reason: string): InboxEmailLinkEntry {
+	function dropped({ ordinal, reason }: { ordinal: string; reason: string }): InboxEmailLinkEntry {
 		return link({
 			ordinal: EmailLinkOrdinalSchema.parse(ordinal),
 			url: `https://example.com/dropped-${ordinal}`,
@@ -1154,7 +1154,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		const vm = build({
 			links: [
 				kept("0000"),
-				dropped("0001", "A product launch, not engineering"),
+				dropped({ ordinal: "0001", reason: "A product launch, not engineering" }),
 				skipped("0002"),
 			],
 			linksMeta: metaWith({
@@ -1206,7 +1206,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 
 	it("says nothing was saved when the readlist dropped every link", () => {
 		const vm = build({
-			links: [dropped("0000", "Off topic"), dropped("0001", "Off topic")],
+			links: [dropped({ ordinal: "0000", reason: "Off topic" }), dropped({ ordinal: "0001", reason: "Off topic" })],
 			linksMeta: metaWith({
 				state: "decided",
 				readlist: WORK,
@@ -1230,7 +1230,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 
 	it("explains only the readlist's drops when nothing was skipped", () => {
 		const vm = build({
-			links: [kept("0000"), dropped("0001", "")],
+			links: [kept("0000"), dropped({ ordinal: "0001", reason: "" })],
 			linksMeta: metaWith({
 				state: "decided",
 				readlist: WORK,

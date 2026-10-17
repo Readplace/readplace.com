@@ -88,7 +88,7 @@ export function createReadlistActions(
 
 	let articlesAdded = 0
 	const submitAndVerifySave = retriable(
-		async (page: Page, url: string, identifier: string): Promise<boolean> => {
+		async ({ page, url, identifier }: { page: Page; url: string; identifier: string }): Promise<boolean> => {
 			await saveWithAddLink(page, url)
 			const latestHref = await page
 				.locator('#latest-saved [data-test-article-url]')
@@ -118,7 +118,7 @@ export function createReadlistActions(
 			const url = TEST_URLS[i]
 			const identifier = new URL(url).pathname.split('/').pop()
 			assert.ok(identifier, `article URL must have a trailing path segment: ${url}`)
-			const saved = await submitAndVerifySave(page, url, identifier)
+			const saved = await submitAndVerifySave({ page, url, identifier })
 			assert.ok(saved, `article save did not land for ${url} after 3 attempts`)
 			articlesAdded = i + 1
 			if (articlesAdded === TEST_URLS.length) {
@@ -149,7 +149,7 @@ export function createReadlistActions(
 			const url = testData.paginationUrls[i]
 			const slug = url.split('/').pop()
 			assert.ok(slug, `pagination URL must have a trailing path segment: ${url}`)
-			const saved = await submitAndVerifySave(page, url, slug)
+			const saved = await submitAndVerifySave({ page, url, identifier: slug })
 			assert.ok(saved, `pagination save did not land for ${url} after 3 attempts`)
 			paginationArticlesAdded = i + 1
 			if (paginationArticlesAdded === testData.paginationUrls.length) {

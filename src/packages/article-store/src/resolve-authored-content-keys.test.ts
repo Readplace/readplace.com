@@ -82,7 +82,7 @@ function createResolver(opts: {
 	});
 }
 
-function authoredCandidate(id: string, authorUserId?: string) {
+function authoredCandidate({ id, authorUserId }: { id: string; authorUserId?: string }) {
 	const manifestKey = `${CANDIDATE_PREFIX}${createHash("sha256").update(id).digest("hex")}/metadata.json`;
 	const bodyPrefix = `${CANDIDATE_PREFIX}${createHash("sha256").update(`body:${id}`).digest("hex")}/`;
 	const metadata = { id, authorUserId, htmlLocation: `${bodyPrefix}content.html`, evaluationLocation: `${bodyPrefix}evaluation.html` };
@@ -91,10 +91,10 @@ function authoredCandidate(id: string, authorUserId?: string) {
 
 describe("initResolveAuthoredContentKeys", () => {
 	it("removes every historical immutable capture credited to the last snapshot's author", async () => {
-		const earlier = authoredCandidate("earlier", "user-1");
-		const latest = authoredCandidate("latest", "user-1");
-		const other = authoredCandidate("other", "user-2");
-		const unknown = authoredCandidate("unknown");
+		const earlier = authoredCandidate({ id: "earlier", authorUserId: "user-1" });
+		const latest = authoredCandidate({ id: "latest", authorUserId: "user-1" });
+		const other = authoredCandidate({ id: "other", authorUserId: "user-2" });
+		const unknown = authoredCandidate({ id: "unknown" });
 		const objects = Object.fromEntries([earlier, latest, other, unknown].map((candidate) => [candidate.manifestKey, candidate.object]));
 		const prefixes: string[] = [];
 		const { resolveAuthoredContentKeys } = createResolver({
@@ -118,7 +118,7 @@ describe("initResolveAuthoredContentKeys", () => {
 	});
 
 	it("finishes deleting immutable captures on redelivery after the authored version was already pruned", async () => {
-		const candidate = authoredCandidate("left-after-prune", "user-1");
+		const candidate = authoredCandidate({ id: "left-after-prune", authorUserId: "user-1" });
 		const { resolveAuthoredContentKeys } = createResolver({
 			crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-2" }],
 			sidecar: "missing",
@@ -150,8 +150,8 @@ describe("initResolveAuthoredContentKeys", () => {
 	});
 
 	it("preserves candidates whose manifest is missing or malformed and ignores listing entries that are not manifests", async () => {
-		const missing = authoredCandidate("missing", "user-1");
-		const malformed = authoredCandidate("malformed", "user-1");
+		const missing = authoredCandidate({ id: "missing", authorUserId: "user-1" });
+		const malformed = authoredCandidate({ id: "malformed", authorUserId: "user-1" });
 		const objects: Record<string, FakeSidecar> = {
 			[missing.manifestKey]: "missing",
 			[malformed.manifestKey]: { body: "{truncated" },
@@ -167,7 +167,7 @@ describe("initResolveAuthoredContentKeys", () => {
 	});
 
 	it("rethrows listing and immutable manifest access errors so erasure can retry", async () => {
-		const candidate = authoredCandidate("denied", "user-1");
+		const candidate = authoredCandidate({ id: "denied", authorUserId: "user-1" });
 		const denied = createResolver({
 			crawlVersions: [], sidecar: "missing",
 			objects: { [candidate.manifestKey]: { failure: new Error("access denied") } },
@@ -395,7 +395,7 @@ describe("initResolveAuthoredContentKeys", () => {
 });
 
 it("revokes candidates from immutable manifests and candidate-backed history without inventing a dated S3 copy", async () => {
-	const candidate = authoredCandidate("owned", "user-1");
+	const candidate = authoredCandidate({ id: "owned", authorUserId: "user-1" });
 	const { resolveAuthoredContentKeys } = createResolver({
 		crawlVersions: [{ minuteId: ONLY_AUTHORED, authorUserId: "user-1", candidateId: "history-candidate" }],
 		sidecar: "missing",
@@ -408,7 +408,7 @@ it("revokes candidates from immutable manifests and candidate-backed history wit
 	expect(result.candidateIds).toEqual(["owned", "history-candidate"]);
 });
 
-function authoredMedia(attemptId: string, authorUserId?: string) {
+function authoredMedia({ attemptId, authorUserId }: { attemptId: string; authorUserId?: string }) {
 	const scope = createHash("sha256").update(JSON.stringify([attemptId, authorUserId ?? null])).digest("hex");
 	const objectKey = `content/${ENCODED}/images/attempts/${scope}/${"a".repeat(64)}.png`;
 	const metadata = { url: URL, attemptId, authorUserId, objectKey };
@@ -416,9 +416,9 @@ function authoredMedia(attemptId: string, authorUserId?: string) {
 }
 
 it("erases owned media while preserving other and unknown ownership", async () => {
-	const own = authoredMedia("owned", "user-1");
-	const other = authoredMedia("other", "user-2");
-	const unknown = authoredMedia("unknown");
+	const own = authoredMedia({ attemptId: "owned", authorUserId: "user-1" });
+	const other = authoredMedia({ attemptId: "other", authorUserId: "user-2" });
+	const unknown = authoredMedia({ attemptId: "unknown" });
 	const objects = Object.fromEntries([own, other, unknown].map((entry) => [entry.manifestKey, entry.object]));
 	const { resolveAuthoredContentKeys } = createResolver({
 		sidecar: "missing", objects,
@@ -428,8 +428,8 @@ it("erases owned media while preserving other and unknown ownership", async () =
 });
 
 it("removes owned media and preserves media whose manifest is malformed", async () => {
-	const own = authoredMedia("owned", "user-1");
-	const malformed = authoredMedia("malformed", "user-1");
+	const own = authoredMedia({ attemptId: "owned", authorUserId: "user-1" });
+	const malformed = authoredMedia({ attemptId: "malformed", authorUserId: "user-1" });
 	const objects = {
 		[own.manifestKey]: own.object,
 		[malformed.manifestKey]: { body: "{}" },
@@ -445,8 +445,8 @@ it("resolves no history for an absent row", async () => {
 
 it.each(["first", "second"] as const)("removing the %s of two candidate-backed authored versions erases only its candidate", async (removed) => {
 	const versions = {
-		first: { minuteId: "2026-06-28T22:01Z", candidate: authoredCandidate("first-capture", "user-1") },
-		second: { minuteId: ONLY_AUTHORED, candidate: authoredCandidate("second-capture", "user-1") },
+		first: { minuteId: "2026-06-28T22:01Z", candidate: authoredCandidate({ id: "first-capture", authorUserId: "user-1" }) },
+		second: { minuteId: ONLY_AUTHORED, candidate: authoredCandidate({ id: "second-capture", authorUserId: "user-1" }) },
 	};
 	const objects = Object.fromEntries(Object.values(versions).map(({ candidate }) => [candidate.manifestKey, candidate.object]));
 	const { resolveAuthoredContentKeys } = createResolver({
@@ -466,7 +466,7 @@ it.each(["first", "second"] as const)("removing the %s of two candidate-backed a
 });
 
 it("keeps a candidate a remaining authored version still references", async () => {
-	const shared = authoredCandidate("shared-capture", "user-1");
+	const shared = authoredCandidate({ id: "shared-capture", authorUserId: "user-1" });
 	const { resolveAuthoredContentKeys } = createResolver({
 		crawlVersions: [ONLY_AUTHORED, "2026-06-28T22:01Z"].map((minuteId) => ({ minuteId, authorUserId: "user-1", candidateId: shared.metadata.id })),
 		sidecar: "missing",

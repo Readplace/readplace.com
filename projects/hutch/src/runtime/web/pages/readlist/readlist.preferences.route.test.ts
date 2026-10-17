@@ -69,7 +69,7 @@ async function wizardAction(agent: TestAgent, path: string): Promise<string> {
 	return action;
 }
 
-function savePurposeFromDialog(agent: TestAgent, action: string, purpose: string) {
+function savePurposeFromDialog(agent: TestAgent, { action, purpose }: { action: string; purpose: string }) {
 	return agent.post(action).set("HX-Request", "true").type("form").send({ purpose });
 }
 
@@ -645,7 +645,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 		const action = await wizardAction(agent, preferencesPath(slug));
 
-		const response = await savePurposeFromDialog(agent, action, "   ");
+		const response = await savePurposeFromDialog(agent, { action, purpose: "   " });
 
 		expect(response.status).toBe(422);
 		expect(response.headers["content-type"]).toBe("text/html; charset=utf-8");
@@ -666,7 +666,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const action = await wizardAction(agent, preferencesPath(slug));
 		const oversized = "a".repeat(READLIST_PURPOSE_MAX_LENGTH + 1);
 
-		const response = await savePurposeFromDialog(agent, action, oversized);
+		const response = await savePurposeFromDialog(agent, { action, purpose: oversized });
 
 		expect(response.status).toBe(422);
 		expect(refusedWizardForm(response).value).toBe(oversized);
@@ -678,7 +678,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 		const action = await wizardAction(agent, preferencesPath(slug));
 
-		const response = await savePurposeFromDialog(agent, action, PURPOSE);
+		const response = await savePurposeFromDialog(agent, { action, purpose: PURPOSE });
 
 		expect(response.status).toBe(204);
 		expect(hxLocation(response)).toEqual({
@@ -698,7 +698,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 		const action = await wizardAction(agent, withPreferencesFeature(preferencesPath(slug)));
 
-		const response = await savePurposeFromDialog(agent, action, PURPOSE);
+		const response = await savePurposeFromDialog(agent, { action, purpose: PURPOSE });
 
 		expect(hxLocation(response).path).toBe(withPreferencesFeature(preferencesPath(slug)));
 	});
@@ -711,7 +711,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const response = await savePurposeFromDialog(agent, preferencesPath(slug), PURPOSE);
+		const response = await savePurposeFromDialog(agent, { action: preferencesPath(slug), purpose: PURPOSE });
 
 		expect(response.status).toBe(204);
 		expect(hxLocation(response)).toEqual({
@@ -735,7 +735,7 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
-		const response = await savePurposeFromDialog(agent, preferencesPath(slug), PURPOSE);
+		const response = await savePurposeFromDialog(agent, { action: preferencesPath(slug), purpose: PURPOSE });
 
 		expect(response.status).toBe(204);
 		expect(hxLocation(response).path).toBe("/queue?queue_error=unknown_readlist");

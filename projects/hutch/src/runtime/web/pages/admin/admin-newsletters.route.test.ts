@@ -141,7 +141,7 @@ function rows(html: string) {
 	]);
 }
 
-function rowActions(html: string, from: string) {
+function rowActions({ html, from }: { html: string; from: string }) {
 	const row = parse(html).querySelector(`[data-test-admin-newsletter-row="${from}"]`);
 	assert(row, `the row for ${from} must be rendered`);
 	return Array.from(row.querySelectorAll("[data-test-admin-newsletter-action]")).map((button) =>
@@ -155,7 +155,7 @@ function hiddenFields(form: Element) {
 	);
 }
 
-function alertText(html: string, key: string) {
+function alertText({ html, key }: { html: string; key: string }) {
 	const alert = parse(html).querySelector(`[data-test-alert="${key}"]`);
 	assert(alert, `the ${key} alert must be rendered`);
 	return {
@@ -164,7 +164,7 @@ function alertText(html: string, key: string) {
 	};
 }
 
-function fieldValue(html: string, name: string) {
+function fieldValue({ html, name }: { html: string; name: string }) {
 	const form = parse(html).querySelector("[data-test-admin-newsletter-form]");
 	assert(form, "the newsletter form must be rendered");
 	const control = form.querySelector(`[name="${name}"]`);
@@ -213,7 +213,7 @@ describe("GET /admin/newsletters", () => {
 				["all", "false"],
 			],
 		);
-		assert.deepEqual(rowActions(response.text, "dan@tldrnewsletter.com"), ["approve", "reject", "edit", "correct"]);
+		assert.deepEqual(rowActions({ html: response.text, from: "dan@tldrnewsletter.com" }), ["approve", "reject", "edit", "correct"]);
 		assert.deepEqual(
 			Array.from(document.querySelectorAll('[data-test-admin-newsletter-row="dan@tldrnewsletter.com"] form')).map((form) => [
 				form.getAttribute("method"),
@@ -248,10 +248,10 @@ describe("GET /admin/newsletters", () => {
 		const all = await agent.get("/admin/newsletters?list_status=all");
 
 		assert.deepEqual(rows(approved.text), [["crew@morningbrew.com", "approved"]]);
-		assert.deepEqual(rowActions(approved.text, "crew@morningbrew.com"), ["withdraw", "edit", "correct"]);
+		assert.deepEqual(rowActions({ html: approved.text, from: "crew@morningbrew.com" }), ["withdraw", "edit", "correct"]);
 		assert.equal(parse(approved.text).querySelector("[data-test-admin-newsletters-summary]")?.textContent, "1 newsletter");
 		assert.deepEqual(rows(rejected.text), [["old@bytes.dev", "rejected"]]);
-		assert.deepEqual(rowActions(rejected.text, "old@bytes.dev"), ["edit"]);
+		assert.deepEqual(rowActions({ html: rejected.text, from: "old@bytes.dev" }), ["edit"]);
 		assert.equal(
 			parse(rejected.text).querySelector("[data-test-admin-newsletter-replaced-by]")?.textContent,
 			"Replaced by hello@bytes.dev",
@@ -359,7 +359,7 @@ describe("GET /admin/newsletters", () => {
 
 		const response = await agent.get("/admin/newsletters?notice=approved");
 
-		assert.deepEqual(alertText(response.text, "newsletter-notice"), {
+		assert.deepEqual(alertText({ html: response.text, key: "newsletter-notice" }), {
 			visible: true,
 			text: "Newsletter approved. Readers now see it as a known newsletter.",
 		});
@@ -464,8 +464,8 @@ describe("GET /admin/newsletters", () => {
 			q: "",
 			page: "1",
 		});
-		assert.equal(fieldValue(named.text, "name"), "TLDR");
-		assert.equal(fieldValue(unnamed.text, "name"), "");
+		assert.equal(fieldValue({ html: named.text, name: "name" }), "TLDR");
+		assert.equal(fieldValue({ html: unnamed.text, name: "name" }), "");
 	});
 
 	it("opens the FROM correction form for a known record only", async () => {
@@ -478,7 +478,7 @@ describe("GET /admin/newsletters", () => {
 		const form = parse(correcting.text).querySelector('[data-test-admin-newsletter-form="correct"]');
 		assert(form, "the correction form must be rendered");
 		assert.equal(parse(correcting.text).querySelector("[data-test-admin-newsletter-form-subject]")?.textContent, "dan@tldrnewsletter.com");
-		assert.equal(fieldValue(correcting.text, "new_from"), "");
+		assert.equal(fieldValue({ html: correcting.text, name: "new_from" }), "");
 		assert.deepEqual(
 			Array.from(parse(unknown.text).querySelectorAll("[data-test-admin-newsletter-form]")).map((candidate) =>
 				candidate.getAttribute("data-test-admin-newsletter-form"),
@@ -495,7 +495,7 @@ describe("GET /admin/newsletters", () => {
 		const response = await agent.get("/admin/newsletters");
 
 		assert.equal(response.status, 503);
-		assert.deepEqual(alertText(response.text, "newsletter-storage"), {
+		assert.deepEqual(alertText({ html: response.text, key: "newsletter-storage" }), {
 			visible: true,
 			text: "The newsletter catalog could not be loaded. Try again shortly.",
 		});
@@ -522,7 +522,7 @@ describe("GET /admin/newsletters", () => {
 			["promo@deals.example", "rejected"],
 		]);
 		assert.deepEqual(
-			[rowActions(response.text, "old@bytes.dev"), rowActions(response.text, "promo@deals.example")],
+			[rowActions({ html: response.text, from: "old@bytes.dev" }), rowActions({ html: response.text, from: "promo@deals.example" })],
 			[["edit"], ["reconsider", "edit"]],
 		);
 	});
@@ -695,7 +695,7 @@ describe("POST /admin/newsletters/records/create", () => {
 			["evidence_url", "Enter a full https:// link to the publisher page."],
 		]);
 		assert.deepEqual(
-			[fieldValue(response.text, "from"), fieldValue(response.text, "name"), fieldValue(response.text, "evidence_url")],
+			[fieldValue({ html: response.text, name: "from" }), fieldValue({ html: response.text, name: "name" }), fieldValue({ html: response.text, name: "evidence_url" })],
 			["not an address", "Weekly", "javascript:alert(1)"],
 		);
 		assert.equal(catalog.current()?.records.length, 0);
@@ -714,7 +714,7 @@ describe("POST /admin/newsletters/records/create", () => {
 
 		assert.equal(response.status, 422);
 		assert.deepEqual(fieldErrors(response.text), [["from", UNSUPPORTED_WILDCARD]]);
-		assert.equal(fieldValue(response.text, "from"), "news*@letters.example");
+		assert.equal(fieldValue({ html: response.text, name: "from" }), "news*@letters.example");
 		assert.equal(parse(response.text).querySelector("#admin-newsletter-from")?.getAttribute("aria-invalid"), "true");
 		assert.equal(catalog.current()?.records.length, 0);
 	});
@@ -782,8 +782,8 @@ describe("POST /admin/newsletters/records/create", () => {
 		});
 
 		assert.equal(response.status, 503);
-		assert.equal(alertText(response.text, "newsletter-storage").visible, true);
-		assert.equal(fieldValue(response.text, "from"), "weekly@letters.example");
+		assert.equal(alertText({ html: response.text, key: "newsletter-storage" }).visible, true);
+		assert.equal(fieldValue({ html: response.text, name: "from" }), "weekly@letters.example");
 		assert.equal(catalog.current()?.records.length, 0);
 	});
 
@@ -806,11 +806,11 @@ describe("POST /admin/newsletters/records/create", () => {
 		});
 
 		assert.equal(response.status, 409);
-		assert.deepEqual(alertText(response.text, "newsletter-conflict"), {
+		assert.deepEqual(alertText({ html: response.text, key: "newsletter-conflict" }), {
 			visible: true,
 			text: "The catalog kept changing while this was saved. Nothing was changed. Submit again.",
 		});
-		assert.deepEqual([fieldValue(response.text, "from"), fieldValue(response.text, "name")], ["weekly@letters.example", "Weekly"]);
+		assert.deepEqual([fieldValue({ html: response.text, name: "from" }), fieldValue({ html: response.text, name: "name" })], ["weekly@letters.example", "Weekly"]);
 		assert.deepEqual(writes, ["etag-1", "etag-1", "etag-1"]);
 		assert.equal(catalog.current()?.records.length, 0);
 	});
@@ -824,8 +824,8 @@ describe("POST /admin/newsletters/records/create", () => {
 		const correct = await agent.post("/admin/newsletters/records/correct");
 
 		assert.deepEqual([seed.status, seed.headers.location], [303, "/admin/newsletters?list_status=pending&notice=seeded"]);
-		assert.deepEqual([create.status, fieldValue(create.text, "from")], [422, ""]);
-		assert.deepEqual([correct.status, fieldValue(correct.text, "new_from")], [422, ""]);
+		assert.deepEqual([create.status, fieldValue({ html: create.text, name: "from" })], [422, ""]);
+		assert.deepEqual([correct.status, fieldValue({ html: correct.text, name: "new_from" })], [422, ""]);
 		assert.equal(catalog.current()?.records.length, 0);
 	});
 });
@@ -901,11 +901,11 @@ describe("POST /admin/newsletters/records/update", () => {
 		});
 
 		assert.equal(response.status, 409);
-		assert.deepEqual(alertText(response.text, "newsletter-conflict"), {
+		assert.deepEqual(alertText({ html: response.text, key: "newsletter-conflict" }), {
 			visible: true,
 			text: "Someone else changed this newsletter after you opened it. Review the current record, then submit again.",
 		});
-		assert.deepEqual([fieldValue(response.text, "name"), fieldValue(response.text, "evidence_note")], ["TLDR Tech", "My attempted note"]);
+		assert.deepEqual([fieldValue({ html: response.text, name: "name" }), fieldValue({ html: response.text, name: "evidence_note" })], ["TLDR Tech", "My attempted note"]);
 		const document = parse(response.text);
 		assert.equal(document.querySelector("[data-test-admin-newsletter-conflict-name]")?.textContent, "TLDR Daily");
 		const form = document.querySelector('[data-test-admin-newsletter-form="edit"]');
@@ -929,10 +929,10 @@ describe("POST /admin/newsletters/records/update", () => {
 
 		assert.equal(response.status, 503);
 		assert.equal(
-			alertText(response.text, "newsletter-storage").text,
+			alertText({ html: response.text, key: "newsletter-storage" }).text,
 			"The newsletter catalog is unavailable. Nothing was changed. Try again shortly.",
 		);
-		assert.deepEqual([fieldValue(response.text, "name"), fieldValue(response.text, "evidence_note")], ["TLDR Tech", "My attempted note"]);
+		assert.deepEqual([fieldValue({ html: response.text, name: "name" }), fieldValue({ html: response.text, name: "evidence_note" })], ["TLDR Tech", "My attempted note"]);
 		const form = parse(response.text).querySelector('[data-test-admin-newsletter-form="edit"]');
 		assert(form, "the edit form must be re-rendered");
 		assert.equal(hiddenFields(form).updated_at, TLDR.updatedAt);
@@ -945,7 +945,7 @@ describe("POST /admin/newsletters/records/{approve,reject,withdraw,reconsider}",
 		const { harness, catalog } = buildHarness({ records: [TLDR, SUBMITTED] });
 		const agent = await adminAgent(harness);
 		const listState = { list_status: "all", q: "tldr", page: "1" };
-		const review = async (action: string, from: string) => {
+		const review = async ({ action, from }: { action: string; from: string }) => {
 			const response = await agent
 				.post(`/admin/newsletters/records/${action}`)
 				.type("form")
@@ -957,10 +957,10 @@ describe("POST /admin/newsletters/records/{approve,reject,withdraw,reconsider}",
 			return [response.status, response.headers.location, stored(catalog, from).status];
 		};
 
-		const approve = await review("approve", TLDR.from);
-		const withdraw = await review("withdraw", TLDR.from);
-		const reconsider = await review("reconsider", TLDR.from);
-		const reject = await review("reject", SUBMITTED.from);
+		const approve = await review({ action: "approve", from: TLDR.from });
+		const withdraw = await review({ action: "withdraw", from: TLDR.from });
+		const reconsider = await review({ action: "reconsider", from: TLDR.from });
+		const reject = await review({ action: "reject", from: SUBMITTED.from });
 
 		assert.deepEqual(
 			[approve, withdraw, reconsider, reject],
@@ -1031,7 +1031,7 @@ describe("POST /admin/newsletters/records/{approve,reject,withdraw,reconsider}",
 
 		assert.equal(response.status, 503);
 		assert.equal(
-			alertText(response.text, "newsletter-storage").text,
+			alertText({ html: response.text, key: "newsletter-storage" }).text,
 			"The newsletter catalog is unavailable. Nothing was changed. Try again shortly.",
 		);
 		assert.deepEqual(rows(response.text), [["dan@tldrnewsletter.com", "pending"]]);
@@ -1047,7 +1047,7 @@ describe("POST /admin/newsletters/records/{approve,reject,withdraw,reconsider}",
 		const response = await agent.post("/admin/newsletters/records/approve").type("form").send({ from: TLDR.from, updated_at: EARLY });
 
 		assert.equal(response.status, 409);
-		assert.equal(alertText(response.text, "newsletter-conflict").visible, true);
+		assert.equal(alertText({ html: response.text, key: "newsletter-conflict" }).visible, true);
 		assert.deepEqual(rows(response.text), [["dan@tldrnewsletter.com", "pending"]]);
 		assert.equal(stored(catalog, TLDR.from).status, "pending");
 	});
@@ -1063,7 +1063,7 @@ describe("POST /admin/newsletters/records/{approve,reject,withdraw,reconsider}",
 
 		assert.equal(response.status, 409);
 		assert.equal(
-			alertText(response.text, "newsletter-conflict").text,
+			alertText({ html: response.text, key: "newsletter-conflict" }).text,
 			"That newsletter is no longer in a state that allows this action. Review the current record.",
 		);
 	});
@@ -1079,7 +1079,7 @@ describe("POST /admin/newsletters/records/{approve,reject,withdraw,reconsider}",
 
 		assert.equal(response.status, 409);
 		assert.equal(
-			alertText(response.text, "newsletter-conflict").text,
+			alertText({ html: response.text, key: "newsletter-conflict" }).text,
 			"That newsletter is no longer in a state that allows this action. Review the current record.",
 		);
 		assert.equal(stored(catalog, OLD_BYTES.from).status, "rejected");
@@ -1149,7 +1149,7 @@ describe("POST /admin/newsletters/records/correct", () => {
 
 		assert.equal(response.status, 422);
 		assert.deepEqual(fieldErrors(response.text), [["new_from", "The catalog already has a record for this FROM address."]]);
-		assert.equal(fieldValue(response.text, "new_from"), TLDR.from);
+		assert.equal(fieldValue({ html: response.text, name: "new_from" }), TLDR.from);
 	});
 
 	it("re-renders an invalid corrected FROM", async () => {
@@ -1178,7 +1178,7 @@ describe("POST /admin/newsletters/records/correct", () => {
 
 		assert.equal(response.status, 422);
 		assert.deepEqual(fieldErrors(response.text), [["new_from", UNSUPPORTED_WILDCARD]]);
-		assert.equal(fieldValue(response.text, "new_from"), "*@*.morningbrew.com");
+		assert.equal(fieldValue({ html: response.text, name: "new_from" }), "*@*.morningbrew.com");
 		assert.equal(stored(catalog, MORNING_BREW.from).status, "approved");
 	});
 
@@ -1199,10 +1199,10 @@ describe("POST /admin/newsletters/records/correct", () => {
 
 		assert.equal(response.status, 409);
 		assert.equal(
-			alertText(response.text, "newsletter-conflict").text,
+			alertText({ html: response.text, key: "newsletter-conflict" }).text,
 			"Someone else changed this newsletter after you opened it. Review the current record, then submit again.",
 		);
-		assert.equal(fieldValue(response.text, "new_from"), "crew@send.morningbrew.com");
+		assert.equal(fieldValue({ html: response.text, name: "new_from" }), "crew@send.morningbrew.com");
 		const document = parse(response.text);
 		assert.deepEqual(
 			[
@@ -1232,7 +1232,7 @@ describe("POST /admin/newsletters/records/correct", () => {
 
 		assert.equal(response.status, 409);
 		assert.equal(
-			alertText(response.text, "newsletter-conflict").text,
+			alertText({ html: response.text, key: "newsletter-conflict" }).text,
 			"That newsletter is no longer in a state that allows this action. Review the current record.",
 		);
 		assert.deepEqual(
@@ -1253,8 +1253,8 @@ describe("POST /admin/newsletters/records/correct", () => {
 		});
 
 		assert.equal(response.status, 503);
-		assert.equal(alertText(response.text, "newsletter-storage").visible, true);
-		assert.equal(fieldValue(response.text, "new_from"), "crew@send.morningbrew.com");
+		assert.equal(alertText({ html: response.text, key: "newsletter-storage" }).visible, true);
+		assert.equal(fieldValue({ html: response.text, name: "new_from" }), "crew@send.morningbrew.com");
 		assert.deepEqual(
 			catalog.current()?.records.map((entry) => [entry.from, entry.status]),
 			[[MORNING_BREW.from, "approved"]],
@@ -1272,7 +1272,7 @@ describe("POST /admin/newsletters/records/correct", () => {
 		});
 
 		assert.equal(response.status, 409);
-		assert.equal(alertText(response.text, "newsletter-conflict").text, "That newsletter is not in the catalog.");
+		assert.equal(alertText({ html: response.text, key: "newsletter-conflict" }).text, "That newsletter is not in the catalog.");
 		const form = parse(response.text).querySelector('[data-test-admin-newsletter-form="correct"]');
 		assert(form, "the correction form must be re-rendered");
 		assert.equal(hiddenFields(form).updated_at, EARLY);
@@ -1334,7 +1334,7 @@ describe("POST /admin/newsletters/seed/import", () => {
 		const response = await agent.post("/admin/newsletters/seed/import").type("form").send({});
 
 		assert.equal(response.status, 503);
-		assert.equal(alertText(response.text, "newsletter-storage").visible, true);
+		assert.equal(alertText({ html: response.text, key: "newsletter-storage" }).visible, true);
 		assert.equal(catalog.current()?.records.length, 0);
 	});
 });

@@ -17,8 +17,8 @@ type JudgeAnswer =
 	| { kind: "tie"; candidates: string[]; reason: string }
 	| { kind: "none"; reason: string };
 
-function modelResponse(answer: JudgeAnswer, readableLabels: readonly string[] = [], assessedLabels: readonly string[] = ["A", "B", "C"]): string {
-	return JSON.stringify({ ...answer, readability: assessedLabels.map((candidate) => ({ candidate, readable: readableLabels.includes(candidate) })) });
+function modelResponse(answer: JudgeAnswer, { readable = [], assessed = ["A", "B", "C"] }: { readable?: readonly string[]; assessed?: readonly string[] } = {}): string {
+	return JSON.stringify({ ...answer, readability: assessed.map((candidate) => ({ candidate, readable: readable.includes(candidate) })) });
 }
 
 function fakeChat(content: string | null | undefined): CreateSelectorChatCompletion {
@@ -34,7 +34,7 @@ function judge(content: string | null | undefined) {
 
 describe("initSelectMostCompleteContent", () => {
 	it("keeps readability of a shorter archive article independent from the live winner", async () => {
-		const result = await judge(modelResponse({ kind: "winner", candidate: "B", reason: "Live has an additional article section" }, ["A", "B", "C"]))(request);
+		const result = await judge(modelResponse({ kind: "winner", candidate: "B", reason: "Live has an additional article section" }, { readable: ["A", "B", "C"] }))(request);
 		expect(result).toMatchObject({ kind: "winner", candidateId: cid("live"), readability: [{ candidateId: cid("extension"), readable: true }, { candidateId: cid("live"), readable: true }, { candidateId: cid("archive"), readable: true }] });
 	});
 	it.each([
@@ -48,9 +48,9 @@ describe("initSelectMostCompleteContent", () => {
 		await expect(judge(JSON.stringify({ kind: "winner", candidate: "B", reason: "Article", readability }))(request)).rejects.toThrow(/incomplete candidate readability|schema mismatch/);
 	});
 	it.each([
-		modelResponse({ kind: "winner", candidate: "C", reason: "Conflicting assessment" }, ["B"]),
-		modelResponse({ kind: "tie", candidates: ["B", "C"], reason: "Conflicting assessment" }, ["B"]),
-		modelResponse({ kind: "none", reason: "Conflicting assessment" }, ["B"]),
+		modelResponse({ kind: "winner", candidate: "C", reason: "Conflicting assessment" }, { readable: ["B"] }),
+		modelResponse({ kind: "tie", candidates: ["B", "C"], reason: "Conflicting assessment" }, { readable: ["B"] }),
+		modelResponse({ kind: "none", reason: "Conflicting assessment" }, { readable: ["B"] }),
 	])("rejects a ranking that contradicts its readability assessments", async (response) => {
 		await expect(judge(response)(request)).rejects.toThrow("decision contradicts candidate readability");
 	});
@@ -59,7 +59,7 @@ describe("initSelectMostCompleteContent", () => {
 		{ answer: { kind: "tie", candidates: ["A", "B"], reason: "Same article" }, decision: { kind: "tie", candidateIds: [cid("extension"), cid("live")], reason: "Same article" } },
 		{ answer: { kind: "none", reason: "Only challenge pages" }, decision: { kind: "none", reason: "Only challenge pages" } },
 	])("maps the judge's candidate labels back to candidate ids: $answer", async ({ answer, decision }) => {
-		expect(await judge(modelResponse(answer, answer.kind === "none" ? [] : ["A", "B"]))(request)).toMatchObject(decision);
+		expect(await judge(modelResponse(answer, { readable: answer.kind === "none" ? [] : ["A", "B"] }))(request)).toMatchObject(decision);
 	});
 
 	it("accepts a label the judge wrote in lower case or padded with spaces", async () => {
@@ -68,14 +68,14 @@ describe("initSelectMostCompleteContent", () => {
 	});
 
 	it("still judges a single candidate, which can be unreadable", async () => {
-		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "none", reason: "CAPTCHA" }, [], ["A"])));
+		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "none", reason: "CAPTCHA" }, { readable: [], assessed: ["A"] })));
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger });
 		expect(await selectMostCompleteContent({ ...request, candidates: [candidates[2]] })).toMatchObject({ kind: "none", reason: "CAPTCHA" });
 		expect(createChatCompletion).toHaveBeenCalledTimes(1);
 	});
 
 	it("sends candidate labels and content hashes, never candidate ids, with the actual challenge body in non-thinking JSON mode", async () => {
-		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, ["A", "B"])));
+		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] })));
 		const info = jest.fn();
 		const result = await initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, info } }).selectMostCompleteContent(request);
 		expect(createChatCompletion).toHaveBeenCalledWith(expect.objectContaining({
@@ -106,7 +106,7 @@ describe("initSelectMostCompleteContent", () => {
 		[modelResponse({ kind: "tie", candidates: ["B", "Z"], reason: "bad label" }), "invalid tied candidates"],
 		[modelResponse({ kind: "tie", candidates: ["B", "B"], reason: "duplicate" }), "invalid tied candidates"],
 		[modelResponse({ kind: "tie", candidates: ["B", "b"], reason: "duplicate in another case" }), "invalid tied candidates"],
-		[modelResponse({ kind: "tie", candidates: ["B", "9f2c4e7a1d3b5f6a8c0e2d4f6b8a0c1e3d5f7a9b1c2d4e6f8a0b2c4d6e8f0a"], reason: "a 62-character candidate id copied with two characters dropped" }, ["A", "B"]), "invalid tied candidates"],
+		[modelResponse({ kind: "tie", candidates: ["B", "9f2c4e7a1d3b5f6a8c0e2d4f6b8a0c1e3d5f7a9b1c2d4e6f8a0b2c4d6e8f0a"], reason: "a 62-character candidate id copied with two characters dropped" }, { readable: ["A", "B"] }), "invalid tied candidates"],
 	])("fails closed for invalid model output %s", async (response, reason) => {
 		await expect(judge(response)(request)).rejects.toThrow(reason);
 	});
@@ -123,7 +123,7 @@ describe("initSelectMostCompleteContent", () => {
 	])("logs available usage without requiring cache details: %j", async ({ usage, inputTokens, outputTokens }) => {
 		const info = jest.fn();
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: async () => ({ choices: [{ message: { content: modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, ["A", "B"]) } }], usage }),
+			createChatCompletion: async () => ({ choices: [{ message: { content: modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] }) } }], usage }),
 			logger: { ...noopLogger, info },
 		});
 		await selectMostCompleteContent(request);

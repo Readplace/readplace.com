@@ -55,14 +55,14 @@ function formControlRule(selector: string): string {
 	return formControlRules()[formControlRuleIndex(selector)].body;
 }
 
-function ruleBody(css: string, selector: string): string {
+function ruleBody({ css, selector }: { css: string; selector: string }): string {
 	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const rule = new RegExp(`\\n\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css);
 	assert(rule, `${selector} must be declared`);
 	return rule[1];
 }
 
-function declaredValue(body: string, property: string): string {
+function declaredValue({ body, property }: { body: string; property: string }): string {
 	const declaration = new RegExp(`(?:^|\\s)${property}:\\s*([^;]+);`).exec(body);
 	assert(declaration, `${property} must be declared`);
 	return declaration[1];
@@ -331,43 +331,43 @@ describe("FORM_CONTROL_STYLES", () => {
 
 describe("BUTTON_STYLES", () => {
 	it("keeps a destructive action outlined until hover or press", () => {
-		const rest = ruleBody(BUTTON_STYLES, ".btn--destructive");
-		const hover = ruleBody(BUTTON_STYLES, ".btn--destructive:hover");
-		const pressed = ruleBody(BUTTON_STYLES, ".btn--destructive:active");
-		expect(declaredValue(rest, "background")).toBe("var(--card)");
-		expect(declaredValue(rest, "color")).toBe("var(--error-text)");
-		expect(declaredValue(rest, "box-shadow")).toBe("inset 0 0 0 1px var(--color-error)");
-		expect(declaredValue(hover, "background")).toBe("var(--error-fill)");
-		expect(declaredValue(hover, "color")).toBe("var(--error-foreground)");
-		expect(declaredValue(pressed, "background")).toBe("var(--error-fill-hover)");
-		expect(declaredValue(pressed, "color")).toBe("var(--error-foreground)");
+		const rest = ruleBody({ css: BUTTON_STYLES, selector: ".btn--destructive" });
+		const hover = ruleBody({ css: BUTTON_STYLES, selector: ".btn--destructive:hover" });
+		const pressed = ruleBody({ css: BUTTON_STYLES, selector: ".btn--destructive:active" });
+		expect(declaredValue({ body: rest, property: "background" })).toBe("var(--card)");
+		expect(declaredValue({ body: rest, property: "color" })).toBe("var(--error-text)");
+		expect(declaredValue({ body: rest, property: "box-shadow" })).toBe("inset 0 0 0 1px var(--color-error)");
+		expect(declaredValue({ body: hover, property: "background" })).toBe("var(--error-fill)");
+		expect(declaredValue({ body: hover, property: "color" })).toBe("var(--error-foreground)");
+		expect(declaredValue({ body: pressed, property: "background" })).toBe("var(--error-fill-hover)");
+		expect(declaredValue({ body: pressed, property: "color" })).toBe("var(--error-foreground)");
 	});
 
 	it("sizes the XL tier at 56px with 24px inline padding and the 12px corner", () => {
-		const rule = ruleBody(BUTTON_STYLES, ".btn--xl");
+		const rule = ruleBody({ css: BUTTON_STYLES, selector: ".btn--xl" });
 		expect([
-			declaredValue(rule, "min-height"),
-			declaredValue(rule, "padding"),
-			declaredValue(rule, "border-radius"),
+			declaredValue({ body: rule, property: "min-height" }),
+			declaredValue({ body: rule, property: "padding" }),
+			declaredValue({ body: rule, property: "border-radius" }),
 		]).toEqual(["56px", "16px 24px", "var(--radius-md)"]);
 	});
 
 	it.each([".btn--m", ".btn--s"])("extends the %s tier's hit area to the 44px tap-target floor", (tier) => {
-		const height = Number.parseFloat(declaredValue(ruleBody(BUTTON_STYLES, tier), "min-height"));
-		const [blockInset] = declaredValue(ruleBody(BUTTON_STYLES, `${tier}::before`), "inset").split(" ");
+		const height = Number.parseFloat(declaredValue({ body: ruleBody({ css: BUTTON_STYLES, selector: tier }), property: "min-height" }));
+		const [blockInset] = declaredValue({ body: ruleBody({ css: BUTTON_STYLES, selector: `${tier}::before` }), property: "inset" }).split(" ");
 		expect(height - 2 * Number.parseFloat(blockInset)).toBeGreaterThanOrEqual(44);
 	});
 
 	it("squares the icon-only tier to the 48px target with no padding, so the glyph sits centred", () => {
-		const rule = ruleBody(BUTTON_STYLES, ".btn--icon");
-		expect(declaredValue(rule, "padding")).toBe("0");
-		expect(declaredValue(rule, "min-width")).toBe("48px");
-		expect(declaredValue(rule, "aspect-ratio")).toBe("1");
+		const rule = ruleBody({ css: BUTTON_STYLES, selector: ".btn--icon" });
+		expect(declaredValue({ body: rule, property: "padding" })).toBe("0");
+		expect(declaredValue({ body: rule, property: "min-width" })).toBe("48px");
+		expect(declaredValue({ body: rule, property: "aspect-ratio" })).toBe("1");
 	});
 
 	it.each(["primary", "secondary", "neutral"])("gives the %s variant distinct rest, hover and pressed fills", (variant) => {
 		const fills = [`.btn--${variant}`, `.btn--${variant}:hover`, `.btn--${variant}:active`].map((selector) =>
-			declaredValue(ruleBody(BUTTON_STYLES, selector), "background"),
+			declaredValue({ body: ruleBody({ css: BUTTON_STYLES, selector }), property: "background" }),
 		);
 		expect(new Set(fills).size).toBe(3);
 	});
@@ -395,18 +395,18 @@ describe("CHIP_STYLES", () => {
 
 	it("styles the whole chip family: sizes, tones and the removable tag's control", () => {
 		for (const selector of SELECTORS) {
-			ruleBody(CHIP_STYLES, selector);
+			ruleBody({ css: CHIP_STYLES, selector });
 		}
 	});
 
 	it("reads tokens only, so dark mode and the pill radius follow the theme", () => {
 		expect(CHIP_STYLES).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
 		expect(CHIP_STYLES).not.toContain("999px");
-		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip"), "border-radius")).toBe("var(--radius-pill)");
+		expect(declaredValue({ body: ruleBody({ css: CHIP_STYLES, selector: ".chip" }), property: "border-radius" })).toBe("var(--radius-pill)");
 	});
 
 	it("declares its own line box, so a chip keeps its height whatever line-height its container sets", () => {
-		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip"), "line-height")).toBe("1.25");
+		expect(declaredValue({ body: ruleBody({ css: CHIP_STYLES, selector: ".chip" }), property: "line-height" })).toBe("1.25");
 	});
 
 	it.each([
@@ -416,53 +416,53 @@ describe("CHIP_STYLES", () => {
 		[".chip--status", "4px 12px", "34px"],
 		[".chip--tab", "0 12px", "25px"],
 	])("sizes %s with %s padding to a %s minimum height", (selector, padding, minHeight) => {
-		const rule = ruleBody(CHIP_STYLES, selector);
-		expect(declaredValue(rule, "padding")).toBe(padding);
-		expect(declaredValue(rule, "min-height")).toBe(minHeight);
+		const rule = ruleBody({ css: CHIP_STYLES, selector });
+		expect(declaredValue({ body: rule, property: "padding" })).toBe(padding);
+		expect(declaredValue({ body: rule, property: "min-height" })).toBe(minHeight);
 	});
 
 	it("sets an accent badge's amber label in the ink that clears contrast on the tint", () => {
-		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip--badge.chip--accent"), "color")).toBe(
+		expect(declaredValue({ body: ruleBody({ css: CHIP_STYLES, selector: ".chip--badge.chip--accent" }), property: "color" })).toBe(
 			"var(--primary-text-on-tint)",
 		);
 	});
 
 	it("sets a success status chip's label in --foreground, which clears 4.5:1 on its tint where --success-text does not", () => {
-		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip--status.chip--success"), "color")).toBe(
+		expect(declaredValue({ body: ruleBody({ css: CHIP_STYLES, selector: ".chip--status.chip--success" }), property: "color" })).toBe(
 			"var(--foreground)",
 		);
 	});
 
 	it("fills a tab badge with the amber that carries its white label at AA, squared where it meets its box", () => {
-		const rule = ruleBody(CHIP_STYLES, ".chip--tab");
-		expect(declaredValue(rule, "background")).toBe("var(--primary)");
-		expect(declaredValue(rule, "border-color")).toBe("var(--primary)");
-		expect(declaredValue(rule, "color")).toBe("var(--primary-foreground)");
-		expect(declaredValue(rule, "border-radius")).toBe("var(--radius) var(--radius) 0 0");
+		const rule = ruleBody({ css: CHIP_STYLES, selector: ".chip--tab" });
+		expect(declaredValue({ body: rule, property: "background" })).toBe("var(--primary)");
+		expect(declaredValue({ body: rule, property: "border-color" })).toBe("var(--primary)");
+		expect(declaredValue({ body: rule, property: "color" })).toBe("var(--primary-foreground)");
+		expect(declaredValue({ body: rule, property: "border-radius" })).toBe("var(--radius) var(--radius) 0 0");
 	});
 
 	it("draws a filter chip as an outlined 50px pill whose ticked state darkens the outline to the text ink", () => {
-		const rule = ruleBody(CHIP_STYLES, ".chip--filter");
-		expect(declaredValue(rule, "min-height")).toBe("50px");
-		expect(declaredValue(rule, "padding")).toBe("0 16px");
-		expect(declaredValue(rule, "border")).toBe("1px solid var(--border)");
-		expect(declaredValue(rule, "background")).toBe("transparent");
-		expect(declaredValue(rule, "font-size")).toBe("var(--text-md)");
-		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip__input:checked + .chip--filter"), "border-color")).toBe(
+		const rule = ruleBody({ css: CHIP_STYLES, selector: ".chip--filter" });
+		expect(declaredValue({ body: rule, property: "min-height" })).toBe("50px");
+		expect(declaredValue({ body: rule, property: "padding" })).toBe("0 16px");
+		expect(declaredValue({ body: rule, property: "border" })).toBe("1px solid var(--border)");
+		expect(declaredValue({ body: rule, property: "background" })).toBe("transparent");
+		expect(declaredValue({ body: rule, property: "font-size" })).toBe("var(--text-md)");
+		expect(declaredValue({ body: ruleBody({ css: CHIP_STYLES, selector: ".chip__input:checked + .chip--filter" }), property: "border-color" })).toBe(
 			"var(--foreground)",
 		);
-		expect(declaredValue(ruleBody(CHIP_STYLES, ".chip--filter:hover"), "background")).toBe("var(--muted)");
+		expect(declaredValue({ body: ruleBody({ css: CHIP_STYLES, selector: ".chip--filter:hover" }), property: "background" })).toBe("var(--muted)");
 	});
 
 	it("rings a filter chip whose hidden checkbox has keyboard focus", () => {
-		const rule = ruleBody(CHIP_STYLES, ".chip__input:focus-visible + .chip--filter");
-		expect(declaredValue(rule, "outline")).toBe("2px solid var(--ring)");
-		expect(declaredValue(rule, "outline-offset")).toBe("2px");
+		const rule = ruleBody({ css: CHIP_STYLES, selector: ".chip__input:focus-visible + .chip--filter" });
+		expect(declaredValue({ body: rule, property: "outline" })).toBe("2px solid var(--ring)");
+		expect(declaredValue({ body: rule, property: "outline-offset" })).toBe("2px");
 	});
 
 	it("insets the remove control's focus ring, so it stays legible on the accent tint", () => {
-		const rule = ruleBody(CHIP_STYLES, ".chip__remove:focus-visible");
-		expect(declaredValue(rule, "outline")).toBe("2px solid var(--ring)");
-		expect(declaredValue(rule, "outline-offset")).toBe("-2px");
+		const rule = ruleBody({ css: CHIP_STYLES, selector: ".chip__remove:focus-visible" });
+		expect(declaredValue({ body: rule, property: "outline" })).toBe("2px solid var(--ring)");
+		expect(declaredValue({ body: rule, property: "outline-offset" })).toBe("-2px");
 	});
 });

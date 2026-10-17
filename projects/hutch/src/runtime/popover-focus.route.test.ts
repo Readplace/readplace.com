@@ -58,7 +58,7 @@ function parse(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
-function gapsOn(path: string, html: string): string[] {
+function gapsOn({ path, html }: { path: string; html: string }): string[] {
 	return describePopoverFocusGaps(findPopoverFocusGaps(html)).map((line) => `${path}  ${line}`);
 }
 
@@ -79,7 +79,7 @@ describe("every popup opens on its first decision", () => {
 		const keys = new Set<string>();
 		for (const path of GUEST_PATHS) {
 			const response = await request(harness.server).get(path).set(BROWSER_REQUEST_HEADERS);
-			gaps.push(...gapsOn(path, response.text));
+			gaps.push(...gapsOn({ path, html: response.text }));
 			for (const key of dialogKeys(response.text)) keys.add(key);
 		}
 
@@ -138,7 +138,7 @@ describe("every popup opens on its first decision", () => {
 		]) {
 			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
 			expect({ path, status: response.status }).toEqual({ path, status: 200 });
-			gaps.push(...gapsOn(path, response.text));
+			gaps.push(...gapsOn({ path, html: response.text }));
 			for (const key of dialogKeys(response.text)) keys.add(key);
 			drawerSeen ||= parse(response.text).querySelector("[data-test-discovery-drawer]") !== null;
 		}
@@ -172,7 +172,7 @@ describe("every popup opens on its first decision", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const response = await agent.get("/newsletters").set(BROWSER_REQUEST_HEADERS);
 
-		expect(gapsOn("/newsletters", response.text)).toEqual([]);
+		expect(gapsOn({ path: "/newsletters", html: response.text })).toEqual([]);
 		expect(dialogKeys(response.text)).toContain("gmail-connect-disclaimer");
 	});
 

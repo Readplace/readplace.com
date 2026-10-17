@@ -36,7 +36,7 @@ function hiddenFields(form: Element): [string | null, string | null][] {
 	]);
 }
 
-function options(doc: Document, scope: string, group: string): (string | null)[] {
+function options(doc: Document, { scope, group }: { scope: string; group: string }): (string | null)[] {
 	return Array.from(
 		doc.querySelectorAll(`[data-test-discovery-form="${scope}"] [data-test-discovery-option^="${group}:"]`),
 		(option) => option.getAttribute("data-test-discovery-option"),
@@ -207,8 +207,8 @@ describe("buildReadlistDiscovery", () => {
 	it("offers every reading-time bucket and saved-date window by its label", () => {
 		const doc = discoveryDoc();
 
-		expect(options(doc, "popover", "time")).toEqual(["time:under-5", "time:5-10", "time:10-20", "time:20-plus"]);
-		expect(options(doc, "popover", "saved")).toEqual(["saved:today", "saved:week", "saved:month", "saved:older"]);
+		expect(options(doc, { scope: "popover", group: "time" })).toEqual(["time:under-5", "time:5-10", "time:10-20", "time:20-plus"]);
+		expect(options(doc, { scope: "popover", group: "saved" })).toEqual(["saved:today", "saved:week", "saved:month", "saved:older"]);
 		const labels = Array.from(
 			doc.querySelectorAll('[data-test-discovery-form="popover"] .chip--filter'),
 			(chip) => chip.textContent,

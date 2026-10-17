@@ -1276,7 +1276,7 @@ describe("initSendQueueDigestHandler", () => {
 
 	describe("a redrive of this message's own send, after the reader's state moved on", () => {
 		const claimedAt = new Date(SEND_INSTANT.getTime() - 2 * 60 * 1000);
-		const minutesAfter = (hours: number, minutes: number) =>
+		const minutesAfter = ({ hours, minutes }: { hours: number; minutes: number }) =>
 			new Date(SEND_INSTANT.getTime() + hours * HOUR_MS + minutes * 60 * 1000).toISOString();
 
 		function expectFinishedWithoutSending(subject: Subject, kind: "regular" | "pay") {
@@ -1309,7 +1309,7 @@ describe("initSendQueueDigestHandler", () => {
 
 		it("finishes a regular digest whose redrive lands after the pay window opened, without sending a pay digest", async () => {
 			const subject = createSubject();
-			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: minutesAfter(96, -1) });
+			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: minutesAfter({ hours: 96, minutes: -1 }) });
 			await claimRegularDigest(subject);
 
 			const result = await subject.run();
@@ -1326,7 +1326,7 @@ describe("initSendQueueDigestHandler", () => {
 		it.each<[string, UserContact, string]>([
 			["unsubscribed", { ...VERIFIED_CONTACT, queueDigestOptOutAt: "2026-06-10T11:59:00.000Z" }, TRIAL_ENDS_TEN_DAYS_OUT],
 			["lost their verified email", { ...VERIFIED_CONTACT, emailVerified: false }, TRIAL_ENDS_TEN_DAYS_OUT],
-			["seen their trial end", VERIFIED_CONTACT, minutesAfter(0, -1)],
+			["seen their trial end", VERIFIED_CONTACT, minutesAfter({ hours: 0, minutes: -1 })],
 		])("finishes a regular digest whose reader has since %s", async (_change, contact, trialEndsAt) => {
 			const subject = createSubject({ contact });
 			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt });
@@ -1341,7 +1341,7 @@ describe("initSendQueueDigestHandler", () => {
 
 		it("finishes a pay digest whose redrive lands after the pay window closed", async () => {
 			const subject = createSubject();
-			const trialEndsAt = minutesAfter(60, -1);
+			const trialEndsAt = minutesAfter({ hours: 60, minutes: -1 });
 			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt });
 			await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: DAY_OLD_SAVE });
 			await subject.subscriptions.claimPayDigest({

@@ -11,8 +11,8 @@ const SLUGS = Object.keys(LANDING_PAGE_CONTENT) as LandingPageSlug[];
 
 const useApp = useTestServer();
 
-function laterOf(a: string, b: string): string {
-	return a > b ? a : b;
+function laterOf({ page, shared }: { page: string; shared: string }): string {
+	return page > shared ? page : shared;
 }
 
 async function loadPage(slug: LandingPageSlug) {
@@ -77,7 +77,7 @@ describe("landing page SEO", () => {
 		expect(webPage.about["@id"]).toBe("https://readplace.com/#app");
 		expect(webPage.name).toBe(LANDING_PAGE_CONTENT[slug].headline);
 		expect(webPage.dateModified).toBe(
-			laterOf(LANDING_PAGE_CONTENT[slug].lastModified, SHARED_LANDING_COPY_LAST_MODIFIED),
+			laterOf({ page: LANDING_PAGE_CONTENT[slug].lastModified, shared: SHARED_LANDING_COPY_LAST_MODIFIED }),
 		);
 	});
 
@@ -147,7 +147,7 @@ describe("landing page SEO", () => {
 			);
 
 			expect(entry?.querySelector("lastmod")?.textContent).toBe(
-				laterOf(LANDING_PAGE_CONTENT[slug].lastModified, SHARED_LANDING_COPY_LAST_MODIFIED),
+				laterOf({ page: LANDING_PAGE_CONTENT[slug].lastModified, shared: SHARED_LANDING_COPY_LAST_MODIFIED }),
 			);
 		},
 	);

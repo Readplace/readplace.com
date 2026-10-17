@@ -43,7 +43,7 @@ async function loginAs(page: Page, email: string, password = PASSWORD): Promise<
 	await page.waitForSelector("body.page-readlist");
 }
 
-async function openIntegrations(page: Page, stamp: string, path: string): Promise<void> {
+async function openIntegrations(page: Page, { stamp, path }: { stamp: string; path: string }): Promise<void> {
 	const email = `alert-integrations-${stamp}@example.com`;
 	await createUser(page, email);
 	await loginAs(page, email);
@@ -147,14 +147,14 @@ const SCENARIOS: readonly Scenario[] = [
 		name: "integrations-error",
 		key: "oauth_state",
 		variant: "error",
-		open: (page, stamp) => openIntegrations(page, stamp, "/newsletters?error=oauth_state"),
+		open: (page, stamp) => openIntegrations(page, { stamp, path: "/newsletters?error=oauth_state" }),
 		pinnedText: [],
 	},
 	{
 		name: "integrations-notice",
 		key: "gmail_disconnected",
 		variant: "info",
-		open: (page, stamp) => openIntegrations(page, stamp, "/newsletters?notice=gmail_disconnected"),
+		open: (page, stamp) => openIntegrations(page, { stamp, path: "/newsletters?notice=gmail_disconnected" }),
 		pinnedText: [],
 	},
 	{

@@ -391,15 +391,15 @@ async function columnTopsAlign(page: Page): Promise<void> {
 	const bar = await measuredBox(page, TABS_BAR);
 	const rail = await measuredBox(page, RAIL);
 	const side = await measuredBox(page, SIDE);
-	assert.ok(near(bar.y, rail.y), `the tabs and rail must start together, measured ${bar.y}px and ${rail.y}px`);
-	assert.ok(near(bar.y, side.y), `the tabs and side column must start together, measured ${bar.y}px and ${side.y}px`);
+	assert.ok(near({ actual: bar.y, expected: rail.y }), `the tabs and rail must start together, measured ${bar.y}px and ${rail.y}px`);
+	assert.ok(near({ actual: bar.y, expected: side.y }), `the tabs and side column must start together, measured ${bar.y}px and ${side.y}px`);
 }
 
 async function emptyColumnGeometry(page: Page): Promise<void> {
 	await columnTopsAlign(page);
 	const tabs = await measuredBox(page, FILTER_TABS);
 	const listing = await measuredBox(page, LISTING);
-	assert.ok(near(listing.y - (tabs.y + tabs.height), 32), "the listing must sit 32px below the tabs");
+	assert.ok(near({ actual: listing.y - (tabs.y + tabs.height), expected: 32 }), "the listing must sit 32px below the tabs");
 }
 
 async function articlesPageGeometry(page: Page): Promise<void> {
@@ -407,10 +407,10 @@ async function articlesPageGeometry(page: Page): Promise<void> {
 	const tabs = await measuredBox(page, FILTER_TABS);
 	const discovery = await measuredBox(page, DISCOVERY);
 	const listing = await measuredBox(page, LISTING);
-	assert.ok(near(discovery.y - (tabs.y + tabs.height), 32), "the search row must sit 32px below the tabs");
-	assert.ok(near(listing.y - (discovery.y + discovery.height), 16), "the listing must sit 16px below the search row");
+	assert.ok(near({ actual: discovery.y - (tabs.y + tabs.height), expected: 32 }), "the search row must sit 32px below the tabs");
+	assert.ok(near({ actual: listing.y - (discovery.y + discovery.height), expected: 16 }), "the listing must sit 16px below the search row");
 	const pagination = await measuredBox(page, "[data-test-pagination]");
-	assert.ok(near(pagination.y - (listing.y + listing.height), 16), "pagination must sit 16px below the listing");
+	assert.ok(near({ actual: pagination.y - (listing.y + listing.height), expected: 16 }), "pagination must sit 16px below the listing");
 }
 
 async function listTakesTheEmptySideTrack(page: Page): Promise<void> {
@@ -424,7 +424,7 @@ async function listTakesTheEmptySideTrack(page: Page): Promise<void> {
 	);
 	assert.ok(rail.x + rail.width <= main.x, "the rail must sit left of the main column");
 	assert.ok(
-		near(main.width, readerMaxWidth),
+		near({ actual: main.width, expected: readerMaxWidth }),
 		`with every side panel hidden the main column must run the ${readerMaxWidth}px reading measure, measured ${main.width}px`,
 	);
 	await expect(page.locator(SIDE)).toHaveCSS("display", "none");
@@ -434,7 +434,7 @@ async function alertLimitGeometry(page: Page): Promise<void> {
 	await railBesideMainBesideSide(page);
 	const alert = await measuredBox(page, ALERT);
 	const bar = await measuredBox(page, TABS_BAR);
-	assert.ok(near(bar.y - (alert.y + alert.height), 32), "the tabs must sit 32px below the readlist alert");
+	assert.ok(near({ actual: bar.y - (alert.y + alert.height), expected: 32 }), "the tabs must sit 32px below the readlist alert");
 }
 
 async function addLinkSitsBesideTheTabs(page: Page): Promise<void> {
@@ -443,8 +443,8 @@ async function addLinkSitsBesideTheTabs(page: Page): Promise<void> {
 	const bar = await measuredBox(page, TABS_BAR);
 	assert.ok(addLink.x >= tabs.x + tabs.width, "Add link must sit after the tabs");
 	assert.ok(addLink.y < tabs.y + tabs.height, "Add link must share the tabs' row");
-	assert.ok(near(addLink.x + addLink.width, bar.x + bar.width), "Add link must sit at the tabs' trailing edge");
-	assert.ok(near(tabs.y + tabs.height, bar.y + bar.height), "Add link must not stretch the tabs' row");
+	assert.ok(near({ actual: addLink.x + addLink.width, expected: bar.x + bar.width }), "Add link must sit at the tabs' trailing edge");
+	assert.ok(near({ actual: tabs.y + tabs.height, expected: bar.y + bar.height }), "Add link must not stretch the tabs' row");
 }
 
 async function addLinkDialogGeometry(page: Page): Promise<void> {
@@ -452,14 +452,14 @@ async function addLinkDialogGeometry(page: Page): Promise<void> {
 	const input = await measuredBox(page, SAVE_INPUT);
 	const cancel = await measuredBox(page, SAVE_CANCEL);
 	const save = await measuredBox(page, SAVE_BUTTON);
-	assert.ok(near(panel.width, 600), `the dialog must be 600px wide, measured ${panel.width}px`);
-	assert.ok(near(input.height, 48), "the link field must stay 48px high");
-	assert.ok(near(input.x - panel.x, 33), "the link field must start inside the dialog's padding");
-	assert.ok(near(panel.x + panel.width - (input.x + input.width), 33), "the link field must span the dialog");
+	assert.ok(near({ actual: panel.width, expected: 600 }), `the dialog must be 600px wide, measured ${panel.width}px`);
+	assert.ok(near({ actual: input.height, expected: 48 }), "the link field must stay 48px high");
+	assert.ok(near({ actual: input.x - panel.x, expected: 33 }), "the link field must start inside the dialog's padding");
+	assert.ok(near({ actual: panel.x + panel.width - (input.x + input.width), expected: 33 }), "the link field must span the dialog");
 	assert.ok(cancel.y >= input.y + input.height, "Cancel and Save must sit below the field");
-	assert.ok(near(cancel.y, save.y), "Cancel and Save must share a row");
-	assert.ok(near(save.x, cancel.x + cancel.width + 8), "Save must sit 8px after Cancel");
-	assert.ok(near(save.x + save.width, panel.x + panel.width - 33), "Save must end at the dialog's padding");
+	assert.ok(near({ actual: cancel.y, expected: save.y }), "Cancel and Save must share a row");
+	assert.ok(near({ actual: save.x, expected: cancel.x + cancel.width + 8 }), "Save must sit 8px after Cancel");
+	assert.ok(near({ actual: save.x + save.width, expected: panel.x + panel.width - 33 }), "Save must end at the dialog's padding");
 }
 
 async function addLinkPhoneGeometry(page: Page): Promise<void> {
@@ -467,7 +467,7 @@ async function addLinkPhoneGeometry(page: Page): Promise<void> {
 	const addLink = await measuredBox(page, ADD_LINK);
 	const tabs = await measuredBox(page, FILTER_TABS);
 	assert.ok(addLink.y + addLink.height <= tabs.y, "Add link must wrap above the tabs on a phone");
-	assert.ok(near(addLink.x + addLink.width, tabs.x + tabs.width), "Add link must keep the tabs' trailing edge on a phone");
+	assert.ok(near({ actual: addLink.x + addLink.width, expected: tabs.x + tabs.width }), "Add link must keep the tabs' trailing edge on a phone");
 }
 
 async function saveErrorPhoneGeometry(page: Page): Promise<void> {
@@ -476,7 +476,7 @@ async function saveErrorPhoneGeometry(page: Page): Promise<void> {
 	const addLink = await measuredBox(page, ADD_LINK);
 	const listing = await measuredBox(page, LISTING);
 	assert.ok(message.y + message.height <= addLink.y, "the save error must sit above Add link on a phone");
-	assert.ok(near(message.width, listing.width), "the save error must span the column on a phone");
+	assert.ok(near({ actual: message.width, expected: listing.width }), "the save error must span the column on a phone");
 }
 
 async function emptyActionFitsEveryViewport(page: Page, key: "install" | "view-unread"): Promise<void> {
@@ -558,7 +558,7 @@ async function foldedGuideGeometry(page: Page): Promise<void> {
 	assert.ok(guide.height <= 180, "the folded guide must leave room for the reading list");
 }
 
-function near(actual: number, expected: number): boolean {
+function near({ actual, expected }: { actual: number; expected: number }): boolean {
 	return Math.abs(actual - expected) <= 1;
 }
 
@@ -567,10 +567,10 @@ async function renameDialogGeometry(page: Page): Promise<void> {
 	const panel = await measuredBox(page, READLIST_RENAME_POPOVER);
 	const cancel = await measuredBox(page, READLIST_RENAME_CANCEL);
 	const save = await measuredBox(page, RENAME_SAVE);
-	assert.ok(near(panel.width, 600));
-	assert.ok(near(cancel.y, save.y));
-	assert.ok(near(save.x, cancel.x + cancel.width + 8));
-	assert.ok(near(save.x + save.width, panel.x + panel.width - 33));
+	assert.ok(near({ actual: panel.width, expected: 600 }));
+	assert.ok(near({ actual: cancel.y, expected: save.y }));
+	assert.ok(near({ actual: save.x, expected: cancel.x + cancel.width + 8 }));
+	assert.ok(near({ actual: save.x + save.width, expected: panel.x + panel.width - 33 }));
 }
 
 async function createDialogGeometry(page: Page): Promise<void> {
@@ -578,10 +578,10 @@ async function createDialogGeometry(page: Page): Promise<void> {
 	const panel = await measuredBox(page, READLIST_CREATE_POPOVER);
 	const cancel = await measuredBox(page, READLIST_CREATE_CANCEL);
 	const save = await measuredBox(page, READLIST_CREATE_SAVE);
-	assert.ok(near(panel.width, 600));
-	assert.ok(near(cancel.y, save.y));
-	assert.ok(near(save.x, cancel.x + cancel.width + 8));
-	assert.ok(near(save.x + save.width, panel.x + panel.width - 33));
+	assert.ok(near({ actual: panel.width, expected: 600 }));
+	assert.ok(near({ actual: cancel.y, expected: save.y }));
+	assert.ok(near({ actual: save.x, expected: cancel.x + cancel.width + 8 }));
+	assert.ok(near({ actual: save.x + save.width, expected: panel.x + panel.width - 33 }));
 }
 
 async function deleteReadlistDialogGeometry(page: Page): Promise<void> {
@@ -589,13 +589,13 @@ async function deleteReadlistDialogGeometry(page: Page): Promise<void> {
 	const panel = await measuredBox(page, OPEN_READLIST_DELETE_POPOVER);
 	const cancel = await measuredBox(page, `${OPEN_READLIST_DELETE_POPOVER} ${READLIST_DELETE_CANCEL}`);
 	const commit = await measuredBox(page, `${OPEN_READLIST_DELETE_POPOVER} ${READLIST_DELETE_CONFIRM}`);
-	assert.ok(near(panel.width, 600));
-	assert.ok(near(panel.height, 298), `the plain delete dialog must be 298px tall, measured ${panel.height}px`);
-	assert.ok(near(cancel.y, commit.y));
-	assert.ok(near(commit.x, cancel.x + cancel.width + 8));
+	assert.ok(near({ actual: panel.width, expected: 600 }));
+	assert.ok(near({ actual: panel.height, expected: 298 }), `the plain delete dialog must be 298px tall, measured ${panel.height}px`);
+	assert.ok(near({ actual: cancel.y, expected: commit.y }));
+	assert.ok(near({ actual: commit.x, expected: cancel.x + cancel.width + 8 }));
 	const leftSlack = cancel.x - panel.x;
 	const rightSlack = panel.x + panel.width - (commit.x + commit.width);
-	assert.ok(near(leftSlack, rightSlack));
+	assert.ok(near({ actual: leftSlack, expected: rightSlack }));
 	const headerActions = await page
 		.locator(`${OPEN_READLIST_DELETE_POPOVER} .confirm-popover__header [data-test-action]`)
 		.evaluateAll((actions) => actions.map((action) => action.getAttribute("data-test-action")));
@@ -682,17 +682,12 @@ async function moveOrDeleteDialogGeometry(page: Page, dialog: string): Promise<v
 }
 
 async function moveOrDeleteDialogPhoneGeometry(page: Page, dialog: string): Promise<void> {
-	await stackedDialogButtons(
-		page,
-		dialog,
-		`${dialog} ${READLIST_DELETE_CANCEL}`,
-		`${dialog} ${READLIST_DELETE_CONFIRM}`,
-	);
+	await stackedDialogButtons(page, { panelSelector: dialog, dismissSelector: `${dialog} ${READLIST_DELETE_CANCEL}`, commitSelector: `${dialog} ${READLIST_DELETE_CONFIRM}` });
 	const panel = await measuredBox(page, dialog);
 	const field = await measuredBox(page, `${dialog} .form-input--select`);
-	assert.ok(near(field.x, panel.x + 25), `the select must start at the content edge, measured ${field.x}px`);
+	assert.ok(near({ actual: field.x, expected: panel.x + 25 }), `the select must start at the content edge, measured ${field.x}px`);
 	assert.ok(
-		near(field.x + field.width, panel.x + panel.width - 25),
+		near({ actual: field.x + field.width, expected: panel.x + panel.width - 25 }),
 		`the select must end at the content edge, measured ${field.x + field.width}px`,
 	);
 }
@@ -702,42 +697,40 @@ async function deleteArticleDialogGeometry(page: Page): Promise<void> {
 	const panel = await measuredBox(page, OPEN_DELETE_ARTICLE_POPOVER);
 	const never = await measuredBox(page, DELETE_ARTICLE_NEVER);
 	const commit = await measuredBox(page, DELETE_ARTICLE_CONFIRM);
-	assert.ok(near(panel.width, 600));
-	assert.ok(near(never.y, commit.y));
-	assert.ok(near(commit.x, never.x + never.width + 8));
+	assert.ok(near({ actual: panel.width, expected: 600 }));
+	assert.ok(near({ actual: never.y, expected: commit.y }));
+	assert.ok(near({ actual: commit.x, expected: never.x + never.width + 8 }));
 	const leftSlack = never.x - panel.x;
 	const rightSlack = panel.x + panel.width - (commit.x + commit.width);
-	assert.ok(near(leftSlack, rightSlack));
+	assert.ok(near({ actual: leftSlack, expected: rightSlack }));
 }
 
 async function stackedDialogButtons(
 	page: Page,
-	panelSelector: string,
-	dismissSelector: string,
-	commitSelector: string,
+	{ panelSelector, dismissSelector, commitSelector }: { panelSelector: string; dismissSelector: string; commitSelector: string },
 ): Promise<void> {
 	await neverScrollsSideways(page);
 	const panel = await measuredBox(page, panelSelector);
 	const dismiss = await measuredBox(page, dismissSelector);
 	const commit = await measuredBox(page, commitSelector);
-	assert.ok(near(panel.width, 358));
-	assert.ok(near(dismiss.y, commit.y + commit.height + 8));
+	assert.ok(near({ actual: panel.width, expected: 358 }));
+	assert.ok(near({ actual: dismiss.y, expected: commit.y + commit.height + 8 }));
 	for (const choice of [dismiss, commit]) {
-		assert.ok(near(choice.x, panel.x + 25));
-		assert.ok(near(choice.x + choice.width, panel.x + panel.width - 25));
+		assert.ok(near({ actual: choice.x, expected: panel.x + 25 }));
+		assert.ok(near({ actual: choice.x + choice.width, expected: panel.x + panel.width - 25 }));
 	}
 }
 
 async function renameDialogPhoneGeometry(page: Page): Promise<void> {
-	await stackedDialogButtons(page, READLIST_RENAME_POPOVER, READLIST_RENAME_CANCEL, RENAME_SAVE);
+	await stackedDialogButtons(page, { panelSelector: READLIST_RENAME_POPOVER, dismissSelector: READLIST_RENAME_CANCEL, commitSelector: RENAME_SAVE });
 }
 
 async function createDialogPhoneGeometry(page: Page): Promise<void> {
-	await stackedDialogButtons(page, READLIST_CREATE_POPOVER, READLIST_CREATE_CANCEL, READLIST_CREATE_SAVE);
+	await stackedDialogButtons(page, { panelSelector: READLIST_CREATE_POPOVER, dismissSelector: READLIST_CREATE_CANCEL, commitSelector: READLIST_CREATE_SAVE });
 }
 
 async function deleteArticleDialogPhoneGeometry(page: Page): Promise<void> {
-	await stackedDialogButtons(page, OPEN_DELETE_ARTICLE_POPOVER, DELETE_ARTICLE_NEVER, DELETE_ARTICLE_CONFIRM);
+	await stackedDialogButtons(page, { panelSelector: OPEN_DELETE_ARTICLE_POPOVER, dismissSelector: DELETE_ARTICLE_NEVER, commitSelector: DELETE_ARTICLE_CONFIRM });
 }
 
 async function moveArticleDialogGeometry(page: Page): Promise<void> {
@@ -778,12 +771,12 @@ async function moveArticleDialogPhoneGeometry(page: Page): Promise<void> {
 		panel.x >= 16 && panel.x + panel.width <= viewport.width - 16,
 		`the move dialog must keep the 16px screen gutters, measured ${JSON.stringify(panel)}`,
 	);
-	await stackedDialogButtons(page, OPEN_MOVE_ARTICLE_POPOVER, MOVE_ARTICLE_CANCEL, MOVE_ARTICLE_CONFIRM);
+	await stackedDialogButtons(page, { panelSelector: OPEN_MOVE_ARTICLE_POPOVER, dismissSelector: MOVE_ARTICLE_CANCEL, commitSelector: MOVE_ARTICLE_CONFIRM });
 }
 
 async function chipIsHigh(page: Page, selector: string, height: number): Promise<void> {
 	const chip = await measuredBox(page, selector);
-	assert.ok(near(chip.height, height), `${selector} must be ${height}px high, measured ${chip.height}px`);
+	assert.ok(near({ actual: chip.height, expected: height }), `${selector} must be ${height}px high, measured ${chip.height}px`);
 }
 
 async function subscriptionChipIsStatusSize(page: Page): Promise<void> {
@@ -1920,7 +1913,7 @@ test.describe("Readlist read tab", () => {
 	}
 });
 
-async function seedProcessingArticle(page: Page, userId: string, stamp: string): Promise<void> {
+async function seedProcessingArticle(page: Page, { userId, stamp }: { userId: string; stamp: string }): Promise<void> {
 	const response = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
 			url: `https://example.com/readlist-processing-${stamp}`,
@@ -1944,7 +1937,7 @@ test.describe("Readlist processing card", () => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const email = `readlist-card-processing-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);
-			await seedProcessingArticle(page, userId, email);
+			await seedProcessingArticle(page, { userId, stamp: email });
 			await page.route("**/queue/*/card?*", (route) => route.fulfill({ status: 204 }));
 			await loginAs(page, email);
 			await gotoReadlistQueue(page, "");
@@ -2796,7 +2789,7 @@ test.describe("Readlist move-or-delete dialog at the reflow minimum", () => {
 			`the select must end inside the content edge, measured select=${JSON.stringify(field)} panel=${JSON.stringify(panel)}`,
 		);
 		assert.ok(
-			near(cancel.y, commit.y + commit.height + 8),
+			near({ actual: cancel.y, expected: commit.y + commit.height + 8 }),
 			`Cancel must stack 8px under Delete readlist, measured cancel=${JSON.stringify(cancel)} commit=${JSON.stringify(commit)}`,
 		);
 	});

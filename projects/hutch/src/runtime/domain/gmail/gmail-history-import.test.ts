@@ -123,7 +123,7 @@ async function harness(overrides: {
 		return started;
 	};
 
-	const addUnread = (id: string, internalDate: string) => {
+	const addUnread = ({ id, internalDate }: { id: string; internalDate: string }) => {
 		gmail.addMessage({
 			userId: READER,
 			sender: TLDR,
@@ -189,7 +189,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness({ destinationAddresses: [WORK_READLIST, second] });
 		await h.mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [second, WORK_READLIST], deliveryMode: "links" });
 		await h.startJob("generation-1");
-		h.addUnread("multiple", "2026-08-31T00:00:00.000Z");
+		h.addUnread({ id: "multiple", internalDate: "2026-08-31T00:00:00.000Z" });
 
 		await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -202,7 +202,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness({ destinationAddresses: [WORK_READLIST, second] });
 		await h.mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "links" });
 		await h.startJob("generation-1");
-		h.addUnread("changed", "2026-08-31T00:00:00.000Z");
+		h.addUnread({ id: "changed", internalDate: "2026-08-31T00:00:00.000Z" });
 
 		await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -215,8 +215,8 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness();
 		h.advance(5 * DAY_MS);
 		await h.startJob("generation-1");
-		h.addUnread("first", "2026-09-05T08:00:00.000Z");
-		h.addUnread("second", "2026-09-04T08:00:00.000Z");
+		h.addUnread({ id: "first", internalDate: "2026-09-05T08:00:00.000Z" });
+		h.addUnread({ id: "second", internalDate: "2026-09-04T08:00:00.000Z" });
 
 		await h.runAllPages("generation-1");
 		await h.settle({ id: "first", generation: "generation-1", outcome: "imported" });
@@ -244,7 +244,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness();
 		await h.startJob("generation-1");
 		for (let index = 0; index < 60; index++) {
-			h.addUnread(`m${String(index).padStart(2, "0")}`, new Date(CREATED_AT.getTime() - (index + 1) * 60_000).toISOString());
+			h.addUnread({ id: `m${String(index).padStart(2, "0")}`, internalDate: new Date(CREATED_AT.getTime() - (index + 1) * 60_000).toISOString() });
 		}
 
 		const last = await h.runAllPages("generation-1");
@@ -274,7 +274,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness();
 		await h.mappings.mapSenderToAddress({ userId: READER, accountEmail: ACCOUNT, senderEmail: TLDR, mappedAddresses: [WORK_READLIST], deliveryMode: "issue" });
 		await h.startJob("generation-1");
-		h.addUnread("m00", new Date(CREATED_AT.getTime() - 60_000).toISOString());
+		h.addUnread({ id: "m00", internalDate: new Date(CREATED_AT.getTime() - 60_000).toISOString() });
 
 		await h.runAllPages("generation-1");
 
@@ -312,10 +312,10 @@ describe("initGmailHistoryImport", () => {
 			}),
 		});
 		await h.startJob("generation-1");
-		h.addUnread("keep", "2026-08-31T00:00:00.000Z");
-		h.addUnread("spam", "2026-08-30T00:00:00.000Z");
-		h.addUnread("trash", "2026-08-29T00:00:00.000Z");
-		h.addUnread("gone", "2026-08-28T00:00:00.000Z");
+		h.addUnread({ id: "keep", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.addUnread({ id: "spam", internalDate: "2026-08-30T00:00:00.000Z" });
+		h.addUnread({ id: "trash", internalDate: "2026-08-29T00:00:00.000Z" });
+		h.addUnread({ id: "gone", internalDate: "2026-08-28T00:00:00.000Z" });
 
 		await h.runAllPages("generation-1");
 
@@ -337,7 +337,7 @@ describe("initGmailHistoryImport", () => {
 	it("ignores a page from an earlier generation, another page number, a missing job or a job that is no longer running", async () => {
 		const h = await harness();
 		await h.startJob("generation-1");
-		for (let index = 0; index < 30; index++) h.addUnread(`m${String(index).padStart(2, "0")}`, "2026-08-31T00:00:00.000Z");
+		for (let index = 0; index < 30; index++) h.addUnread({ id: `m${String(index).padStart(2, "0")}`, internalDate: "2026-08-31T00:00:00.000Z" });
 		await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 		h.takeObservations();
 
@@ -360,7 +360,7 @@ describe("initGmailHistoryImport", () => {
 	it("re-announces the next page when a saved page is delivered again, and completes a listed import once it has settled", async () => {
 		const h = await harness();
 		await h.startJob("generation-1");
-		for (let index = 0; index < 30; index++) h.addUnread(`m${String(index).padStart(2, "0")}`, "2026-08-31T00:00:00.000Z");
+		for (let index = 0; index < 30; index++) h.addUnread({ id: `m${String(index).padStart(2, "0")}`, internalDate: "2026-08-31T00:00:00.000Z" });
 
 		const first = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 		const firstObserved = h.takeObservations();
@@ -403,7 +403,7 @@ describe("initGmailHistoryImport", () => {
 	it("completes a retried import whose last page finds only mail that was already settled", async () => {
 		const h = await harness();
 		await h.startJob("generation-1");
-		h.addUnread("only", "2026-08-31T00:00:00.000Z");
+		h.addUnread({ id: "only", internalDate: "2026-08-31T00:00:00.000Z" });
 		await h.runAllPages("generation-1");
 		await h.settle({ id: "only", generation: "generation-1", outcome: "imported" });
 		await h.store.failJob({ userId: READER, jobId: JOB, generation: "generation-1", reason: "dead-lettered", now: h.now() });
@@ -437,8 +437,8 @@ describe("initGmailHistoryImport", () => {
 			}),
 		});
 		await h.startJob("generation-1");
-		h.addUnread("newer", "2026-08-31T00:00:00.000Z");
-		h.addUnread("older", "2026-08-30T00:00:00.000Z");
+		h.addUnread({ id: "newer", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.addUnread({ id: "older", internalDate: "2026-08-30T00:00:00.000Z" });
 
 		await assert.rejects(h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" }), /DynamoDB unavailable/);
 		h.advance(61_000);
@@ -455,7 +455,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness();
 		await h.connections.recordAccountEmail({ userId: READER, accountEmail: GmailAccountEmailSchema.parse("Reader@Gmail.com") });
 		await h.startJob("generation-1");
-		h.addUnread("kept", "2026-08-31T00:00:00.000Z");
+		h.addUnread({ id: "kept", internalDate: "2026-08-31T00:00:00.000Z" });
 
 		await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -573,8 +573,8 @@ describe("initGmailHistoryImport", () => {
 			}),
 		});
 		await h.startJob("generation-1");
-		h.addUnread("newer", "2026-08-31T00:00:00.000Z");
-		h.addUnread("older", "2026-08-30T00:00:00.000Z");
+		h.addUnread({ id: "newer", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.addUnread({ id: "older", internalDate: "2026-08-30T00:00:00.000Z" });
 
 		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -611,8 +611,8 @@ describe("initGmailHistoryImport", () => {
 			}),
 		});
 		await h.startJob("generation-1");
-		h.addUnread("newer", "2026-08-31T00:00:00.000Z");
-		h.addUnread("older", "2026-08-30T00:00:00.000Z");
+		h.addUnread({ id: "newer", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.addUnread({ id: "older", internalDate: "2026-08-30T00:00:00.000Z" });
 
 		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -642,8 +642,8 @@ describe("initGmailHistoryImport", () => {
 			}),
 		});
 		await h.startJob("generation-1");
-		h.addUnread("newer", "2026-08-31T00:00:00.000Z");
-		h.addUnread("older", "2026-08-30T00:00:00.000Z");
+		h.addUnread({ id: "newer", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.addUnread({ id: "older", internalDate: "2026-08-30T00:00:00.000Z" });
 
 		await assert.rejects(h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" }), /unavailable \(429\)/);
 		h.gmail.addMessage({
@@ -804,7 +804,7 @@ describe("initGmailHistoryImport", () => {
 			},
 		});
 		await h.startJob("generation-1");
-		h.addUnread("stored", "2026-08-31T00:00:00.000Z");
+		h.addUnread({ id: "stored", internalDate: "2026-08-31T00:00:00.000Z" });
 
 		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -820,7 +820,7 @@ describe("initGmailHistoryImport", () => {
 	it("asks for no further page when the page can no longer be saved", async () => {
 		const h = await harness({ imports: (imports) => ({ ...imports, savePage: async () => false }) });
 		await h.startJob("generation-1");
-		h.addUnread("published", "2026-08-31T00:00:00.000Z");
+		h.addUnread({ id: "published", internalDate: "2026-08-31T00:00:00.000Z" });
 
 		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -848,8 +848,8 @@ describe("initGmailHistoryImport", () => {
 			}),
 		});
 		await h.startJob("generation-1");
-		h.addUnread("SentinelMessageA1", "2026-08-31T00:00:00.000Z");
-		h.addUnread("SentinelMessageB2", "2026-08-30T00:00:00.000Z");
+		h.addUnread({ id: "SentinelMessageA1", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.addUnread({ id: "SentinelMessageB2", internalDate: "2026-08-30T00:00:00.000Z" });
 
 		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -878,7 +878,7 @@ describe("initGmailHistoryImport", () => {
 			},
 		});
 		await h.startJob("generation-1");
-		h.addUnread("SentinelMessageA1", "2026-08-31T00:00:00.000Z");
+		h.addUnread({ id: "SentinelMessageA1", internalDate: "2026-08-31T00:00:00.000Z" });
 
 		await assert.rejects(h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" }), (error) => error === refused);
 

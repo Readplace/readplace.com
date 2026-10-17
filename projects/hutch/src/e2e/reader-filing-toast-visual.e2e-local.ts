@@ -115,7 +115,7 @@ const FILING_TOAST_LIGHT = checkpoint("reader-filing-toast-light", desktopToastG
 const FILING_TOAST_DARK = checkpoint("reader-filing-toast-dark", desktopToastGeometry);
 const FILING_TOAST_PHONE = checkpoint("reader-filing-toast-phone", phoneToastGeometry);
 
-function slugsOf(page: Page, selector: string, attribute: string): Promise<string[]> {
+function slugsOf(page: Page, { selector, attribute }: { selector: string; attribute: string }): Promise<string[]> {
 	return page
 		.locator(selector)
 		.evaluateAll((found, name) => found.map((each) => each.getAttribute(name) ?? ""), attribute);
@@ -141,13 +141,13 @@ test.describe("Reader filing toast", () => {
 	test("Undo takes the article back out and offers the readlist again", async ({ page }, testInfo) => {
 		const slug = await openReaderBesideAReadlist(page, `undo-${testInfo.workerIndex}-${Date.now()}`);
 		await fileFromThePicker(page, slug);
-		expect(await slugsOf(page, TAGS, "data-test-readlist-tag")).toEqual([slug]);
-		expect(await slugsOf(page, ASSIGN_ROWS, "data-test-assign-readlist")).toEqual([]);
+		expect(await slugsOf(page, { selector: TAGS, attribute: "data-test-readlist-tag" })).toEqual([slug]);
+		expect(await slugsOf(page, { selector: ASSIGN_ROWS, attribute: "data-test-assign-readlist" })).toEqual([]);
 
 		await clickAndWaitForPageReload(page, page.locator(TOAST_UNDO));
 
-		await expect.poll(() => slugsOf(page, TAGS, "data-test-readlist-tag")).toEqual([]);
-		expect(await slugsOf(page, ASSIGN_ROWS, "data-test-assign-readlist")).toEqual([slug]);
+		await expect.poll(() => slugsOf(page, { selector: TAGS, attribute: "data-test-readlist-tag" })).toEqual([]);
+		expect(await slugsOf(page, { selector: ASSIGN_ROWS, attribute: "data-test-assign-readlist" })).toEqual([slug]);
 	});
 });
 

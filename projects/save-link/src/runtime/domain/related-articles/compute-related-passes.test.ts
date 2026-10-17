@@ -6,7 +6,7 @@ import {
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initComputeRelatedPasses } from "./compute-related-passes";
 
-const record = (messageId: string, detailType: string): SQSRecord => ({
+const record = ({ messageId, detailType }: { messageId: string; detailType: string }): SQSRecord => ({
 	messageId,
 	body: JSON.stringify({ "detail-type": detailType }),
 	receiptHandle: "receipt",
@@ -22,9 +22,9 @@ const record = (messageId: string, detailType: string): SQSRecord => ({
 	eventSourceARN: "arn:aws:sqs:ap-southeast-2:000000000000:related",
 	awsRegion: "ap-southeast-2",
 });
-const saved = record("saved", QueueEntryCreatedEvent.detailType);
-const refresh = record("refresh", ComputeRelatedPastReadsCommand.detailType);
-const event: SQSEvent = { Records: [saved, refresh, record("other", "other")] };
+const saved = record({ messageId: "saved", detailType: QueueEntryCreatedEvent.detailType });
+const refresh = record({ messageId: "refresh", detailType: ComputeRelatedPastReadsCommand.detailType });
+const event: SQSEvent = { Records: [saved, refresh, record({ messageId: "other", detailType: "other" })] };
 
 describe("related computation passes", () => {
 	it("starts both passes before either finishes and unions failures", async () => {

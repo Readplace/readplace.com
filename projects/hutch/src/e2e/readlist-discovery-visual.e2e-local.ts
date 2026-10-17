@@ -135,7 +135,7 @@ async function openDrawer(page: Page): Promise<void> {
 	await expect(page.locator(`${OPEN_DRAWER} input[type="checkbox"]`).first()).toBeFocused();
 }
 
-function near(actual: number, expected: number): boolean {
+function near({ actual, expected }: { actual: number; expected: number }): boolean {
 	return Math.abs(actual - expected) <= 1;
 }
 
@@ -153,25 +153,25 @@ async function discoveryRowGeometry(page: Page): Promise<void> {
 	const listing = await measuredBox(page, LISTING);
 	const searchGlyph = await measuredBox(page, SEARCH_GLYPH);
 	const filterGlyph = await measuredBox(page, FILTER_GLYPH);
-	assert.ok(near(row.height, 48), `the search row must be 48px high, measured ${row.height}px`);
-	assert.ok(near(field.height, 48), `the search field must be 48px high, measured ${field.height}px`);
+	assert.ok(near({ actual: row.height, expected: 48 }), `the search row must be 48px high, measured ${row.height}px`);
+	assert.ok(near({ actual: field.height, expected: 48 }), `the search field must be 48px high, measured ${field.height}px`);
 	assert.ok(
-		near(trigger.width, 48) && near(trigger.height, 48),
+		near({ actual: trigger.width, expected: 48 }) && near({ actual: trigger.height, expected: 48 }),
 		`the filter button must be 48x48, measured ${trigger.width}x${trigger.height}`,
 	);
 	assert.ok(
-		near(field.width, row.width - 56),
+		near({ actual: field.width, expected: row.width - 56 }),
 		`the search field must fill the row less the button and its 8px gap, measured field=${field.width}px row=${row.width}px`,
 	);
-	assert.ok(near(trigger.x + trigger.width, row.x + row.width), "the filter button must close the row");
-	assert.ok(near(row.y - (tabs.y + tabs.height), 32), "the search row must sit 32px below the tabs");
-	assert.ok(near(listing.y - (row.y + row.height), 16), "the listing must sit 16px below the search row");
+	assert.ok(near({ actual: trigger.x + trigger.width, expected: row.x + row.width }), "the filter button must close the row");
+	assert.ok(near({ actual: row.y - (tabs.y + tabs.height), expected: 32 }), "the search row must sit 32px below the tabs");
+	assert.ok(near({ actual: listing.y - (row.y + row.height), expected: 16 }), "the listing must sit 16px below the search row");
 	assert.ok(
-		near(searchGlyph.width, 20) && near(searchGlyph.height, 20),
+		near({ actual: searchGlyph.width, expected: 20 }) && near({ actual: searchGlyph.height, expected: 20 }),
 		`the search glyph must be 20px, measured ${searchGlyph.width}x${searchGlyph.height}`,
 	);
 	assert.ok(
-		near(filterGlyph.width, 24) && near(filterGlyph.height, 24),
+		near({ actual: filterGlyph.width, expected: 24 }) && near({ actual: filterGlyph.height, expected: 24 }),
 		`the filter glyph must be 24px, measured ${filterGlyph.width}x${filterGlyph.height}`,
 	);
 }
@@ -194,7 +194,7 @@ async function searchResultsGeometry(page: Page): Promise<void> {
 async function noResultsGeometry(page: Page): Promise<void> {
 	await discoveryRowGeometry(page);
 	const action = await measuredBox(page, CLEAR_DISCOVERY);
-	assert.ok(near(action.height, 48), `Clear search must stay one 48px line, measured ${action.height}px`);
+	assert.ok(near({ actual: action.height, expected: 48 }), `Clear search must stay one 48px line, measured ${action.height}px`);
 }
 
 async function drawerGeometry(page: Page): Promise<void> {
@@ -207,21 +207,21 @@ async function drawerGeometry(page: Page): Promise<void> {
 	const clear = await measuredBox(page, DRAWER_CLEAR);
 	const apply = await measuredBox(page, DRAWER_APPLY);
 	const width = Math.min(600, viewport.width);
-	assert.ok(near(drawer.width, width), `the drawer must be ${width}px wide at ${viewport.width}px, measured ${drawer.width}px`);
-	assert.ok(near(drawer.x + drawer.width, viewport.width), "the drawer must sit flush with the right edge");
-	assert.ok(near(drawer.y, 0) && near(drawer.height, viewport.height), "the drawer must run the viewport's full height");
-	assert.ok(near(header.height, 73), `the drawer header must be 73px high, measured ${header.height}px`);
+	assert.ok(near({ actual: drawer.width, expected: width }), `the drawer must be ${width}px wide at ${viewport.width}px, measured ${drawer.width}px`);
+	assert.ok(near({ actual: drawer.x + drawer.width, expected: viewport.width }), "the drawer must sit flush with the right edge");
+	assert.ok(near({ actual: drawer.y, expected: 0 }) && near({ actual: drawer.height, expected: viewport.height }), "the drawer must run the viewport's full height");
+	assert.ok(near({ actual: header.height, expected: 73 }), `the drawer header must be 73px high, measured ${header.height}px`);
 	assert.ok(
-		near(footer.y + footer.height, viewport.height),
+		near({ actual: footer.y + footer.height, expected: viewport.height }),
 		`the drawer footer must end at the viewport's bottom edge, measured ${footer.y + footer.height}px`,
 	);
 	assert.ok(
-		near(apply.x + apply.width, drawer.x + drawer.width - 24),
+		near({ actual: apply.x + apply.width, expected: drawer.x + drawer.width - 24 }),
 		"Apply filters must sit 24px inside the drawer's trailing edge",
 	);
 	assert.ok(clear.x >= drawer.x + 23, `Clear all must stay inside the footer's padding, measured x=${clear.x}px`);
 	assert.ok(
-		near(clear.height, 48) && near(apply.height, 48),
+		near({ actual: clear.height, expected: 48 }) && near({ actual: apply.height, expected: 48 }),
 		`Clear all and Apply filters must each keep a one-line 48px label, measured ${clear.height}px and ${apply.height}px`,
 	);
 	const chips = await page.locator(DRAWER_CHIP).all();
@@ -229,7 +229,7 @@ async function drawerGeometry(page: Page): Promise<void> {
 	for (const chip of chips) {
 		const box = await chip.boundingBox();
 		assert.ok(box, "an offered filter chip must be laid out");
-		assert.ok(near(box.height, 50), `a filter chip must be 50px high, measured ${box.height}px`);
+		assert.ok(near({ actual: box.height, expected: 50 }), `a filter chip must be 50px high, measured ${box.height}px`);
 	}
 }
 
@@ -237,16 +237,16 @@ async function footerKeepsOneRow(page: Page): Promise<void> {
 	const footer = await measuredBox(page, DRAWER_FOOTER);
 	const clear = await measuredBox(page, DRAWER_CLEAR);
 	const apply = await measuredBox(page, DRAWER_APPLY);
-	assert.ok(near(footer.height, 81), `the drawer footer must be 81px high, measured ${footer.height}px`);
-	assert.ok(near(clear.y, apply.y), "Clear all and Apply filters must share one row");
-	assert.ok(near(apply.x - (clear.x + clear.width), 16), "Clear all must sit 16px before Apply filters");
+	assert.ok(near({ actual: footer.height, expected: 81 }), `the drawer footer must be 81px high, measured ${footer.height}px`);
+	assert.ok(near({ actual: clear.y, expected: apply.y }), "Clear all and Apply filters must share one row");
+	assert.ok(near({ actual: apply.x - (clear.x + clear.width), expected: 16 }), "Clear all must sit 16px before Apply filters");
 }
 
 async function footerStacksItsButtons(page: Page): Promise<void> {
 	const clear = await measuredBox(page, DRAWER_CLEAR);
 	const apply = await measuredBox(page, DRAWER_APPLY);
 	assert.ok(
-		near(clear.y - (apply.y + apply.height), 16),
+		near({ actual: clear.y - (apply.y + apply.height), expected: 16 }),
 		"a footer too narrow for one row must stack Apply filters 16px above Clear all",
 	);
 }

@@ -60,7 +60,7 @@ function viaOf(card: Element): ViaFact {
 	};
 }
 
-function cardFor(html: string, url: string): Element {
+function cardFor({ html, url }: { html: string; url: string }): Element {
 	const site = new JSDOM(html).window.document.querySelector(`[data-test-article-url][href="${url}"]`);
 	const card = site?.closest(".readlist-article");
 	assert(card, `the card for ${url} must be rendered`);
@@ -142,7 +142,7 @@ describe("Readlist card via fact", () => {
 		const response = await agent.get("/queue");
 
 		expect(response.status).toBe(200);
-		expect(SAVES.map((save) => viaOf(cardFor(response.text, save.url)))).toEqual([
+		expect(SAVES.map((save) => viaOf(cardFor({ html: response.text, url: save.url })))).toEqual([
 			NAMED,
 			NAMED,
 			addressedBy(UNNAMED_SENDER),
@@ -162,7 +162,7 @@ describe("Readlist card via fact", () => {
 			}),
 		);
 
-		expect(fragments.map((html, index) => viaOf(cardFor(html, SAVES[index].url)))).toEqual([
+		expect(fragments.map((html, index) => viaOf(cardFor({ html, url: SAVES[index].url })))).toEqual([
 			NAMED,
 			NAMED,
 			addressedBy(UNNAMED_SENDER),
@@ -179,7 +179,7 @@ describe("Readlist card via fact", () => {
 			agent.get(`/queue/${emailed}/card?poll=1`),
 			agent.get(`/queue/${web}/card?poll=1`),
 		]);
-		expect(viaOf(cardFor(addressed.text, FROM_TLDR))).toEqual(addressedBy(NAMED_SENDER));
+		expect(viaOf(cardFor({ html: addressed.text, url: FROM_TLDR }))).toEqual(addressedBy(NAMED_SENDER));
 		const addressedEtag = addressed.headers.etag;
 		assert(addressedEtag, "the addressed card must carry an ETag");
 		const webEtag = webCard.headers.etag;
@@ -198,7 +198,7 @@ describe("Readlist card via fact", () => {
 		]);
 
 		expect(named.status).toBe(200);
-		expect(viaOf(cardFor(named.text, FROM_TLDR))).toEqual(NAMED);
+		expect(viaOf(cardFor({ html: named.text, url: FROM_TLDR }))).toEqual(NAMED);
 		expect([unchanged.status, unchanged.text, unchanged.headers.etag]).toEqual([304, "", webEtag]);
 	});
 });
