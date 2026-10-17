@@ -321,7 +321,12 @@ describe("buildReadlistNav", () => {
 		expect(form.getAttribute("method")).toBe("GET");
 		expect(form.getAttribute("action")).toBe("/queue");
 		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none scroll:html:top");
-		expect(form.hasAttribute("hx-boost")).toBe(false);
+		const boosted = form.closest("[hx-boost]");
+		assert(boosted, "the limit form must inherit the nav's boost");
+		expect(boosted.hasAttribute("data-test-readlist-nav")).toBe(true);
+		expect(boosted.getAttribute("hx-boost")).toBe("true");
+		expect(boosted.getAttribute("hx-target")).toBe("main");
+		expect(boosted.getAttribute("hx-select")).toBe("main");
 		expect(hiddenFields(form)).toEqual([
 			["queue", "work"],
 			["q", "focus"],
