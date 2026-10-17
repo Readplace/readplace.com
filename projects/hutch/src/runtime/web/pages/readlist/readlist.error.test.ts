@@ -1,7 +1,6 @@
 import {
 	DEFAULT_READLIST,
 	READLIST_LABEL_MAX_LENGTH,
-	READLIST_MAX_PER_USER,
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import {
@@ -11,32 +10,11 @@ import {
 	httpErrorMessageMapping,
 	importFlashMapping,
 	moveFlashMapping,
-	readlistErrorFlashMapping,
 	saveFormRejectionMessage,
 	saveableUrlErrorCodeMapping,
 	skippedLinkReasonLabel,
 	statusFlashMapping,
 } from "./readlist.error";
-
-describe("readlistErrorFlashMapping", () => {
-	it("returns undefined when queue_error is absent", () => {
-		expect(readlistErrorFlashMapping({})).toBeUndefined();
-	});
-
-	it("returns undefined when queue_error is not a string", () => {
-		expect(readlistErrorFlashMapping({ queue_error: 42 })).toBeUndefined();
-	});
-
-	it("returns undefined for an unknown readlist error code", () => {
-		expect(readlistErrorFlashMapping({ queue_error: "something_else" })).toBeUndefined();
-	});
-
-	it("names the cap when the reader has run out of readlists", () => {
-		expect(readlistErrorFlashMapping({ queue_error: "limit" })).toBe(
-			`You can keep up to ${READLIST_MAX_PER_USER} readlists.`,
-		);
-	});
-});
 
 describe("READLIST_RENAME_REJECTIONS", () => {
 	it("carries copy the client can show the reader verbatim", () => {

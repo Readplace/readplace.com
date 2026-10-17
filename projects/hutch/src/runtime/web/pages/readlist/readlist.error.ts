@@ -55,11 +55,6 @@ export const READLIST_ERROR_UNKNOWN_READLIST = "unknown_readlist";
 
 export const READLIST_NOTICE_SAVE_QUEUED = "save_queued";
 
-const READLIST_ERROR_MESSAGES: Record<string, string> = {
-	[READLIST_ERROR_LIMIT]: `You can keep up to ${READLIST_MAX_PER_USER} readlists.`,
-	[READLIST_ERROR_UNKNOWN_READLIST]: "That readlist no longer exists.",
-};
-
 const READLIST_NAME_LENGTH_MESSAGE = `Give the readlist a name of ${READLIST_LABEL_MAX_LENGTH} characters or fewer.`;
 
 export const READLIST_LIMIT_MESSAGE = `You can create up to ${READLIST_MAX_PER_USER} readlists. Delete an existing readlist before creating a new one.`;
@@ -92,13 +87,6 @@ export const READLIST_RENAME_REJECTIONS: Record<ReadlistRenameRejection, { messa
 };
 
 export const READLIST_PURPOSE_INVALID_MESSAGE = `Say what this readlist is for, in up to ${new Intl.NumberFormat("en-US").format(READLIST_PURPOSE_MAX_LENGTH)} characters.`;
-
-export type ReadlistErrorFlashMapping = (query: Record<string, unknown>) => string | undefined;
-
-export const readlistErrorFlashMapping: ReadlistErrorFlashMapping = (query) => {
-	const errorCode = typeof query.queue_error === "string" ? query.queue_error : undefined;
-	return errorCode ? READLIST_ERROR_MESSAGES[errorCode] : undefined;
-};
 
 export type HttpErrorMessageMapping = (query: Record<string, unknown>) => string | undefined;
 

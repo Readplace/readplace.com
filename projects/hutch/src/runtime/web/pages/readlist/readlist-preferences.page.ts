@@ -130,7 +130,6 @@ export function initReadlistPreferencesRoutes(deps: {
 				ReadlistPreferencesPage({
 					readlist: { ...activeReadlist, purpose: definition.purpose },
 					rail: buildReadlistRail({
-						query: req.query,
 						context,
 						accessIsReadOnly,
 						nonEmptyReadlists,

@@ -1,7 +1,7 @@
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, type ReadlistSlug } from "@packages/domain/readlist";
 import type { ReadlistContext } from "./readlist-context";
 import type { Readlist } from "./readlist.nav";
-import { READLIST_ERROR_LIMIT, readlistErrorFlashMapping } from "./readlist.error";
+import { READLIST_ERROR_LIMIT } from "./readlist.error";
 import { READLIST_CREATE_PATH, buildReadlistUrl, readlistReturnQuery } from "./readlist.url";
 
 export interface ReadlistRailViewModel {
@@ -12,11 +12,9 @@ export interface ReadlistRailViewModel {
 	canEdit: boolean;
 	canCreate: boolean;
 	nonEmptyReadlists: readonly ReadlistSlug[];
-	errorFlash?: string;
 }
 
 export function buildReadlistRail(input: {
-	query: Record<string, unknown>;
 	context: ReadlistContext;
 	accessIsReadOnly: boolean;
 	nonEmptyReadlists: readonly ReadlistSlug[];
@@ -31,6 +29,5 @@ export function buildReadlistRail(input: {
 		canEdit,
 		canCreate: canEdit && custom.length < READLIST_MAX_PER_USER,
 		nonEmptyReadlists: input.nonEmptyReadlists,
-		errorFlash: readlistErrorFlashMapping(input.query),
 	};
 }
