@@ -214,8 +214,13 @@
   min-width: 0;
 }
 
+.readlist-nav__limit-form {
+  border-radius: inherit;
+}
+
 .readlist-nav__create-fallback > summary {
   list-style: none;
+  border-radius: var(--radius);
 }
 
 .readlist-nav__create-fallback > summary::-webkit-details-marker {

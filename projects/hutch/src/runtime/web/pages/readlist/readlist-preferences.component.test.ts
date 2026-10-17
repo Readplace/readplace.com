@@ -71,6 +71,15 @@ function documentOf(html: string): Document {
 	return new JSDOM(html).window.document;
 }
 
+function readlistPopovers(doc: Document): (string | null)[] {
+	return Array.from(
+		doc.querySelectorAll(
+			'[data-test-confirm-popover="readlist-rename"], [data-test-confirm-popover="readlist-create"], [data-test-confirm-popover="readlist-delete"]',
+		),
+		(popover) => popover.getAttribute("data-test-confirm-popover"),
+	);
+}
+
 function purposePanel(doc: Document): Element {
 	const panel = doc.querySelector("[data-test-readlist-preferences]");
 	assert(panel, "the preferences panel must render in every state");
@@ -215,8 +224,7 @@ describe("ReadlistPreferencesPage", () => {
 	it("keeps the delete confirmations and sends the create row to this readlist's cap alert at the cap", () => {
 		const doc = documentOf(page({ canCreate: false }).content.html);
 
-		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]').length).toBe(2);
-		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-create"]').length).toBe(0);
+		expect(readlistPopovers(doc)).toEqual(["readlist-rename", "readlist-rename", "readlist-delete", "readlist-delete"]);
 		const form = doc.querySelector('[data-test-form="readlist-limit"]');
 		assert(form, "the capped rail must offer the limit form");
 		const landing = new URL(form.getAttribute("action") ?? "", "https://internal.invalid");

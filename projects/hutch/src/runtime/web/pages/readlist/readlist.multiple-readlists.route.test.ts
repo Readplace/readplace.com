@@ -43,6 +43,15 @@ function createRowActions(doc: Document): (string | null)[] {
 	);
 }
 
+function readlistPopovers(doc: Document): (string | null)[] {
+	return Array.from(
+		doc.querySelectorAll(
+			'[data-test-confirm-popover="readlist-rename"], [data-test-confirm-popover="readlist-create"], [data-test-confirm-popover="readlist-delete"]',
+		),
+		(popover) => popover.getAttribute("data-test-confirm-popover"),
+	);
+}
+
 function renameable(doc: Document): (string | null)[] {
 	return Array.from(
 		doc.querySelectorAll('[data-test-readlist-menu] [data-test-action="readlist-rename"]'),
@@ -410,7 +419,10 @@ describe("POST /queue/queues", () => {
 		expect(createRowActions(doc)).toEqual(["readlist-limit"]);
 		expect(renameable(doc)).toEqual(slugs);
 		expect(deleteTriggerTargets(doc)).toHaveLength(READLIST_MAX_PER_USER);
-		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-create"]')).toHaveLength(0);
+		expect(readlistPopovers(doc)).toEqual([
+			...slugs.map(() => "readlist-rename"),
+			...slugs.map(() => "readlist-delete"),
+		]);
 		const form = doc.querySelector('[data-test-form="readlist-limit"]');
 		assert(form, "the capped rail must offer the limit form");
 		expect(form.getAttribute("method")).toBe("GET");
