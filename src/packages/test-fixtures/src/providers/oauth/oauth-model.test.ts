@@ -1,12 +1,12 @@
 import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
-import type { OAuthClientId, AuthorizationCode as AuthorizationCodeId, AccessToken as AccessTokenId, RefreshToken as RefreshTokenId } from "@packages/domain/oauth";
+import type { OAuthClientId, AuthorizationCode as AuthorizationCodeId, AccessToken as AccessTokenId, RefreshToken as RefreshTokenId, RefreshGrant } from "@packages/domain/oauth";
 import type {
 	Token,
 	Client,
 	AuthorizationCode,
 } from "@node-oauth/oauth2-server";
-import { OAuthClientIdSchema } from "@packages/domain/oauth";
+import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	createListUserOAuthClients,
@@ -983,5 +983,76 @@ describe("createRevokeUserOAuthClient", () => {
 
 		expect([...deps.tokens.keys()]).toEqual(["firefox-1"]);
 		expect([...deps.refreshTokenIndex.keys()]).toEqual(["firefox-refresh-1"]);
+	});
+});
+
+describe("refresh", () => {
+	const reader = UserIdSchema.parse("reader");
+	const iosAppId = OAuthClientIdSchema.parse("ios-app");
+	const chromeId = OAuthClientIdSchema.parse("hutch-chrome-extension");
+	const expiry = new Date("2099-01-01T00:00:00Z");
+
+	async function setup() {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const ios = await model.getClient(iosAppId, "");
+		const chrome = await model.getClient(chromeId, "");
+		assert(ios && chrome, "Built-in clients must exist");
+		const user = { id: reader, emailVerified: true };
+		const token = (input: { access: string; refresh: string }) => ({ user, accessToken: input.access, refreshToken: input.refresh, accessTokenExpiresAt: expiry, refreshTokenExpiresAt: expiry });
+		const kept = await model.saveToken({ ...token({ access: "a", refresh: "r" }), client: ios }, ios, user);
+		assert(kept, "The seeded token must be saved");
+		const grantId = OAuthGrantIdSchema.parse(kept.user.grantId);
+		const exempt = (input: { epoch: number; atEpoch: number }) => {
+			deps.epochs.set(reader, input.epoch);
+			deps.exemptions.set(reader, { atEpoch: input.atEpoch, grantId, grantEpoch: 0 });
+		};
+		return { deps, model, chrome, user, token, grantId, exempt };
+	}
+	type Setup = Awaited<ReturnType<typeof setup>>;
+
+	it("validates an exempt access token and refuses the other grants at the old epoch", async () => {
+		const s = await setup();
+		await s.model.saveToken({ ...s.token({ access: "b", refresh: "s" }), client: s.chrome }, s.chrome, s.user);
+		s.exempt({ epoch: 1, atEpoch: 1 });
+		expect(await s.model.getAccessToken("a")).toMatchObject({ accessToken: "a" });
+		expect(await s.model.getAccessToken("b")).toBeNull();
+		expect(await s.model.refresh.rotate({ clientId: chromeId, refreshToken: "s", now: Date.now() })).toMatchObject({ reason: "revoked" });
+	});
+
+	it("keeps nothing for a stranded exemption", async () => {
+		const s = await setup();
+		s.exempt({ epoch: 2, atEpoch: 1 });
+		expect(await s.model.getAccessToken("a")).toBeNull();
+		expect(await s.model.refresh.rotate({ clientId: iosAppId, refreshToken: "r", now: Date.now() })).toMatchObject({ reason: "revoked" });
+	});
+
+	it("issues a usable child when a rotation read its credential before the change and its grant after it", async () => {
+		const s = await setup();
+		let changed = false;
+		class GrantsChangedOnFirstRead extends Map<string, RefreshGrant> {
+			override get(id: string) {
+				if (!changed) { changed = true; s.exempt({ epoch: 1, atEpoch: 1 }); }
+				return super.get(id);
+			}
+		}
+		s.deps.grants = new GrantsChangedOnFirstRead();
+		const first = await s.model.refresh.rotate({ clientId: iosAppId, refreshToken: "r", now: Date.now() });
+		expect(first).toMatchObject({ ok: true, credential: { epoch: 1, generation: 1 } });
+		assert(first.ok);
+		expect(await s.model.getAccessToken(first.credential.accessToken)).toMatchObject({ accessToken: first.credential.accessToken });
+		expect(await s.model.refresh.rotate({ clientId: iosAppId, refreshToken: first.credential.refreshToken, now: Date.now() })).toMatchObject({ ok: true, credential: { epoch: 1, generation: 2 } });
+		expect(s.deps.grants.get(s.grantId)).toMatchObject({ epoch: 1, generation: 2, state: "active" });
+	});
+
+	it.each([
+		["logout", (s: Setup) => s.model.refresh.revoke({ token: "r", now: Date.now() })],
+		["disconnect", (s: Setup) => createRevokeUserOAuthClient(s.deps)({ userId: reader, clientId: iosAppId })],
+	] as const)("%s revokes an exempt grant", async (_cause, revoke) => {
+		const s = await setup();
+		s.exempt({ epoch: 1, atEpoch: 1 });
+		await revoke(s);
+		expect(await s.model.getAccessToken("a")).toBeNull();
+		expect(await s.model.refresh.rotate({ clientId: iosAppId, refreshToken: "r", now: Date.now() })).toMatchObject({ reason: "revoked" });
 	});
 });

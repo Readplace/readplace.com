@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { createHmac, randomUUID } from "node:crypto";
-import type { RefreshCommit, RefreshCredential, RefreshGrant, RefreshStore } from "@packages/domain/oauth";
-import { defineDynamoTable, type DynamoDBDocumentClient, TransactWriteCommand, TransactionCanceledException } from "@packages/hutch-storage-client";
+import { isCurrentGrant, type RefreshAccount, type RefreshCommit, type RefreshCredential, type RefreshGrant, type RefreshStore } from "@packages/domain/oauth";
+import { defineDynamoTable, dynamoField, type DynamoDBDocumentClient, TransactWriteCommand, TransactionCanceledException } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { CredentialHistory, initRefreshProof, OAuthGrantId, refreshContext } from "../../oauth-refresh/evidence";
 import { authDiagnosticContext } from "../../auth-diagnostics/record";
@@ -14,7 +14,10 @@ const grantSchema = z.object({
 	state: z.enum(["active", "revoked"]), expiresAt: z.number(), validUntil: z.number(),
 	latest: z.object({ operationId: z.string(), parentFingerprint: z.string(), bodyHash: z.string() }).optional(),
 });
-const accountSchema = z.object({ pk: z.string(), epoch: z.number(), deletedAt: z.number().optional() });
+const accountSchema = z.object({
+	pk: z.string(), epoch: z.number(), deletedAt: z.number().optional(),
+	exemption: dynamoField(z.object({ atEpoch: z.number(), grantId: OAuthGrantId, grantEpoch: z.number() })),
+});
 type Operations = NonNullable<ConstructorParameters<typeof TransactWriteCommand>[0]["TransactItems"]>;
 
 export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; tableName: string; secret: string }) {
@@ -32,8 +35,9 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 		ConditionExpression: epoch === 0 ? "attribute_not_exists(deletedAt) AND (attribute_not_exists(epoch) OR epoch = :epoch)" : "attribute_not_exists(deletedAt) AND epoch = :epoch",
 		ExpressionAttributeValues: { ":epoch": epoch },
 	} });
-	async function readEpoch(userId: string): Promise<number> {
-		return (await accounts.get({ pk: `oauth-account#${userId}` }, { consistentRead: true }))?.epoch ?? 0;
+	async function readAccount(userId: string): Promise<RefreshAccount> {
+		const row = await accounts.get({ pk: `oauth-account#${userId}` }, { consistentRead: true });
+		return { epoch: row?.epoch ?? 0, exemption: row?.exemption };
 	}
 	async function readGrant(id: string): Promise<RefreshGrant | undefined> {
 		const row = await grants.get({ pk: `grant#${id}` }, { consistentRead: true });
@@ -76,7 +80,7 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 		} : { ConditionExpression: "attribute_not_exists(pk)" };
 	}
 	const store: RefreshStore = {
-		readEpoch, readGrant,
+		readAccount, readGrant,
 		async readCredential(accessToken) {
 			const row = await tokens.get({ pk: `token#${accessToken}` }, { consistentRead: true });
 			return row ? credential(row) : undefined;
@@ -97,7 +101,7 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 			return { credential: found, history: history ? { grantId: history.grantId, fingerprint: history.fingerprint, expiresAt: history.credentialExpiresAt, revocation: history.revocation } : undefined };
 		},
 		async commit(input: RefreshCommit) {
-			const operations: Operations = [epochCondition(input.grant.userId, input.grant.epoch)];
+			const operations: Operations = [epochCondition(input.grant.userId, input.accountEpoch)];
 			const condition = grantCondition(input.expectedGrant);
 			operations.push(input.cause === "recovery"
 				? { ConditionCheck: { TableName, Key: { pk: `grant#${input.grant.id}` }, ...condition } }
@@ -138,7 +142,7 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 			if (context && value.refreshToken) context.credential = { pk: `credential#${fingerprint(value.refreshToken)}`, grantId: OAuthGrantId.parse(value.grantId), fingerprint: fingerprint(value.refreshToken), credentialExpiresAt: value.refreshExpiresAt, expiresAt: ttl(value.refreshExpiresAt) };
 		},
 		async active(row: z.infer<typeof OAuthTokenRow>): Promise<boolean> {
-			if (await readEpoch(row.userId) !== (row.epoch ?? 0)) return false;
+			if (!isCurrentGrant({ account: await readAccount(row.userId), credential: { grantId: row.grantId, epoch: row.epoch ?? 0 } })) return false;
 			const grant = row.grantId ? await readGrant(row.grantId) : undefined;
 			if (row.keyThumbprint && !grant) throw new Error("Bound refresh grant is missing");
 			return !grant || (grant.state === "active" && grant.generation === (row.generation ?? 0));

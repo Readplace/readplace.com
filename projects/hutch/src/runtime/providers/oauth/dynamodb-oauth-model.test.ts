@@ -706,3 +706,53 @@ it("records a bound grant's refresh that arrived without its proof after logout-
 	expect(refusal).toMatchObject({ reason: "proof_required", revocation: { cause: "logout-all" } });
 	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 0, unexpected: 1 });
 });
+
+it("validates an exempt access token and refuses the other grants at the old epoch", async () => {
+	const { model, rows } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	await model.saveToken(token({ access: "b", refresh: "s" }), chrome, user);
+	rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 1, exemption: { atEpoch: 1, grantId: kept.user.grantId, grantEpoch: 0 } });
+	expect(await model.getAccessToken("a")).toMatchObject({ accessToken: "a" });
+	expect(await model.getAccessToken("b")).toBeNull();
+	expect(await model.refresh.rotate({ clientId: chrome.id, refreshToken: "s", now: Date.now() })).toMatchObject({ reason: "revoked" });
+});
+
+it("keeps nothing for a stranded exemption", async () => {
+	const { model, rows } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 2, exemption: { atEpoch: 1, grantId: kept.user.grantId, grantEpoch: 0 } });
+	expect(await model.getAccessToken("a")).toBeNull();
+	expect(await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() })).toMatchObject({ reason: "revoked" });
+});
+
+it("issues a usable child when a rotation read its credential before the change and its grant after it", async () => {
+	const { model, rows, controls } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	controls.beforeSend = async input => {
+		if (input.Key?.pk.startsWith("grant#")) {
+			controls.beforeSend = undefined;
+			rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 1, exemption: { atEpoch: 1, grantId: kept.user.grantId, grantEpoch: 0 } });
+		}
+	};
+	const first = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() });
+	expect(first).toMatchObject({ ok: true, credential: { epoch: 1, generation: 1 } });
+	assert(first.ok);
+	expect(await model.getAccessToken(first.credential.accessToken)).toMatchObject({ accessToken: first.credential.accessToken });
+	expect(await model.refresh.rotate({ clientId: client.id, refreshToken: first.credential.refreshToken, now: Date.now() })).toMatchObject({ ok: true, credential: { epoch: 1, generation: 2 } });
+	expect(rows.get(`grant#${kept.user.grantId}`)).toMatchObject({ epoch: 1, generation: 2, state: "active" });
+});
+
+it.each([
+	["logout", (model: ReturnType<typeof setup>["model"]) => model.refresh.revoke({ token: "r", now: Date.now() })],
+	["disconnect", (model: ReturnType<typeof setup>["model"]) => model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })],
+] as const)("%s revokes an exempt grant", async (cause, revoke) => {
+	const { model, rows } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 1, exemption: { atEpoch: 1, grantId: kept.user.grantId, grantEpoch: 0 } });
+	await revoke(model);
+	expect(rows.get(`grant#${kept.user.grantId}`)).toMatchObject({ state: "revoked", epoch: 0 });
+	expect(await model.getAccessToken("a")).toBeNull();
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }))).toMatchObject({ reason: "revoked" });
+	expect(context.reason).toBe(cause);
+});

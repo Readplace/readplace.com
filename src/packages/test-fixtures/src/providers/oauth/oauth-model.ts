@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { createHash, randomUUID } from "node:crypto";
-import { initOAuthRefresh, type RefreshCredential, type RefreshGrant, type RefreshHistory, type RefreshStore } from "@packages/domain/oauth";
+import { initOAuthRefresh, isCurrentGrant, type RefreshAccount, type RefreshCredential, type RefreshExemption, type RefreshGrant, type RefreshHistory, type RefreshStore } from "@packages/domain/oauth";
 import type {
 	Client,
 	Token,
@@ -70,6 +70,7 @@ interface OAuthModelDeps {
 	grants: Map<string, RefreshGrant>;
 	history: Map<string, RefreshHistory>;
 	epochs: Map<string, number>;
+	exemptions: Map<string, RefreshExemption>;
 	proofs: Map<string, number>;
 	codes: Map<string, StoredAuthorizationCode>;
 	tokens: Map<string, StoredToken>;
@@ -80,7 +81,7 @@ interface OAuthModelDeps {
 export function initInMemoryOAuthModel(): OAuthModelDeps {
 	return {
 		deletedAccounts: new Set(),
-		grants: new Map(), history: new Map(), epochs: new Map(), proofs: new Map(),
+		grants: new Map(), history: new Map(), epochs: new Map(), exemptions: new Map(), proofs: new Map(),
 		codes: new Map(),
 		tokens: new Map(),
 		refreshTokenIndex: new Map(),
@@ -196,17 +197,18 @@ export function createOAuthModel(
 		const userTokens = deps.userIdIndex.get(value.userId) ?? new Set<string>();
 		userTokens.add(value.accessToken); deps.userIdIndex.set(value.userId, userTokens);
 	}
+	const account = (userId: string): RefreshAccount => ({ epoch: deps.epochs.get(userId) ?? 0, exemption: deps.exemptions.get(userId) });
 	const store: RefreshStore = {
 		async locate(token) {
 			const row = deps.tokens.get(deps.refreshTokenIndex.get(token) ?? token);
 			return { credential: row ? credential(row) : undefined, history: deps.history.get(fingerprint(token)) };
 		},
 		async readGrant(id) { return deps.grants.get(id); },
-		async readEpoch(userId) { return deps.epochs.get(userId) ?? 0; },
+		async readAccount(userId) { return account(userId); },
 		async readCredential(accessToken) { const row = deps.tokens.get(accessToken); return row ? credential(row) : undefined; },
 		async commit(input) {
 			const current = deps.grants.get(input.grant.id);
-			if (deps.deletedAccounts.has(input.grant.userId) || (deps.epochs.get(input.grant.userId) ?? 0) !== input.grant.epoch || JSON.stringify(current) !== JSON.stringify(input.expectedGrant)) return "conflict";
+			if (deps.deletedAccounts.has(input.grant.userId) || (deps.epochs.get(input.grant.userId) ?? 0) !== input.accountEpoch || JSON.stringify(current) !== JSON.stringify(input.expectedGrant)) return "conflict";
 			const proofKey = input.proof ? `${input.proof.keyThumbprint}:${input.proof.id}` : undefined;
 			if (proofKey && (deps.proofs.get(proofKey) ?? 0) > input.now) return "proof_replayed";
 			if (input.parent && !deps.tokens.has(input.parent.accessToken)) return "conflict";
@@ -230,7 +232,7 @@ export function createOAuthModel(
 	});
 	function active(row: StoredToken): boolean {
 		const grant = row.grantId ? deps.grants.get(row.grantId) : undefined;
-		return (deps.epochs.get(row.userId) ?? 0) === (row.epoch ?? 0) && (!grant || (grant.state === "active" && grant.generation === (row.generation ?? 0)));
+		return isCurrentGrant({ account: account(row.userId), credential: { grantId: row.grantId, epoch: row.epoch ?? 0 } }) && (!grant || (grant.state === "active" && grant.generation === (row.generation ?? 0)));
 	}
 	return {
 		refresh,

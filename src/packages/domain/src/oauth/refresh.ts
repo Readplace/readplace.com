@@ -1,3 +1,5 @@
+import { isCurrentGrant, type RefreshAccount } from "./current-grant";
+
 export interface RefreshCredential {
 	accessToken: string;
 	refreshToken: string;
@@ -46,6 +48,7 @@ export type RefreshCommit = {
 	grant: RefreshGrant;
 	proof?: RefreshProof;
 	now: number;
+	accountEpoch: number;
 } & (
 	{ cause: "recovery"; parent?: never; child?: never } |
 	{ cause: "rotation" | "logout" | "disconnect" | "logout-all" | "account-deletion"; parent?: RefreshCredential; child?: RefreshCredential }
@@ -55,7 +58,7 @@ export interface RefreshStore {
 	locate(token: string): Promise<{ credential?: RefreshCredential; history?: RefreshHistory }>;
 	readGrant(id: string): Promise<RefreshGrant | undefined>;
 	readCredential(accessToken: string): Promise<RefreshCredential | undefined>;
-	readEpoch(userId: string): Promise<number>;
+	readAccount(userId: string): Promise<RefreshAccount>;
 	commit(input: RefreshCommit): Promise<"committed" | "conflict" | "proof_replayed">;
 }
 
@@ -133,7 +136,9 @@ export function initOAuthRefresh(deps: {
 			if (grant.clientId !== input.clientId) return fail("unknown");
 			const rejectedBinding = binding(grant, input.proof);
 			if (rejectedBinding) return rejectedBinding;
-			if (grant.state !== "active" || await deps.store.readEpoch(grant.userId) !== grant.epoch) return fail("revoked");
+			if (grant.state !== "active") return fail("revoked");
+			const account = await deps.store.readAccount(grant.userId);
+			if (!isCurrentGrant({ account, credential: { grantId: grant.id, epoch: grant.epoch } })) return fail("revoked");
 			if (grant.expiresAt <= input.now) return fail("expired");
 			if (input.proof && !grant.keyThumbprint && !deps.enrollmentEnabled) return fail("enrollment_disabled");
 			const parentFingerprint = deps.fingerprint(input.refreshToken);
@@ -142,7 +147,7 @@ export function initOAuthRefresh(deps: {
 				if (latest.parentFingerprint !== parentFingerprint || latest.bodyHash !== input.bodyHash) return fail("operation_mismatch");
 				const child = await deps.store.readCredential(grant.accessToken);
 				if (!child) throw new Error("Refresh result credential is missing");
-				const result = await deps.store.commit({ expectedGrant: existing, grant, proof: input.proof, cause: "recovery", now: input.now });
+				const result = await deps.store.commit({ expectedGrant: existing, grant, proof: input.proof, cause: "recovery", now: input.now, accountEpoch: account.epoch });
 				if (result === "proof_replayed") return fail(result);
 				if (result === "conflict") continue;
 				return { ok: true, credential: child, recovered: true };
@@ -156,6 +161,7 @@ export function initOAuthRefresh(deps: {
 				accessToken: deps.generateToken(), refreshToken: deps.generateToken(),
 				accessExpiresAt: input.now + 3_600_000,
 				refreshExpiresAt: input.now + 180 * 86_400_000,
+				epoch: account.epoch,
 				generation: grant.generation + 1,
 				keyThumbprint: input.proof?.keyThumbprint ?? parent.keyThumbprint,
 				parentFingerprint,
@@ -163,12 +169,12 @@ export function initOAuthRefresh(deps: {
 				scope: input.scope ?? parent.scope,
 			};
 			const next: RefreshGrant = {
-				...grant, generation: child.generation, accessToken: child.accessToken,
+				...grant, epoch: account.epoch, generation: child.generation, accessToken: child.accessToken,
 				refreshFingerprint: deps.fingerprint(child.refreshToken), expiresAt: child.refreshExpiresAt,
 				keyThumbprint: input.proof?.keyThumbprint ?? grant.keyThumbprint,
 				latest: input.operationId && input.bodyHash ? { operationId: input.operationId, parentFingerprint, bodyHash: input.bodyHash } : undefined,
 			};
-			const result = await deps.store.commit({ expectedGrant: existing, grant: next, parent, child, proof: input.proof, cause: "rotation", now: input.now });
+			const result = await deps.store.commit({ expectedGrant: existing, grant: next, parent, child, proof: input.proof, cause: "rotation", now: input.now, accountEpoch: account.epoch });
 			if (result === "proof_replayed") return fail(result);
 			if (result === "conflict") continue;
 			return { ok: true, credential: child, recovered: false };
@@ -186,9 +192,11 @@ export function initOAuthRefresh(deps: {
 			if (!grant || (input.clientId && input.clientId !== grant.clientId)) return { ok: true };
 			const rejectedBinding = binding(grant, input.proof);
 			if (rejectedBinding) return rejectedBinding;
-			if (grant.state === "revoked" || await deps.store.readEpoch(grant.userId) !== grant.epoch) return { ok: true };
+			if (grant.state === "revoked") return { ok: true };
+			const account = await deps.store.readAccount(grant.userId);
+			if (!isCurrentGrant({ account, credential: { grantId: grant.id, epoch: grant.epoch } })) return { ok: true };
 			const parent = await deps.store.readCredential(grant.accessToken);
-			const result = await deps.store.commit({ expectedGrant: existing, grant: { ...grant, state: "revoked" }, parent, proof: input.proof, cause: "logout", now: input.now });
+			const result = await deps.store.commit({ expectedGrant: existing, grant: { ...grant, state: "revoked" }, parent, proof: input.proof, cause: "logout", now: input.now, accountEpoch: account.epoch });
 			if (result === "proof_replayed") return fail(result);
 			if (result === "conflict") continue;
 			return { ok: true, grant };

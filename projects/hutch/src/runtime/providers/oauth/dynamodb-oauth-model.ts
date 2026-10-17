@@ -111,7 +111,7 @@ export function initDynamoDbOAuthModel(deps: {
 				Item: {
 					pk: `code#${code.authorizationCode}`,
 					grantId: OAuthGrantId.parse(randomUUID()),
-					epoch: await atomic.store.readEpoch(user.id),
+					epoch: (await atomic.store.readAccount(user.id)).epoch,
 					clientId: oauthClient.id,
 					userId: user.id,
 					redirectUri: code.redirectUri,
@@ -130,7 +130,7 @@ export function initDynamoDbOAuthModel(deps: {
 			authorizationCode: string,
 		): Promise<AuthorizationCode | Falsey> {
 			const row = await authCodes.get({ pk: `code#${authorizationCode}` });
-			if (!row || await atomic.store.readEpoch(row.userId) !== (row.epoch ?? 0)) return null;
+			if (!row || (await atomic.store.readAccount(row.userId)).epoch !== (row.epoch ?? 0)) return null;
 
 			const expiresAt = new Date(row.expiresAt * 1000);
 			if (expiresAt < new Date()) {
@@ -170,7 +170,7 @@ export function initDynamoDbOAuthModel(deps: {
 				token.refreshTokenExpiresAt ?? new Date(Date.now() + 180 * 24 * 3600000);
 
 			await atomic.saveInitial({
-				grantId: grant.grantId, parentFingerprint: grant.parentFingerprint, epoch: typeof user.epoch === "number" ? user.epoch : await atomic.store.readEpoch(user.id), generation: 0,
+				grantId: grant.grantId, parentFingerprint: grant.parentFingerprint, epoch: typeof user.epoch === "number" ? user.epoch : (await atomic.store.readAccount(user.id)).epoch, generation: 0,
 				userId: user.id, clientId: oauthClient.id, accessToken: token.accessToken, refreshToken,
 				accessExpiresAt: accessTokenExpiresAt.getTime(), refreshExpiresAt: refreshTokenExpiresAt.getTime(),
 				scope: token.scope, emailVerified: user.emailVerified === true,

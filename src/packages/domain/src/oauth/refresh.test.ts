@@ -1,3 +1,4 @@
+import type { RefreshExemption } from "./current-grant";
 import { initOAuthRefresh, type RefreshCredential, type RefreshGrant, type RefreshHistory, type RefreshStore } from "./refresh";
 
 function setup(enrollmentEnabled = true) {
@@ -6,14 +7,16 @@ function setup(enrollmentEnabled = true) {
 	const history = new Map<string, RefreshHistory>();
 	const grants = new Map<string, RefreshGrant>();
 	const proofs = new Set<string>();
-	const controls = { epoch: 0, conflicts: 0, fail: false };
+	const controls: { epoch: number; exemption: RefreshExemption | undefined; conflicts: number; fail: boolean; beforeReadAccount: (() => void) | undefined } = { epoch: 0, exemption: undefined, conflicts: 0, fail: false, beforeReadAccount: undefined };
+	const commits: number[] = [];
 	let sequence = 0;
 	const store: RefreshStore = {
 		async locate(token) { return { credential: [...credentials.values()].find(value => value.refreshToken === token), history: history.get(token) }; },
 		async readGrant(id) { return grants.get(id); },
 		async readCredential(access) { return credentials.get(access); },
-		async readEpoch() { return controls.epoch; },
+		async readAccount() { controls.beforeReadAccount?.(); return { epoch: controls.epoch, exemption: controls.exemption }; },
 		async commit(input) {
+			commits.push(input.accountEpoch);
 			if (controls.fail) throw new Error("storage unavailable");
 			if (controls.conflicts-- > 0) return "conflict";
 			if (input.proof && proofs.has(input.proof.id)) return "proof_replayed";
@@ -29,7 +32,7 @@ function setup(enrollmentEnabled = true) {
 	};
 	const refresh = initOAuthRefresh({ enrollmentEnabled, store, fingerprint: value => value, generateToken: () => `new${++sequence}`, resolveEmailVerified: async () => true });
 	const input = { clientId: "client", refreshToken: "r0", now: 100, operationId: "operation", bodyHash: "body", proof: { keyThumbprint: "key", id: "proof", expiresAt: 1000 } };
-	return { refresh, input, credentials, grants, history, controls, original };
+	return { refresh, input, credentials, grants, history, controls, commits, original };
 }
 
 it("recovers exactly one durable successor after an overnight lost response without extending expiry", async () => {
@@ -195,4 +198,57 @@ it("disables new enrollment while retaining legacy refresh and recovery of previ
 	for (const [id, value] of active.grants) disabled.grants.set(id, value);
 	for (const [id, value] of active.history) disabled.history.set(id, value);
 	expect(await disabled.refresh.rotate({ ...disabled.input, proof: { ...disabled.input.proof, id: "retry" } })).toEqual({ ...first, recovered: true });
+});
+
+it("rotates an exempt grant onto the account epoch, where its child rotates again without the exemption", async () => {
+	const s = setup(); s.controls.epoch = 1; s.controls.exemption = { atEpoch: 1, grantId: "grant", grantEpoch: 0 };
+	const first = await s.refresh.rotate(s.input);
+	expect(first).toMatchObject({ ok: true, recovered: false, credential: { epoch: 1, generation: 1 } });
+	expect(s.grants.get("grant")).toMatchObject({ epoch: 1, generation: 1, state: "active" });
+	expect(s.commits).toEqual([1]);
+	if (!first.ok) throw new Error("expected grant");
+	s.controls.exemption = undefined;
+	expect(await s.refresh.rotate({ ...s.input, refreshToken: first.credential.refreshToken, operationId: "next", proof: { ...s.input.proof, id: "next" } })).toMatchObject({ ok: true, credential: { epoch: 1, generation: 2 } });
+	expect(s.commits).toEqual([1, 1]);
+});
+
+it("recovers an exempt grant's cached child at the account epoch", async () => {
+	const s = setup(); const first = await s.refresh.rotate(s.input);
+	s.controls.epoch = 1; s.controls.exemption = { atEpoch: 1, grantId: "grant", grantEpoch: 0 };
+	expect(await s.refresh.rotate({ ...s.input, proof: { ...s.input.proof, id: "retry" } })).toEqual({ ...first, recovered: true });
+	expect(s.commits).toEqual([0, 1]);
+});
+
+it("revokes an exempt grant at the account epoch and leaves the grant on its own", async () => {
+	const s = setup(); s.controls.epoch = 1; s.controls.exemption = { atEpoch: 1, grantId: "grant", grantEpoch: 0 };
+	expect(await s.refresh.revoke({ token: "r0", now: 200 })).toMatchObject({ ok: true, grant: { id: "grant" } });
+	expect(s.grants.get("grant")).toMatchObject({ state: "revoked", epoch: 0 });
+	expect(s.commits).toEqual([1]);
+	expect(await s.refresh.rotate(s.input)).toMatchObject({ reason: "revoked" });
+});
+
+it.each([
+	{ operationId: "operation", outcome: { ok: true, recovered: true, credential: { accessToken: "a1" } }, commits: [1, 1] },
+	{ operationId: "other", outcome: { ok: false, reason: "superseded" }, commits: [1] },
+])("keeps a stale copy of a kept grant current when a rotation and the keep both land inside its reads: %j", async ({ operationId, outcome, commits }) => {
+	const s = setup();
+	s.controls.beforeReadAccount = () => {
+		s.controls.beforeReadAccount = undefined;
+		s.credentials.delete("a0");
+		s.credentials.set("a1", { ...s.original, accessToken: "a1", refreshToken: "r1", generation: 1, keyThumbprint: "key", parentFingerprint: "r0" });
+		s.history.set("r0", { grantId: "grant", fingerprint: "r0", expiresAt: 1_000_000, revocation: { cause: "rotation", completedAt: 50 } });
+		s.grants.set("grant", { id: "grant", userId: "user", clientId: "client", epoch: 0, generation: 1, accessToken: "a1", refreshFingerprint: "r1", keyThumbprint: "key", state: "active", expiresAt: 1_000_000, latest: { operationId: "operation", parentFingerprint: "r0", bodyHash: "body" } });
+		s.controls.epoch = 1; s.controls.exemption = { atEpoch: 1, grantId: "grant", grantEpoch: 0 };
+		s.controls.conflicts = 1;
+	};
+	expect(await s.refresh.rotate({ ...s.input, operationId })).toMatchObject(outcome);
+	expect(s.commits).toEqual(commits);
+});
+
+it("keeps retrying an exempt grant while the account epoch moves and never answers invalid_grant", async () => {
+	const s = setup(); s.controls.conflicts = 4;
+	s.controls.beforeReadAccount = () => { s.controls.epoch += 1; s.controls.exemption = { atEpoch: s.controls.epoch, grantId: "grant", grantEpoch: 0 }; };
+	await expect(s.refresh.rotate(s.input)).rejects.toThrow("Concurrent refresh could not settle");
+	expect(s.commits).toEqual([1, 2, 3, 4]);
+	expect(s.credentials.get("a0")).toEqual(s.original);
 });
