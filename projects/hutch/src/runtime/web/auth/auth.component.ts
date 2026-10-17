@@ -238,6 +238,7 @@ export function ResetPasswordPage(
 					}),
 		globalErrorHtml: globalErrorHtml(errors),
 		success: data.success,
+		connectedAppsPhrase: CONNECTED_APPS_PHRASE,
 		error: data.error,
 		passwordField: toFieldViewModel(errors, "password"),
 		confirmPasswordField: toFieldViewModel(errors, "confirmPassword"),

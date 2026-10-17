@@ -231,6 +231,9 @@ describe("Forgot password", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("h1")?.textContent).toBe("Password reset");
+			expect(doc.querySelector(".auth-card__subtitle")?.textContent).toBe(
+				"Your password has been updated. Every browser was signed out, and the browser extension, the iPhone app, and AI assistants were disconnected. Sign in with your new password.",
+			);
 
 			const loginResponse = await request(harness.server)
 				.post("/login")

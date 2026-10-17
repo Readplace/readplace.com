@@ -36,12 +36,27 @@ describe("GET /privacy", () => {
 		expect(response.text).toContain("Disconnect an assistant under");
 		expect(response.text).toContain("on your Account page");
 		expect(response.text).toContain("revokes its Readplace token");
-		expect(response.text).toContain("Changing your password or deleting your Readplace account revokes every connected assistant at once.");
+		expect(response.text).toContain("list your readlists, create a readlist and add a saved article to one");
+		expect(response.text).toContain("Changing or resetting your password, or deleting your Readplace account, revokes every connected assistant at once.");
 		const doc = new JSDOM(response.text).window.document;
 		expect(Array.from(doc.querySelectorAll('.legal-page__section a[href^="/account"]')).map((link) => link.getAttribute("href"))).toEqual([
 			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-assistants#connected-apps",
 			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-rights",
 		]);
+	});
+
+	it("names the homepage experiment cookie among the first-party cookies", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("which version of the homepage you were shown during a test (1 year)");
+	});
+
+	it("carries the date of its latest change", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Last updated: 17 October 2026");
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {
