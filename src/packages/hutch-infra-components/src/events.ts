@@ -1335,6 +1335,7 @@ export const OAuthRefreshEvaluatedEvent = defineEvent({
 		counts: z.object({
 			raw: z.number(),
 			test: z.number(),
+			challenged: z.number(),
 			expected: z.number(),
 			recovered: z.number(),
 			unexpected: z.number(),

@@ -1,5 +1,6 @@
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
 import { OAUTH_TOKEN_GRANT_TYPES } from "@packages/web-analytics";
+import type { ProofValidation } from "../oauth-refresh/dpop";
 import type { RevocationCause } from "../oauth-refresh/evidence";
 import { ANALYTICS_EVENTS, CONVERSION_EVENTS, STREAMS } from "./events";
 
@@ -39,10 +40,11 @@ export function analyticsMetricFilterPattern(filter: AnalyticsMetricFilter): str
 
 const READER_DISCONNECT = "disconnect" satisfies RevocationCause;
 const LOGOUT_ALL = "logout-all" satisfies RevocationCause;
+const NONCE_REQUIRED = "nonce_required" satisfies Extract<ProofValidation, { ok: false }>["reason"];
 
-export function firstPartyRefreshRefusedExceptDisconnectAndLogoutAllPattern(): string {
+export function firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern(): string {
 	const anyFirstPartyClient = SUPPORTED_CLIENTS.flatMap((client) =>
 		client.auth.kind === "builtIn" ? [`$.client_id = "${client.auth.oauthClientId}"`] : [],
 	).join(" || ");
-	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "${OAUTH_TOKEN_GRANT_TYPES.refreshToken}" && (${anyFirstPartyClient}) && $.refresh_refusal.reason != "${READER_DISCONNECT}" && $.refresh_refusal.reason != "${LOGOUT_ALL}" }`;
+	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "${OAUTH_TOKEN_GRANT_TYPES.refreshToken}" && (${anyFirstPartyClient}) && $.refresh_refusal.reason != "${READER_DISCONNECT}" && $.refresh_refusal.reason != "${LOGOUT_ALL}" && $.refresh_refusal.reason != "${NONCE_REQUIRED}" }`;
 }

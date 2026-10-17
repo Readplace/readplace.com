@@ -55,6 +55,7 @@ A field whose value is `undefined` is omitted from the line, not written as `nul
 | `/mcp` | 400 / 181 | foreign `MCP-Protocol-Version`; clients recover on the next request |
 | `/oauth/token` | 400 / 87 | `invalid_grant`: refresh token is invalid (absent — rotated away or revoked) |
 | `/oauth/token` | 400 / 88 | `invalid_grant`: refresh token has expired |
+| `/oauth/token` | 400 / 62 | `use_dpop_nonce` (from 2026-10-16): the nonce challenge that opens a DPoP-bound refresh; the same client's 200 follows within a second |
 
 ## Queries
 
@@ -109,4 +110,5 @@ fields @timestamp, event, client_id, coalesce(grant_id, `refresh_refusal.grantId
 - **Token endpoint `invalid` vs `expired`:** `invalid` means the presented refresh token no longer exists (it was rotated away, or revoked — check `oauth_token_revoked`); `expired` means it outlived its 180-day lifetime.
 - **`refresh_refusal.reason` `disconnect`:** the reader disconnected that client under Connected apps on the account page. The refresh evaluator counts it expected, `oauth-refresh-refused-alarm` does not count it, and no `oauth_token_revoked` accompanies it, because the account page revokes without the client's token.
 - **`refresh_refusal.reason` `logout-all`:** the reader changed or reset their password, which signs every app out. The refresh evaluator counts it expected, `oauth-refresh-refused-alarm` does not count it, and no `oauth_token_revoked` accompanies it, because a password change or reset revokes without the client's token.
+- **`refresh_refusal.reason` `nonce_required`:** not a failure. The first request of every DPoP-bound refresh (the Chrome extension from 1.0.682 and the Firefox extension from 1.0.674, which share one refresh client, and the iOS and Android apps, whose native refresh clients handle the challenge the same way) arrives without a nonce; the token endpoint answers 400 `use_dpop_nonce` with a `DPoP-Nonce` header before it looks the credential up, and the client re-signs and succeeds, so an `oauth_token_issued` from the same `visitor_hash` follows within a second. The refresh evaluator counts it `challenged`, `oauth-refresh-refused-alarm` does not count it, and the line carries no `grantId`, so the grant-chain query above does not show it. `nonce_expired` is different and is counted: the retry arrived 300 s or more after its challenge, or carried a nonce the server did not mint for that key or dated ahead of its clock.
 - **Rotation posture:** a replayed refresh token is refused and its successor is **not** revoked. That is deliberate: every replay observed so far came from OpenAI's own platform presenting a token it had already rotated, and revoking the successor would sign out the working half of the client.

@@ -1,8 +1,10 @@
 import { z } from "zod";
 import type { OAuthRefreshEvaluatedEvent } from "@packages/hutch-infra-components";
+import type { ProofValidation } from "./dpop";
 import { OAuthGrantId, RefreshAttempt } from "./evidence";
 
 export type RefreshCounts = z.infer<typeof OAuthRefreshEvaluatedEvent.detailSchema>["counts"];
+const NONCE_REQUIRED = "nonce_required" satisfies Extract<ProofValidation, { ok: false }>["reason"];
 
 export const RefreshRefusal = RefreshAttempt.extend({
 	status: z.number().int(),
@@ -33,7 +35,7 @@ export function initEvaluateRefreshOutcomes(deps: {
 		const from = minute - 86_400_000;
 		const days = [...new Set([new Date(from).toISOString().slice(0, 10), new Date(minute).toISOString().slice(0, 10)])];
 		const rows = (await Promise.all(days.map(day => deps.readDay({ day, from, until: minute })))).flat();
-		const counts = { raw: 0, test: 0, expected: 0, recovered: 0, unexpected: 0, unknown: 0, pending: 0 };
+		const counts = { raw: 0, test: 0, challenged: 0, expected: 0, recovered: 0, unexpected: 0, unknown: 0, pending: 0 };
 		const seen = new Set<string>();
 		for (const row of rows) {
 			const refusal = row.refusal;
@@ -41,6 +43,7 @@ export function initEvaluateRefreshOutcomes(deps: {
 			seen.add(refusal.refusalId);
 			counts.raw++;
 			if (deps.testGrants.some(grant => grant.grantId === refusal.grantId && grant.from <= refusal.occurredAt && refusal.occurredAt < grant.until)) { counts.test++; continue; }
+			if (refusal.status === 400 && refusal.reason === NONCE_REQUIRED) { counts.challenged++; continue; }
 			if (refusal.status === 400 && (refusal.reason === "expired" && refusal.credentialExpiresAt !== undefined && refusal.credentialExpiresAt <= refusal.occurredAt || refusal.revocation && refusal.reason === refusal.revocation.cause && refusal.revocation.cause !== "rotation" && refusal.revocation.completedAt <= refusal.occurredAt)) { counts.expected++; continue; }
 			if (row.recoveredAt !== undefined) { counts.recovered++; continue; }
 			if (!refusal.grantId) counts.unknown++;

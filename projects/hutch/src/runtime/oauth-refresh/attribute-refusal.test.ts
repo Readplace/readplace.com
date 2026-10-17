@@ -25,7 +25,7 @@ it.each([429, 503])("excludes a designated connection's %s while monitoring ordi
 		testGrants: TestGrantWindows.parse([{ grantId: "test-grant", from: minute - 700_000, until: minute }]),
 		publish: jest.fn(),
 	});
-	expect(await evaluate(minute)).toEqual({ raw: 2, test: 1, expected: 0, recovered: 0, unexpected: 1, unknown: 0, pending: 0 });
+	expect(await evaluate(minute)).toEqual({ raw: 2, test: 1, challenged: 0, expected: 0, recovered: 0, unexpected: 1, unknown: 0, pending: 0 });
 });
 
 it("keeps a credential with no history unknown and preserves existing attribution", async () => {

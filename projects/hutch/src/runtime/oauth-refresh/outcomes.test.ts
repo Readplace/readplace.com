@@ -20,6 +20,11 @@ it.each([
 	[{ reason: "rotation", revocation: { cause: "rotation", completedAt: minute - 700_000 } }, undefined, "unexpected"],
 	[{ reason: "expired", credentialExpiresAt: minute + 1 }, undefined, "unexpected"],
 	[{ status: 429, reason: "expired", credentialExpiresAt: 0 }, undefined, "unexpected"],
+	[{ reason: "nonce_required" }, undefined, "challenged"],
+	[{ reason: "nonce_required" }, minute - 100, "challenged"],
+	[{ status: 503, reason: "nonce_required", occurredAt: minute - 1 }, undefined, "unexpected"],
+	[{ reason: "nonce_expired" }, undefined, "unexpected"],
+	[{ reason: "proof_invalid" }, undefined, "unexpected"],
 	[{}, minute - 100, "recovered"],
 	[{ status: 503, occurredAt: minute - 1_000 }, minute - 100, "recovered"],
 	[{ occurredAt: minute - 299_999 }, undefined, "pending"],
@@ -37,7 +42,12 @@ it.each([
 it("designates one connection only and uses its refusal-time window", async () => {
 	const rows = [outcome({ grantId: "test" }), outcome({ grantId: "ordinary", refusalId: "ordinary" }), outcome({ grantId: "test", occurredAt: minute - 800_000, refusalId: "before" })];
 	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => rows, testGrants: TestGrantWindows.parse([{ grantId: "test", from: minute - 700_000, until: minute }]), publish: jest.fn() });
-	expect(await evaluate(minute)).toEqual({ raw: 3, test: 1, expected: 0, recovered: 0, unexpected: 2, unknown: 0, pending: 0 });
+	expect(await evaluate(minute)).toEqual({ raw: 3, test: 1, challenged: 0, expected: 0, recovered: 0, unexpected: 2, unknown: 0, pending: 0 });
+});
+
+it("counts a nonce challenge as a protocol step rather than an unattributed refusal, because the token endpoint answers it before it looks the credential up and the client retries with the nonce at once", async () => {
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [outcome({ reason: "nonce_required" })], testGrants: [], publish: jest.fn() });
+	expect(await evaluate(minute)).toEqual({ raw: 1, test: 0, challenged: 1, expected: 0, recovered: 0, unexpected: 0, unknown: 0, pending: 0 });
 });
 
 it("ignores recovery-only records, out-of-window failures and duplicate delivery", async () => {
