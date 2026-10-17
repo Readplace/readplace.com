@@ -111,6 +111,11 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 		return { red: colour.red, green: colour.green, blue: colour.blue };
 	}
 
+	function iconInk(icon: Element, surrounding: string): Rgba {
+		const paint = ["fill", "stroke"].find((name) => (icon.getAttribute(name) ?? "none") !== "none");
+		return parseColour(paint ? getComputedStyle(icon).getPropertyValue(paint) : surrounding);
+	}
+
 	const root = document.querySelector(rootSelector);
 	if (!root) throw new Error(`the page must render "${rootSelector}"`);
 
@@ -152,19 +157,20 @@ export function collectRenderedInk(rootSelector: string): RenderedInk[] {
 			.map((node) => (node.textContent ?? "").trim())
 			.filter(Boolean)
 			.join(" ");
-		const paintsIcon = el.querySelector(":scope > svg") !== null;
+		const icon = el.querySelector(":scope > svg");
 		const marker = getComputedStyle(el, "::before");
 		const paintsShape =
 			marker.content !== "none" &&
 			parseColour(marker.backgroundColor).alpha > TRANSPARENT &&
 			Number.parseFloat(marker.width) > 0;
-		if (!ownText && !paintsIcon && !paintsShape) continue;
+		if (!ownText && !icon && !paintsShape) continue;
 
 		const surface = surfaceUnder(el);
+		const ink = ownText || !icon ? parseColour(style.color) : iconInk(icon, style.color);
 		collected.push({
 			name: nameOf(el),
 			role: ownText ? "text" : "graphic",
-			ink: withoutAlpha(flatten({ over: parseColour(style.color), under: surface })),
+			ink: withoutAlpha(flatten({ over: ink, under: surface })),
 			surface: withoutAlpha(surface),
 			fontSizePx,
 			fontWeight,

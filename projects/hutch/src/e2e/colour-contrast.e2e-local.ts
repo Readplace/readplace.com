@@ -41,6 +41,8 @@ const PROFILE_INITIALS_COLOURS = {
 };
 const AUTH_ROOT = "main.auth-page";
 const READLIST_ROOT = "main.readlist";
+const SAVED_FACT = "span.readlist-article__saved";
+const SAVED_FACT_TOKEN = "--fact-saved";
 const BANNER_AREA_ROOT = ".banner-area";
 const NAV_LIBRARY_ROOT = '[data-test-nav-group="library"]';
 const SETTLE_MS = 45000;
@@ -307,6 +309,23 @@ async function auditAddLinkDialog(page: Page, where: { theme: string; view: stri
 	await expect(page.locator("#add-link:popover-open")).toBeHidden({ timeout: SETTLE_MS });
 }
 
+function isSavedFact(measured: RenderedInk): boolean {
+	return measured.role === "graphic" && measured.name === SAVED_FACT;
+}
+
+async function resolveInk(page: Page, token: string): Promise<RenderedInk["ink"]> {
+	const resolved = await page.evaluate((name) => {
+		const probe = document.body.appendChild(document.createElement("span"));
+		probe.style.setProperty("color", `var(${name})`);
+		const colour = getComputedStyle(probe).color;
+		probe.remove();
+		return colour;
+	}, token);
+	const channels = resolved.match(/-?[\d.]+/g);
+	assert(channels && channels.length >= 3, `cannot read "${resolved}" as an rgb() colour`);
+	return { red: Number(channels[0]), green: Number(channels[1]), blue: Number(channels[2]) };
+}
+
 async function auditReadlistQueue(page: Page, where: { theme: string; view: string }): Promise<void> {
 	await page.waitForSelector("body.page-readlist");
 	await expect(page.locator("[data-test-article]")).toHaveCount(1, { timeout: SETTLE_MS });
@@ -317,6 +336,11 @@ async function auditReadlistQueue(page: Page, where: { theme: string; view: stri
 	assert.ok(
 		measurements.length > 0,
 		`${where.theme}/${where.view}: the audit measured nothing inside ${READLIST_ROOT}`,
+	);
+	assert.deepEqual(
+		measurements.filter(isSavedFact).map(({ ink }) => ink),
+		[await resolveInk(page, SAVED_FACT_TOKEN)],
+		`${where.theme}/${where.view}: the saved fact's glyph must be measured at ${SAVED_FACT_TOKEN}, the icon's own paint, not the meta row's ink`,
 	);
 	assertContrast(measurements, where);
 
