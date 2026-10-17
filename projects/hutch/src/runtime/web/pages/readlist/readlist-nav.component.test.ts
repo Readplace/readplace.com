@@ -21,6 +21,8 @@ function renderNav(overrides: Partial<Parameters<typeof buildReadlistNav>[0]> = 
 		readlists: READLISTS,
 		activeSlug: DEFAULT_READLIST.slug,
 		newReadlistAction: "/queue/queues",
+		limitAlertHref: "/queue?queue_error=limit",
+		canEdit: true,
 		canCreate: true,
 		...overrides,
 	};
@@ -61,6 +63,19 @@ function readlistsWithMenu(doc: Document): (string | null)[] {
 	return Array.from(doc.querySelectorAll("[data-test-readlist-menu]"), (el) =>
 		el.getAttribute("data-test-readlist-menu"),
 	);
+}
+
+function createRowActions(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll(".readlist-nav__new-row [data-test-action]"), (el) =>
+		el.getAttribute("data-test-action"),
+	);
+}
+
+function hiddenFields(form: Element): [string, string][] {
+	return Array.from(form.querySelectorAll('input[type="hidden"]'), (field) => [
+		field.getAttribute("name") ?? "",
+		field.getAttribute("value") ?? "",
+	]);
 }
 
 describe("buildReadlistNav", () => {
@@ -270,11 +285,61 @@ describe("buildReadlistNav", () => {
 		expect(label.textContent).toBe("Readlist name");
 	});
 
-	it("withholds the create form and every readlist menu from a reader who cannot write", () => {
-		const doc = renderNav({ activeSlug: WORK.slug, canCreate: false });
+	it("offers the naming dialog and its fallback from the create row below the cap", () => {
+		const doc = renderNav({ activeSlug: WORK.slug });
 
-		expect(doc.querySelectorAll('[data-test-action="new-readlist"]')).toHaveLength(0);
+		expect(createRowActions(doc)).toEqual(["new-readlist", "readlist-create-fallback"]);
+		expect(readlistsWithMenu(doc)).toEqual(["work"]);
+	});
+
+	it("withholds the create row and every readlist menu from a reader who cannot write", () => {
+		const doc = renderNav({ activeSlug: WORK.slug, canEdit: false, canCreate: false });
+
+		expect(createRowActions(doc)).toEqual([]);
 		expect(readlistsWithMenu(doc)).toEqual([]);
 		expect(doc.querySelectorAll("[data-test-readlist]")).toHaveLength(2);
+	});
+
+	it("sends the create row to the cap alert without asking for a name once the reader is at the cap", () => {
+		const doc = renderNav({
+			activeSlug: WORK.slug,
+			limitAlertHref: "/queue?queue=work&q=focus&queue_error=limit",
+			canCreate: false,
+		});
+
+		expect(createRowActions(doc)).toEqual(["readlist-limit"]);
+		const button = doc.querySelector('[data-test-action="readlist-limit"]');
+		assert(button, "the capped rail must keep its create row");
+		expect(button.getAttribute("type")).toBe("submit");
+		expect(button.getAttribute("class")).toBe("readlist-row__main readlist-nav__new");
+		expect(button.textContent).toBe("Create a readlist");
+		expect(iconPathD(button)).toBe(firstPathD(iconSvg("plus")));
+		expect(button.closest("[data-test-readlist-switcher]")?.tagName).toBe("DETAILS");
+		const form = button.closest("form");
+		assert(form, "the capped create row must submit a form");
+		expect(form.getAttribute("data-test-form")).toBe("readlist-limit");
+		expect(form.getAttribute("method")).toBe("GET");
+		expect(form.getAttribute("action")).toBe("/queue");
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:none scroll:html:top");
+		expect(form.hasAttribute("hx-boost")).toBe(false);
+		expect(hiddenFields(form)).toEqual([
+			["queue", "work"],
+			["q", "focus"],
+			["queue_error", "limit"],
+			["utm_source", "queue-nav"],
+			["utm_medium", "internal"],
+			["utm_content", "readlist-limit"],
+		]);
+	});
+
+	it("keeps rename and delete on every owned readlist at the cap", () => {
+		const doc = renderNav({ activeSlug: WORK.slug, canCreate: false });
+
+		expect(readlistsWithMenu(doc)).toEqual(["work"]);
+		const menu = doc.querySelector('[data-test-readlist-menu="work"]');
+		assert(menu, "the owned readlist must keep its menu at the cap");
+		expect(
+			Array.from(menu.querySelectorAll("[data-test-action]"), (el) => el.getAttribute("data-test-action")),
+		).toEqual(["readlist-menu", "readlist-rename", "readlist-rename-fallback", "readlist-delete", "readlist-delete-fallback"]);
 	});
 });

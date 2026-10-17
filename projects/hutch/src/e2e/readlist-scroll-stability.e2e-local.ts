@@ -20,6 +20,7 @@ const VIEWPORTS = [
 ];
 const RAIL_MIN_WIDTH = 1024;
 const CREATE_SAVE = '[data-test-action="readlist-create-save"]';
+const LIMIT_CONTROL = '[data-test-action="readlist-limit"]';
 const CREATE_ERROR = "[data-test-readlist-create-error]";
 const ALERT_TITLE = '[data-test-alert="readlist"] [data-test-alert-title]';
 const READER_CREATE = '[data-test-confirm-popover="readlist-create"]';
@@ -293,19 +294,18 @@ for (const viewport of VIEWPORTS) {
 		});
 
 		test("the readlist cap lands at the top like a page load", async ({ page }, testInfo) => {
-			const ids = await openToReadListing(page, `${testInfo.workerIndex}-${Date.now()}`);
+			await openToReadListing(page, `${testInfo.workerIndex}-${Date.now()}`);
 			for (let made = 1; made <= READLIST_MAX_PER_USER; made++) {
 				const created = await page.request.post(`${BASE_URL}/queue/queues`, {
 					form: { label: `Readlist ${made}` },
 				});
 				assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
 			}
-			await openCreateDialog(page, viewport, "One Too Many");
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-readlist");
+			if (viewport.width < RAIL_MIN_WIDTH) await openReadlistSwitcher(page);
 
-			await pressFromMidPage(page, {
-				scrollTarget: `[data-test-article="${ids[Math.floor(ids.length / 2)]}"]`,
-				control: CREATE_SAVE,
-			});
+			await pressFromMidPage(page, { scrollTarget: LIMIT_CONTROL, control: LIMIT_CONTROL });
 
 			await expect(page.locator(ALERT_TITLE)).toHaveText("Readlist limit reached");
 			await expect(page.locator("html")).toHaveAttribute("data-test-scroll-after-swap", "0");

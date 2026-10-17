@@ -30,6 +30,7 @@ function page(overrides: {
 	purposeError?: string;
 	inboxes?: readonly InboxAddressEntry[];
 	inboxAlert?: AlertContent;
+	canEdit?: boolean;
 	canCreate?: boolean;
 	preferencesEnabled?: boolean;
 	accessIsReadOnly?: boolean;
@@ -42,6 +43,8 @@ function page(overrides: {
 			readlists: [DEFAULT_READLIST, { slug: WORK, label: "Work Reading" }, { slug: LATER, label: "Later" }],
 			activeReadlist: { slug: WORK, label: "Work Reading" },
 			newReadlistAction: "/queue/queues",
+			limitAlertHref: `/queue?queue=${WORK}&queue_error=limit`,
+			canEdit: overrides.canEdit ?? true,
 			canCreate: overrides.canCreate ?? true,
 			nonEmptyReadlists: [],
 		},
@@ -204,9 +207,25 @@ describe("ReadlistPreferencesPage", () => {
 	});
 
 	it("drops the delete confirmations when the reader cannot change their readlists", () => {
-		const doc = documentOf(page({ canCreate: false }).content.html);
+		const doc = documentOf(page({ canEdit: false, canCreate: false }).content.html);
 
 		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]').length).toBe(0);
+	});
+
+	it("keeps the delete confirmations and sends the create row to this readlist's cap alert at the cap", () => {
+		const doc = documentOf(page({ canCreate: false }).content.html);
+
+		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]').length).toBe(2);
+		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-create"]').length).toBe(0);
+		const form = doc.querySelector('[data-test-form="readlist-limit"]');
+		assert(form, "the capped rail must offer the limit form");
+		const landing = new URL(form.getAttribute("action") ?? "", "https://internal.invalid");
+		for (const field of form.querySelectorAll('input[type="hidden"]')) {
+			landing.searchParams.append(field.getAttribute("name") ?? "", field.getAttribute("value") ?? "");
+		}
+		expect(`${landing.pathname}${landing.search}`).toBe(
+			`/queue?queue=${WORK}&queue_error=limit&utm_source=queue-nav&utm_medium=internal&utm_content=readlist-limit`,
+		);
 	});
 
 	it("opens the wizard on the panel when asked, leaving the read-only view behind it", () => {

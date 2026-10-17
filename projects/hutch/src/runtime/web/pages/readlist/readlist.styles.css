@@ -208,7 +208,8 @@
   padding: 12px;
 }
 
-.readlist-nav__create-fallback {
+.readlist-nav__create-fallback,
+.readlist-nav__limit-form {
   flex: 1 1 auto;
   min-width: 0;
 }

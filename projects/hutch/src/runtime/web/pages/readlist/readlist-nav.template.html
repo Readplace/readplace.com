@@ -42,5 +42,15 @@
       </details>
     </div>
     {{/if}}
+    {{#if limitForm}}
+    <div class="readlist-row readlist-nav__new-row">
+      <form class="readlist-nav__limit-form" method="GET" action="{{limitForm.action}}" hx-swap="outerHTML show:none scroll:html:top" data-test-form="readlist-limit">
+        {{#each limitForm.fields}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        <button class="readlist-row__main readlist-nav__new" type="submit" data-test-action="readlist-limit">{{icon "plus"}}<span class="readlist-row__label">Create a readlist</span></button>
+      </form>
+    </div>
+    {{/if}}
   </details>
 </nav>

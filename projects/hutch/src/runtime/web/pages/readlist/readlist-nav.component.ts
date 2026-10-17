@@ -29,6 +29,13 @@ const TEMPLATE = readFileSync(join(__dirname, "readlist-nav.template.html"), "ut
 
 const NAV_SOURCE = "queue-nav";
 
+const PARSE_ORIGIN = "https://internal.invalid";
+
+interface ReadlistLimitForm {
+	action: string;
+	fields: readonly { name: string; value: string }[];
+}
+
 interface ReadlistNavMenu {
 	isDeletable: boolean;
 	deleteAction?: string;
@@ -61,6 +68,7 @@ export interface ReadlistNavDisplayModel {
 	namePlaceholder: string;
 	nameMaxLength: number;
 	canCreate: boolean;
+	limitForm: ReadlistLimitForm | undefined;
 }
 
 function navMenu(input: {
@@ -86,10 +94,24 @@ function navMenu(input: {
 	};
 }
 
+function limitFormOf(input: { canEdit: boolean; canCreate: boolean; limitAlertHref: string }): ReadlistLimitForm | undefined {
+	if (!input.canEdit || input.canCreate) return undefined;
+	const tracked = new URL(
+		withInternalTracking(input.limitAlertHref, { source: NAV_SOURCE, content: "readlist-limit" }),
+		PARSE_ORIGIN,
+	);
+	return {
+		action: tracked.pathname,
+		fields: Array.from(tracked.searchParams, ([name, value]) => ({ name, value })),
+	};
+}
+
 export function buildReadlistNav(input: {
 	readlists: readonly Readlist[];
 	activeSlug: ReadlistSlug;
 	newReadlistAction: string;
+	limitAlertHref: string;
+	canEdit: boolean;
 	canCreate: boolean;
 }): ReadlistNavDisplayModel {
 	const items: ReadlistNavItem[] = input.readlists.map((readlist) => {
@@ -106,7 +128,7 @@ export function buildReadlistNav(input: {
 			itemClass: `readlist-row readlist-nav__item${isActive ? " readlist-row--selected" : ""}`,
 			linkClass: "readlist-row__main readlist-nav__link",
 			isActive,
-			...navMenu({ slug: readlist.slug, viewedSlug: input.activeSlug, canEdit: input.canCreate }),
+			...navMenu({ slug: readlist.slug, viewedSlug: input.activeSlug, canEdit: input.canEdit }),
 		};
 	});
 	const current = items.find((item) => item.isActive);
@@ -121,6 +143,7 @@ export function buildReadlistNav(input: {
 		namePlaceholder: READLIST_NAME_PLACEHOLDER,
 		nameMaxLength: READLIST_LABEL_MAX_LENGTH,
 		canCreate: input.canCreate,
+		limitForm: limitFormOf(input),
 	};
 }
 

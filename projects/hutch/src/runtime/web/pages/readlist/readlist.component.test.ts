@@ -21,6 +21,8 @@ const RAIL: ReadlistRailViewModel = {
 	readlists: [DEFAULT_READLIST, WORK],
 	activeReadlist: DEFAULT_READLIST,
 	newReadlistAction: READLIST_CREATE_PATH,
+	limitAlertHref: "/queue?queue_error=limit",
+	canEdit: true,
 	canCreate: true,
 	nonEmptyReadlists: [],
 };
@@ -146,6 +148,15 @@ function pageDoc(
 	optOverrides: Partial<ReadlistPageOptions> = {},
 ): Document {
 	return new JSDOM(buildPage(vmOverrides, optOverrides).content.html).window.document;
+}
+
+function readlistPopovers(doc: Document): (string | null)[] {
+	return Array.from(
+		doc.querySelectorAll(
+			'[data-test-confirm-popover="readlist-rename"], [data-test-confirm-popover="readlist-create"], [data-test-confirm-popover="readlist-delete"]',
+		),
+		(popover) => popover.getAttribute("data-test-confirm-popover"),
+	);
 }
 
 function saveInput(doc: Document): HTMLInputElement {
@@ -856,11 +867,18 @@ describe("ReadlistPage", () => {
 	});
 
 	it("withholds every rename, create and readlist-delete popover from a reader who cannot write", () => {
+		const doc = pageDoc({}, { rail: { ...RAIL, canEdit: false, canCreate: false } });
+
+		expect(readlistPopovers(doc)).toEqual([]);
+	});
+
+	it("keeps the rename and delete popovers but not the create dialog once the reader is at the cap", () => {
 		const doc = pageDoc({}, { rail: { ...RAIL, canCreate: false } });
 
-		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-rename"]')).toHaveLength(0);
-		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-create"]')).toHaveLength(0);
-		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-delete"]')).toHaveLength(0);
+		expect(readlistPopovers(doc)).toEqual(["readlist-rename", "readlist-delete"]);
+		const limit = doc.querySelector('[data-test-form="readlist-limit"]');
+		assert(limit, "the capped rail must offer the limit form");
+		expect(limit.closest("main")?.tagName).toBe("MAIN");
 	});
 
 	it("points the status toast's Undo action back at the article", () => {

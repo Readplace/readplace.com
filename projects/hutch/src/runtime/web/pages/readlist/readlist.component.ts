@@ -305,7 +305,7 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 	renames: string;
 	create: string;
 } {
-	if (!rail.canCreate) return { deleteConfirms: "", renames: "", create: "" };
+	if (!rail.canEdit) return { deleteConfirms: "", renames: "", create: "" };
 	const owned = rail.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST.slug);
 	const returnQuery = readlistReturnQuery({ readlist: rail.activeReadlist.slug });
 	return {
@@ -324,12 +324,14 @@ export function readlistPanels(rail: ReadlistRailViewModel): {
 		renames: owned
 			.map((readlist) => renderReadlistRename({ slug: readlist.slug, label: readlist.label }))
 			.join("\n"),
-		create: renderReadlistCreate({
-			popoverId: READLIST_CREATE_POPOVER_ID,
-			key: "readlist-create",
-			action: readlistCreateAction(rail.newReadlistAction),
-			hiddenFields: [],
-		}),
+		create: rail.canCreate
+			? renderReadlistCreate({
+					popoverId: READLIST_CREATE_POPOVER_ID,
+					key: "readlist-create",
+					action: readlistCreateAction(rail.newReadlistAction),
+					hiddenFields: [],
+				})
+			: "",
 	};
 }
 
@@ -446,6 +448,8 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				readlists: options.rail.readlists,
 				activeSlug: options.rail.activeReadlist.slug,
 				newReadlistAction: options.rail.newReadlistAction,
+				limitAlertHref: options.rail.limitAlertHref,
+				canEdit: options.rail.canEdit,
 				canCreate: options.rail.canCreate,
 			}),
 		),

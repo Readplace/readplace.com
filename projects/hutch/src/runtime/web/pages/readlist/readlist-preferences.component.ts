@@ -245,6 +245,8 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				readlists: vm.rail.readlists,
 				activeSlug: vm.rail.activeReadlist.slug,
 				newReadlistAction: vm.rail.newReadlistAction,
+				limitAlertHref: vm.rail.limitAlertHref,
+				canEdit: vm.rail.canEdit,
 				canCreate: vm.rail.canCreate,
 			}),
 		),

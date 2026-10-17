@@ -37,6 +37,12 @@ function openedSlug(location: string): string {
 	return slug;
 }
 
+function createRowActions(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll(".readlist-nav__new-row [data-test-action]"), (el) =>
+		el.getAttribute("data-test-action"),
+	);
+}
+
 function renameable(doc: Document): (string | null)[] {
 	return Array.from(
 		doc.querySelectorAll('[data-test-readlist-menu] [data-test-action="readlist-rename"]'),
@@ -389,6 +395,52 @@ describe("POST /queue/queues", () => {
 		expect(flash.textContent).toContain(
 			`You can create up to ${READLIST_MAX_PER_USER} readlists.`,
 		);
+	});
+
+	it("sends the rail's create row to the cap alert without asking for a name once the reader is at the cap", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slugs: string[] = [];
+		for (let index = 1; index <= READLIST_MAX_PER_USER; index += 1) {
+			slugs.push(await createReadlistAndOpen(agent, `Readlist ${index}`));
+		}
+
+		const doc = parse((await agent.get(`/queue?queue=${slugs[0]}&q=focus`)).text);
+
+		expect(createRowActions(doc)).toEqual(["readlist-limit"]);
+		expect(renameable(doc)).toEqual(slugs);
+		expect(deleteTriggerTargets(doc)).toHaveLength(READLIST_MAX_PER_USER);
+		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-create"]')).toHaveLength(0);
+		const form = doc.querySelector('[data-test-form="readlist-limit"]');
+		assert(form, "the capped rail must offer the limit form");
+		expect(form.getAttribute("method")).toBe("GET");
+		const landing = new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		for (const field of form.querySelectorAll('input[type="hidden"]')) {
+			landing.searchParams.append(field.getAttribute("name") ?? "", field.getAttribute("value") ?? "");
+		}
+		expect(`${landing.pathname}${landing.search}`).toBe(
+			`/queue?queue=${slugs[0]}&q=focus&queue_error=limit&utm_source=queue-nav&utm_medium=internal&utm_content=readlist-limit`,
+		);
+
+		const landed = parse((await agent.get(`${landing.pathname}${landing.search}`)).text);
+		const flash = landed.querySelector('[data-test-alert="readlist"]');
+		assert(flash, "following the create row must explain the cap on the page");
+		expect(flash.classList.contains("alert--visible")).toBe(true);
+		expect(flash.querySelector("[data-test-alert-title]")?.textContent).toBe("Readlist limit reached");
+		expect(createRowActions(landed)).toEqual(["readlist-limit"]);
+	});
+
+	it("keeps the naming dialog on the rail's create row one readlist below the cap", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		for (let index = 1; index < READLIST_MAX_PER_USER; index += 1) {
+			await createReadlist(agent, `Readlist ${index}`);
+		}
+
+		const doc = parse((await agent.get("/queue")).text);
+
+		expect(createRowActions(doc)).toEqual(["new-readlist", "readlist-create-fallback"]);
+		expect(doc.querySelectorAll('[data-test-confirm-popover="readlist-create"]')).toHaveLength(1);
 	});
 
 	it("sends the dialog to the limit alert at the top of the page when the reader is at the cap", async () => {
