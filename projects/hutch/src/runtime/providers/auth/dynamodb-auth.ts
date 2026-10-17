@@ -36,6 +36,7 @@ import type {
 	DestroyUserSessions,
 	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
+	FindSessionOAuthGrant,
 	FindSessionReadlistFilter,
 	FindUserById,
 	FindUserByEmail,
@@ -123,6 +124,7 @@ export function initDynamoDbAuth(deps: {
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
+	findSessionOAuthGrant: FindSessionOAuthGrant;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
@@ -342,27 +344,27 @@ export function initDynamoDbAuth(deps: {
 		return { ok: true, userId: row.userId, emailVerified: row.emailVerified === true };
 	};
 
-	const createSession: CreateSession = async ({ userId, emailVerified }) => {
+	const createSession: CreateSession = async ({ userId, emailVerified, oauthGrantId }) => {
 		const sessionId = randomBytes(32).toString("hex");
 		const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
 
 		await sessions.put({
-			Item: { sessionId, userId, emailVerified, expiresAt },
+			Item: { sessionId, userId, emailVerified, expiresAt, ...(oauthGrantId === undefined ? {} : { oauthGrantId }) },
 		});
 		deps.observeSession({ event: "session_created", sessionId, userId, expiresAt });
 
 		return sessionId;
 	};
 
-	const renewSession: RenewSession = async ({ sessionId }) => {
+	const renewSession: RenewSession = async ({ sessionId, oauthGrantId }) => {
 		const now = Math.floor(Date.now() / 1000);
 		try {
 			const previous = await sessions.update({
 				Key: { sessionId },
-				UpdateExpression: "SET expiresAt = :expiresAt",
+				UpdateExpression: oauthGrantId === undefined ? "SET expiresAt = :expiresAt" : "SET expiresAt = :expiresAt, oauthGrantId = :grant",
 				ReturnValues: "ALL_OLD",
 				ConditionExpression: "attribute_exists(sessionId) AND expiresAt >= :now",
-				ExpressionAttributeValues: { ":expiresAt": now + SESSION_TTL_SECONDS, ":now": now },
+				ExpressionAttributeValues: { ":expiresAt": now + SESSION_TTL_SECONDS, ":now": now, ...(oauthGrantId === undefined ? {} : { ":grant": oauthGrantId }) },
 			});
 			deps.observeSession({ event: "session_renewed", sessionId, userId: previous.Attributes?.userId, previousExpiresAt: previous.Attributes?.expiresAt, expiresAt: now + SESSION_TTL_SECONDS });
 			return "renewed";
@@ -450,6 +452,11 @@ export function initDynamoDbAuth(deps: {
 	const findSessionReadlistFilter: FindSessionReadlistFilter = async (sessionId) => {
 		const row = await sessions.get({ sessionId });
 		return row?.readlistFilter;
+	};
+
+	const findSessionOAuthGrant: FindSessionOAuthGrant = async (sessionId) => {
+		const row = await sessions.get({ sessionId });
+		return row?.oauthGrantId;
 	};
 
 	const userExistsByEmail: UserExistsByEmail = async (email) => {
@@ -638,6 +645,7 @@ export function initDynamoDbAuth(deps: {
 		markSessionEmailVerified,
 		setSessionReadlistFilter,
 		findSessionReadlistFilter,
+		findSessionOAuthGrant,
 		userExistsByEmail,
 		updatePassword,
 		findEmailByUserId,

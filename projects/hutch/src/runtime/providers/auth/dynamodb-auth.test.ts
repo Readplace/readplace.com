@@ -4,6 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
 } from "@packages/hutch-storage-client";
+import { OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";
 
@@ -824,6 +825,28 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("createSession", () => {
+		it("remembers the grant that minted the session when the bearer carries one", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			const sessionId = await initAuth(client).createSession({ userId: USER, emailVerified: true, oauthGrantId: OAuthGrantIdSchema.parse("grant-1") });
+
+			const put = commands.find((command) => command.name === "PutCommand");
+			assert(put, "createSession issues a PutCommand");
+			expect(put.input.Item).toStrictEqual({ sessionId, userId: "abc123", emailVerified: true, expiresAt: expect.any(Number), oauthGrantId: "grant-1" });
+		});
+
+		it("writes no grant attribute for a session minted by a login", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			const sessionId = await initAuth(client).createSession({ userId: USER, emailVerified: true });
+
+			const put = commands.find((command) => command.name === "PutCommand");
+			assert(put, "createSession issues a PutCommand");
+			expect(put.input.Item).toStrictEqual({ sessionId, userId: "abc123", emailVerified: true, expiresAt: expect.any(Number) });
+		});
+	});
+
 	describe("renewSession", () => {
 		it("attributes renewal and deletion to the previous session row", async () => {
 			const observations: unknown[] = [];
@@ -859,6 +882,23 @@ describe("initDynamoDbAuth", () => {
 			});
 			const values = update.input.ExpressionAttributeValues as { ":expiresAt": number; ":now": number };
 			expect(values[":expiresAt"] - values[":now"]).toBe(180 * 24 * 60 * 60);
+		});
+
+		it("rebinds the session to the grant that renewed it when the bearer carries one", async () => {
+			const { client, commands } = createWriteFakeClient();
+			const auth = initAuth(client);
+
+			const outcome = await auth.renewSession({ sessionId: "sid", oauthGrantId: OAuthGrantIdSchema.parse("grant-1") });
+
+			expect(outcome).toBe("renewed");
+			const update = commands.find((command) => command.name === "UpdateCommand");
+			assert(update, "renewSession issues an UpdateCommand");
+			expect(update.input).toMatchObject({
+				Key: { sessionId: "sid" },
+				UpdateExpression: "SET expiresAt = :expiresAt, oauthGrantId = :grant",
+				ConditionExpression: "attribute_exists(sessionId) AND expiresAt >= :now",
+				ExpressionAttributeValues: { ":grant": "grant-1" },
+			});
 		});
 
 		it("reports session-gone when the row is missing or already expired", async () => {
@@ -929,14 +969,14 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
-	describe("findSessionReadlistFilter", () => {
-		function sessionRowClient(item: Record<string, unknown> | undefined): DynamoDBDocumentClient {
-			const client = {
-				send: (async () => ({ Item: item })) as DynamoDBDocumentClient["send"],
-			};
-			return client as typeof client & DynamoDBDocumentClient;
-		}
+	function sessionRowClient(item: Record<string, unknown> | undefined): DynamoDBDocumentClient {
+		const client = {
+			send: (async () => ({ Item: item })) as DynamoDBDocumentClient["send"],
+		};
+		return client as typeof client & DynamoDBDocumentClient;
+	}
 
+	describe("findSessionReadlistFilter", () => {
 		it("reads the chips stored on the session row", async () => {
 			const auth = initAuth(
 				sessionRowClient({
@@ -960,6 +1000,26 @@ describe("initDynamoDbAuth", () => {
 			const auth = initAuth(sessionRowClient(undefined));
 
 			expect(await auth.findSessionReadlistFilter("sid")).toBe(undefined);
+		});
+	});
+
+	describe("findSessionOAuthGrant", () => {
+		it("reads the grant the session row remembers", async () => {
+			const auth = initAuth(sessionRowClient({ sessionId: "sid", userId: "abc123", expiresAt: 1, oauthGrantId: "grant-1" }));
+
+			expect(await auth.findSessionOAuthGrant("sid")).toBe("grant-1");
+		});
+
+		it("reads no grant from a session row that holds none", async () => {
+			const auth = initAuth(sessionRowClient({ sessionId: "sid", userId: "abc123", expiresAt: 1 }));
+
+			expect(await auth.findSessionOAuthGrant("sid")).toBe(undefined);
+		});
+
+		it("reads no grant for a missing session", async () => {
+			const auth = initAuth(sessionRowClient(undefined));
+
+			expect(await auth.findSessionOAuthGrant("sid")).toBe(undefined);
 		});
 	});
 });

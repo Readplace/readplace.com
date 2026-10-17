@@ -31,6 +31,12 @@ function sessionCookie(response: request.Response): string | undefined {
 	return cookies.find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
 }
 
+function sessionIdOf(response: request.Response): string {
+	const cookie = sessionCookie(response);
+	assert(cookie, "expected the hutch_sid session cookie");
+	return cookie.slice(`${SESSION_COOKIE_NAME}=`.length).split(";")[0];
+}
+
 /** A loadedAt value safely older than the bot-defense minimum submit window
  * (2.5s), so the form submission passes the timing gate. */
 function freshLoadedAt(): string {
@@ -2239,6 +2245,77 @@ describe("Auth routes", () => {
 
 			const queueResponse = await agent.get("/queue").set("Accept", "text/html");
 			expect(queueResponse.status).toBe(200);
+		});
+
+		it("binds the minted session to the grant the app's bearer belongs to", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const created = await harness.auth.createUser({ email: "app@example.com", password: "password123" });
+			assert(created.ok, "user must be created");
+			const accessToken = await saveAccessTokenForUser(harness, created.userId);
+			const bearer = await harness.oauthModel.getAccessToken(accessToken);
+			assert(bearer, "the bearer must resolve to its token");
+			expect(typeof bearer.user.grantId).toBe("string");
+
+			const response = await request(harness.server)
+				.post("/auth/session")
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect(response.status).toBe(204);
+			expect(await harness.auth.findSessionOAuthGrant(sessionIdOf(response))).toBe(bearer.user.grantId);
+		});
+
+		it("rebinds the browser's own session to the grant whose bearer renewed it", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const created = await harness.auth.createUser({ email: "renew@example.com", password: "password123" });
+			assert(created.ok, "user must be created");
+			const agent = request.agent(harness.server);
+			const login = await agent.post("/login").type("form").send({ email: "renew@example.com", password: "password123" });
+			const browserSessionId = sessionIdOf(login);
+			expect(await harness.auth.findSessionOAuthGrant(browserSessionId)).toBe(undefined);
+			const accessToken = await saveAccessTokenForUser(harness, created.userId);
+			const bearer = await harness.oauthModel.getAccessToken(accessToken);
+			assert(bearer, "the bearer must resolve to its token");
+
+			const response = await agent
+				.post("/auth/session")
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect(response.status).toBe(204);
+			expect(sessionIdOf(response)).toBe(browserSessionId);
+			expect(await harness.auth.findSessionOAuthGrant(browserSessionId)).toBe(bearer.user.grantId);
+		});
+
+		it("binds nothing for a dynamically registered client", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const created = await harness.auth.createUser({ email: "assistant@example.com", password: "password123" });
+			assert(created.ok, "user must be created");
+			const registration = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["https://claude.ai/api/mcp/auth_callback"], client_name: "Claude" });
+			expect(registration.status).toBe(201);
+			const assistant = await harness.oauthModel.getClient(registration.body.client_id, "");
+			assert(assistant, "the registered client must resolve");
+			const saved = await harness.oauthModel.saveToken(
+				{
+					accessToken: "assistant-access-token",
+					accessTokenExpiresAt: new Date(Date.now() + 3600000),
+					refreshToken: "assistant-refresh-token",
+					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+					client: assistant,
+					user: { id: created.userId },
+				},
+				assistant,
+				{ id: created.userId },
+			);
+			assert(saved, "the assistant's token must be saved");
+			expect(typeof saved.user.grantId).toBe("string");
+
+			const response = await request(harness.server)
+				.post("/auth/session")
+				.set("Authorization", "Bearer assistant-access-token");
+
+			expect(response.status).toBe(204);
+			expect(await harness.auth.findSessionOAuthGrant(sessionIdOf(response))).toBe(undefined);
 		});
 
 		it("answers the extension's credentialed CORS preflight", async () => {

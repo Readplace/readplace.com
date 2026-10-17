@@ -155,6 +155,16 @@ it("concurrently adopts legacy credentials into one stable connection", async ()
 	expect(typeof a.user.grantId).toBe("string");
 });
 
+it("getAccessToken returns the grant the token belongs to", async () => {
+	const { model } = setup();
+	const saved = await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	assert(saved);
+	expect(typeof saved.user.grantId).toBe("string");
+	const found = await model.getAccessToken("a");
+	assert(found);
+	expect(found.user.grantId).toBe(saved.user.grantId);
+});
+
 it.each(["logout", "logout-all", "account-deletion"] as const)("records completed %s revocation", async cause => {
 	const { model, rows } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);

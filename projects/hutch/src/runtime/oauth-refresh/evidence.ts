@@ -1,8 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { z } from "zod";
 
-export const OAuthGrantId = z.string().brand<"OAuthGrantId">();
+export const OAuthGrantId = OAuthGrantIdSchema;
 export type OAuthGrantId = z.infer<typeof OAuthGrantId>;
 export const CredentialFingerprint = z.string().brand<"CredentialFingerprint">();
 export type CredentialFingerprint = z.infer<typeof CredentialFingerprint>;

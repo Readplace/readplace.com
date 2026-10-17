@@ -11,3 +11,6 @@ export type RefreshToken = z.infer<typeof RefreshTokenSchema>;
 
 export const AuthorizationCodeSchema = z.string().brand<"AuthorizationCode">();
 export type AuthorizationCode = z.infer<typeof AuthorizationCodeSchema>;
+
+export const OAuthGrantIdSchema = z.string().brand<"OAuthGrantId">();
+export type OAuthGrantId = z.infer<typeof OAuthGrantIdSchema>;

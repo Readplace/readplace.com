@@ -1,5 +1,6 @@
 import { dynamoField } from "@packages/hutch-storage-client";
 import { ReadlistFilterSchema } from "@packages/domain/article";
+import { OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
 import { z } from "zod";
 
@@ -11,13 +12,13 @@ export const SESSION_TTL_SECONDS = 180 * 24 * 60 * 60;
 
 /** The shape of a row in hutch's sessions table — the single contract shared by
  * hutch (which writes sessions on login) and every frontend that reads one to
- * resolve a request's login state. All-required: this is an internal,
- * single-repo contract, not an evolving public wire format. `emailVerified` is a
- * `dynamoField` because DynamoDB stores a missing boolean as absent, not false. */
+ * resolve a request's login state. `emailVerified` is a `dynamoField` because
+ * DynamoDB stores a missing boolean as absent, not false. */
 export const SessionRow = z.object({
 	sessionId: z.string(),
 	userId: UserIdSchema,
 	expiresAt: z.number(),
 	emailVerified: dynamoField(z.boolean()),
 	readlistFilter: dynamoField(ReadlistFilterSchema),
+	oauthGrantId: dynamoField(OAuthGrantIdSchema),
 });

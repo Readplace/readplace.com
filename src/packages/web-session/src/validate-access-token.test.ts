@@ -21,6 +21,28 @@ describe("createValidateAccessToken", () => {
 			userId: expectedUserId,
 			emailVerified: true,
 			oauthClientId: "hutch-chrome-extension",
+			oauthGrantId: undefined,
+		});
+	});
+
+	it("returns the grant the token was minted under", async () => {
+		const expectedUserId = "user-42" as UserId;
+		const model = {
+			getAccessToken: async () => ({
+				accessToken: "valid-token",
+				client: { id: "ios-app", grants: [] },
+				user: { id: expectedUserId, emailVerified: true, grantId: "grant-7" },
+			}),
+		} as unknown as OAuthModel;
+
+		const validate = createValidateAccessToken(model);
+		const result = await validate("valid-token" as AccessToken);
+
+		expect(result).toEqual({
+			userId: expectedUserId,
+			emailVerified: true,
+			oauthClientId: "ios-app",
+			oauthGrantId: "grant-7",
 		});
 	});
 
@@ -41,6 +63,7 @@ describe("createValidateAccessToken", () => {
 			userId: expectedUserId,
 			emailVerified: false,
 			oauthClientId: "ios-app",
+			oauthGrantId: undefined,
 		});
 	});
 

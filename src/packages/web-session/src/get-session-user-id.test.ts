@@ -41,6 +41,18 @@ describe("initGetSessionUserId", () => {
 		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: true, expiresAt: FUTURE });
 	});
 
+	it("resolves the same login from a row that remembers the grant that minted it", async () => {
+		const getSessionUserId = initWith({
+			sessionId: "sid",
+			userId: "user-1",
+			expiresAt: FUTURE,
+			emailVerified: true,
+			oauthGrantId: "grant-1",
+		});
+
+		expect(await getSessionUserId("sid")).toEqual({ userId: "user-1", emailVerified: true, expiresAt: FUTURE });
+	});
+
 	it("treats a missing emailVerified attribute as not verified", async () => {
 		const getSessionUserId = initWith({
 			sessionId: "sid",

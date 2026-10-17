@@ -15,7 +15,7 @@ import type {
 } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
-import { AccessTokenSchema } from "@packages/domain/oauth";
+import { AccessTokenSchema, getBuiltInClient } from "@packages/domain/oauth";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	CreateVerificationToken,
@@ -640,10 +640,11 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			res.status(401).set("WWW-Authenticate", 'Bearer error="invalid_token"').end();
 			return;
 		}
+		const binding = getBuiltInClient(validated.oauthClientId) ? validated.oauthGrantId : undefined;
 		if (req.userId === validated.userId) {
 			const presentedSessionId = req.cookies?.[SESSION_COOKIE_NAME];
 			assert(presentedSessionId, "a resolved req.userId must come from a session cookie");
-			const outcome = await deps.renewSession({ sessionId: presentedSessionId });
+			const outcome = await deps.renewSession({ sessionId: presentedSessionId, oauthGrantId: binding });
 			if (outcome === "renewed") {
 				res.cookie(SESSION_COOKIE_NAME, presentedSessionId, sessionCookieOptions);
 				res.status(204).end();
@@ -653,6 +654,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const sessionId = await deps.createSession({
 			userId: validated.userId,
 			emailVerified: validated.emailVerified,
+			oauthGrantId: binding,
 		});
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		res.status(204).end();

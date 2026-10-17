@@ -13,7 +13,7 @@ const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
 const validateAccessToken: ValidateAccessToken = async (token) =>
 	token === "good-token"
-		? { userId, emailVerified: true, oauthClientId: "dyn-registered-mcp-client" }
+		? { userId, emailVerified: true, oauthClientId: "dyn-registered-mcp-client", oauthGrantId: undefined }
 		: null;
 
 function buildObservedApp(): { app: Express; captured: AnalyticsEvent[] } {

@@ -4,12 +4,14 @@ export {
 	AccessTokenSchema,
 	RefreshTokenSchema,
 	AuthorizationCodeSchema,
+	OAuthGrantIdSchema,
 } from "./oauth.schema";
 export type {
 	OAuthClientId,
 	AuthorizationCode,
 	AccessToken,
 	RefreshToken,
+	OAuthGrantId,
 } from "./oauth.schema";
 export { generateToken } from "./generate-token";
 export { initOAuthRefresh } from "./refresh";

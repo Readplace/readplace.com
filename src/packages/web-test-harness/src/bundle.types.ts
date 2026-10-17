@@ -143,6 +143,7 @@ import type {
 	MarkSummaryToggled,
 	MarkSessionEmailVerified,
 	SetSessionReadlistFilter,
+	FindSessionOAuthGrant,
 	FindSessionReadlistFilter,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelledByUserId,
@@ -257,6 +258,7 @@ export interface AuthBundle {
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
+	findSessionOAuthGrant: FindSessionOAuthGrant;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;

@@ -214,7 +214,7 @@ export function initDynamoDbOAuthModel(deps: {
 				refreshTokenExpiresAt: new Date(row.refreshTokenExpiresAt * 1000),
 				scope: row.scope,
 				client: oauthClient,
-				user: { id: row.userId, emailVerified: row.emailVerified },
+				user: { id: row.userId, emailVerified: row.emailVerified, grantId: row.grantId },
 			};
 		},
 

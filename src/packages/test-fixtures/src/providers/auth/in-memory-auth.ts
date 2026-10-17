@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import type { ReadlistFilter } from "@packages/domain/article";
+import type { OAuthGrantId } from "@packages/domain/oauth";
 import type { AppearancePreference, DisplayName, UserId } from "@packages/domain/user";
 import {
 	UserIdSchema,
@@ -20,6 +21,7 @@ import type {
 	DestroyUserSessions,
 	FindAppleRefreshTokenByUserId,
 	FindEmailByUserId,
+	FindSessionOAuthGrant,
 	FindSessionReadlistFilter,
 	FindUserById,
 	FindUserByEmail,
@@ -62,6 +64,7 @@ interface StoredSession {
 	emailVerified: boolean;
 	expiresAt: number;
 	readlistFilter?: ReadlistFilter;
+	oauthGrantId: OAuthGrantId | undefined;
 }
 
 function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | undefined {
@@ -93,6 +96,7 @@ export function initInMemoryAuth(opts: {
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
+	findSessionOAuthGrant: FindSessionOAuthGrant;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
@@ -257,9 +261,9 @@ export function initInMemoryAuth(opts: {
 		return session.expiresAt >= nowSeconds() ? session : undefined;
 	};
 
-	const createSession: CreateSession = async ({ userId, emailVerified }) => {
+	const createSession: CreateSession = async ({ userId, emailVerified, oauthGrantId }) => {
 		const sessionId = randomBytes(32).toString("hex");
-		sessions.set(sessionId, { userId, emailVerified, expiresAt: nowSeconds() + SESSION_TTL_SECONDS });
+		sessions.set(sessionId, { userId, emailVerified, expiresAt: nowSeconds() + SESSION_TTL_SECONDS, oauthGrantId });
 		return sessionId;
 	};
 
@@ -273,10 +277,11 @@ export function initInMemoryAuth(opts: {
 		};
 	};
 
-	const renewSession: RenewSession = async ({ sessionId }) => {
+	const renewSession: RenewSession = async ({ sessionId, oauthGrantId }) => {
 		const session = liveSession(sessionId);
 		if (!session) return "session-gone";
 		session.expiresAt = nowSeconds() + SESSION_TTL_SECONDS;
+		if (oauthGrantId !== undefined) session.oauthGrantId = oauthGrantId;
 		return "renewed";
 	};
 
@@ -338,6 +343,9 @@ export function initInMemoryAuth(opts: {
 
 	const findSessionReadlistFilter: FindSessionReadlistFilter = async (sessionId) =>
 		liveSession(sessionId)?.readlistFilter;
+
+	const findSessionOAuthGrant: FindSessionOAuthGrant = async (sessionId) =>
+		liveSession(sessionId)?.oauthGrantId;
 
 	const userExistsByEmail: UserExistsByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
@@ -461,6 +469,7 @@ export function initInMemoryAuth(opts: {
 		markSessionEmailVerified,
 		setSessionReadlistFilter,
 		findSessionReadlistFilter,
+		findSessionOAuthGrant,
 		userExistsByEmail,
 		updatePassword,
 		findEmailByUserId,

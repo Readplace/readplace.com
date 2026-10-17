@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { OAuthGrantIdSchema } from "@packages/domain/oauth";
 import type { UserId } from "@packages/domain/user";
 import { DisplayNameSchema, UserIdSchema, hashPassword, verifyPassword } from "@packages/domain/user";
 import { SESSION_TTL_SECONDS } from "@packages/web-session";
@@ -365,6 +366,50 @@ describe("initInMemoryAuth", () => {
 			await auth.setSessionReadlistFilter({ sessionId: "gone", filter: { time: ["5-10"], saved: [] } });
 
 			expect(await auth.findSessionReadlistFilter("gone")).toBe(undefined);
+		});
+	});
+
+	describe("session OAuth grant", () => {
+		const userId = UserIdSchema.parse("user-grant");
+		const iosGrant = OAuthGrantIdSchema.parse("grant-ios");
+		const extensionGrant = OAuthGrantIdSchema.parse("grant-extension");
+
+		it("remembers the grant that minted a session", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true, oauthGrantId: iosGrant });
+
+			expect(await auth.findSessionOAuthGrant(sessionId)).toBe(iosGrant);
+		});
+
+		it("starts a session minted by a login without a grant", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true });
+
+			expect(await auth.findSessionOAuthGrant(sessionId)).toBe(undefined);
+		});
+
+		it("rebinds a renewed session to the grant that renewed it", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true, oauthGrantId: iosGrant });
+
+			expect(await auth.renewSession({ sessionId, oauthGrantId: extensionGrant })).toBe("renewed");
+
+			expect(await auth.findSessionOAuthGrant(sessionId)).toBe(extensionGrant);
+		});
+
+		it("keeps the binding when a renewal carries no grant", async () => {
+			const auth = makeAuth();
+			const sessionId = await auth.createSession({ userId, emailVerified: true, oauthGrantId: iosGrant });
+
+			expect(await auth.renewSession({ sessionId })).toBe("renewed");
+
+			expect(await auth.findSessionOAuthGrant(sessionId)).toBe(iosGrant);
+		});
+
+		it("reads no grant for a session that no longer exists", async () => {
+			const auth = makeAuth();
+
+			expect(await auth.findSessionOAuthGrant("gone")).toBe(undefined);
 		});
 	});
 

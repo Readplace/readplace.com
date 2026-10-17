@@ -1,4 +1,5 @@
 import type { ReadlistFilter } from "@packages/domain/article";
+import type { OAuthGrantId } from "@packages/domain/oauth";
 import type { AppearancePreference, AuthenticatedUserId, DisplayName, UserId } from "@packages/domain/user";
 
 export type CreateUserResult =
@@ -46,13 +47,14 @@ export type VerifyCredentials = (credentials: {
 export type CreateSession = (session: {
 	userId: UserId;
 	emailVerified: boolean;
+	oauthGrantId?: OAuthGrantId;
 }) => Promise<string>;
 
 export type GetSessionUserId = (
 	sessionId: string,
 ) => Promise<{ userId: AuthenticatedUserId; emailVerified: boolean; expiresAt: number } | null>;
 
-export type RenewSession = (session: { sessionId: string }) => Promise<"renewed" | "session-gone">;
+export type RenewSession = (session: { sessionId: string; oauthGrantId?: OAuthGrantId }) => Promise<"renewed" | "session-gone">;
 
 export type DestroySession = (sessionId: string) => Promise<void>;
 
@@ -82,6 +84,8 @@ export type MarkSessionEmailVerified = (sessionId: string) => Promise<void>;
 export type SetSessionReadlistFilter = (input: { sessionId: string; filter: ReadlistFilter }) => Promise<void>;
 
 export type FindSessionReadlistFilter = (sessionId: string) => Promise<ReadlistFilter | undefined>;
+
+export type FindSessionOAuthGrant = (sessionId: string) => Promise<OAuthGrantId | undefined>;
 
 export type UserExistsByEmail = (email: string) => Promise<boolean>;
 
