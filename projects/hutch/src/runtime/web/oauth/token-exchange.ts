@@ -28,7 +28,8 @@ export function initTokenExchange(deps: {
 	}
 	function failure(res: Response, error: string, reason: string, nonce?: string) {
 		const context = refreshContext.getStore();
-		if (context) context.reason = reason;
+		const revocation = context?.credential?.revocation;
+		if (context) context.reason = revocation && (reason === "revoked" || reason === "superseded") ? revocation.cause : reason;
 		if (nonce) res.set("DPoP-Nonce", nonce);
 		res.status(error === "temporarily_unavailable" ? 503 : 400).json({ error, readplace_reason: reason });
 	}

@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
+import express from "express";
+import request from "supertest";
+import OAuthServer from "@node-oauth/oauth2-server";
 import { z } from "zod";
 import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { OAuthClientIdSchema, getBuiltInClient } from "@packages/domain/oauth";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { authDiagnosticContext, type AuthDiagnosticContext } from "../../auth-diagnostics/record";
 import { initDynamoDbOAuthModel } from "./dynamodb-oauth-model";
 import { initRefreshProof, refreshContext, type RefreshContext } from "../../oauth-refresh/evidence";
+import { captureOAuthBody } from "../../oauth-refresh/request-body";
+import { initEvaluateRefreshOutcomes, RefreshRefusal } from "../../oauth-refresh/outcomes";
+import { initTokenExchange } from "../../web/oauth/token-exchange";
+import { initObserveTokenOutcome } from "../../web/oauth/token-refusal";
 
 const commandSchema = z.object({
 	Key: z.object({ pk: z.string() }).optional(),
@@ -607,4 +615,53 @@ it("settles a disconnect whose credential disappears after the user-index lookup
 		await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
 		expect(rows.has("token#a")).toBe(false);
 	}
+});
+
+function tokenEndpoint(model: ReturnType<typeof setup>["model"]) {
+	const recorded: unknown[] = [];
+	const now = () => new Date();
+	const app = express().use(createViewerIdentityMiddleware({ edgeSecret: "" }), express.urlencoded({ extended: false, verify: captureOAuthBody }));
+	app.post("/oauth/token",
+		initObserveTokenOutcome({ recordUngatedAnalyticsEvent: event => { recorded.push(event); }, now, salt: "secret" }),
+		initTokenExchange({ model, server: new OAuthServer({ model, requireClientAuthentication: { authorization_code: false, refresh_token: false } }),
+			findClient: async id => getBuiltInClient(id), baseUrl: "https://readplace.com", salt: "secret", now }));
+	return {
+		refresh: (refreshToken: string) => request(app).post("/oauth/token").type("form").send({ grant_type: "refresh_token", client_id: client.id, refresh_token: refreshToken }),
+		lastRefusal: () => z.object({ refresh_refusal: RefreshRefusal }).parse(recorded.at(-1)).refresh_refusal,
+	};
+}
+
+async function evaluateAfterPendingWindow(refusal: RefreshRefusal) {
+	const evaluate = initEvaluateRefreshOutcomes({ readDay: async () => [{ day: "day", order: "order", expiresAt: 0, refusal }], testGrants: [], publish: async () => {} });
+	return evaluate(refusal.occurredAt + 360_000);
+}
+
+it.each([
+	["disconnect", (model: ReturnType<typeof setup>["model"]) => model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })],
+	["logout-all", (model: ReturnType<typeof setup>["model"]) => model.revokeAllUserOAuthTokens(reader, "logout-all")],
+	["logout", (model: ReturnType<typeof setup>["model"]) => model.refresh.revoke({ token: "r", now: Date.now() })],
+	["account-deletion", (model: ReturnType<typeof setup>["model"]) => model.revokeAllUserOAuthTokens(reader, "account-deletion")],
+] as const)("records a refresh refused after a %s revocation under its cause, which the evaluator counts expected, while the app still reads revoked", async (cause, revoke) => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	await revoke(model);
+	const endpoint = tokenEndpoint(model);
+	const response = await endpoint.refresh("r");
+	expect(response.status).toBe(400);
+	expect(response.body).toEqual({ error: "invalid_grant", readplace_reason: "revoked" });
+	const refusal = endpoint.lastRefusal();
+	expect(refusal).toMatchObject({ reason: cause, revocation: { cause } });
+	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 1, unexpected: 0 });
+});
+
+it("records a reused rotated refresh token under rotation, which the evaluator counts unexpected past the pending window", async () => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const endpoint = tokenEndpoint(model);
+	expect((await endpoint.refresh("r")).status).toBe(200);
+	const response = await endpoint.refresh("r");
+	expect(response.body).toEqual({ error: "invalid_grant", readplace_reason: "superseded" });
+	const refusal = endpoint.lastRefusal();
+	expect(refusal).toMatchObject({ reason: "rotation", revocation: { cause: "rotation" } });
+	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 0, unexpected: 1 });
 });

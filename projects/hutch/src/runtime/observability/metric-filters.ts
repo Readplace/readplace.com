@@ -38,10 +38,11 @@ export function analyticsMetricFilterPattern(filter: AnalyticsMetricFilter): str
 }
 
 const READER_DISCONNECT = "disconnect" satisfies RevocationCause;
+const LOGOUT_ALL = "logout-all" satisfies RevocationCause;
 
-export function firstPartyRefreshRefusedExceptDisconnectPattern(): string {
+export function firstPartyRefreshRefusedExceptDisconnectAndLogoutAllPattern(): string {
 	const anyFirstPartyClient = SUPPORTED_CLIENTS.flatMap((client) =>
 		client.auth.kind === "builtIn" ? [`$.client_id = "${client.auth.oauthClientId}"`] : [],
 	).join(" || ");
-	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "${OAUTH_TOKEN_GRANT_TYPES.refreshToken}" && (${anyFirstPartyClient}) && $.refresh_refusal.reason != "${READER_DISCONNECT}" }`;
+	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "${OAUTH_TOKEN_GRANT_TYPES.refreshToken}" && (${anyFirstPartyClient}) && $.refresh_refusal.reason != "${READER_DISCONNECT}" && $.refresh_refusal.reason != "${LOGOUT_ALL}" }`;
 }
