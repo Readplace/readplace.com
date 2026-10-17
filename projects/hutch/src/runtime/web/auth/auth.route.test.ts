@@ -11,7 +11,7 @@ import {
 } from "@packages/test-fixtures";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup";
-import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
+import { createAccessToken, saveAccessTokenForClient, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 import { SIGNUP_MIN_SUBMIT_MS } from "./validate-signup";
@@ -2251,7 +2251,7 @@ describe("Auth routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const created = await harness.auth.createUser({ email: "app@example.com", password: "password123" });
 			assert(created.ok, "user must be created");
-			const accessToken = await saveAccessTokenForUser(harness, created.userId);
+			const accessToken = await saveAccessTokenForClient(harness, { userId: created.userId, clientId: "ios-app" });
 			const bearer = await harness.oauthModel.getAccessToken(accessToken);
 			assert(bearer, "the bearer must resolve to its token");
 			expect(typeof bearer.user.grantId).toBe("string");

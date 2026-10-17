@@ -1,11 +1,11 @@
-import type { AccessToken } from "@packages/domain/oauth";
-import type { UserId } from "@packages/domain/user";
+import { AccessTokenSchema } from "@packages/domain/oauth";
+import { UserIdSchema } from "@packages/domain/user";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import { createValidateAccessToken } from "./validate-access-token";
 
 describe("createValidateAccessToken", () => {
 	it("returns the userId and verified standing when the token is verified", async () => {
-		const expectedUserId = "user-42" as UserId;
+		const expectedUserId = UserIdSchema.parse("user-42");
 		const model = {
 			getAccessToken: async () => ({
 				accessToken: "valid-token",
@@ -15,7 +15,7 @@ describe("createValidateAccessToken", () => {
 		} as unknown as OAuthModel;
 
 		const validate = createValidateAccessToken(model);
-		const result = await validate("valid-token" as AccessToken);
+		const result = await validate(AccessTokenSchema.parse("valid-token"));
 
 		expect(result).toEqual({
 			userId: expectedUserId,
@@ -26,7 +26,7 @@ describe("createValidateAccessToken", () => {
 	});
 
 	it("returns the grant the token was minted under", async () => {
-		const expectedUserId = "user-42" as UserId;
+		const expectedUserId = UserIdSchema.parse("user-42");
 		const model = {
 			getAccessToken: async () => ({
 				accessToken: "valid-token",
@@ -36,7 +36,7 @@ describe("createValidateAccessToken", () => {
 		} as unknown as OAuthModel;
 
 		const validate = createValidateAccessToken(model);
-		const result = await validate("valid-token" as AccessToken);
+		const result = await validate(AccessTokenSchema.parse("valid-token"));
 
 		expect(result).toEqual({
 			userId: expectedUserId,
@@ -47,7 +47,7 @@ describe("createValidateAccessToken", () => {
 	});
 
 	it("reports a token minted for an unverified account as not verified", async () => {
-		const expectedUserId = "user-7" as UserId;
+		const expectedUserId = UserIdSchema.parse("user-7");
 		const model = {
 			getAccessToken: async () => ({
 				accessToken: "valid-token",
@@ -57,7 +57,7 @@ describe("createValidateAccessToken", () => {
 		} as unknown as OAuthModel;
 
 		const validate = createValidateAccessToken(model);
-		const result = await validate("valid-token" as AccessToken);
+		const result = await validate(AccessTokenSchema.parse("valid-token"));
 
 		expect(result).toEqual({
 			userId: expectedUserId,
@@ -73,7 +73,7 @@ describe("createValidateAccessToken", () => {
 		} as unknown as OAuthModel;
 
 		const validate = createValidateAccessToken(model);
-		const result = await validate("missing-token" as AccessToken);
+		const result = await validate(AccessTokenSchema.parse("missing-token"));
 
 		expect(result).toBeNull();
 	});

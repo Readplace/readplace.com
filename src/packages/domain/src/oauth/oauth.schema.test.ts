@@ -3,7 +3,6 @@ import {
 	AccessTokenSchema,
 	RefreshTokenSchema,
 	AuthorizationCodeSchema,
-	OAuthGrantIdSchema,
 } from "./oauth.schema";
 
 describe("OAuthClientIdSchema", () => {
@@ -43,15 +42,5 @@ describe("AuthorizationCodeSchema", () => {
 
 	it("rejects non-strings", () => {
 		expect(AuthorizationCodeSchema.safeParse(123).success).toBe(false);
-	});
-});
-
-describe("OAuthGrantIdSchema", () => {
-	it("brands a string as OAuthGrantId", () => {
-		expect(OAuthGrantIdSchema.parse("grant-abc")).toBe("grant-abc");
-	});
-
-	it("rejects non-strings", () => {
-		expect(OAuthGrantIdSchema.safeParse(123).success).toBe(false);
 	});
 });

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { z } from "zod";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -880,7 +881,8 @@ describe("initDynamoDbAuth", () => {
 				UpdateExpression: "SET expiresAt = :expiresAt",
 				ConditionExpression: "attribute_exists(sessionId) AND expiresAt >= :now",
 			});
-			const values = update.input.ExpressionAttributeValues as { ":expiresAt": number; ":now": number };
+			expect(update.input.ExpressionAttributeValues).toStrictEqual({ ":expiresAt": expect.any(Number), ":now": expect.any(Number) });
+			const values = z.object({ ":expiresAt": z.number(), ":now": z.number() }).parse(update.input.ExpressionAttributeValues);
 			expect(values[":expiresAt"] - values[":now"]).toBe(180 * 24 * 60 * 60);
 		});
 

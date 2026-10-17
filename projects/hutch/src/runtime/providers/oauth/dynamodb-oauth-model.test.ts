@@ -635,8 +635,10 @@ function tokenEndpoint(model: ReturnType<typeof setup>["model"]) {
 		initObserveTokenOutcome({ recordUngatedAnalyticsEvent: event => { recorded.push(event); }, now, salt: "secret" }),
 		initTokenExchange({ model, server: new OAuthServer({ model, requireClientAuthentication: { authorization_code: false, refresh_token: false } }),
 			findClient: async id => getBuiltInClient(id), baseUrl: "https://readplace.com", salt: "secret", now }));
+	const refreshAs = (input: { clientId: string; refreshToken: string }) => request(app).post("/oauth/token").type("form").send({ grant_type: "refresh_token", client_id: input.clientId, refresh_token: input.refreshToken });
 	return {
-		refresh: (refreshToken: string) => request(app).post("/oauth/token").type("form").send({ grant_type: "refresh_token", client_id: client.id, refresh_token: refreshToken }),
+		refresh: (refreshToken: string) => refreshAs({ clientId: client.id, refreshToken }),
+		refreshAs,
 		lastRefusal: () => z.object({ refresh_refusal: RefreshRefusal }).parse(recorded.at(-1)).refresh_refusal,
 	};
 }
@@ -673,5 +675,34 @@ it("records a reused rotated refresh token under rotation, which the evaluator c
 	expect(response.body).toEqual({ error: "invalid_grant", readplace_reason: "superseded" });
 	const refusal = endpoint.lastRefusal();
 	expect(refusal).toMatchObject({ reason: "rotation", revocation: { cause: "rotation" } });
+	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 0, unexpected: 1 });
+});
+
+it("records a refresh another client presented for a token that logout-all revoked under unknown, not the revocation's cause, which the evaluator counts unexpected", async () => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const endpoint = tokenEndpoint(model);
+	const rotated = z.object({ refresh_token: z.string() }).parse((await endpoint.refresh("r")).body);
+	await model.revokeAllUserOAuthTokens(reader, "logout-all");
+	const response = await endpoint.refreshAs({ clientId: chrome.id, refreshToken: rotated.refresh_token });
+	expect(response.status).toBe(400);
+	expect(response.body).toEqual({ error: "invalid_grant", readplace_reason: "unknown" });
+	const refusal = endpoint.lastRefusal();
+	expect(refusal).toMatchObject({ reason: "unknown", revocation: { cause: "logout-all" } });
+	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 0, unexpected: 1 });
+});
+
+it("records a bound grant's refresh that arrived without its proof after logout-all under proof_required, not the revocation's cause, which the evaluator counts unexpected", async () => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now(), operationId: "op", bodyHash: "body", proof: { keyThumbprint: "key", id: "jti", expiresAt: Date.now() + 300_000 } });
+	assert(bound.ok);
+	await model.revokeAllUserOAuthTokens(reader, "logout-all");
+	const endpoint = tokenEndpoint(model);
+	const response = await endpoint.refresh(bound.credential.refreshToken);
+	expect(response.status).toBe(400);
+	expect(response.body).toEqual({ error: "invalid_dpop_proof", readplace_reason: "proof_required" });
+	const refusal = endpoint.lastRefusal();
+	expect(refusal).toMatchObject({ reason: "proof_required", revocation: { cause: "logout-all" } });
 	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 0, unexpected: 1 });
 });
