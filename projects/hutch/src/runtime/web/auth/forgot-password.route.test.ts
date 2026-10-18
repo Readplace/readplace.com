@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
+import { bindGrant, refreshWithProof } from "../test-helpers/device-bound-grant";
 
 import {
 	TEST_APP_ORIGIN,
@@ -310,6 +311,61 @@ describe("Forgot password", () => {
 				refresh_token: granted.body.refresh_token,
 				client_id: "hutch-chrome-extension",
 			});
+			expect(refreshed.status).toBe(400);
+			expect(refreshed.body).toMatchObject({ error: "invalid_grant", readplace_reason: "revoked" });
+		});
+
+		it("a reset disconnects the app a change kept", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
+			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
+			const browser = request.agent(harness.server);
+			await browser.post("/login").type("form").send({ email: "user@example.com", password: "oldpassword1" });
+			const verifier = randomBytes(32).toString("base64url");
+			const authorize = await browser.post("/oauth/authorize").type("form").send({
+				client_id: "ios-app",
+				redirect_uri: "readplace://oauth-callback",
+				response_type: "code",
+				code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+				code_challenge_method: "S256",
+				state: "reset",
+				action: "approve",
+			});
+			const code = new URL(authorize.headers.location).searchParams.get("code");
+			assert(code, "the approval must carry an authorization code");
+			const granted = await request(harness.server).post("/oauth/token").type("form").send({
+				grant_type: "authorization_code",
+				code,
+				redirect_uri: "readplace://oauth-callback",
+				client_id: "ios-app",
+				code_verifier: verifier,
+			});
+			assert.equal(granted.status, 200, "the app must hold a refresh token before the change");
+			const app = await bindGrant(harness, { clientId: "ios-app", refreshToken: granted.body.refresh_token });
+			const inApp = request.agent(harness.server);
+			const minted = await inApp.post("/auth/session").set("Authorization", `Bearer ${app.accessToken}`);
+			assert.equal(minted.status, 204, "the app's bearer must mint a session");
+			const changed = await inApp
+				.post("/account/password?platform=ios&shell=app")
+				.type("form")
+				.send({ currentPassword: "oldpassword1", password: "changedpassword1", confirmPassword: "changedpassword1" });
+			assert.equal(changed.status, 303, "the change must land");
+			const kept = await refreshWithProof(harness, { clientId: "ios-app", refreshToken: app.refreshToken, key: app.key });
+			assert.equal(kept.status, 200, "the change must keep the app it was made from");
+
+			await request(harness.server)
+				.post("/forgot-password?utm_source=auth-forgot&utm_medium=internal&utm_content=send-reset-link")
+				.type("form")
+				.send({ email: "user@example.com" });
+			const tokenMatch = email.getSentEmails()[0].html.match(/token&#x3D;([a-f0-9]+)/);
+			assert(tokenMatch, "Expected token in password reset email");
+			const reset = await request(harness.server)
+				.post(`/reset-password?token=${tokenMatch[1]}`)
+				.type("form")
+				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
+			expect(reset.status).toBe(200);
+
+			const refreshed = await refreshWithProof(harness, { clientId: "ios-app", refreshToken: kept.body.refresh_token, key: app.key });
 			expect(refreshed.status).toBe(400);
 			expect(refreshed.body).toMatchObject({ error: "invalid_grant", readplace_reason: "revoked" });
 		});

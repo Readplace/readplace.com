@@ -33,6 +33,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	FindSessionReadlistFilter,
+	FindSessionOAuthGrant,
 	SetSessionReadlistFilter,
 	SaveAppleRefreshToken,
 	SetQueueDigestOptOut,
@@ -194,6 +195,7 @@ import type {
 	OAuthModel,
 	RegisterOAuthClient,
 	RevokeAllUserOAuthTokens,
+	RevokeOtherUserOAuthGrants,
 	RevokeUserOAuthClient,
 	ValidateAccessToken,
 	ValidateOAuthRedirectUri,
@@ -367,6 +369,7 @@ interface AppDependencies {
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
 	findSessionReadlistFilter: FindSessionReadlistFilter;
+	findSessionOAuthGrant: FindSessionOAuthGrant;
 	findUserById: FindUserById;
 	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
@@ -434,6 +437,7 @@ interface AppDependencies {
 	logError: (message: string, error?: Error) => void;
 	oauthModel: OAuthModel;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	revokeOtherUserOAuthGrants: RevokeOtherUserOAuthGrants;
 	listUserOAuthClients: ListUserOAuthClients;
 	revokeUserOAuthClient: RevokeUserOAuthClient;
 	validateAccessToken: ValidateAccessToken;
@@ -1753,7 +1757,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		loginAccountRule: deps.rateLimitRules.loginAccount,
 		updatePassword: deps.updatePassword,
 		destroyUserSessions: deps.destroyUserSessions,
-		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
+		findSessionOAuthGrant: deps.findSessionOAuthGrant,
+		revokeOtherUserOAuthGrants: deps.revokeOtherUserOAuthGrants,
 		createSession: deps.createSession,
 		secureCookies,
 		now: deps.now,

@@ -286,7 +286,6 @@ export function ChangePasswordPage(
 ): PageBody {
 	const content = render(CHANGE_PASSWORD_TEMPLATE, {
 		formHtml: renderChangePasswordForm(data),
-		connectedAppsPhrase: CONNECTED_APPS_PHRASE,
 		forgotHref: data.forgotHref,
 		backHref: data.backHref,
 	});

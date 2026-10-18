@@ -1,17 +1,20 @@
 import assert from "node:assert";
+import { randomUUID } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
-import type { OAuthClientId, AuthorizationCode as AuthorizationCodeId, AccessToken as AccessTokenId, RefreshToken as RefreshTokenId, RefreshGrant } from "@packages/domain/oauth";
+import type { OAuthClientId, AuthorizationCode as AuthorizationCodeId, AccessToken as AccessTokenId, RefreshToken as RefreshTokenId, OAuthGrantId, OAuthRefresh, RefreshCredential, RefreshGrant, RefreshStore } from "@packages/domain/oauth";
 import type {
 	Token,
 	Client,
 	AuthorizationCode,
 } from "@node-oauth/oauth2-server";
-import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
+import { OAuthClientIdSchema, OAuthGrantIdSchema, generateToken, initOAuthRefresh } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
 import {
+	createInMemoryRefreshStore,
 	createListUserOAuthClients,
 	createOAuthModel,
 	createRevokeAllUserOAuthTokens,
+	createRevokeOtherUserOAuthGrants,
 	createRevokeUserOAuthClient,
 	initInMemoryOAuthModel,
 } from "./oauth-model";
@@ -986,30 +989,63 @@ describe("createRevokeUserOAuthClient", () => {
 	});
 });
 
+const reader = UserIdSchema.parse("reader");
+const iosAppId = OAuthClientIdSchema.parse("ios-app");
+const chromeId = OAuthClientIdSchema.parse("hutch-chrome-extension");
+const expiry = new Date("2099-01-01T00:00:00Z");
+
+async function setup() {
+	const deps = initInMemoryOAuthModel();
+	const model = createOAuthModel(deps);
+	const ios = await model.getClient(iosAppId, "");
+	const chrome = await model.getClient(chromeId, "");
+	assert(ios && chrome, "Built-in clients must exist");
+	const user = { id: reader, emailVerified: true };
+	const token = (input: { access: string; refresh: string }) => ({ user, accessToken: input.access, refreshToken: input.refresh, accessTokenExpiresAt: expiry, refreshTokenExpiresAt: expiry });
+	const kept = await model.saveToken({ ...token({ access: "a", refresh: "r" }), client: ios }, ios, user);
+	assert(kept, "The seeded token must be saved");
+	const grantId = OAuthGrantIdSchema.parse(kept.user.grantId);
+	const exempt = (input: { epoch: number; atEpoch: number }) => {
+		deps.epochs.set(reader, input.epoch);
+		deps.exemptions.set(reader, { atEpoch: input.atEpoch, grantId, grantEpoch: 0 });
+	};
+	return { deps, model, chrome, user, token, grantId, exempt };
+}
+type Setup = Awaited<ReturnType<typeof setup>>;
+
+function boundRotation(input: { clientId: string; refreshToken: string; operationId?: string }) {
+	return { clientId: input.clientId, refreshToken: input.refreshToken, now: Date.now(), operationId: input.operationId ?? randomUUID(), bodyHash: "body", proof: { keyThumbprint: "key", id: randomUUID(), expiresAt: Date.now() + 300_000 } };
+}
+
+async function rotateBound(refresh: OAuthRefresh, input: { clientId: string; refreshToken: string; operationId?: string }): Promise<RefreshCredential> {
+	const result = await refresh.rotate(boundRotation(input));
+	assert(result.ok, `the bound rotation must succeed: ${JSON.stringify(result)}`);
+	return result.credential;
+}
+
+type StoreHooks = Partial<Record<"beforeReadGrant" | "beforeReadAccount" | "beforeCommit", () => Promise<void>>>;
+
+function refreshThroughHooks(deps: Setup["deps"], hooks: StoreHooks): OAuthRefresh {
+	const inner = createInMemoryRefreshStore(deps);
+	const store: RefreshStore = {
+		...inner.store,
+		async readGrant(id) { await hooks.beforeReadGrant?.(); return inner.store.readGrant(id); },
+		async readAccount(userId) { await hooks.beforeReadAccount?.(); return inner.store.readAccount(userId); },
+		async commit(input) { await hooks.beforeCommit?.(); return inner.store.commit(input); },
+	};
+	return initOAuthRefresh({ enrollmentEnabled: true, store, fingerprint: inner.fingerprint, generateToken, resolveEmailVerified: async value => value.emailVerified });
+}
+
+function once(run: () => Promise<void>): () => Promise<void> {
+	let ran = false;
+	return async () => {
+		if (ran) return;
+		ran = true;
+		await run();
+	};
+}
+
 describe("refresh", () => {
-	const reader = UserIdSchema.parse("reader");
-	const iosAppId = OAuthClientIdSchema.parse("ios-app");
-	const chromeId = OAuthClientIdSchema.parse("hutch-chrome-extension");
-	const expiry = new Date("2099-01-01T00:00:00Z");
-
-	async function setup() {
-		const deps = initInMemoryOAuthModel();
-		const model = createOAuthModel(deps);
-		const ios = await model.getClient(iosAppId, "");
-		const chrome = await model.getClient(chromeId, "");
-		assert(ios && chrome, "Built-in clients must exist");
-		const user = { id: reader, emailVerified: true };
-		const token = (input: { access: string; refresh: string }) => ({ user, accessToken: input.access, refreshToken: input.refresh, accessTokenExpiresAt: expiry, refreshTokenExpiresAt: expiry });
-		const kept = await model.saveToken({ ...token({ access: "a", refresh: "r" }), client: ios }, ios, user);
-		assert(kept, "The seeded token must be saved");
-		const grantId = OAuthGrantIdSchema.parse(kept.user.grantId);
-		const exempt = (input: { epoch: number; atEpoch: number }) => {
-			deps.epochs.set(reader, input.epoch);
-			deps.exemptions.set(reader, { atEpoch: input.atEpoch, grantId, grantEpoch: 0 });
-		};
-		return { deps, model, chrome, user, token, grantId, exempt };
-	}
-
 	it("validates an exempt access token and refuses the other grants at the old epoch", async () => {
 		const s = await setup();
 		await s.model.saveToken({ ...s.token({ access: "b", refresh: "s" }), client: s.chrome }, s.chrome, s.user);
@@ -1056,5 +1092,242 @@ describe("refresh", () => {
 		const s = await setup();
 		s.deps.grants.set(s.grantId, { id: s.grantId, userId: reader, clientId: iosAppId, epoch: 0, generation: 1, accessToken: "a", refreshFingerprint: "x", state: "active", expiresAt: expiry.getTime() });
 		expect(await s.model.getAccessToken("a")).toBeNull();
+	});
+});
+
+describe("createRevokeOtherUserOAuthGrants", () => {
+	it("keeps the named grant and disconnects every other grant and code", async () => {
+		const s = await setup();
+		const { fingerprint } = createInMemoryRefreshStore(s.deps);
+		const kept = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		await s.model.saveToken({ ...s.token({ access: "b", refresh: "s" }), client: s.chrome }, s.chrome, s.user);
+		await s.model.saveAuthorizationCode(createTestAuthCode({ authorizationCode: "before" }), s.chrome, s.user);
+
+		expect(await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+
+		expect(await s.model.getAccessToken(kept.accessToken)).toMatchObject({ accessToken: kept.accessToken });
+		expect(await s.model.getAccessToken("b")).toBeNull();
+		expect(s.deps.history.get(fingerprint(kept.refreshToken))).toBeUndefined();
+		expect(s.deps.history.get(fingerprint("s"))).toMatchObject({ revocation: { cause: "logout-all" } });
+		expect(await s.model.refresh.rotate({ clientId: chromeId, refreshToken: "s", now: Date.now() })).toMatchObject({ reason: "revoked" });
+		expect(await s.model.getAuthorizationCode("before")).toBeNull();
+		await s.model.saveAuthorizationCode(createTestAuthCode({ authorizationCode: "after" }), s.chrome, s.user);
+		expect(await s.model.getAuthorizationCode("after")).toMatchObject({ authorizationCode: "after" });
+		const rotated = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: kept.refreshToken });
+		expect(rotated).toMatchObject({ epoch: 1, generation: 2, keyThumbprint: "key" });
+		expect(s.deps.grants.get(s.grantId)).toMatchObject({ epoch: 1, generation: 2, state: "active", keyThumbprint: "key", latest: { parentFingerprint: fingerprint(kept.refreshToken), bodyHash: "body" } });
+		expect(s.deps.userIdIndex.get(reader)).toEqual(new Set([rotated.accessToken]));
+	});
+
+	it("behaves as logout-all when there is nothing to keep", async () => {
+		const s = await setup();
+		const { fingerprint } = createInMemoryRefreshStore(s.deps);
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+
+		expect(await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: undefined })).toEqual({ kept: undefined });
+
+		expect([s.deps.epochs.get(reader), s.deps.exemptions.get(reader)]).toEqual([1, undefined]);
+		expect(await s.model.getAccessToken(bound.accessToken)).toBeNull();
+		expect(s.deps.history.get(fingerprint(bound.refreshToken))).toMatchObject({ revocation: { cause: "logout-all" } });
+		expect(s.deps.userIdIndex.has(reader)).toBe(false);
+	});
+
+	it.each([
+		["never refreshed", async (_s: Setup) => undefined],
+		["refreshed without a device key", async (s: Setup) => { assert((await s.model.refresh.rotate({ clientId: iosAppId, refreshToken: "r", now: Date.now() })).ok); }],
+	])("keeps nothing for a grant that %s, so the change falls back to logout-all", async (_case, prepare) => {
+		const s = await setup();
+		await prepare(s);
+
+		expect(await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId })).toEqual({ kept: undefined });
+
+		expect([s.deps.epochs.get(reader), s.deps.exemptions.get(reader)]).toEqual([1, undefined]);
+		expect(s.deps.userIdIndex.has(reader)).toBe(false);
+		expect(await s.model.refresh.rotate({ clientId: iosAppId, refreshToken: "r", now: Date.now() })).toMatchObject({ reason: "revoked" });
+	});
+
+	it.each([
+		["signed out", async (s: Setup, bound: RefreshCredential) => { assert((await s.model.refresh.revoke({ token: bound.refreshToken, now: Date.now(), proof: boundRotation({ clientId: iosAppId, refreshToken: bound.refreshToken }).proof })).ok); }],
+		["was disconnected", async (s: Setup) => createRevokeUserOAuthClient(s.deps)({ userId: reader, clientId: iosAppId })],
+		["was fenced by a reset", async (s: Setup) => createRevokeAllUserOAuthTokens(s.deps)(reader, "logout-all")],
+	])("keeps nothing for a grant that %s before the change", async (_case, before) => {
+		const s = await setup();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		await before(s, bound);
+		const epoch = s.deps.epochs.get(reader) ?? 0;
+
+		expect(await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId })).toEqual({ kept: undefined });
+
+		expect([s.deps.epochs.get(reader), s.deps.exemptions.get(reader)]).toEqual([epoch + 1, undefined]);
+		expect(await s.model.getAccessToken(bound.accessToken)).toBeNull();
+	});
+
+	it.each([
+		["with a refresh between them", true, { atEpoch: 2, grantEpoch: 1 }],
+		["without a refresh between them", false, { atEpoch: 2, grantEpoch: 0 }],
+	])("keeps the grant through two changes in a row %s", async (_case, refreshBetween, exemption) => {
+		const s = await setup();
+		let current = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		const revokeOther = createRevokeOtherUserOAuthGrants(s.deps);
+		expect(await revokeOther({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+		if (refreshBetween) current = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: current.refreshToken });
+
+		expect(await revokeOther({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+
+		expect(s.deps.exemptions.get(reader)).toEqual({ grantId: s.grantId, ...exemption });
+		expect(await s.model.getAccessToken(current.accessToken)).toMatchObject({ accessToken: current.accessToken });
+		expect(await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: current.refreshToken })).toMatchObject({ epoch: 2 });
+	});
+
+	it.each(["logout-all", "account-deletion"] as const)("a later %s revokes the kept grant", async cause => {
+		const s = await setup();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId });
+
+		await createRevokeAllUserOAuthTokens(s.deps)(reader, cause);
+
+		expect(await s.model.getAccessToken(bound.accessToken)).toBeNull();
+		expect(await s.model.refresh.rotate(boundRotation({ clientId: iosAppId, refreshToken: bound.refreshToken }))).toMatchObject({ reason: "revoked" });
+	});
+
+	it("keeps the grant while a rotation of it is in flight", async () => {
+		const s = await setup();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+
+		const [rotated, outcome] = await Promise.all([
+			s.model.refresh.rotate(boundRotation({ clientId: iosAppId, refreshToken: bound.refreshToken })),
+			createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId }),
+		]);
+
+		assert(rotated.ok);
+		expect(outcome).toEqual({ kept: s.grantId });
+		expect(await s.model.getAccessToken(rotated.credential.accessToken)).toMatchObject({ accessToken: rotated.credential.accessToken });
+	});
+
+	it.each([
+		["between the rotation's locate and its grant read", "beforeReadGrant"],
+		["before the rotation's account read", "beforeReadAccount"],
+		["just before the rotation's commit", "beforeCommit"],
+	] as const)("keeps the grant when the change lands %s", async (_when, hook) => {
+		const s = await setup();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		let outcome: { kept: OAuthGrantId | undefined } | undefined;
+		const hooks: StoreHooks = {};
+		hooks[hook] = once(async () => { outcome = await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId }); });
+
+		const rotated = await rotateBound(refreshThroughHooks(s.deps, hooks), { clientId: iosAppId, refreshToken: bound.refreshToken });
+
+		expect(outcome).toEqual({ kept: s.grantId });
+		expect(rotated).toMatchObject({ generation: 2 });
+		expect(await s.model.getAccessToken(rotated.accessToken)).toMatchObject({ accessToken: rotated.accessToken });
+	});
+
+	it("reads again when a rotation lands between the keep's reads and its write", async () => {
+		const s = await setup();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		const stale = s.deps.grants.get(s.grantId);
+		assert(stale);
+		const rotated = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: bound.refreshToken });
+		let served = false;
+		class StaleFirstRead extends Map<string, RefreshGrant> {
+			override get(id: string) {
+				if (served) return super.get(id);
+				served = true;
+				return stale;
+			}
+		}
+		s.deps.grants = new StaleFirstRead(s.deps.grants);
+
+		expect(await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+
+		expect(s.deps.exemptions.get(reader)).toEqual({ atEpoch: 1, grantId: s.grantId, grantEpoch: 0 });
+		expect(await s.model.getAccessToken(rotated.accessToken)).toMatchObject({ accessToken: rotated.accessToken });
+	});
+
+	it("recovers a replay across the change with the same credentials", async () => {
+		const s = await setup();
+		const operationId = randomUUID();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r", operationId });
+		expect(await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+
+		const replayed = await s.model.refresh.rotate(boundRotation({ clientId: iosAppId, refreshToken: "r", operationId }));
+
+		expect(replayed).toMatchObject({ ok: true, recovered: true, credential: { accessToken: bound.accessToken, refreshToken: bound.refreshToken } });
+	});
+
+	it("a logout racing the change still revokes the kept grant", async () => {
+		const s = await setup();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		const logout = refreshThroughHooks(s.deps, { beforeReadAccount: once(async () => { await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId }); }) });
+
+		const revoked = await logout.revoke({ token: bound.refreshToken, now: Date.now(), proof: boundRotation({ clientId: iosAppId, refreshToken: bound.refreshToken }).proof });
+
+		expect(revoked).toMatchObject({ ok: true, grant: { id: s.grantId } });
+		expect(s.deps.grants.get(s.grantId)).toMatchObject({ state: "revoked" });
+		expect(await s.model.getAccessToken(bound.accessToken)).toBeNull();
+		expect(await s.model.refresh.rotate(boundRotation({ clientId: iosAppId, refreshToken: bound.refreshToken }))).toMatchObject({ reason: "revoked" });
+	});
+
+	it("recovers a replayed refresh when the kept grant's rotation and a second change both land inside its reads", async () => {
+		const s = await setup();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		const revokeOther = createRevokeOtherUserOAuthGrants(s.deps);
+		expect(await revokeOther({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+		const first = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: bound.refreshToken });
+		const operationId = randomUUID();
+		let second: RefreshCredential | undefined;
+		const replay = refreshThroughHooks(s.deps, { beforeReadAccount: once(async () => {
+			second = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: first.refreshToken, operationId });
+			expect(await revokeOther({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+		}) });
+
+		const recovered = await replay.rotate(boundRotation({ clientId: iosAppId, refreshToken: first.refreshToken, operationId }));
+
+		assert(second);
+		expect(recovered).toMatchObject({ ok: true, recovered: true, credential: { accessToken: second.accessToken, refreshToken: second.refreshToken } });
+		expect(s.deps.exemptions.get(reader)).toEqual({ atEpoch: 2, grantId: s.grantId, grantEpoch: 1 });
+		expect(await s.model.getAccessToken(second.accessToken)).toMatchObject({ accessToken: second.accessToken });
+	});
+
+	it("a logout revokes the kept grant when its rotation and a second change both land inside the logout's reads", async () => {
+		const s = await setup();
+		const { fingerprint } = createInMemoryRefreshStore(s.deps);
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		const revokeOther = createRevokeOtherUserOAuthGrants(s.deps);
+		expect(await revokeOther({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+		const first = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: bound.refreshToken });
+		let second: RefreshCredential | undefined;
+		const logout = refreshThroughHooks(s.deps, { beforeReadAccount: once(async () => {
+			second = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: first.refreshToken });
+			expect(await revokeOther({ userId: reader, keep: s.grantId })).toEqual({ kept: s.grantId });
+		}) });
+
+		const revoked = await logout.revoke({ token: first.refreshToken, now: Date.now(), proof: boundRotation({ clientId: iosAppId, refreshToken: first.refreshToken }).proof });
+
+		assert(second);
+		expect(revoked).toMatchObject({ ok: true, grant: { id: s.grantId, generation: 3 } });
+		expect(s.deps.grants.get(s.grantId)).toMatchObject({ state: "revoked", epoch: 1, generation: 3 });
+		expect(await s.model.getAccessToken(second.accessToken)).toBeNull();
+		expect(s.deps.history.get(fingerprint(second.refreshToken))).toMatchObject({ revocation: { cause: "logout" } });
+		expect(await s.model.refresh.rotate(boundRotation({ clientId: iosAppId, refreshToken: second.refreshToken }))).toMatchObject({ reason: "revoked" });
+	});
+
+	it.each(["logout-all", "account-deletion"] as const)("falls back to a full logout-all when a %s lands between the keep's reads and its write", async cause => {
+		const s = await setup();
+		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
+		const injections: Promise<void>[] = [];
+		class InjectOnFirstRead extends Map<string, RefreshGrant> {
+			override get(id: string) {
+				if (injections.length === 0) injections.push(createRevokeAllUserOAuthTokens(s.deps)(reader, cause));
+				return super.get(id);
+			}
+		}
+		s.deps.grants = new InjectOnFirstRead(s.deps.grants);
+
+		expect(await createRevokeOtherUserOAuthGrants(s.deps)({ userId: reader, keep: s.grantId })).toEqual({ kept: undefined });
+
+		await Promise.all(injections);
+		expect([s.deps.epochs.get(reader), s.deps.exemptions.get(reader), s.deps.deletedAccounts.has(reader)]).toEqual([2, undefined, cause === "account-deletion"]);
+		expect(await s.model.getAccessToken(bound.accessToken)).toBeNull();
 	});
 });

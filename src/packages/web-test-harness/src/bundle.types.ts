@@ -152,6 +152,7 @@ import type {
 	OAuthModel,
 	OnUnpaidFirstInvoice,
 	RevokeAllUserOAuthTokens,
+	RevokeOtherUserOAuthGrants,
 	ListUserOAuthClients,
 	RevokeUserOAuthClient,
 	FindOAuthClient,
@@ -522,6 +523,7 @@ export interface FreshnessBundle {
 export interface OAuthBundle {
 	oauthModel: OAuthModel;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	revokeOtherUserOAuthGrants: RevokeOtherUserOAuthGrants;
 	listUserOAuthClients: ListUserOAuthClients;
 	revokeUserOAuthClient: RevokeUserOAuthClient;
 	validateAccessToken: ValidateAccessToken;

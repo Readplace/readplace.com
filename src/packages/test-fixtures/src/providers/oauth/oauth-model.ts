@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { createHash, randomUUID } from "node:crypto";
-import { initOAuthRefresh, isCurrentGrant, type RefreshAccount, type RefreshCredential, type RefreshExemption, type RefreshGrant, type RefreshHistory, type RefreshStore } from "@packages/domain/oauth";
+import { type AdvanceEpochKeeping, initKeepCurrentGrant, initOAuthRefresh, isCurrentGrant, type OAuthGrantId, type RefreshAccount, type RefreshCredential, type RefreshExemption, type RefreshGrant, type RefreshHistory, type RefreshStore } from "@packages/domain/oauth";
 import type {
 	Client,
 	Token,
@@ -15,6 +15,7 @@ import type {
 	ListUserOAuthClients,
 	OAuthModel,
 	RevokeAllUserOAuthTokens,
+	RevokeOtherUserOAuthGrants,
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
@@ -97,24 +98,92 @@ function retainRevocation(deps: OAuthModelDeps, stored: StoredToken, cause: "log
 	deps.history.set(fingerprint, { grantId: stored.grantId, fingerprint, expiresAt: stored.refreshTokenExpiresAt.getTime(), revocation: { cause, completedAt: Date.now() } });
 }
 
+function sweep(deps: OAuthModelDeps, input: { userId: string; cause: "logout-all" | "account-deletion"; spare: OAuthGrantId | undefined }): void {
+	const accessTokens = deps.userIdIndex.get(input.userId);
+	if (accessTokens) {
+		for (const accessToken of accessTokens) {
+			const stored = deps.tokens.get(accessToken);
+			if (stored && input.spare !== undefined && stored.grantId === input.spare) continue;
+			if (stored) retainRevocation(deps, stored, input.cause);
+			if (stored?.refreshToken) deps.refreshTokenIndex.delete(stored.refreshToken);
+			deps.tokens.delete(accessToken);
+			accessTokens.delete(accessToken);
+		}
+		if (accessTokens.size === 0) deps.userIdIndex.delete(input.userId);
+	}
+	for (const [code, stored] of deps.codes) {
+		if (stored.userId === input.userId) deps.codes.delete(code);
+	}
+}
+
 export function createRevokeAllUserOAuthTokens(deps: OAuthModelDeps): RevokeAllUserOAuthTokens {
 	return async (userId, cause) => {
 		deps.epochs.set(userId, (deps.epochs.get(userId) ?? 0) + 1);
 		if (cause === "account-deletion") deps.deletedAccounts.add(userId);
-		const accessTokens = deps.userIdIndex.get(userId);
-		if (accessTokens) {
-			for (const accessToken of accessTokens) {
-				const stored = deps.tokens.get(accessToken);
-				if (stored) retainRevocation(deps, stored, cause);
-				if (stored?.refreshToken) deps.refreshTokenIndex.delete(stored.refreshToken);
-				deps.tokens.delete(accessToken);
-			}
-			deps.userIdIndex.delete(userId);
-		}
-		for (const [code, stored] of deps.codes) {
-			if (stored.userId === userId) deps.codes.delete(code);
-		}
+		sweep(deps, { userId, cause, spare: undefined });
 	};
+}
+
+export function createRevokeOtherUserOAuthGrants(deps: OAuthModelDeps): RevokeOtherUserOAuthGrants {
+	const { store, advanceEpochKeeping } = createInMemoryRefreshStore(deps);
+	const keepCurrentGrant = initKeepCurrentGrant({ store, advanceEpochKeeping });
+	return async ({ userId, keep }) => {
+		const kept = keep !== undefined && (await keepCurrentGrant({ userId, grantId: keep })) ? keep : undefined;
+		if (kept === undefined) deps.epochs.set(userId, (deps.epochs.get(userId) ?? 0) + 1);
+		sweep(deps, { userId, cause: "logout-all", spare: kept });
+		return { kept };
+	};
+}
+
+export function createInMemoryRefreshStore(deps: OAuthModelDeps): { store: RefreshStore; fingerprint: (token: string) => string; advanceEpochKeeping: AdvanceEpochKeeping } {
+	const fingerprint = (token: string) => createHash("sha256").update(token).digest("hex");
+	function credential(row: StoredToken): RefreshCredential {
+		row.grantId ??= randomUUID();
+		return { ...row, grantId: row.grantId, epoch: row.epoch ?? 0, generation: row.generation ?? 0, emailVerified: row.emailVerified === true,
+			accessExpiresAt: row.accessTokenExpiresAt.getTime(), refreshExpiresAt: row.refreshTokenExpiresAt.getTime() };
+	}
+	function saveCredential(value: RefreshCredential) {
+		const row: StoredToken = { ...value, accessToken: AccessTokenSchema.parse(value.accessToken), refreshToken: RefreshTokenSchema.parse(value.refreshToken),
+			clientId: OAuthClientIdSchema.parse(value.clientId), userId: UserIdSchema.parse(value.userId), accessTokenExpiresAt: new Date(value.accessExpiresAt), refreshTokenExpiresAt: new Date(value.refreshExpiresAt) };
+		deps.tokens.set(value.accessToken, row);
+		deps.refreshTokenIndex.set(value.refreshToken, value.accessToken);
+		const userTokens = deps.userIdIndex.get(value.userId) ?? new Set<string>();
+		userTokens.add(value.accessToken); deps.userIdIndex.set(value.userId, userTokens);
+	}
+	const account = (userId: string): RefreshAccount => ({ epoch: deps.epochs.get(userId) ?? 0, exemption: deps.exemptions.get(userId) });
+	const store: RefreshStore = {
+		async locate(token) {
+			const row = deps.tokens.get(deps.refreshTokenIndex.get(token) ?? token);
+			return { credential: row ? credential(row) : undefined, history: deps.history.get(fingerprint(token)) };
+		},
+		async readGrant(id) { return deps.grants.get(id); },
+		async readAccount(userId) { return account(userId); },
+		async readCredential(accessToken) { const row = deps.tokens.get(accessToken); return row ? credential(row) : undefined; },
+		async commit(input) {
+			const current = deps.grants.get(input.grant.id);
+			if (deps.deletedAccounts.has(input.grant.userId) || (deps.epochs.get(input.grant.userId) ?? 0) !== input.accountEpoch || JSON.stringify(current) !== JSON.stringify(input.expectedGrant)) return "conflict";
+			const proofKey = input.proof ? `${input.proof.keyThumbprint}:${input.proof.id}` : undefined;
+			if (proofKey && (deps.proofs.get(proofKey) ?? 0) > input.now) return "proof_replayed";
+			if (input.parent && !deps.tokens.has(input.parent.accessToken)) return "conflict";
+			if (proofKey && input.proof) deps.proofs.set(proofKey, input.proof.expiresAt);
+			if (input.parent) {
+				deps.tokens.delete(input.parent.accessToken); deps.refreshTokenIndex.delete(input.parent.refreshToken);
+				deps.userIdIndex.get(input.parent.userId)?.delete(input.parent.accessToken);
+				deps.history.set(fingerprint(input.parent.refreshToken), { grantId: input.parent.grantId, fingerprint: fingerprint(input.parent.refreshToken), expiresAt: input.parent.refreshExpiresAt,
+					revocation: { cause: input.cause === "logout" ? "logout" : "rotation", completedAt: input.now } });
+			}
+			if (input.child) saveCredential(input.child);
+			deps.grants.set(input.grant.id, input.grant);
+			return "committed";
+		},
+	};
+	const advanceEpochKeeping: AdvanceEpochKeeping = async input => {
+		if (deps.deletedAccounts.has(input.userId) || (deps.epochs.get(input.userId) ?? 0) !== input.exemption.atEpoch - 1 || JSON.stringify(deps.grants.get(input.expectedGrant.id)) !== JSON.stringify(input.expectedGrant)) return "conflict";
+		deps.epochs.set(input.userId, input.exemption.atEpoch);
+		deps.exemptions.set(input.userId, input.exemption);
+		return "committed";
+	};
+	return { store, fingerprint, advanceEpochKeeping };
 }
 
 export function createListUserOAuthClients(deps: OAuthModelDeps): ListUserOAuthClients {
@@ -183,56 +252,16 @@ export function createOAuthModel(
 		return resolved;
 	}
 
-	const fingerprint = (token: string) => createHash("sha256").update(token).digest("hex");
-	function credential(row: StoredToken): RefreshCredential {
-		row.grantId ??= randomUUID();
-		return { ...row, grantId: row.grantId, epoch: row.epoch ?? 0, generation: row.generation ?? 0, emailVerified: row.emailVerified === true,
-			accessExpiresAt: row.accessTokenExpiresAt.getTime(), refreshExpiresAt: row.refreshTokenExpiresAt.getTime() };
-	}
-	function saveCredential(value: RefreshCredential) {
-		const row: StoredToken = { ...value, accessToken: AccessTokenSchema.parse(value.accessToken), refreshToken: RefreshTokenSchema.parse(value.refreshToken),
-			clientId: OAuthClientIdSchema.parse(value.clientId), userId: UserIdSchema.parse(value.userId), accessTokenExpiresAt: new Date(value.accessExpiresAt), refreshTokenExpiresAt: new Date(value.refreshExpiresAt) };
-		deps.tokens.set(value.accessToken, row);
-		deps.refreshTokenIndex.set(value.refreshToken, value.accessToken);
-		const userTokens = deps.userIdIndex.get(value.userId) ?? new Set<string>();
-		userTokens.add(value.accessToken); deps.userIdIndex.set(value.userId, userTokens);
-	}
-	const account = (userId: string): RefreshAccount => ({ epoch: deps.epochs.get(userId) ?? 0, exemption: deps.exemptions.get(userId) });
-	const store: RefreshStore = {
-		async locate(token) {
-			const row = deps.tokens.get(deps.refreshTokenIndex.get(token) ?? token);
-			return { credential: row ? credential(row) : undefined, history: deps.history.get(fingerprint(token)) };
-		},
-		async readGrant(id) { return deps.grants.get(id); },
-		async readAccount(userId) { return account(userId); },
-		async readCredential(accessToken) { const row = deps.tokens.get(accessToken); return row ? credential(row) : undefined; },
-		async commit(input) {
-			const current = deps.grants.get(input.grant.id);
-			if (deps.deletedAccounts.has(input.grant.userId) || (deps.epochs.get(input.grant.userId) ?? 0) !== input.accountEpoch || JSON.stringify(current) !== JSON.stringify(input.expectedGrant)) return "conflict";
-			const proofKey = input.proof ? `${input.proof.keyThumbprint}:${input.proof.id}` : undefined;
-			if (proofKey && (deps.proofs.get(proofKey) ?? 0) > input.now) return "proof_replayed";
-			if (input.parent && !deps.tokens.has(input.parent.accessToken)) return "conflict";
-			if (proofKey && input.proof) deps.proofs.set(proofKey, input.proof.expiresAt);
-			if (input.parent) {
-				deps.tokens.delete(input.parent.accessToken); deps.refreshTokenIndex.delete(input.parent.refreshToken);
-				deps.userIdIndex.get(input.parent.userId)?.delete(input.parent.accessToken);
-				deps.history.set(fingerprint(input.parent.refreshToken), { grantId: input.parent.grantId, fingerprint: fingerprint(input.parent.refreshToken), expiresAt: input.parent.refreshExpiresAt,
-					revocation: { cause: input.cause === "logout" ? "logout" : "rotation", completedAt: input.now } });
-			}
-			if (input.child) saveCredential(input.child);
-			deps.grants.set(input.grant.id, input.grant);
-			return "committed";
-		},
-	};
+	const { store, fingerprint } = createInMemoryRefreshStore(deps);
 	const refresh = initOAuthRefresh({ enrollmentEnabled: options?.refreshEnrollmentEnabled ?? true, store, fingerprint, generateToken,
 		resolveEmailVerified: async value => {
 			if (markClientActive) await markClientActive(value.clientId);
 			return value.emailVerified || (findUserById ? (await findUserById(UserIdSchema.parse(value.userId)))?.emailVerified === true : false);
 		},
 	});
-	function active(row: StoredToken): boolean {
+	async function active(row: StoredToken): Promise<boolean> {
 		const grant = row.grantId ? deps.grants.get(row.grantId) : undefined;
-		return isCurrentGrant({ account: account(row.userId), credential: { grantId: row.grantId, epoch: row.epoch ?? 0 } }) && (!grant || (grant.state === "active" && grant.generation === (row.generation ?? 0)));
+		return isCurrentGrant({ account: await store.readAccount(row.userId), credential: { grantId: row.grantId, epoch: row.epoch ?? 0 } }) && (!grant || (grant.state === "active" && grant.generation === (row.generation ?? 0)));
 	}
 	return {
 		refresh,
@@ -350,7 +379,7 @@ export function createOAuthModel(
 
 		async getAccessToken(accessToken: string): Promise<Token | Falsey> {
 			const stored = deps.tokens.get(accessToken);
-			if (!stored || !active(stored)) return null;
+			if (!stored || !(await active(stored))) return null;
 
 			if (stored.accessTokenExpiresAt < new Date()) {
 				return null;
@@ -379,7 +408,7 @@ export function createOAuthModel(
 			if (!accessToken) return null;
 
 			const stored = deps.tokens.get(accessToken);
-			if (!stored || !active(stored) || (stored.grantId && deps.grants.get(stored.grantId)?.keyThumbprint)) return null;
+			if (!stored || !(await active(stored)) || (stored.grantId && deps.grants.get(stored.grantId)?.keyThumbprint)) return null;
 
 			if (stored.refreshTokenExpiresAt < new Date()) {
 				return null;

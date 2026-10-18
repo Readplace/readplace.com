@@ -2,8 +2,8 @@ import express from "express";
 import request from "supertest";
 import OAuthServer from "@node-oauth/oauth2-server";
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
-import { createOAuthModel, initInMemoryOAuthModel, createRevokeAllUserOAuthTokens } from "@packages/test-fixtures/providers/oauth";
-import { getBuiltInClient } from "@packages/domain/oauth";
+import { createOAuthModel, initInMemoryOAuthModel, createRevokeAllUserOAuthTokens, createRevokeOtherUserOAuthGrants } from "@packages/test-fixtures/providers/oauth";
+import { OAuthGrantIdSchema, getBuiltInClient } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import type { AnalyticsEvent } from "@packages/web-analytics";
@@ -107,6 +107,22 @@ it("logout-all fences recovery and access before cleanup, without touching newly
 	await createRevokeAllUserOAuthTokens(s.state)(UserIdSchema.parse(s.user.id), "logout-all");
 	expect((await s.refresh()).body.readplace_reason).toBe("revoked");
 	expect(await s.model.getAccessToken(first.body.access_token)).toBeNull();
+});
+
+it("keeps the bound grant a password change was made from: it recovers, rotates and still signs out", async () => {
+	const s = await setup(); const first = await s.refresh(); expect(first.status).toBe(200);
+	const grantId = OAuthGrantIdSchema.parse(first.body.readplace.grant_id);
+	expect(await createRevokeOtherUserOAuthGrants(s.state)({ userId: UserIdSchema.parse(s.user.id), keep: grantId })).toEqual({ kept: grantId });
+	expect(await s.model.getAccessToken(first.body.access_token)).toMatchObject({ accessToken: first.body.access_token });
+	const recovered = await s.refresh();
+	expect(recovered.status).toBe(200); expect(recovered.body).toMatchObject({ refresh_token: first.body.refresh_token, readplace: { recovered: true } });
+	const next = randomUUID();
+	const body = new URLSearchParams({ grant_type: "refresh_token", client_id: s.client.id, refresh_token: first.body.refresh_token, readplace_refresh_protocol: "1", readplace_refresh_operation_id: next }).toString();
+	const rotated = await s.refresh({ body, proof: s.proof({ body, path: "/oauth/token", op: next, nonce: s.dpop.nonce(s.thumbprint) }) });
+	expect(rotated.status).toBe(200); expect(rotated.body.readplace).toMatchObject({ generation: 2, recovered: false });
+	expect((await s.revoke({ token: rotated.body.refresh_token })).status).toBe(200);
+	expect(s.revokedSessions).toEqual([s.user.id]);
+	expect(await s.model.getAccessToken(rotated.body.access_token)).toBeNull();
 });
 
 it("preserves browser sessions when revoking a browser grant and treats unknown credentials idempotently", async () => {

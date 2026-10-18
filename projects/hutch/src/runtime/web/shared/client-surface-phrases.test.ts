@@ -33,7 +33,7 @@ describe("client surface phrases", () => {
 		assert.equal(FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE, "the browser extension or the iPhone app");
 	});
 
-	it("pins the change-password connected-apps phrase", () => {
+	it("pins the reset-password connected-apps phrase", () => {
 		assert.equal(CONNECTED_APPS_PHRASE, "the browser extension, the iPhone app, and AI assistants");
 	});
 

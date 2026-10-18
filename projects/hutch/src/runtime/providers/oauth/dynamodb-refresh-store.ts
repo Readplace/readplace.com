@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { createHmac, randomUUID } from "node:crypto";
-import { isCurrentGrant, type RefreshAccount, type RefreshCommit, type RefreshCredential, type RefreshGrant, type RefreshStore } from "@packages/domain/oauth";
+import { type AdvanceEpochKeeping, isCurrentGrant, type RefreshAccount, type RefreshCommit, type RefreshCredential, type RefreshGrant, type RefreshStore } from "@packages/domain/oauth";
 import { defineDynamoTable, dynamoField, type DynamoDBDocumentClient, TransactWriteCommand, TransactionCanceledException } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { CredentialHistory, initRefreshProof, OAuthGrantId, refreshContext } from "../../oauth-refresh/evidence";
@@ -30,9 +30,10 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 	const { fingerprint } = initRefreshProof(deps.secret);
 	const subjectReference = (value: string) => createHmac("sha256", deps.secret).update("auth-diagnostics:subject:").update(value).digest("hex");
 	const ttl = (expiresAt: number) => Math.ceil(expiresAt / 1000) + 30 * 86400;
+	const epochExpression = (epoch: number) => epoch === 0 ? "attribute_not_exists(deletedAt) AND (attribute_not_exists(epoch) OR epoch = :epoch)" : "attribute_not_exists(deletedAt) AND epoch = :epoch";
 	const epochCondition = (userId: string, epoch: number) => ({ ConditionCheck: {
 		TableName, Key: { pk: `oauth-account#${userId}` },
-		ConditionExpression: epoch === 0 ? "attribute_not_exists(deletedAt) AND (attribute_not_exists(epoch) OR epoch = :epoch)" : "attribute_not_exists(deletedAt) AND epoch = :epoch",
+		ConditionExpression: epochExpression(epoch),
 		ExpressionAttributeValues: { ":epoch": epoch },
 	} });
 	async function readAccount(userId: string): Promise<RefreshAccount> {
@@ -128,8 +129,25 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 			return "committed";
 		},
 	};
+	const advanceEpochKeeping: AdvanceEpochKeeping = async input => {
+		const previous = input.exemption.atEpoch - 1;
+		try {
+			await client.send(new TransactWriteCommand({ TransactItems: [
+				{ Update: { TableName, Key: { pk: `oauth-account#${input.userId}` },
+					UpdateExpression: "SET epoch = :next, exemption = :exemption",
+					ConditionExpression: epochExpression(previous),
+					ExpressionAttributeValues: { ":epoch": previous, ":next": input.exemption.atEpoch, ":exemption": input.exemption } } },
+				{ ConditionCheck: { TableName, Key: { pk: `grant#${input.expectedGrant.id}` }, ...grantCondition(input.expectedGrant) } },
+			] }));
+		} catch (error) {
+			if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === "ConditionalCheckFailed" || reason.Code === "TransactionConflict")) return "conflict";
+			throw error;
+		}
+		return "committed";
+	};
 	return {
 		store,
+		advanceEpochKeeping,
 		async advanceEpoch(input: { userId: string; deleted: boolean }) {
 			await accounts.update({ Key: { pk: `oauth-account#${input.userId}` },
 				UpdateExpression: input.deleted ? "SET deletedAt = :deletedAt ADD epoch :one" : "ADD epoch :one",

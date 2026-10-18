@@ -8,10 +8,11 @@ import {
 	defineDynamoTable,
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
-import { isCurrentGrant, isExemptGrant, type OAuthClientId, OAuthClientIdSchema } from "@packages/domain/oauth";
+import { initKeepCurrentGrant, isCurrentGrant, isExemptGrant, type OAuthClientId, OAuthClientIdSchema, type OAuthGrantId as GrantId } from "@packages/domain/oauth";
 import type {
 	ListUserOAuthClients,
 	RevokeAllUserOAuthTokens,
+	RevokeOtherUserOAuthGrants,
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import { z } from "zod";
@@ -89,22 +90,35 @@ export function initOAuthCredentialLifecycle(deps: {
 		return true;
 	}
 
-	const revokeAll: RevokeAllUserOAuthTokens = async (userId, cause) => {
-		await atomic.advanceEpoch({ userId, deleted: cause === "account-deletion" });
+	async function sweep(input: { userId: string; cause: "logout-all" | "account-deletion"; spare: GrantId | undefined }): Promise<void> {
 		await forEachQueryPage(byUser, {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
-			ExpressionAttributeValues: { ":userId": userId },
+			ExpressionAttributeValues: { ":userId": input.userId },
 		}, async rows => {
 			await Promise.all(rows.map(async row => {
 				if (row.pk.startsWith("token#")) {
 					const token = await tokens.get({ pk: row.pk }, { consistentRead: true });
-					if (token) await revokeRow(token, cause);
+					if (!token || (input.spare !== undefined && token.grantId === input.spare)) return;
+					await revokeRow(token, input.cause);
 				} else if (row.pk.startsWith("code#")) {
 					await byUser.delete({ Key: { pk: row.pk } });
 				}
 			}));
 		});
+	}
+
+	const revokeAll: RevokeAllUserOAuthTokens = async (userId, cause) => {
+		await atomic.advanceEpoch({ userId, deleted: cause === "account-deletion" });
+		await sweep({ userId, cause, spare: undefined });
+	};
+
+	const keepCurrentGrant = initKeepCurrentGrant({ store: atomic.store, advanceEpochKeeping: atomic.advanceEpochKeeping });
+	const revokeOther: RevokeOtherUserOAuthGrants = async ({ userId, keep }) => {
+		const kept = keep !== undefined && (await keepCurrentGrant({ userId, grantId: keep })) ? keep : undefined;
+		if (kept === undefined) await atomic.advanceEpoch({ userId, deleted: false });
+		await sweep({ userId, cause: "logout-all", spare: kept });
+		return { kept };
 	};
 
 	const listClients: ListUserOAuthClients = async userId => {
@@ -192,6 +206,7 @@ export function initOAuthCredentialLifecycle(deps: {
 			return revokeRow(row, refreshContext.getStore()?.revocationCause ?? "rotation");
 		},
 		revokeAll,
+		revokeOther,
 		listClients,
 		revokeClient,
 	};

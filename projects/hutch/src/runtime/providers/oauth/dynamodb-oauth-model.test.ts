@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import express from "express";
 import request from "supertest";
 import OAuthServer from "@node-oauth/oauth2-server";
 import { z } from "zod";
 import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
-import { OAuthClientIdSchema, type RefreshCredential, getBuiltInClient } from "@packages/domain/oauth";
+import { OAuthClientIdSchema, type OAuthGrantId, OAuthGrantIdSchema, type RefreshCredential, getBuiltInClient } from "@packages/domain/oauth";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { authDiagnosticContext, type AuthDiagnosticContext } from "../../auth-diagnostics/record";
 import { initDynamoDbOAuthModel } from "./dynamodb-oauth-model";
+import { initDynamoRefreshStore } from "./dynamodb-refresh-store";
 import { initRefreshProof, refreshContext, type RefreshContext } from "../../oauth-refresh/evidence";
 import { captureOAuthBody } from "../../oauth-refresh/request-body";
 import { initEvaluateRefreshOutcomes, RefreshRefusal } from "../../oauth-refresh/outcomes";
@@ -24,7 +26,7 @@ const commandSchema = z.object({
 		Put: z.object({ Item: z.record(z.string(), z.unknown()), ConditionExpression: z.string().optional(), ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional() }).optional(),
 		ConditionCheck: z.object({ Key: z.object({ pk: z.string() }), ConditionExpression: z.string(), ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional() }).optional(),
 		Delete: z.object({ Key: z.object({ pk: z.string() }), ConditionExpression: z.string().optional() }).optional(),
-		Update: z.object({ Key: z.object({ pk: z.string() }), UpdateExpression: z.string(), ExpressionAttributeValues: z.record(z.string(), z.unknown()) }).optional(),
+		Update: z.object({ Key: z.object({ pk: z.string() }), UpdateExpression: z.string(), ConditionExpression: z.string().optional(), ExpressionAttributeValues: z.record(z.string(), z.unknown()) }).optional(),
 	})).optional(),
 });
 
@@ -35,6 +37,7 @@ function setup() {
 		activationFailure?: Error;
 		queryPageSize?: number;
 		afterQuery?: () => void;
+		unindexed?: Set<string>;
 	} = {};
 	const rows = new Map<string, Record<string, unknown>>();
 	const transactions: unknown[] = [];
@@ -55,6 +58,8 @@ function setup() {
 			if (":one" in values) Object.assign(row, { epoch: Number(old?.epoch ?? 0) + Number(values[":one"]) });
 			if (":revoked" in values) Object.assign(row, { state: values[":revoked"] });
 			if (":revocation" in values) Object.assign(row, { revocation: values[":revocation"] });
+			if (":next" in values) Object.assign(row, { epoch: values[":next"] });
+			if (":exemption" in values) Object.assign(row, { exemption: values[":exemption"] });
 			rows.set(pk, row);
 			return row;
 		}
@@ -62,7 +67,7 @@ function setup() {
 			transactions.push(command.input);
 			if (controls.transactionFailure) throw controls.transactionFailure;
 			const reasons = input.TransactItems.map(entry => {
-				const action = entry.Put ?? entry.ConditionCheck ?? entry.Delete;
+				const action = entry.Put ?? entry.ConditionCheck ?? entry.Delete ?? entry.Update;
 				if (!action?.ConditionExpression) return { Code: "None" };
 				const pk = "Item" in action ? String(action.Item.pk) : action.Key.pk;
 				const row = rows.get(pk);
@@ -91,7 +96,7 @@ function setup() {
 			case "DeleteCommand": assert(input.Key); rows.delete(input.Key.pk); return {};
 			case "UpdateCommand": assert(input.Key); assert(input.ExpressionAttributeValues); assert(input.UpdateExpression); return { Attributes: update(input.Key.pk, input.ExpressionAttributeValues, input.UpdateExpression) };
 			case "QueryCommand": {
-				const matching = [...rows.values()].filter(row => row.userId === input.ExpressionAttributeValues?.[":userId"]).sort((a, b) => String(a.pk).localeCompare(String(b.pk)));
+				const matching = [...rows.values()].filter(row => row.userId === input.ExpressionAttributeValues?.[":userId"] && !controls.unindexed?.has(String(row.pk))).sort((a, b) => String(a.pk).localeCompare(String(b.pk)));
 				const continuation = z.object({ ExclusiveStartKey: z.object({ pk: z.string() }).optional() }).parse(command.input).ExclusiveStartKey;
 				const remaining = matching.filter(row => !continuation || String(row.pk) > continuation.pk);
 				const page = remaining.slice(0, controls.queryPageSize);
@@ -103,7 +108,8 @@ function setup() {
 	}) as DynamoDBDocumentClient["send"];
 	const client: Partial<DynamoDBDocumentClient> = { send };
 	const model = initDynamoDbOAuthModel({ enrollmentEnabled: true, client: client as DynamoDBDocumentClient, tableName: "oauth", secret: "secret", findUserById: async () => null, findClient: async id => getBuiltInClient(id), markClientActive: async id => { if (controls.activationFailure) throw controls.activationFailure; activations.push(id); } });
-	return { model, rows, transactions, controls, activations };
+	const store = initDynamoRefreshStore({ client: client as DynamoDBDocumentClient, tableName: "oauth", secret: "secret" });
+	return { model, rows, transactions, controls, activations, store };
 }
 
 const user = { id: "user", emailVerified: true };
@@ -797,4 +803,420 @@ it("refuses a token whose generation is behind its active grant row", async () =
 	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
 	rows.set(`grant#${kept.user.grantId}`, { pk: `grant#${kept.user.grantId}`, id: kept.user.grantId, userId: user.id, clientId: client.id, epoch: 0, generation: 1, accessToken: "a", refreshFingerprint: "x", state: "active", expiresAt: 4102444800, validUntil: 4102444800000 });
 	expect(await model.getAccessToken("a")).toBeNull();
+});
+
+type Model = ReturnType<typeof setup>["model"];
+
+function boundRotation(input: { clientId: string; refreshToken: string; operationId?: string }) {
+	return { clientId: input.clientId, refreshToken: input.refreshToken, now: Date.now(), operationId: input.operationId ?? randomUUID(), bodyHash: "body", proof: { keyThumbprint: "key", id: randomUUID(), expiresAt: Date.now() + 300_000 } };
+}
+
+async function rotateBound(model: Model, input: { clientId: string; refreshToken: string; operationId?: string }): Promise<RefreshCredential> {
+	const result = await model.refresh.rotate(boundRotation(input));
+	assert(result.ok, `the bound rotation must succeed: ${JSON.stringify(result)}`);
+	return result.credential;
+}
+
+const grantIdOf = (credential: RefreshCredential): OAuthGrantId => OAuthGrantIdSchema.parse(credential.grantId);
+const accountRow = `oauth-account#${user.id}`;
+
+function authorizationCode(code: string) {
+	return { authorizationCode: code, expiresAt: expiry, redirectUri: "readplace://oauth-callback", codeChallenge: "challenge", codeChallengeMethod: "S256", client, user };
+}
+
+it("keeps the named grant and disconnects every other grant and code", async () => {
+	const { model, rows } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const kept = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	await model.saveToken(token({ access: "b", refresh: "s" }), chrome, user);
+	await model.saveAuthorizationCode(authorizationCode("before"), client, user);
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(kept) })).toEqual({ kept: kept.grantId });
+
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 1, exemption: { atEpoch: 1, grantId: kept.grantId, grantEpoch: 0 } });
+	expect(await model.getAccessToken(kept.accessToken)).toMatchObject({ accessToken: kept.accessToken });
+	expect(await model.getAccessToken("b")).toBeNull();
+	expect(rows.get(`credential#${proof.fingerprint(kept.refreshToken)}`)).toEqual(expect.not.objectContaining({ revocation: expect.anything() }));
+	expect(rows.get(`credential#${proof.fingerprint("s")}`)).toMatchObject({ revocation: { cause: "logout-all" } });
+	const endpoint = tokenEndpoint(model);
+	expect((await endpoint.refreshAs({ clientId: chrome.id, refreshToken: "s" })).body).toEqual({ error: "invalid_grant", readplace_reason: "revoked" });
+	const refusal = endpoint.lastRefusal();
+	expect(refusal).toMatchObject({ reason: "logout-all", revocation: { cause: "logout-all" } });
+	expect(await evaluateAfterPendingWindow(refusal)).toMatchObject({ raw: 1, expected: 1, unexpected: 0 });
+	expect(await model.getAuthorizationCode("before")).toBeNull();
+	await model.saveAuthorizationCode(authorizationCode("after"), client, user);
+	expect(await model.getAuthorizationCode("after")).toMatchObject({ authorizationCode: "after" });
+	const rotated = await rotateBound(model, { clientId: client.id, refreshToken: kept.refreshToken });
+	expect(rotated).toMatchObject({ epoch: 1, generation: 2, keyThumbprint: "key" });
+	expect(rows.get(`grant#${kept.grantId}`)).toMatchObject({ epoch: 1, generation: 2, state: "active", keyThumbprint: "key", latest: { parentFingerprint: proof.fingerprint(kept.refreshToken), bodyHash: "body" } });
+});
+
+it("behaves as logout-all when there is nothing to keep", async () => {
+	const { model, rows } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: undefined })).toEqual({ kept: undefined });
+
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 1 });
+	expect(rows.get(`grant#${bound.grantId}`)).toMatchObject({ state: "revoked" });
+	expect(await model.getAccessToken(bound.accessToken)).toBeNull();
+	expect(rows.get(`credential#${proof.fingerprint(bound.refreshToken)}`)).toMatchObject({ revocation: { cause: "logout-all" } });
+});
+
+it.each([
+	["never refreshed", async (_model: Model) => "r"],
+	["refreshed without a device key", async (model: Model) => {
+		const rotated = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() });
+		assert(rotated.ok);
+		return rotated.credential.refreshToken;
+	}],
+])("keeps nothing for a grant that %s, so the change falls back to logout-all", async (_case, prepare) => {
+	const { model, rows } = setup();
+	const saved = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(saved);
+	const current = await prepare(model);
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: OAuthGrantIdSchema.parse(saved.user.grantId) })).toEqual({ kept: undefined });
+
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 1 });
+	expect(await model.getAccessToken("a")).toBeNull();
+	const endpoint = tokenEndpoint(model);
+	expect((await endpoint.refresh(current)).body).toEqual({ error: "invalid_grant", readplace_reason: "revoked" });
+	expect(endpoint.lastRefusal()).toMatchObject({ reason: "logout-all", revocation: { cause: "logout-all" } });
+});
+
+it.each([
+	["signed out", async (model: Model, bound: RefreshCredential) => { assert((await model.refresh.revoke({ token: bound.refreshToken, now: Date.now(), proof: boundRotation({ clientId: client.id, refreshToken: bound.refreshToken }).proof })).ok); }],
+	["was disconnected", async (model: Model) => model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })],
+	["was fenced by a reset", async (model: Model) => model.revokeAllUserOAuthTokens(reader, "logout-all")],
+])("keeps nothing for a grant that %s before the change", async (_case, before) => {
+	const { model, rows } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	await before(model, bound);
+	const epoch = Number(rows.get(accountRow)?.epoch ?? 0);
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).toEqual({ kept: undefined });
+
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: epoch + 1 });
+	expect(rows.get(`grant#${bound.grantId}`)).toMatchObject({ state: "revoked" });
+	expect(await model.getAccessToken(bound.accessToken)).toBeNull();
+});
+
+it.each([
+	["with a refresh between them", true, { atEpoch: 2, grantEpoch: 1 }],
+	["without a refresh between them", false, { atEpoch: 2, grantEpoch: 0 }],
+])("keeps the grant through two changes in a row %s", async (_case, refreshBetween, exemption) => {
+	const { model, rows } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	let current = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	const keep = grantIdOf(current);
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep })).toEqual({ kept: keep });
+	if (refreshBetween) current = await rotateBound(model, { clientId: client.id, refreshToken: current.refreshToken });
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep })).toEqual({ kept: keep });
+
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 2, exemption: { grantId: keep, ...exemption } });
+	expect(await model.getAccessToken(current.accessToken)).toMatchObject({ accessToken: current.accessToken });
+	expect(await rotateBound(model, { clientId: client.id, refreshToken: current.refreshToken })).toMatchObject({ epoch: 2 });
+});
+
+it.each(["logout-all", "account-deletion"] as const)("a later %s revokes the kept grant", async cause => {
+	const { model, rows } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) });
+
+	await model.revokeAllUserOAuthTokens(reader, cause);
+
+	expect(rows.get(`grant#${bound.grantId}`)).toMatchObject({ state: "revoked" });
+	expect(await model.getAccessToken(bound.accessToken)).toBeNull();
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.refresh.rotate(boundRotation({ clientId: client.id, refreshToken: bound.refreshToken })))).toMatchObject({ reason: "revoked" });
+	expect(context.reason).toBe(cause);
+});
+
+it("keeps the grant while a rotation of it is in flight", async () => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+
+	const [rotated, outcome] = await Promise.all([
+		model.refresh.rotate(boundRotation({ clientId: client.id, refreshToken: bound.refreshToken })),
+		model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) }),
+	]);
+
+	assert(rotated.ok);
+	expect(outcome).toEqual({ kept: bound.grantId });
+	expect(await model.getAccessToken(rotated.credential.accessToken)).toMatchObject({ accessToken: rotated.credential.accessToken });
+});
+
+it.each([
+	["between the rotation's locate and its grant read", (input: z.infer<typeof commandSchema>) => input.Key?.pk.startsWith("grant#") === true],
+	["before the rotation's account read", (input: z.infer<typeof commandSchema>) => input.Key?.pk === accountRow],
+	["just before the rotation's commit", (input: z.infer<typeof commandSchema>) => input.TransactItems !== undefined],
+])("keeps the grant when the change lands %s", async (_when, trigger) => {
+	const { model, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	let outcome: { kept: OAuthGrantId | undefined } | undefined;
+	controls.beforeSend = async input => {
+		if (!trigger(input)) return;
+		controls.beforeSend = undefined;
+		outcome = await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) });
+	};
+
+	const rotated = await rotateBound(model, { clientId: client.id, refreshToken: bound.refreshToken });
+
+	expect(outcome).toEqual({ kept: bound.grantId });
+	expect(rotated).toMatchObject({ generation: 2 });
+	expect(await model.getAccessToken(rotated.accessToken)).toMatchObject({ accessToken: rotated.accessToken });
+});
+
+it("reads again when a rotation lands between the keep's reads and its transaction", async () => {
+	const { model, rows, controls, transactions } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	let rotated: RefreshCredential | undefined;
+	controls.beforeSend = async input => {
+		if (!input.TransactItems) return;
+		controls.beforeSend = undefined;
+		rotated = await rotateBound(model, { clientId: client.id, refreshToken: bound.refreshToken });
+	};
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).toEqual({ kept: bound.grantId });
+
+	assert(rotated);
+	const keeps = z.array(z.object({ TransactItems: z.array(z.object({ Update: z.object({ Key: z.object({ pk: z.string() }) }).optional() })) })).parse(transactions)
+		.filter(transaction => transaction.TransactItems[0]?.Update?.Key.pk === accountRow);
+	expect(keeps).toHaveLength(2);
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 1, exemption: { atEpoch: 1, grantId: bound.grantId, grantEpoch: 0 } });
+	expect(await model.getAccessToken(rotated.accessToken)).toMatchObject({ accessToken: rotated.accessToken });
+});
+
+it("recovers a replay across the change with the same credentials", async () => {
+	const { model } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const operationId = randomUUID();
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r", operationId });
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).toEqual({ kept: bound.grantId });
+
+	const replayed = await model.refresh.rotate(boundRotation({ clientId: client.id, refreshToken: "r", operationId }));
+
+	expect(replayed).toEqual({ ok: true, recovered: true, credential: bound });
+});
+
+it.each([
+	["logout", async (model: Model, bound: RefreshCredential) => { assert((await model.refresh.revoke({ token: bound.refreshToken, now: Date.now(), proof: boundRotation({ clientId: client.id, refreshToken: bound.refreshToken }).proof })).ok); }],
+	["disconnect", async (model: Model) => model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })],
+])("a %s racing the change still revokes the kept grant", async (cause, revoke) => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	controls.beforeSend = async input => {
+		if (input.Key?.pk !== accountRow) return;
+		controls.beforeSend = undefined;
+		expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).toEqual({ kept: bound.grantId });
+	};
+
+	await revoke(model, bound);
+
+	expect(rows.get(`grant#${bound.grantId}`)).toMatchObject({ state: "revoked" });
+	expect(await model.getAccessToken(bound.accessToken)).toBeNull();
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.refresh.rotate(boundRotation({ clientId: client.id, refreshToken: bound.refreshToken })))).toMatchObject({ reason: "revoked" });
+	expect(context.reason).toBe(cause);
+});
+
+it("recovers a replayed refresh when the kept grant's rotation and a second change both land inside its reads", async () => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	const keep = grantIdOf(bound);
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep })).toEqual({ kept: keep });
+	const first = await rotateBound(model, { clientId: client.id, refreshToken: bound.refreshToken });
+	const operationId = randomUUID();
+	let second: RefreshCredential | undefined;
+	controls.beforeSend = async input => {
+		if (input.Key?.pk !== accountRow) return;
+		controls.beforeSend = undefined;
+		second = await rotateBound(model, { clientId: client.id, refreshToken: first.refreshToken, operationId });
+		expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep })).toEqual({ kept: keep });
+	};
+
+	const recovered = await model.refresh.rotate(boundRotation({ clientId: client.id, refreshToken: first.refreshToken, operationId }));
+
+	assert(second);
+	expect(recovered).toEqual({ ok: true, recovered: true, credential: second });
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 2, exemption: { atEpoch: 2, grantId: keep, grantEpoch: 1 } });
+	expect(await model.getAccessToken(second.accessToken)).toMatchObject({ accessToken: second.accessToken });
+});
+
+it.each([
+	["logout", async (model: Model, current: RefreshCredential) => { assert((await model.refresh.revoke({ token: current.refreshToken, now: Date.now(), proof: boundRotation({ clientId: client.id, refreshToken: current.refreshToken }).proof })).ok); }],
+	["disconnect", async (model: Model) => model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId })],
+])("a %s revokes the kept grant when its rotation and a second change both land inside its reads", async (cause, revoke) => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	const keep = grantIdOf(bound);
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep })).toEqual({ kept: keep });
+	const first = await rotateBound(model, { clientId: client.id, refreshToken: bound.refreshToken });
+	let second: RefreshCredential | undefined;
+	controls.beforeSend = async input => {
+		if (input.Key?.pk !== accountRow) return;
+		controls.beforeSend = undefined;
+		second = await rotateBound(model, { clientId: client.id, refreshToken: first.refreshToken });
+		expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep })).toEqual({ kept: keep });
+	};
+
+	await revoke(model, first);
+
+	assert(second);
+	const child = second;
+	expect(rows.get(`grant#${keep}`)).toMatchObject({ state: "revoked", epoch: 1, generation: 3 });
+	expect(await model.getAccessToken(child.accessToken)).toBeNull();
+	expect(await model.listUserOAuthClients(reader)).toEqual([]);
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.refresh.rotate(boundRotation({ clientId: client.id, refreshToken: child.refreshToken })))).toMatchObject({ reason: "revoked" });
+	expect(context.reason).toBe(cause);
+});
+
+it("keeps with one transaction that moves the epoch and pins the grant row it read", async () => {
+	const { model, transactions } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	const before = transactions.length;
+
+	await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) });
+
+	expect(transactions.slice(before)).toEqual([{ TransactItems: [
+		{ Update: { TableName: "oauth", Key: { pk: accountRow }, UpdateExpression: "SET epoch = :next, exemption = :exemption",
+			ConditionExpression: "attribute_not_exists(deletedAt) AND (attribute_not_exists(epoch) OR epoch = :epoch)",
+			ExpressionAttributeValues: { ":epoch": 0, ":next": 1, ":exemption": { atEpoch: 1, grantId: bound.grantId, grantEpoch: 0 } } } },
+		{ ConditionCheck: { TableName: "oauth", Key: { pk: `grant#${bound.grantId}` },
+			ConditionExpression: "generation = :generation AND #state = :state AND accessToken = :access AND epoch = :epoch",
+			ExpressionAttributeNames: { "#state": "state" },
+			ExpressionAttributeValues: { ":generation": 1, ":state": "active", ":access": bound.accessToken, ":epoch": 0 } } },
+	] }]);
+});
+
+it("answers conflict and writes nothing when the account is already at another epoch", async () => {
+	const { model, rows, store } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	const grant = await store.store.readGrant(bound.grantId); assert(grant);
+	rows.set(accountRow, { pk: accountRow, epoch: 1 });
+
+	expect(await store.advanceEpochKeeping({ userId: user.id, exemption: { atEpoch: 1, grantId: bound.grantId, grantEpoch: 0 }, expectedGrant: grant })).toBe("conflict");
+
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 1 });
+});
+
+it.each([
+	new Error("unavailable"),
+	new TransactionCanceledException({ $metadata: {}, message: "throttled", CancellationReasons: [{ Code: "ProvisionedThroughputExceeded" }] }),
+	new TransactionCanceledException({ $metadata: {}, message: "unspecified cancellation" }),
+])("rethrows a keep that failed for a reason other than a lost race and leaves the grant working: %s", async failure => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	rows.set(accountRow, { pk: accountRow, epoch: 0 });
+	controls.transactionFailure = failure;
+
+	await expect(model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).rejects.toBe(failure);
+
+	controls.transactionFailure = undefined;
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 0 });
+	expect(await model.getAccessToken(bound.accessToken)).toMatchObject({ accessToken: bound.accessToken });
+});
+
+it("retries a keep whose transaction lost a race and keeps the grant", async () => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	let sent = 0;
+	controls.beforeSend = async input => {
+		if (!input.TransactItems) return;
+		sent += 1;
+		controls.transactionFailure = sent === 1 ? new TransactionCanceledException({ $metadata: {}, message: "lost race", CancellationReasons: [{ Code: "TransactionConflict" }] }) : undefined;
+	};
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).toEqual({ kept: bound.grantId });
+
+	expect(sent).toBe(2);
+	expect(rows.get(accountRow)).toEqual({ pk: accountRow, epoch: 1, exemption: { atEpoch: 1, grantId: bound.grantId, grantEpoch: 0 } });
+	expect(await model.getAccessToken(bound.accessToken)).toMatchObject({ accessToken: bound.accessToken });
+});
+
+it.each(["logout-all", "account-deletion"] as const)("falls back to a full logout-all when a %s lands between the keep's reads and its transaction", async cause => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	controls.beforeSend = async input => {
+		if (!input.Key?.pk.startsWith("grant#")) return;
+		controls.beforeSend = undefined;
+		await model.revokeAllUserOAuthTokens(reader, cause);
+	};
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).toEqual({ kept: undefined });
+
+	expect(rows.get(accountRow)).toEqual(cause === "account-deletion" ? { pk: accountRow, epoch: 2, deletedAt: expect.any(Number) } : { pk: accountRow, epoch: 2 });
+	expect(await model.getAccessToken(bound.accessToken)).toBeNull();
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.refresh.rotate(boundRotation({ clientId: client.id, refreshToken: bound.refreshToken })))).toMatchObject({ reason: "revoked" });
+	expect(context.reason).toBe(cause);
+});
+
+it("disconnects a connection that signed in just before the change and is not yet listed in userId-index", async () => {
+	const { model, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	await model.saveToken(token({ access: "b", refresh: "s" }), chrome, user);
+	controls.unindexed = new Set(["token#b"]);
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).toEqual({ kept: bound.grantId });
+
+	expect(await model.getAccessToken("b")).toBeNull();
+	expect(await model.refresh.rotate({ clientId: chrome.id, refreshToken: "s", now: Date.now() })).toMatchObject({ reason: "revoked" });
+	expect(await rotateBound(model, { clientId: client.id, refreshToken: bound.refreshToken })).toMatchObject({ epoch: 1, generation: 2 });
+});
+
+it("a sweep that fails after its first revocation still leaves every other grant refused and the kept grant working", async () => {
+	const { model, rows, controls } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	await model.saveToken(token({ access: "b", refresh: "s" }), chrome, user);
+	await model.saveToken(token({ access: "c", refresh: "t" }), firefox, user);
+	controls.beforeSend = async input => {
+		if (input.TransactItems?.some(entry => entry.Delete?.Key.pk === "token#c")) throw new Error("sweep failed");
+	};
+
+	await expect(model.revokeOtherUserOAuthGrants({ userId: reader, keep: grantIdOf(bound) })).rejects.toThrow("sweep failed");
+
+	controls.beforeSend = undefined;
+	expect(rows.get(`credential#${proof.fingerprint("s")}`)).toMatchObject({ revocation: { cause: "logout-all" } });
+	expect(rows.has("token#c")).toBe(true);
+	expect([await model.getAccessToken("b"), await model.getAccessToken("c")]).toEqual([null, null]);
+	expect(await model.refresh.rotate({ clientId: chrome.id, refreshToken: "s", now: Date.now() })).toMatchObject({ reason: "revoked" });
+	expect(await model.refresh.rotate({ clientId: firefox.id, refreshToken: "t", now: Date.now() })).toMatchObject({ reason: "revoked" });
+	expect(await rotateBound(model, { clientId: client.id, refreshToken: bound.refreshToken })).toMatchObject({ epoch: 1, generation: 2 });
+});
+
+it.each([
+	["with nothing to keep", false],
+	["beside a kept grant", true],
+])("revokes a legacy token row without a grant id %s", async (_case, withKeep) => {
+	const { model, rows } = setup();
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
+	const bound = await rotateBound(model, { clientId: client.id, refreshToken: "r" });
+	await model.saveToken(token({ access: "l", refresh: "legacy" }), chrome, user);
+	const legacy = rows.get("token#l"); assert(legacy); delete legacy.grantId;
+	rows.delete(`credential#${proof.fingerprint("legacy")}`);
+
+	expect(await model.revokeOtherUserOAuthGrants({ userId: reader, keep: withKeep ? grantIdOf(bound) : undefined })).toEqual({ kept: withKeep ? bound.grantId : undefined });
+
+	expect([rows.has("token#l"), rows.has("refresh#legacy")]).toEqual([false, false]);
+	expect(rows.get(`credential#${proof.fingerprint("legacy")}`)).toMatchObject({ revocation: { cause: "logout-all" } });
+	expect(await model.getAccessToken(bound.accessToken)).toEqual(withKeep ? expect.objectContaining({ accessToken: bound.accessToken }) : null);
 });

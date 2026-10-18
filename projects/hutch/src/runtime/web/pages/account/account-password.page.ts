@@ -7,12 +7,13 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	CreateSession,
 	DestroyUserSessions,
+	FindSessionOAuthGrant,
 	FindUserById,
 	FindUserPasswordStatus,
 	UpdatePassword,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
-import type { RevokeAllUserOAuthTokens } from "@packages/provider-contracts/oauth";
+import type { RevokeOtherUserOAuthGrants } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { requireCspNonce, sendComponent, withInternalTracking } from "@packages/web-shell";
@@ -127,7 +128,8 @@ export function initAccountPasswordRoutes(deps: {
 	loginAccountRule: RateLimitRule;
 	updatePassword: UpdatePassword;
 	destroyUserSessions: DestroyUserSessions;
-	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	findSessionOAuthGrant: FindSessionOAuthGrant;
+	revokeOtherUserOAuthGrants: RevokeOtherUserOAuthGrants;
 	createSession: CreateSession;
 	secureCookies: boolean;
 	now: () => Date;
@@ -195,6 +197,8 @@ export function initAccountPasswordRoutes(deps: {
 
 	router.post("/", async (req: Request, res: Response) => {
 		assert(req.userId, "the change-password guard admits only a signed-in reader");
+		const presented = req.cookies?.[SESSION_COOKIE_NAME];
+		assert(presented, "a signed-in reader reaches the change-password form on a session cookie");
 		const { user, status } = await loadAccount(req.userId);
 		const markers = markersOf(req);
 		const answer = (outcome: ChangePasswordOutcome) =>
@@ -220,14 +224,15 @@ export function initAccountPasswordRoutes(deps: {
 			answer(refuse(VERIFY_REFUSALS[verified.reason]));
 			return;
 		}
+		const keep = await deps.findSessionOAuthGrant(presented);
 		await deps.updatePassword({
 			email: user.email,
 			password: parsed.data.password,
 			updatedAt: deps.now().toISOString(),
 		});
-		await deps.revokeAllUserOAuthTokens(user.userId, "logout-all");
+		const { kept } = await deps.revokeOtherUserOAuthGrants({ userId: user.userId, keep });
 		await deps.destroyUserSessions(user.userId);
-		const sessionId = await deps.createSession({ userId: user.userId, emailVerified: verified.emailVerified });
+		const sessionId = await deps.createSession({ userId: user.userId, emailVerified: verified.emailVerified, oauthGrantId: kept });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, persistentSessionCookieOptions(deps.secureCookies));
 		answer({ landing: buildAccountUrl({ passwordChanged: true, ...markers }) });
 	});

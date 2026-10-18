@@ -18,6 +18,11 @@ export type ValidateAccessToken = (
 
 export type RevokeAllUserOAuthTokens = (userId: UserId, cause: "logout-all" | "account-deletion") => Promise<void>;
 
+export type RevokeOtherUserOAuthGrants = (input: {
+	userId: UserId;
+	keep: OAuthGrantId | undefined;
+}) => Promise<{ kept: OAuthGrantId | undefined }>;
+
 export type ListUserOAuthClients = (userId: UserId) => Promise<readonly OAuthClientId[]>;
 
 export type RevokeUserOAuthClient = (input: { userId: UserId; clientId: OAuthClientId }) => Promise<void>;

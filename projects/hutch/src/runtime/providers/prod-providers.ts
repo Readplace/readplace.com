@@ -538,6 +538,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,
+		revokeOtherUserOAuthGrants: oauthModel.revokeOtherUserOAuthGrants,
 		listUserOAuthClients: oauthModel.listUserOAuthClients,
 		revokeUserOAuthClient: oauthModel.revokeUserOAuthClient,
 		validateAccessToken,

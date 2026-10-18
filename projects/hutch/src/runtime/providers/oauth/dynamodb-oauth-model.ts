@@ -28,6 +28,7 @@ import type {
 	MarkOAuthClientActive,
 	OAuthModel,
 	RevokeAllUserOAuthTokens,
+	RevokeOtherUserOAuthGrants,
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
@@ -69,6 +70,7 @@ export function initDynamoDbOAuthModel(deps: {
 	secret: string;
 }): OAuthModel & {
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
+	revokeOtherUserOAuthGrants: RevokeOtherUserOAuthGrants;
 	listUserOAuthClients: ListUserOAuthClients;
 	revokeUserOAuthClient: RevokeUserOAuthClient;
 } {
@@ -94,6 +96,7 @@ export function initDynamoDbOAuthModel(deps: {
 	return {
 		refresh,
 		revokeAllUserOAuthTokens: credentials.revokeAll,
+		revokeOtherUserOAuthGrants: credentials.revokeOther,
 		listUserOAuthClients: credentials.listClients,
 		revokeUserOAuthClient: credentials.revokeClient,
 		async getClient(clientId: string, _clientSecret: string): Promise<Client | Falsey> {

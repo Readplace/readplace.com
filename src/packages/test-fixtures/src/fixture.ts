@@ -47,6 +47,7 @@ import {
 	createListUserOAuthClients,
 	createOAuthModel,
 	createRevokeAllUserOAuthTokens,
+	createRevokeOtherUserOAuthGrants,
 	createRevokeUserOAuthClient,
 	initInMemoryOAuthModel,
 } from "./providers/oauth/oauth-model";
@@ -323,6 +324,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		markClientActive: oauthClientLookup.markClientActive,
 	});
 	const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(oauthModelDeps);
+	const revokeOtherUserOAuthGrants = createRevokeOtherUserOAuthGrants(oauthModelDeps);
 	const listUserOAuthClients = createListUserOAuthClients(oauthModelDeps);
 	const revokeUserOAuthClient = createRevokeUserOAuthClient(oauthModelDeps);
 	const hostedCheckout = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
@@ -473,6 +475,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		oauth: {
 			oauthModel,
 			revokeAllUserOAuthTokens,
+			revokeOtherUserOAuthGrants,
 			listUserOAuthClients,
 			revokeUserOAuthClient,
 			validateAccessToken: createValidateAccessToken(oauthModel),

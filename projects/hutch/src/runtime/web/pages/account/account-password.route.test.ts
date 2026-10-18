@@ -8,6 +8,8 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { useTestServer } from "../../../test-app";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { bindGrant, refreshWithProof, revokeWithProof } from "../../test-helpers/device-bound-grant";
 
 const useApp = useTestServer();
 
@@ -75,7 +77,7 @@ function hxLocation(response: request.Response): z.infer<typeof HxLocationSchema
 async function grantRefreshToken(
 	harness: Harness,
 	input: { agent: ReturnType<typeof request.agent>; clientId: string; redirectUri: string },
-): Promise<string> {
+): Promise<{ accessToken: string; refreshToken: string }> {
 	const verifier = randomBytes(32).toString("base64url");
 	const authorize = await input.agent.post("/oauth/authorize").type("form").send({
 		client_id: input.clientId,
@@ -97,7 +99,8 @@ async function grantRefreshToken(
 		code_verifier: verifier,
 	});
 	assert.equal(token.status, 200, "the authorization code must exchange for tokens");
-	return token.body.refresh_token;
+	const issued = IssuedTokensSchema.parse(token.body);
+	return { accessToken: issued.access_token, refreshToken: issued.refresh_token };
 }
 
 async function registerAssistant(harness: Harness, redirectUri: string): Promise<string> {
@@ -125,6 +128,16 @@ const VALID_CHANGE = changeRequest({
 	password: NEW_PASSWORD,
 	confirmPassword: NEW_PASSWORD,
 });
+const SECOND_PASSWORD = "Second-New-Secret-74";
+const SECOND_CHANGE = changeRequest({
+	currentPassword: NEW_PASSWORD,
+	password: SECOND_PASSWORD,
+	confirmPassword: SECOND_PASSWORD,
+});
+const IOS_REDIRECT_URI = "readplace://oauth-callback";
+const CHROME_REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
+const CLAUDE_REDIRECT_URI = "https://claude.ai/api/mcp/auth_callback";
+const IssuedTokensSchema = z.object({ access_token: z.string(), refresh_token: z.string() });
 
 describe("GET /account/password", () => {
 	it("renders the change card: three password fields posting in place, a plain way to reset and a boosted way back", async () => {
@@ -145,7 +158,7 @@ describe("GET /account/password", () => {
 		expect(card.parentElement).toBe(main);
 		expect(card.querySelector(".auth-card__title")?.textContent).toBe("Change your password");
 		expect(card.querySelector(".auth-card__subtitle")?.textContent).toBe(
-			"Changing it signs you out in every other browser and disconnects the browser extension, the iPhone app, and AI assistants.",
+			"Changing it signs you out of every other browser and disconnects your other connected apps, which will ask you to sign in again.",
 		);
 		const form = changeForm(card);
 		expect(
@@ -477,13 +490,13 @@ describe("POST /account/password — a valid change", () => {
 	it("disconnects every connected app, the extension and an AI assistant alike", async () => {
 		const harness = useApp(fixtureAt());
 		const { agent } = await signUp(harness);
-		const extensionToken = await grantRefreshToken(harness, {
+		const { refreshToken: extensionToken } = await grantRefreshToken(harness, {
 			agent,
 			clientId: "hutch-chrome-extension",
 			redirectUri: "http://127.0.0.1:3000/oauth/callback",
 		});
 		const claudeId = await registerAssistant(harness, "https://claude.ai/api/mcp/auth_callback");
-		const claudeToken = await grantRefreshToken(harness, {
+		const { refreshToken: claudeToken } = await grantRefreshToken(harness, {
 			agent,
 			clientId: claudeId,
 			redirectUri: "https://claude.ai/api/mcp/auth_callback",
@@ -505,7 +518,7 @@ describe("POST /account/password — a valid change", () => {
 	it("keeps every connected app when the change is refused", async () => {
 		const harness = useApp(fixtureAt());
 		const { agent } = await signUp(harness);
-		const extensionToken = await grantRefreshToken(harness, {
+		const { refreshToken: extensionToken } = await grantRefreshToken(harness, {
 			agent,
 			clientId: "hutch-chrome-extension",
 			redirectUri: "http://127.0.0.1:3000/oauth/callback",
@@ -751,5 +764,198 @@ describe("/account/password on the app's surfaces", () => {
 		expect(doc.querySelector("[data-test-back-to-account] a")?.getAttribute("href")).toBe(
 			"/account?platform=ios&utm_source=account-password&utm_medium=internal&utm_content=back-to-account",
 		);
+	});
+});
+
+function sessionIdOf(response: request.Response): string {
+	const cookie = sessionCookieOf(response);
+	return cookie.slice("hutch_sid=".length, cookie.indexOf(";"));
+}
+
+async function sessionMintedBy(harness: Harness, accessToken: string) {
+	const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
+	const minted = await agent.post("/auth/session").set("Authorization", `Bearer ${accessToken}`);
+	assert.equal(minted.status, 204, "the client's bearer must mint a session");
+	return agent;
+}
+
+function sirenQueue(harness: Harness, accessToken: string) {
+	return request(harness.server).get("/queue").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${accessToken}`);
+}
+
+function refusalOf(response: request.Response): [number, string, string] {
+	return [response.status, response.body.error, response.body.readplace_reason];
+}
+
+async function approveAndBind(
+	harness: Harness,
+	input: { agent: ReturnType<typeof request.agent>; clientId: string; redirectUri: string },
+) {
+	const issued = await grantRefreshToken(harness, input);
+	return bindGrant(harness, { clientId: input.clientId, refreshToken: issued.refreshToken });
+}
+
+describe("POST /account/password from a session a connected app minted", () => {
+	it.each([
+		["ios", "ios-app", IOS_REDIRECT_URI],
+		["android", "android-app", "readplace://oauth-callback/android"],
+	] as const)(
+		"keeps the %s app the change was made from connected and disconnects every other app",
+		async (platform, clientId, redirectUri) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { agent: browser } = await signUp(harness);
+			const app = await approveAndBind(harness, { agent: browser, clientId, redirectUri });
+			const extension = await approveAndBind(harness, {
+				agent: browser,
+				clientId: "hutch-chrome-extension",
+				redirectUri: CHROME_REDIRECT_URI,
+			});
+			const claudeId = await registerAssistant(harness, CLAUDE_REDIRECT_URI);
+			const claude = await grantRefreshToken(harness, { agent: browser, clientId: claudeId, redirectUri: CLAUDE_REDIRECT_URI });
+			const inApp = await sessionMintedBy(harness, app.accessToken);
+
+			const change = await inApp.post(`/account/password?platform=${platform}&shell=app`).type("form").send(VALID_CHANGE);
+			expect(change.status).toBe(303);
+
+			expect((await sirenQueue(harness, app.accessToken)).status).toBe(200);
+			expect((await refreshWithProof(harness, { clientId, refreshToken: app.refreshToken, key: app.key })).status).toBe(200);
+			expect(
+				refusalOf(
+					await refreshWithProof(harness, {
+						clientId: "hutch-chrome-extension",
+						refreshToken: extension.refreshToken,
+						key: extension.key,
+					}),
+				),
+			).toEqual([400, "invalid_grant", "revoked"]);
+			expect(refusalOf(await refresh(harness, { clientId: claudeId, refreshToken: claude.refreshToken }))).toEqual([
+				400,
+				"invalid_grant",
+				"revoked",
+			]);
+			const signedOut = await browser.get("/account");
+			expect([signedOut.status, signedOut.headers.location]).toEqual([303, "/login"]);
+		},
+	);
+
+	it("disconnects the app the change was made from when its grant was never bound to a device key", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent: browser } = await signUp(harness);
+		const app = await grantRefreshToken(harness, { agent: browser, clientId: "ios-app", redirectUri: IOS_REDIRECT_URI });
+		const inApp = await sessionMintedBy(harness, app.accessToken);
+
+		const change = await inApp.post("/account/password?platform=ios&shell=app").type("form").send(VALID_CHANGE);
+		expect(change.status).toBe(303);
+
+		expect((await sirenQueue(harness, app.accessToken)).status).toBe(401);
+		expect(refusalOf(await refresh(harness, { clientId: "ios-app", refreshToken: app.refreshToken }))).toEqual([
+			400,
+			"invalid_grant",
+			"revoked",
+		]);
+	});
+
+	it("keeps the extension whose bearer renewed the browser's own session", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent: browser } = await signUp(harness);
+		const extension = await approveAndBind(harness, {
+			agent: browser,
+			clientId: "hutch-chrome-extension",
+			redirectUri: CHROME_REDIRECT_URI,
+		});
+		const app = await approveAndBind(harness, { agent: browser, clientId: "ios-app", redirectUri: IOS_REDIRECT_URI });
+		const renewed = await browser.post("/auth/session").set("Authorization", `Bearer ${extension.accessToken}`);
+		expect(renewed.status).toBe(204);
+
+		const change = await browser.post(FORM_ACTION).type("form").send(VALID_CHANGE);
+		expect(change.status).toBe(303);
+
+		expect((await sirenQueue(harness, extension.accessToken)).status).toBe(200);
+		expect(
+			(
+				await refreshWithProof(harness, {
+					clientId: "hutch-chrome-extension",
+					refreshToken: extension.refreshToken,
+					key: extension.key,
+				})
+			).status,
+		).toBe(200);
+		expect(refusalOf(await refreshWithProof(harness, { clientId: "ios-app", refreshToken: app.refreshToken, key: app.key }))).toEqual([
+			400,
+			"invalid_grant",
+			"revoked",
+		]);
+		expect((await browser.get("/account")).status).toBe(200);
+	});
+
+	it("keeps the app again when the next change comes from the session the first one created", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent: browser } = await signUp(harness);
+		const app = await approveAndBind(harness, { agent: browser, clientId: "ios-app", redirectUri: IOS_REDIRECT_URI });
+		const inApp = await sessionMintedBy(harness, app.accessToken);
+		const first = await inApp.post("/account/password?platform=ios&shell=app").type("form").send(VALID_CHANGE);
+		expect(first.status).toBe(303);
+		const rotated = await refreshWithProof(harness, { clientId: "ios-app", refreshToken: app.refreshToken, key: app.key });
+		expect(rotated.status).toBe(200);
+		const current = IssuedTokensSchema.parse(rotated.body);
+
+		const second = await inApp.post("/account/password?platform=ios&shell=app").type("form").send(SECOND_CHANGE);
+		expect(second.status).toBe(303);
+
+		expect((await sirenQueue(harness, current.access_token)).status).toBe(200);
+		expect((await refreshWithProof(harness, { clientId: "ios-app", refreshToken: current.refresh_token, key: app.key })).status).toBe(200);
+		expect((await inApp.get("/account")).status).toBe(200);
+	});
+
+	it("keeps nothing when an AI assistant minted the session", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent: browser } = await signUp(harness);
+		const claudeId = await registerAssistant(harness, CLAUDE_REDIRECT_URI);
+		const claude = await grantRefreshToken(harness, { agent: browser, clientId: claudeId, redirectUri: CLAUDE_REDIRECT_URI });
+		const app = await approveAndBind(harness, { agent: browser, clientId: "ios-app", redirectUri: IOS_REDIRECT_URI });
+		const viaAssistant = await sessionMintedBy(harness, claude.accessToken);
+
+		const change = await viaAssistant.post(FORM_ACTION).type("form").send(VALID_CHANGE);
+		expect(change.status).toBe(303);
+
+		expect(await harness.auth.findSessionOAuthGrant(sessionIdOf(change))).toBeUndefined();
+		expect(refusalOf(await refresh(harness, { clientId: claudeId, refreshToken: claude.refreshToken }))).toEqual([
+			400,
+			"invalid_grant",
+			"revoked",
+		]);
+		expect(refusalOf(await refreshWithProof(harness, { clientId: "ios-app", refreshToken: app.refreshToken, key: app.key }))).toEqual([
+			400,
+			"invalid_grant",
+			"revoked",
+		]);
+	});
+
+	it("keeps nothing when the extension signed out before the change", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent: browser } = await signUp(harness);
+		const extension = await approveAndBind(harness, {
+			agent: browser,
+			clientId: "hutch-chrome-extension",
+			redirectUri: CHROME_REDIRECT_URI,
+		});
+		const app = await approveAndBind(harness, { agent: browser, clientId: "ios-app", redirectUri: IOS_REDIRECT_URI });
+		const viaExtension = await sessionMintedBy(harness, extension.accessToken);
+		const signedOut = await revokeWithProof(harness, {
+			clientId: "hutch-chrome-extension",
+			refreshToken: extension.refreshToken,
+			key: extension.key,
+		});
+		expect(signedOut.status).toBe(200);
+
+		const change = await viaExtension.post(FORM_ACTION).type("form").send(VALID_CHANGE);
+		expect(change.status).toBe(303);
+
+		expect(await harness.auth.findSessionOAuthGrant(sessionIdOf(change))).toBeUndefined();
+		expect(refusalOf(await refreshWithProof(harness, { clientId: "ios-app", refreshToken: app.refreshToken, key: app.key }))).toEqual([
+			400,
+			"invalid_grant",
+			"revoked",
+		]);
 	});
 });

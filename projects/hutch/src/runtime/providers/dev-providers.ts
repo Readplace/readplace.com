@@ -54,6 +54,7 @@ import {
 	createListUserOAuthClients,
 	createOAuthModel,
 	createRevokeAllUserOAuthTokens,
+	createRevokeOtherUserOAuthGrants,
 	createRevokeUserOAuthClient,
 	initInMemoryOAuthClients,
 	initInMemoryOAuthModel,
@@ -169,6 +170,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		markClientActive: oauthClientLookup.markClientActive,
 	});
 	const revokeAllUserOAuthTokens = createRevokeAllUserOAuthTokens(oauthModelDeps);
+	const revokeOtherUserOAuthGrants = createRevokeOtherUserOAuthGrants(oauthModelDeps);
 	const listUserOAuthClients = createListUserOAuthClients(oauthModelDeps);
 	const revokeUserOAuthClient = createRevokeUserOAuthClient(oauthModelDeps);
 	const devStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
@@ -581,6 +583,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens,
+		revokeOtherUserOAuthGrants,
 		listUserOAuthClients,
 		revokeUserOAuthClient,
 		validateAccessToken: createValidateAccessToken(oauthModel),
