@@ -107,8 +107,9 @@ function setup() {
 		}
 	}) as DynamoDBDocumentClient["send"];
 	const client: Partial<DynamoDBDocumentClient> = { send };
-	const model = initDynamoDbOAuthModel({ enrollmentEnabled: true, client: client as DynamoDBDocumentClient, tableName: "oauth", secret: "secret", findUserById: async () => null, findClient: async id => getBuiltInClient(id), markClientActive: async id => { if (controls.activationFailure) throw controls.activationFailure; activations.push(id); } });
-	const store = initDynamoRefreshStore({ client: client as DynamoDBDocumentClient, tableName: "oauth", secret: "secret" });
+	const documentClient = client as DynamoDBDocumentClient;
+	const model = initDynamoDbOAuthModel({ enrollmentEnabled: true, client: documentClient, tableName: "oauth", secret: "secret", findUserById: async () => null, findClient: async id => getBuiltInClient(id), markClientActive: async id => { if (controls.activationFailure) throw controls.activationFailure; activations.push(id); } });
+	const store = initDynamoRefreshStore({ client: documentClient, tableName: "oauth", secret: "secret" });
 	return { model, rows, transactions, controls, activations, store };
 }
 
