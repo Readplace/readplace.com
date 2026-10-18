@@ -1,9 +1,9 @@
-Switch between your readlists from the new menu. Readplace remembers the last one you opened, with To Read and Read tabs for each list.
+Read your saved articles offline. When there's no connection, Readplace opens the copy stored on your iPhone and shows your readlists as they last loaded.
 
-Choose where shared articles go. The share sheet lets you select additional readlists on your first save, and you can change those choices from each readlist. Your choices stay in sync between the app and share sheet.
+Download your unread articles ahead of time with the new button at the top of your readlist. Downloaded articles are marked Saved offline, and you can continue a download that was interrupted.
 
-Choose light, dark, or system appearance in your account settings.
+When Readplace couldn't load an article from its site, opening it now tries to capture the page from your iPhone automatically, once per article. The app also no longer saves a site's error or CAPTCHA page in place of the article.
 
-Next Read now asks before moving you to another article. You can also download articles as EPUB files and send them to Books or another app using the share sheet.
+Swipe all the way left on an article to mark it as read or unread. The reader now shows when you saved each article, and its icons and buttons have a refreshed look.
 
-This update improves page capture and sign-in reliability, refreshes the sign-in animation, and fixes launching Readplace interrupting audio playing in other apps.
+Signing in now shows which account the app will connect to, and tapping Cancel on that page closes it without an error. This update also groups account settings into sections, keeps you signed in if the app is interrupted while renewing your sign-in, leaves the sign-in animation muted when it replays, stops banners covering your readlist, and confirms the save when you share an article you've already read.
