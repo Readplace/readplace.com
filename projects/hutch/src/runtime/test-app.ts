@@ -75,6 +75,7 @@ export type {
 
 export const TEST_EDGE_SECRET = "test-edge-secret";
 export { loginAgent } from "@packages/web-test-harness";
+export { TEST_APP_ORIGIN } from "@packages/test-fixtures";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 
 interface TestAppOverrides {

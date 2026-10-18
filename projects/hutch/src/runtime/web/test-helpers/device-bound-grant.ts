@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, randomUUID, sign, type KeyObject } from "node:crypto";
 import request from "supertest";
 import { z } from "zod";
-import { TEST_APP_ORIGIN } from "@packages/test-fixtures";
-import type { TestAppHarness } from "../../test-app";
+import { TEST_APP_ORIGIN, type TestAppHarness } from "../../test-app";
 
 interface DeviceKey {
 	privateKey: KeyObject;
