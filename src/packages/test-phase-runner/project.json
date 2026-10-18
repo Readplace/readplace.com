@@ -4,6 +4,12 @@
     "check": {
       "command": "pnpm lint && pnpm test-with-coverage",
       "options": { "cwd": "{projectRoot}" },
+      "inputs": [
+        "default",
+        "^production",
+        { "env": "CLAUDE_CODE_REMOTE" },
+        "{workspaceRoot}/projects/*/src/runtime/**/*.ts"
+      ],
       "dependsOn": ["compile"]
     }
   }
