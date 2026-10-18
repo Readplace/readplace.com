@@ -753,6 +753,53 @@ it("disconnect revokes the kept grant when its rotation and a second keep land i
 	expect(context.reason).toBe("disconnect");
 });
 
+function fireOnCredentialReadAfterGrantRead(controls: ReturnType<typeof setup>["controls"], accessToken: string, then: () => Promise<void>) {
+	let previous = "";
+	controls.beforeSend = async input => {
+		const pk = input.Key?.pk ?? "";
+		const credentialReadAfterGrantRead = pk === `token#${accessToken}` && previous.startsWith("grant#");
+		previous = pk;
+		if (!credentialReadAfterGrantRead) return;
+		controls.beforeSend = undefined;
+		await then();
+	};
+}
+
+it("disconnect revokes a grant whose rotation lands between its grant and credential reads", async () => {
+	const { model, rows, controls } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	const first = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }); assert(first.ok);
+	let rotated: RefreshCredential | undefined;
+	fireOnCredentialReadAfterGrantRead(controls, first.credential.accessToken, async () => {
+		const second = await model.refresh.rotate({ clientId: client.id, refreshToken: first.credential.refreshToken, now: Date.now() }); assert(second.ok);
+		rotated = second.credential;
+	});
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	assert(rotated);
+	const child = rotated;
+	expect(rows.get(`grant#${kept.user.grantId}`)).toMatchObject({ state: "revoked", epoch: 0, generation: 2 });
+	expect(await model.getAccessToken(child.accessToken)).toBeNull();
+	expect(await model.listUserOAuthClients(reader)).toEqual([]);
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: child.refreshToken, now: Date.now() }))).toMatchObject({ reason: "revoked" });
+	expect(context.reason).toBe("disconnect");
+});
+
+it("revokes a grant whose token row vanished without a rotation inside the disconnect's reads", async () => {
+	const { model, rows, controls, transactions } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	const first = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }); assert(first.ok);
+	fireOnCredentialReadAfterGrantRead(controls, first.credential.accessToken, async () => {
+		rows.delete(`token#${first.credential.accessToken}`);
+		rows.delete(`refresh#${first.credential.refreshToken}`);
+	});
+	transactions.length = 0;
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	expect(transactions).toHaveLength(1);
+	expect(rows.get(`grant#${kept.user.grantId}`)).toMatchObject({ state: "revoked", epoch: 0, generation: 1 });
+	expect(await model.listUserOAuthClients(reader)).toEqual([]);
+});
+
 it("refuses a token whose generation is behind its active grant row", async () => {
 	const { model, rows } = setup();
 	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
