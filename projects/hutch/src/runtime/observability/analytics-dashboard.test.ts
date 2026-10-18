@@ -168,7 +168,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 				{ type: "log", x: 0, y: 254, width: 12, height: 8, title: "Queue digest — skipped users by reason × tier", view: "table" },
 				{ type: "log", x: 12, y: 254, width: 12, height: 8, title: "Queue digest — signed-in email clicks by source / link", view: "table" },
 				{ type: "log", x: 0, y: 262, width: 12, height: 8, title: "Queue digest — plans page views by terms", view: "bar" },
-				{ type: "log", x: 12, y: 262, width: 12, height: 8, title: "Queue digest — unsubscribes by method", view: "bar" },
+				{ type: "log", x: 12, y: 262, width: 12, height: 8, title: "Queue digest — unsubscribes by method × email kind", view: "bar" },
 			]);
 		});
 
@@ -224,10 +224,11 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			expect(query).toContain("| stats count(*) as views, count_distinct(user_id) as users by terms");
 		});
 
-		it("counts unsubscribes by one-click versus confirm-page method", () => {
-			const query = queueDigestQuery("Queue digest — unsubscribes by method");
+		it("counts unsubscribes by one-click versus confirm-page method and by the email they came from, keeping links that named no email in their own bucket", () => {
+			const query = queueDigestQuery("Queue digest — unsubscribes by method × email kind");
 			expect(query).toContain(`event = "${ANALYTICS_EVENTS.queueDigestUnsubscribed}"`);
-			expect(query).toContain("| stats count(*) as unsubscribes, count_distinct(user_id) as users by method");
+			expect(query).toContain('coalesce(kind, "untagged") as email_kind');
+			expect(query).toContain("| stats count(*) as unsubscribes, count_distinct(user_id) as users by method, email_kind");
 		});
 	});
 

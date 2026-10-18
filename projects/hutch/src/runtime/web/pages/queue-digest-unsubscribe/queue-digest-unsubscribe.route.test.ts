@@ -76,6 +76,36 @@ describe("GET /email/queue-digest/unsubscribe", () => {
 		).toEqual([["confirm", "page"]]);
 	});
 
+	it.each(["regular", "pay", "starter"])(
+		"carries the %s email's kind from the link into the form, so the unsubscribe it posts is counted against that email",
+		async (kind) => {
+			const { harness, token } = await digestReader(`confirm-kind-${kind}@example.com`);
+
+			const response = await request(harness.server)
+				.get(unsubscribeUrl({ t: token, kind }))
+				.set(BROWSER_REQUEST_HEADERS);
+
+			const action = new URL(confirmForm(response.text).getAttribute("action") ?? "", TEST_APP_ORIGIN);
+			expect([...action.searchParams.keys()]).toEqual(["t", "kind", "utm_source", "utm_medium", "utm_content"]);
+			expect(action.searchParams.get("kind")).toBe(kind);
+		},
+	);
+
+	it.each([
+		["a link from before emails named their kind", {}],
+		["a kind no email sends", { kind: "newsletter" }],
+	])("still asks %s to confirm, with a form that names no kind", async (_name, extraQuery) => {
+		const { harness, token } = await digestReader("confirm-no-kind@example.com");
+
+		const response = await request(harness.server)
+			.get(unsubscribeUrl({ t: token, ...extraQuery }))
+			.set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		const action = new URL(confirmForm(response.text).getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect([...action.searchParams.keys()]).toEqual(["t", "utm_source", "utm_medium", "utm_content"]);
+	});
+
 	it("never stops the emails on its own, since mail scanners open every link", async () => {
 		const { harness, userId, token } = await digestReader("confirm-no-write@example.com");
 
@@ -153,13 +183,40 @@ describe("POST /email/queue-digest/unsubscribe (from the confirm page)", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(unsubscribeUrl({ t: token, done: "1" }));
 		expect(await optOutOf(harness, userId)).toBe(UNSUBSCRIBED_AT.toISOString());
-		expect(unsubscribes(harness)).toEqual([
+		expect(unsubscribes(harness)).toStrictEqual([
 			{
 				stream: "analytics",
 				event: "queue_digest_unsubscribed",
 				timestamp: UNSUBSCRIBED_AT.toISOString(),
 				user_id: userId,
 				method: "page",
+			},
+		]);
+	});
+
+	it("counts the unsubscribe against the email the reader came from", async () => {
+		const { harness, userId, token } = await digestReader("page-post-starter@example.com");
+		const page = await request(harness.server)
+			.get(unsubscribeUrl({ t: token, kind: "starter" }))
+			.set(BROWSER_REQUEST_HEADERS);
+
+		const response = await request(harness.server)
+			.post(confirmForm(page.text).getAttribute("action") ?? "")
+			.set(BROWSER_REQUEST_HEADERS)
+			.type("form")
+			.send({ confirm: "page" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(unsubscribeUrl({ t: token, done: "1" }));
+		expect(await optOutOf(harness, userId)).toBe(UNSUBSCRIBED_AT.toISOString());
+		expect(unsubscribes(harness)).toStrictEqual([
+			{
+				stream: "analytics",
+				event: "queue_digest_unsubscribed",
+				timestamp: UNSUBSCRIBED_AT.toISOString(),
+				user_id: userId,
+				method: "page",
+				kind: "starter",
 			},
 		]);
 	});
@@ -180,7 +237,50 @@ describe("POST /email/queue-digest/unsubscribe (one-click from the mail client)"
 		expect(response.status).toBe(200);
 		expect(response.text).toBe("");
 		expect(await optOutOf(harness, userId)).toBe(UNSUBSCRIBED_AT.toISOString());
-		expect(unsubscribes(harness)).toEqual([
+		expect(unsubscribes(harness)).toStrictEqual([
+			{
+				stream: "analytics",
+				event: "queue_digest_unsubscribed",
+				timestamp: UNSUBSCRIBED_AT.toISOString(),
+				user_id: userId,
+				method: "one-click",
+			},
+		]);
+	});
+
+	it.each(["regular", "pay", "starter"])("counts a one-click unsubscribe from a %s email against that email", async (kind) => {
+		const { harness, userId, token } = await digestReader(`one-click-${kind}@example.com`);
+
+		const response = await request(harness.server)
+			.post(unsubscribeUrl({ t: token, kind }))
+			.type("form")
+			.send("List-Unsubscribe=One-Click");
+
+		expect(response.status).toBe(200);
+		expect(await optOutOf(harness, userId)).toBe(UNSUBSCRIBED_AT.toISOString());
+		expect(unsubscribes(harness)).toStrictEqual([
+			{
+				stream: "analytics",
+				event: "queue_digest_unsubscribed",
+				timestamp: UNSUBSCRIBED_AT.toISOString(),
+				user_id: userId,
+				method: "one-click",
+				kind,
+			},
+		]);
+	});
+
+	it("still stops the emails when the link names a kind no email sends, and counts it with no kind", async () => {
+		const { harness, userId, token } = await digestReader("one-click-unknown-kind@example.com");
+
+		const response = await request(harness.server)
+			.post(unsubscribeUrl({ t: token, kind: "newsletter" }))
+			.type("form")
+			.send("List-Unsubscribe=One-Click");
+
+		expect(response.status).toBe(200);
+		expect(await optOutOf(harness, userId)).toBe(UNSUBSCRIBED_AT.toISOString());
+		expect(unsubscribes(harness)).toStrictEqual([
 			{
 				stream: "analytics",
 				event: "queue_digest_unsubscribed",

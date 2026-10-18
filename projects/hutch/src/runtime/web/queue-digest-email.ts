@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderArticleHashId } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
-import { EMAIL_CLICK_MEDIUM } from "@packages/web-analytics";
+import { EMAIL_CLICK_MEDIUM, type QueueDigestKind } from "@packages/web-analytics";
 import { formatLocalInstant, render } from "@packages/web-shell";
 import { QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cadence";
 import { payCutoff } from "../domain/stripe/stripe-trial-config";
@@ -30,14 +30,17 @@ const FOOTER_REASON: Record<QueueDigestKind, string> = {
 	starter: "You're getting this because you save articles to Readplace.",
 };
 
-const QUEUE_DIGEST_UTM_SOURCE = "queue-digest";
+const UTM_SOURCE: Record<QueueDigestKind, string> = {
+	regular: "queue-digest",
+	pay: "queue-digest",
+	starter: "starter-email",
+};
 const READLIST_PATH = "/queue";
 export const QUEUE_DIGEST_UNSUBSCRIBE_PATH = "/email/queue-digest/unsubscribe";
 export const QUEUE_DIGEST_MARK_READ_PATH = "/email/queue-digest/mark-read";
 const TOKEN_QUERY = "t";
+const KIND_QUERY = "kind";
 const ONE_CLICK_UNSUBSCRIBE = "List-Unsubscribe=One-Click";
-
-export type QueueDigestKind = "regular" | "pay" | "starter";
 
 export interface QueueDigestEmailItem {
 	articleId: ReaderArticleHashId;
@@ -118,7 +121,7 @@ function trackedLink(input: {
 	campaignId: string;
 }): string {
 	const tracked = new URL(input.url);
-	tracked.searchParams.set("utm_source", QUEUE_DIGEST_UTM_SOURCE);
+	tracked.searchParams.set("utm_source", UTM_SOURCE[input.kind]);
 	tracked.searchParams.set("utm_medium", EMAIL_CLICK_MEDIUM);
 	tracked.searchParams.set("utm_campaign", input.campaignId);
 	tracked.searchParams.set("utm_content", input.content);
@@ -225,6 +228,7 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 		token: links.unsubscribeToken,
 		appOrigin: links.appOrigin,
 	});
+	oneClickUnsubscribeUrl.searchParams.set(KIND_QUERY, kind);
 	const unsubscribeLinkUrl = link(oneClickUnsubscribeUrl, "unsubscribe");
 
 	return {

@@ -5,6 +5,7 @@ import type { UserId } from "@packages/domain/user";
 import type { SetQueueDigestOptOut } from "@packages/provider-contracts/auth";
 import {
 	ANALYTICS_EVENTS,
+	QUEUE_DIGEST_KINDS,
 	QUEUE_DIGEST_UNSUBSCRIBE_METHODS,
 	type QueueDigestUnsubscribedEvent,
 	type RecordUngatedEvent,
@@ -15,7 +16,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { noindexMiddleware } from "../../middleware/noindex.middleware";
 import { QUEUE_DIGEST_UNSUBSCRIBE_PATH } from "../../queue-digest-email";
-import { QueueDigestUnsubscribePage } from "./queue-digest-unsubscribe.component";
+import { QueueDigestUnsubscribePage, type UnsubscribedEmail } from "./queue-digest-unsubscribe.component";
 
 interface QueueDigestUnsubscribeDependencies {
 	verifyUnsubscribeToken: (token: string) => UserId | undefined;
@@ -26,6 +27,12 @@ interface QueueDigestUnsubscribeDependencies {
 }
 
 const UnsubscribeQuerySchema = z.object({ t: z.string() });
+
+const UnsubscribedEmailQuerySchema = z.union([z.object({ kind: z.enum(QUEUE_DIGEST_KINDS) }), z.object({})]);
+
+function unsubscribedEmailOf(req: Request): UnsubscribedEmail {
+	return UnsubscribedEmailQuerySchema.parse(req.query);
+}
 
 const ConfirmedFromPageSchema = z.object({ confirm: z.literal("page") });
 
@@ -51,7 +58,7 @@ export function initQueueDigestUnsubscribeRoutes(deps: QueueDigestUnsubscribeDep
 			res,
 			Base(
 				QueueDigestUnsubscribePage(
-					req.query.done === "1" ? { kind: "done" } : { kind: "confirm", token: unsubscriber.token },
+					req.query.done === "1" ? { kind: "done" } : { kind: "confirm", token: unsubscriber.token, email: unsubscribedEmailOf(req) },
 				),
 				await deps.buildBannerState(req),
 			),
@@ -75,6 +82,7 @@ export function initQueueDigestUnsubscribeRoutes(deps: QueueDigestUnsubscribeDep
 			method: confirmedFromPage
 				? QUEUE_DIGEST_UNSUBSCRIBE_METHODS.page
 				: QUEUE_DIGEST_UNSUBSCRIBE_METHODS.oneClick,
+			...unsubscribedEmailOf(req),
 		});
 		if (confirmedFromPage) {
 			const done = new URLSearchParams({ t: unsubscriber.token, done: "1" });

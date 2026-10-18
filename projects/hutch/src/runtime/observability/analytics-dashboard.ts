@@ -1154,13 +1154,13 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 		logWidget({
 			region,
-			title: "Queue digest — unsubscribes by method",
+			title: "Queue digest — unsubscribes by method × email kind",
 			logGroupNames: analyticsSource,
 			query: [
-				"fields @timestamp, user_id, method",
+				'fields @timestamp, user_id, method, coalesce(kind, "untagged") as email_kind',
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.queueDigestUnsubscribed}"`,
 				...exclude,
-				"| stats count(*) as unsubscribes, count_distinct(user_id) as users by method",
+				"| stats count(*) as unsubscribes, count_distinct(user_id) as users by method, email_kind",
 				"| sort users desc",
 			].join(" "),
 			x: 12, y: 262, width: 12, height: 8,
