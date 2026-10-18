@@ -1,4 +1,4 @@
-import { isCurrentGrant, type RefreshAccount } from "./current-grant";
+import { isCurrentGrant, isExemptGrant, type RefreshAccount } from "./current-grant";
 
 export interface RefreshCredential {
 	accessToken: string;
@@ -138,7 +138,10 @@ export function initOAuthRefresh(deps: {
 			if (rejectedBinding) return rejectedBinding;
 			if (grant.state !== "active") return fail("revoked");
 			const account = await deps.store.readAccount(grant.userId);
-			if (!isCurrentGrant({ account, credential: { grantId: grant.id, epoch: grant.epoch } })) return fail("revoked");
+			if (!isCurrentGrant({ account, credential: { grantId: grant.id, epoch: grant.epoch } })) {
+				if (existing && isExemptGrant({ account, grantId: grant.id })) continue;
+				return fail("revoked");
+			}
 			if (grant.expiresAt <= input.now) return fail("expired");
 			if (input.proof && !grant.keyThumbprint && !deps.enrollmentEnabled) return fail("enrollment_disabled");
 			const parentFingerprint = deps.fingerprint(input.refreshToken);
@@ -194,7 +197,10 @@ export function initOAuthRefresh(deps: {
 			if (rejectedBinding) return rejectedBinding;
 			if (grant.state === "revoked") return { ok: true };
 			const account = await deps.store.readAccount(grant.userId);
-			if (!isCurrentGrant({ account, credential: { grantId: grant.id, epoch: grant.epoch } })) return { ok: true };
+			if (!isCurrentGrant({ account, credential: { grantId: grant.id, epoch: grant.epoch } })) {
+				if (existing && isExemptGrant({ account, grantId: grant.id })) continue;
+				return { ok: true };
+			}
 			const parent = await deps.store.readCredential(grant.accessToken);
 			const result = await deps.store.commit({ expectedGrant: existing, grant: { ...grant, state: "revoked" }, parent, proof: input.proof, cause: "logout", now: input.now, accountEpoch: account.epoch });
 			if (result === "proof_replayed") return fail(result);

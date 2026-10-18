@@ -16,3 +16,8 @@ export function isCurrentGrant(input: { account: RefreshAccount; credential: { g
 	if (!exemption || exemption.atEpoch !== account.epoch) return false;
 	return exemption.grantId === credential.grantId && exemption.grantEpoch === credential.epoch;
 }
+
+export function isExemptGrant(input: { account: RefreshAccount; grantId: string }): boolean {
+	const exemption = input.account.exemption;
+	return exemption !== undefined && exemption.atEpoch === input.account.epoch && exemption.grantId === input.grantId;
+}

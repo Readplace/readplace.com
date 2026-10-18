@@ -5,7 +5,7 @@ import OAuthServer from "@node-oauth/oauth2-server";
 import { z } from "zod";
 import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
-import { OAuthClientIdSchema, getBuiltInClient } from "@packages/domain/oauth";
+import { OAuthClientIdSchema, type RefreshCredential, getBuiltInClient } from "@packages/domain/oauth";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import { authDiagnosticContext, type AuthDiagnosticContext } from "../../auth-diagnostics/record";
 import { initDynamoDbOAuthModel } from "./dynamodb-oauth-model";
@@ -613,6 +613,17 @@ it("settles a disconnect when the account epoch already invalidated its token", 
 	expect(transactions).toEqual([]);
 });
 
+it("settles a disconnect of a rotated grant when the account epoch already invalidated it", async () => {
+	const { model, rows, transactions } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	const first = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }); assert(first.ok);
+	rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 1 });
+	transactions.length = 0;
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	expect(transactions).toEqual([]);
+	expect(rows.get(`grant#${kept.user.grantId}`)).toMatchObject({ state: "active", epoch: 0, generation: 1 });
+});
+
 it("settles a disconnect whose credential disappears after the user-index lookup", async () => {
 	for (const keepHistory of [false, true]) {
 		const { model, rows, controls } = setup(); await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
@@ -755,4 +766,35 @@ it.each([
 	const context: RefreshContext = {};
 	expect(await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }))).toMatchObject({ reason: "revoked" });
 	expect(context.reason).toBe(cause);
+});
+
+it("disconnect revokes the kept grant when its rotation and a second keep land inside the disconnect's reads", async () => {
+	const { model, rows, controls } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	const first = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }); assert(first.ok);
+	rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 1, exemption: { atEpoch: 1, grantId: kept.user.grantId, grantEpoch: 0 } });
+	let rotated: RefreshCredential | undefined;
+	controls.beforeSend = async input => {
+		if (input.Key?.pk !== `oauth-account#${user.id}`) return;
+		controls.beforeSend = undefined;
+		const second = await model.refresh.rotate({ clientId: client.id, refreshToken: first.credential.refreshToken, now: Date.now() }); assert(second.ok);
+		rotated = second.credential;
+		rows.set(`oauth-account#${user.id}`, { pk: `oauth-account#${user.id}`, epoch: 2, exemption: { atEpoch: 2, grantId: kept.user.grantId, grantEpoch: 1 } });
+	};
+	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
+	assert(rotated);
+	const child = rotated;
+	expect(rows.get(`grant#${kept.user.grantId}`)).toMatchObject({ state: "revoked", epoch: 1, generation: 2 });
+	expect(await model.getAccessToken(child.accessToken)).toBeNull();
+	expect(await model.listUserOAuthClients(reader)).toEqual([]);
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: child.refreshToken, now: Date.now() }))).toMatchObject({ reason: "revoked" });
+	expect(context.reason).toBe("disconnect");
+});
+
+it("refuses a token whose generation is behind its active grant row", async () => {
+	const { model, rows } = setup();
+	const kept = await model.saveToken(token({ access: "a", refresh: "r" }), client, user); assert(kept);
+	rows.set(`grant#${kept.user.grantId}`, { pk: `grant#${kept.user.grantId}`, id: kept.user.grantId, userId: user.id, clientId: client.id, epoch: 0, generation: 1, accessToken: "a", refreshFingerprint: "x", state: "active", expiresAt: 4102444800, validUntil: 4102444800000 });
+	expect(await model.getAccessToken("a")).toBeNull();
 });

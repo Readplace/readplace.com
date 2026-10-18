@@ -245,6 +245,61 @@ it.each([
 	expect(s.commits).toEqual(commits);
 });
 
+function keptGrant() {
+	const s = setup();
+	s.controls.epoch = 1; s.controls.exemption = { atEpoch: 1, grantId: "grant", grantEpoch: 0 };
+	s.grants.set("grant", { id: "grant", userId: "user", clientId: "client", epoch: 0, generation: 0, accessToken: "a0", refreshFingerprint: "r0", keyThumbprint: "key", state: "active", expiresAt: 1_000_000 });
+	return s;
+}
+
+function rotateAndKeepAgain(s: ReturnType<typeof setup>) {
+	s.credentials.delete("a0");
+	s.credentials.set("a1", { ...s.original, accessToken: "a1", refreshToken: "r1", epoch: 1, generation: 1, keyThumbprint: "key", parentFingerprint: "r0" });
+	s.history.set("r0", { grantId: "grant", fingerprint: "r0", expiresAt: 1_000_000, revocation: { cause: "rotation", completedAt: 50 } });
+	s.grants.set("grant", { id: "grant", userId: "user", clientId: "client", epoch: 1, generation: 1, accessToken: "a1", refreshFingerprint: "r1", keyThumbprint: "key", state: "active", expiresAt: 1_000_000, latest: { operationId: "operation", parentFingerprint: "r0", bodyHash: "body" } });
+	s.controls.epoch = 2; s.controls.exemption = { atEpoch: 2, grantId: "grant", grantEpoch: 1 };
+}
+
+it.each([
+	{ operationId: "operation", outcome: { ok: true, recovered: true, credential: { accessToken: "a1", epoch: 1 } }, commits: [2] },
+	{ operationId: "other", outcome: { ok: false, reason: "superseded" }, commits: [] },
+])("re-reads a stale copy of a kept grant when its rotation and a second keep both land inside its reads: %j", async ({ operationId, outcome, commits }) => {
+	const s = keptGrant();
+	s.controls.beforeReadAccount = () => { s.controls.beforeReadAccount = undefined; rotateAndKeepAgain(s); };
+	expect(await s.refresh.rotate({ ...s.input, operationId })).toMatchObject(outcome);
+	expect(s.commits).toEqual(commits);
+});
+
+it("re-reads a stale copy of a kept grant before answering a logout when its rotation and a second keep both land inside its reads", async () => {
+	const s = keptGrant();
+	s.controls.beforeReadAccount = () => { s.controls.beforeReadAccount = undefined; rotateAndKeepAgain(s); };
+	expect(await s.refresh.revoke({ token: "r0", proof: { ...s.input.proof, id: "logout" }, now: 200 })).toMatchObject({ ok: true, grant: { id: "grant", epoch: 1, generation: 1 } });
+	expect(s.grants.get("grant")).toMatchObject({ state: "revoked", epoch: 1, generation: 1 });
+	expect(s.history.get("r1")).toMatchObject({ revocation: { cause: "logout" } });
+	expect(s.commits).toEqual([2]);
+});
+
+it("refuses a never-refreshed grant that a live exemption names at another epoch after one read", async () => {
+	const s = setup(); s.controls.epoch = 2; s.controls.exemption = { atEpoch: 2, grantId: "grant", grantEpoch: 1 };
+	let accountReads = 0;
+	s.controls.beforeReadAccount = () => { accountReads += 1; };
+	expect(await s.refresh.rotate(s.input)).toMatchObject({ reason: "revoked" });
+	expect(accountReads).toBe(1);
+	expect(await s.refresh.revoke({ token: "r0", now: 200 })).toEqual({ ok: true });
+	expect(accountReads).toBe(2);
+	expect(s.commits).toEqual([]);
+});
+
+it("refuses a stale copy of a kept grant once the re-read finds the exemption stranded", async () => {
+	const s = keptGrant();
+	s.controls.beforeReadAccount = () => {
+		rotateAndKeepAgain(s);
+		s.controls.beforeReadAccount = () => { s.controls.beforeReadAccount = undefined; s.controls.epoch = 3; };
+	};
+	expect(await s.refresh.rotate(s.input)).toMatchObject({ reason: "revoked" });
+	expect(s.commits).toEqual([]);
+});
+
 it("keeps retrying an exempt grant while the account epoch moves and never answers invalid_grant", async () => {
 	const s = setup(); s.controls.conflicts = 4;
 	s.controls.beforeReadAccount = () => { s.controls.epoch += 1; s.controls.exemption = { atEpoch: s.controls.epoch, grantId: "grant", grantEpoch: 0 }; };

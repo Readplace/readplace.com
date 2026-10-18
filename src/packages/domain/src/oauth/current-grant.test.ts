@@ -1,4 +1,4 @@
-import { isCurrentGrant } from "./current-grant";
+import { isCurrentGrant, isExemptGrant } from "./current-grant";
 
 const exemption = { atEpoch: 2, grantId: "kept", grantEpoch: 1 };
 
@@ -13,4 +13,13 @@ it.each([
 	{ title: "a stranded exemption", account: { epoch: 3, exemption }, credential: { grantId: "kept", epoch: 1 }, current: false },
 ])("$title", ({ account, credential, current }) => {
 	expect(isCurrentGrant({ account, credential })).toBe(current);
+});
+
+it.each([
+	{ title: "exempts the grant a live exemption names", account: { epoch: 2, exemption }, grantId: "kept", exempt: true },
+	{ title: "does not exempt another grant", account: { epoch: 2, exemption }, grantId: "other", exempt: false },
+	{ title: "does not exempt through a stranded exemption", account: { epoch: 3, exemption }, grantId: "kept", exempt: false },
+	{ title: "does not exempt without an exemption", account: { epoch: 2, exemption: undefined }, grantId: "kept", exempt: false },
+])("$title", ({ account, grantId, exempt }) => {
+	expect(isExemptGrant({ account, grantId })).toBe(exempt);
 });

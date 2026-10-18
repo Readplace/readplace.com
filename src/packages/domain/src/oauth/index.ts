@@ -23,5 +23,5 @@ export {
 } from "./client-registration";
 export type { DynamicOAuthClientStore } from "./client-lookup";
 export { initOAuthClientLookup } from "./client-lookup";
-export { isCurrentGrant } from "./current-grant";
+export { isCurrentGrant, isExemptGrant } from "./current-grant";
 export type { RefreshAccount, RefreshExemption } from "./current-grant";

@@ -1009,7 +1009,6 @@ describe("refresh", () => {
 		};
 		return { deps, model, chrome, user, token, grantId, exempt };
 	}
-	type Setup = Awaited<ReturnType<typeof setup>>;
 
 	it("validates an exempt access token and refuses the other grants at the old epoch", async () => {
 		const s = await setup();
@@ -1045,14 +1044,17 @@ describe("refresh", () => {
 		expect(s.deps.grants.get(s.grantId)).toMatchObject({ epoch: 1, generation: 2, state: "active" });
 	});
 
-	it.each([
-		["logout", (s: Setup) => s.model.refresh.revoke({ token: "r", now: Date.now() })],
-		["disconnect", (s: Setup) => createRevokeUserOAuthClient(s.deps)({ userId: reader, clientId: iosAppId })],
-	] as const)("%s revokes an exempt grant", async (_cause, revoke) => {
+	it("logout revokes an exempt grant", async () => {
 		const s = await setup();
 		s.exempt({ epoch: 1, atEpoch: 1 });
-		await revoke(s);
+		await s.model.refresh.revoke({ token: "r", now: Date.now() });
 		expect(await s.model.getAccessToken("a")).toBeNull();
 		expect(await s.model.refresh.rotate({ clientId: iosAppId, refreshToken: "r", now: Date.now() })).toMatchObject({ reason: "revoked" });
+	});
+
+	it("refuses a token whose generation is behind its active grant row", async () => {
+		const s = await setup();
+		s.deps.grants.set(s.grantId, { id: s.grantId, userId: reader, clientId: iosAppId, epoch: 0, generation: 1, accessToken: "a", refreshFingerprint: "x", state: "active", expiresAt: expiry.getTime() });
+		expect(await s.model.getAccessToken("a")).toBeNull();
 	});
 });

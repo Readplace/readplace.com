@@ -8,7 +8,7 @@ import {
 	defineDynamoTable,
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
-import { isCurrentGrant, type OAuthClientId, OAuthClientIdSchema } from "@packages/domain/oauth";
+import { isCurrentGrant, isExemptGrant, type OAuthClientId, OAuthClientIdSchema } from "@packages/domain/oauth";
 import type {
 	ListUserOAuthClients,
 	RevokeAllUserOAuthTokens,
@@ -134,7 +134,10 @@ export function initOAuthCredentialLifecycle(deps: {
 			const parent = existing ? await atomic.store.readCredential(existing.accessToken) : located.credential;
 			if (!parent || existing?.state === "revoked") return;
 			const account = await atomic.store.readAccount(parent.userId);
-			if (!isCurrentGrant({ account, credential: parent })) return;
+			if (!isCurrentGrant({ account, credential: parent })) {
+				if (existing && isExemptGrant({ account, grantId: parent.grantId })) continue;
+				return;
+			}
 			const grant = existing ?? { id: grantId, userId: parent.userId, clientId: parent.clientId, epoch: parent.epoch,
 				generation: parent.generation, accessToken: parent.accessToken, refreshFingerprint: proof.fingerprint(parent.refreshToken), state: "active" as const, expiresAt: parent.refreshExpiresAt };
 			const result = await atomic.store.commit({ expectedGrant: existing, grant: { ...grant, state: "revoked" }, parent, cause: "disconnect", now: Date.now(), accountEpoch: account.epoch });
