@@ -30,7 +30,6 @@ export interface RefreshContext {
 	attempt?: RefreshAttempt;
 	credential?: CredentialHistory;
 	reason?: string;
-	revocationCause?: RevocationCause;
 	recoveryProof?: string;
 }
 export const refreshContext = new AsyncLocalStorage<RefreshContext>();

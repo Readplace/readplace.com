@@ -289,49 +289,6 @@ describe("createOAuthModel", () => {
 
 			expect(retrieved).toBeNull();
 		});
-
-		it("retrieves refresh token with expected data", async () => {
-			const deps = initInMemoryOAuthModel();
-			const model = createOAuthModel(deps);
-
-			const client = await model.getClient(TEST_CLIENT_ID, "");
-			assert(client, "Test client must exist");
-
-			await model.saveToken(
-				createTestToken({ refreshToken: "retrieve-refresh-token" }),
-				client,
-				{ id: TEST_USER_ID },
-			);
-
-			const retrieved = await model.getRefreshToken("retrieve-refresh-token");
-			assert(retrieved, "Saved refresh token should be retrievable");
-
-			expect(retrieved.refreshToken).toBe("retrieve-refresh-token");
-		});
-
-		it("revokeToken returns true indicating successful revocation", async () => {
-			const deps = initInMemoryOAuthModel();
-			const model = createOAuthModel(deps);
-
-			const client = await model.getClient(TEST_CLIENT_ID, "");
-			assert(client, "Test client must exist");
-
-			await model.saveToken(
-				createTestToken({
-					accessToken: "access-to-revoke",
-					refreshToken: "refresh-to-revoke",
-				}),
-				client,
-				{ id: TEST_USER_ID },
-			);
-
-			const refreshToken = await model.getRefreshToken("refresh-to-revoke");
-			assert(refreshToken, "Refresh token must exist before revocation");
-
-			const revocationResult = await model.revokeToken(refreshToken);
-
-			expect(revocationResult).toBe(true);
-		});
 	});
 
 	describe("verification standing", () => {
@@ -380,9 +337,9 @@ describe("createOAuthModel", () => {
 				emailVerified: true,
 			});
 
-			const refreshToken = await model.getRefreshToken("verified-refresh");
-			assert(refreshToken, "Refresh token should be retrievable");
-			expect(refreshToken.user.emailVerified).toBe(true);
+			const rotated = await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "verified-refresh", now: Date.now() });
+			assert(rotated.ok, "The refresh token should rotate");
+			expect(rotated.credential.emailVerified).toBe(true);
 		});
 
 		it("carries a verified user's standing through the authorization code", async () => {
@@ -417,9 +374,9 @@ describe("createOAuthModel", () => {
 				id: TEST_USER_ID,
 			});
 
-			const refreshed = await model.getRefreshToken("catch-up-refresh");
-			assert(refreshed, "Refresh token should be retrievable");
-			expect(refreshed.user.emailVerified).toBe(true);
+			const rotated = await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "catch-up-refresh", now: Date.now() });
+			assert(rotated.ok, "The refresh token should rotate");
+			expect(rotated.credential.emailVerified).toBe(true);
 		});
 
 		it("keeps a still-unverified user's refresh standing unverified", async () => {
@@ -435,9 +392,9 @@ describe("createOAuthModel", () => {
 				id: TEST_USER_ID,
 			});
 
-			const refreshed = await model.getRefreshToken("still-unverified-refresh");
-			assert(refreshed, "Refresh token should be retrievable");
-			expect(refreshed.user.emailVerified).toBe(false);
+			const rotated = await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "still-unverified-refresh", now: Date.now() });
+			assert(rotated.ok, "The refresh token should rotate");
+			expect(rotated.credential.emailVerified).toBe(false);
 		});
 
 		it("treats a missing user record on refresh as unverified", async () => {
@@ -451,9 +408,9 @@ describe("createOAuthModel", () => {
 				id: TEST_USER_ID,
 			});
 
-			const refreshed = await model.getRefreshToken("ghost-refresh");
-			assert(refreshed, "Refresh token should be retrievable");
-			expect(refreshed.user.emailVerified).toBe(false);
+			const rotated = await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "ghost-refresh", now: Date.now() });
+			assert(rotated.ok, "The refresh token should rotate");
+			expect(rotated.credential.emailVerified).toBe(false);
 		});
 
 		it("skips the user lookup on refresh for an already-verified token", async () => {
@@ -474,9 +431,9 @@ describe("createOAuthModel", () => {
 				emailVerified: true,
 			});
 
-			const refreshed = await model.getRefreshToken("already-verified-refresh");
-			assert(refreshed, "Refresh token should be retrievable");
-			expect(refreshed.user.emailVerified).toBe(true);
+			const rotated = await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "already-verified-refresh", now: Date.now() });
+			assert(rotated.ok, "The refresh token should rotate");
+			expect(rotated.credential.emailVerified).toBe(true);
 			expect(lookups).toBe(0);
 		});
 
@@ -493,17 +450,10 @@ describe("createOAuthModel", () => {
 				id: TEST_USER_ID,
 			});
 
-			// The refresh grant: getRefreshToken re-resolves, then the library hands
-			// that re-resolved user to saveToken against the new access token.
-			const refreshed = await model.getRefreshToken("reissue-refresh");
-			assert(refreshed, "Refresh token should be retrievable");
-			await model.saveToken(
-				createTestToken({ accessToken: "reissued-access", refreshToken: "reissue-refresh-2" }),
-				client,
-				refreshed.user,
-			);
+			const rotated = await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "reissue-refresh", now: Date.now() });
+			assert(rotated.ok, "The refresh token should rotate");
 
-			const reissued = await model.getAccessToken("reissued-access");
+			const reissued = await model.getAccessToken(rotated.credential.accessToken);
 			assert(reissued, "Re-issued access token should be retrievable");
 			expect(reissued.user.emailVerified).toBe(true);
 		});
@@ -561,40 +511,19 @@ describe("createOAuthModel", () => {
 
 			expect(retrieved).toBeNull();
 		});
-
-		it("getRefreshToken returns falsy when stored token references unknown client", async () => {
-			const deps = initInMemoryOAuthModel();
-			const model = createOAuthModel(deps);
-
-			deps.tokens.set("orphaned-access-2", {
-				accessToken: "orphaned-access-2" as AccessTokenId,
-				accessTokenExpiresAt: new Date(Date.now() + 3600000),
-				refreshToken: "orphaned-refresh-2" as RefreshTokenId,
-				refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
-				clientId: "nonexistent-client" as OAuthClientId,
-				userId: TEST_USER_ID,
-			});
-			deps.refreshTokenIndex.set("orphaned-refresh-2", "orphaned-access-2");
-
-			const retrieved = await model.getRefreshToken("orphaned-refresh-2");
-
-			expect(retrieved).toBeNull();
-		});
 	});
 
 	describe("edge cases", () => {
-		it("getRefreshToken returns falsy when refresh index points to missing token", async () => {
+		it("rotate answers unknown when the refresh index points to a missing token", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps);
 
 			deps.refreshTokenIndex.set("dangling-refresh", "missing-access");
 
-			const retrieved = await model.getRefreshToken("dangling-refresh");
-
-			expect(retrieved).toBeNull();
+			expect(await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "dangling-refresh", now: Date.now() })).toMatchObject({ reason: "unknown" });
 		});
 
-		it("getRefreshToken returns falsy for expired refresh tokens", async () => {
+		it("rotate answers expired for an expired refresh token", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps);
 
@@ -610,39 +539,7 @@ describe("createOAuthModel", () => {
 				{ id: TEST_USER_ID },
 			);
 
-			const retrieved = await model.getRefreshToken("expired-refresh");
-
-			expect(retrieved).toBeNull();
-		});
-	});
-
-	describe("revokeToken edge cases", () => {
-		it("returns false when refresh token is not found in index", async () => {
-			const model = createOAuthModel(initInMemoryOAuthModel());
-
-			const result = await model.revokeToken({
-				refreshToken: "nonexistent-refresh",
-				client: createTestClient(),
-				user: { id: TEST_USER_ID },
-			});
-
-			expect(result).toBe(false);
-		});
-
-		it("cleans up index when token is in refresh index but not in tokens map", async () => {
-			const deps = initInMemoryOAuthModel();
-			const model = createOAuthModel(deps);
-
-			deps.refreshTokenIndex.set("orphaned-refresh", "missing-access-token");
-
-			const result = await model.revokeToken({
-				refreshToken: "orphaned-refresh",
-				client: createTestClient(),
-				user: { id: TEST_USER_ID },
-			});
-
-			expect(result).toBe(true);
-			expect(deps.refreshTokenIndex.has("orphaned-refresh")).toBe(false);
+			expect(await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "expired-refresh", now: Date.now() })).toMatchObject({ reason: "expired" });
 		});
 	});
 
@@ -970,7 +867,6 @@ describe("createRevokeUserOAuthClient", () => {
 		assert(userTokens, "The user keeps an index entry for the Firefox token");
 		expect([...userTokens]).toEqual(["firefox-1"]);
 		expect([...deps.codes.keys()]).toEqual(["firefox-code", "other-chrome-code"]);
-		expect(await model.getRefreshToken("chrome-refresh-1")).toBeNull();
 		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([TEST_CLIENT_ID]);
 	});
 

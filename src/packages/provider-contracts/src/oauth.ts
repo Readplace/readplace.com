@@ -1,11 +1,8 @@
-import type {
-	AuthorizationCodeModel,
-	RefreshTokenModel,
-} from "@node-oauth/oauth2-server";
+import type { AuthorizationCodeModel } from "@node-oauth/oauth2-server";
 import type { AccessToken, OAuthClient, OAuthClientId, OAuthGrantId, OAuthRefresh } from "@packages/domain/oauth";
 import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 
-export type OAuthModel = AuthorizationCodeModel & RefreshTokenModel & { refresh: OAuthRefresh };
+export type OAuthModel = AuthorizationCodeModel & { refresh: OAuthRefresh };
 
 export type ValidateAccessToken = (
 	accessToken: AccessToken,

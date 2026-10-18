@@ -81,7 +81,7 @@ it("refuses first enrollment during rollback without invalidating the legacy cre
 	const response = await request(s.app).post("/oauth/token").type("form").set("DPoP", s.proof({ body, operation })).send(body);
 	expect(response.status).toBe(503);
 	expect(response.body).toEqual({ error: "temporarily_unavailable", readplace_reason: "enrollment_disabled" });
-	const parent = await s.model.getRefreshToken("parent");
+	const parent = await s.model.getAccessToken("access");
 	assert(parent);
 	expect(parent.refreshToken).toBe("parent");
 });
@@ -99,7 +99,7 @@ it("rejects a bodyless proof request without consuming credentials", async () =>
 	const response = await request(s.app).post("/oauth/token").set("DPoP", "invalid");
 	expect(response.status).toBe(400);
 	expect(response.body).toEqual({ error: "invalid_request", readplace_reason: "operation_mismatch" });
-	const parent = await s.model.getRefreshToken("parent");
+	const parent = await s.model.getAccessToken("access");
 	assert(parent);
 	expect(parent.refreshToken).toBe("parent");
 });

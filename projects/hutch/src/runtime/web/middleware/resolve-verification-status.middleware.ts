@@ -30,8 +30,8 @@ import { SESSION_COOKIE_NAME } from "@packages/web-session";
  * self-heals: `req.emailVerified` is corrected and the session row is updated so
  * later requests skip the lookup. A bearer request carries no session to mark, so
  * an unverified-at-issuance token keeps resolving via the record until its next
- * refresh re-captures the standing into the re-issued token (see the OAuth model's
- * `getRefreshToken`), after which it short-circuits like any verified token.
+ * refresh re-captures the standing into the re-issued token, after which it
+ * short-circuits like any verified token.
  */
 export function initResolveVerificationStatus(deps: {
 	findUserById: FindUserById;

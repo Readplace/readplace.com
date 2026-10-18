@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import { randomUUID } from "node:crypto";
 import type { User } from "@node-oauth/oauth2-server";
 import {
@@ -16,14 +15,7 @@ import type {
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import { z } from "zod";
-import {
-	CredentialFingerprint,
-	CredentialHistory,
-	OAuthGrantId,
-	type RevocationCause,
-	initRefreshProof,
-	refreshContext,
-} from "../../oauth-refresh/evidence";
+import { OAuthGrantId, initRefreshProof } from "../../oauth-refresh/evidence";
 
 export { OAuthTokenRow } from "./oauth-token-row";
 import { OAuthTokenRow } from "./oauth-token-row";
@@ -36,8 +28,6 @@ export function initOAuthCredentialLifecycle(deps: {
 }) {
 	const { client, tableName } = deps;
 	const tokens = defineDynamoTable({ client, tableName, schema: OAuthTokenRow });
-	const refreshIndex = defineDynamoTable({ client, tableName, schema: z.object({ pk: z.string(), accessToken: z.string() }) });
-	const history = defineDynamoTable({ client, tableName, schema: CredentialHistory });
 	const byUser = defineDynamoTable({ client, tableName, schema: z.object({ pk: z.string(), userId: z.string() }) });
 	const byUserClient = defineDynamoTable({ client, tableName, schema: z.object({ pk: z.string(), userId: z.string(), clientId: z.string() }) });
 	const proof = initRefreshProof(deps.secret);
@@ -52,24 +42,7 @@ export function initOAuthCredentialLifecycle(deps: {
 		};
 	}
 
-	async function remember(row: OAuthTokenRow): Promise<CredentialHistory> {
-		const { Attributes } = await history.update({
-			Key: { pk: `credential#${proof.fingerprint(row.refreshToken)}` },
-			UpdateExpression: "SET grantId = if_not_exists(grantId, :grant), fingerprint = :fingerprint, credentialExpiresAt = if_not_exists(credentialExpiresAt, :expiry), expiresAt = if_not_exists(expiresAt, :ttl)",
-			ExpressionAttributeValues: historyValues(row),
-			ReturnValues: "ALL_NEW",
-		});
-		assert(Attributes);
-		return Attributes;
-	}
-
-	async function findToken(refreshToken: string) {
-		const index = await refreshIndex.get({ pk: `refresh#${refreshToken}` }, { consistentRead: true });
-		if (!index) return undefined;
-		return tokens.get({ pk: `token#${index.accessToken}` }, { consistentRead: true });
-	}
-
-	async function revokeRow(row: OAuthTokenRow, cause: RevocationCause): Promise<boolean> {
+	async function revokeRow(row: OAuthTokenRow, cause: "logout-all" | "account-deletion"): Promise<boolean> {
 		const existingGrant = row.grantId ? await atomic.store.readGrant(row.grantId) : undefined;
 		try {
 			await client.send(new TransactWriteCommand({ TransactItems: [
@@ -179,31 +152,7 @@ export function initOAuthCredentialLifecycle(deps: {
 
 	return {
 		grant(user: User) {
-			return {
-				grantId: typeof user.grantId === "string" ? OAuthGrantId.parse(user.grantId) : OAuthGrantId.parse(randomUUID()),
-				parentFingerprint: typeof user.parentFingerprint === "string" ? CredentialFingerprint.parse(user.parentFingerprint) : undefined,
-			};
-		},
-		async findRefresh(refreshToken: string) {
-			const row = await findToken(refreshToken);
-			const context = refreshContext.getStore();
-			const credential = row
-				? await remember(row)
-				: await history.get({ pk: `credential#${proof.fingerprint(refreshToken)}` }, { consistentRead: true });
-			let reason = "unknown";
-			if (credential) {
-				reason = credential.revocation?.cause ?? "invalid_grant";
-				if (credential.credentialExpiresAt <= Date.now()) reason = "expired";
-			}
-			if (context) { context.credential = credential; context.reason = reason; }
-			if (!row || reason === "expired") return undefined;
-			assert(credential);
-			return { row, credential };
-		},
-		async revoke(refreshToken: string) {
-			const row = await findToken(refreshToken);
-			if (!row) return false;
-			return revokeRow(row, refreshContext.getStore()?.revocationCause ?? "rotation");
+			return { grantId: typeof user.grantId === "string" ? OAuthGrantId.parse(user.grantId) : OAuthGrantId.parse(randomUUID()) };
 		},
 		revokeAll,
 		revokeOther,

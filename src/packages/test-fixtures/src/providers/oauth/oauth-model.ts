@@ -5,7 +5,6 @@ import type {
 	Client,
 	Token,
 	AuthorizationCode,
-	RefreshToken,
 	User,
 	Falsey,
 } from "@node-oauth/oauth2-server";
@@ -401,61 +400,6 @@ export function createOAuthModel(
 				},
 				user: { id: stored.userId, emailVerified: stored.emailVerified, grantId: stored.grantId, epoch: stored.epoch ?? 0 },
 			};
-		},
-
-		async getRefreshToken(refreshToken: string): Promise<RefreshToken | Falsey> {
-			const accessToken = deps.refreshTokenIndex.get(refreshToken);
-			if (!accessToken) return null;
-
-			const stored = deps.tokens.get(accessToken);
-			if (!stored || !(await active(stored)) || (stored.grantId && deps.grants.get(stored.grantId)?.keyThumbprint)) return null;
-
-			if (stored.refreshTokenExpiresAt < new Date()) {
-				return null;
-			}
-
-			const client = await resolveClient(stored.clientId);
-			if (!client) return null;
-
-			// Re-resolve the standing on refresh so a token authorized while
-			// unverified catches up once the user verifies — without it the
-			// install-then-verify cohort would re-store emailVerified=false on every
-			// refresh and keep paying the userId-index read forever. Verification is
-			// monotonic, so an already-verified token needs no lookup.
-			let emailVerified = stored.emailVerified === true;
-			if (!emailVerified && findUserById) {
-				const user = await findUserById(stored.userId);
-				if (user) {
-					emailVerified = user.emailVerified === true;
-				}
-			}
-
-			return {
-				refreshToken: stored.refreshToken,
-				refreshTokenExpiresAt: stored.refreshTokenExpiresAt,
-				scope: stored.scope,
-				client: {
-					id: client.id,
-					grants: client.grants,
-					redirectUris: client.redirectUris,
-				},
-				user: { id: stored.userId, emailVerified, grantId: stored.grantId, epoch: stored.epoch ?? 0 },
-			};
-		},
-
-		async revokeToken(token: RefreshToken): Promise<boolean> {
-			const accessToken = deps.refreshTokenIndex.get(token.refreshToken);
-			if (!accessToken) return false;
-
-			const stored = deps.tokens.get(accessToken);
-			if (stored) {
-				const userTokens = deps.userIdIndex.get(stored.userId);
-				userTokens?.delete(accessToken);
-			}
-
-			deps.refreshTokenIndex.delete(token.refreshToken);
-			deps.tokens.delete(accessToken);
-			return true;
 		},
 
 		async verifyScope(_token: Token, _scope: string | string[]): Promise<boolean> {

@@ -122,26 +122,21 @@ const firefox = { id: "hutch-firefox-extension", grants: ["authorization_code", 
 const reader = UserIdSchema.parse(user.id);
 const iosAppId = OAuthClientIdSchema.parse("ios-app");
 
-it("retains one grant through rotation and atomically admits only one competing refresh", async () => {
-	const { model, rows, transactions } = setup();
+it("carries the grant and the parent's fingerprint into the rotated credential and records the parent's rotation", async () => {
+	const { model, rows } = setup();
 	await model.saveToken(token({ access: "a1", refresh: "r1" }), client, user);
-	const first = await model.getRefreshToken("r1");
-	const second = await model.getRefreshToken("r1");
-	assert(first && second);
-	expect(await Promise.all([refreshContext.run({}, () => model.revokeToken(first)), model.revokeToken(second)])).toEqual([true, false]);
-	await model.saveToken(token({ access: "a2", refresh: "r2" }), client, first.user);
+	const child = await model.refresh.rotate({ clientId: client.id, refreshToken: "r1", now: Date.now() });
+	assert(child.ok);
 	const old = rows.get(`credential#${proof.fingerprint("r1")}`);
-	const fresh = rows.get(`credential#${proof.fingerprint("r2")}`);
+	const fresh = rows.get(`credential#${proof.fingerprint(child.credential.refreshToken)}`);
 	expect(fresh?.grantId).toBe(old?.grantId);
 	expect(fresh?.parentFingerprint).toBe(old?.fingerprint);
 	expect(old?.revocation).toMatchObject({ cause: "rotation" });
-	expect(old?.expiresAt).toBe(expiry.getTime() / 1000 + 30 * 86400);
-	expect(transactions).toHaveLength(4);
 	expect(await model.getAccessToken("a1")).toBeNull();
 });
 
 it("concurrently adopts legacy credentials into one stable connection", async () => {
-	const { model, rows, controls } = setup();
+	const { model, rows, controls, store } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
 	rows.delete(`credential#${proof.fingerprint("r")}`);
 	const row = rows.get("token#a"); assert(row); delete row.grantId;
@@ -155,10 +150,9 @@ it("concurrently adopts legacy credentials into one stable connection", async ()
 			await bothAdopting;
 		}
 	};
-	const [a, b] = await Promise.all([model.getRefreshToken("r"), model.getRefreshToken("r")]);
-	assert(a && b);
-	expect(a.user.grantId).toBe(b.user.grantId);
-	expect(typeof a.user.grantId).toBe("string");
+	const [a, b] = await Promise.all([store.store.locate("r"), store.store.locate("r")]);
+	expect(a.credential?.grantId).toBe(b.credential?.grantId);
+	expect(typeof a.credential?.grantId).toBe("string");
 });
 
 it("getAccessToken returns the grant the token belongs to", async () => {
@@ -171,18 +165,13 @@ it("getAccessToken returns the grant the token belongs to", async () => {
 	expect(found.user.grantId).toBe(saved.user.grantId);
 });
 
-it.each(["logout", "logout-all", "account-deletion"] as const)("records completed %s revocation", async cause => {
+it("issues a token under the grant its authorization code was minted for", async () => {
 	const { model, rows } = setup();
-	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
-	if (cause === "logout") {
-		const refresh = await model.getRefreshToken("r"); assert(refresh);
-		await refreshContext.run({ revocationCause: cause }, () => model.revokeToken(refresh));
-	} else await model.revokeAllUserOAuthTokens(UserIdSchema.parse(user.id), cause);
-	const context: RefreshContext = {};
-	await refreshContext.run(context, () => model.getRefreshToken("r"));
-	expect(context.reason).toBe(cause);
-	expect(context.credential?.revocation?.cause).toBe(cause);
-	expect(rows.has("refresh#r")).toBe(false);
+	await model.saveAuthorizationCode(authorizationCode("code"), client, user);
+	const code = await model.getAuthorizationCode("code"); assert(code);
+	const saved = await model.saveToken(token({ access: "a", refresh: "r" }), client, code.user); assert(saved);
+	expect(saved.user.grantId).toBe(code.user.grantId);
+	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.grantId).toBe(code.user.grantId);
 });
 
 it("keeps independently authorized connections on the same account distinct", async () => {
@@ -194,27 +183,21 @@ it("keeps independently authorized connections on the same account distinct", as
 	expect(new Set([first?.grantId, second?.grantId]).size).toBe(2);
 });
 
-it("distinguishes authoritative expiry from unknown deleted legacy credentials", async () => {
+it("reports an expired credential and its original expiry through the real store", async () => {
 	const { model } = setup();
 	await model.saveToken({ ...token({ access: "a", refresh: "r" }), refreshTokenExpiresAt: new Date(1000) }, client, user);
-	const expired: RefreshContext = {};
-	const unknown: RefreshContext = {};
-	await refreshContext.run(expired, () => model.getRefreshToken("r"));
-	await refreshContext.run(unknown, () => model.getRefreshToken("deleted-legacy"));
-	expect(expired.reason).toBe("expired");
-	expect(expired.credential?.credentialExpiresAt).toBe(1000);
-	expect(unknown.reason).toBe("unknown");
-	expect(unknown.credential).toBeUndefined();
+	const context: RefreshContext = {};
+	expect(await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }))).toMatchObject({ reason: "expired" });
+	expect(context.credential?.credentialExpiresAt).toBe(1000);
 });
 
 
-it("retains original expiry when a credential is adopted or deliberately revoked", async () => {
+it("retains original expiry when a credential is deliberately revoked", async () => {
 	const { model, rows } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
 	const original = rows.get(`credential#${proof.fingerprint("r")}`); assert(original);
 	const later = rows.get("token#a"); assert(later);
 	later.refreshTokenExpiresAt = expiry.getTime() / 1000 + 86400;
-	await model.getRefreshToken("r");
 	await model.revokeAllUserOAuthTokens(UserIdSchema.parse(user.id), "logout-all");
 	const retained = rows.get(`credential#${proof.fingerprint("r")}`);
 	expect(retained?.credentialExpiresAt).toBe(original.credentialExpiresAt);
@@ -228,34 +211,18 @@ it.each([
 ])("does not record a completed revocation when storage rejects it: %s", async failure => {
 	const { model, rows, controls } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
-	const refresh = await model.getRefreshToken("r"); assert(refresh);
 	controls.transactionFailure = failure;
-	await expect(refreshContext.run({ revocationCause: "logout" }, () => model.revokeToken(refresh))).rejects.toBe(failure);
-	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.revocation).toBeUndefined();
-	expect(await model.getAccessToken("a")).toMatchObject({ accessToken: "a" });
 	await expect(model.revokeAllUserOAuthTokens(UserIdSchema.parse(user.id), "account-deletion")).rejects.toBe(failure);
+	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.revocation).toBeUndefined();
+	expect(rows.has("token#a")).toBe(true);
 });
 
-it("does not overwrite a winning revocation with a losing deliberate logout", async () => {
+it("records no revocation when a bulk revocation's token row disappears before its transaction", async () => {
 	const { model, rows, controls } = setup();
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
-	const refresh = await model.getRefreshToken("r"); assert(refresh);
-	let waiting = 0;
-	let release: () => void = () => {};
-	const bothRead = new Promise<void>(resolve => { release = resolve; });
-	controls.beforeSend = async input => {
-		if (input.TransactItems) {
-			waiting++;
-			if (waiting === 2) release();
-			await bothRead;
-		}
-	};
-	const results = await Promise.all([
-		refreshContext.run({ revocationCause: "rotation" }, () => model.revokeToken(refresh)),
-		refreshContext.run({ revocationCause: "logout" }, () => model.revokeToken(refresh)),
-	]);
-	expect(results).toEqual([true, false]);
-	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.revocation).toMatchObject({ cause: "rotation" });
+	controls.beforeSend = async input => { if (input.TransactItems) rows.delete("token#a"); };
+	await model.revokeAllUserOAuthTokens(reader, "logout-all");
+	expect(rows.get(`credential#${proof.fingerprint("r")}`)?.revocation).toBeUndefined();
 });
 
 it("records a completed bulk revocation for a legacy grant and consumes every query page", async () => {
@@ -271,8 +238,9 @@ it("records a completed bulk revocation for a legacy grant and consumes every qu
 	await model.revokeAllUserOAuthTokens(UserIdSchema.parse(user.id), "account-deletion");
 	for (const id of ["a", "b", "c"]) {
 		const context: RefreshContext = {};
-		expect(await refreshContext.run(context, () => model.getRefreshToken(`r-${id}`))).toBeNull();
+		expect(await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: `r-${id}`, now: Date.now() }))).toMatchObject({ reason: "revoked" });
 		expect(context.credential?.revocation?.cause).toBe("account-deletion");
+		expect(rows.has(`refresh#r-${id}`)).toBe(false);
 	}
 	expect(rows.has("code#pending")).toBe(false);
 	expect(rows.has("other#unrelated")).toBe(true);
@@ -291,20 +259,8 @@ it("looks up retained evidence when an index remains after its live token disapp
 	await model.saveToken(token({ access: "a", refresh: "r" }), client, user);
 	rows.delete("token#a");
 	const context: RefreshContext = {};
-	expect(await refreshContext.run(context, () => model.getRefreshToken("r"))).toBeNull();
-	expect(context.reason).toBe("invalid_grant");
+	expect(await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }))).toMatchObject({ reason: "unknown" });
 	expect(context.credential?.fingerprint).toBe(proof.fingerprint("r"));
-	expect(await model.revokeToken({ refreshToken: "r", user, client, refreshTokenExpiresAt: expiry })).toBe(false);
-	expect(await model.revokeToken({ refreshToken: "absent", user, client, refreshTokenExpiresAt: expiry })).toBe(false);
-});
-
-it("preserves expiry evidence after the refresh index is deleted", async () => {
-	const { model, rows } = setup();
-	await model.saveToken({ ...token({ access: "a", refresh: "r" }), refreshTokenExpiresAt: new Date(1000) }, client, user);
-	rows.delete("refresh#r");
-	const context: RefreshContext = {};
-	await refreshContext.run(context, () => model.getRefreshToken("r"));
-	expect(context.reason).toBe("expired");
 });
 
 it("publishes issuance context only after storing the refresh lookup", async () => {
@@ -336,7 +292,7 @@ it("records a completed disconnect revocation for the disconnected client only",
 	await model.saveToken(token({ access: "c", refresh: "s" }), chrome, user);
 	await model.revokeUserOAuthClient({ userId: reader, clientId: iosAppId });
 	const context: RefreshContext = {};
-	expect(await refreshContext.run(context, () => model.getRefreshToken("r"))).toBeNull();
+	expect(await refreshContext.run(context, () => model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() }))).toMatchObject({ reason: "revoked" });
 	expect(context.reason).toBe("disconnect");
 	expect(context.credential?.revocation?.cause).toBe("disconnect");
 	expect(await model.getAccessToken("c")).toMatchObject({ accessToken: "c" });
@@ -415,7 +371,6 @@ it("commits one successor and recovers the same token after a lost response usin
 	expect(transaction.TransactItems?.filter(entry => entry.ConditionCheck)).toHaveLength(1);
 	expect(transaction.TransactItems?.filter(entry => entry.Put)).toHaveLength(5);
 	expect(await model.refresh.rotate(input)).toMatchObject({ reason: "proof_replayed" });
-	expect(await model.getRefreshToken(first.credential.refreshToken)).toBeNull();
 });
 
 it("admits one concurrent refresh and lets the identical operation recover its winner", async () => {

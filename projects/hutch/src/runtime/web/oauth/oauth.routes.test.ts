@@ -862,11 +862,11 @@ describe("OAuth routes", () => {
 		it("keeps a refresh token valid for 180 days, since oauth2-server's unconfigured default is two weeks and silently signs out a reader who is away that long", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const before = Date.now();
-			const { refreshToken } = await obtainTokenPair(harness, "lifetime@example.com");
+			const { accessToken } = await obtainTokenPair(harness, "lifetime@example.com");
 			const after = Date.now();
 
-			const stored = await harness.oauthModel.getRefreshToken(refreshToken);
-			assert(stored, "the issued refresh token must be stored");
+			const stored = await harness.oauthModel.getAccessToken(accessToken);
+			assert(stored, "the issued token pair must be stored");
 			assert(stored.refreshTokenExpiresAt, "the stored refresh token must carry an expiry");
 			const lifetimeMs = 180 * 24 * 60 * 60 * 1000;
 			expect(stored.refreshTokenExpiresAt.getTime()).toBeGreaterThanOrEqual(before + lifetimeMs);
@@ -886,8 +886,8 @@ describe("OAuth routes", () => {
 			const after = Date.now();
 			expect(rotation.status).toBe(200);
 
-			const stored = await harness.oauthModel.getRefreshToken(rotation.body.refresh_token);
-			assert(stored, "the rotated refresh token must be stored");
+			const stored = await harness.oauthModel.getAccessToken(rotation.body.access_token);
+			assert(stored, "the rotated token pair must be stored");
 			assert(stored.refreshTokenExpiresAt, "the rotated refresh token must carry an expiry");
 			const lifetimeMs = 180 * 24 * 60 * 60 * 1000;
 			expect(stored.refreshTokenExpiresAt.getTime()).toBeGreaterThanOrEqual(before + lifetimeMs);
@@ -1003,10 +1003,7 @@ describe("OAuth routes", () => {
 
 			expect(response.status).toBe(200);
 
-			const revokedToken = await harness.oauthModel.getRefreshToken(
-				"revoke-refresh",
-			);
-			expect(revokedToken).toBeNull();
+			expect(await harness.oauthModel.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "revoke-refresh", now: Date.now() })).toMatchObject({ ok: false, reason: "revoked" });
 			const revocations = harness.analytics.events.filter((event) => event.event === "oauth_token_revoked");
 			expect(JSON.parse(JSON.stringify(revocations))).toEqual([
 				{
@@ -1059,10 +1056,7 @@ describe("OAuth routes", () => {
 
 			expect(response.status).toBe(200);
 
-			const revokedRefresh = await harness.oauthModel.getRefreshToken(
-				"refresh-for-revoke",
-			);
-			expect(revokedRefresh).toBeNull();
+			expect(await harness.oauthModel.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "refresh-for-revoke", now: Date.now() })).toMatchObject({ ok: false, reason: "revoked" });
 			expect(harness.analytics.events.filter((event) => event.event === "oauth_token_revoked")).toEqual([
 				expect.objectContaining({ client_id: TEST_CLIENT_ID, outcome: "revoked", token_kind: "access" }),
 			]);
@@ -1110,8 +1104,8 @@ describe("OAuth routes", () => {
 			expect(response.status).toBe(200);
 			expect(await harness.auth.getSessionUserId(sessionA)).toBeNull();
 			expect(await harness.auth.getSessionUserId(sessionB)).toBeNull();
-			expect(await harness.oauthModel.getRefreshToken("ios-revoke-refresh")).toBeNull();
-			const bystander = await harness.oauthModel.getRefreshToken("extension-bystander-refresh");
+			expect(await harness.oauthModel.refresh.rotate({ clientId: "ios-app", refreshToken: "ios-revoke-refresh", now: Date.now() })).toMatchObject({ ok: false, reason: "revoked" });
+			const bystander = await harness.oauthModel.getAccessToken("extension-bystander-access");
 			assert(bystander, "The extension token must survive the iOS sign-out so its device re-mints instead of being signed out");
 			expect(bystander.user.id).toBe(TEST_USER_ID);
 		});
@@ -1160,8 +1154,8 @@ describe("OAuth routes", () => {
 				emailVerified: true,
 				expiresAt: expect.any(Number),
 			});
-			expect(await harness.oauthModel.getRefreshToken("extension-revoke-refresh")).toBeNull();
-			const bystander = await harness.oauthModel.getRefreshToken("ios-bystander-refresh");
+			expect(await harness.oauthModel.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "extension-revoke-refresh", now: Date.now() })).toMatchObject({ ok: false, reason: "revoked" });
+			const bystander = await harness.oauthModel.getAccessToken("ios-bystander-access");
 			assert(bystander, "The iOS token must survive an extension-scoped revoke");
 			expect(bystander.user.id).toBe(TEST_USER_ID);
 		});

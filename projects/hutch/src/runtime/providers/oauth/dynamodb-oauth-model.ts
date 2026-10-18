@@ -17,7 +17,6 @@ import type {
 	AuthorizationCode,
 	Client,
 	Falsey,
-	RefreshToken,
 	Token,
 	User,
 } from "@node-oauth/oauth2-server";
@@ -173,7 +172,7 @@ export function initDynamoDbOAuthModel(deps: {
 				token.refreshTokenExpiresAt ?? new Date(Date.now() + 180 * 24 * 3600000);
 
 			await atomic.saveInitial({
-				grantId: grant.grantId, parentFingerprint: grant.parentFingerprint, epoch: typeof user.epoch === "number" ? user.epoch : (await atomic.store.readAccount(user.id)).epoch, generation: 0,
+				grantId: grant.grantId, epoch: typeof user.epoch === "number" ? user.epoch : (await atomic.store.readAccount(user.id)).epoch, generation: 0,
 				userId: user.id, clientId: oauthClient.id, accessToken: token.accessToken, refreshToken,
 				accessExpiresAt: accessTokenExpiresAt.getTime(), refreshExpiresAt: refreshTokenExpiresAt.getTime(),
 				scope: token.scope, emailVerified: user.emailVerified === true,
@@ -219,42 +218,6 @@ export function initDynamoDbOAuthModel(deps: {
 				client: oauthClient,
 				user: { id: row.userId, emailVerified: row.emailVerified, grantId: row.grantId },
 			};
-		},
-
-		async getRefreshToken(refreshToken: string): Promise<RefreshToken | Falsey> {
-			const found = await credentials.findRefresh(refreshToken);
-			if (!found) return null;
-			const { row, credential } = found;
-			if (!await atomic.active(row) || (await atomic.store.readGrant(credential.grantId))?.keyThumbprint) return null;
-			const refreshTokenExpiresAt = new Date(row.refreshTokenExpiresAt * 1000);
-
-			const oauthClient = await resolveClient(row.clientId);
-			if (!oauthClient) return null;
-
-			// Re-resolve the standing on refresh so a token authorized while
-			// unverified catches up once the user verifies — without it the
-			// install-then-verify cohort would re-store emailVerified=false on every
-			// refresh and keep paying the userId-index read forever. Verification is
-			// monotonic, so an already-verified token needs no lookup.
-			let emailVerified = row.emailVerified === true;
-			if (!emailVerified) {
-				const user = await findUserById(UserIdSchema.parse(row.userId));
-				if (user) {
-					emailVerified = user.emailVerified === true;
-				}
-			}
-
-			return {
-				refreshToken: row.refreshToken,
-				refreshTokenExpiresAt,
-				scope: row.scope,
-				client: oauthClient,
-				user: { id: row.userId, emailVerified, grantId: credential.grantId, parentFingerprint: credential.fingerprint },
-			};
-		},
-
-		revokeToken(token: RefreshToken): Promise<boolean> {
-			return credentials.revoke(token.refreshToken);
 		},
 
 		async verifyScope(_token: Token, _scope: string | string[]): Promise<boolean> {

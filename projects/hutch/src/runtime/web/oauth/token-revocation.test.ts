@@ -88,7 +88,6 @@ it("legacy refresh remains available but a migrated grant cannot downgrade", asy
 	expect((await request(legacy.app).post("/oauth/token").type("form").send({ grant_type: "refresh_token", client_id: legacy.client.id, refresh_token: "parent" })).body.readplace_reason).toBe("superseded");
 	const bound = await setup(); const token = await bound.refresh();
 	expect((await request(bound.app).post("/oauth/token").type("form").send({ grant_type: "refresh_token", client_id: bound.client.id, refresh_token: token.body.refresh_token })).body.readplace_reason).toBe("proof_required");
-	expect(await bound.model.getRefreshToken(token.body.refresh_token)).toBeNull();
 });
 
 it("revokes descendants through the historical parent and cannot resurrect them", async () => {
