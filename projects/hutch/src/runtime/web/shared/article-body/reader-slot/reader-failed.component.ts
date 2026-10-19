@@ -52,6 +52,8 @@ const TITLES: Record<ReaderFailedVariant, string> = {
 	"origin-down": "Your link is saved",
 	"not-found": "Link saved, but the article is unavailable",
 	"not-an-article": "Your link is saved",
+	"capture-unreadable": "Readplace copied the page, but it isn't an article",
+	"capture-missing": "The copy from your device didn't arrive",
 };
 
 const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
@@ -62,6 +64,8 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	"origin-down": "Readplace couldn't reach this site right now. It may be temporarily unavailable, so you can try again later.",
 	"not-found": "This page no longer appears to exist, so Readplace couldn't retrieve the article content.",
 	"not-an-article": "This link isn't an article, so it can't be shown in reader view.",
+	"capture-unreadable": "The saved copy of this page has no article in it to show in reader view. You can read it on the original site, or capture it again once the article has loaded.",
+	"capture-missing": "Readplace didn't receive a copy of this page from your device. You can capture it again, or read it on the original site.",
 };
 
 const CAPTURE_RESCUE_CLASS = {
@@ -77,6 +81,8 @@ const CTA_LABELS: Record<ReaderFailedVariant, string> = {
 	"origin-down": "Read original article",
 	"not-found": "Visit original page",
 	"not-an-article": "Read original article",
+	"capture-unreadable": "Read original article",
+	"capture-missing": "Read original article",
 };
 
 /* Every other variant can still be rescued by capturing the page from a client,

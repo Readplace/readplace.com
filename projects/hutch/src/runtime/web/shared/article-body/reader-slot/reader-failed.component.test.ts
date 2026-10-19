@@ -19,6 +19,8 @@ const ALL_VARIANTS = [
 	"origin-down",
 	"not-found",
 	"not-an-article",
+	"capture-unreadable",
+	"capture-missing",
 ] as const satisfies readonly ReaderFailedVariant[];
 
 function noticeFor(input: { variant: ReaderFailedVariant; extensionInstallUrl?: string }): Element {
@@ -52,7 +54,7 @@ const PITCH_VISIBLE_CLASS = "article-body__reader-notice-pitch article-body__rea
 const PITCH_HIDDEN_CLASS = "article-body__reader-notice-pitch article-body__reader-notice-pitch--hidden";
 
 describe("renderReaderFailed", () => {
-	it("titles every variant 'Your link is saved' except not-found, which says the article itself is unavailable", () => {
+	it("titles every variant 'Your link is saved' except not-found and the two capture outcomes, which say what happened to the article or to the reader's capture", () => {
 		const titles: Record<ReaderFailedVariant, string> = {
 			failed: "Your link is saved",
 			unsupported: "Your link is saved",
@@ -61,6 +63,8 @@ describe("renderReaderFailed", () => {
 			"origin-down": "Your link is saved",
 			"not-found": "Link saved, but the article is unavailable",
 			"not-an-article": "Your link is saved",
+			"capture-unreadable": "Readplace copied the page, but it isn't an article",
+			"capture-missing": "The copy from your device didn't arrive",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const title = noticeFor({ variant }).querySelector(".article-body__reader-notice-title");
@@ -80,6 +84,8 @@ describe("renderReaderFailed", () => {
 			"origin-down": "Read original article",
 			"not-found": "Visit original page",
 			"not-an-article": "Read original article",
+			"capture-unreadable": "Read original article",
+			"capture-missing": "Read original article",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const primary = noticeFor({ variant }).querySelector("[data-test-reader-failed-primary]");
@@ -105,6 +111,10 @@ describe("renderReaderFailed", () => {
 				"Readplace couldn't reach this site right now. It may be temporarily unavailable, so you can try again later.",
 			"not-found": "This page no longer appears to exist, so Readplace couldn't retrieve the article content.",
 			"not-an-article": "This link isn't an article, so it can't be shown in reader view.",
+			"capture-unreadable":
+				"The saved copy of this page has no article in it to show in reader view. You can read it on the original site, or capture it again once the article has loaded.",
+			"capture-missing":
+				"Readplace didn't receive a copy of this page from your device. You can capture it again, or read it on the original site.",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const text = noticeFor({ variant }).querySelector(".article-body__reader-notice-text");
@@ -222,11 +232,13 @@ describe("renderReaderFailed", () => {
 		}
 	});
 
-	it("withholds the capture pitch where no capture can help — a deleted page, a dead origin, a link that is not an article — and when the extension is installed", () => {
+	it("withholds the capture pitch where no capture can help — a deleted page, a dead origin, a link that is not an article — where the reader already captured, and when the extension is installed", () => {
 		const cases: Array<{ variant: ReaderFailedVariant; extensionInstallUrl: string | undefined }> = [
 			{ variant: "not-found", extensionInstallUrl: "/install?client=chrome" },
 			{ variant: "origin-down", extensionInstallUrl: "/install?client=chrome" },
 			{ variant: "not-an-article", extensionInstallUrl: "/install?client=chrome" },
+			{ variant: "capture-unreadable", extensionInstallUrl: "/install?client=chrome" },
+			{ variant: "capture-missing", extensionInstallUrl: "/install?client=chrome" },
 			{ variant: "failed", extensionInstallUrl: undefined },
 		];
 		for (const { variant, extensionInstallUrl } of cases) {
