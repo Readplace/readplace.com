@@ -520,6 +520,8 @@ Current as of 2026-10-15. Pick by the kind of judgment the step needs, not by wh
 
 The split applies to delegated work too: a subagent or workflow step that implements a decision runs on Opus 5.5 at medium effort, and the step that makes the decision runs on Fable 5.1. When one task mixes both — a decision that is then implemented — make the decision first on Fable, then hand the implementation to Opus with the decision written into its brief.
 
+If Fable is unavailable or has hit the limit, Use Opus 5.5 Max in its place instead after user's approval asked via the Ask tool.
+
 ### Delegated agents never run the full check
 
 `pnpm check`, a project's full `check` and the pre-commit hook are the heaviest work in the workspace: hutch's `check` alone runs 14 parallel coverage shards, then its Playwright suite in Docker. The machine that runs them locally also hosts the self-hosted CI runners: the OrbStack runner that runs `web-tests`, and the macOS runner whose Visual Review loads an ~18 GB vision model (the [macOS runner README](./.github/runner/macos/README.md)). On 2026-10-18 an implementer agent and a reviewer agent each ran full checks while another session checked 15 worktrees, and memory reached about 56 GB on a 48 GiB machine. Later that day a single local hook that overlapped CI's `web-tests` and Visual Review left 4% of memory free.
