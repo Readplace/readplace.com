@@ -163,7 +163,7 @@ jobs:
           chmod +x /tmp/claude-deny-bg.sh
           cat > /tmp/run-checked.sh <<'WRAP'
           #!/usr/bin/env bash
-          TIMEOUT="${RUN_CHECKED_TIMEOUT:-23m}"
+          TIMEOUT="${RUN_CHECKED_TIMEOUT:-35m}"
           echo "[run-checked] running under ${TIMEOUT}: $*"
           timeout --kill-after=30s "${TIMEOUT}" bash -c "$*"
           code=$?
@@ -175,8 +175,8 @@ jobs:
           cat > /tmp/claude-headless-settings.json <<'JSON'
           {
             "env": {
-              "BASH_DEFAULT_TIMEOUT_MS": "1500000",
-              "BASH_MAX_TIMEOUT_MS": "1800000"
+              "BASH_DEFAULT_TIMEOUT_MS": "2400000",
+              "BASH_MAX_TIMEOUT_MS": "2700000"
             },
             "hooks": {
               "PreToolUse": [
@@ -198,7 +198,7 @@ jobs:
       # a watchdog so a genuinely stuck run can't hang to the 6h job limit.
       - name: Run Claude Code
         id: claude
-        timeout-minutes: 50
+        timeout-minutes: 75
         uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72 — pinned: newer agent-SDK glue breaks Max-plan OAuth (anthropics/claude-code-action#1126, #1281); the CLI is upgraded separately via path_to_claude_code_executable
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
