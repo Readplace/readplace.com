@@ -1690,6 +1690,49 @@ describe("initArticleReader", () => {
 			expect(headingIds).toEqual(["#section-why-it-matters", "#section-how-to-start"]);
 		});
 
+		it.each([
+			{ poll: "handleReaderPoll", capturing: false },
+			{ poll: "handleSummaryPoll", capturing: true },
+		] as const)(
+			"leaves the article's own title out of the card that $poll lands, while the slot keeps the heading",
+			async ({ poll, capturing }) => {
+				const { deps } = initFakeDeps({
+					crawl: { status: "ready" },
+					summary: { status: "pending" },
+					content: `<h2>Post</h2>${HEADED_CONTENT}`,
+				});
+				const reader = initArticleReader(deps);
+
+				const doc = parse(toHtml(await reader[poll]({ ...pollParams(), capturing })));
+
+				expect([
+					Array.from(tableOfContentsOf(doc).querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href")),
+					Array.from(doc.querySelectorAll("[data-test-reader-content] h2"), (heading) => heading.id),
+				]).toEqual([
+					["#section-why-it-matters", "#section-how-to-start"],
+					["section-post", "section-why-it-matters"],
+				]);
+			},
+		);
+
+		it("lists a heading that repeats nothing when the article row has gone missing", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending" },
+				content: `<h2>Post</h2>${HEADED_CONTENT}`,
+				article: null,
+			});
+			const reader = initArticleReader(deps);
+
+			const doc = parse(toHtml(await reader.handleReaderPoll(pollParams())));
+
+			expect(Array.from(tableOfContentsOf(doc).querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href"))).toEqual([
+				"#section-post",
+				"#section-why-it-matters",
+				"#section-how-to-start",
+			]);
+		});
+
 		it("keeps the card hidden when a pending reader poll lands on a failed crawl", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },

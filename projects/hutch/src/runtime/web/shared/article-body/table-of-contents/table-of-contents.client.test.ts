@@ -16,6 +16,7 @@ function readerHtml(html: string): string {
 		content,
 		notice: undefined,
 		appOrigin: APP_ORIGIN,
+		title: undefined,
 		oob: false,
 	});
 	return `${tableOfContents}${renderReaderReady({ content, appOrigin: APP_ORIGIN })}`;
@@ -26,6 +27,7 @@ const PENDING_READER_HTML = renderTableOfContents({
 	content: undefined,
 	notice: undefined,
 	appOrigin: APP_ORIGIN,
+	title: undefined,
 	oob: false,
 });
 
@@ -205,6 +207,19 @@ describe("initTableOfContents", () => {
 		initTableOfContents({ document: doc, window: createFakeWindow().win, addSettleListener: createSettle().addSettleListener });
 
 		expect(currentRows(doc)).toEqual([{ href: "#section-読書の楽しみ", marked: true }]);
+	});
+
+	it("marks a nested h3 row current once its heading reaches the top of the page", () => {
+		const doc = makeDocument(readerHtml(HEADED_CONTENT));
+		placeHeadings(doc, { "section-alpha": -400, "section-beta": 20, "section-gamma": 900 });
+
+		initTableOfContents({ document: doc, window: createFakeWindow().win, addSettleListener: createSettle().addSettleListener });
+
+		const current = doc.querySelector('.table-of-contents__link[aria-current="location"]');
+		expect([current?.getAttribute("href"), current?.closest("ol")?.classList.contains("table-of-contents__list--nested")]).toEqual([
+			"#section-beta",
+			true,
+		]);
 	});
 
 	it("refuses a card whose row links to a heading the page does not hold", () => {

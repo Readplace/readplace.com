@@ -291,7 +291,8 @@ describe("renderArticleBody", () => {
 describe("renderArticleRail", () => {
 	const versions = [versionAt("2026-07-10T09:14Z"), versionAt("2026-06-28T22:01Z")];
 	const pastReads = "<section data-test-reader-topic-reads>past reads</section>";
-	const pendingReader: Pick<ArticleRailInput, "crawl" | "content" | "readerNotice" | "appOrigin"> = {
+	const pendingReader: Pick<ArticleRailInput, "title" | "crawl" | "content" | "readerNotice" | "appOrigin"> = {
+		title: "Field notes",
 		crawl: { status: "pending" },
 		content: undefined,
 		readerNotice: undefined,
@@ -347,6 +348,7 @@ describe("renderArticleRail", () => {
 
 	it("lists the ready article's sections in the table of contents above Article history", () => {
 		const html = renderArticleRail({
+			title: "Field notes",
 			crawl: { status: "ready" },
 			content: articleBody("<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>"),
 			readerNotice: undefined,
@@ -364,8 +366,22 @@ describe("renderArticleRail", () => {
 		expect(railChildren(html)[0]).toEqual({ tag: "DIV", marker: "data-test-table-of-contents" });
 	});
 
+	it("leaves the article's own title out of the table of contents when it opens the body", () => {
+		const html = renderArticleRail({
+			title: "Field notes",
+			crawl: { status: "ready" },
+			content: articleBody("<h2>Field notes</h2><p>One</p><h2>Method</h2><p>Two</p>"),
+			readerNotice: undefined,
+			appOrigin: "https://readplace.com",
+		});
+
+		const rows = Array.from(parse(html).querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href"));
+		expect(rows).toEqual(["#section-method"]);
+	});
+
 	it("shows the empty table of contents for a ready article with no h2 or h3", () => {
 		const html = renderArticleRail({
+			title: "Field notes",
 			crawl: { status: "ready" },
 			content: articleBody("<p>One paragraph</p><h4>A minor heading</h4>"),
 			readerNotice: undefined,

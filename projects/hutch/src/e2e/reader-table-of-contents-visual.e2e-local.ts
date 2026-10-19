@@ -45,11 +45,14 @@ const HEADINGS = [
 	"<h3>Types of blogs</h3>",
 	"<h3>Platforms They Use</h3>",
 	"<h3>Design &amp; User Experience</h3>",
+	"<h2>Blog Examples by Type</h2>",
 	"<h3>Personal Blog Examples</h3>",
 	"<h3>Business &amp; Company Blogs</h3>",
 	"<h3>Ecommerce Blog Examples</h3>",
 ];
 const SECTIONED_ARTICLE = HEADINGS.map((heading) => `${heading}${PARAGRAPH}`).join("");
+const LISTED_ROWS = HEADINGS.length - 1;
+const NESTED_ROWS = 3;
 
 async function openPublicView(page: Page, input: { slug: string; content: string }): Promise<void> {
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
@@ -69,7 +72,7 @@ async function openPublicView(page: Page, input: { slug: string; content: string
 }
 
 async function listedSettled(page: Page): Promise<void> {
-	await expect(page.locator(ROW)).toHaveCount(HEADINGS.length);
+	await expect(page.locator(ROW)).toHaveCount(LISTED_ROWS);
 	await expect(page.locator(CURRENT_ROW)).toHaveCount(1);
 	await expect(page.locator(ROW).first()).toHaveAttribute("aria-current", "location");
 }
@@ -91,15 +94,20 @@ async function cardOpensTheRail(page: Page): Promise<{ height: number }> {
 
 async function listedGeometry(page: Page): Promise<void> {
 	const card = await cardOpensTheRail(page);
-	const heights = await page.locator(ROW).evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+	const rows = await page.locator(ROW).evaluateAll((links) =>
+		links.map((link) => ({ height: link.getBoundingClientRect().height, paddingLeft: getComputedStyle(link).paddingLeft })),
+	);
 	assert.deepEqual(
-		heights,
-		HEADINGS.map(() => ROW_HEIGHT),
-		"every row is 49px tall",
+		rows,
+		Array.from({ length: LISTED_ROWS }, (_, index) => ({
+			height: ROW_HEIGHT,
+			paddingLeft: index >= LISTED_ROWS - NESTED_ROWS ? "32px" : "16px",
+		})),
+		"every row is 49px tall, and the h3 rows under the last h2 indent 16px further",
 	);
 	assert.equal(
 		card.height,
-		2 * CARD_EDGE + HEADER_HEIGHT + DIVIDER + HEADINGS.length * ROW_HEIGHT,
+		2 * CARD_EDGE + HEADER_HEIGHT + DIVIDER + LISTED_ROWS * ROW_HEIGHT,
 		"the card is its header, its divider and its rows inside the 1px border",
 	);
 }
@@ -125,7 +133,7 @@ test.describe("Table of contents card visual regression", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
 
 	for (const theme of ["light", "dark"] as const) {
-		test(`the listed card marks its first row as the current section (${theme})`, async ({ page }, testInfo) => {
+		test(`the listed card leaves out the title, nests h3 rows under their h2 and marks its first row as the current section (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			await openPublicView(page, {
 				slug: `reader-toc-listed-${theme}-${testInfo.workerIndex}-${Date.now()}`,
@@ -137,7 +145,7 @@ test.describe("Table of contents card visual regression", () => {
 			);
 		});
 
-		test(`the empty card says the article has no sections (${theme})`, async ({ page }, testInfo) => {
+		test(`the empty card says the article has no section links (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			await openPublicView(page, {
 				slug: `reader-toc-empty-${theme}-${testInfo.workerIndex}-${Date.now()}`,

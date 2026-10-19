@@ -8,6 +8,7 @@ import type { SiteRules } from "@packages/site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
+import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
 
 export type ArticleSiteRules = {
@@ -25,7 +26,7 @@ export function initArticleSiteRules(deps: {
 		initStackOverflowSiteRules(deps),
 	];
 	return {
-		siteRules: [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, ...crawlClaimingSiteRules],
+		siteRules: [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, substackSiteRules, ...crawlClaimingSiteRules],
 		crawlClaimingSiteRules,
 	};
 }

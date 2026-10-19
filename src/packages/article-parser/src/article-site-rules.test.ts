@@ -4,6 +4,7 @@ import { initArticleSiteRules } from "./article-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
+import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
 
 function recordingCrawlFetch(requested: string[]): CrawlFetch {
@@ -28,6 +29,7 @@ describe("initArticleSiteRules", () => {
 			mediumSiteRules,
 			linkedinSiteRules,
 			mediaWikiSiteRules,
+			substackSiteRules,
 			...crawlClaimingSiteRules,
 		]);
 		expect(crawlClaimingSiteRules).toHaveLength(3);

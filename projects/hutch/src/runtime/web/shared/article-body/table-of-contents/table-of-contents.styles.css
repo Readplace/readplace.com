@@ -26,6 +26,10 @@
   transition: background-color 150ms ease;
 }
 
+.table-of-contents__link--nested {
+  padding-left: 32px;
+}
+
 .table-of-contents__link:hover {
   background: var(--muted);
 }
@@ -34,7 +38,8 @@
   outline-offset: -2px;
 }
 
-.table-of-contents__item:last-child .table-of-contents__link {
+.table-of-contents__nav > .table-of-contents__list > .table-of-contents__item:last-child > .table-of-contents__link:last-child,
+.table-of-contents__nav > .table-of-contents__list > .table-of-contents__item:last-child > .table-of-contents__list > .table-of-contents__item:last-child > .table-of-contents__link {
   border-radius: 0 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px);
 }
 
