@@ -13,18 +13,8 @@ const renderer = {
   forwardEnv: ['HEADLESS', 'E2E_PORT', 'NODE_V8_COVERAGE'],
 };
 
-// Shard count mirrors the NX_PARALLEL governor in .envrc so the two size their
-// pools the same way. A host with fewer than 16 cores runs the suite in one
-// worker (shards = 1) — sharding there would only oversubscribe the box against
-// nx's own project-level parallelism, which nx already keeps serial on small
-// hosts — while a 16+ core host shards to 80% of its cores (floored), leaving the
-// same ~20% headroom nx leaves for the OS and the sibling projects it schedules
-// alongside this one. The unit suite is the long pole of `check` (~240 files jest
-// pins to one core under coverage), so on a big host this is where the reclaimed
-// cores pay off; the shards' V8 profiles share the c8 coverage dir and merge into
-// the identical numbers a single run produces.
 const cores = os.availableParallelism();
-const jestShards = cores >= 16 ? Math.floor((cores * 80) / 100) : 1;
+const jestShards = Math.max(1, Math.floor((cores * 80) / 100));
 
 module.exports = {
   projectName: 'Readplace',
