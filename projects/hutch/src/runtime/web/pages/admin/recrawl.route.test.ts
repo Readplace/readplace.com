@@ -974,7 +974,7 @@ describe("Admin recrawl routes", () => {
 		const TRACKER_ENCODED = encodeURIComponent(TRACKER);
 		const PUBLISHER = "https://sqlite.org/lang_with.html";
 
-		async function seedResolvedWrapper() {
+		async function seedResolvedWrapper(wrapperUrl = TRACKER) {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 			await harness.articleStore.saveArticleGlobally({
@@ -984,7 +984,7 @@ describe("Admin recrawl routes", () => {
 				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlReady({ url: PUBLISHER });
-			await harness.articleStore.claimAlias({ aliasUrl: TRACKER, targetOriginalUrl: PUBLISHER, now: new Date() });
+			await harness.articleStore.claimAlias({ aliasUrl: wrapperUrl, targetOriginalUrl: PUBLISHER, now: new Date() });
 			return harness;
 		}
 
@@ -1019,6 +1019,20 @@ describe("Admin recrawl routes", () => {
 			const response = await agent.post(`/admin/recrawl?url=${TRACKER_ENCODED}`);
 
 			expect(response.status).toBe(502);
+			expect(harness.recrawlPublishedCalls).toEqual([]);
+		});
+
+		it("answers 502 and recrawls nothing when the wrapper now stands as its own original", async () => {
+			const APPLE_NEWS = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA";
+			const harness = await seedResolvedWrapper(APPLE_NEWS);
+			harness.wrapperTarget.ownOriginals.add(APPLE_NEWS);
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl?url=${encodeURIComponent(APPLE_NEWS)}`);
+
+			expect(response.status).toBe(502);
+			expect(response.text).toBe("The wrapper could not be resolved to an article.");
+			expect(harness.wrapperTarget.calls).toEqual([APPLE_NEWS]);
 			expect(harness.recrawlPublishedCalls).toEqual([]);
 		});
 
