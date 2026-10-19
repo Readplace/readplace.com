@@ -19,6 +19,11 @@ import {
 import { READER_PENDING_DESCRIPTION, renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady } from "./reader-ready.component";
 
+export type ReaderSlotCapture =
+	| { kind: "none" }
+	| { kind: "copying"; pollUrl: string; gaveUpUrl: string }
+	| { kind: "missing" };
+
 export interface ReaderSlotInput {
 	crawl?: ArticleCrawl;
 	content?: ArticleBody;
@@ -28,7 +33,7 @@ export interface ReaderSlotInput {
 	extensionInstallUrl?: string;
 	appOrigin: string;
 	capturePollUrl?: string;
-	capturing?: boolean;
+	capture?: ReaderSlotCapture;
 	notice?: ReaderFailedVariant;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The
@@ -43,9 +48,11 @@ const EMPTY_NOTICE_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-function withEmptyNotice(slot: string, noticeOob: boolean): ReaderRegions {
-	return { slot, notice: render(EMPTY_NOTICE_TEMPLATE, { noticeOob }) };
+function withEmptyNotice(slot: string, noticeOob: boolean, gaveUpUrl?: string): ReaderRegions {
+	return { slot, notice: render(EMPTY_NOTICE_TEMPLATE, { noticeOob, gaveUpUrl }) };
 }
+
+const CAPTURE_MISSING_NOTICE: FailedCrawlNotice = { variant: "capture-missing", captureRescue: "offered" };
 
 /**
  * Exhaustively dispatches over crawl.status. Adding a new CrawlStatus value
@@ -84,23 +91,25 @@ function noticeOrCapture(
 	notice: FailedCrawlNotice,
 	oob: boolean,
 ): ReaderRegions {
-	if (input.capturing === true && input.readerPollUrl !== undefined) {
+	if (input.capture?.kind === "copying") {
 		return withEmptyNotice(
 			renderReaderPending({
 				kind: "capture",
-				pollUrl: input.readerPollUrl,
+				pollUrl: input.capture.pollUrl,
 				oob,
 			}),
 			input.noticeOob,
+			input.capture.gaveUpUrl,
 		);
 	}
+	const shown = input.capture?.kind === "missing" ? CAPTURE_MISSING_NOTICE : notice;
 	return renderReaderFailed({
 		url: input.url,
 		articleId: input.articleId,
-		variant: notice.variant,
+		variant: shown.variant,
 		extensionInstallUrl: input.extensionInstallUrl,
 		capturePollUrl: input.capturePollUrl,
-		captureRescue: notice.captureRescue,
+		captureRescue: shown.captureRescue,
 		oob,
 		noticeOob: input.noticeOob,
 	});

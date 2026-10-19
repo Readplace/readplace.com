@@ -894,7 +894,7 @@ describe("View routes", () => {
 				...fixture,
 				articleCrawl: {
 					...fixture.articleCrawl,
-					findArticleCrawlStatus: async () => ({ status: "failed", reason: "blocked" }),
+					findArticleCrawlStatus: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 				},
 				summary: { ...fixture.summary, findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "skipped" } }) },
 			});
@@ -1595,6 +1595,7 @@ describe("View routes", () => {
 		it("hides the summary slot on poll when the crawl has failed (no further polling)", async () => {
 			const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 				status: "failed",
+				outcomeRevision: 1,
 				reason: "blocked",
 			});
 			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: { status: "pending" } });
@@ -1804,7 +1805,7 @@ describe("View routes", () => {
 
 		it("appends the banner and gated Save CTA to a settled failed reader poll, carrying the page's utm", async () => {
 			const { fixture, harness } = pollHarness({
-				crawl: async () => ({ status: "failed", reason: "blocked" }),
+				crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 				summary: async (url) => shownSummary({ url, summary: { status: "skipped" } }),
 			});
 			await seedRow(fixture);
@@ -1860,7 +1861,7 @@ describe("View routes", () => {
 
 		it("marks the swapped-in Save CTA as already seen for a warned session", async () => {
 			const { fixture, harness } = pollHarness({
-				crawl: async () => ({ status: "failed", reason: "blocked" }),
+				crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 				summary: async (url) => shownSummary({ url, summary: { status: "skipped" } }),
 			});
 			await seedRow(fixture);

@@ -27,6 +27,13 @@ export function initInMemoryArticleCrawl(): {
 	markCrawlStage: InMemoryMarkCrawlStage;
 } {
 	const states = new Map<string, ArticleCrawl>();
+	const outcomeRevisions = new Map<string, number>();
+
+	function bumpOutcomeRevision(key: string): number {
+		const next = (outcomeRevisions.get(key) ?? 0) + 1;
+		outcomeRevisions.set(key, next);
+		return next;
+	}
 
 	const findArticleCrawlStatus: FindArticleCrawlStatus = async (url) => {
 		const id = ArticleResourceUniqueId.parse(url);
@@ -56,6 +63,7 @@ export function initInMemoryArticleCrawl(): {
 
 	const markCrawlReady: InMemoryMarkCrawlReady = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url);
+		bumpOutcomeRevision(id.value);
 		states.set(id.value, { status: "ready" });
 	};
 
@@ -63,13 +71,14 @@ export function initInMemoryArticleCrawl(): {
 		const id = ArticleResourceUniqueId.parse(url);
 		const current = states.get(id.value);
 		if (current?.status === "ready") return;
-		states.set(id.value, { status: "failed", reason });
+		states.set(id.value, { status: "failed", reason, outcomeRevision: bumpOutcomeRevision(id.value) });
 	};
 
 	const markCrawlUnsupported: InMemoryMarkCrawlUnsupported = async ({ url, reason }) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		const current = states.get(id.value);
 		if (current?.status === "ready") return;
+		bumpOutcomeRevision(id.value);
 		states.set(id.value, { status: "unsupported", reason });
 	};
 

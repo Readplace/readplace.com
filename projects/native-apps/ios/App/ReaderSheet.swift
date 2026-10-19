@@ -13,9 +13,9 @@ struct ReaderSheet: View {
 	let mintSession: () async -> ReaderSessionMint
 	let onMarkedRead: () -> Void
 	let onStatusChanged: () -> Void
-	let onCaptureBlocked: (HTMLCapturing) async -> Void
+	let onCaptureBlocked: (HTMLCapturing) async -> CaptureEnding
 	let claimAutomaticCapture: () -> Bool
-	let onCaptureAvailable: (HTMLCapturing) async -> Void
+	let onCaptureAvailable: (HTMLCapturing) async -> CaptureEnding
 	let onClose: () -> Void
 	let onLogout: () -> Void
 

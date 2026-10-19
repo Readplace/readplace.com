@@ -315,6 +315,11 @@ function appendCrawlClauses(
 	values: Record<string, unknown>,
 ): void {
 	sets.push("crawlStatus = :crawlStatus");
+	if (article.crawl.kind !== "pending") {
+		sets.push("crawlOutcomeRevision = if_not_exists(crawlOutcomeRevision, :zero) + :one");
+		values[":zero"] = 0;
+		values[":one"] = 1;
+	}
 	if (article.crawl.kind === "failed") {
 		sets.push("crawlFailureReason = :crawlFailureReason");
 		values[":crawlStatus"] = "failed";

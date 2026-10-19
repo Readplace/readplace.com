@@ -311,7 +311,7 @@ describe("articleMarkdown", () => {
 		}[] = [
 			{
 				label: "a failed crawl with older content still stored and no summary row",
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				content: articleBody("<p>Older body.</p>"),
 				summary: undefined,
 				frontmatter: { readplace_content_status: "failed" },
@@ -327,7 +327,7 @@ describe("articleMarkdown", () => {
 			},
 			{
 				label: "a failed crawl that never stored any content and has no summary row",
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				content: undefined,
 				summary: undefined,
 				frontmatter: { readplace_content_status: "failed" },
@@ -343,7 +343,7 @@ describe("articleMarkdown", () => {
 			},
 			{
 				label: "a failed crawl while a ready summary is still stored",
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				content: articleBody("<p>Older body.</p>"),
 				summary: { status: "ready", summary: "Older point." },
 				frontmatter: { readplace_content_status: "failed" },

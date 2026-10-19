@@ -109,7 +109,7 @@ it.each(ROWS)("an automatic capture $companions, when the judge $verdict, is $ex
 
 	const compared = [{ selectionRule: rule, ownCaptureFailed: false, captureTrigger: "automatic" }];
 	const outcomes: Record<Outcome, unknown> = {
-		"marked unreadable": { result: { batchItemFailures: [] }, persisted: [{ transition: markNoReadableArticle, input: { reason: { kind: "parse-error", detail: "no readable article candidate: Nothing readable" } } }], comparisons: compared },
+		"marked unreadable": { result: { batchItemFailures: [] }, persisted: [{ transition: markNoReadableArticle, input: { reason: { kind: "capture-unreadable", detail: "no readable article candidate: Nothing readable" } } }], comparisons: compared },
 		promoted: { result: { batchItemFailures: [] }, persisted: [{ transition: promoteTier, input: expect.objectContaining({ tier: "tier-0", metadata: expect.objectContaining({ id: capture.metadata.id }) }) }], comparisons: compared },
 		"passed over for the canonical": { result: { batchItemFailures: [] }, persisted: [{ transition: promoteTier, input: expect.objectContaining({ tier: "tier-1", metadata: expect.objectContaining({ id: committedCanonical().metadata.id }) }) }], comparisons: compared },
 		retried: { result: { batchItemFailures: [{ itemIdentifier: "message-0" }] }, persisted: [], comparisons: [] },

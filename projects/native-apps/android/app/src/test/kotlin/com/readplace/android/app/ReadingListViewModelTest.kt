@@ -1665,7 +1665,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a landed upload ends the capture with a copy", CaptureEnding.Copied, ending)
 
 		assertEquals(
 			"the capture is keyed on the open row's own url, never the reader url hosting it",
@@ -1682,7 +1684,9 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel(healBlockedArticle = { url -> healed += url; HealBlockedOutcome.HEALED })
 		viewModel.refresh()
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("nothing is rendered for an article the user is not reading", emptyList<String>(), healed)
 		assertEquals(listOf("a1"), viewModel.articleIds)
@@ -1696,7 +1700,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(article(readHref = "/queue/gone/view", id = "gone"))
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("a row the list no longer holds has no url to capture", emptyList<String>(), healed)
 	}
@@ -1709,7 +1715,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			"an origin hostile to automated fetches can refuse the on-device render too; the user is told, not left with a silent reload",
@@ -1730,7 +1738,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("The server offered no way to save the captured page.", viewModel.state.value.errorText)
 		assertEquals(listOf("a1"), viewModel.articleIds)
@@ -1744,7 +1754,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			"a refused capture reuses the same server-authored message channel every other refused write does",
@@ -1762,7 +1774,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("java.io.IOException", viewModel.state.value.errorText)
 	}
@@ -1996,7 +2010,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a landed upload ends the capture with a copy", CaptureEnding.Copied, ending)
 
 		assertEquals(
 			"the rescue goes through the automatic heal, keyed on the open row's own url, never the reader url hosting it",
@@ -2018,7 +2034,9 @@ class ReadingListViewModelTest {
 		)
 		viewModel.refresh()
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("a reader closed before the render started leaves no article to render", emptyList<String>(), healed)
 		assertEquals(emptyList<String>(), reported)
@@ -2032,7 +2050,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(article(readHref = "/queue/gone/view", id = "gone"))
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("a row the list no longer holds has no url to capture", emptyList<String>(), healed)
 	}
@@ -2049,7 +2069,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			"the failure goes to the log, so a capture the reader never asked for is still diagnosable",
@@ -2073,7 +2095,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			listOf("This device couldn't load the article either — the site answered with an error page instead of it."),
@@ -2096,7 +2120,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			"the log line carries a fixed label, never the server's text or the article's url",
@@ -2121,7 +2147,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("a dead session signs the reader out whichever capture discovered it", 1, expiries)
 		assertEquals("a sign-out is acted on, not logged as a failed capture", emptyList<String>(), reported)
@@ -2140,7 +2168,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(1, expiries)
 		assertEquals(emptyList<String>(), reported)

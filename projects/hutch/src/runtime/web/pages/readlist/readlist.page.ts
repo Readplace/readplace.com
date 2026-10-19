@@ -108,6 +108,7 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
+import { captureWatchQuery, parseCaptureWatch } from "../../shared/article-reader/capture-watch";
 import { renderReaderDownloadsOob, type RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
 import { articleEpubHref } from "../../shared/epub/epub-link";
@@ -966,8 +967,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const surface = joinedSurfaceQuery(nativeSurfaceQuery(req));
 		return {
 			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${surface}`,
-			reader: (n, capturing) =>
-				`${READLIST_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${surface}`,
+			reader: (n, capture) =>
+				`${READLIST_PATH}/${articleId}/reader?poll=${n}${captureWatchQuery(capture)}${surface}`,
 		};
 	}
 
@@ -1050,9 +1051,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		parseEmailIssueArticleUrl(article.url) === undefined
 			? (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) })
 			: undefined;
-
-	const parseCapturingFlag = (raw: unknown): boolean =>
-		z.literal("1").safeParse(raw).success;
 
 	const parseCaptureTrigger = (raw: string | undefined) =>
 		CaptureTriggerSchema.default("manual").safeParse(raw);
@@ -1159,7 +1157,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					estimatedReadTime: ownedArticle.estimatedReadTime,
 				},
 				pollUrlBuilder: pollUrlBuilderFor(req, ownedArticle.id.value),
-				capturing: false,
 			}),
 			readerReadlistFilingFor({
 				userId: ownedArticle.userId,
@@ -2777,7 +2774,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
-			capturing: parseCapturingFlag(req.query.capturing),
+			capture: parseCaptureWatch(req.query),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
@@ -2816,7 +2813,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
-			capturing: parseCapturingFlag(req.query.capturing),
+			capture: parseCaptureWatch(req.query),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),

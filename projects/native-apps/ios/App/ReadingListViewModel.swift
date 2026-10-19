@@ -417,20 +417,23 @@ final class ReadingListViewModel: ObservableObject {
 		readerPresentation = ReaderPresentation(readerURL: shellURL, articleId: nil)
 	}
 
-	func captureBlockedArticle(with captor: HTMLCapturing) async {
+	@discardableResult
+	func captureBlockedArticle(with captor: HTMLCapturing) async -> CaptureEnding {
 		guard let articleId = readerPresentation?.articleId,
 			let article = articles.first(where: { $0.id == articleId }),
 			let url = URL(string: article.url)
-		else { return }
+		else { return .notCopied }
 		do {
 			let outcome = try await HealBlockedArticle(api: api, captor: captor).run(url: url, trigger: .manual)
 			if let failureText = outcome.failureText {
 				errorText = failureText
-				return
+			} else {
+				await reloadAndAdopt()
 			}
-			await reloadAndAdopt()
+			return outcome.ending
 		} catch {
 			handle(error)
+			return .notCopied
 		}
 	}
 
@@ -439,15 +442,17 @@ final class ReadingListViewModel: ObservableObject {
 		return automaticCaptureAttempts.claim(articleId: row.articleId)
 	}
 
-	func captureArticleAutomatically(with captor: HTMLCapturing) async {
-		guard let row = openRow else { return }
+	@discardableResult
+	func captureArticleAutomatically(with captor: HTMLCapturing) async -> CaptureEnding {
+		guard let row = openRow else { return .notCopied }
 		do {
 			let outcome = try await HealBlockedArticle(api: api, captor: captor).run(url: row.url, trigger: .automatic)
 			if let failureText = outcome.failureText {
 				reportAutomaticCaptureFailure(failureText)
-				return
+			} else {
+				await reloadAndAdopt()
 			}
-			await reloadAndAdopt()
+			return outcome.ending
 		} catch {
 			switch error {
 			case APIError.unauthorized, APIError.noToken:
@@ -455,6 +460,7 @@ final class ReadingListViewModel: ObservableObject {
 			default:
 				reportAutomaticCaptureFailure("request failed")
 			}
+			return .notCopied
 		}
 	}
 

@@ -19,6 +19,7 @@ import {
 	initRescueCapture,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	COMMAND_BINDINGS_STORAGE_KEY,
+	READER_RESCUE_ENDED_MESSAGE_TYPE,
 	READER_RESCUES_STORAGE_KEY,
 	ReaderRescueRequestSchema,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
@@ -36,6 +37,7 @@ import {
 	type GuardedResult,
 	type BulkSavePage,
 	type ReaderRescueAnswer,
+	type ReaderRescueEnded,
 	type RescueAttemptStore,
 	type SaveableTab,
 	type Timers,
@@ -306,6 +308,11 @@ async function initCore() {
 			logger,
 		}),
 		enqueueCaptured: uploadQueue.enqueueCaptured,
+		tellOpenerNothingCopied: ({ articleId, openerTabId }) =>
+			browser.tabs.sendMessage(openerTabId, {
+				type: READER_RESCUE_ENDED_MESSAGE_TYPE,
+				articleId,
+			} satisfies ReaderRescueEnded),
 		logger,
 	});
 

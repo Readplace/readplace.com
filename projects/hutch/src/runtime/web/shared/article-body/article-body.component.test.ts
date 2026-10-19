@@ -183,7 +183,7 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: undefined,
-			crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
+			crawl: { status: "failed", outcomeRevision: 1, reason: "exceeded SQS maxReceiveCount" },
 		});
 		const doc = parse(html);
 
@@ -240,7 +240,7 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: undefined,
-			crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
+			crawl: { status: "failed", outcomeRevision: 1, reason: "exceeded SQS maxReceiveCount" },
 			topActionsHtml: '<div data-test-top-actions>top</div>',
 			issueLinksHtml: '<section data-test-issue-links>links</section>',
 			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
@@ -381,7 +381,7 @@ describe("renderArticleRail", () => {
 		expect([
 			tableOfContentsState(renderArticleRail({ ...pendingReader, content })),
 			tableOfContentsState(
-				renderArticleRail({ ...pendingReader, crawl: { status: "failed", reason: "fetch-failed" } }),
+				renderArticleRail({ ...pendingReader, crawl: { status: "failed", outcomeRevision: 1, reason: "fetch-failed" } }),
 			),
 			tableOfContentsState(
 				renderArticleRail({ ...pendingReader, crawl: { status: "ready" }, content, readerNotice: "not-an-article" }),

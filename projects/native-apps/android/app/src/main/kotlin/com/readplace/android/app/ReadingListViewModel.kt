@@ -561,20 +561,23 @@ class ReadingListViewModel(
 		mutate { it.copy(messages = emptyList()) }
 	}
 
-	suspend fun captureBlockedArticle() {
-		val articleId = states.value.readerPresentation?.articleId ?: return
-		val article = states.value.articles.firstOrNull { it.id == articleId } ?: return
+	suspend fun captureBlockedArticle(): CaptureEnding {
+		val articleId = states.value.readerPresentation?.articleId ?: return CaptureEnding.NotCopied
+		val article = states.value.articles.firstOrNull { it.id == articleId } ?: return CaptureEnding.NotCopied
 		try {
-			val failureText = healBlockedArticle(article.url).failureText
+			val outcome = healBlockedArticle(article.url)
+			val failureText = outcome.failureText
 			if (failureText != null) {
 				mutate { it.copy(errorText = failureText) }
-				return
+			} else {
+				reloadAndAdopt()
 			}
-			reloadAndAdopt()
+			return outcome.ending
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
 			handle(error)
+			return CaptureEnding.NotCopied
 		}
 	}
 
@@ -583,15 +586,17 @@ class ReadingListViewModel(
 		return automaticCaptureAttempts.claim(article.id)
 	}
 
-	suspend fun captureArticleAutomatically() {
-		val article = openArticle() ?: return
+	suspend fun captureArticleAutomatically(): CaptureEnding {
+		val article = openArticle() ?: return CaptureEnding.NotCopied
 		try {
-			val failureText = healArticleAutomatically(article.url).failureText
+			val outcome = healArticleAutomatically(article.url)
+			val failureText = outcome.failureText
 			if (failureText != null) {
 				reportAutomaticCaptureFailure(failureText)
-				return
+			} else {
+				reloadAndAdopt()
 			}
-			reloadAndAdopt()
+			return outcome.ending
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
@@ -599,6 +604,7 @@ class ReadingListViewModel(
 				is ApiError.Unauthorized, is ApiError.NoToken -> handle(error)
 				else -> reportAutomaticCaptureFailure("request failed")
 			}
+			return CaptureEnding.NotCopied
 		}
 	}
 

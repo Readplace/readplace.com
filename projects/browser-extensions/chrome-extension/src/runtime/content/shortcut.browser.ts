@@ -1,6 +1,6 @@
 /* c8 ignore start -- content script, runs in browser page context only */
 import browser from "webextension-polyfill";
-import { initAnnounceCaptureStarted, initCaptureHost, installShortcuts, isAppUrl, isHtmlDocument, matchesShortcut, navigationResponseStatus, resolveCanonicalUrlFromDocument, resolveContentShortcuts, ADVERTISED_CAPABILITIES_STORAGE_KEY, CAPTURE_STARTED_EVENT, COMMAND_BINDINGS_STORAGE_KEY, DEFAULT_SAVE_SHORTCUT, SAVE_ALL_SHORTCUT_MESSAGE_TYPE, type ContentShortcuts } from "browser-extension-core";
+import { initAnnounceCaptureStarted, initCaptureHost, installShortcuts, isAppUrl, isHtmlDocument, matchesShortcut, navigationResponseStatus, resolveCanonicalUrlFromDocument, resolveContentShortcuts, ADVERTISED_CAPABILITIES_STORAGE_KEY, CAPTURE_FAILED_EVENT, CAPTURE_STARTED_EVENT, COMMAND_BINDINGS_STORAGE_KEY, DEFAULT_SAVE_SHORTCUT, SAVE_ALL_SHORTCUT_MESSAGE_TYPE, type ContentShortcuts } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { isChromePdfViewerShell } from "./is-chrome-pdf-viewer-shell";
 
@@ -77,7 +77,12 @@ if (isAppUrl({ tabUrl: location.href, appDomains: __APP_DOMAINS__ })) {
 			document,
 			dispatch: () => document.dispatchEvent(new Event(CAPTURE_STARTED_EVENT)),
 		}),
+		announceCaptureFailed: () => document.dispatchEvent(new Event(CAPTURE_FAILED_EVENT)),
 		logger,
+	});
+	browser.runtime.onMessage.addListener((message) => {
+		captureHost.rescueEnded(message);
+		return undefined;
 	});
 	new MutationObserver(() => {
 		void captureHost.pageChanged();

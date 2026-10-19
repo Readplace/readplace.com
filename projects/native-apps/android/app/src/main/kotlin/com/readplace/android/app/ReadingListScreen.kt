@@ -84,6 +84,7 @@ import com.readplace.android.core.SharedArticlesDrop
 import com.readplace.android.core.SharedArticlesDropPresentation
 import com.readplace.android.core.SirenAction
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
@@ -320,11 +321,11 @@ fun ReadingListScreen(
 					scope.launch { viewModel.readerStatusChanged() }
 				},
 				onCaptureBlocked = {
-					scope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
+					scope.async(start = CoroutineStart.UNDISPATCHED) { viewModel.captureBlockedArticle() }
 				},
 				claimAutomaticCapture = viewModel::claimAutomaticCapture,
 				onCaptureAvailable = {
-					scope.launch(start = CoroutineStart.UNDISPATCHED) { viewModel.captureArticleAutomatically() }
+					scope.async(start = CoroutineStart.UNDISPATCHED) { viewModel.captureArticleAutomatically() }
 				},
 				// The close path carries the probe: the sheet routes every dismissal —
 				// including an interactive swipe-down or back press that never touches a

@@ -37,7 +37,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
 import com.readplace.android.core.AppConfig
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -62,9 +62,9 @@ fun ReaderWebView(
 	cookies: List<Cookie>,
 	onMarkedRead: () -> Unit,
 	onStatusChanged: () -> Unit,
-	onCaptureBlocked: () -> Job,
+	onCaptureBlocked: () -> Deferred<CaptureEnding>,
 	claimAutomaticCapture: () -> Boolean,
-	onCaptureAvailable: () -> Job,
+	onCaptureAvailable: () -> Deferred<CaptureEnding>,
 	onClose: () -> Unit,
 	/** The account page deleted the account, so the server destroyed every session
 	 * and redirected here rather than to the logged-out home — the sheet dismisses
@@ -425,9 +425,9 @@ private class ReaderBridge(
 	private val scope: CoroutineScope,
 	private val onMarkedRead: () -> Unit,
 	private val onStatusChanged: () -> Unit,
-	private val onCaptureBlocked: () -> Job,
+	private val onCaptureBlocked: () -> Deferred<CaptureEnding>,
 	private val claimAutomaticCapture: () -> Boolean,
-	private val onCaptureAvailable: () -> Job,
+	private val onCaptureAvailable: () -> Deferred<CaptureEnding>,
 	private val dispatchToPage: (String) -> Unit,
 	private val onMainThread: (() -> Unit) -> Unit,
 ) {
@@ -456,27 +456,13 @@ private class ReaderBridge(
 		when (route) {
 			ReaderMessageRoute.START_CAPTURE -> {
 				capturing = true
-				val job = onCaptureBlocked()
-				scope.launch {
-					try {
-						job.join()
-					} finally {
-						capturing = false
-					}
-				}
+				announceEnding(onCaptureBlocked())
 			}
 			ReaderMessageRoute.START_AUTOMATIC_CAPTURE -> {
 				if (!claimAutomaticCapture()) return
 				dispatchToPage(ReaderMessageRoute.CAPTURE_STARTED_SCRIPT)
 				capturing = true
-				val job = onCaptureAvailable()
-				scope.launch {
-					try {
-						job.join()
-					} finally {
-						capturing = false
-					}
-				}
+				announceEnding(onCaptureAvailable())
 			}
 			ReaderMessageRoute.MARK_READ -> {
 				handled = true
@@ -484,6 +470,16 @@ private class ReaderBridge(
 			}
 			ReaderMessageRoute.RECONCILE_STATUS -> onStatusChanged()
 			ReaderMessageRoute.IGNORE -> Unit
+		}
+	}
+
+	private fun announceEnding(capture: Deferred<CaptureEnding>) {
+		scope.launch {
+			try {
+				ReaderMessageRoute.scriptAfterCapture(capture.await())?.let(dispatchToPage)
+			} finally {
+				capturing = false
+			}
 		}
 	}
 

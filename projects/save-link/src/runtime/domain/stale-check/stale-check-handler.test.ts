@@ -111,6 +111,7 @@ describe("initStaleCheckHandler", () => {
 		});
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "failed",
+			outcomeRevision: 1,
 			reason: "parse-error",
 		});
 		const crawlAndFinalizeArticle = jest.fn(failingCrawlAndFinalize);

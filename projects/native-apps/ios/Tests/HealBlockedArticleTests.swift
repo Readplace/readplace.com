@@ -205,6 +205,14 @@ final class HealBlockedArticleTests: XCTestCase {
 		XCTAssertEqual(parts.first { $0.name == "captureTrigger" }?.text, "automatic")
 	}
 
+	func testOnlyAHealedCaptureEndsWithACopy() {
+		XCTAssertEqual(
+			[HealBlockedOutcome.healed, .captureWasEmpty, .noSaveContentAction, .pageNotServed].map(\.ending),
+			[.copied, .notCopied, .notCopied, .notCopied],
+			"only an uploaded copy is on its way to the reader; every other outcome must tell the page the copy is not coming"
+		)
+	}
+
 	func testOnlyAPageTheOriginServedWithA2xxCountsAsTheArticle() {
 		XCTAssertEqual(
 			[200, 204, 299, 300, 403, 429, 500, nil].map {

@@ -415,7 +415,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	it("is false for terminal failed rows (the reader-failure page handles the click-through)", () => {
 		const vm = toReadlistArticleViewModel({
 			...baseParams,
-			crawl: { status: "failed", reason: "x" },
+			crawl: { status: "failed", outcomeRevision: 1, reason: "x" },
 			pollCount: 4,
 		});
 		expect(vm.isStalePending).toBe(false);

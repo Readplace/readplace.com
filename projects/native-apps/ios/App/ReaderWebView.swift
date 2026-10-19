@@ -23,9 +23,9 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	let logger: Logger
 	let onMarkedRead: () -> Void
 	let onStatusChanged: () -> Void
-	let onCaptureBlocked: (HTMLCapturing) async -> Void
+	let onCaptureBlocked: (HTMLCapturing) async -> CaptureEnding
 	let claimAutomaticCapture: () -> Bool
-	let onCaptureAvailable: (HTMLCapturing) async -> Void
+	let onCaptureAvailable: (HTMLCapturing) async -> CaptureEnding
 	let onClose: () -> Void
 	/// The account page deleted the account, so the server destroyed every session
 	/// and redirected here rather than to the logged-out home — the sheet dismisses
@@ -122,9 +122,9 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		private let logger: Logger
 		private let onMarkedRead: () -> Void
 		private let onStatusChanged: () -> Void
-		private let onCaptureBlocked: (HTMLCapturing) async -> Void
+		private let onCaptureBlocked: (HTMLCapturing) async -> CaptureEnding
 		private let claimAutomaticCapture: () -> Bool
-		private let onCaptureAvailable: (HTMLCapturing) async -> Void
+		private let onCaptureAvailable: (HTMLCapturing) async -> CaptureEnding
 		private let onClose: () -> Void
 		private let onLogout: () -> Void
 		private let externalBrowser: ExternalBrowser
@@ -156,9 +156,9 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			logger: Logger,
 			onMarkedRead: @escaping () -> Void,
 			onStatusChanged: @escaping () -> Void,
-			onCaptureBlocked: @escaping (HTMLCapturing) async -> Void,
+			onCaptureBlocked: @escaping (HTMLCapturing) async -> CaptureEnding,
 			claimAutomaticCapture: @escaping () -> Bool,
-			onCaptureAvailable: @escaping (HTMLCapturing) async -> Void,
+			onCaptureAvailable: @escaping (HTMLCapturing) async -> CaptureEnding,
 			onClose: @escaping () -> Void,
 			onLogout: @escaping () -> Void,
 			externalBrowser: ExternalBrowser,
@@ -284,14 +284,15 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				/// so a reader closed mid-capture cannot kill the render it is waiting
 				/// on. The reader itself stays open and its own htmx poll swaps in the
 				/// healed article.
-				guard let window = message.webView?.window else { return }
+				guard let webView = message.webView, let window = webView.window else { return }
 				capturing = true
 				let captor = HTMLCaptor()
 				attachHidden(captor.webView, in: window)
 				Task { @MainActor in
-					await self.onCaptureBlocked(captor)
+					let ending = await self.onCaptureBlocked(captor)
 					captor.webView.removeFromSuperview()
 					self.capturing = false
+					self.report(ending, to: webView)
 				}
 			case .startAutomaticCapture:
 				guard let webView = message.webView, let window = webView.window, claimAutomaticCapture() else { return }
@@ -300,9 +301,10 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				let captor = HTMLCaptor()
 				attachHidden(captor.webView, in: window)
 				Task { @MainActor in
-					await self.onCaptureAvailable(captor)
+					let ending = await self.onCaptureAvailable(captor)
 					captor.webView.removeFromSuperview()
 					self.capturing = false
+					self.report(ending, to: webView)
 				}
 			case .markRead:
 				handled = true
@@ -311,6 +313,15 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				onStatusChanged()
 			case .ignore:
 				break
+			}
+		}
+
+		private func report(_ ending: CaptureEnding, to webView: WKWebView) {
+			switch ending {
+			case .copied:
+				break
+			case .notCopied:
+				webView.evaluateJavaScript(ReaderBridge.captureFailedScript)
 			}
 		}
 
@@ -523,6 +534,8 @@ enum ReaderBridge {
 	}
 
 	static let captureStartedScript = #"document.dispatchEvent(new Event("readplace-capture-started"))"#
+
+	static let captureFailedScript = #"document.dispatchEvent(new Event("readplace-capture-failed"))"#
 
 	static func isStatusChanged(message name: String, body: Any) -> Bool {
 		payloadType(message: name, body: body) == "statusChanged"

@@ -256,6 +256,25 @@ describe("initSelectContentWork", () => {
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "parse-error", detail: "no readable article candidate: Error page" } } }));
 	});
 
+	it.each([
+		{ liveStatus: 200, label: "a readable-looking live page" },
+		{ liveStatus: 403, label: "a refused live response" },
+	])("records this save's own unreadable capture as the reason nothing was readable, ahead of $label", async ({ liveStatus }) => {
+		const capture = source("tier-0");
+		capture.metadata.wordCount = 0;
+		const live = source();
+		live.metadata.httpStatus = liveStatus;
+		const { work, deps } = setup({ listAvailableTierSources: async () => [capture, live], selectMostCompleteContent: async () => ({ kind: "none", reason: "Nothing readable" }) });
+		await work(request);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "capture-unreadable", detail: "no readable article candidate: Nothing readable" } } }));
+	});
+
+	it("does not call a capture from an earlier attempt this save's capture when nothing is readable", async () => {
+		const { work, deps } = setup({ listAvailableTierSources: async () => [source("tier-0"), source()], selectMostCompleteContent: async () => ({ kind: "none", reason: "Nothing readable" }) });
+		await work(laterRequest);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "parse-error", detail: "no readable article candidate: Nothing readable" } } }));
+	});
+
 	it("records why this save's live crawl failed when it stored no live response and nothing else is readable", async () => {
 		const { work, deps } = setup({ listAvailableTierSources: async () => [], selectMostCompleteContent: async () => ({ kind: "none", reason: "No candidates" }) });
 		await work({ ...request, liveAttempt: { outcome: "no-body", failureReason: { kind: "origin-unreachable", code: "ENOTFOUND" } } });

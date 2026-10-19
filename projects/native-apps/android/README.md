@@ -81,6 +81,11 @@ it as the reader's own capture. The app names the event and nothing more, so wha
 page does with it can change without an app release. A failed automatic capture is
 logged under the `Capture` tag rather than shown (an expired session still signs the
 app out), and the capture button stays as the retry.
+When any capture, tapped or automatic, ends without uploading a copy, the app
+evaluates `document.dispatchEvent(new Event("readplace-capture-failed"))`, so the page
+says the copy from the device didn't arrive instead of leaving "Copying the page from
+your device" up until its poll gives up. A capture that uploaded a copy dispatches
+nothing; the page's poll picks the copy up.
 
 **Transcoded intro media.** The iOS bundle ships `LaunchIntroTheme.caf` (Core Audio,
 which Android cannot decode) and `LaunchIntro.mp4` encoded as **10-bit HEVC** (which

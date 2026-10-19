@@ -32,14 +32,14 @@ const STATE_CASES: (ReaderViewCase & { state: string })[] = [
 	{ reader: "pending again over published content", crawl: { status: "pending" }, content: HEADED_CONTENT, notice: undefined, state: "hidden" },
 	{
 		reader: "failed",
-		crawl: { status: "failed", reason: JSON.stringify({ kind: "exhausted-retries", receiveCount: 3 }) },
+		crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "exhausted-retries", receiveCount: 3 }) },
 		content: undefined,
 		notice: undefined,
 		state: "hidden",
 	},
 	{
 		reader: "blocked",
-		crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+		crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
 		content: undefined,
 		notice: undefined,
 		state: "hidden",

@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import {
 	type ArticleDestinationUrl,
 	articleDestinationUrl,
@@ -23,7 +24,7 @@ import {
 	renderDocumentTitleOob,
 } from "../article-body/article-header/article-header.component";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
-import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
+import { type ReaderSlotCapture, renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
 import { renderTableOfContents } from "../article-body/table-of-contents/table-of-contents.component";
 import { toAbsoluteDate, toAbsoluteTime, type LocalTime } from "@packages/web-shell/local-time.format";
@@ -38,7 +39,13 @@ import type {
 } from "./article-reader.types";
 import { isReaderContentUnavailable } from "../article-state/is-reader-content-unavailable";
 import { isReaderViewFailed } from "../article-state/is-reader-view-failed";
-import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
+import { MAX_POLLS } from "@packages/web-shell";
+import {
+	type CaptureResolution,
+	type CaptureWatch,
+	NO_CAPTURE_WATCH,
+	resolveCaptureWatch,
+} from "./capture-watch";
 
 /**
  * Required input for every poll response. Holds the *full* world state — both
@@ -59,7 +66,7 @@ interface PollResponseBodyInput {
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
 	capturePollUrl: string | undefined;
-	capturing: boolean;
+	capture: ReaderSlotCapture;
 	summaryOpen: boolean;
 	summaryToggleUrl: string | undefined;
 	extensionInstallUrl: string | undefined;
@@ -78,7 +85,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		articleId: input.articleId,
 		readerPollUrl: input.readerPollUrl,
 		capturePollUrl: input.capturePollUrl,
-		capturing: input.capturing,
+		capture: input.capture,
 		extensionInstallUrl: input.extensionInstallUrl,
 		notice: input.readerNotice,
 		oob: input.primary !== "reader",
@@ -124,6 +131,30 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 	);
 }
 
+function capturePollUrlFor(crawl: ArticleCrawl | undefined, pollUrlBuilder: PollUrlBuilder): string | undefined {
+	return crawl?.status === "failed"
+		? pollUrlBuilder.reader(1, { kind: "started", noticeRevision: crawl.outcomeRevision })
+		: undefined;
+}
+
+function watchCarriedBy(resolution: CaptureResolution): CaptureWatch {
+	if (resolution.kind === "carry") return resolution.watch;
+	if (resolution.kind === "copying") return { kind: "watching", since: resolution.since };
+	return NO_CAPTURE_WATCH;
+}
+
+function slotCaptureFor(params: {
+	resolution: CaptureResolution;
+	readerPollUrl: string | undefined;
+	gaveUpUrl: (since: number) => string;
+}): ReaderSlotCapture {
+	const { resolution } = params;
+	if (resolution.kind === "missing") return { kind: "missing" };
+	if (resolution.kind !== "copying") return { kind: "none" };
+	assert(params.readerPollUrl, "a copying capture is inside the poll budget, so the reader keeps polling");
+	return { kind: "copying", pollUrl: params.readerPollUrl, gaveUpUrl: params.gaveUpUrl(resolution.since) };
+}
+
 /**
  * Single source of truth for "is this axis still in flight?" Computing both
  * URLs from the same state shape means a reader poll and a summary poll see
@@ -136,20 +167,16 @@ function computePollUrls(args: {
 	content: string | undefined;
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;
-	capturing: boolean;
+	capture: CaptureWatch;
 }): {
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
-	capturePollUrl: string;
+	capturePollUrl: string | undefined;
+	capture: ReaderSlotCapture;
 } {
-	/* The device capture is a ~12s operation, so it gets its own much shorter
-	 * budget than the server pipeline's. Past it the flag stops being re-armed
-	 * and the row falls back to the ordinary rules — a capture that died on the
-	 * device returns the user to the notice (and its retry) in a minute rather
-	 * than showing "copying" for the pipeline's full 15. */
-	const capturingStillArmed = args.capturing && args.pollCount < MAX_CAPTURE_POLLS;
+	const resolution = resolveCaptureWatch({ watch: args.capture, crawl: args.crawl, pollCount: args.pollCount });
 	const readerStillRunning =
-		shouldKeepPollingReader(args.crawl, args.content, capturingStillArmed) &&
+		(resolution.kind === "copying" || shouldKeepPollingReader(args.crawl, args.content)) &&
 		args.pollCount < MAX_POLLS;
 	const crawlTerminalFailure =
 		args.crawl?.status === "failed" || args.crawl?.status === "unsupported";
@@ -157,14 +184,20 @@ function computePollUrls(args: {
 		!crawlTerminalFailure &&
 		(args.summary?.status ?? "pending") === "pending" &&
 		args.pollCount < MAX_POLLS;
+	const readerPollUrl = readerStillRunning
+		? args.pollUrlBuilder.reader(args.pollCount + 1, watchCarriedBy(resolution))
+		: undefined;
 	return {
-		readerPollUrl: readerStillRunning
-			? args.pollUrlBuilder.reader(args.pollCount + 1, capturingStillArmed)
-			: undefined,
+		readerPollUrl,
 		summaryPollUrl: summaryStillRunning
 			? args.pollUrlBuilder.summary(args.pollCount + 1)
 			: undefined,
-		capturePollUrl: args.pollUrlBuilder.reader(1, true),
+		capturePollUrl: capturePollUrlFor(args.crawl, args.pollUrlBuilder),
+		capture: slotCaptureFor({
+			resolution,
+			readerPollUrl,
+			gaveUpUrl: (since) => args.pollUrlBuilder.reader(args.pollCount + 1, { kind: "device-gave-up", since }),
+		}),
 	};
 }
 
@@ -207,9 +240,7 @@ function bodyOf(stored: StoredArticleBody): ArticleBody | undefined {
 function shouldKeepPollingReader(
 	crawl: ArticleCrawl | undefined,
 	content: string | undefined,
-	capturing: boolean,
 ): boolean {
-	if (capturing) return true;
 	if (crawl?.status === "pending") return true; /* 1 */
 	if (crawl === undefined && content === undefined) return true; /* 2 */
 	if (crawl?.status === "ready" && content === undefined) return true; /* 3 */
@@ -269,7 +300,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	async function resolveReaderState(
 		params: ResolveReaderStateParams,
 	): Promise<ReaderState> {
-		const { article, pollUrlBuilder, capturing } = params;
+		const { article, pollUrlBuilder } = params;
 		if (isNonArticleHost(article.url)) return GATED_READER_STATE;
 		const crawl = await deps.findArticleCrawlStatus(article.url);
 		const summary = await deps.findGeneratedSummary(article.url);
@@ -281,8 +312,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const summaryPollUrl = summaryStatus === "pending"
 			? pollUrlBuilder.summary(1)
 			: undefined;
-		const readerPollUrl = shouldKeepPollingReader(crawl, content, capturing)
-			? pollUrlBuilder.reader(1, capturing)
+		const readerPollUrl = shouldKeepPollingReader(crawl, content)
+			? pollUrlBuilder.reader(1, NO_CAPTURE_WATCH)
 			: undefined;
 
 		return {
@@ -291,7 +322,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summary,
 			readerPollUrl,
 			summaryPollUrl,
-			capturePollUrl: pollUrlBuilder.reader(1, true),
+			capturePollUrl: capturePollUrlFor(crawl, pollUrlBuilder),
 			crawlVersions: resolveCrawlVersions(versions, freshness?.contentFetchedAt),
 			readerViewFailed: isReaderViewFailed({
 				crawlStatus: crawl?.status,
@@ -319,7 +350,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				readerPollUrl: undefined,
 				summaryPollUrl: undefined,
 				capturePollUrl: undefined,
-				capturing: false,
+				capture: { kind: "none" },
 				summaryOpen: deps.summaryOpen,
 				summaryToggleUrl: undefined,
 				extensionInstallUrl: undefined,
@@ -383,8 +414,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.findArticleByUrl(articleUrl),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
-		const { readerPollUrl, summaryPollUrl, capturePollUrl } = computePollUrls({
-			crawl, summary, content, pollCount, pollUrlBuilder, capturing: params.capturing,
+		const { readerPollUrl, summaryPollUrl, capturePollUrl, capture } = computePollUrls({
+			crawl, summary, content, pollCount, pollUrlBuilder, capture: params.capture,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "summary",
@@ -396,7 +427,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			readerPollUrl,
 			summaryPollUrl,
 			capturePollUrl,
-			capturing: params.capturing,
+			capture,
 			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
@@ -430,8 +461,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.findArticleByUrl(articleUrl),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
-		const { readerPollUrl, summaryPollUrl, capturePollUrl } = computePollUrls({
-			crawl, summary, content, pollCount, pollUrlBuilder, capturing: params.capturing,
+		const { readerPollUrl, summaryPollUrl, capturePollUrl, capture } = computePollUrls({
+			crawl, summary, content, pollCount, pollUrlBuilder, capture: params.capture,
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "reader",
@@ -443,7 +474,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			readerPollUrl,
 			summaryPollUrl,
 			capturePollUrl,
-			capturing: params.capturing,
+			capture,
 			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,

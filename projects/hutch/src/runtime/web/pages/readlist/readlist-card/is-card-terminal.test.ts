@@ -43,7 +43,7 @@ describe("isCardTerminal", () => {
 	});
 
 	it("is terminal as soon as the crawl fails, regardless of summary state", () => {
-		const crawl: ArticleCrawl = { status: "failed", reason: "blocked" };
+		const crawl: ArticleCrawl = { status: "failed", outcomeRevision: 1, reason: "blocked" };
 		const summary: GeneratedSummary = { status: "pending" };
 		expect(isCardTerminal(crawl, summary)).toBe(true);
 	});

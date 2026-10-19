@@ -727,6 +727,9 @@ test.describe("A reader whose crawl fails while it is open", () => {
 const BLOCKED_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader-status="blocked"]`;
 const CAPTURE = `${BLOCKED_NOTICE} [data-test-reader-action="capture"]`;
 const COPYING_TITLE = "Copying the page from your device";
+const CAPTURE_MISSING_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader-status="capture-missing"]`;
+const CAPTURE_UNREADABLE_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader-status="capture-unreadable"]`;
+const CAPTURE_UNREADABLE_REASON = JSON.stringify({ kind: "capture-unreadable", detail: "no readable article candidate: a game" });
 const HISTORY_HOLDING_THE_PAGE_HEIGHT = [
 	"2026-07-10T09:14Z",
 	"2026-06-28T22:01Z",
@@ -736,7 +739,7 @@ const HISTORY_HOLDING_THE_PAGE_HEIGHT = [
 	"2026-02-11T11:08Z",
 ].map((crawledAtMinute) => ({ crawledAtMinute }));
 
-async function openBlockedReader(page: Page, stamp: string): Promise<void> {
+async function openBlockedReader(page: Page, stamp: string): Promise<SeededReader> {
 	await quietReader(page);
 	const reader = await seedOwnerArticle(page, {
 		stamp,
@@ -749,6 +752,7 @@ async function openBlockedReader(page: Page, stamp: string): Promise<void> {
 	await page.waitForSelector(BLOCKED_NOTICE);
 	await expect.poll(() => page.evaluate(htmxIsLive)).toBe(true);
 	await waitForBrandFonts(page, ["Inter"]);
+	return reader;
 }
 
 test.describe("A capture host starting the reader's capture poll", () => {
@@ -773,6 +777,48 @@ test.describe("A capture host starting the reader's capture poll", () => {
 		await expect(page.locator(READER_NOTICE)).toHaveCSS("display", "none");
 		expect(before).toBeLessThanOrEqual(await page.evaluate(maxScrollY));
 		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
+	});
+
+	test("a capture-failed event while copying shows the copy never arrived at once, offers the capture again and the page holds still", async ({
+		page,
+	}, testInfo) => {
+		await openBlockedReader(page, `capture-failed-${testInfo.workerIndex}-${Date.now()}`);
+		const title = await measuredBox(page, TITLE);
+		await scrollToY(page, Math.round(title.y + 4));
+		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-started")));
+		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
+		const before = await page.evaluate(readScrollY);
+		expect(before).toBeGreaterThan(0);
+
+		await page.evaluate(recordScrollAfterSwap, READER_NOTICE);
+		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-failed")));
+
+		await expect(page.locator(CAPTURE_MISSING_NOTICE)).toHaveCount(1);
+		await awaitScrollStamp(page);
+		await expect(page.locator(`${CAPTURE_MISSING_NOTICE} [data-test-reader-action="capture"]`)).toHaveClass(
+			/article-body__reader-notice-capture--offered/,
+		);
+		expect(
+			await page.locator(READER_SLOT).evaluate((slot) => [slot.getAttribute("data-reader-status"), slot.hasAttribute("hx-get")]),
+		).toEqual(["capture-missing", false]);
+		expect(before).toBeLessThanOrEqual(await page.evaluate(maxScrollY));
+		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
+	});
+
+	test("a capture judged while copying ends on the next poll with the notice for the reader's own capture", async ({
+		page,
+	}, testInfo) => {
+		const reader = await openBlockedReader(page, `capture-judged-${testInfo.workerIndex}-${Date.now()}`);
+		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-started")));
+		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
+
+		await seedCrawlStatus(page, { url: reader.url, status: "failed", reason: CAPTURE_UNREADABLE_REASON });
+
+		await expect(page.locator(CAPTURE_UNREADABLE_NOTICE)).toHaveCount(1, { timeout: 10_000 });
+		await expect(page.locator(`${CAPTURE_UNREADABLE_NOTICE} [data-test-reader-action="capture"]`)).toHaveClass(
+			/article-body__reader-notice-capture--offered/,
+		);
+		await expect(page.locator(PENDING_SLOT)).toHaveCount(0);
 	});
 
 	test("a tap on the revealed capture button polls the slot without moving the page", async ({ page }, testInfo) => {

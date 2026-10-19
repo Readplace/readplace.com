@@ -179,7 +179,7 @@ describe("renderReaderSlot", () => {
 	it("routes status=failed to the failed variant", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "exceeded SQS maxReceiveCount" },
 				url: URL,
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
@@ -207,6 +207,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: {
 					status: "failed",
+					outcomeRevision: 1,
 					reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
 				},
 				url: URL,
@@ -350,11 +351,12 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: {
 					status: "failed",
+					outcomeRevision: 1,
 					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
 				},
 				url: URL,
 				articleId: ARTICLE_ID,
-				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
+				capturePollUrl: "/queue/abc/reader?poll=1&captureNotice=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -367,7 +369,7 @@ describe("renderReaderSlot", () => {
 			doc
 				.querySelector("[data-test-reader-notice] [data-reader-capture]")
 				?.getAttribute("data-reader-capture-poll"),
-		).toBe("/queue/abc/reader?poll=1&capturing=1");
+		).toBe("/queue/abc/reader?poll=1&captureNotice=1");
 	});
 
 	it("swaps the blocked notice for the capturing pending state while an on-device capture is in flight", () => {
@@ -375,12 +377,16 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: {
 					status: "failed",
+					outcomeRevision: 1,
 					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
 				},
 				url: URL,
 				articleId: ARTICLE_ID,
-				readerPollUrl: "/queue/abc/reader?poll=2&capturing=1",
-				capturing: true,
+				capture: {
+					kind: "copying",
+					pollUrl: "/queue/abc/reader?poll=2&captureSince=1",
+					gaveUpUrl: "/queue/abc/reader?poll=2&captureSince=1&captureGaveUp=1",
+				},
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -389,7 +395,22 @@ describe("renderReaderSlot", () => {
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
-		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=2&capturing=1");
+		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=2&captureSince=1");
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "the notice region must be rendered");
+		expect({
+			hxGet: notice.getAttribute("hx-get"),
+			hxTrigger: notice.getAttribute("hx-trigger"),
+			hxTarget: notice.getAttribute("hx-target"),
+			hxSwap: notice.getAttribute("hx-swap"),
+			backgroundRequest: notice.hasAttribute("data-background-request"),
+		}).toEqual({
+			hxGet: "/queue/abc/reader?poll=2&captureSince=1&captureGaveUp=1",
+			hxTrigger: "readplace-capture-failed from:document",
+			hxTarget: "#article-body-reader-slot",
+			hxSwap: "outerHTML show:none",
+			backgroundRequest: true,
+		});
 		expect(slot.querySelector("[data-test-reader-pending-title]")?.textContent).toBe(
 			"Copying the page from your device",
 		);
@@ -398,16 +419,18 @@ describe("renderReaderSlot", () => {
 		expect(bar.classList.contains("article-body__progress--hidden")).toBe(true);
 	});
 
-	it("falls back to the blocked notice when a capture outlives the poll budget", () => {
+	it("says the copy never arrived, in place of the blocked notice, when a capture produced nothing", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: {
 					status: "failed",
+					outcomeRevision: 1,
 					reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
 				},
 				url: URL,
 				articleId: ARTICLE_ID,
-				capturing: true,
+				capture: { kind: "missing" },
+				capturePollUrl: "/queue/abc/reader?poll=1&captureNotice=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -415,8 +438,13 @@ describe("renderReaderSlot", () => {
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
-		expect(slot.getAttribute("data-reader-status")).toBe("blocked");
+		expect(slot.getAttribute("data-reader-status")).toBe("capture-missing");
 		expect(slot.getAttribute("hx-get")).toBeNull();
+		const capture = noticeCaptureControl(doc);
+		expect({
+			offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
+			pollUrl: capture.getAttribute("data-reader-capture-poll"),
+		}).toEqual({ offered: true, pollUrl: "/queue/abc/reader?poll=1&captureNotice=1" });
 	});
 
 	it("renders the healed article once the capture lands, so the poll fragment stops carrying hx-get", () => {
@@ -426,8 +454,8 @@ describe("renderReaderSlot", () => {
 				content: articleBody("<p>Captured body</p>"),
 				url: URL,
 				articleId: ARTICLE_ID,
-				readerPollUrl: "/queue/abc/reader?poll=3&capturing=1",
-				capturing: true,
+				readerPollUrl: "/queue/abc/reader?poll=3&captureSince=1",
+				capture: { kind: "copying", pollUrl: "/queue/abc/reader?poll=3&captureSince=1", gaveUpUrl: "/g" },
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -442,10 +470,10 @@ describe("renderReaderSlot", () => {
 	it("offers the capture on a crawl that failed to parse, stamped with the kick-off URL", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
+				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
 				articleId: ARTICLE_ID,
-				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
+				capturePollUrl: "/queue/abc/reader?poll=1&captureNotice=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -458,18 +486,18 @@ describe("renderReaderSlot", () => {
 		expect({
 			offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
 			pollUrl: capture.getAttribute("data-reader-capture-poll"),
-		}).toEqual({ offered: true, pollUrl: "/queue/abc/reader?poll=1&capturing=1" });
+		}).toEqual({ offered: true, pollUrl: "/queue/abc/reader?poll=1&captureNotice=1" });
 	});
 
 	it.each<{ state: string; input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob">; status: string }>([
 		{
 			state: "a deleted page",
-			input: { crawl: { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) } },
+			input: { crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) } },
 			status: "not-found",
 		},
 		{
 			state: "an unreachable origin",
-			input: { crawl: { status: "failed", reason: JSON.stringify({ kind: "origin-unreachable", httpStatus: 522 }) } },
+			input: { crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "origin-unreachable", httpStatus: 522 }) } },
 			status: "origin-down",
 		},
 		{
@@ -501,11 +529,10 @@ describe("renderReaderSlot", () => {
 	it("swaps a failed notice for the capturing pending state while an on-device capture is in flight", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
+				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
 				articleId: ARTICLE_ID,
-				readerPollUrl: "/queue/abc/reader?poll=2&capturing=1",
-				capturing: true,
+				capture: { kind: "copying", pollUrl: "/queue/abc/reader?poll=2&captureSince=1", gaveUpUrl: "/g" },
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -519,18 +546,18 @@ describe("renderReaderSlot", () => {
 			title: slot.querySelector("[data-test-reader-pending-title]")?.textContent,
 		}).toEqual({
 			status: "pending",
-			hxGet: "/queue/abc/reader?poll=2&capturing=1",
+			hxGet: "/queue/abc/reader?poll=2&captureSince=1",
 			title: "Copying the page from your device",
 		});
 	});
 
-	it("returns the failed notice with the capture offered again once a capture outlives its budget", () => {
+	it("offers the capture again on the copy-never-arrived notice", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
+				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
 				articleId: ARTICLE_ID,
-				capturing: true,
+				capture: { kind: "missing" },
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -544,7 +571,7 @@ describe("renderReaderSlot", () => {
 			hxGet: slot.getAttribute("hx-get"),
 			offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
 			disabled: capture.hasAttribute("disabled"),
-		}).toEqual({ status: "failed", hxGet: null, offered: true, disabled: false });
+		}).toEqual({ status: "capture-missing", hxGet: null, offered: true, disabled: false });
 	});
 
 	it("renders the notice in place of stored content, so a ready crawl on a gated host still shows it", () => {
@@ -608,7 +635,7 @@ describe("renderReaderSlot", () => {
 		},
 		{
 			state: "failed",
-			input: { crawl: { status: "failed", reason: "x" } },
+			input: { crawl: { status: "failed", outcomeRevision: 1, reason: "x" } },
 			slot: { status: "failed", stateClass: "article-body__reader-slot--notice" },
 			notice: { status: "failed", stateClass: "article-body__reader-notice--visible" },
 		},
@@ -621,12 +648,20 @@ describe("renderReaderSlot", () => {
 		{
 			state: "capturing on the device",
 			input: {
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
-				readerPollUrl: "/p",
-				capturing: true,
+				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+				capture: { kind: "copying", pollUrl: "/p", gaveUpUrl: "/g" },
 			},
 			slot: { status: "pending", stateClass: "article-body__reader-slot--pending" },
 			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
+		},
+		{
+			state: "a capture that never arrived",
+			input: {
+				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+				capture: { kind: "missing" },
+			},
+			slot: { status: "capture-missing", stateClass: "article-body__reader-slot--notice" },
+			notice: { status: "capture-missing", stateClass: "article-body__reader-notice--visible" },
 		},
 		{
 			state: "a notice override on a ready crawl",
@@ -656,7 +691,7 @@ describe("renderReaderSlot", () => {
 
 	it.each([
 		{ state: "pending", crawl: { status: "pending" as const }, readerPollUrl: "/p" },
-		{ state: "failed", crawl: { status: "failed" as const, reason: "x" }, readerPollUrl: undefined },
+		{ state: "failed", crawl: { status: "failed" as const, reason: "x", outcomeRevision: 1 }, readerPollUrl: undefined },
 	])("marks the $state slot and its notice out of band independently", ({ crawl, readerPollUrl }) => {
 		const swaps = [
 			{ oob: false, noticeOob: false },
@@ -689,7 +724,7 @@ describe("renderReaderSlot", () => {
 		}> = [
 			{ input: { crawl: { status: "ready" }, content: articleBody("<p>x</p>"), url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "ready" },
 			{ input: { crawl: { status: "pending" }, url: URL, articleId: ARTICLE_ID, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false }, expected: "pending" },
-			{ input: { crawl: { status: "failed", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "failed" },
+			{ input: { crawl: { status: "failed", outcomeRevision: 1, reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "failed" },
 			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "unsupported" },
 		];
 

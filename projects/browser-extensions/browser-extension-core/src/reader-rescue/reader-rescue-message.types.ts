@@ -2,7 +2,9 @@ import "../zod-config";
 import { z } from "zod";
 
 export const READER_RESCUE_MESSAGE_TYPE = "reader-rescue";
+export const READER_RESCUE_ENDED_MESSAGE_TYPE = "reader-rescue-ended";
 export const CAPTURE_STARTED_EVENT = "readplace-capture-started";
+export const CAPTURE_FAILED_EVENT = "readplace-capture-failed";
 export const HTMX_LOAD_EVENT = "htmx:load";
 export const CAPTURE_HOST_ATTRIBUTE = "data-reader-capture-host";
 export const CAPTURE_CONTROL_ATTRIBUTE = "data-reader-capture";
@@ -24,3 +26,10 @@ export const ReaderRescueAnswerSchema = z.discriminatedUnion("outcome", [
 ]);
 
 export type ReaderRescueAnswer = z.infer<typeof ReaderRescueAnswerSchema>;
+
+export const ReaderRescueEndedSchema = z.object({
+	type: z.literal(READER_RESCUE_ENDED_MESSAGE_TYPE),
+	articleId: z.string().min(1),
+});
+
+export type ReaderRescueEnded = z.infer<typeof ReaderRescueEndedSchema>;

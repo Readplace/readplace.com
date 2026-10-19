@@ -12,6 +12,7 @@ import {
 	READER_RESCUE_MESSAGE_TYPE,
 	type ReaderRescueRequest,
 	ReaderRescueAnswerSchema,
+	ReaderRescueEndedSchema,
 } from "./reader-rescue-message.types";
 
 export type CaptureHostDocument = RescueNoticeDocument & {
@@ -22,11 +23,18 @@ export function initCaptureHost(deps: {
 	document: CaptureHostDocument;
 	requestRescue: (request: ReaderRescueRequest) => Promise<unknown>;
 	announceCaptureStarted: () => void;
+	announceCaptureFailed: () => void;
 	logger: HutchLogger;
-}): { pageChanged: () => Promise<void>; tapped: (target: RescueTapTarget) => Promise<void> } {
+}): {
+	pageChanged: () => Promise<void>;
+	tapped: (target: RescueTapTarget) => Promise<void>;
+	rescueEnded: (raw: unknown) => void;
+} {
 	const askedArticleIds = new Set<string>();
+	const requestedArticleIds = new Set<string>();
 
 	function request(params: { rescue: OfferedRescue; trigger: CaptureTrigger }): Promise<unknown> {
+		requestedArticleIds.add(params.rescue.articleId);
 		return deps
 			.requestRescue({
 				type: READER_RESCUE_MESSAGE_TYPE,
@@ -59,7 +67,15 @@ export function initCaptureHost(deps: {
 		async tapped(target) {
 			const rescue = readTappedRescue(target);
 			if (!rescue) return;
-			await request({ rescue, trigger: "manual" });
+			const answer = ReaderRescueAnswerSchema.safeParse(await request({ rescue, trigger: "manual" }));
+			if (answer.success && answer.data.outcome === "started") return;
+			deps.announceCaptureFailed();
+		},
+
+		rescueEnded(raw) {
+			const ended = ReaderRescueEndedSchema.safeParse(raw);
+			if (!ended.success || !requestedArticleIds.has(ended.data.articleId)) return;
+			deps.announceCaptureFailed();
 		},
 	};
 }
