@@ -13,6 +13,7 @@ export interface GmailFormAction {
 	label: string;
 	variant: "primary" | "secondary" | "neutral" | "destructive";
 	fields: FormField[];
+	opener?: string;
 }
 
 const GMAIL_SOURCE = "integrations-gmail";
@@ -28,6 +29,10 @@ function queryFields(href: string): FormField[] {
 
 export function gmailGetFields(state: GmailPickerState, content: string): FormField[] {
 	return queryFields(trackGmail(buildGmailUrl({ ...state, discovery: "started" }), content));
+}
+
+export function gmailLinkFields(input: { state: GmailPickerState; discoveryStarted: boolean }, content: string): FormField[] {
+	return queryFields(trackGmail(buildGmailUrl({ ...input.state, discovery: input.discoveryStarted ? "started" : undefined }), content));
 }
 
 export function gmailBodyFields(state: GmailPickerState): FormField[] {

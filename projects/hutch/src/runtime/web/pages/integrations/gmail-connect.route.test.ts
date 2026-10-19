@@ -403,12 +403,13 @@ describe("GET /integrations/gmail/callback", () => {
 		});
 		const page = await agent.get("/newsletters/gmail");
 		const document = new JSDOM(page.text).window.document;
-		assert(document.querySelector("[data-test-gmail-senders]"), "the sender picker must be rendered after reconnecting");
+		expect(document.querySelector("[data-test-gmail-senders] [data-test-gmail-add-newsletters]")?.textContent).toBe("Add newsletters");
 		const autoLoad = document.querySelector("[data-test-gmail-auto-load-senders]");
-		assert(autoLoad, "the sender picker must load senders on its own once reconnected");
+		assert(autoLoad, "the page must load senders on its own once reconnected");
 		expect(autoLoad.getAttribute("hx-trigger")).toBe("load");
 		expect(autoLoad.getAttribute("hx-post")).toBe("/newsletters/gmail/discovery/start");
-		expect(document.querySelector("[data-test-gmail-load-senders]")?.getAttribute("hx-trigger")).toBe("submit");
+		const opened = new JSDOM((await agent.get("/newsletters/gmail?add=1")).text).window.document;
+		expect(opened.querySelector("#gmail-dialog [data-test-gmail-load-senders]")?.getAttribute("hx-trigger")).toBe("submit");
 		expect(gmail.rewriteRequests).toEqual([]);
 	});
 

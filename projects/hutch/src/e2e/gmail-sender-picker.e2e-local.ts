@@ -5,7 +5,7 @@ import { expect, type Page } from "@playwright/test";
 import { z } from "zod";
 import { markSenderSearchTriggers, notificationControlStyles } from "./gmail-sender-picker.browser";
 import { measureBoxes } from "./page-measurements.browser";
-import { recordScrollAfterSwap, scrollUnderHeader } from "./readlist-scroll-stability.browser";
+import { recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -18,13 +18,15 @@ const READLIST_PICKER = "[data-test-gmail-readlist-picker]";
 const RESULTS = "[data-test-gmail-sender-results]";
 const STATUS = "#gmail-sender-status";
 const DISCOVERY_FENCE = `${STATUS} > input[form="gmail-sender-search-form"][name="discovery_after"]`;
-const CHECKLIST_ROWS = "[data-test-gmail-checklist-rows]";
 const SELECT_ALL = '[data-test-gmail-checklist-action="select"]';
 const REFRESH_CHECKLIST = "[data-test-gmail-refresh-checklist]";
 const SELECTION_FORM = "#gmail-readlist-selection";
 const SENDER_OPTION = "[data-test-gmail-sender-option]";
 const CREATE_READLIST = "[data-test-gmail-readlist-create]";
 const CUSTOM_READLIST_OPTION = '[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])';
+const DIALOG = "#gmail-dialog";
+const OPEN_DIALOG = "#gmail-dialog:popover-open";
+const ADD_NEWSLETTERS = "[data-test-gmail-add-newsletters]";
 const CATALOG_COOKIE = "e2e_catalog_ns";
 const CATALOG_TIMESTAMP = "2026-09-01T00:00:00.000Z";
 
@@ -43,6 +45,7 @@ interface GmailSeed {
 	completeDiscoveryOnStart?: boolean;
 	discoveryStartHeld?: boolean;
 	enhanced?: boolean;
+	closed?: boolean;
 }
 
 async function seedApprovedNewsletters(
@@ -66,7 +69,7 @@ async function seedApprovedNewsletters(
 	assert.equal(seeded.status(), 201);
 }
 
-async function openGmail(page: Page, stamp: string, seed: GmailSeed = {}): Promise<void> {
+async function openGmail(page: Page, stamp: string, seed: GmailSeed = {}): Promise<{ email: string }> {
 	await seedApprovedNewsletters(page, {
 		namespace: `gmail-picker-${stamp}`,
 		newsletters: seed.approvedNewsletters ?? [
@@ -103,15 +106,28 @@ async function openGmail(page: Page, stamp: string, seed: GmailSeed = {}): Promi
 	await page.locator('input[name="password"]').fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
+	if (seed.discoveryStartHeld === true) {
+		await page.goto(`${BASE_URL}/newsletters/gmail?add=1`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+		await expect(page.locator(SENDER_PICKER)).toBeVisible();
+		return { email };
+	}
 	await page.goto(`${BASE_URL}/newsletters`, { waitUntil: "domcontentloaded" });
 	await page.locator('[data-test-integration="gmail"] [data-test-integration-action="manage"]').click();
-	await expect(page.locator(SENDER_PICKER)).toBeVisible();
+	await expect(page.locator(ADD_NEWSLETTERS)).toBeVisible();
 	if (seed.enhanced !== false) {
 		await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
-		if (seed.discoveryStartHeld !== true) {
-			await expect(page.locator(DISCOVERY_FENCE)).toHaveCount(1);
-		}
+		await expect(page.locator("html")).toHaveAttribute("data-gmail-dialog-attached", "");
+		await expect(page.locator('#gmail-add-newsletters-form input[name="discovery_after"]')).toHaveCount(1);
 	}
+	if (seed.closed === true) return { email };
+	await page.locator(ADD_NEWSLETTERS).click();
+	await expect(page.locator(SENDER_PICKER)).toBeVisible();
+	if (seed.enhanced !== false) {
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+		await expect(page.locator(DISCOVERY_FENCE)).toHaveCount(1);
+	}
+	return { email };
 }
 
 function tick(page: Page, sender: string) {
@@ -216,12 +232,12 @@ test.describe("Gmail sender picker", () => {
 			readlists: ["Tech"],
 			mappings: [{ destination: "legacy-inbox", email: BREW, readlist: "Tech", inboxName: "morningbrew" }],
 		});
+		await page.locator(`${SENDER_PICKER} summary`).click();
 		await expect(mappingRow(page, BREW).locator("[data-test-gmail-mapping-destination]")).toHaveAttribute(
 			"data-destination-kind",
 			"readlist",
 		);
 
-		await page.locator(`${SENDER_PICKER} summary`).click();
 		await expect(page.locator("#gmail-sender-search")).toBeFocused();
 		await expect(page.locator(RESULTS)).toHaveAttribute("data-results-state", "listed");
 		await expect(page.locator(SENDER_OPTION)).toHaveCount(2);
@@ -240,9 +256,11 @@ test.describe("Gmail sender picker", () => {
 		await expect(kale).toContainText("Tech");
 
 		await mappingRow(page, BREW).locator('[data-test-gmail-mapping-action="edit"]').click();
-		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
-		await expect(page.locator(`[data-test-gmail-checklist-group="editing"] [data-test-gmail-checklist-sender="${BREW}"]`)).toBeChecked();
+		await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-edit");
+		await expect(page.locator(READLIST_PICKER)).toHaveJSProperty("open", false);
+		await openReadlistPicker(page);
 		await page.locator(CUSTOM_READLIST_OPTION).uncheck();
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All");
 		await page.locator("[data-test-gmail-save]").click();
 		await expect(page.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
 		await expect(mappingRow(page, BREW).locator("[data-test-gmail-mapping-destination]")).toContainText("All");
@@ -483,7 +501,7 @@ test.describe("Gmail sender picker", () => {
 		await expect(mappingRow(page, BREW)).toBeVisible();
 	});
 
-	test("adds a newly found newsletter without moving the scrolled checklist, then keeps the ticks on refresh", async ({ page }, testInfo) => {
+	test("adds a newly found newsletter without moving the scrolled checklist in the popup, then keeps the ticks on refresh", async ({ page }, testInfo) => {
 		const stamp = `refresh-${testInfo.workerIndex}-${Date.now()}`;
 		const digests = digestNewsletters(30);
 		const approved = digests.map((digest) => ({ from: digest.email, name: digest.name }));
@@ -498,12 +516,11 @@ test.describe("Gmail sender picker", () => {
 		await expect(page.locator(STATUS)).toHaveAttribute("hx-get", /poll=/);
 		await tick(page, digests[0].email).check();
 		await tick(page, digests[1].email).check();
-		await page.evaluate(scrollUnderHeader, "#gmail-checklist");
-		const rowsScrollTop = await page.locator(CHECKLIST_ROWS).evaluate((rows) => {
-			rows.scrollTop = 200;
-			return rows.scrollTop;
+		const panelScrollTop = await page.locator(DIALOG).evaluate((panel) => {
+			panel.scrollTop = 200;
+			return panel.scrollTop;
 		});
-		assert.ok(rowsScrollTop > 0, "the checklist rows must overflow their box");
+		assert.ok(panelScrollTop > 0, "the checklist must overflow the panel");
 
 		let releasePoll: (() => void) | undefined;
 		const pollHeld = new Promise<void>((resolve) => {
@@ -534,11 +551,13 @@ test.describe("Gmail sender picker", () => {
 		releasePoll();
 
 		await expect(page.locator(REFRESH_CHECKLIST)).toBeVisible();
-		const scrollYAfter = await scrollAfterSwap(page);
+		assert.equal(await scrollAfterSwap(page), scrollYBefore);
 		const [statusAfter, checklistAfter] = await page.evaluate(measureBoxes, [STATUS, "#gmail-checklist"]);
 		assert.equal(checklistAfter.y, checklistBefore.y, "the checklist must hold its place on screen while the refresh button appears above it");
-		assert.equal(scrollYAfter - scrollYBefore, Math.round(statusAfter.height - statusBefore.height));
-		assert.equal(await page.locator(CHECKLIST_ROWS).evaluate((rows) => rows.scrollTop), rowsScrollTop);
+		assert.equal(
+			await page.locator(DIALOG).evaluate((panel) => panel.scrollTop) - panelScrollTop,
+			Math.round(statusAfter.height - statusBefore.height),
+		);
 
 		const focusedRefresh = await page.locator(REFRESH_CHECKLIST).elementHandle();
 		assert(focusedRefresh);
@@ -553,83 +572,254 @@ test.describe("Gmail sender picker", () => {
 		await expect(tick(page, digests[1].email)).toBeChecked();
 	});
 
-	test("stays put when a pointer selects every newsletter or picks a searched sender", async ({ page }, testInfo) => {
+	test("keeps the popup and the page behind it still when a pointer selects every newsletter or picks a searched sender", async ({ page }, testInfo) => {
 		const digests = digestNewsletters(30);
 		await openGmail(page, `scroll-${testInfo.workerIndex}-${Date.now()}`, {
 			approvedNewsletters: digests.map((digest) => ({ from: digest.email, name: digest.name })),
 			discoveredSenders: [...digests, { email: KALE, name: "Hacker Newsletter" }],
 		});
 		await waitForBrandFonts(page, ["Inter"]);
+		const pageScroll = await page.evaluate(() => window.scrollY);
 
-		await page.evaluate(scrollUnderHeader, "#gmail-checklist");
-		const selectAllBefore = await page.evaluate(() => window.scrollY);
-		assert.ok(selectAllBefore > 0, "the checklist must sit below the fold for the scroll check to mean anything");
+		const selectAllTop = await page.locator(DIALOG).evaluate((panel) => {
+			const toolbar = panel.querySelector(".gmail__checklist-toolbar");
+			if (!toolbar) throw new Error("the checklist toolbar must render");
+			panel.scrollTop = toolbar.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop - 40;
+			return panel.scrollTop;
+		});
+		assert.ok(selectAllTop > 0, "the panel must scroll for the check to mean anything");
 		await page.evaluate(recordScrollAfterSwap, SELECTION_FORM);
 		const selectAll = await measuredBox(page, SELECT_ALL);
 		await page.mouse.click(selectAll.x + selectAll.width / 2, selectAll.y + selectAll.height / 2);
 		await expect(tick(page, digests[29].email)).toBeChecked();
-		assert.equal(await scrollAfterSwap(page), selectAllBefore);
+		assert.equal(await scrollAfterSwap(page), pageScroll);
+		assert.equal(await page.locator(DIALOG).evaluate((panel) => panel.scrollTop), selectAllTop);
+		await expect(page.locator(SELECT_ALL)).toBeFocused();
 
 		await page.evaluate(() => document.documentElement.removeAttribute("data-test-scroll-after-swap"));
-		await page.evaluate(scrollUnderHeader, SENDER_PICKER);
+		await page.locator(`${SENDER_PICKER} summary`).scrollIntoViewIfNeeded();
 		const trigger = await measuredBox(page, `${SENDER_PICKER} summary`);
 		await page.mouse.click(trigger.x + trigger.width / 2, trigger.y + trigger.height / 2);
 		await page.locator("#gmail-sender-search").fill("kale@");
 		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
-		const pickBefore = await page.evaluate(() => window.scrollY);
+		const pickTop = await page.locator(DIALOG).evaluate((panel) => panel.scrollTop);
 		await page.evaluate(recordScrollAfterSwap, SELECTION_FORM);
 		const option = await measuredBox(page, `[data-test-gmail-sender-option="${KALE}"]`);
 		await page.mouse.click(option.x + option.width / 2, option.y + option.height / 2);
 		await expect(addedTick(page, KALE)).toBeChecked();
-		assert.equal(await scrollAfterSwap(page), pickBefore);
+		assert.equal(await scrollAfterSwap(page), pageScroll);
+		assert.equal(await page.locator(DIALOG).evaluate((panel) => panel.scrollTop), pickTop);
 		await expect(tick(page, digests[0].email)).toBeChecked();
 	});
 
-	test("keeps sender search pinned while its results scroll on a narrow screen", async ({ page }, testInfo) => {
+	test("keeps Cancel and Save inside the visible panel of a long Add popup on a short phone screen, and Escape closes only the open picker", async ({ page }, testInfo) => {
 		await page.setViewportSize({ width: 375, height: 500 });
 		const digests = digestNewsletters(30);
-		await openGmail(page, `sticky-${testInfo.workerIndex}-${Date.now()}`, {
+		await openGmail(page, `footer-${testInfo.workerIndex}-${Date.now()}`, {
 			approvedNewsletters: digests.map((digest) => ({ from: digest.email, name: digest.name })),
 			discoveredSenders: digests,
 		});
 		await waitForBrandFonts(page, ["Inter"]);
-		await page.locator(`${SENDER_PICKER} summary`).click();
-		await expect(page.locator(RESULTS)).toBeVisible();
-		await expect(page.locator("#gmail-sender-search")).toBeFocused();
-		await expect(page.locator(SENDER_OPTION)).toHaveCount(30);
-
-		const firstResult = '[data-test-gmail-sender-option="digest-0@publisher-0.com"]';
-		const measured = [SENDER_PICKER, `${SENDER_PICKER} .gmail__picker-menu`, "#gmail-sender-search-form", firstResult];
-		const [picker, menu, searchBefore, firstBefore] = await page.evaluate(measureBoxes, measured);
-		assert.ok(menu.x >= 0 && menu.x + menu.width <= 375, "the menu must fit the viewport");
-		assert.ok(menu.y >= picker.y, "the menu must open below the sender trigger");
-		assert.ok(
-			searchBefore.x >= menu.x && searchBefore.x + searchBefore.width <= menu.x + menu.width,
-			"search must fit inside the menu",
-		);
-		assert.ok(
-			Math.abs(firstBefore.x - menu.x - 1 - 4) <= 0.5,
-			`the sender options must start 4px inside the menu border, measured ${firstBefore.x - menu.x - 1}px`,
-		);
-
-		const scrollTop = await page.locator(`${SENDER_PICKER} .gmail__picker-menu`).evaluate((element) => {
-			element.scrollTop = element.scrollHeight;
-			return element.scrollTop;
+		const overflow = await page.locator(DIALOG).evaluate((panel) => {
+			panel.scrollTop = 0;
+			return panel.scrollHeight - panel.clientHeight;
 		});
-		assert.ok(scrollTop > 0, "the sender results must overflow the picker menu");
-		const [, , searchAfter, firstAfter] = await page.evaluate(measureBoxes, measured);
-		assert.ok(
-			Math.abs(searchAfter.y - searchBefore.y) <= 1,
-			`the sender search must stay pinned while results scroll (before ${searchBefore.y}, after ${searchAfter.y})`,
-		);
-		assert.ok(
-			firstAfter.y < firstBefore.y,
-			`sender results must scroll beneath the pinned search (before ${firstBefore.y}, after ${firstAfter.y})`,
-		);
+		assert.ok(overflow > 0, "the checklist must overflow the panel for the footer check to mean anything");
+		const [panel, cancel, save] = await page.evaluate(measureBoxes, [DIALOG, '[data-test-action="gmail-add-cancel"]', "[data-test-gmail-save]"]);
+		assert.ok(panel.x >= 16 && panel.x + panel.width <= 375 - 16, `the panel must keep 16px phone margins, measured ${panel.x}`);
+		for (const [name, control] of [["Cancel", cancel], ["Save", save]] as const) {
+			assert.ok(control.y >= panel.y && control.y + control.height <= panel.y + panel.height, `${name} must sit inside the visible panel`);
+			assert.ok(control.y + control.height <= 500, `${name} must sit inside the viewport`);
+		}
 
+		await page.locator(`${SENDER_PICKER} summary`).click();
+		await expect(page.locator("#gmail-sender-search")).toBeFocused();
 		await page.keyboard.press("Escape");
 		await expect(page.locator(`${SENDER_PICKER} summary`)).toBeFocused();
-		await expect(page.locator(SENDER_PICKER)).not.toHaveAttribute("open");
+		await expect(page.locator(SENDER_PICKER)).toHaveJSProperty("open", false);
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+	});
+});
+
+test.describe("Gmail newsletters popup", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
+
+	function manyMappings(count: number) {
+		return digestNewsletters(count).map((digest) => ({ destination: "readlist" as const, email: digest.email, readlist: "Tech" }));
+	}
+
+	async function clickCentre(page: Page, selector: string): Promise<void> {
+		await page.locator(selector).scrollIntoViewIfNeeded();
+		const box = await measuredBox(page, selector);
+		await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+	}
+
+	function addOpen(url: string): boolean {
+		return new URL(url).searchParams.get("add") === "1";
+	}
+
+	test("opens Add newsletters where the reader is, on the first newsletter in the checklist, with add=1 in the address", async ({ page }, testInfo) => {
+		await page.setViewportSize({ width: 375, height: 500 });
+		await openGmail(page, `add-${testInfo.workerIndex}-${Date.now()}`, { closed: true, readlists: ["Tech"], mappings: manyMappings(8) });
+		const before = await page.locator(ADD_NEWSLETTERS).evaluate((button) => {
+			window.scrollTo({ top: window.scrollY + button.getBoundingClientRect().top - window.innerHeight / 2, behavior: "instant" });
+			return window.scrollY;
+		});
+		assert.ok(before > 0, "the page must scroll for the check to mean anything");
+		await page.evaluate(recordScrollAfterSwap, ADD_NEWSLETTERS);
+		await clickCentre(page, ADD_NEWSLETTERS);
+		await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-add");
+		await expect(page.locator("#gmail-dialog-title")).toHaveText("Add newsletters");
+		await expect(tick(page, BREW)).toBeFocused();
+		assert.equal(await scrollAfterSwap(page), before);
+		assert.equal(addOpen(page.url()), true);
+	});
+
+	test("opens Edit on Save under the newsletter's name, not on New readlist, because a focus ring there reads as a field the reader must fill", async ({ page }, testInfo) => {
+		const digests = digestNewsletters(12);
+		await openGmail(page, `edit-${testInfo.workerIndex}-${Date.now()}`, {
+			closed: true,
+			readlists: ["Tech"],
+			mappings: manyMappings(12),
+			approvedNewsletters: digests.map((digest) => ({ from: digest.email, name: digest.name })),
+		});
+		const last = digests[11];
+		const edit = `[data-test-gmail-mapping-row="${last.email}"] [data-test-gmail-mapping-action="edit"]`;
+		await page.locator(edit).scrollIntoViewIfNeeded();
+		const before = await page.evaluate(() => window.scrollY);
+		assert.ok(before > 0, "the last row must sit below the fold for the scroll check to mean anything");
+		await page.evaluate(recordScrollAfterSwap, edit);
+		await clickCentre(page, edit);
+		await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-edit");
+		await expect(page.locator("#gmail-dialog-title")).toHaveText(`Edit ${last.name}`);
+		await expect(page.locator("[data-test-gmail-save]")).toBeFocused();
+		await expect(page.locator(READLIST_PICKER)).toHaveJSProperty("open", false);
+		assert.equal(await scrollAfterSwap(page), before);
+
+		await page.evaluate(() => document.documentElement.removeAttribute("data-test-scroll-after-swap"));
+		await page.evaluate(recordScrollAfterSwap, '[data-test-action="gmail-edit-cancel"]');
+		await clickCentre(page, '[data-test-action="gmail-edit-cancel"]');
+		await expect(page.locator(DIALOG)).toHaveCount(0);
+		assert.equal(await scrollAfterSwap(page), before);
+		await expect(page.locator(edit)).toBeFocused();
+	});
+
+	test("opens the newsletter a notification email links to, focused on that newsletter", async ({ page }, testInfo) => {
+		await openGmail(page, `email-${testInfo.workerIndex}-${Date.now()}`, { closed: true });
+		await page.goto(`${BASE_URL}/newsletters/gmail?sender=${encodeURIComponent(TLDR)}&notification=1&readlist_choice_for=${encodeURIComponent(TLDR)}`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-add");
+		await expect(tick(page, TLDR)).toBeFocused();
+		await expect(tick(page, TLDR)).toBeChecked();
+	});
+
+	test("closes the open picker on Escape, then the popup, returning to the closed address and to Add newsletters", async ({ page }, testInfo) => {
+		await openGmail(page, `escape-${testInfo.workerIndex}-${Date.now()}`, { readlists: ["Tech"] });
+		await openReadlistPicker(page);
+		await page.keyboard.press("Escape");
+		await expect(page.locator(READLIST_PICKER)).toHaveJSProperty("open", false);
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(page.locator(DIALOG)).toHaveCount(0);
+		await expect.poll(() => addOpen(page.url())).toBe(false);
+		await expect(page.locator(ADD_NEWSLETTERS)).toBeFocused();
+	});
+
+	test("closes the popup on a click outside it", async ({ page }, testInfo) => {
+		await openGmail(page, `outside-${testInfo.workerIndex}-${Date.now()}`);
+		await page.mouse.click(20, 450);
+		await expect(page.locator(DIALOG)).toHaveCount(0);
+		await expect.poll(() => addOpen(page.url())).toBe(false);
+	});
+
+	test("keeps the page where it was when the popup closes from its close button", async ({ page }, testInfo) => {
+		await page.setViewportSize({ width: 375, height: 812 });
+		await openGmail(page, `close-${testInfo.workerIndex}-${Date.now()}`, { closed: true, mappings: manyMappings(8), readlists: ["Tech"] });
+		await page.locator(ADD_NEWSLETTERS).scrollIntoViewIfNeeded();
+		const before = await page.evaluate(() => window.scrollY);
+		await clickCentre(page, ADD_NEWSLETTERS);
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+		await page.evaluate(recordScrollAfterSwap, '[data-test-action="gmail-add-dismiss"]');
+		const close = await measuredBox(page, '[data-test-action="gmail-add-dismiss"]');
+		await page.mouse.click(close.x + close.width / 2, close.y + close.height / 2);
+		await expect(page.locator(DIALOG)).toHaveCount(0);
+		assert.equal(await scrollAfterSwap(page), before);
+		await expect(page.locator(ADD_NEWSLETTERS)).toBeFocused();
+	});
+
+	test("keeps the popup up when it is dismissed while Apply readlists is on its way, until the answer lands", async ({ page }, testInfo) => {
+		await openGmail(page, `inflight-${testInfo.workerIndex}-${Date.now()}`, { readlists: ["Tech"] });
+		await tick(page, TLDR).check();
+		await openReadlistPicker(page);
+		let release: (() => void) | undefined;
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let arrived: (() => void) | undefined;
+		const intercepted = new Promise<void>((resolve) => {
+			arrived = resolve;
+		});
+		await page.route((url) => url.pathname === "/newsletters/gmail" && url.searchParams.has("confirm_readlists"), async (route) => {
+			assert(arrived);
+			arrived();
+			await held;
+			await route.continue();
+		});
+		await page.locator(CUSTOM_READLIST_OPTION).check();
+		await intercepted;
+		await page.mouse.click(20, 450);
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+		assert(release);
+		release();
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+		await expect.poll(() => addOpen(page.url())).toBe(true);
+	});
+
+	test("closes on Save, lists the newsletter, and puts focus back on Add newsletters without moving the page", async ({ page }, testInfo) => {
+		await openGmail(page, `save-${testInfo.workerIndex}-${Date.now()}`);
+		const before = await page.evaluate(() => window.scrollY);
+		await tick(page, TLDR).check();
+		await page.evaluate(recordScrollAfterSwap, "[data-test-gmail-save]");
+		await clickCentre(page, "[data-test-gmail-save]");
+		await expect(mappingRow(page, TLDR)).toBeVisible();
+		await expect(page.locator(DIALOG)).toHaveCount(0);
+		await expect(page.locator('[data-test-alert="sender_mapped"]')).toBeVisible();
+		assert.equal(await scrollAfterSwap(page), before);
+		await expect(page.locator(ADD_NEWSLETTERS)).toBeFocused();
+		await expect.poll(() => addOpen(page.url())).toBe(false);
+	});
+
+	test("shows a created readlist's notice inside the popup and moves focus to Save", async ({ page }, testInfo) => {
+		await openGmail(page, `create-notice-${testInfo.workerIndex}-${Date.now()}`);
+		await tick(page, TLDR).check();
+		await openReadlistPicker(page);
+		await page.locator(`${CREATE_READLIST} input[name="readlist_name"]`).fill("Science");
+		await page.locator(`${CREATE_READLIST} button[type="submit"]`).click();
+		await expect(page.locator('#gmail-dialog-body [data-test-alert="readlist_created"]')).toBeVisible();
+		await expect(page.locator("#gmail-readlist-choice")).toHaveText("All, Science");
+		await expect(page.locator("[data-test-gmail-save]")).toBeFocused();
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+	});
+
+	test("reopens the popup on Back, closes it on Forward, and keeps it open across a reload", async ({ page }, testInfo) => {
+		await openGmail(page, `history-${testInfo.workerIndex}-${Date.now()}`);
+		await tick(page, TLDR).check();
+		await page.locator(`${SENDER_PICKER} summary`).click();
+		await page.locator("#gmail-sender-search").fill("kale@");
+		await expect(page.locator(SENDER_OPTION)).toHaveCount(1);
+		await page.locator(`[data-test-gmail-sender-option="${KALE}"]`).click();
+		await expect(addedTick(page, KALE)).toBeChecked();
+		await page.reload({ waitUntil: "domcontentloaded" });
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+		await expect(addedTick(page, KALE)).toBeChecked();
+		await page.locator('[data-test-action="gmail-add-cancel"]').click();
+		await expect(page.locator(DIALOG)).toHaveCount(0);
+		await page.goBack();
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
+		await expect(addedTick(page, KALE)).toBeChecked();
+		await page.goForward();
+		await expect(page.locator(DIALOG)).toHaveCount(0);
+		await expect(page.locator(ADD_NEWSLETTERS)).toBeVisible();
 	});
 });
 
@@ -698,6 +888,20 @@ test.describe("Gmail sender picker without JavaScript", () => {
 		await saveMapping(page, KALE);
 		await expect(page.locator('[data-test-alert="senders_saved"]')).toBeVisible();
 		await expect(page.locator("[data-test-gmail-mapping-row]")).toHaveCount(3);
+	});
+
+	test("opens Add newsletters as an inline panel that cancels back to the page and saves through ordinary forms", async ({ page }, testInfo) => {
+		await openGmail(page, `nojs-inline-${testInfo.workerIndex}-${Date.now()}`, { enhanced: false, closed: true });
+		await page.locator(ADD_NEWSLETTERS).click();
+		await expect(page.locator(DIALOG)).toBeVisible();
+		await expect(page.locator(DIALOG)).toHaveCSS("position", "relative");
+		await expect(tick(page, BREW)).toBeFocused();
+		await page.locator('[data-test-action="gmail-add-cancel"]').click();
+		await expect(page.locator(DIALOG)).toHaveCount(0);
+		await page.locator(ADD_NEWSLETTERS).click();
+		await tick(page, TLDR).check();
+		await saveMapping(page, TLDR);
+		await expect(page.locator(DIALOG)).toHaveCount(0);
 	});
 
 	test("selects every known newsletter, then saves them together without JavaScript", async ({ page }, testInfo) => {

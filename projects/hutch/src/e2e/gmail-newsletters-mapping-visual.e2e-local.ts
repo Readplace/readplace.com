@@ -4,6 +4,7 @@ import { z } from "zod";
 import { captureCheckpoint, expect, measuredBox, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { fitViewportToPage } from "./fit-viewport-to-page";
+import { scrollPanelToShow } from "./gmail-newsletters-visual.browser";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -29,6 +30,10 @@ const SAVE_FORM = "[data-test-gmail-save-mapping]";
 const SAVE = "[data-test-gmail-save]";
 const IMPORT_CHECKBOX = `${SAVE_FORM} input[name="import"]`;
 const MAPPING_ROW = "[data-test-gmail-mapping-row]";
+const DIALOG = "#gmail-dialog";
+const OPEN_DIALOG = "#gmail-dialog:popover-open";
+const DIALOG_FOOTER = "[data-test-gmail-dialog-footer]";
+const ADD_NEWSLETTERS = "[data-test-gmail-add-newsletters]";
 
 const TLDR = { email: "dan@tldr.tech", name: "TLDR" };
 const BREW = { email: "crew@morningbrew.com", name: "Morning Brew" };
@@ -91,6 +96,19 @@ async function gotoGmail(page: Page): Promise<void> {
 	await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
 }
 
+async function openAddPopup(page: Page): Promise<void> {
+	await page.locator(ADD_NEWSLETTERS).click();
+	await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-add");
+}
+
+async function openEditPopup(page: Page, input: { email: string; title: string }): Promise<void> {
+	await mappingRow(page, input.email).locator('[data-test-gmail-mapping-action="edit"]').click();
+	await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-edit");
+	await expect(page.locator("#gmail-dialog-title")).toHaveText(`Edit ${input.title}`);
+	await expect(page.locator(SAVE)).toBeFocused();
+	await expect(page.locator(READLIST_PICKER)).toHaveJSProperty("open", false);
+}
+
 async function createReadlistsInOrder(page: Page, names: readonly string[]): Promise<void> {
 	for (const name of names) {
 		const created = await page.request.post(`${BASE_URL}/newsletters/gmail/readlists/create`, {
@@ -130,10 +148,6 @@ async function readlistPickerOpen(page: Page, input: { options: number }): Promi
 	await expect(page.locator(READLIST_OPTION)).toHaveCount(input.options);
 }
 
-async function editLeavesFocusAlone(page: Page): Promise<void> {
-	await expect(page.locator(`${READLIST_PICKER} :focus`)).toHaveCount(0);
-}
-
 async function readlistChosen(page: Page): Promise<void> {
 	await expect(page.locator(READLIST_PICKER)).not.toHaveAttribute("open");
 	await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeChecked();
@@ -144,17 +158,40 @@ async function noSidewaysScroll(page: Page): Promise<void> {
 	assert.equal(await page.evaluate(pageOverflowsSideways), false, "the Gmail page must never scroll sideways");
 }
 
-async function readlistMenuFitsInsidePage(page: Page): Promise<void> {
+async function panelScrollsAsOneBox(page: Page): Promise<void> {
 	await noSidewaysScroll(page);
-	const main = await measuredBox(page, MAIN);
+	const viewport = page.viewportSize();
+	assert(viewport, "the popup capture must use a fixed viewport");
+	const panel = await measuredBox(page, DIALOG);
+	const footer = await measuredBox(page, DIALOG_FOOTER);
+	assert.ok(panel.x >= 0 && panel.x + panel.width <= viewport.width, "the panel must fit the viewport sideways");
+	assert.ok(panel.y >= 0 && panel.y + panel.height <= viewport.height, "the panel must fit the viewport");
+	assert.ok(
+		await page.locator(DIALOG).evaluate((element) => element.scrollWidth <= element.clientWidth),
+		"the panel must never scroll sideways",
+	);
+	assert.ok(
+		footer.y >= panel.y && footer.y + footer.height <= panel.y + panel.height + 0.5,
+		"Cancel and Save must stay visible at the panel bottom",
+	);
+}
+
+async function readlistMenuOpensInFlowInsidePanel(page: Page): Promise<void> {
+	await panelScrollsAsOneBox(page);
+	const panel = await measuredBox(page, DIALOG);
 	const trigger = await measuredBox(page, `${READLIST_PICKER} summary`);
 	const menu = await measuredBox(page, READLIST_MENU);
+	assert.equal(
+		await page.locator(READLIST_MENU).evaluate((element) => getComputedStyle(element).position),
+		"static",
+		"the readlist menu must open in flow",
+	);
 	assert.ok(menu.y >= trigger.y + trigger.height, "the readlist menu must open below its trigger");
 	assert.ok(
 		Math.abs(menu.x - trigger.x) <= 0.5 && Math.abs(menu.width - trigger.width) <= 0.5,
 		"the readlist menu must hang flush under its trigger",
 	);
-	assert.ok(menu.y + menu.height <= main.y + main.height, "the readlist menu must stay inside the captured page body");
+	assert.ok(menu.x >= panel.x && menu.x + menu.width <= panel.x + panel.width, "the readlist menu must stay inside the panel");
 }
 
 async function mappingRowsStayInsideTheirList(page: Page): Promise<void> {
@@ -172,7 +209,13 @@ async function mappingRowsStayInsideTheirList(page: Page): Promise<void> {
 
 async function captureMatrix(
 	page: Page,
-	input: { state: string; settled: (page: Page) => Promise<void>; geometry: (page: Page) => Promise<void> },
+	input: {
+		state: string;
+		surface: "popup" | "page";
+		reveal?: string;
+		settled: (page: Page) => Promise<void>;
+		geometry: (page: Page) => Promise<void>;
+	},
 ): Promise<void> {
 	for (const width of WIDTHS) {
 		for (const theme of THEMES) {
@@ -181,15 +224,19 @@ async function captureMatrix(
 			await captureCheckpoint(page, {
 				name: `gmail-mapping-${input.state}-${width.name}-${theme}`,
 				settled: async (settling) => {
+					if (input.surface === "popup") await expect(settling.locator(OPEN_DIALOG)).toBeVisible();
 					await input.settled(settling);
+					if (input.reveal !== undefined) {
+						await settling.evaluate(scrollPanelToShow, { panel: DIALOG, target: input.reveal, gap: 24 });
+					}
 					await settling.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
 					await settling.mouse.move(0, 0);
 				},
 				geometry: async (settling) => {
-					await fitViewportToPage(settling, width.viewport);
+					if (input.surface === "page") await fitViewportToPage(settling, width.viewport);
 					await input.geometry(settling);
 				},
-				target: MAIN,
+				target: input.surface === "popup" ? DIALOG : MAIN,
 				capture: "element",
 				pinnedText: [],
 			});
@@ -208,6 +255,7 @@ test.describe("GMail Newsletters mapping", () => {
 			stamp: `confirmation-race-${testInfo.workerIndex}-${Date.now()}`,
 			seed: { readlists: ["Tech"], mappings: [] },
 		});
+		await openAddPopup(page);
 		await tickSender(page, TLDR.email);
 		await openReadlistPicker(page);
 		await createReadlist(page, { name: "Tech", alert: "readlist_reused" });
@@ -243,12 +291,13 @@ test.describe("GMail Newsletters mapping", () => {
 			await expect(page.locator('[data-test-alert="readlist_created"]')).toBeVisible();
 			const firstCapture: {
 				viewport: NonNullable<ReturnType<Page["viewportSize"]>>;
-				main: Awaited<ReturnType<typeof measuredBox>>;
+				panel: Awaited<ReturnType<typeof measuredBox>>;
 			}[] = [];
 			for (const phase of ["pending", "settled"] as const) {
 				let checkpoint = 0;
 				await captureMatrix(page, {
 					state: "destination-selected",
+					surface: "popup",
 					settled: async (settling) => {
 						assert(releaseResponse, "the held confirmation must be releasable");
 						releaseResponse();
@@ -257,10 +306,10 @@ test.describe("GMail Newsletters mapping", () => {
 						await expect(settling.locator(IMPORT_CHECKBOX)).not.toBeChecked();
 					},
 					geometry: async (settling) => {
-						await noSidewaysScroll(settling);
+						await panelScrollsAsOneBox(settling);
 						const viewport = settling.viewportSize();
 						assert(viewport, "the capture must use a fixed viewport");
-						const geometry = { viewport, main: await measuredBox(settling, MAIN) };
+						const geometry = { viewport, panel: await measuredBox(settling, DIALOG) };
 						if (phase === "pending") firstCapture.push(geometry);
 						else assert.deepEqual(
 							geometry,
@@ -284,59 +333,68 @@ test.describe("GMail Newsletters mapping", () => {
 			stamp: `save-${testInfo.workerIndex}-${Date.now()}`,
 			seed: { readlists: ["Tech"], mappings: [] },
 		});
+		await openAddPopup(page);
 		await tickSender(page, TLDR.email);
 		await openReadlistPicker(page);
 		await expect(page.locator(CREATE_NAME)).toBeFocused();
 		await captureMatrix(page, {
 			state: "destination-open",
+			surface: "popup",
+			reveal: READLIST_PICKER,
 			settled: (settling) => readlistPickerOpen(settling, { options: 2 }),
-			geometry: readlistMenuFitsInsidePage,
+			geometry: readlistMenuOpensInFlowInsidePanel,
 		});
 
 		await createReadlist(page, { name: "   ", alert: "readlist_name_invalid" });
 		await captureMatrix(page, {
 			state: "validation",
+			surface: "popup",
+			reveal: '#gmail-dialog-body [data-test-alert="readlist_name_invalid"]',
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
-				await expect(settling.locator('[data-test-alert="readlist_name_invalid"]')).toBeVisible();
+				await expect(settling.locator('#gmail-dialog-body [data-test-alert="readlist_name_invalid"]')).toBeVisible();
 				await expect(tick(settling, { group: "known", email: TLDR.email })).toBeChecked();
 			},
-			geometry: readlistMenuFitsInsidePage,
+			geometry: readlistMenuOpensInFlowInsidePanel,
 		});
 
 		await createReadlist(page, { name: "Tech", alert: "readlist_reused" });
 		await captureMatrix(page, {
 			state: "duplicate-name-reuse",
+			surface: "popup",
 			settled: async (settling) => {
 				await readlistChosen(settling);
-				await expect(settling.locator('[data-test-alert="readlist_reused"]')).toBeVisible();
+				await expect(settling.locator('#gmail-dialog-body [data-test-alert="readlist_reused"]')).toBeVisible();
 				await expect(settling.locator(READLIST_OPTION)).toHaveCount(2);
 			},
-			geometry: noSidewaysScroll,
+			geometry: panelScrollsAsOneBox,
 		});
 
 		await openReadlistPicker(page);
 		await page.locator(CREATE_NAME).fill("Science");
 		await captureMatrix(page, {
 			state: "inline-create",
+			surface: "popup",
+			reveal: READLIST_PICKER,
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
 				await expect(settling.locator(CREATE_NAME)).toHaveValue("Science");
 				await expect(settling.locator(CREATE_NAME)).toBeFocused();
 			},
-			geometry: readlistMenuFitsInsidePage,
+			geometry: readlistMenuOpensInFlowInsidePanel,
 		});
 
 		await page.locator(CREATE_SUBMIT).click();
 		await expect(page.locator('[data-test-alert="readlist_created"]')).toBeVisible();
 		await captureMatrix(page, {
 			state: "readlist-created",
+			surface: "popup",
 			settled: async (settling) => {
 				await readlistChosen(settling);
-				await expect(settling.locator('[data-test-alert="readlist_created"]')).toBeVisible();
+				await expect(settling.locator('#gmail-dialog-body [data-test-alert="readlist_created"]')).toBeVisible();
 				await expect(settling.locator(READLIST_OPTION)).toHaveCount(3);
 			},
-			geometry: noSidewaysScroll,
+			geometry: panelScrollsAsOneBox,
 		});
 
 		await openReadlistPicker(page);
@@ -344,12 +402,13 @@ test.describe("GMail Newsletters mapping", () => {
 		await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeChecked();
 		await captureMatrix(page, {
 			state: "destination-selected",
+			surface: "popup",
 			settled: async (settling) => {
 				await readlistChosen(settling);
 				await expect(settling.locator('[data-test-alert="readlist_created"]')).toHaveCount(0);
 				await expect(settling.locator(IMPORT_CHECKBOX)).not.toBeChecked();
 			},
-			geometry: noSidewaysScroll,
+			geometry: panelScrollsAsOneBox,
 		});
 
 		let releaseSave: (() => void) | undefined;
@@ -363,12 +422,13 @@ test.describe("GMail Newsletters mapping", () => {
 		await page.locator(SAVE).click();
 		await captureMatrix(page, {
 			state: "submitting",
+			surface: "popup",
 			settled: async (settling) => {
 				await expect(settling.locator(SAVE_FORM)).toHaveClass(/htmx-request/);
 				await expect(settling.locator(SAVE)).toBeDisabled();
 				await expect(settling.locator(`${SAVE} .gmail__submit-loader`)).toBeVisible();
 			},
-			geometry: noSidewaysScroll,
+			geometry: panelScrollsAsOneBox,
 		});
 		assert(releaseSave, "the held save must be releasable");
 		releaseSave();
@@ -376,17 +436,22 @@ test.describe("GMail Newsletters mapping", () => {
 		await expect(page.locator('[data-test-alert="sender_mapped"]')).toBeVisible();
 		await captureMatrix(page, {
 			state: "success",
+			surface: "page",
 			settled: async (settling) => {
 				await expect(settling.locator('[data-test-alert="sender_mapped"]')).toBeVisible();
 				await expect(settling.locator(MAPPING_ROW)).toHaveCount(1);
 				await expect(
 					mappingRow(settling, TLDR.email).locator("[data-test-gmail-mapping-destination]"),
 				).toHaveAttribute("data-destination-kind", "readlist");
-				await expect(settling.locator('[data-test-gmail-checklist-group="known"] [data-test-gmail-checklist-row]')).toHaveCount(1);
-				await expect(tick(settling, { group: "known", email: BREW.email })).not.toBeChecked();
+				await expect(settling.locator(ADD_NEWSLETTERS)).toBeVisible();
+				await expect(settling.locator(DIALOG)).toHaveCount(0);
 			},
 			geometry: mappingRowsStayInsideTheirList,
 		});
+
+		await openAddPopup(page);
+		await expect(page.locator('[data-test-gmail-checklist-group="known"] [data-test-gmail-checklist-row]')).toHaveCount(1);
+		await expect(tick(page, { group: "known", email: BREW.email })).not.toBeChecked();
 	});
 
 	test("keeps every existing readlist selectable but offers no new one at the seven-readlist cap", async ({
@@ -399,17 +464,20 @@ test.describe("GMail Newsletters mapping", () => {
 		});
 		await createReadlistsInOrder(page, shelves);
 		await gotoGmail(page);
+		await openAddPopup(page);
 		await tickSender(page, BREW.email);
 		await openReadlistPicker(page);
 		await captureMatrix(page, {
 			state: "readlist-cap",
+			surface: "popup",
+			reveal: READLIST_PICKER,
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 8 });
 				await expect(settling.locator(".gmail__readlist-option > span:first-of-type").filter({ hasNotText: "All" })).toHaveText(shelves);
 				await expect(settling.locator("[data-test-gmail-readlist-limit]")).toBeVisible();
 				await expect(settling.locator(CREATE_READLIST)).toHaveCount(0);
 			},
-			geometry: readlistMenuFitsInsidePage,
+			geometry: readlistMenuOpensInFlowInsidePanel,
 		});
 	});
 
@@ -426,6 +494,7 @@ test.describe("GMail Newsletters mapping", () => {
 		});
 		await captureMatrix(page, {
 			state: "mapped",
+			surface: "page",
 			settled: async (settling) => {
 				await expect(settling.locator(MAPPING_ROW)).toHaveCount(2);
 				await expect(settling.locator('[data-destination-kind="readlist"]')).toHaveCount(2);
@@ -433,20 +502,21 @@ test.describe("GMail Newsletters mapping", () => {
 			geometry: mappingRowsStayInsideTheirList,
 		});
 
-		await mappingRow(page, TLDR.email).locator('[data-test-gmail-mapping-action="edit"]').click();
-		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
+		await openEditPopup(page, { email: TLDR.email, title: TLDR.name });
 		await captureMatrix(page, {
 			state: "remap",
+			surface: "popup",
 			settled: async (settling) => {
-				await readlistPickerOpen(settling, { options: 2 });
-				await editLeavesFocusAlone(settling);
-				await expect(tick(settling, { group: "editing", email: TLDR.email })).toBeChecked();
+				await expect(settling.locator(SAVE)).toBeFocused();
+				await expect(settling.locator(READLIST_PICKER)).toHaveJSProperty("open", false);
+				await expect(settling.locator("#gmail-readlist-choice")).toHaveText("All, Tech");
 				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(2);
 				await expect(settling.locator(IMPORT_CHECKBOX)).toHaveCount(0);
 			},
-			geometry: readlistMenuFitsInsidePage,
+			geometry: panelScrollsAsOneBox,
 		});
 
+		await openReadlistPicker(page);
 		await page.locator('[data-test-gmail-readlist-option]:not([data-test-gmail-readlist-option="default"])').uncheck();
 		await expect(page.locator('[data-test-gmail-readlist-option="default"]')).toBeChecked();
 		await expect(page.locator(READLIST_PICKER)).not.toHaveAttribute("open");
@@ -454,6 +524,7 @@ test.describe("GMail Newsletters mapping", () => {
 		await expect(page.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
 		await captureMatrix(page, {
 			state: "remapped",
+			surface: "page",
 			settled: async (settling) => {
 				await expect(settling.locator('[data-test-alert="sender_remapped"]')).toBeVisible();
 				await expect(settling.locator(MAPPING_ROW)).toHaveCount(2);
@@ -465,6 +536,7 @@ test.describe("GMail Newsletters mapping", () => {
 		await expect(page.locator('[data-test-alert="sender_removed"]')).toBeVisible();
 		await captureMatrix(page, {
 			state: "removal",
+			surface: "page",
 			settled: async (settling) => {
 				await expect(settling.locator('[data-test-alert="sender_removed"]')).toBeVisible();
 				await expect(settling.locator(MAPPING_ROW)).toHaveCount(1);
@@ -473,35 +545,23 @@ test.describe("GMail Newsletters mapping", () => {
 		});
 	});
 
-	test("Edit opens the readlist picker without focusing New readlist, because a focus ring there reads as a field the reader must fill and scrolls the page away from the mapping they chose", async ({ page }, testInfo) => {
-		await openGmail(page, { stamp: `edit-focus-${testInfo.workerIndex}-${Date.now()}`, seed: { readlists: ["Tech"], mappings: [{ destination: "readlist", email: TLDR.email, readlist: "Tech" }] } });
-		await mappingRow(page, TLDR.email).locator('[data-test-gmail-mapping-action="edit"]').click();
-		await captureMatrix(page, {
-			state: "edit-without-focus",
-			settled: async (settling) => {
-				await readlistPickerOpen(settling, { options: 2 });
-				await editLeavesFocusAlone(settling);
-				await expect(settling.locator(CREATE_NAME)).not.toBeFocused();
-			},
-			geometry: readlistMenuFitsInsidePage,
-		});
-	});
-
 	test("shows All with multiple destinations and restores the full selection while editing", async ({ page }, testInfo) => {
 		await openGmail(page, { stamp: `multiple-${testInfo.workerIndex}-${Date.now()}`, seed: { readlists: ["Tech", "Science"], mappings: [{ destination: "readlist", email: TLDR.email, readlist: "Tech", additionalReadlists: ["Science"] }] } });
-		await captureMatrix(page, { state: "multiple-mapped", settled: async (settling) => { await expect(mappingRow(settling, TLDR.email).locator("[data-test-gmail-mapping-destination]")).toContainText("All, Tech, Science"); }, geometry: mappingRowsStayInsideTheirList });
-		await mappingRow(page, TLDR.email).locator('[data-test-gmail-mapping-action="edit"]').click();
+		await captureMatrix(page, { state: "multiple-mapped", surface: "page", settled: async (settling) => { await expect(mappingRow(settling, TLDR.email).locator("[data-test-gmail-mapping-destination]")).toContainText("All, Tech, Science"); }, geometry: mappingRowsStayInsideTheirList });
+		await openEditPopup(page, { email: TLDR.email, title: TLDR.name });
+		await openReadlistPicker(page);
 		await captureMatrix(page, {
 			state: "multiple-edit",
+			surface: "popup",
+			reveal: READLIST_PICKER,
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 3 });
-				await editLeavesFocusAlone(settling);
 				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(3);
 				await expect(settling.locator(".gmail__readlist-option > span:first-of-type")).toHaveText(["All", "Tech", "Science"]);
 				await expect(settling.locator("#gmail-readlist-choice")).toHaveText("All, Tech, Science");
 				await expect(settling.locator('[data-test-gmail-readlist-option="default"]')).toBeDisabled();
 			},
-			geometry: readlistMenuFitsInsidePage,
+			geometry: readlistMenuOpensInFlowInsidePanel,
 		});
 	});
 
@@ -518,6 +578,7 @@ test.describe("GMail Newsletters mapping", () => {
 		});
 		await captureMatrix(page, {
 			state: "unresolved-destination",
+			surface: "page",
 			settled: async (settling) => {
 				await expect(settling.locator(MAPPING_ROW)).toHaveCount(2);
 				await expect(settling.locator('[data-destination-kind="unresolved"]')).toHaveCount(2);
@@ -525,17 +586,18 @@ test.describe("GMail Newsletters mapping", () => {
 			geometry: mappingRowsStayInsideTheirList,
 		});
 
-		await mappingRow(page, TLDR.email).locator('[data-test-gmail-mapping-action="edit"]').click();
-		await expect(page.locator(READLIST_PICKER)).toHaveAttribute("open", "");
+		await openEditPopup(page, { email: TLDR.email, title: TLDR.name });
+		await openReadlistPicker(page);
 		await captureMatrix(page, {
 			state: "unresolved-choose",
+			surface: "popup",
+			reveal: READLIST_PICKER,
 			settled: async (settling) => {
 				await readlistPickerOpen(settling, { options: 2 });
-				await editLeavesFocusAlone(settling);
 				await expect(settling.locator(`${READLIST_OPTION}:checked`)).toHaveCount(1);
 				await expect(settling.locator(SAVE)).toBeEnabled();
 			},
-			geometry: readlistMenuFitsInsidePage,
+			geometry: readlistMenuOpensInFlowInsidePanel,
 		});
 
 		await page.locator("[data-gmail-confirm-readlists]").click();

@@ -239,4 +239,34 @@ body.${DARK_ONLY_BODY_CLASS} .confirm-popover::backdrop {
 		right: 22px;
 	}
 }
+
+.confirm-popover--in-flow {
+	display: block;
+	position: relative;
+	inset: auto;
+	width: auto;
+	height: auto;
+	max-height: none;
+	margin: 0;
+	overflow: visible;
+}
+
+@supports selector(:popover-open) {
+	@media (scripting: enabled) {
+		.confirm-popover--in-flow {
+			display: none;
+		}
+	}
+
+	.confirm-popover--in-flow:popover-open {
+		display: block;
+		position: fixed;
+		inset: 0;
+		width: min(600px, calc(100% - 32px));
+		height: fit-content;
+		max-height: calc(100% - 32px);
+		margin: auto;
+		overflow: auto;
+	}
+}
 `;

@@ -17,15 +17,17 @@ import type { UserId } from "@packages/domain/user";
 import { buildReadlistUrl } from "../readlist/readlist.url";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
-import { type FormField, type GmailFormAction, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
+import { type FormField, type GmailFormAction, gmailBodyFields, gmailGetFields, gmailLinkFields, trackGmail } from "./gmail-form-fields";
 import { importFollowsMapping, latestGmailImportsBySender } from "./gmail-import-actions";
 import type { GmailSenderCandidate } from "./gmail-sender-picker.viewmodel";
 import {
 	buildGmailUrl,
+	closeGmailDialog,
 	GMAIL_FILTER_RETRY_PATH,
 	GMAIL_IMPORT_CANCEL_PATH,
 	GMAIL_IMPORT_RETRY_PATH,
 	GMAIL_IMPORT_START_PATH,
+	GMAIL_PATH,
 	GMAIL_SENDER_REMOVE_PATH,
 	type GmailPickerState,
 } from "./gmail.url";
@@ -70,9 +72,19 @@ export interface GmailFilterViewModel {
 	actions: GmailFormAction[];
 }
 
+export interface GmailAddNewslettersAction {
+	method: "GET";
+	action: string;
+	label: string;
+	variant: "primary" | "neutral";
+	fields: FormField[];
+}
+
 export interface GmailMappingsViewModel {
 	rows: GmailMappingRow[];
 	hasRows: boolean;
+	headerActions: GmailAddNewslettersAction[];
+	emptyActions: GmailAddNewslettersAction[];
 	polling: boolean;
 	pollUrl: string | undefined;
 	exhausted: boolean;
@@ -92,6 +104,8 @@ export interface GmailMappingsInput {
 	readlistChoiceShown: boolean;
 	state: GmailPickerState;
 	importsPollCount: number;
+	discoveryStarted: boolean;
+	addVariant: GmailAddNewslettersAction["variant"];
 }
 
 const FORWARDING_LABELS: Record<GmailForwardingState, string> = {
@@ -228,9 +242,9 @@ function rowActions(input: {
 	readlistChoiceShown: boolean;
 	state: GmailPickerState;
 }): GmailFormAction[] {
-	const { sender: _picked, edit: _edit, ...listState } = input.state;
+	const { sender: _picked, ...listState } = closeGmailDialog(input.state);
 	const senderFields = [...gmailBodyFields(listState), { name: "sender", value: input.sender.senderEmail }];
-	const jobFields = (job: GmailHistoryImportJob) => [...gmailBodyFields(input.state), { name: "job", value: job.jobId }];
+	const jobFields = (job: GmailHistoryImportJob) => [...gmailBodyFields(closeGmailDialog(input.state)), { name: "job", value: job.jobId }];
 	const editState: GmailPickerState = {
 		...listState,
 		sender: [input.sender.senderEmail],
@@ -247,6 +261,7 @@ function rowActions(input: {
 			label: "Edit",
 			variant: "neutral",
 			fields: gmailGetFields(editState, "edit-mapping"),
+			opener: input.sender.senderEmail,
 		});
 	}
 	if (input.importable && STARTABLE.has(input.importState)) {
@@ -271,7 +286,7 @@ function consentFor(input: {
 	state: GmailPickerState;
 }): GmailMappingRow["consent"] {
 	if (!input.importable || input.readonlyScopeGranted || !RESTARTABLE.has(input.importState)) return undefined;
-	const { sender: _picked, edit: _edit, ...listState } = input.state;
+	const { sender: _picked, ...listState } = closeGmailDialog(input.state);
 	return gmailConnectionPrompt({
 		canConnectGmail: input.canConnectGmail,
 		message: "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender and leaves it unread.",
@@ -392,6 +407,20 @@ function rowOrder(left: GmailMappingRow, right: GmailMappingRow): number {
 	return byName === 0 ? left.sender.localeCompare(right.sender) : byName;
 }
 
+function addNewslettersActions(input: GmailMappingsInput): GmailAddNewslettersAction[] {
+	if (!input.readlistChoiceShown) return [];
+	return [{
+		method: "GET",
+		action: GMAIL_PATH,
+		label: "Add newsletters",
+		variant: input.addVariant,
+		fields: gmailLinkFields({
+			state: { search: input.state.search, discovery_after: input.state.discovery_after, add: "1" },
+			discoveryStarted: input.discoveryStarted,
+		}, "add-newsletters"),
+	}];
+}
+
 export function toGmailMappingsViewModel(input: GmailMappingsInput): GmailMappingsViewModel {
 	const mapped = input.senders.filter((sender) => sender.addedToFilterAt !== undefined);
 	const latest = latestGmailImportsBySender(input.imports);
@@ -399,9 +428,12 @@ export function toGmailMappingsViewModel(input: GmailMappingsInput): GmailMappin
 	const importing = rows.some((row) => row.importState === "queued" || row.importState === "running");
 	const polling = importing && input.importsPollCount < GMAIL_HISTORY_IMPORT_MAX_POLLS;
 	const state = filterState(input, mapped);
+	const addActions = addNewslettersActions(input);
 	return {
 		rows,
 		hasRows: rows.length > 0,
+		headerActions: rows.length > 0 ? addActions : [],
+		emptyActions: rows.length > 0 ? [] : addActions,
 		polling,
 		pollUrl: polling
 			? `${buildGmailUrl({ ...input.state, discovery: "started" })}&imports_poll=${input.importsPollCount + 1}`

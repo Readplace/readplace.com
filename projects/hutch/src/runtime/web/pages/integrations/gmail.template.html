@@ -64,42 +64,8 @@
         </section>
         {{/if}}
 
-        {{#if showSenders}}
-        <section class="gmail__senders" data-test-gmail-senders>
-          <h2 class="gmail__section-title">Send newsletters to your readlists</h2>
-          <button type="submit" form="gmail-readlist-selection" formmethod="post" formaction="{{readlistPicker.createAction}}" hidden data-test-gmail-default-submit></button>
-          {{#if autoDiscoverAction}}
-          <div hidden data-background-request hx-post="{{autoDiscoverAction}}" hx-trigger="load" hx-target="#gmail-sender-status" hx-select="#gmail-sender-status" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML show:none" hx-include="#gmail-sender-search-form, #gmail-sender-search" hx-indicator=".gmail__load" data-test-gmail-auto-load-senders></div>
-          {{/if}}
-          <form class="gmail__load" method="POST" action="{{discoveryAction}}" hx-post="{{discoveryAction}}" hx-trigger="submit" hx-target="#gmail-sender-status" hx-select="#gmail-sender-status" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML show:none" hx-include="#gmail-sender-search-form, #gmail-sender-search" data-test-gmail-load-senders>
-            {{{loadButton}}}
-          </form>
-          {{{senderStatus}}}
-          {{{senderChecklist}}}
-          <div class="gmail__mapping-form">
-            <span class="form-field__label gmail__add-label" id="gmail-sender-label" data-test-gmail-sender-label>Add another sender</span>
-            <details class="gmail__picker" data-gmail-picker data-test-gmail-sender-picker>
-              <summary class="gmail__picker-trigger" aria-labelledby="gmail-sender-label gmail-sender-choice" data-gmail-picker-trigger>
-                <span id="gmail-sender-choice">Search all senders</span>{{icon "chevron-down"}}
-              </summary>
-              <div class="gmail__picker-menu">
-                <form id="gmail-sender-search-form" class="gmail__search" method="GET" action="{{pagePath}}" hx-get="{{searchPath}}" hx-trigger="click from:#gmail-sender-search-submit, input changed delay:300ms" hx-target="#gmail-sender-results" hx-swap="outerHTML show:none" hx-sync="this:queue last" hx-include="#gmail-sender-search, input[form='gmail-readlist-selection'][name='sender'], input[form='gmail-readlist-selection'][name='added']">
-                  {{#each searchFields}}
-                  <input type="hidden" name="{{name}}" value="{{value}}">
-                  {{/each}}
-                  <label class="sr-only" for="gmail-sender-search">Search newsletters and senders</label>
-                  <input class="form-input gmail__add-input" id="gmail-sender-search" type="search" form="gmail-readlist-selection" name="search" value="{{search}}" placeholder="Search newsletter or email" autocomplete="off" data-gmail-picker-focus data-gmail-sender-search>
-                  <button id="gmail-sender-search-submit" type="submit" class="btn btn--neutral" form="gmail-readlist-selection" formmethod="get" formaction="{{pagePath}}" formnovalidate data-gmail-sender-search-submit>Search</button>
-                </form>
-                {{{senderResults}}}
-              </div>
-            </details>
-
-            {{{mappingChoiceHtml}}}
-          </div>
-        </section>
-        {{/if}}
-
+        {{{pageAutoDiscoverHtml}}}
+        {{{dialogHtml}}}
         {{{mappingsHtml}}}
 
         <form class="gmail__disconnect" method="POST" action="{{disconnectAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
@@ -107,4 +73,5 @@
         </form>
       </div>
       <script src="/client-dist/gmail-picker.client.js" defer></script>
+      <script src="/client-dist/gmail-dialog.client.js" defer></script>
     </main>

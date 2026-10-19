@@ -1,0 +1,26 @@
+{{{autoDiscoverHtml}}}
+            <form class="gmail__load" method="POST" action="{{discoveryAction}}" hx-post="{{discoveryAction}}" hx-trigger="submit" hx-target="#gmail-sender-status" hx-select="#gmail-sender-status" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML show:none" hx-include="#gmail-sender-search" data-test-gmail-load-senders>
+              {{#each discoveryFields}}
+              <input type="hidden" name="{{name}}" value="{{value}}">
+              {{/each}}
+              {{{loadButton}}}
+            </form>
+            {{{senderStatus}}}
+            {{{senderChecklist}}}
+            <span class="form-field__label gmail__add-label" id="gmail-sender-label" data-test-gmail-sender-label>Add another sender</span>
+            <details class="gmail__picker" data-gmail-picker data-test-gmail-sender-picker{{#if senderPicker.open}} open{{/if}}>
+              <summary class="gmail__picker-trigger" aria-labelledby="gmail-sender-label gmail-sender-choice" data-gmail-picker-trigger>
+                <span id="gmail-sender-choice">Search all senders</span>{{icon "chevron-down"}}
+              </summary>
+              <div class="gmail__picker-menu">
+                <form id="gmail-sender-search-form" class="gmail__search" method="GET" action="{{pagePath}}" hx-get="{{searchPath}}" hx-trigger="click from:#gmail-sender-search-submit, input changed delay:300ms" hx-target="#gmail-sender-results" hx-swap="outerHTML show:none" hx-sync="this:queue last" hx-include="#gmail-sender-search, input[form='gmail-readlist-selection'][name='sender'], input[form='gmail-readlist-selection'][name='added']">
+                  {{#each searchFields}}
+                  <input type="hidden" name="{{name}}" value="{{value}}">
+                  {{/each}}
+                  <label class="sr-only" for="gmail-sender-search">Search newsletters and senders</label>
+                  <input class="form-input gmail__add-input" id="gmail-sender-search" type="search" form="gmail-readlist-selection" name="search" value="{{search}}" placeholder="Search newsletter or email" autocomplete="off"{{#if senderPicker.searchAutofocus}} autofocus{{/if}} data-gmail-picker-focus data-gmail-sender-search>
+                  <button id="gmail-sender-search-submit" type="submit" class="btn btn--neutral" form="gmail-readlist-selection" formmethod="get" formaction="{{pagePath}}" formnovalidate data-gmail-sender-search-submit>Search</button>
+                </form>
+                {{{senderResults}}}
+              </div>
+            </details>

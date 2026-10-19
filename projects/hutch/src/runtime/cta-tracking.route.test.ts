@@ -248,7 +248,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		expect(pages.flatMap(([path, html]) => untrackedOn(path, html))).toEqual([]);
 	});
 
-	it("holds across the GMail Newsletters page with both pickers open, every mapping action and the import consent", async () => {
+	it("holds across the GMail Newsletters page, its Add popup with both pickers open, its Edit popup, every mapping action and the import consent", async () => {
 		const gmail = initInMemoryGmailIntegration({
 			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
 			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
@@ -305,9 +305,10 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			updatedAt: new Date().toISOString(),
 			completedAt: undefined,
 		});
-		const pickerOpen = `/newsletters/gmail?search=tldr&sender=${encodeURIComponent(waiting)}&readlist=default&edit=1&discovery=started`;
+		const pickerOpen = "/newsletters/gmail?search=tldr&error=readlist_invalid&add=1&discovery=started";
+		const editOpen = `/newsletters/gmail?search=tldr&sender=${encodeURIComponent(waiting)}&readlist=default&edit=1&discovery=started`;
 		const pages: [string, string][] = [];
-		for (const path of [pickerOpen, "/newsletters/gmail?advanced=1", "/newsletters/gmail"]) {
+		for (const path of [pickerOpen, editOpen, "/newsletters/gmail?advanced=1", "/newsletters/gmail"]) {
 			pages.push([path, (await agent.get(path).set(BROWSER_REQUEST_HEADERS)).text]);
 		}
 		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: `${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}` });
@@ -318,7 +319,13 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			Array.from(doc.querySelectorAll("[data-test-gmail-mapping-action]"), (el) => el.getAttribute("data-test-gmail-mapping-action")),
 		));
 		expect([...actionKeys].sort()).toEqual(["cancel-import", "edit", "grant-import-permission", "remove", "retry-import", "start-import"]);
-		expect(rendered[0]?.querySelector("[data-test-gmail-readlist-picker]")?.hasAttribute("open")).toBe(true);
+		expect(["[data-test-gmail-readlist-picker]", "[data-test-gmail-sender-picker]"].map((picker) => rendered[0]?.querySelector(picker)?.hasAttribute("open"))).toEqual([true, true]);
+		const dialogLinks = rendered.slice(0, 2).map((doc) => Array.from(doc.querySelectorAll("#gmail-dialog a[data-test-action]"), (link) => [link.getAttribute("data-test-action"), new URL(link.getAttribute("href") ?? "", TEST_APP_ORIGIN).searchParams.get("utm_content")]));
+		expect(dialogLinks).toEqual([
+			[["gmail-add-dismiss", "close-dialog"], ["gmail-add-cancel", "cancel-dialog"]],
+			[["gmail-edit-dismiss", "close-dialog"], ["gmail-edit-cancel", "cancel-dialog"]],
+		]);
+		expect(rendered[3]?.querySelector("#gmail-add-newsletters-form input[name='utm_content']")?.getAttribute("value")).toBe("add-newsletters");
 		expect(pages.flatMap(([path, html]) => untrackedOn(path, html))).toEqual([]);
 	});
 

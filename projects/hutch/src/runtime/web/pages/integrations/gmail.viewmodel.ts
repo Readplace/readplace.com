@@ -1,6 +1,7 @@
 import type { AlertVariant } from "@packages/web-shell";
 import type {
 	DiscoveredGmailSender,
+	ForwardableSender,
 	GmailConfirmFailureReason,
 	GmailConnection,
 	GmailConnectionState,
@@ -24,13 +25,15 @@ import { INTEGRATIONS_PATH } from "./gmail-connect.url";
 import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
-import { type FormField, type GmailFormAction, gmailGetFields, trackGmail } from "./gmail-form-fields";
+import { type FormField, type GmailFormAction, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
 import { gmailMappingDestination, type GmailMappingsViewModel, toGmailMappingsViewModel } from "./gmail-mappings.viewmodel";
-import { type GmailChecklistCommand, type GmailSenderChecklist, toGmailSenderChecklist } from "./gmail-sender-checklist.viewmodel";
+import { type GmailChecklistCommand, type GmailChecklistGroup, type GmailSenderChecklist, toGmailSenderChecklist } from "./gmail-sender-checklist.viewmodel";
 import {
+	type GmailSenderCandidate,
 	type GmailSenderOption,
 	type GmailSenderResultsState,
 	gmailSenderCandidates,
+	gmailSenderName,
 	toGmailSenderResults,
 } from "./gmail-sender-picker.viewmodel";
 import {
@@ -87,7 +90,10 @@ export interface GmailPageInput {
 	notice: string | undefined;
 	saved: number | undefined;
 	notification?: boolean;
+	focusOnOpen: boolean;
 }
+
+export type GmailDialogMode = "none" | "add" | "edit";
 
 interface GmailSenderStatusViewModel {
 	discoveryState: string;
@@ -112,7 +118,6 @@ interface GmailReadlistOption { slug: string; label: string; selected: boolean; 
 
 interface GmailReadlistPickerViewModel {
 	open: boolean;
-	openedForEdit: boolean;
 	choiceLabel: string;
 	options: GmailReadlistOption[];
 	pagePath: string;
@@ -129,8 +134,25 @@ interface GmailSaveViewModel {
 	action: string;
 	offerImport: boolean;
 	importChecked: boolean;
-	variant: "primary" | "neutral";
 	disabled: boolean;
+	autofocus: boolean;
+}
+
+interface GmailSenderPickerViewModel {
+	open: boolean;
+	searchAutofocus: boolean;
+}
+
+interface GmailDialogViewModel {
+	mode: GmailDialogMode;
+	key: string;
+	title: string;
+	opener: string;
+	closeHref: string;
+	cancelHref: string;
+	senderFields: FormField[];
+	alerts: GmailBannerViewModel[];
+	notices: GmailNoticeViewModel[];
 }
 
 interface GmailDeliveryOption {
@@ -158,6 +180,7 @@ export interface GmailPageViewModel {
 	pickerState: GmailPickerState;
 	searchPath: string;
 	discoveryAction: string;
+	discoveryFields: FormField[];
 	disconnectAction: string;
 	reconnect: GmailConnectionPrompt;
 	metadataReconnect: GmailConnectionPrompt;
@@ -166,6 +189,8 @@ export interface GmailPageViewModel {
 	showReconnect: boolean;
 	showMetadataReconnect: boolean;
 	autoDiscoverAction: string | undefined;
+	dialog: GmailDialogViewModel;
+	senderPicker: GmailSenderPickerViewModel;
 	search: string;
 	searchFields: FormField[];
 	notificationSender: string | undefined;
@@ -257,6 +282,64 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, { message: string; awai
 
 const READLIST_PICKER_ERRORS: ReadonlySet<string> = new Set(["readlist_invalid", "readlist_name_invalid", "readlist_limit"]);
 
+type GmailBannerSurface = "dialog" | "page";
+
+const GMAIL_ERROR_SURFACES: Record<GmailPageError, GmailBannerSurface> = {
+	sender_invalid: "dialog",
+	sender_unknown: "dialog",
+	metadata_required: "page",
+	readlist_invalid: "dialog",
+	readlist_choice_required: "dialog",
+	readlist_name_invalid: "dialog",
+	readlist_limit: "dialog",
+	import_in_progress: "page",
+	import_unavailable: "page",
+	import_reconnect_required: "page",
+	import_revoked: "page",
+};
+
+const GMAIL_NOTICE_SURFACES: Record<GmailPageNotice, GmailBannerSurface> = {
+	connected: "page",
+	confirmed: "page",
+	sender_removed: "page",
+	sender_mapped: "page",
+	sender_remapped: "page",
+	senders_saved: "page",
+	readlist_created: "dialog",
+	readlist_reused: "dialog",
+	import_started: "page",
+	import_permission_needed: "page",
+	import_permission_refused: "page",
+	import_permission_granted: "page",
+	import_cancelled: "page",
+	filter_retry_requested: "page",
+};
+
+function isGmailPageError(key: string | undefined): key is GmailPageError {
+	return key !== undefined && Object.hasOwn(GMAIL_ERROR_SURFACES, key);
+}
+
+function isGmailPageNotice(key: string | undefined): key is GmailPageNotice {
+	return key !== undefined && Object.hasOwn(GMAIL_NOTICE_SURFACES, key);
+}
+
+interface GmailBannerKeys {
+	error: GmailPageError | undefined;
+	notice: GmailPageNotice | undefined;
+}
+
+function bannerKeys(input: { error: string | undefined; notice: string | undefined; mode: GmailDialogMode }): Record<GmailBannerSurface, GmailBannerKeys> {
+	const error = isGmailPageError(input.error) ? input.error : undefined;
+	const notice = isGmailPageNotice(input.notice) ? input.notice : undefined;
+	const open = input.mode !== "none";
+	const errorOnDialog = open && error !== undefined && GMAIL_ERROR_SURFACES[error] === "dialog";
+	const noticeOnDialog = open && notice !== undefined && GMAIL_NOTICE_SURFACES[notice] === "dialog";
+	return {
+		dialog: { error: errorOnDialog ? error : undefined, notice: noticeOnDialog ? notice : undefined },
+		page: { error: errorOnDialog ? undefined : error, notice: noticeOnDialog ? undefined : notice },
+	};
+}
+
 function errorBanners(key: string | undefined): GmailBannerViewModel[] {
 	return Object.entries(GMAIL_PAGE_ERRORS)
 		.filter(([errorKey]) => errorKey === key)
@@ -336,8 +419,7 @@ function readlistPicker(input: {
 }): GmailReadlistPickerViewModel {
 	const { readlist: _readlist, import: _import, readlist_name: _name, delivery: _delivery, sender: _sender, added: _added, search: _search, ...fieldsState } = input.state;
 	return {
-		open: input.state.edit === "1" || (input.page.error !== undefined && READLIST_PICKER_ERRORS.has(input.page.error)),
-		openedForEdit: input.state.edit === "1",
+		open: input.page.error !== undefined && READLIST_PICKER_ERRORS.has(input.page.error),
 		choiceLabel: input.selected.map((readlist) => readlist.label).join(", "),
 		options: [DEFAULT_READLIST, ...input.page.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG)].map((readlist) => ({
 			slug: readlist.slug,
@@ -359,16 +441,71 @@ function readlistPicker(input: {
 function saveFor(input: {
 	state: GmailPickerState;
 	offerImport: boolean;
-	variant: "primary" | "neutral";
 	pending: boolean;
 	invalid: boolean;
+	autofocus: boolean;
 }): GmailSaveViewModel {
 	return {
 		action: trackGmail(GMAIL_SENDER_ADD_PATH, "save-mapping"),
 		offerImport: input.offerImport,
 		importChecked: input.state.import === "1",
-		variant: input.variant,
 		disabled: input.pending || input.invalid,
+		autofocus: input.autofocus,
+	};
+}
+
+function dialogMode(input: { page: GmailPageInput; showSenders: boolean; ticked: readonly string[] }): GmailDialogMode {
+	if (!input.showSenders) return "none";
+	const [only, ...others] = input.ticked;
+	const editingMapped = others.length === 0 && input.page.senders.some((sender) => sender.senderEmail === only && sender.addedToFilterAt !== undefined);
+	if (input.page.state.edit === "1" && editingMapped) return "edit";
+	if (input.page.state.add === "1" || input.page.notification === true || input.page.state.edit === "1") return "add";
+	return "none";
+}
+
+type GmailOpeningFocus = "none" | "save" | "checklist" | "search";
+
+function openingFocus(input: { mode: GmailDialogMode; focusOnOpen: boolean; checklist: GmailSenderChecklist }): GmailOpeningFocus {
+	if (!input.focusOnOpen || input.mode === "none") return "none";
+	if (input.mode === "edit") return "save";
+	return input.checklist.groups.length > 0 ? "checklist" : "search";
+}
+
+function focusChecklist(groups: readonly GmailChecklistGroup[]): GmailChecklistGroup[] {
+	const rows = groups.flatMap((group) => group.rows);
+	const target = rows.find((row) => row.checked) ?? rows.at(0);
+	return groups.map((group) => ({ ...group, rows: group.rows.map((row) => ({ ...row, autofocus: row === target })) }));
+}
+
+function dialogFor(input: {
+	mode: GmailDialogMode;
+	state: GmailPickerState;
+	ticked: readonly ForwardableSender[];
+	banners: Record<GmailBannerSurface, GmailBannerKeys>;
+	saved: number | undefined;
+	awaitingConfirmation: boolean;
+	candidates: ReadonlyMap<ForwardableSender, GmailSenderCandidate>;
+}): GmailDialogViewModel {
+	const page = input.banners.page;
+	const closed = buildGmailUrl({
+		error: page.error,
+		notice: page.notice,
+		saved: page.notice === undefined ? undefined : input.saved,
+		search: input.state.search,
+		discovery: "started",
+	});
+	const edited = input.mode === "edit" ? input.ticked.at(0) : undefined;
+	const editedCandidate = edited === undefined ? undefined : input.candidates.get(edited);
+	return {
+		mode: input.mode,
+		key: edited === undefined ? "gmail-add" : "gmail-edit",
+		title: edited === undefined ? "Add newsletters" : `Edit ${(editedCandidate === undefined ? undefined : gmailSenderName(editedCandidate)) ?? edited}`,
+		opener: edited ?? "add",
+		closeHref: trackGmail(closed, "close-dialog"),
+		cancelHref: trackGmail(closed, "cancel-dialog"),
+		senderFields: edited === undefined ? [] : [{ name: "sender", value: edited }, ...(input.state.search === undefined ? [] : [{ name: "search", value: input.state.search }])],
+		alerts: errorBanners(input.banners.dialog.error),
+		notices: noticeBanners({ key: input.banners.dialog.notice, awaitingConfirmation: input.awaitingConfirmation, saved: input.saved }),
 	};
 }
 
@@ -427,8 +564,14 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const choiceFor = input.state.readlist_choice_for ?? (notified !== undefined && entryFor(notified)?.mappedAddresses === undefined ? notified : undefined);
 	const pending = choiceFor !== undefined && ticked.some((email) => email === choiceFor) && entryFor(choiceFor)?.mappedAddresses === undefined && input.readlists.some((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	const invalid = gmailSelectedReadlists(input.state).some((slug) => !input.readlists.some((readlist) => readlist.slug === slug));
+	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
+	const mode = dialogMode({ page: input, showSenders, ticked });
+	const focus = openingFocus({ mode, focusOnOpen: input.focusOnOpen, checklist });
+	const banners = bannerKeys({ error: input.error, notice: input.notice, mode });
 	const pickerState: GmailPickerState = {
 		...input.state,
+		add: mode === "add" ? "1" : undefined,
+		edit: mode === "edit" ? "1" : undefined,
 		sender: ticked,
 		added: checklist.added,
 		readlist: ticked.length === 0 ? input.state.readlist : selectedReadlists.map((readlist) => readlist.slug),
@@ -439,6 +582,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const discovering = input.discoveryPending || input.discovery.state === "running" || (input.discoveryStarted && input.discovery.state === "idle");
 	const polling = discovering && input.pollCount < GMAIL_DISCOVERY_MAX_POLLS;
 	const { sender: _sender, added: _added, ...pollPicker } = pickerState;
+	const { search: _search, discovery_after: _after, ...discoveryState } = pollPicker;
 	const poll = new URL(buildGmailUrl({ ...pollPicker, discovery: "started" }), "https://readplace.com");
 	poll.pathname = GMAIL_SENDERS_PATH;
 	poll.searchParams.set("poll", String(input.pollCount + 1));
@@ -446,8 +590,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const showStep = pollState !== undefined && input.gatewayLive;
 	const commitVariant = showStep ? "neutral" : "primary";
 	const offerImport = ticked.length === 0 || ticked.some((email) => !tickedMapped.some((sender) => sender.senderEmail === email));
-	const save = saveFor({ state: pickerState, offerImport, variant: commitVariant, pending, invalid });
-	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
+	const save = saveFor({ state: pickerState, offerImport, pending, invalid, autofocus: focus === "save" });
 	const searchFields = gmailGetFields(pickerState, "search-senders");
 	return {
 		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state], accountEmail: input.connection.accountEmail, pollState,
@@ -455,6 +598,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		gatewayAddress: input.connection.gatewayAddress, mailboxUrl: buildGmailMailboxUrl(input.connection.accountEmail),
 		pickerState, pagePath: GMAIL_PATH, pageUrl: buildGmailUrl({ ...pickerState, discovery: "started" }), searchPath: GMAIL_SENDERS_PATH,
 		discoveryAction: trackGmail(GMAIL_DISCOVERY_START_PATH, "load-senders"),
+		discoveryFields: gmailBodyFields(discoveryState),
 		disconnectAction: trackGmail(GMAIL_DISCONNECT_PATH, "disconnect"),
 		reconnect: gmailConnectionPrompt({
 			canConnectGmail: input.canConnectGmail,
@@ -471,6 +615,8 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		showReconnect: revoked,
 		showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
 		autoDiscoverAction: input.discoveryStarted ? undefined : GMAIL_DISCOVERY_START_PATH,
+		dialog: dialogFor({ mode, state: pickerState, ticked, banners, saved: input.saved, awaitingConfirmation: pollState !== undefined, candidates }),
+		senderPicker: { open: focus === "search", searchAutofocus: focus === "search" },
 		search: pickerState.search ?? "",
 		searchFields: searchFields.filter((field) => field.name !== "search" && field.name !== "discovery_after" && !TICK_FIELDS.has(field.name)),
 		notificationSender: notified,
@@ -489,7 +635,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			pollUrl: polling ? `${poll.pathname}${poll.search}` : undefined,
 			pollTrigger: polling ? discoveryPollTrigger(input.pollCount + 1) : undefined,
 		},
-		checklist,
+		checklist: focus === "checklist" ? { ...checklist, groups: focusChecklist(checklist.groups) } : checklist,
 		results: {
 			resultsState: results.resultsState,
 			resultsMessage: results.resultsMessage,
@@ -512,12 +658,14 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			readlistChoiceShown: showSenders,
 			state: pickerState,
 			importsPollCount: input.importsPollCount,
+			discoveryStarted: input.discoveryStarted,
+			addVariant: commitVariant,
 		}),
 		alerts: [
 			...(input.gatewayLive ? [] : [{ key: "gateway_disabled", message: GMAIL_GATEWAY_DISABLED_MESSAGE }]),
-			...errorBanners(input.error),
+			...errorBanners(banners.page.error),
 			...(input.connection.lastConfirmError === undefined ? [] : [{ key: "confirm_failed", message: GMAIL_CONFIRM_FAILED_MESSAGES[input.connection.lastConfirmError.reason] }]),
 		],
-		notices: noticeBanners({ key: input.notice, awaitingConfirmation: pollState !== undefined, saved: input.saved }),
+		notices: noticeBanners({ key: banners.page.notice, awaitingConfirmation: pollState !== undefined, saved: input.saved }),
 	};
 }

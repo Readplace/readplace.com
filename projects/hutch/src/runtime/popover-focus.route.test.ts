@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { AliasNameSchema } from "@packages/domain/inbox";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
+import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { describePopoverFocusGaps, findPopoverFocusGaps } from "@packages/web-test-harness";
 import { BROWSER_REQUEST_HEADERS, loginAgent, useTestServer } from "./test-app";
 
@@ -165,6 +170,45 @@ describe("every popup opens on its first decision", () => {
 			"share",
 			"subscribe-plans",
 		]);
+	});
+
+	it("holds on the Gmail newsletters popups, which open on their first decision, and keeps the closed page free of autofocus", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+		});
+		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const reader = await harness.auth.findUserByEmail("test@example.com");
+		assert(reader, "the logged-in reader must exist");
+		const userId = reader.userId;
+		const accountEmail = GmailAccountEmailSchema.parse("reader@gmail.com");
+		const mapped = ForwardableSenderSchema.parse("dan@tldr.tech");
+		const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail });
+		await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: GMAIL_SCOPES });
+		const destination = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
+		await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail, senderEmail: mapped, mappedAddresses: [destination.address], deliveryMode: "links" });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail, senderEmail: mapped });
+
+		const gaps: string[] = [];
+		const keys: string[] = [];
+		for (const path of [
+			"/newsletters/gmail?add=1",
+			`/newsletters/gmail?sender=${encodeURIComponent(mapped)}&edit=1&discovery=started`,
+		]) {
+			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
+			expect({ path, status: response.status }).toEqual({ path, status: 200 });
+			gaps.push(...gapsOn({ path, html: response.text }));
+			keys.push(...dialogKeys(response.text));
+		}
+		const closed = parse((await agent.get("/newsletters/gmail").set(BROWSER_REQUEST_HEADERS)).text);
+
+		expect(gaps).toEqual([]);
+		expect(keys).toEqual(["gmail-add", "gmail-edit"]);
+		expect([closed.querySelectorAll("#gmail-add-newsletters-form").length, autofocusCount(closed)]).toEqual([1, 0]);
 	});
 
 	it("holds on the Gmail disclaimer a member outside a trial meets before connecting", async () => {

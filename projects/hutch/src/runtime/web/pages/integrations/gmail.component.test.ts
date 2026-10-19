@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { GmailConnection } from "@packages/domain/gmail";
-import { ForwardableSenderSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
 import { DEFAULT_READLIST, ReadlistSlugSchema } from "@packages/domain/readlist";
@@ -51,6 +51,7 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 		error: undefined,
 		notice: undefined,
 		saved: undefined,
+		focusOnOpen: true,
 		...overrides,
 	};
 }
@@ -64,11 +65,13 @@ function fragmentDocument(html: string) {
 }
 
 describe("GMail Newsletters forwarding confirmation step", () => {
-	it("keeps Open Gmail the one amber CTA beside a ready save and a sender-access reconnect", () => {
+	it("keeps Open Gmail the one amber CTA beside Add newsletters and a sender-access reconnect, and Save amber inside the popup", () => {
 		const awaiting = connection({ forwardingConfirmedAt: undefined });
-		const saving = pageDocument(input({ connection: awaiting, state: { sender: [TLDR], readlist: "default" } }));
-		assert.deepEqual(Array.from(saving.querySelectorAll(".btn--primary"), (button) => button.hasAttribute("data-test-gmail-open")), [true]);
-		assert.equal(saving.querySelector("[data-test-gmail-save]")?.classList.contains("btn--neutral"), true);
+		const closed = pageDocument(input({ connection: awaiting }));
+		assert.deepEqual(Array.from(closed.querySelectorAll(".btn--primary"), (button) => button.hasAttribute("data-test-gmail-open")), [true]);
+		assert.equal(closed.querySelector("[data-test-gmail-add-newsletters]")?.classList.contains("btn--neutral"), true);
+		const saving = pageDocument(input({ connection: awaiting, state: { add: "1", sender: [TLDR], readlist: "default" } }));
+		assert.equal(saving.querySelector("#gmail-dialog [data-test-gmail-save]")?.classList.contains("btn--primary"), true);
 		const reconnecting = pageDocument(input({ connection: awaiting, metadataScopeGranted: false }));
 		assert.deepEqual(Array.from(reconnecting.querySelectorAll(".btn--primary"), (button) => button.hasAttribute("data-test-gmail-open")), [true]);
 		assert.equal(reconnecting.querySelector("[data-test-gmail-metadata-reconnect-button]")?.classList.contains("btn--neutral"), true);
@@ -82,7 +85,7 @@ describe("GMail Newsletters forwarding confirmation step", () => {
 
 describe("GMail Newsletters discovery fragments", () => {
 	it("keeps one page button and sends a matching out-of-band replacement ahead of the status", () => {
-		const vm = toGmailPageViewModel(input({ discoveryStarted: true, discovery: { state: "running", mode: "full", checkedMessageCount: 200 } }));
+		const vm = toGmailPageViewModel(input({ discoveryStarted: true, discovery: { state: "running", mode: "full", checkedMessageCount: 200 }, state: { add: "1" } }));
 		const page = parseHTML(GmailPage(vm).content.html).document;
 		const pageButtons = Array.from(page.querySelectorAll("#gmail-load-senders-button"));
 		assert.equal(pageButtons.length, 1);
@@ -180,7 +183,7 @@ describe("Gmail mandatory All and independent custom choices", () => {
 	const SCIENCE = { slug: ReadlistSlugSchema.parse("science"), label: "Science" };
 
 	it("locks All and enables an ordinary sender while custom lists remain optional", () => {
-		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH, SCIENCE], state: { sender: [TLDR] } }));
+		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH, SCIENCE], state: { add: "1", sender: [TLDR] } }));
 		const all = doc.querySelector('[data-test-gmail-readlist-option="default"]');
 		assert(all);
 		assert.equal(all.hasAttribute("checked"), true);
@@ -201,7 +204,7 @@ describe("Gmail mandatory All and independent custom choices", () => {
 	});
 
 	it("keeps repeated choices independent and shares a native form between confirmation, Save and Create", () => {
-		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH, SCIENCE], state: { sender: [TLDR], readlist: ["science", "tech", "tech"] } }));
+		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH, SCIENCE], state: { add: "1", sender: [TLDR], readlist: ["science", "tech", "tech"] } }));
 		assert.equal(doc.querySelector("#gmail-readlist-choice")?.textContent, "All, Tech, Science");
 		assert.deepEqual(Array.from(doc.querySelectorAll("[data-test-gmail-readlist-option]"), (field) => [field.getAttribute("value"), field.hasAttribute("checked")]), [["default", true], ["tech", true], ["science", true]]);
 		const form = doc.querySelector("[data-test-gmail-save-mapping]");
@@ -212,8 +215,14 @@ describe("Gmail mandatory All and independent custom choices", () => {
 		assert.equal(form.querySelectorAll("form").length, 0);
 	});
 
-	it("makes Create the mapping form's default button ahead of the checklist and pick buttons, so Enter in the readlist name creates it", () => {
-		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH], state: { sender: [TLDR] } }));
+	it.each<[string, Partial<GmailPageInput>]>([
+		["Add newsletters", { state: { add: "1", sender: [TLDR] } }],
+		["Edit", {
+			senders: [{ accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail: TLDR, addedToFilterAt: "2026-08-27T00:06:00.000Z", mappedAddresses: undefined, mappedAt: undefined, deliveryMode: "links" }],
+			state: { edit: "1", sender: [TLDR] },
+		}],
+	])("makes Create the mapping form's default button in the %s popup, so Enter in the readlist name creates it", (_mode, overrides) => {
+		const doc = pageDocument(input({ readlists: [DEFAULT_READLIST, TECH], ...overrides }));
 		const first = Array.from(doc.querySelectorAll("button[type=submit]")).find((button) => button.getAttribute("form") === "gmail-readlist-selection" || button.closest("#gmail-readlist-selection") !== null);
 		assert(first);
 		assert.deepEqual(
@@ -221,5 +230,109 @@ describe("Gmail mandatory All and independent custom choices", () => {
 			["post", doc.querySelector("[data-test-gmail-readlist-create] button")?.getAttribute("formaction")],
 		);
 		assert.equal(first.hasAttribute("hidden"), true);
+		assert.equal(first.parentElement?.id, "gmail-dialog-body");
+	});
+});
+
+function bodyBlocks(dialog: Element): string[] {
+	const body = dialog.querySelector("#gmail-dialog-body");
+	assert(body, "the popup must render its body");
+	return Array.from(body.children, (block) => block.id || block.tagName.toLowerCase());
+}
+
+describe("GMail Newsletters popup markup", () => {
+	const TLDR_MAPPING = { accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail: TLDR, addedToFilterAt: "2026-08-27T00:06:00.000Z", mappedAddresses: undefined, mappedAt: undefined, deliveryMode: "links" as const };
+
+	it("leaves the closed page without a popup or anything that takes focus on load", () => {
+		const doc = pageDocument(input());
+		assert.deepEqual([doc.querySelectorAll("[popover]").length, doc.querySelectorAll("[autofocus]").length], [0, 0]);
+		const add = doc.querySelector("#gmail-add-newsletters-form");
+		assert(add);
+		assert.deepEqual(["method", "action", "hx-target", "hx-select", "hx-swap"].map((name) => add.getAttribute(name)), ["GET", "/newsletters/gmail", "main", "main", "outerHTML show:none"]);
+		assert.equal(add.querySelector("button")?.getAttribute("data-gmail-opener"), "add");
+	});
+
+	it("starts discovery from the page while the popup is closed, swapping in only an Add form that knows it started", () => {
+		const doc = pageDocument(input({ discoveredSenders: [], discovery: { state: "idle", mode: "profile", checkedMessageCount: 0 } }));
+		const starts = Array.from(doc.querySelectorAll("[data-test-gmail-auto-load-senders]"));
+		assert.deepEqual(starts.map((start) => start.getAttribute("data-test-gmail-auto-load-senders")), ["page"]);
+		assert.deepEqual(
+			["hx-post", "hx-trigger", "hx-swap", "hx-select-oob", "hx-include", "hx-indicator", "hx-target"].map((name) => starts[0]?.getAttribute(name) ?? null),
+			["/newsletters/gmail/discovery/start", "load", "none", "#gmail-add-newsletters-form:outerHTML", "#gmail-add-newsletters-form", null, null],
+		);
+		assert.equal(doc.querySelectorAll("#gmail-add-newsletters-form").length, 1);
+		const reconnecting = pageDocument(input({ discoveredSenders: [], discovery: { state: "idle", mode: "profile", checkedMessageCount: 0 }, metadataScopeGranted: false }));
+		assert.deepEqual(
+			[reconnecting.querySelectorAll("[data-test-gmail-auto-load-senders]").length, reconnecting.querySelector("[data-test-gmail-metadata-reconnect-button]")?.textContent],
+			[0, "Reconnect Gmail"],
+		);
+	});
+
+	it("starts discovery inside the Add popup when it is open, and nowhere once it has started", () => {
+		const idle: GmailPageInput["discovery"] = { state: "idle", mode: "profile", checkedMessageCount: 0 };
+		const open = pageDocument(input({ discoveredSenders: [], discovery: idle, state: { add: "1" } }));
+		const starts = Array.from(open.querySelectorAll("[data-test-gmail-auto-load-senders]"));
+		assert.deepEqual(starts.map((start) => [start.getAttribute("data-test-gmail-auto-load-senders"), start.closest("#gmail-dialog") !== null, start.getAttribute("hx-target")]), [["dialog", true, "#gmail-sender-status"]]);
+		const started = pageDocument(input({ discoveredSenders: [], discovery: idle, state: { add: "1" }, discoveryStarted: true }));
+		assert.equal(started.querySelectorAll("[data-test-gmail-auto-load-senders]").length, 0);
+	});
+
+	it("renders the Add popup with its title, close link and everything the card held, closing with Cancel then Save", () => {
+		const doc = pageDocument(input({ state: { add: "1", sender: [TLDR] } }));
+		const dialog = doc.querySelector("#gmail-dialog");
+		assert(dialog);
+		assert.deepEqual(
+			["popover", "role", "tabindex", "aria-labelledby", "hx-history", "data-gmail-dialog-opener", "data-test-confirm-popover"].map((name) => dialog.getAttribute(name)),
+			["auto", "dialog", "-1", "gmail-dialog-title", "false", "add", "gmail-add"],
+		);
+		assert.equal(dialog.querySelector("#gmail-dialog-title")?.textContent, "Add newsletters");
+		assert.deepEqual(bodyBlocks(dialog), ["button", "div", "form", "gmail-sender-status", "gmail-checklist", "gmail-sender-label", "details", "gmail-mapping-choice"]);
+		assert.equal(dialog.querySelector("[data-test-gmail-load-senders] #gmail-load-senders-button")?.textContent, "Load senders");
+		assert.equal(dialog.querySelector("[data-test-gmail-sender-picker] #gmail-sender-search")?.getAttribute("name"), "search");
+		const footer = dialog.querySelector("[data-test-gmail-dialog-footer]");
+		assert.deepEqual(Array.from(footer?.children ?? [], (control) => control.textContent), ["Cancel", "Save"]);
+		const close = dialog.querySelector('[data-test-action="gmail-add-dismiss"]');
+		assert.equal(close?.getAttribute("hx-target"), "main");
+		assert.equal(close?.getAttribute("href"), footer?.firstElementChild?.getAttribute("href")?.replace("cancel-dialog", "close-dialog"));
+	});
+
+	it("refreshes only the popup's body from the mapping form", () => {
+		const form = pageDocument(input({ state: { add: "1" } })).querySelector("#gmail-readlist-selection");
+		assert.deepEqual(["hx-target", "hx-select", "hx-swap"].map((name) => form?.getAttribute(name)), ["#gmail-dialog-body", "#gmail-dialog-body", "outerHTML show:none"]);
+	});
+
+	it("renders the Edit popup with just that newsletter and opens it on Save", () => {
+		const doc = pageDocument(input({ senders: [TLDR_MAPPING], state: { edit: "1", sender: [TLDR] } }));
+		const dialog = doc.querySelector("#gmail-dialog");
+		assert(dialog);
+		assert.deepEqual([dialog.getAttribute("data-test-confirm-popover"), dialog.getAttribute("data-gmail-dialog-opener")], ["gmail-edit", TLDR]);
+		assert.equal(dialog.querySelector("#gmail-dialog-title")?.textContent, "Edit TLDR");
+		assert.deepEqual(bodyBlocks(dialog), ["button", "gmail-mapping-choice"]);
+		assert.equal(dialog.querySelector('#gmail-readlist-selection input[type="hidden"][name="sender"]')?.getAttribute("value"), TLDR);
+		assert.deepEqual(Array.from(doc.querySelectorAll("[autofocus]"), (target) => target.id), ["gmail-save"]);
+		assert.equal(doc.querySelector(`[data-test-gmail-mapping-row="${TLDR}"] [data-test-gmail-mapping-action="edit"]`)?.getAttribute("data-gmail-opener"), TLDR);
+	});
+
+	it("opens the Add popup on its first newsletter, or on the search with its picker open when there is none", () => {
+		const listed = pageDocument(input({ detection: { status: "available", recognized: new Map([[TLDR, { from: TLDR, name: NewsletterNameSchema.parse("TLDR"), source: "catalog", match: "exact" }]]) }, state: { add: "1" } }));
+		assert.deepEqual(Array.from(listed.querySelectorAll("[autofocus]"), (target) => target.getAttribute("value")), [TLDR]);
+		const empty = pageDocument(input({ discoveredSenders: [], state: { add: "1" } }));
+		assert.deepEqual(Array.from(empty.querySelectorAll("[autofocus]"), (target) => target.id), ["gmail-sender-search"]);
+		assert.equal(empty.querySelector("[data-test-gmail-sender-picker]")?.hasAttribute("open"), true);
+	});
+
+	it("keeps a popup refresh free of autofocus", () => {
+		const doc = pageDocument(input({ senders: [TLDR_MAPPING], state: { edit: "1", sender: [TLDR] }, focusOnOpen: false }));
+		assert.deepEqual([doc.querySelectorAll("#gmail-dialog").length, doc.querySelectorAll("[autofocus]").length], [1, 0]);
+	});
+});
+
+describe("GMail Newsletters Load senders", () => {
+	it("posts the popup's state with Load senders, so the reader lands back in it without JavaScript", () => {
+		const doc = pageDocument(input({ state: { add: "1", sender: [TLDR], search: "tl", readlist: "default", discovery_after: "none" } }));
+		const form = doc.querySelector("[data-test-gmail-load-senders]");
+		assert(form);
+		assert.deepEqual(Array.from(form.querySelectorAll('input[type="hidden"]'), (field) => `${field.getAttribute("name")}=${field.getAttribute("value")}`), ["readlist=default", "add=1"]);
+		assert.equal(form.getAttribute("hx-include"), "#gmail-sender-search");
 	});
 });
