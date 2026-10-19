@@ -225,7 +225,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 			signIn(res, sessionId);
-			sendWelcomeEmail(tokenResult.email);
+			await sendWelcomeEmail(tokenResult.email);
 			deps.recordConversionEvent(
 				req,
 				buildUserCreatedEvent(
@@ -285,7 +285,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		signIn(res, sessionId);
-		sendWelcomeEmail(tokenResult.email);
+		await sendWelcomeEmail(tokenResult.email);
 		deps.recordConversionEvent(
 			req,
 			buildUserCreatedEvent(

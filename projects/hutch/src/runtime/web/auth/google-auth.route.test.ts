@@ -266,6 +266,34 @@ describe("Google auth routes", () => {
 			expect(consumed).toBeNull();
 		}, 30000);
 
+		it("sends the welcome email before it answers", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				email: {
+					...fixture.email,
+					sendEmail: async (message) => {
+						await new Promise((resolve) => setTimeout(resolve, 50));
+						await fixture.email.sendEmail(message);
+					},
+				},
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "welcome-google@example.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			const state = signState(freshState());
+
+			await request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(harness.email.getSentEmails().map((sent) => ({ to: sent.to, subject: sent.subject }))).toEqual([
+				{ to: "welcome-google@example.com", subject: "Welcome to Readplace" },
+			]);
+		});
+
 		describe("first-article autosave", () => {
 			const ARTICLE_URL = "https://example.com/post";
 			const AUTOSAVE_LOCATION = `/queue?url=${encodeURIComponent(ARTICLE_URL)}&utm_source=signup-autosave`;

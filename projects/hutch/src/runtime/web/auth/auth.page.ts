@@ -165,8 +165,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		logError: deps.logError,
 	});
 
-	const sendVerificationEmail = (userId: UserId, email: string): void => {
-		deps.createVerificationToken({ userId, email })
+	const sendVerificationEmail = (userId: UserId, email: string): Promise<void> => {
+		return deps.createVerificationToken({ userId, email })
 			.then((token) => {
 				const verifyUrl = `${deps.baseUrl}/verify-email?token=${token}`;
 				const html = buildVerificationEmailHtml(verifyUrl);
@@ -382,7 +382,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			res.set("Clear-Site-Data", '"storage"');
-			sendVerificationEmail(created.userId, email);
+			await sendVerificationEmail(created.userId, email);
 			logSignupAttempt(SIGNUP_OUTCOMES.created);
 			deps.recordConversionEvent(
 				req,
@@ -430,7 +430,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		res.set("Clear-Site-Data", '"storage"');
-		sendVerificationEmail(created.userId, email);
+		await sendVerificationEmail(created.userId, email);
 		logSignupAttempt(SIGNUP_OUTCOMES.created);
 		deps.recordConversionEvent(
 			req,
@@ -611,7 +611,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		await deps.markEmailVerified(verifyResult.email);
-		sendWelcomeEmail(verifyResult.email);
+		await sendWelcomeEmail(verifyResult.email);
 
 		const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
 		if (sessionId) {
