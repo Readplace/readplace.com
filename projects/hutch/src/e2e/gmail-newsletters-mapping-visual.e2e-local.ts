@@ -298,6 +298,7 @@ test.describe("GMail Newsletters mapping", () => {
 				await captureMatrix(page, {
 					state: "destination-selected",
 					surface: "popup",
+					reveal: READLIST_PICKER,
 					settled: async (settling) => {
 						assert(releaseResponse, "the held confirmation must be releasable");
 						releaseResponse();
@@ -403,6 +404,7 @@ test.describe("GMail Newsletters mapping", () => {
 		await captureMatrix(page, {
 			state: "destination-selected",
 			surface: "popup",
+			reveal: READLIST_PICKER,
 			settled: async (settling) => {
 				await readlistChosen(settling);
 				await expect(settling.locator('[data-test-alert="readlist_created"]')).toHaveCount(0);
