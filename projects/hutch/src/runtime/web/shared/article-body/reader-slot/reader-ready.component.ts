@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import { prepareReaderContent } from "./reader-content";
+import type { ArticleBody } from "@packages/domain/article";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "reader-ready.template.html"),
@@ -9,7 +10,7 @@ const TEMPLATE = readFileSync(
 );
 
 export interface ReaderReadyInput {
-	content: string;
+	content: ArticleBody;
 	oob?: boolean;
 	appOrigin: string;
 }

@@ -160,7 +160,7 @@ export function initHnSnapshot(deps: {
 						await deps.startAnonymousCrawl(identity);
 						return { ...item, status: "pending" };
 					}
-					if (article?.readerAvailableAt !== undefined && content && summary?.status === "ready") {
+					if (article?.readerAvailableAt !== undefined && content?.kind === "article" && summary?.status === "ready") {
 						return { ...item, canonicalUrl: article.url, status: "ready" };
 					}
 					if (

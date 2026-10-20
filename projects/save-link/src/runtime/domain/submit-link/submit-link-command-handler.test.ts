@@ -81,7 +81,7 @@ function makeSaved(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		userId,
 		url: exampleUrl,
 		destinationUrl: exampleDestination,
-		metadata: { ...articleDisplayMetadata({ url: exampleUrl, destinationUrl: exampleDestination, title: "", siteName: "", excerpt: "" }), wordCount: 0 },
+		metadata: articleDisplayMetadata({ url: exampleUrl, destinationUrl: exampleDestination, title: "", siteName: "", excerpt: "", wordCount: 0, imageUrl: undefined }),
 		estimatedReadTime: MinutesSchema.parse(0),
 		status: "unread",
 		savedAt: new Date("2026-06-01T00:00:00.000Z"),

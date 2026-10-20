@@ -338,6 +338,19 @@ describe("initComputeRelatedArticlesHandler", () => {
 		]);
 	});
 
+	it("skips a webmail page terminally without asking for a selection", async () => {
+		const { handler, skipped, selected, ready } = createHandler({
+			targetLookup: { state: "not-an-article" },
+		});
+
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(selected).toEqual([]);
+		expect(ready).toEqual([]);
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+	});
+
 	it("skips when the crawl gave up before writing anything to compare", async () => {
 		const { handler, skipped, published } = createHandler({
 			targetLookup: {

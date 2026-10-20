@@ -218,20 +218,17 @@ export function initMcpArticleOperations(
 			const owned = await deps.resolveOwnedArticle({ userId, id });
 			if (!owned) return { status: "not_found" };
 			const { article } = owned;
-			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
-			const content = await deps.readArticleContent(article.url);
-			if (content !== undefined) {
-				await deps.recordEngagementActivity({
-					userId,
-					kind: "mcp-content",
-					at: deps.now(),
-					articleId: article.id,
-					campaignId: article.suggestionAttribution?.campaignId,
-				});
-			}
-			return content === undefined
-				? { status: "pending" }
-				: { status: "ready", content };
+			const stored = await deps.readArticleContent(article.url);
+			if (stored.kind === "not-an-article") return { status: "not_an_article" };
+			if (stored.kind === "missing") return { status: "pending" };
+			await deps.recordEngagementActivity({
+				userId,
+				kind: "mcp-content",
+				at: deps.now(),
+				articleId: article.id,
+				campaignId: article.suggestionAttribution?.campaignId,
+			});
+			return { status: "ready", content: stored.body };
 		},
 
 		getArticleSummary: async ({ userId, id }) => {

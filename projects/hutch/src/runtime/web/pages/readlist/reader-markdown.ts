@@ -53,7 +53,7 @@ export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
 		}
 
 		const { article, readlist } = owned;
-		const [crawl, summary, content, definitions, saves] = await Promise.all([
+		const [crawl, summary, stored, definitions, saves] = await Promise.all([
 			deps.findArticleCrawlStatus(article.url),
 			deps.findGeneratedSummary(article.url),
 			deps.readArticleContent(article.url),
@@ -84,7 +84,7 @@ export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
 					readlists,
 					appOrigin: deps.appOrigin,
 					crawl,
-					content,
+					content: stored.kind === "article" ? stored.body : undefined,
 					summary,
 				}),
 			),

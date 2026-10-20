@@ -106,6 +106,10 @@ export function initComputeRelatedArticlesHandler(
 					await skip("the article was purged before its related links were computed");
 					continue;
 				}
+				if (lookup.state === "not-an-article") {
+					await skip("not an article host");
+					continue;
+				}
 				if (lookup.state === "absent" || lookup.article.crawlStatus === "pending") {
 					throw new MetadataNotReadyError(entry.url);
 				}

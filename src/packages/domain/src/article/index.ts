@@ -61,6 +61,16 @@ export { ARTICLE_SECTION_ID_PREFIX, sanitizeArticleHtml } from "./sanitize-artic
 export { isBlockedIpAddress } from "./blocked-address";
 export { isNonArticleHost } from "./non-article-host";
 export {
+	storedArticleBody,
+	type ArticleBody,
+	type StoredArticleBody,
+} from "./article-body";
+export {
+	shownSummary,
+	type GeneratedSummary,
+	type ShownSummary,
+} from "./shown-summary";
+export {
 	isArchiveHost,
 	isWrapperUrl,
 	stripRedirectAddedParams,

@@ -298,8 +298,8 @@ function handleViewArticle(
 				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 				return;
 			}
-			const content = await deps.readArticleContent(articleUrl);
-			if (content === undefined) {
+			const stored = await deps.readArticleContent(articleUrl);
+			if (stored.kind !== "article") {
 				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 				return;
 			}
@@ -311,7 +311,7 @@ function handleViewArticle(
 				siteName: existing.metadata.siteName,
 				excerpt: existing.metadata.excerpt,
 				summary,
-				contentHtml: content,
+				contentHtml: stored.body,
 			});
 			res
 				.status(200)

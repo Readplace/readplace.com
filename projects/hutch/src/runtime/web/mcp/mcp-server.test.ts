@@ -12,6 +12,7 @@ import {
 	type McpToolCallRecord,
 } from "./mcp-server";
 import { TOOL_DEFINITIONS } from "./tool-definitions";
+import { articleBody } from "@packages/test-fixtures";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 const context = { userId, oauthClientId: "dyn-registered-mcp-client" };
@@ -695,7 +696,7 @@ describe("initMcpServer", () => {
 	describe("tools/call get_article_content", () => {
 		it("returns the cleaned HTML when ready", async () => {
 			const server = initMcpServer(
-				fakeDeps({ getArticleContent: async () => ({ status: "ready", content: "<p>hi</p>" }) }),
+				fakeDeps({ getArticleContent: async () => ({ status: "ready", content: articleBody("<p>hi</p>") }) }),
 			);
 			const response = await call(server, 40, "get_article_content", { id: "x".repeat(32) });
 			expect(response).toMatchObject({

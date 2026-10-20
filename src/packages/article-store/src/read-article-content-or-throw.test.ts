@@ -8,15 +8,15 @@ describe("initReadArticleContentOrThrow", () => {
 
 		const readArticleContent = initReadArticleContentOrThrow({ storageProviderQueryOrder: [s3, dynamodb] });
 
-		expect(await readArticleContent("https://example.com/article")).toBe("dynamodb content");
+		expect(await readArticleContent("https://example.com/article")).toEqual({ kind: "article", body: "dynamodb content" });
 	});
 
-	it("returns undefined when no provider has content", async () => {
+	it("reports a missing body when no provider has content", async () => {
 		const empty: ContentProvider = async () => "";
 
 		const readArticleContent = initReadArticleContentOrThrow({ storageProviderQueryOrder: [empty] });
 
-		expect(await readArticleContent("https://example.com/article")).toBeUndefined();
+		expect(await readArticleContent("https://example.com/article")).toEqual({ kind: "missing" });
 	});
 
 	it("rejects with a provider's failure instead of reporting the article as having no content", async () => {
@@ -28,5 +28,13 @@ describe("initReadArticleContentOrThrow", () => {
 		const readArticleContent = initReadArticleContentOrThrow({ storageProviderQueryOrder: [s3, dynamodb] });
 
 		await expect(readArticleContent("https://example.com/article")).rejects.toThrow("SlowDown");
+	});
+
+	it("reports a webmail page as not an article even when a provider holds its body", async () => {
+		const s3: ContentProvider = async () => "<p>Inbox</p>";
+
+		const readArticleContent = initReadArticleContentOrThrow({ storageProviderQueryOrder: [s3] });
+
+		expect(await readArticleContent("https://mail.google.com/mail/u/2/")).toEqual({ kind: "not-an-article" });
 	});
 });

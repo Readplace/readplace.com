@@ -16,6 +16,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 } from "@packages/test-fixtures";
+import { shownSummary } from "@packages/domain/article";
 
 const CANONICAL_PATH = "example.com/post";
 
@@ -82,10 +83,10 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			articleCrawl: fixture.articleCrawl,
 			parseArticle,
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "ready",
 			summary: "TLDR.",
-		});
+		} });
 		const harness = useApp({
 			...fixture,
 			parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
@@ -119,9 +120,9 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			articleCrawl: fixture.articleCrawl,
 			parseArticle,
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "pending",
-		});
+		} });
 		const harness = useApp({
 			...fixture,
 			parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
@@ -213,10 +214,10 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "ready",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "failed",
 			reason: "model timeout",
-		});
+		} });
 		const harness = useApp({
 			...fixture,
 			parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },

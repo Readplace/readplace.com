@@ -270,6 +270,24 @@ describe("initDynamoDbGeneratedSummary", () => {
 		expect(result).toEqual({ status: "skipped", reason: "content-too-short" });
 	});
 
+	it("skips the summary of a webmail page even when its row holds a ready one", async () => {
+		const client = createFakeClient({
+			url: "mail.google.com/mail/u/2/",
+			summaryStatus: "ready",
+			summary: "Private inbox summary",
+			summaryExcerpt: "Private excerpt",
+		});
+		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
+			client,
+			tableName: "test-table",
+			now,
+		});
+
+		const result = await findGeneratedSummary("https://mail.google.com/mail/u/2/");
+
+		expect(result).toEqual({ status: "skipped" });
+	});
+
 	describe("findGeneratedSummaries (batch)", () => {
 		interface BatchRequest {
 			Keys: { url: string }[];
@@ -368,6 +386,26 @@ describe("initDynamoDbGeneratedSummary", () => {
 
 			expect(map.has("https://example.com/absent")).toBe(true);
 			expect(map.get("https://example.com/absent")).toBeUndefined();
+			expect(map.get("https://example.com/present")).toEqual({ status: "ready", summary: "Here" });
+		});
+
+		it("skips the summary of a webmail page even when its row holds a ready one", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[
+					{ url: "mail.google.com/mail/u/2/", summaryStatus: "ready", summary: "Private inbox summary" },
+					{ url: "example.com/present", summaryStatus: "ready", summary: "Here" },
+				],
+				captured,
+			);
+			const { findGeneratedSummaries } = initDynamoDbGeneratedSummary({ client, tableName: "test-table", now });
+
+			const map = await findGeneratedSummaries([
+				"https://mail.google.com/mail/u/2/",
+				"https://example.com/present",
+			]);
+
+			expect(map.get("https://mail.google.com/mail/u/2/")).toEqual({ status: "skipped" });
 			expect(map.get("https://example.com/present")).toEqual({ status: "ready", summary: "Here" });
 		});
 

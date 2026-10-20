@@ -125,17 +125,15 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		userId: userArticle.userId,
 		url: article.originalUrl,
 		destinationUrl,
-		metadata: {
-			...articleDisplayMetadata({
-				url: article.originalUrl,
-				destinationUrl,
-				title: article.metadata.title,
-				siteName: article.metadata.siteName,
-				excerpt: article.metadata.excerpt,
-			}),
+		metadata: articleDisplayMetadata({
+			url: article.originalUrl,
+			destinationUrl,
+			title: article.metadata.title,
+			siteName: article.metadata.siteName,
+			excerpt: article.metadata.excerpt,
 			wordCount: article.metadata.wordCount,
 			imageUrl: article.metadata.imageUrl,
-		},
+		}),
 		content: article.content,
 
 		estimatedReadTime: article.estimatedReadTime,
@@ -467,17 +465,15 @@ export function initInMemoryArticleStore(): {
 			id: article.routeId,
 			url: article.originalUrl,
 			destinationUrl,
-			metadata: {
-				...articleDisplayMetadata({
-					url: article.originalUrl,
-					destinationUrl,
-					title: article.metadata.title,
-					siteName: article.metadata.siteName,
-					excerpt: article.metadata.excerpt,
-				}),
+			metadata: articleDisplayMetadata({
+				url: article.originalUrl,
+				destinationUrl,
+				title: article.metadata.title,
+				siteName: article.metadata.siteName,
+				excerpt: article.metadata.excerpt,
 				wordCount: article.metadata.wordCount,
 				imageUrl: article.metadata.imageUrl,
-			},
+			}),
 			content: article.content,
 
 			estimatedReadTime: article.estimatedReadTime,

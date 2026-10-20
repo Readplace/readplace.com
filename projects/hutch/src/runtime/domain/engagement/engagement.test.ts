@@ -889,7 +889,7 @@ describe("starter EPUB attachment", () => {
 		const unreadable = app.picks[0];
 		assert(unreadable);
 		const read = app.sendDeps.readArticleContent;
-		app.sendDeps.readArticleContent = async (url) => (url === unreadable.url ? undefined : read(url));
+		app.sendDeps.readArticleContent = async (url) => (url === unreadable.url ? { kind: "missing" } : read(url));
 
 		await initSendStarter(app.sendDeps)(app.id);
 

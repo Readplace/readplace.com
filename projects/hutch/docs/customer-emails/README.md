@@ -538,7 +538,7 @@ Sent only when:
 - At least one save qualifies: it is in the All readlist and unread, at any age, including saves already listed in an earlier digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:320`
 - Its reader view has loaded, its content has not been purged, and it is not the consent-seed article `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:383`
 - Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:392`
-- Its saved article body can be read from the content store `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
+- It is not a webmail page (a host in the domain package's non-article host list) and its saved article body can be read from the content store: for a webmail save the summary store reports skipped and the content store reports it as not an article `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
 - The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:50`
 - The EPUB of the listed saves builds `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`
 - The claim on the subscription row succeeds: the row is still trialing with the same trialEndsAt and no pay marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:196`
@@ -2271,7 +2271,7 @@ Sent only when:
 - The save was never listed in an earlier regular or trial-ending digest `src/packages/article-store/src/dynamodb-saved-article-store.ts:635`
 - Its reader view has loaded, its content has not been purged, and it is not the consent-seed article (the one saved automatically when a user with no saves first authorizes an external app or AI assistant) `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:383`
 - Its AI summary is ready `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:392`
-- Its saved article body can be read from the content store `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
+- It is not a webmail page (a host in the domain package's non-article host list) and its saved article body can be read from the content store: for a webmail save the summary store reports skipped and the content store reports it as not an article `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
 - The email lists at most 10 qualifying saves, newest save first `projects/hutch/src/runtime/send-user-digest.main.ts:50`
 - The EPUB of the listed saves builds `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:191`
 - No other message claimed this user's digest slot in the last 5.5h `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:60`
@@ -2288,6 +2288,7 @@ Not sent when:
 - A save listed in any earlier digest, regular or trial-ending, is stamped once and never listed in a regular digest again, so a user whose waiting saves were all listed gets nothing `src/packages/article-store/src/dynamodb-saved-article-store.ts:1270`
 - Saves whose summary was skipped or failed, or whose reader view never loads, are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:392`
 - Saves whose saved body cannot be read are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
+- Saves of a webmail page (Gmail, Outlook and the other non-article hosts) are never listed `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:394`
 - Deleting an account does not stop the digest right away; it stops when the background deletion job removes the user's saves `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:182`
 
 **Timing:** Checked every 6 hours by an EventBridge Scheduler rate(6 hours) schedule whose clock times depend on when it was created (the examples assume 03:12, 09:12, 15:12 and 21:12 UTC). A user gets it at most once per 7 days less 30 minutes (167.5h) after their last regular or trial-ending digest, which is every 7 days (every 28th check) while unlisted saves keep turning 30 days old; the 30 minutes stop a few minutes of processing delay from holding the 28th check. A save first qualifies on the first check at least 30 days after it was saved.
@@ -3702,7 +3703,7 @@ Sent only when:
 - The trial-ending digest is not due on this check `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:171`
 - When the message is built, the reader is still verified, subscribed to the digest, not pending deletion, at a deliverable address and on a trial or paid tier `projects/hutch/src/runtime/domain/engagement/send-starter.ts:147`
 - At least 47.5 hours have passed since the later of the last readlist digest and the trial-ending digest, and the trial-ending digest window does not open within those 47.5 hours `projects/hutch/src/runtime/domain/engagement/send-starter.ts:170`
-- At least one pick has a ready reader view and summary, a readable saved body, has not been purged, and is still unread in a readlist that holds it as this campaign's suggestion `projects/hutch/src/runtime/domain/engagement/send-starter.ts:182`
+- At least one pick has a ready reader view and summary, a readable saved body on an article host, has not been purged, and is still unread in a readlist that holds it as this campaign's suggestion `projects/hutch/src/runtime/domain/engagement/send-starter.ts:182`
 - The EPUB of the listed picks builds `projects/hutch/src/runtime/domain/engagement/send-starter.ts:253`
 
 Not sent when:

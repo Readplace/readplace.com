@@ -229,6 +229,24 @@ describe("initComputeRelatedPastReadsHandler", () => {
 		expect(published).toEqual([]);
 	});
 
+	it("leaves a webmail page alone without asking for a selection", async () => {
+		let selectionCalled = false;
+		const { handler, marked, published } = createHandler({
+			targetLookup: { state: "not-an-article" },
+			selectPastReads: async () => {
+				selectionCalled = true;
+				return { kind: "shared-boilerplate" };
+			},
+		});
+
+		const result = await handler(command, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(selectionCalled).toBe(false);
+		expect(marked).toEqual([]);
+		expect(published).toEqual([]);
+	});
+
 	it.each([
 		["absent", { state: "absent" } as RelatedTargetLookup],
 		["still crawling", { state: "found", article: crawledTarget({ crawlStatus: "pending" }) } as RelatedTargetLookup],

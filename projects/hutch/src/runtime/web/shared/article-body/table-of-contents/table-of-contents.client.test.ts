@@ -3,12 +3,14 @@ import { JSDOM } from "jsdom";
 import { renderReaderReady } from "../reader-slot/reader-ready.component";
 import { initTableOfContents } from "./table-of-contents.client";
 import { renderTableOfContents } from "./table-of-contents.component";
+import { articleBody } from "@packages/test-fixtures";
 
 const APP_ORIGIN = "https://readplace.com";
 const SCROLL_PADDING_TOP = "52px";
 const HEADED_CONTENT = "<h2>Alpha</h2><p>One</p><h3>Beta</h3><p>Two</p><h2>Gamma</h2><p>Three</p>";
 
-function readerHtml(content: string): string {
+function readerHtml(html: string): string {
+	const content = articleBody(html);
 	const tableOfContents = renderTableOfContents({
 		crawl: { status: "ready" },
 		content,

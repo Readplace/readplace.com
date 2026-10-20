@@ -1290,8 +1290,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		if (isAppPlatform(req)) {
 			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
-			const readerBody = ReaderPage({ ...ownedArticle, content: state.content }, {
+			const readerBody = ReaderPage(ownedArticle, {
 				appOrigin: deps.appOrigin,
+				content: state.content,
 				summary: state.summary,
 				summaryPollUrl: state.summaryPollUrl,
 				crawl: state.crawl,
@@ -1367,8 +1368,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		sendComponent(
 			req, res,
 			FreshForComponent(
-				Base(withOfflineReading(ReaderPage({ ...ownedArticle, content: state.content }, {
+				Base(withOfflineReading(ReaderPage(ownedArticle, {
 					appOrigin: deps.appOrigin,
+					content: state.content,
 					summary: state.summary,
 					summaryPollUrl: state.summaryPollUrl,
 					crawl: state.crawl,

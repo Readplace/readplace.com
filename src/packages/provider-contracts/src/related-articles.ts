@@ -82,6 +82,7 @@ export interface RelatedTargetArticle {
 export type RelatedTargetLookup =
 	| { state: "absent" }
 	| { state: "purged" }
+	| { state: "not-an-article" }
 	| { state: "found"; article: RelatedTargetArticle };
 
 export type FindRelatedTargetArticle = (

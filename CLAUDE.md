@@ -69,6 +69,25 @@ The rewrite is **scoped to our own host** (the iOS app config's server host — 
 
 Reuse also depends on the `hutch_sid` session cookie being **persistent** — it carries a `maxAge` (bounded by the server session TTL; the cookie name and its max age are exported together by the shared package that mints and reads the server session cookie — grep the workspace packages' non-test sources for `hutch_sid`) so a Chrome login survives Chrome fully closing; do not downgrade it back to a bare session cookie.
 
+### Webmail pages never leave the store
+
+A webmail tab — Gmail, Outlook and the other hosts on the domain package's non-article host list (grep its non-test sources for `"mail.163.com"`) — is someone's mailbox, not an article, and its URL is generic: every Gmail user's first inbox is `mail.google.com/mail/u/0/`. Article rows, bodies and summaries are keyed by URL and shared by everyone who saves or opens that URL, so a webmail row can hold another person's mailbox. Each surface used to check the host for itself, and a branch added to a route above that route's own check served a stored webmail body.
+
+The rule therefore lives in the read ports, and their types carry it:
+
+| Read | What a webmail URL gets |
+|---|---|
+| Article body | `not-an-article`, never a body |
+| Summary | `skipped` |
+| Display metadata (title, site, excerpt, word count, image) | The host stub |
+| Related-articles and past-reads rows | Dropped |
+
+Only the functions that apply the rule can mint the body and summary brands (grep the domain package's non-test sources for `brand<"ArticleBody">` and `brand<"ShownSummary">`). Every function written to turn a body into reader output — HTML, EPUB, markdown, MCP — takes the branded body, so a body that skipped the rule does not compile into one.
+
+- Read an article row's body, summary or display metadata only through those ports, and never mint either brand another way.
+- A new renderer types its body input as the branded body. The generic HTML converters (markdown, EPUB XHTML) take plain strings because they also convert other HTML: hand them a body only from a branded value.
+- A surface's own host check drives behaviour only — no crawl, no polling, the not-an-article notice. It is not what keeps a webmail row private.
+
 ## Architecture Guidelines
 
 ### Brand & Design Guidelines
