@@ -39,6 +39,13 @@ const regularDigest = (items: QueueDigestEmailItem[]) =>
 	QueueDigestEmail({ kind: "regular", items, links: LINKS, markReadToken: MARK_READ_TOKEN });
 const payDigest = (items: QueueDigestEmailItem[]) =>
 	QueueDigestEmail({ kind: "pay", items, links: LINKS, pay: { trialEndsAt: TRIAL_ENDS_AT } });
+const starterDigest = (items: QueueDigestEmailItem[]) =>
+	QueueDigestEmail({
+		kind: "starter",
+		items,
+		links: LINKS,
+		starter: { readlist: ReadlistSlugSchema.parse("hn-picks"), campaignId: "hn-starter-v1" },
+	});
 
 const documentOf = (html: string) => new JSDOM(html).window.document;
 const anchorsOf = (html: string) => [...documentOf(html).querySelectorAll<HTMLAnchorElement>("a[href]")];
@@ -75,9 +82,13 @@ describe("QueueDigestEmail", () => {
 	});
 
 	describe("headers", () => {
-		it("offers the RFC 8058 one-click unsubscribe at the digest's unsubscribe address", () => {
-			expect(regularDigest([item()]).headers).toEqual({
-				"List-Unsubscribe": `<https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}>`,
+		it.each([
+			["regular", regularDigest],
+			["pay", payDigest],
+			["starter", starterDigest],
+		])("offers the RFC 8058 one-click unsubscribe at the digest's unsubscribe address, naming the %s email it came from", (kind, buildDigest) => {
+			expect(buildDigest([item()]).headers).toEqual({
+				"List-Unsubscribe": `<https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}&kind=${kind}>`,
 				"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
 			});
 		});
@@ -285,24 +296,38 @@ describe("QueueDigestEmail", () => {
 		});
 
 		it.each([
-			["regular", regularDigest, REGULAR_FOOTER_REASON],
-			["pay", payDigest, PAY_FOOTER_REASON],
-		])("closes a %s digest with why it arrived, its unsubscribe link and the postal address", (kind, buildDigest, footerReason) => {
+			["regular", regularDigest, REGULAR_FOOTER_REASON, "queue-digest", "regular"],
+			["pay", payDigest, PAY_FOOTER_REASON, "queue-digest", "pay"],
+			["starter", starterDigest, PAY_FOOTER_REASON, "starter-email", "hn-starter-v1"],
+		])("closes a %s email with why it arrived, its unsubscribe link and the postal address", (kind, buildDigest, footerReason, source, campaign) => {
 			const html = buildDigest([item()]).to("text/html");
 
 			const unsubscribeLinks = linksTo({ html, pathname: "/email/queue-digest/unsubscribe" });
 			expect(unsubscribeLinks).toHaveLength(1);
 			expect(Object.fromEntries(unsubscribeLinks[0].searchParams)).toEqual({
 				t: UNSUBSCRIBE_TOKEN,
-				utm_source: "queue-digest",
+				kind,
+				utm_source: source,
 				utm_medium: "email",
-				utm_campaign: kind,
+				utm_campaign: campaign,
 				utm_content: "unsubscribe",
 				utm_term: SEND_ID,
 			});
 			const text = readableTextOf(html);
 			expect(text).toContain(`${footerReason} Stop these emails.`);
 			expect(text).toContain(POSTAL_ADDRESS);
+		});
+
+		it.each([
+			["regular", regularDigest, "queue-digest"],
+			["pay", payDigest, "queue-digest"],
+			["starter", starterDigest, "starter-email"],
+		])("tags every link of a %s email with the source analytics counts its clicks under", (_kind, buildDigest, source) => {
+			const html = buildDigest([item()]).to("text/html");
+
+			expect([...new Set(anchorsOf(html).map((anchor) => urlOf(anchor).searchParams.get("utm_source")))]).toEqual([
+				source,
+			]);
 		});
 
 		it.each([
@@ -381,11 +406,19 @@ describe("QueueDigestEmail", () => {
 				text.endsWith(
 					[
 						"If you have any questions, please reply to this email",
-						`${REGULAR_FOOTER_REASON} Stop these emails: https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=unsubscribe&utm_term=${SEND_ID}`,
+						`${REGULAR_FOOTER_REASON} Stop these emails: https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}&kind=regular&utm_source=queue-digest&utm_medium=email&utm_campaign=regular&utm_content=unsubscribe&utm_term=${SEND_ID}`,
 						POSTAL_ADDRESS,
 					].join("\n\n"),
 				),
 			).toBe(true);
+		});
+
+		it("closes a starter email with an unsubscribe link that names the starter and its own campaign", () => {
+			const text = starterDigest([item()]).to("text/plain");
+
+			expect(text).toContain(
+				`${PAY_FOOTER_REASON} Stop these emails: https://readplace.com/email/queue-digest/unsubscribe?t=${UNSUBSCRIBE_TOKEN}&kind=starter&utm_source=starter-email&utm_medium=email&utm_campaign=hn-starter-v1&utm_content=unsubscribe&utm_term=${SEND_ID}`,
+			);
 		});
 
 		it.each([
@@ -397,20 +430,13 @@ describe("QueueDigestEmail", () => {
 	});
 
 	describe("EPUB attachment line", () => {
-		const KINDLE_GUIDE_URL = (campaign: string) =>
-			`https://readplace.com/blog/read-your-saved-articles-on-a-kindle-or-kobo?utm_source=queue-digest&utm_medium=email&utm_campaign=${campaign}&utm_content=kindle-guide&utm_term=${SEND_ID}`;
-		const starterDigest = (items: QueueDigestEmailItem[]) =>
-			QueueDigestEmail({
-				kind: "starter",
-				items,
-				links: LINKS,
-				starter: { readlist: ReadlistSlugSchema.parse("hn-picks"), campaignId: "hn-starter-v1" },
-			});
+		const KINDLE_GUIDE_URL = ({ source, campaign }: { source: string; campaign: string }) =>
+			`https://readplace.com/blog/read-your-saved-articles-on-a-kindle-or-kobo?utm_source=${source}&utm_medium=email&utm_campaign=${campaign}&utm_content=kindle-guide&utm_term=${SEND_ID}`;
 
 		it.each([
-			["regular", regularDigest, "regular"],
-			["pay", payDigest, "pay"],
-			["starter", starterDigest, "hn-starter-v1"],
+			["regular", regularDigest, { source: "queue-digest", campaign: "regular" }],
+			["pay", payDigest, { source: "queue-digest", campaign: "pay" }],
+			["starter", starterDigest, { source: "starter-email", campaign: "hn-starter-v1" }],
 		])("tells a %s digest reader the articles are attached and links the Send to Kindle guide, just before the reply invitation", (_kind, buildDigest, campaign) => {
 			const digest = buildDigest([item(), item({ articleId: SECOND_ARTICLE_ID })]);
 			const line =

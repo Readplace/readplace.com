@@ -57,10 +57,7 @@ jobs:
             echo "::warning::Could not read the failed step log; falling back to the duration-only rule."
           fi
 
-          # Matches every limit window, not just the weekly one: real rejections in this
-          # repo carried rateLimitType five_hour as well as seven_day, and both are
-          # deterministic until their reset.
-          if grep -qE '"api_error_status": 429|hit your (weekly|[0-9]+-hour) limit|"rateLimitType"' /tmp/failed.log; then
+          if grep -qE '"api_error_status": 429|hit your (weekly|session|[0-9]+-hour) limit' /tmp/failed.log; then
             echo "Usage limit reached — deterministic until it resets; not re-running."
             exit 0
           fi

@@ -33,6 +33,7 @@ import type {
 	SubscriptionRecord,
 } from "@packages/provider-contracts/subscription-providers";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
+import type { QueueDigestKind } from "@packages/web-analytics";
 import { STRIPE_TRIAL_PERIOD_DAYS, isPayDigestDue } from "../domain/stripe/stripe-trial-config";
 import type {
 	EmitQueueDigestEvent,
@@ -46,7 +47,6 @@ import { CONSENT_SEED_ARTICLE_URL } from "../web/oauth/consent-seed-save";
 import {
 	QueueDigestEmail,
 	type QueueDigestEmailItem,
-	type QueueDigestKind,
 	type QueueDigestLinks,
 } from "../web/queue-digest-email";
 

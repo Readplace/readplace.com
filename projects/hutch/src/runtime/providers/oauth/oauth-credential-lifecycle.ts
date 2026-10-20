@@ -119,14 +119,14 @@ export function initOAuthCredentialLifecycle(deps: {
 			if (!grantId) return;
 			const existing = await atomic.store.readGrant(grantId);
 			const parent = existing ? await atomic.store.readCredential(existing.accessToken) : located.credential;
-			if (!parent || existing?.state === "revoked") return;
-			const account = await atomic.store.readAccount(parent.userId);
-			if (!isCurrentGrant({ account, credential: parent })) {
-				if (existing && isExemptGrant({ account, grantId: parent.grantId })) continue;
+			const grant = existing ?? (parent ? { id: grantId, userId: parent.userId, clientId: parent.clientId, epoch: parent.epoch,
+				generation: parent.generation, accessToken: parent.accessToken, refreshFingerprint: proof.fingerprint(parent.refreshToken), state: "active" as const, expiresAt: parent.refreshExpiresAt } : undefined);
+			if (!grant || grant.state === "revoked") return;
+			const account = await atomic.store.readAccount(grant.userId);
+			if (!isCurrentGrant({ account, credential: { grantId: grant.id, epoch: grant.epoch } })) {
+				if (existing && isExemptGrant({ account, grantId: grant.id })) continue;
 				return;
 			}
-			const grant = existing ?? { id: grantId, userId: parent.userId, clientId: parent.clientId, epoch: parent.epoch,
-				generation: parent.generation, accessToken: parent.accessToken, refreshFingerprint: proof.fingerprint(parent.refreshToken), state: "active" as const, expiresAt: parent.refreshExpiresAt };
 			const result = await atomic.store.commit({ expectedGrant: existing, grant: { ...grant, state: "revoked" }, parent, cause: "disconnect", now: Date.now(), accountEpoch: account.epoch });
 			if (result === "committed") return;
 		}
