@@ -1,23 +1,8 @@
-import { NodeHtmlMarkdown } from "node-html-markdown";
+import { codeSpanOnOneLine } from "./code-span-on-one-line";
+import { initHtmlToMarkdown } from "./markdown-conversion";
+import { tableToMarkdown } from "./table-to-markdown";
 
-const IGNORED_ELEMENTS = ["script", "style", "noscript", "template", "svg"];
-
-const converter = new NodeHtmlMarkdown({
-	ignore: IGNORED_ELEMENTS,
-	useInlineLinks: false,
-	useLinkReferenceDefinitions: false,
-	keepDataImages: false,
+export const htmlToMarkdown = initHtmlToMarkdown({
+	tableToMarkdown,
+	codeSpanOnOneLine,
 });
-
-for (const translators of [
-	converter.aTagTranslators,
-	converter.tableTranslators,
-	converter.tableRowTranslators,
-	converter.tableCellTranslators,
-]) {
-	translators.set(IGNORED_ELEMENTS.join(","), { ignore: true, recurse: false });
-}
-
-export function htmlToMarkdown(html: string): string {
-	return converter.translate(html);
-}
