@@ -13,7 +13,7 @@ import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { openAddLink } from "./page-interactions";
 import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
-import { htmxIsLive, readScrollY } from "./readlist-reader-skeleton.browser";
+import { htmxIsLive, htmxProcessed, readScrollY } from "./readlist-reader-skeleton.browser";
 import { maxScrollY, recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -789,6 +789,9 @@ test.describe("A capture host starting the reader's capture poll", () => {
 		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
 		const before = await page.evaluate(readScrollY);
 		expect(before).toBeGreaterThan(0);
+		await expect
+			.poll(() => page.evaluate(htmxProcessed, `${READER_NOTICE}[hx-trigger^="readplace-capture-failed"]`))
+			.toBe(true);
 
 		await page.evaluate(recordScrollAfterSwap, READER_NOTICE);
 		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-failed")));

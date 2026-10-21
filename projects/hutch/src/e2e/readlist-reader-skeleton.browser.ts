@@ -16,3 +16,10 @@ export function recordScrollAfterMainSwap(): void {
 	}
 	document.addEventListener("htmx:afterSettle", record);
 }
+
+export function htmxProcessed(selector: string): boolean {
+	const element = document.querySelector(selector);
+	if (!element) return false;
+	const data: unknown = Reflect.get(element, "htmx-internal-data");
+	return typeof data === "object" && data !== null && "initHash" in data && Boolean(data.initHash);
+}
