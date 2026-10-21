@@ -81,6 +81,7 @@ import type {
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
+	DestroyOAuthGrantSessions,
 	DestroySession,
 	DestroyUserSessions,
 	EmailMessage,
@@ -253,6 +254,7 @@ export interface AuthBundle {
 	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;

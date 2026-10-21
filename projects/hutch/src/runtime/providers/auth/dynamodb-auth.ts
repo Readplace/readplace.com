@@ -32,6 +32,7 @@ import type {
 	CreateSession,
 	CreateUser,
 	CreateUserWithPasswordHash,
+	DestroyOAuthGrantSessions,
 	DestroySession,
 	DestroyUserSessions,
 	FindAppleRefreshTokenByUserId,
@@ -117,6 +118,7 @@ export function initDynamoDbAuth(deps: {
 	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	closeUserAccount: CloseUserAccount;
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
@@ -399,6 +401,33 @@ export function initDynamoDbAuth(deps: {
 		);
 	};
 
+	const destroyOAuthGrantSessions: DestroyOAuthGrantSessions = async ({ userId, oauthGrantId }) => {
+		await forEachQueryPage(
+			sessionKeysByUser,
+			{
+				IndexName: "userId-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+			},
+			async (rows) => {
+				await Promise.all(rows.map(async (row) => {
+					try {
+						const previous = await sessions.delete({
+							Key: { sessionId: row.sessionId },
+							ConditionExpression: "oauthGrantId = :grant",
+							ExpressionAttributeValues: { ":grant": oauthGrantId },
+							ReturnValues: "ALL_OLD",
+						});
+						deps.observeSession({ event: "session_deleted", sessionId: row.sessionId, userId: previous.Attributes?.userId, expiresAt: previous.Attributes?.expiresAt });
+					} catch (error) {
+						if (error instanceof ConditionalCheckFailedException) return;
+						throw error;
+					}
+				}));
+			},
+		);
+	};
+
 	const countUsers: CountUsers = async () => {
 		// Claim items share the table but carry ownerUserId, not userId, so this
 		// filter counts only real user rows (the founding-member gate reads this).
@@ -638,6 +667,7 @@ export function initDynamoDbAuth(deps: {
 		renewSession,
 		destroySession,
 		destroyUserSessions,
+		destroyOAuthGrantSessions,
 		closeUserAccount,
 		markAccountDeleted,
 		countUsers,

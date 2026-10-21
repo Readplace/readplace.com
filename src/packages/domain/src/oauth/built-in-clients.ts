@@ -70,21 +70,19 @@ export function getBuiltInClient(clientId: string): OAuthClient | undefined {
 /**
  * Clients whose token revocation means "the user pressed sign out on a device
  * that mints a server session per reader open and keeps none of their ids".
- * The only way to honor that sign-out is to destroy every session the user
- * has; other clients' tokens stay valid so their devices re-mint a session on
- * next use rather than being signed out too. A revoke from a client mapped to
+ * A revoke from a client mapped to
  * false — or from any dynamically-registered client — touches no sessions at all.
  */
-const REVOKE_DESTROYS_ALL_SESSIONS = {
+const REVOKE_DESTROYS_GRANT_SESSIONS = {
 	"hutch-firefox-extension": false,
 	"hutch-chrome-extension": false,
 	"ios-app": true,
 	"android-app": true,
 } satisfies Record<BuiltInOAuthClientId, boolean>;
 
-export function revokeDestroysUserSessions(clientId: string): boolean {
+export function revokeDestroysGrantSessions(clientId: string): boolean {
 	if (!isBuiltInOAuthClientId(clientId)) return false;
-	return REVOKE_DESTROYS_ALL_SESSIONS[clientId];
+	return REVOKE_DESTROYS_GRANT_SESSIONS[clientId];
 }
 
 /**

@@ -12,8 +12,8 @@ import type {
 } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type {
+	DestroyOAuthGrantSessions,
 	DestroySession,
-	DestroyUserSessions,
 	FindEmailByUserId,
 } from "@packages/provider-contracts/auth";
 import assert from "node:assert";
@@ -145,7 +145,7 @@ interface OAuthRouteDeps {
 	validateRedirectUri: ValidateOAuthRedirectUri;
 	registerClient: RegisterOAuthClient;
 	destroySession: DestroySession;
-	destroyUserSessions: DestroyUserSessions;
+	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	findEmailByUserId: FindEmailByUserId;
 	consumeRateLimit: ConsumeRateLimit;
 	registerRateLimitRule: RateLimitRule;
@@ -372,7 +372,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		initTokenRevocation({
 			baseUrl: deps.baseUrl,
 			model: deps.model,
-			destroyUserSessions: deps.destroyUserSessions,
+			destroyOAuthGrantSessions: deps.destroyOAuthGrantSessions,
 			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
 			now: deps.now,
 			salt: deps.salt,

@@ -17,6 +17,7 @@ import type {
 	CreateSession,
 	CreateUser,
 	CreateUserWithPasswordHash,
+	DestroyOAuthGrantSessions,
 	DestroySession,
 	DestroyUserSessions,
 	FindAppleRefreshTokenByUserId,
@@ -89,6 +90,7 @@ export function initInMemoryAuth(opts: {
 	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	closeUserAccount: CloseUserAccount;
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
@@ -295,6 +297,12 @@ export function initInMemoryAuth(opts: {
 		}
 	};
 
+	const destroyOAuthGrantSessions: DestroyOAuthGrantSessions = async ({ userId, oauthGrantId }) => {
+		for (const [sessionId, session] of sessions) {
+			if (session.userId === userId && session.oauthGrantId === oauthGrantId) sessions.delete(sessionId);
+		}
+	};
+
 	const closeUserAccount: CloseUserAccount = async (userId) => {
 		for (const [email, user] of users) {
 			if (user.id === userId) {
@@ -462,6 +470,7 @@ export function initInMemoryAuth(opts: {
 		renewSession,
 		destroySession,
 		destroyUserSessions,
+		destroyOAuthGrantSessions,
 		closeUserAccount,
 		markAccountDeleted,
 		countUsers,

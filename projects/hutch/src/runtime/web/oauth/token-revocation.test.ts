@@ -30,7 +30,7 @@ async function setup(clientId = "ios-app", diagnostics = false) {
 	const installation = randomUUID();
 	const baseUrl = "https://readplace.com";
 	const captured: AnalyticsEvent[] = [];
-	const revokedSessions: string[] = [];
+	const revokedSessions: { userId: string; oauthGrantId: string }[] = [];
 	const diagnosticContexts: AuthDiagnosticContext[] = [];
 	const app = express();
 	if (diagnostics) app.use((_req, _res, next) => {
@@ -41,7 +41,7 @@ async function setup(clientId = "ios-app", diagnostics = false) {
 	app.use(createViewerIdentityMiddleware({ edgeSecret: "" }));
 	app.use(express.urlencoded({ extended: false, verify: captureOAuthBody }));
 	app.post("/oauth/token", initTokenExchange({ model, server: new OAuthServer({ model, requireClientAuthentication: { authorization_code: false, refresh_token: false } }), findClient: async id => getBuiltInClient(id), baseUrl, now, salt: "test-salt" }));
-	app.post("/oauth/revoke", express.json({ verify: captureOAuthBody }), initTokenRevocation({ model, baseUrl, destroyUserSessions: async id => { revokedSessions.push(id); }, recordUngatedAnalyticsEvent: event => captured.push(event), now, salt: "test-salt" }));
+	app.post("/oauth/revoke", express.json({ verify: captureOAuthBody }), initTokenRevocation({ model, baseUrl, destroyOAuthGrantSessions: async grant => { revokedSessions.push(grant); }, recordUngatedAnalyticsEvent: event => captured.push(event), now, salt: "test-salt" }));
 	function proof({ body, path, op, nonce, proofId = randomUUID() }: { body: string; path: string; op: string; nonce?: string; proofId?: string }) {
 		const header = Buffer.from(JSON.stringify({ typ: "dpop+jwt", alg: "ES256", jwk })).toString("base64url");
 		const claims = Buffer.from(JSON.stringify({ htu: `${baseUrl}${path}`, htm: "POST", iat: Math.floor(clock.now / 1000), jti: proofId, nonce,
@@ -97,7 +97,7 @@ it("revokes descendants through the historical parent and cannot resurrect them"
 	const logout = await s.revoke(); expect(logout.status).toBe(200);
 	expect(await s.model.getAccessToken(first.body.access_token)).toBeNull();
 	expect((await s.refresh()).body.readplace_reason).toBe("revoked");
-	expect(s.revokedSessions).toEqual([s.user.id]);
+	expect(s.revokedSessions).toEqual([{ userId: s.user.id, oauthGrantId: first.body.readplace.grant_id }]);
 	expect(s.captured).toEqual([expect.objectContaining({ event: "oauth_token_revoked", client_id: "ios-app", grant_id: first.body.readplace.grant_id, outcome: "revoked", token_kind: "refresh" })]);
 });
 
@@ -120,7 +120,7 @@ it("keeps the bound grant a password change was made from: it recovers, rotates 
 	const rotated = await s.refresh({ body, proof: s.proof({ body, path: "/oauth/token", op: next, nonce: s.dpop.nonce(s.thumbprint) }) });
 	expect(rotated.status).toBe(200); expect(rotated.body.readplace).toMatchObject({ generation: 2, recovered: false });
 	expect((await s.revoke({ token: rotated.body.refresh_token })).status).toBe(200);
-	expect(s.revokedSessions).toEqual([s.user.id]);
+	expect(s.revokedSessions).toEqual([{ userId: s.user.id, oauthGrantId: grantId }]);
 	expect(await s.model.getAccessToken(rotated.body.access_token)).toBeNull();
 });
 
@@ -159,10 +159,10 @@ it("validates proofs before consuming authorization codes and issues additive di
 });
 
 it("does not clear newly created website sessions when an already completed native logout is retried", async () => {
-	const s = await setup(); await s.refresh();
+	const s = await setup(); const first = await s.refresh();
 	expect((await s.revoke()).status).toBe(200);
 	expect((await s.revoke()).status).toBe(200);
-	expect(s.revokedSessions).toEqual([s.user.id]);
+	expect(s.revokedSessions).toEqual([{ userId: s.user.id, oauthGrantId: first.body.readplace.grant_id }]);
 	expect(s.captured[1]).toMatchObject({ outcome: "not_found" });
 });
 
@@ -177,7 +177,8 @@ it("returns a retryable 503 when a committed response is missing or revocation s
 it("rejects a revocation that reuses a consumed proof identifier and allows a fresh signed retry", async () => {
 	const s = await setup("ios-app", true);
 	const proofId = randomUUID();
-	expect((await s.refresh({ proof: s.proof({ body: s.body, path: "/oauth/token", op: s.operation, nonce: s.dpop.nonce(s.thumbprint), proofId }) })).status).toBe(200);
+	const first = await s.refresh({ proof: s.proof({ body: s.body, path: "/oauth/token", op: s.operation, nonce: s.dpop.nonce(s.thumbprint), proofId }) });
+	expect(first.status).toBe(200);
 	const operation = randomUUID();
 	const body = JSON.stringify({ token: "parent", client_id: s.client.id, readplace_refresh_protocol: 1, readplace_refresh_operation_id: operation });
 	const replay = await request(s.app).post("/oauth/revoke").type("json").set("DPoP", s.proof({ body, path: "/oauth/revoke", op: operation, nonce: s.dpop.nonce(s.thumbprint), proofId })).send(body);
@@ -188,5 +189,5 @@ it("rejects a revocation that reuses a consumed proof identifier and allows a fr
 	expect(s.revokedSessions).toEqual([]);
 	const retry = await request(s.app).post("/oauth/revoke").type("json").set("DPoP", s.proof({ body, path: "/oauth/revoke", op: operation, nonce: replay.headers["dpop-nonce"] })).send(body);
 	expect(retry.status).toBe(200);
-	expect(s.revokedSessions).toEqual([s.user.id]);
+	expect(s.revokedSessions).toEqual([{ userId: s.user.id, oauthGrantId: first.body.readplace.grant_id }]);
 });

@@ -60,6 +60,8 @@ export type DestroySession = (sessionId: string) => Promise<void>;
 
 export type DestroyUserSessions = (userId: UserId) => Promise<void>;
 
+export type DestroyOAuthGrantSessions = (grant: { userId: UserId; oauthGrantId: OAuthGrantId }) => Promise<void>;
+
 export type SessionObservation = {
 	event: "session_created" | "session_renewed" | "session_deleted" | "session_unavailable";
 	sessionId: string;

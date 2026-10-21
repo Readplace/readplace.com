@@ -12,8 +12,17 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 import type { UserId } from "@packages/domain/user";
 import { MinutesSchema } from "@packages/domain/article";
 import { initIngestRefreshRefusal } from "../../oauth-refresh/ingest-refusal";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
 const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
+
+function sessionIdOf(response: request.Response): string {
+	const setCookie = response.headers["set-cookie"];
+	const cookies = Array.isArray(setCookie) ? setCookie : [];
+	const cookie = cookies.find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
+	assert(cookie, "expected the hutch_sid session cookie");
+	return cookie.slice(`${SESSION_COOKIE_NAME}=`.length).split(";")[0];
+}
 
 function textOf(root: ParentNode, selector: string): string {
 	const element = root.querySelector(selector);
@@ -1062,52 +1071,69 @@ describe("OAuth routes", () => {
 			]);
 		});
 
-		it("destroys all of the user's sessions but only the presented token when the revoked token belongs to the iOS app", async () => {
+		it.each(["ios-app", "android-app"])("destroys only the sessions of the %s grant that signed out, keeping the web login, the extension and another phone", async (clientId) => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const iosClient = await harness.oauthModel.getClient("ios-app", "");
-			assert(iosClient, "Built-in ios-app client must exist");
+			const phoneClient = await harness.oauthModel.getClient(clientId, "");
+			assert(phoneClient, `Built-in ${clientId} client must exist`);
 			const extensionClient = await harness.oauthModel.getClient(TEST_CLIENT_ID, "");
 			assert(extensionClient, "Test client must exist");
+			const issue = async (prefix: string, client: typeof phoneClient) => {
+				await harness.oauthModel.saveToken(
+					{
+						accessToken: `${prefix}-access`,
+						accessTokenExpiresAt: new Date(Date.now() + 3600000),
+						refreshToken: `${prefix}-refresh`,
+						refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+						client,
+						user: { id: TEST_USER_ID, emailVerified: true },
+					},
+					client,
+					{ id: TEST_USER_ID, emailVerified: true },
+				);
+			};
+			await issue("phone-a", phoneClient);
+			await issue("phone-b", phoneClient);
+			await issue("extension", extensionClient);
+			const mintSession = async (accessToken: string) => {
+				const response = await request(harness.server).post("/auth/session").set("Authorization", `Bearer ${accessToken}`);
+				expect(response.status).toBe(204);
+				return sessionIdOf(response);
+			};
+			const renewSession = async (input: { sessionId: string; accessToken: string }) => {
+				const response = await request(harness.server)
+					.post("/auth/session")
+					.set("Cookie", `${SESSION_COOKIE_NAME}=${input.sessionId}`)
+					.set("Authorization", `Bearer ${input.accessToken}`);
+				expect(response.status).toBe(204);
+				expect(sessionIdOf(response)).toBe(input.sessionId);
+			};
 
-			await harness.oauthModel.saveToken(
-				{
-					accessToken: "ios-revoke-access",
-					accessTokenExpiresAt: new Date(Date.now() + 3600000),
-					refreshToken: "ios-revoke-refresh",
-					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
-					client: iosClient,
-					user: { id: TEST_USER_ID },
-				},
-				iosClient,
-				{ id: TEST_USER_ID },
-			);
-			await harness.oauthModel.saveToken(
-				{
-					accessToken: "extension-bystander-access",
-					accessTokenExpiresAt: new Date(Date.now() + 3600000),
-					refreshToken: "extension-bystander-refresh",
-					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
-					client: extensionClient,
-					user: { id: TEST_USER_ID },
-				},
-				extensionClient,
-				{ id: TEST_USER_ID },
-			);
-
-			const sessionA = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
-			const sessionB = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+			const webLogin = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+			const extensionRenewedLogin = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+			await renewSession({ sessionId: extensionRenewedLogin, accessToken: "extension-access" });
+			const phoneAMinted = await mintSession("phone-a-access");
+			const phoneARenewed = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+			await renewSession({ sessionId: phoneARenewed, accessToken: "phone-a-access" });
+			const phoneBMinted = await mintSession("phone-b-access");
 
 			const response = await request(harness.server)
 				.post("/oauth/revoke")
-				.send({ token: "ios-revoke-refresh" });
+				.send({ token: "phone-a-refresh" });
 
 			expect(response.status).toBe(200);
-			expect(await harness.auth.getSessionUserId(sessionA)).toBeNull();
-			expect(await harness.auth.getSessionUserId(sessionB)).toBeNull();
-			expect(await harness.oauthModel.refresh.rotate({ clientId: "ios-app", refreshToken: "ios-revoke-refresh", now: Date.now() })).toMatchObject({ ok: false, reason: "revoked" });
-			const bystander = await harness.oauthModel.getAccessToken("extension-bystander-access");
-			assert(bystander, "The extension token must survive the iOS sign-out so its device re-mints instead of being signed out");
-			expect(bystander.user.id).toBe(TEST_USER_ID);
+			const signedIn = { userId: TEST_USER_ID, emailVerified: true, expiresAt: expect.any(Number) };
+			expect(await harness.auth.getSessionUserId(webLogin)).toEqual(signedIn);
+			expect(await harness.auth.getSessionUserId(extensionRenewedLogin)).toEqual(signedIn);
+			expect(await harness.auth.getSessionUserId(phoneAMinted)).toBeNull();
+			expect(await harness.auth.getSessionUserId(phoneARenewed)).toBeNull();
+			expect(await harness.auth.getSessionUserId(phoneBMinted)).toEqual(signedIn);
+			expect(await harness.oauthModel.refresh.rotate({ clientId, refreshToken: "phone-a-refresh", now: Date.now() })).toMatchObject({ ok: false, reason: "revoked" });
+			const otherPhone = await harness.oauthModel.getAccessToken("phone-b-access");
+			assert(otherPhone, "Another phone's token must survive this phone's sign-out");
+			expect(otherPhone.user.id).toBe(TEST_USER_ID);
+			const extension = await harness.oauthModel.getAccessToken("extension-access");
+			assert(extension, "The extension token must survive the phone sign-out so its device re-mints instead of being signed out");
+			expect(extension.user.id).toBe(TEST_USER_ID);
 		});
 
 		it("keeps other sessions and tokens when the revoked token belongs to an extension", async () => {
@@ -1143,6 +1169,12 @@ describe("OAuth routes", () => {
 			);
 
 			const session = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+			const renewal = await request(harness.server)
+				.post("/auth/session")
+				.set("Cookie", `${SESSION_COOKIE_NAME}=${session}`)
+				.set("Authorization", "Bearer extension-revoke-access");
+			expect(renewal.status).toBe(204);
+			expect(sessionIdOf(renewal)).toBe(session);
 
 			const response = await request(harness.server)
 				.post("/oauth/revoke")
