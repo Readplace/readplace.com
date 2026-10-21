@@ -9,5 +9,5 @@ export function prepareReaderContent(input: { content: ArticleBody; appOrigin: s
 		appHost: new URL(input.appOrigin).host,
 	});
 	const anchored = anchorArticleSections(sanitizeArticleHtml(retargeted));
-	return { html: sanitizeArticleHtml(describeReaderTables(anchored.html)) };
+	return { html: sanitizeArticleHtml(describeReaderTables(anchored)) };
 }

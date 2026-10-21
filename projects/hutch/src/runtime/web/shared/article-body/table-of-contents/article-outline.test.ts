@@ -172,4 +172,14 @@ describe("buildArticleOutline — anchors", () => {
 		expect(ids).toEqual(["section-design", "section-design-2", "section-5", "section-design-3", "section-method"]);
 		expect(ids.every((id) => bodyIds(content).includes(id))).toBe(true);
 	});
+
+	it("leaves out headings of only invisible characters or a permalink glyph, whether or not the body anchored them", () => {
+		const content =
+			'<h2>\u200B</h2><h2>\uFEFF</h2><h2><a href="#a">¶</a></h2><h3>\u200B<a href="#b">🔗</a></h3><h2><a href="#c"></a></h2><h2>Method</h2>';
+
+		const ids = anchorIds(outlineOf({ content, title: TITLE }));
+
+		expect(ids).toEqual(["section-method"]);
+		expect(ids.every((id) => bodyIds(content).includes(id))).toBe(true);
+	});
 });
