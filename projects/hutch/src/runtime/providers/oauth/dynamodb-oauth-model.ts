@@ -31,7 +31,7 @@ import type {
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
-import { generateToken, initOAuthRefresh } from "@packages/domain/oauth";
+import { OAuthSignInSchema, generateToken, initOAuthRefresh } from "@packages/domain/oauth";
 
 function toEpochSeconds(date: Date): number {
 	return Math.floor(date.getTime() / 1000);
@@ -49,6 +49,7 @@ const AuthCodeRow = z.object({
 	emailVerified: z.boolean(),
 	grantId: OAuthGrantId.optional(),
 	epoch: z.number().optional(),
+	signedIn: OAuthSignInSchema.optional(),
 });
 
 export function initRevokeAllUserOAuthTokens(deps: {
@@ -122,6 +123,7 @@ export function initDynamoDbOAuthModel(deps: {
 					scope: code.scope,
 					expiresAt: toEpochSeconds(code.expiresAt),
 					emailVerified: user.emailVerified === true,
+					signedIn: OAuthSignInSchema.optional().parse(user.signedIn),
 				},
 			});
 
@@ -151,7 +153,7 @@ export function initDynamoDbOAuthModel(deps: {
 				codeChallenge: row.codeChallenge,
 				codeChallengeMethod: row.codeChallengeMethod,
 				client: oauthClient,
-				user: { id: row.userId, emailVerified: row.emailVerified, grantId: row.grantId, epoch: row.epoch ?? 0 },
+				user: { id: row.userId, emailVerified: row.emailVerified, grantId: row.grantId, epoch: row.epoch ?? 0, signedIn: row.signedIn },
 			};
 		},
 
@@ -175,7 +177,7 @@ export function initDynamoDbOAuthModel(deps: {
 				grantId: grant.grantId, epoch: typeof user.epoch === "number" ? user.epoch : (await atomic.store.readAccount(user.id)).epoch, generation: 0,
 				userId: user.id, clientId: oauthClient.id, accessToken: token.accessToken, refreshToken,
 				accessExpiresAt: accessTokenExpiresAt.getTime(), refreshExpiresAt: refreshTokenExpiresAt.getTime(),
-				scope: token.scope, emailVerified: user.emailVerified === true,
+				scope: token.scope, emailVerified: user.emailVerified === true, signedIn: OAuthSignInSchema.optional().parse(user.signedIn),
 			});
 
 			// Token issuance is the "used" signal that extends a dynamic client's

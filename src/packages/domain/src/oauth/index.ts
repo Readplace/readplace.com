@@ -15,6 +15,8 @@ export type {
 } from "./oauth.schema";
 export { generateToken } from "./generate-token";
 export { initOAuthRefresh } from "./refresh";
+export { OAuthSignInSchema, SignInBrowserSchema, SignInOsSchema, laterSignIn, oauthSignIn } from "./sign-in";
+export type { OAuthSignIn, OAuthSignInDevice, OAuthSignInLocation, SignInBrowser, SignInOs } from "./sign-in";
 export type { OAuthRefresh, RefreshCredential, RefreshGrant, RefreshHistory, RefreshProof, RefreshStore, RefreshCommit, RefreshFailure, RotateRefreshInput, RotateRefreshResult } from "./refresh";
 export { getBuiltInClient, isBuiltInRedirectUri, revokeDestroysUserSessions } from "./built-in-clients";
 export {

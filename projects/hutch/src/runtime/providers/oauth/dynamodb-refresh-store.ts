@@ -57,12 +57,12 @@ export function initDynamoRefreshStore(deps: { client: DynamoDBDocumentClient; t
 			assert(Attributes); grantId = Attributes.grantId;
 		}
 		return { accessToken: row.accessToken, refreshToken: row.refreshToken, accessExpiresAt: row.accessTokenExpiresAt * 1000, refreshExpiresAt: row.refreshTokenExpiresAt * 1000,
-			grantId, userId: row.userId, clientId: row.clientId, epoch: row.epoch ?? 0, generation: row.generation ?? 0, emailVerified: row.emailVerified === true, scope: row.scope, keyThumbprint: row.keyThumbprint, parentFingerprint: row.parentFingerprint };
+			grantId, userId: row.userId, clientId: row.clientId, epoch: row.epoch ?? 0, generation: row.generation ?? 0, emailVerified: row.emailVerified === true, scope: row.scope, keyThumbprint: row.keyThumbprint, parentFingerprint: row.parentFingerprint, signedIn: row.signedIn };
 	}
 	function tokenItem(value: RefreshCredential) {
 		return { pk: `token#${value.accessToken}`, accessToken: value.accessToken, refreshToken: value.refreshToken, accessTokenExpiresAt: value.accessExpiresAt / 1000,
 			refreshTokenExpiresAt: value.refreshExpiresAt / 1000, expiresAt: Math.ceil(Math.max(value.accessExpiresAt, value.refreshExpiresAt) / 1000), grantId: value.grantId,
-			userId: value.userId, clientId: value.clientId, epoch: value.epoch, generation: value.generation, emailVerified: value.emailVerified, scope: value.scope, keyThumbprint: value.keyThumbprint, parentFingerprint: value.parentFingerprint };
+			userId: value.userId, clientId: value.clientId, epoch: value.epoch, generation: value.generation, emailVerified: value.emailVerified, scope: value.scope, keyThumbprint: value.keyThumbprint, parentFingerprint: value.parentFingerprint, signedIn: value.signedIn };
 	}
 	function newCredential(value: RefreshCredential): Operations {
 		const token = { Put: { TableName, Item: tokenItem(value), ConditionExpression: "attribute_not_exists(pk)" } };

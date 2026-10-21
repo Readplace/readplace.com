@@ -7,6 +7,7 @@ import type {
 	ConnectedAppDialog,
 	ConnectedAppLogo,
 	ConnectedAppRow,
+	ConnectedAppSignIn,
 	ConnectedAppsSectionViewModel,
 } from "./account-connected-apps.view-model";
 
@@ -17,6 +18,13 @@ const LOADER_HTML = renderInFlightDots("account__action-loader in-flight-dots");
 const DISCONNECT_ACTIONS_TEMPLATE =
 	'<form method="POST" action="{{href}}" class="confirm-popover__actions confirm-popover__buttons" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-connected-app-action="disconnect-confirm"><button type="button" class="btn btn--neutral" popovertarget="{{id}}" popovertargetaction="hide" data-test-action="disconnect-app-cancel">Cancel</button><button type="submit" class="btn btn--primary" data-test-action="disconnect-app-confirm" autofocus><span class="account__action-label">Sign out from all devices</span>{{{loaderHtml}}}</button></form>';
 
+const SIGN_IN_TEMPLATE =
+	'{{#if device}}{{device}} · {{/if}}{{#if location}}{{location}} · {{/if}}Signed in <time datetime="{{at.iso}}" data-local-time="{{at.mode}}">{{at.label}}</time>';
+
+function signInHtml(signIn: ConnectedAppSignIn | undefined): string {
+	return signIn === undefined ? "" : render(SIGN_IN_TEMPLATE, signIn);
+}
+
 function logoHtml(logo: ConnectedAppLogo): string {
 	return logo === "plug" ? iconSvg("plug") : CLIENT_ICON_SVG[logo];
 }
@@ -25,6 +33,7 @@ function toTemplateRow(row: ConnectedAppRow) {
 	return {
 		...row,
 		logoHtml: logoHtml(row.logo),
+		signInHtml: signInHtml(row.signIn),
 		disconnects: row.disconnects.map((disconnect) => ({
 			...disconnect,
 			title: row.title,

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type OAuthClient, OAuthClientIdSchema, getBuiltInClient } from "@packages/domain/oauth";
+import { type OAuthClient, OAuthClientIdSchema, type OAuthSignIn, getBuiltInClient } from "@packages/domain/oauth";
 import { JSDOM } from "jsdom";
 import { renderConnectedApps } from "./account-connected-apps.component";
 import { buildConnectedAppsSection } from "./account-connected-apps.view-model";
@@ -19,8 +19,15 @@ function claudeAt(input: { id: string; redirectUri: string }): OAuthClient {
 	};
 }
 
+const NOW = new Date("2026-10-19T09:00:00.000Z");
+const THREE_DAYS_AGO = NOW.getTime() - 3 * 86_400_000;
+
 function sectionFor(clients: readonly OAuthClient[]): Element {
-	const html = renderConnectedApps(buildConnectedAppsSection({ clients, appShell: false, platform: undefined }));
+	return signedInSectionFor(clients.map((client) => ({ client, latestSignIn: undefined })));
+}
+
+function signedInSectionFor(apps: readonly { client: OAuthClient; latestSignIn: OAuthSignIn | undefined }[]): Element {
+	const html = renderConnectedApps(buildConnectedAppsSection({ apps, now: NOW, appShell: false, platform: undefined }));
 	const section = new JSDOM(`<main class="account">${html}</main>`).window.document.querySelector("[data-test-connected-apps]");
 	assert(section, "the connected apps section must render");
 	return section;
@@ -186,6 +193,61 @@ describe("renderConnectedApps", () => {
 				"outerHTML show:none",
 			]);
 		}
+	});
+
+	it("shows the app's latest sign-in under its description, the time a local-time element", () => {
+		const section = signedInSectionFor([
+			{
+				client: builtIn("hutch-chrome-extension"),
+				latestSignIn: { at: THREE_DAYS_AGO, location: { city: "Sydney", country: "AU" }, device: { browser: "chrome", os: "macos" } },
+			},
+		]);
+
+		const row = rowFor(section, "hutch-chrome-extension");
+		expect([...row.querySelectorAll(".account-row__text > *")].map((child) => child.tagName.toLowerCase())).toEqual(["h3", "p", "p"]);
+		const line = row.querySelector("[data-test-connected-app-sign-in]");
+		assert(line, "a signed-in app must render its sign-in line");
+		expect(line.className).toBe("account-row__description");
+		expect(line.textContent).toBe("Chrome on macOS · Sydney, Australia · Signed in 3 days ago");
+		const time = line.querySelector("time");
+		assert(time, "the sign-in time must be a time element");
+		expect([time.getAttribute("datetime"), time.getAttribute("data-local-time")]).toEqual(["2026-10-16T09:00:00.000Z", "relative"]);
+	});
+
+	it.each([
+		[{ at: THREE_DAYS_AGO, location: { country: "AU" } }, "Australia · Signed in 3 days ago"],
+		[{ at: THREE_DAYS_AGO, device: { browser: "safari", os: "ios" } }, "Safari on iOS · Signed in 3 days ago"],
+		[{ at: THREE_DAYS_AGO }, "Signed in 3 days ago"],
+	] as const)("leaves off the parts the sign-in did not record: %o", (latestSignIn, text) => {
+		const section = signedInSectionFor([{ client: builtIn("hutch-chrome-extension"), latestSignIn }]);
+
+		expect(rowFor(section, "hutch-chrome-extension").querySelector("[data-test-connected-app-sign-in]")?.textContent).toBe(text);
+	});
+
+	it("draws no sign-in line for an app with no recorded sign-in", () => {
+		const row = rowFor(sectionFor(CHROME_AND_CLAUDE), "hutch-chrome-extension");
+
+		expect([...row.querySelectorAll(".account-row__text > *")].map((child) => child.className)).toEqual(["account-row__title", "account-row__description"]);
+	});
+
+	it("escapes a city the edge reported with markup in it", () => {
+		const section = signedInSectionFor([
+			{ client: builtIn("hutch-chrome-extension"), latestSignIn: { at: THREE_DAYS_AGO, location: { city: "<b>Sydney</b>" } } },
+		]);
+
+		const line = rowFor(section, "hutch-chrome-extension").querySelector("[data-test-connected-app-sign-in]");
+		assert(line, "the sign-in line must render");
+		expect([line.querySelectorAll("b").length, line.textContent]).toEqual([0, "<b>Sydney</b> · Signed in 3 days ago"]);
+	});
+
+	it("keeps the sign-out controls naming the app and what it does, not its sign-in", () => {
+		const section = signedInSectionFor([
+			{ client: builtIn("hutch-chrome-extension"), latestSignIn: { at: THREE_DAYS_AGO, location: { country: "AU" } } },
+		]);
+
+		expect(triggerIn(rowFor(section, "hutch-chrome-extension")).querySelector(".sr-only")?.textContent).toBe(
+			" Chrome extension, Save any page to Readplace with one click.",
+		);
 	});
 
 	it("keeps one row pointing at the ways to save when nothing is connected", () => {

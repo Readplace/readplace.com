@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { OAuthClient } from "@packages/domain/oauth";
+import type { OAuthClient, OAuthSignIn, SignInBrowser, SignInOs } from "@packages/domain/oauth";
 import {
 	type BuiltInClientName,
 	type ClientName,
@@ -7,7 +7,7 @@ import {
 	clientNameForBuiltInOAuthClientId,
 	isBuiltInOAuthClientId,
 } from "@packages/supported-clients";
-import { withInternalTracking } from "@packages/web-shell";
+import { type LocalTime, toRelativePhrase, withInternalTracking } from "@packages/web-shell";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
 import { findRosterAssistant } from "../../shared/assistant-roster";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../shared/client-surface-phrases";
@@ -29,12 +29,19 @@ export interface ConnectedAppLink {
 	href: string;
 }
 
+export interface ConnectedAppSignIn {
+	device?: string;
+	location?: string;
+	at: LocalTime;
+}
+
 export interface ConnectedAppRow {
 	key: ClientName | "assistant" | "empty";
 	clientId: string;
 	logo: ConnectedAppLogo;
 	title: string;
 	description: string;
+	signIn: ConnectedAppSignIn | undefined;
 	disconnects: ConnectedAppDisconnect[];
 	links: ConnectedAppLink[];
 }
@@ -67,6 +74,28 @@ const BUILT_IN_DISCONNECT_BODY =
 const ASSISTANT_DISCONNECT_BODY =
 	"It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist.";
 
+const BROWSER_LABEL = {
+	chrome: "Chrome",
+	safari: "Safari",
+	firefox: "Firefox",
+	edge: "Edge",
+	samsung_internet: "Samsung Internet",
+	opera: "Opera",
+	other: undefined,
+} satisfies Record<SignInBrowser, string | undefined>;
+
+const OS_LABEL = {
+	windows: "Windows",
+	macos: "macOS",
+	ios: "iOS",
+	android: "Android",
+	chromeos: "ChromeOS",
+	linux: "Linux",
+	other: undefined,
+} satisfies Record<SignInOs, string | undefined>;
+
+const REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+
 const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set(["127.0.0.1", "[::1]"]);
 
 const UNRECOGNISED_RANK = SUPPORTED_CLIENTS.length;
@@ -77,6 +106,7 @@ const EMPTY_ROW: ConnectedAppRow = {
 	logo: "plug",
 	title: "No apps connected yet",
 	description: `Install ${FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE}, or connect an AI assistant, and it shows up here.`,
+	signIn: undefined,
 	disconnects: [],
 	links: [
 		{
@@ -89,6 +119,7 @@ const EMPTY_ROW: ConnectedAppRow = {
 
 interface ConnectedApp {
 	client: OAuthClient;
+	latestSignIn: OAuthSignIn | undefined;
 	rank: number;
 	host: string;
 	key: ClientName | "assistant";
@@ -98,11 +129,13 @@ interface ConnectedApp {
 	body: string;
 }
 
+type AppIdentity = Omit<ConnectedApp, "latestSignIn">;
+
 function rosterRank(name: ClientName): number {
 	return SUPPORTED_CLIENTS.findIndex((client) => client.name === name);
 }
 
-function builtInApp(client: OAuthClient, name: BuiltInClientName): ConnectedApp {
+function builtInApp(client: OAuthClient, name: BuiltInClientName): AppIdentity {
 	const copy = BUILT_IN_APP_COPY[name];
 	return {
 		client,
@@ -116,7 +149,7 @@ function builtInApp(client: OAuthClient, name: BuiltInClientName): ConnectedApp 
 	};
 }
 
-function assistantApp(client: OAuthClient): ConnectedApp {
+function assistantApp(client: OAuthClient): AppIdentity {
 	const redirectUri = client.redirectUris[0];
 	assert(redirectUri, "a registered client always carries at least one redirect URI");
 	const redirect = new URL(redirectUri);
@@ -130,9 +163,42 @@ function assistantApp(client: OAuthClient): ConnectedApp {
 	return { client, host: redirect.host, description, body: ASSISTANT_DISCONNECT_BODY, ...identity };
 }
 
-function connectedApp(client: OAuthClient): ConnectedApp {
+function appIdentity(client: OAuthClient): AppIdentity {
 	if (isBuiltInOAuthClientId(client.id)) return builtInApp(client, clientNameForBuiltInOAuthClientId(client.id));
 	return assistantApp(client);
+}
+
+function connectedApp(input: { client: OAuthClient; latestSignIn: OAuthSignIn | undefined }): ConnectedApp {
+	return { ...appIdentity(input.client), latestSignIn: input.latestSignIn };
+}
+
+function deviceLabel(device: OAuthSignIn["device"]): string | undefined {
+	if (device === undefined) return undefined;
+	const parts = [BROWSER_LABEL[device.browser], OS_LABEL[device.os]].filter((part) => part !== undefined);
+	return parts.length === 0 ? undefined : parts.join(" on ");
+}
+
+function regionName(country: string): string {
+	const name = REGION_NAMES.of(country);
+	assert(name, `${country} must name a region`);
+	return name;
+}
+
+function locationLabel(location: OAuthSignIn["location"]): string | undefined {
+	if (location === undefined) return undefined;
+	const parts = [location.city, location.country === undefined ? undefined : regionName(location.country)].filter((part) => part !== undefined);
+	return parts.length === 0 ? undefined : parts.join(", ");
+}
+
+function signInLine(input: { signIn: OAuthSignIn | undefined; now: Date }): ConnectedAppSignIn | undefined {
+	if (input.signIn === undefined) return undefined;
+	const device = deviceLabel(input.signIn.device);
+	const location = locationLabel(input.signIn.location);
+	return {
+		...(device === undefined ? {} : { device }),
+		...(location === undefined ? {} : { location }),
+		at: toRelativePhrase({ iso: new Date(input.signIn.at).toISOString(), now: input.now }),
+	};
 }
 
 function byRosterThenHost(a: ConnectedApp, b: ConnectedApp): number {
@@ -140,11 +206,12 @@ function byRosterThenHost(a: ConnectedApp, b: ConnectedApp): number {
 }
 
 export function buildConnectedAppsSection(input: {
-	clients: readonly OAuthClient[];
+	apps: readonly { client: OAuthClient; latestSignIn: OAuthSignIn | undefined }[];
+	now: Date;
 	appShell: boolean;
 	platform: NativeClientPlatform | undefined;
 }): ConnectedAppsSectionViewModel {
-	const apps = input.clients.map(connectedApp).sort(byRosterThenHost);
+	const apps = input.apps.map(connectedApp).sort(byRosterThenHost);
 	if (apps.length === 0) return { state: "empty", rows: [EMPTY_ROW], dialogs: [] };
 	const listed = apps.map((app, index) => {
 		const id = `disconnect-app-${index + 1}`;
@@ -158,6 +225,7 @@ export function buildConnectedAppsSection(input: {
 			logo: app.logo,
 			title: app.title,
 			description: app.description,
+			signIn: signInLine({ signIn: app.latestSignIn, now: input.now }),
 			disconnects: [{ href, popoverTarget: id, body: app.body }],
 			links: [],
 		};

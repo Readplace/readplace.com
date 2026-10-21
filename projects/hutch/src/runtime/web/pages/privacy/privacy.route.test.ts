@@ -45,6 +45,17 @@ describe("GET /privacy", () => {
 		]);
 	});
 
+	it("lists what a connected app's sign-in records and where the reader sees it", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const items = Array.from(doc.querySelectorAll(".legal-page__list li"), (item) => item.textContent);
+		expect(items.filter((text) => text?.startsWith("Connected app sign-ins:"))).toEqual([
+			"Connected app sign-ins: when you connect an app or an AI assistant, Readplace records the time you approved it, the browser and operating system you approved it from, and the city and country your network address pointed to at that moment. These show under Connected apps on your Account page and are deleted when that sign-in ends.",
+		]);
+	});
+
 	it("names the homepage experiment cookie among the first-party cookies", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
@@ -56,7 +67,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 17 October 2026");
+		expect(response.text).toContain("Last updated: 19 October 2026");
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {

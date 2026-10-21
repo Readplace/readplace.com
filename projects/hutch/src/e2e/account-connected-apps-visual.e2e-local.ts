@@ -36,6 +36,9 @@ const SEE_WAYS_TO_SAVE = `${EMPTY_ROW} [data-test-connected-app-action="see-ways
 const DIALOG = '[data-test-confirm-popover="disconnect-app"]';
 const DIALOG_CANCEL = `${DIALOG} [data-test-action="disconnect-app-cancel"]`;
 const DIALOG_COMMIT = `${DIALOG} [data-test-action="disconnect-app-confirm"]`;
+const SIGN_IN_PINNED = [
+	{ selector: `${CHROME_ROW} [data-test-connected-app-sign-in]`, text: "Chrome on macOS · Sydney, Australia · Signed in 3 days ago" },
+];
 const IDENTITY_PINNED = [
 	{ selector: '[data-test-account-profile-line="email"]', text: "reader@example.com" },
 	{ selector: "[data-test-account-profile-initials]", text: "RE" },
@@ -190,14 +193,18 @@ async function phoneDialogGeometry(page: Page): Promise<void> {
 	}
 }
 
-function sectionCheckpoint(input: { name: string; geometry: (page: Page) => Promise<void> }): VisualCheckpoint {
+function sectionCheckpoint(input: {
+	name: string;
+	geometry: (page: Page) => Promise<void>;
+	pinnedText: VisualCheckpoint["pinnedText"];
+}): VisualCheckpoint {
 	return {
 		name: input.name,
 		settled: restingPage,
 		geometry: input.geometry,
 		target: SECTION,
 		capture: "element",
-		pinnedText: [],
+		pinnedText: input.pinnedText,
 	};
 }
 
@@ -222,7 +229,7 @@ test.describe("Account Connected apps at the design width", () => {
 			await page.emulateMedia({ colorScheme: theme });
 			await signIn(page, { stamp: `listed-${theme}-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 			await openAccount(page);
-			await captureCheckpoint(page, sectionCheckpoint({ name: `account-connected-apps-${theme}`, geometry: desktopListedGeometry }));
+			await captureCheckpoint(page, sectionCheckpoint({ name: `account-connected-apps-${theme}`, geometry: desktopListedGeometry, pinnedText: SIGN_IN_PINNED }));
 		});
 
 		test(`asks before it disconnects the Chrome extension (${theme})`, async ({ page }, testInfo) => {
@@ -238,7 +245,7 @@ test.describe("Account Connected apps at the design width", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await signIn(page, { stamp: `empty-${testInfo.workerIndex}-${Date.now()}`, grants: "none" });
 		await openAccount(page);
-		await captureCheckpoint(page, sectionCheckpoint({ name: "account-connected-apps-empty-light", geometry: emptyGeometry }));
+		await captureCheckpoint(page, sectionCheckpoint({ name: "account-connected-apps-empty-light", geometry: emptyGeometry, pinnedText: [] }));
 	});
 });
 
@@ -249,7 +256,7 @@ test.describe("Account Connected apps on a phone", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await signIn(page, { stamp: `listed-phone-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 		await openAccount(page);
-		await captureCheckpoint(page, sectionCheckpoint({ name: "account-connected-apps-phone", geometry: phoneListedGeometry }));
+		await captureCheckpoint(page, sectionCheckpoint({ name: "account-connected-apps-phone", geometry: phoneListedGeometry, pinnedText: SIGN_IN_PINNED }));
 	});
 
 	test("stacks the Disconnect dialog's buttons with Disconnect on top", async ({ page }, testInfo) => {
@@ -281,6 +288,13 @@ test.describe("Account Connected apps in greyscale", () => {
 		await signIn(page, { stamp: `eink-${testInfo.workerIndex}-${Date.now()}`, grants: "chrome" });
 		await openAccount(page);
 		await restingPage(page);
+		await page.evaluate((pins) => {
+			for (const pin of pins) {
+				const pinned = document.querySelector(pin.selector);
+				if (!pinned) throw new Error(`pinned text selector "${pin.selector}" matched nothing`);
+				pinned.textContent = pin.text;
+			}
+		}, SIGN_IN_PINNED);
 		let previous = "";
 		await expect
 			.poll(async () => {

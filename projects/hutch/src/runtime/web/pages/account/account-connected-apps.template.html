@@ -8,6 +8,7 @@
                 <div class="account-row__text">
                   <h3 class="account-row__title">{{title}}</h3>
                   <p class="account-row__description">{{description}}</p>
+                  {{#if signInHtml}}<p class="account-row__description" data-test-connected-app-sign-in>{{{signInHtml}}}</p>{{/if}}
                 </div>
                 <div class="account-row__actions">
                   {{#each disconnects}}

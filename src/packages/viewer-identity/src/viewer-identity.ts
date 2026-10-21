@@ -10,10 +10,20 @@ export const EDGE_SECRET_HEADER = "x-readplace-edge-secret";
 export const VIEWER_PATH_HEADER = "x-readplace-viewer-path";
 export const VIEWER_IP_HEADER = "x-readplace-viewer-ip";
 export const VIEWER_HOST_HEADER = "x-readplace-viewer-host";
+export const VIEWER_CITY_HEADER = "cloudfront-viewer-city";
+export const VIEWER_COUNTRY_HEADER = "cloudfront-viewer-country";
+
+const ViewerCountrySchema = z.string().regex(/^[A-Z]{2}$/);
+
+export interface ViewerLocation {
+	city?: string;
+	country?: string;
+}
 
 export interface ViewerIdentity {
 	ip: ViewerIp | undefined;
 	host: string | undefined;
+	location: ViewerLocation | undefined;
 }
 
 declare global {
@@ -45,6 +55,16 @@ function toViewerIp(value: string | undefined): ViewerIp | undefined {
 	return value === undefined ? undefined : ViewerIpSchema.parse(value);
 }
 
+function statedLocation(req: Request): ViewerLocation | undefined {
+	const city = headerValue(req, VIEWER_CITY_HEADER);
+	const country = ViewerCountrySchema.safeParse(headerValue(req, VIEWER_COUNTRY_HEADER));
+	const location: ViewerLocation = {
+		...(city === undefined ? {} : { city: decodeURIComponent(city) }),
+		...(country.success ? { country: country.data } : {}),
+	};
+	return Object.keys(location).length === 0 ? undefined : location;
+}
+
 /**
  * Behind a CDN the socket address belongs to the edge, so every viewer served by
  * one point of presence would share a rate-limit bucket and an analytics
@@ -60,6 +80,7 @@ export function initResolveViewerIdentity(deps: { edgeSecret: string }) {
 		const fromSocket: ViewerIdentity = {
 			ip: toViewerIp(req.ip),
 			host: headerValue(req, "host"),
+			location: undefined,
 		};
 
 		if (!isTrustedEdge(req, deps.edgeSecret)) return fromSocket;
@@ -69,6 +90,7 @@ export function initResolveViewerIdentity(deps: { edgeSecret: string }) {
 		return {
 			ip: statedIp === undefined ? fromSocket.ip : statedIp,
 			host: statedHost === undefined ? fromSocket.host : statedHost,
+			location: statedLocation(req),
 		};
 	};
 }
