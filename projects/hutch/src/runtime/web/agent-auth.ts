@@ -4,12 +4,12 @@ import { join } from "node:path";
 const AUTH_MD_TEMPLATE = readFileSync(join(__dirname, "auth-md.template.md"), "utf-8");
 
 /**
- * A Readplace access token grants full read/write access to one user's reading
- * queue; the authorization flow never sub-divides that access, so a single
+ * A Readplace access token grants full read/write access to one user's
+ * account; the authorization flow never sub-divides that access, so a single
  * coarse scope is the honest description. Advertised in the protected-resource
  * metadata and documented in auth.md.
  */
-export const AGENT_SCOPES_SUPPORTED = ["queue"] as const;
+export const AGENT_SCOPES_SUPPORTED = ["account"] as const;
 
 interface AgentAuthRegistrationMethod {
 	type: "oauth2_authorization_code_pkce";

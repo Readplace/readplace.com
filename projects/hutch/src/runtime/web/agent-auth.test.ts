@@ -91,12 +91,12 @@ describe("renderAuthMarkdown", () => {
 		expect(markdown).toContain("https://readplace.com/oauth/revoke");
 	});
 
-	it("documents queue as the single full-access level it advertises, without overstating enforcement", () => {
-		expect(AGENT_SCOPES_SUPPORTED).toEqual(["queue"]);
+	it("documents account as the single full-access level it advertises, without overstating enforcement", () => {
+		expect(AGENT_SCOPES_SUPPORTED).toEqual(["account"]);
 		const markdown = renderAuthMarkdown(BASE_URL);
 		expect(markdown).toContain("full read/write access");
 		expect(markdown).toContain("does not sub-divide");
-		expect(markdown).toContain("`queue`");
+		expect(markdown).toContain("`account`");
 	});
 
 	it("documents the dynamic client registration endpoint for client_id provisioning", () => {
