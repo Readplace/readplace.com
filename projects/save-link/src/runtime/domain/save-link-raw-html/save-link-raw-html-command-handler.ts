@@ -90,7 +90,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					await transitionAndPersist(markCrawlFailed, {
 						url: detail.url,
 						input: {
-							reason: { kind: "capture-unreadable", detail: finalized.reason },
+							reason: { kind: detail.captureTrigger === "automatic" ? "parse-error" : "capture-unreadable", detail: finalized.reason },
 						},
 					});
 					throw new Error(`save-link-raw-html parse failed for ${detail.url}: ${finalized.reason}`);

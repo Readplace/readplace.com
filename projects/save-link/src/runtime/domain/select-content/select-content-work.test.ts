@@ -269,6 +269,16 @@ describe("initSelectContentWork", () => {
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "capture-unreadable", detail: "no readable article candidate: Nothing readable" } } }));
 	});
 
+	it("lets a refused live response explain an automatic capture that nothing could read", async () => {
+		const capture = source("tier-0");
+		capture.metadata.captureTrigger = "automatic";
+		const live = source();
+		live.metadata.httpStatus = 404;
+		const { work, deps } = setup({ listAvailableTierSources: async () => [capture, live], selectMostCompleteContent: async () => ({ kind: "none", reason: "Nothing readable" }) });
+		await work(request);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "not-found", httpStatus: 404 } } }));
+	});
+
 	it("does not call a capture from an earlier attempt this save's capture when nothing is readable", async () => {
 		const { work, deps } = setup({ listAvailableTierSources: async () => [source("tier-0"), source()], selectMostCompleteContent: async () => ({ kind: "none", reason: "Nothing readable" }) });
 		await work(laterRequest);

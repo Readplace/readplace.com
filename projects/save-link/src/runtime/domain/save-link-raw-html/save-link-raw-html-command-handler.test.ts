@@ -169,6 +169,19 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		);
 	});
 
+	it("records an automatic capture that fails to parse as a parse error, not as the reader's unreadable capture", async () => {
+		const finalizeArticle: FinalizeArticle = async () => ({ ok: false, reason: "Readability returned null" });
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const { handler } = createHandler({ finalizeArticle, transitionAndPersist });
+
+		await handler(createSqsEvent({ url: "https://example.com/bad", userId: "user-1", captureTrigger: "automatic" }), buildLambdaContext(), () => {});
+
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+			url: "https://example.com/bad",
+			input: { reason: { kind: "parse-error", detail: "Readability returned null" } },
+		});
+	});
+
 	it("emits logParseError before reporting the record as a batch failure, so the failure reaches the parse-errors dashboard", async () => {
 		const finalizeArticle: FinalizeArticle = async () => ({ ok: false, reason: "no-readable-content" });
 		const { handler, deps } = createHandler({ finalizeArticle });

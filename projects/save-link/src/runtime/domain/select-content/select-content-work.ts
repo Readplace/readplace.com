@@ -51,7 +51,7 @@ type SelectContentRequest = {
 function noReadableReason(params: { selection: PreparedContentSelection; saveAttemptId: SaveAttemptId; liveAttempt?: LiveAttempt }): CrawlFailureReason {
 	const { selection, saveAttemptId } = params;
 	const detail = `no readable article candidate: ${selection.reason}`;
-	if (selection.sources.some((source) => source.tier === "tier-0" && source.metadata.attemptId === saveAttemptId)) return { kind: "capture-unreadable", detail };
+	if (selection.sources.some((source) => source.tier === "tier-0" && source.metadata.captureTrigger !== "automatic" && source.metadata.attemptId === saveAttemptId)) return { kind: "capture-unreadable", detail };
 	const httpStatus = selection.sources.find((source) => source.metadata.kind === "live" && source.metadata.attemptId === saveAttemptId)?.metadata.httpStatus;
 	if (httpStatus === 404 || httpStatus === 410) return { kind: "not-found", httpStatus };
 	if (httpStatus !== undefined && (httpStatus === 429 || isBlockClassStatus(httpStatus))) return { kind: "blocked", cause: blockedCauseForStatus(httpStatus) };
