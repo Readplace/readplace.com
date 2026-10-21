@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { captureCheckpoint, expect, measuredBox, test, type VisualCheckpoint } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { suppressVolatileChrome } from "./admin-dashboards-visual.browser";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
 import { fitViewportToPage } from "./fit-viewport-to-page";
 import { pageOverflowsSideways } from "./page-measurements.browser";
@@ -30,11 +31,6 @@ const SCENARIOS = [
 	{ name: "mcp", path: "/admin/dashboards/mcp", target: 'main[data-test-admin-dashboard="mcp"]' },
 	{ name: "login", path: "/admin/dashboards/login", target: 'main[data-test-admin-dashboard="login"]' },
 ] as const;
-
-function suppressVolatileChrome(volatile: readonly string[]): void {
-	for (const selector of volatile) document.querySelector(selector)?.remove();
-	if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-}
 
 async function settle(page: Page): Promise<void> {
 	await page.mouse.move(0, 0);
