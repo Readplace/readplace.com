@@ -28,6 +28,7 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 			imageUrl: "https://example.com/image.jpg",
 		},
 		content: "<p>Full article content</p>",
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: 5 as Minutes,
 		status: "unread" as ArticleStatus,
 		savedAt: new Date("2026-03-04T10:00:00.000Z"),

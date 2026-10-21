@@ -320,4 +320,31 @@ describe("Reader view browser cache (GET /queue/:id/view)", () => {
 			expect.objectContaining({ id: articleId, contentVersion: version }),
 		]);
 	});
+
+	it("re-versions the card link, the iOS reader and the Siren entity when only the served body changes", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-served-body";
+		const { agent, userId } = await saveArticle(harness, url);
+		await settleRelated(fixture, userId, url);
+		const { articleId, version: before } = readerVersionFrom((await agent.get("/queue")).text);
+
+		await fixture.articleStore.writeContent({ url, content: "<p>Another body under the same metadata.</p>" });
+
+		const { version: after } = readerVersionFrom((await agent.get("/queue")).text);
+		const iosReader = await agent.get(`/queue/${articleId}/view?platform=ios`);
+		const accessToken = await saveAccessTokenForUser(harness, userId);
+		const collection = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+		const staleReader = await agent.get(`/queue/${articleId}/view?v=${before}`);
+
+		expect(after).not.toBe(before);
+		expect(iosReader.headers[ARTICLE_VERSION_HEADER.toLowerCase()]).toBe(after);
+		expect(collection.body.entities.map((entity: { properties: { id: string; contentVersion: string } }) => entity.properties)).toEqual([
+			expect.objectContaining({ id: articleId, contentVersion: after }),
+		]);
+		expect(staleReader.headers["cache-control"]).toBe("private, no-cache");
+	});
 });

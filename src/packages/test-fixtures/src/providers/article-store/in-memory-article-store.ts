@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { createHash } from "node:crypto";
 import type {
 	ArticleDiscoveryQuery,
 	ArticleMetadata,
@@ -6,6 +7,7 @@ import type {
 	Minutes,
 	SaveProvenance,
 	SavedArticle,
+	ServedBody,
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
@@ -118,6 +120,12 @@ interface UserArticle {
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
 }
 
+function servedBodyOf(article: GlobalArticle): ServedBody {
+	if (article.purgedAt !== undefined) return { kind: "withheld" };
+	if (article.content === undefined) return { kind: "legacy" };
+	return { kind: "committed", location: `memory://content/${createHash("sha256").update(article.content).digest("hex")}` };
+}
+
 function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): SavedArticle {
 	const destinationUrl = articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl });
 	return {
@@ -135,7 +143,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 			imageUrl: article.metadata.imageUrl,
 		}),
 		content: article.content,
-
+		servedBody: servedBodyOf(article),
 		estimatedReadTime: article.estimatedReadTime,
 		status: userArticle.status,
 		savedAt: userArticle.savedAt,

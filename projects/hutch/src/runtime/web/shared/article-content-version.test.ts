@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { ServedBody } from "@packages/domain/article";
 import { siteLabel } from "../test-helpers/article-fixtures";
 import { computeArticleContentVersion, type ArticleContentVersionInput } from "./article-content-version";
 
@@ -13,6 +14,7 @@ function baseInput(overrides?: Partial<ArticleContentVersionInput>): ArticleCont
 				imageUrl: "https://cdn.example.com/img.jpg",
 			},
 			contentFetchedAt: new Date("2026-03-26T14:32:00.000Z"),
+			servedBody: { kind: "legacy" },
 		},
 		crawl: { status: "ready" },
 		summary: { status: "ready", summary: "TL;DR", excerpt: "short" },
@@ -23,14 +25,45 @@ function baseInput(overrides?: Partial<ArticleContentVersionInput>): ArticleCont
 function withMetadata(
 	metadata: ArticleContentVersionInput["article"]["metadata"],
 ): ArticleContentVersionInput {
-	return baseInput({ article: { metadata, contentFetchedAt: undefined } });
+	return baseInput({ article: { metadata, contentFetchedAt: undefined, servedBody: { kind: "legacy" } } });
 }
+
+function withServedBody(servedBody: ServedBody): ArticleContentVersionInput {
+	return baseInput({ article: { ...baseInput().article, servedBody } });
+}
+
+const firstCandidate = "s3://content/articles/a/sources/tier-1.html.candidates/aaa/content.html";
+const secondCandidate = "s3://content/articles/a/sources/tier-1.html.candidates/bbb/content.html";
 
 describe("computeArticleContentVersion", () => {
 	it("returns a stable 16-hex token for identical input", () => {
 		const token = computeArticleContentVersion(baseInput());
 		assert.match(token, /^[0-9a-f]{16}$/);
 		assert.equal(token, computeArticleContentVersion(baseInput()));
+	});
+
+	it("keeps the token of a legacy body unchanged", () => {
+		assert.equal(computeArticleContentVersion(baseInput()), "052e8226c4fee7b1");
+	});
+
+	it("changes when the committed body moves to another candidate", () => {
+		const first = computeArticleContentVersion(withServedBody({ kind: "committed", location: firstCandidate }));
+		const second = computeArticleContentVersion(withServedBody({ kind: "committed", location: secondCandidate }));
+		assert.notEqual(first, second);
+	});
+
+	it("changes when a legacy body is replaced by a committed one", () => {
+		const legacy = computeArticleContentVersion(withServedBody({ kind: "legacy" }));
+		const committed = computeArticleContentVersion(withServedBody({ kind: "committed", location: firstCandidate }));
+		assert.notEqual(legacy, committed);
+	});
+
+	it("changes when the served body is withheld", () => {
+		const legacy = computeArticleContentVersion(withServedBody({ kind: "legacy" }));
+		const committed = computeArticleContentVersion(withServedBody({ kind: "committed", location: firstCandidate }));
+		const withheld = computeArticleContentVersion(withServedBody({ kind: "withheld" }));
+		assert.notEqual(legacy, withheld);
+		assert.notEqual(committed, withheld);
 	});
 
 	it("changes when the title changes", () => {
@@ -120,12 +153,12 @@ describe("computeArticleContentVersion", () => {
 	it("changes when contentFetchedAt changes even if every metadata field is identical", () => {
 		const metadata = { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 1 } as const;
 		const earlier = baseInput({
-			article: { metadata: { ...metadata }, contentFetchedAt: new Date("2026-01-01T00:00:00.000Z") },
+			article: { metadata: { ...metadata }, contentFetchedAt: new Date("2026-01-01T00:00:00.000Z"), servedBody: { kind: "legacy" } },
 			crawl: { status: "ready" },
 			summary: undefined,
 		});
 		const later = baseInput({
-			article: { metadata: { ...metadata }, contentFetchedAt: new Date("2026-02-01T00:00:00.000Z") },
+			article: { metadata: { ...metadata }, contentFetchedAt: new Date("2026-02-01T00:00:00.000Z"), servedBody: { kind: "legacy" } },
 			crawl: { status: "ready" },
 			summary: undefined,
 		});
@@ -137,6 +170,7 @@ describe("computeArticleContentVersion", () => {
 			article: {
 				metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 1 },
 				contentFetchedAt: undefined,
+				servedBody: { kind: "legacy" },
 			},
 		});
 		assert.equal(computeArticleContentVersion(legacy), computeArticleContentVersion(legacy));

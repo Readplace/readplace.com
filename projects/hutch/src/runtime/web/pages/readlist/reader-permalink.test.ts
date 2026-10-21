@@ -25,6 +25,7 @@ function savedArticleFor(userId = OWNER_ID): SavedArticle {
 		url: ARTICLE_URL,
 		destinationUrl: destinationUrl(ARTICLE_URL),
 		metadata: { title: "Post", siteName: siteLabel("example.com"), excerpt: "", wordCount: 100 },
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: 1 as Minutes,
 		status: "unread",
 		savedAt: new Date("2026-01-01T00:00:00.000Z"),

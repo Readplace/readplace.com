@@ -1136,6 +1136,7 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 						url: "archive.ph/abc12", routeId: archiveId.value, originalUrl: archiveUrl,
 						contentSourceUrl: archiveUrl, contentSourceTier: "tier-2",
 						canonicalCandidateId: "rebuilt-candidate", canonicalOriginalUrl: URL, displayUrl: URL,
+						contentLocation: "s3://content/rebuilt.html",
 						content: "<p>Verified rebuilt article</p>",
 					})],
 					Count: 1,
@@ -1213,6 +1214,25 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
 
 		expect(article?.contentFetchedAt).toEqual(new Date("2026-05-10T12:00:00.000Z"));
+	});
+
+	it.each([
+		{
+			name: "a committed candidate at its content location",
+			fields: { canonicalCandidateId: "committed-candidate", canonicalOriginalUrl: URL, contentLocation: "s3://content/articles/a/candidates/aaa/content.html" },
+			servedBody: { kind: "committed", location: "s3://content/articles/a/candidates/aaa/content.html" },
+		},
+		{ name: "the legacy body of a row without a candidate", fields: {}, servedBody: { kind: "legacy" } },
+		{ name: "a withheld body for a purged row", fields: { purgedAt: "2026-10-05T00:00:00.000Z" }, servedBody: { kind: "withheld" } },
+	])("findArticleById serves $name", async ({ fields, servedBody }) => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem(fields)], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.servedBody).toEqual(servedBody);
 	});
 
 	it("findArticleById leaves contentFetchedAt undefined on a legacy row that never recorded one", async () => {
@@ -1346,8 +1366,30 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #purgedAt, #readerAvailableAt, #contentFetchedAt",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt",
 		);
+	});
+
+	it("maps the projected content location onto the served body when excludeContent is set", async () => {
+		const location = "s3://content/articles/a/candidates/aaa/content.html";
+		const { client } = createFakeClient({
+			QueryCommand: {
+				readlist: [{ Items: [userArticleItem()], Count: 1 }],
+			},
+			BatchGetCommand: {
+				default: {
+					Responses: {
+						articles: [articleItem({
+							content: undefined, canonicalCandidateId: "committed-candidate", canonicalOriginalUrl: URL, contentLocation: location,
+						})],
+					},
+				},
+			},
+		});
+
+		const result = await initStore(client).findArticlesByUser({ userId: USER, excludeContent: true });
+
+		expect(result.articles[0]?.servedBody).toEqual({ kind: "committed", location });
 	});
 
 	it("sums COUNT pages and walks item pages, skipping earlier pages to reach the requested page", async () => {
@@ -1727,7 +1769,7 @@ describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #purgedAt, #readerAvailableAt, #contentFetchedAt",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt",
 		);
 		expect(
 			page.candidates.map((candidate) => ({

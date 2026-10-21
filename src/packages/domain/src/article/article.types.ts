@@ -17,6 +17,8 @@ export interface ArticleMetadata {
 	imageUrl?: string;
 }
 
+export type ServedBody = { kind: "legacy" } | { kind: "withheld" } | { kind: "committed"; location: string };
+
 type DisplayMetadata = Omit<ArticleMetadata, "siteName"> & { siteName: SiteLabel };
 
 export interface SavedArticle {
@@ -28,6 +30,7 @@ export interface SavedArticle {
 	destinationUrl: ArticleDestinationUrl;
 	metadata: DisplayMetadata;
 	content?: string;
+	servedBody: ServedBody;
 	estimatedReadTime: Minutes;
 	status: ArticleStatus;
 	savedAt: Date;

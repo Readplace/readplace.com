@@ -43,6 +43,7 @@ function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 			imageUrl: "https://example.com/i.png",
 		},
 		content: "<p>body</p>",
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(2),
 		status: "unread",
 		savedAt: new Date("2026-01-01T00:00:00.000Z"),

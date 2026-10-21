@@ -3,6 +3,7 @@ export type {
 	ArticleStatus,
 	ArticleMetadata,
 	SavedArticle,
+	ServedBody,
 } from "./article.types";
 export {
 	CRAWL_STAGE_TO_PCT,
