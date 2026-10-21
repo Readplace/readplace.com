@@ -15,15 +15,36 @@ const PRE_PADDING_PX = 32;
 const MAX_SPAN = 1000;
 const GLYPH_PX = { plain: 10.5, header: 11, code: 9 } as const;
 const LABEL_SEPARATOR = " · ";
+const LABEL_HTML_PER_BODY_CHARACTER = 3;
+const WORK_PER_BODY_CHARACTER = 2;
+const LABEL_ATTRIBUTE = ` ${READER_CELL_LABEL_ATTRIBUTE}=""`;
+const ESCAPED_IN_ATTRIBUTE = /["&<>]/;
+const LONGEST_ATTRIBUTE_ESCAPE = "&quot;";
 const ROW_GROUP_TAGS = new Set(["THEAD", "TBODY", "TFOOT"]);
+const CODE_TAGS = ["CODE", "KBD", "SAMP"];
+const LIST_TAGS = ["UL", "OL"];
+const TEXT_NODE = 3;
+
+interface Budget {
+	labelHtml: number;
+	work: number;
+}
 
 interface TableRow {
 	row: Element;
 	inHead: boolean;
 }
 
+interface CellContent {
+	text: string;
+	holdsContent: boolean;
+	needPx: number;
+	readWork: number;
+}
+
 interface PlacedCell {
 	cell: Element;
+	content: CellContent;
 	row: number;
 	column: number;
 	columnSpan: number;
@@ -32,7 +53,12 @@ interface PlacedCell {
 
 interface Heading {
 	placed: PlacedCell;
-	text: string;
+	htmlLength: number;
+}
+
+interface Label {
+	placed: PlacedCell;
+	over: readonly Heading[];
 }
 
 function ownRows(table: Element): TableRow[] {
@@ -54,6 +80,58 @@ function spanOf(input: { cell: Element; attribute: "colspan" | "rowspan" }): num
 	return span >= 1 ? Math.min(span, MAX_SPAN) : 1;
 }
 
+function spend(input: { budget: Budget; work: number }): boolean {
+	input.budget.work -= input.work;
+	return input.budget.work >= 0;
+}
+
+function gridWork(input: { rows: readonly TableRow[]; headerRows: ReadonlySet<number> }): number {
+	let work = 0;
+	for (const [index, { row }] of input.rows.entries()) {
+		const lookups = input.headerRows.has(index) ? 0 : input.headerRows.size;
+		for (const cell of cellsOf(row)) {
+			const rowSpan = Math.min(spanOf({ cell, attribute: "rowspan" }), input.rows.length - index);
+			work += spanOf({ cell, attribute: "colspan" }) * rowSpan + lookups;
+		}
+	}
+	return work;
+}
+
+function needPx(input: { element: Element; text: string; tags: ReadonlySet<string> }): number {
+	const preformatted = input.tags.has("PRE");
+	const glyphPx =
+		preformatted || CODE_TAGS.some((tag) => input.tags.has(tag))
+			? GLYPH_PX.code
+			: input.element.tagName === "TH"
+				? GLYPH_PX.header
+				: GLYPH_PX.plain;
+	const longestRun = input.text
+		.split(preformatted ? /\n/ : /[ \t\n\r\f]+/)
+		.reduce((longest, run) => Math.max(longest, run.length), 0);
+	const listIndentPx = LIST_TAGS.some((tag) => input.tags.has(tag)) ? LIST_INDENT_PX : 0;
+	return longestRun * glyphPx + listIndentPx + (preformatted ? PRE_PADDING_PX : 0);
+}
+
+function readContent(element: Element): CellContent {
+	const walker = element.ownerDocument.createTreeWalker(element);
+	const texts: string[] = [];
+	const tags = new Set<string>();
+	let nodes = 0;
+	for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+		nodes++;
+		if (node.nodeType === TEXT_NODE) texts.push(String(node.nodeValue));
+		else tags.add(node.nodeName);
+	}
+	const text = texts.join("");
+	const collapsed = text.replace(/\s+/g, " ").trim();
+	return {
+		text: collapsed,
+		holdsContent: collapsed !== "" || tags.has("IMG"),
+		needPx: needPx({ element, text, tags }),
+		readWork: nodes + text.length,
+	};
+}
+
 function placeCells(rows: readonly TableRow[]): PlacedCell[] {
 	const occupiedUntilRow: number[] = [];
 	const placed: PlacedCell[] = [];
@@ -63,22 +141,16 @@ function placeCells(rows: readonly TableRow[]): PlacedCell[] {
 			while ((occupiedUntilRow[column] ?? 0) > rowIndex) column++;
 			const columnSpan = spanOf({ cell, attribute: "colspan" });
 			const rowSpan = spanOf({ cell, attribute: "rowspan" });
-			placed.push({ cell, row: rowIndex, column, columnSpan, rowSpan });
-			for (let spanned = column; spanned < column + columnSpan; spanned++) {
-				occupiedUntilRow[spanned] = Math.max(occupiedUntilRow[spanned] ?? 0, rowIndex + rowSpan);
+			placed.push({ cell, content: readContent(cell), row: rowIndex, column, columnSpan, rowSpan });
+			if (rowSpan > 1) {
+				for (let spanned = column; spanned < column + columnSpan; spanned++) {
+					occupiedUntilRow[spanned] = Math.max(occupiedUntilRow[spanned] ?? 0, rowIndex + rowSpan);
+				}
 			}
 			column += columnSpan;
 		}
 	}
 	return placed;
-}
-
-function textOf(element: Element): string {
-	return String(element.textContent).replace(/\s+/g, " ").trim();
-}
-
-function holdsContent(cell: Element): boolean {
-	return textOf(cell) !== "" || cell.querySelector("img") !== null;
 }
 
 function headerRowIndexes(rows: readonly TableRow[]): number[] {
@@ -94,72 +166,90 @@ function headerRowIndexes(rows: readonly TableRow[]): number[] {
 	return Array.from({ length: leadingRows }, (_, index) => index);
 }
 
-function labelCells(input: { rows: readonly TableRow[]; placed: readonly PlacedCell[] }): void {
-	const headerRows = new Set(headerRowIndexes(input.rows));
+function htmlLengthInAttribute(text: string): number {
+	const escapes = text.split(ESCAPED_IN_ATTRIBUTE).length - 1;
+	return text.length + escapes * (LONGEST_ATTRIBUTE_ESCAPE.length - 1);
+}
+
+function headingOver(input: { headings: readonly Heading[]; placed: PlacedCell }): Heading[] {
+	let low = 0;
+	let high = input.headings.length;
+	while (low < high) {
+		const middle = Math.floor((low + high) / 2);
+		if (input.headings[middle].placed.column <= input.placed.column) low = middle + 1;
+		else high = middle;
+	}
+	const heading = input.headings[low - 1];
+	return heading !== undefined &&
+		heading.placed.column + heading.placed.columnSpan >= input.placed.column + input.placed.columnSpan
+		? [heading]
+		: [];
+}
+
+function labelCells(input: {
+	rows: readonly TableRow[];
+	placed: readonly PlacedCell[];
+	headerRows: ReadonlySet<number>;
+	budget: Budget;
+}): void {
 	const columnCount = input.placed.reduce((count, placed) => Math.max(count, placed.column + placed.columnSpan), 0);
-	const headerCells = input.placed.filter((placed) => headerRows.has(placed.row));
+	const headerCells = input.placed.filter((placed) => input.headerRows.has(placed.row));
 	const titleRows = new Set(
 		headerCells.filter((placed) => placed.column === 0 && placed.columnSpan >= columnCount).map((placed) => placed.row),
 	);
 	const headingCells = headerCells.filter((placed) => !titleRows.has(placed.row));
-	const headingsByColumn = new Map<number, Heading[]>();
+	const headingsByRow = new Map<number, Heading[]>();
 	for (const placed of headingCells) {
-		const text = textOf(placed.cell);
-		if (text === "") continue;
-		for (let column = placed.column; column < placed.column + placed.columnSpan; column++) {
-			const headings = headingsByColumn.get(column) ?? [];
-			headings.push({ placed, text });
-			headingsByColumn.set(column, headings);
-		}
+		if (placed.content.text === "") continue;
+		const headings = headingsByRow.get(placed.row) ?? [];
+		headings.push({ placed, htmlLength: htmlLengthInAttribute(placed.content.text) });
+		headingsByRow.set(placed.row, headings);
 	}
-	const carried = new Set<PlacedCell>();
+	const headingRows = Array.from(headingsByRow.values());
+	const labels: Label[] = [];
+	let labelHtml = 0;
 	for (const placed of input.placed) {
-		if (headerRows.has(placed.row) || !holdsContent(placed.cell)) continue;
-		const over = (headingsByColumn.get(placed.column) ?? []).filter(
-			(heading) => heading.placed.column + heading.placed.columnSpan >= placed.column + placed.columnSpan,
-		);
+		if (input.headerRows.has(placed.row) || !placed.content.holdsContent) continue;
+		const over = headingRows.flatMap((headings) => headingOver({ headings, placed }));
 		if (over.length === 0) continue;
-		placed.cell.setAttribute(READER_CELL_LABEL_ATTRIBUTE, over.map((heading) => heading.text).join(LABEL_SEPARATOR));
-		for (const heading of over) carried.add(heading.placed);
+		labelHtml +=
+			LABEL_ATTRIBUTE.length +
+			LABEL_SEPARATOR.length * (over.length - 1) +
+			over.reduce((sum, heading) => sum + heading.htmlLength, 0);
+		if (labelHtml > input.budget.labelHtml) return;
+		labels.push({ placed, over });
 	}
-	if (!headingCells.every((placed) => carried.has(placed) || !holdsContent(placed.cell))) return;
+	input.budget.labelHtml -= labelHtml;
+	const carried = new Set<PlacedCell>();
+	for (const label of labels) {
+		label.placed.cell.setAttribute(
+			READER_CELL_LABEL_ATTRIBUTE,
+			label.over.map((heading) => heading.placed.content.text).join(LABEL_SEPARATOR),
+		);
+		for (const heading of label.over) carried.add(heading.placed);
+	}
+	if (!headingCells.every((placed) => carried.has(placed) || !placed.content.holdsContent)) return;
 	for (const [index, { row }] of input.rows.entries()) {
-		if (headerRows.has(index) && !titleRows.has(index)) row.setAttribute(READER_HEADER_ROW_ATTRIBUTE, "");
+		if (input.headerRows.has(index) && !titleRows.has(index)) row.setAttribute(READER_HEADER_ROW_ATTRIBUTE, "");
 	}
 }
 
-function cellNeedPx(cell: Element): number {
-	const preformatted = cell.querySelector("pre") !== null;
-	const glyphPx =
-		preformatted || cell.querySelector("code, kbd, samp") !== null
-			? GLYPH_PX.code
-			: cell.tagName === "TH"
-				? GLYPH_PX.header
-				: GLYPH_PX.plain;
-	const longestRun = String(cell.textContent)
-		.split(preformatted ? /\n/ : /[ \t\n\r\f]+/)
-		.reduce((longest, run) => Math.max(longest, run.length), 0);
-	const listIndentPx = cell.querySelector("ul, ol") === null ? 0 : LIST_INDENT_PX;
-	return longestRun * glyphPx + listIndentPx + (preformatted ? PRE_PADDING_PX : 0);
-}
-
-function estimatedWidthPx(input: { placed: readonly PlacedCell[]; caption: Element | undefined }): number {
+function estimatedWidthPx(input: { placed: readonly PlacedCell[]; caption: CellContent | undefined }): number {
 	const columnNeedPx = new Map<number, number>();
 	for (const placed of input.placed) {
 		if (placed.columnSpan !== 1) continue;
-		columnNeedPx.set(placed.column, Math.max(columnNeedPx.get(placed.column) ?? 0, cellNeedPx(placed.cell)));
+		columnNeedPx.set(placed.column, Math.max(columnNeedPx.get(placed.column) ?? 0, placed.content.needPx));
 	}
 	for (const placed of input.placed) {
 		if (placed.columnSpan === 1) continue;
-		const spanned = Array.from({ length: placed.columnSpan }, (_, offset) => placed.column + offset).flatMap(
-			(column) => {
-				const needPx = columnNeedPx.get(column);
-				return needPx === undefined ? [] : [{ column, needPx }];
-			},
-		);
+		const spanned: { column: number; needPx: number }[] = [];
+		for (let column = placed.column; column < placed.column + placed.columnSpan; column++) {
+			const needPx = columnNeedPx.get(column);
+			if (needPx !== undefined) spanned.push({ column, needPx });
+		}
 		const havePx =
 			spanned.reduce((sum, entry) => sum + entry.needPx, 0) + Math.max(0, spanned.length - 1) * CELL_PADDING_PX;
-		const shortfallPx = cellNeedPx(placed.cell) - havePx;
+		const shortfallPx = placed.content.needPx - havePx;
 		if (shortfallPx <= 0) continue;
 		const widened = spanned.at(-1) ?? { column: placed.column, needPx: 0 };
 		columnNeedPx.set(widened.column, widened.needPx + shortfallPx);
@@ -168,19 +258,24 @@ function estimatedWidthPx(input: { placed: readonly PlacedCell[]; caption: Eleme
 		(sum, needPx) => sum + needPx + CELL_PADDING_PX,
 		TABLE_BORDER_PX,
 	);
-	return input.caption === undefined ? tablePx : Math.max(tablePx, cellNeedPx(input.caption) + TABLE_BORDER_PX);
+	return input.caption === undefined ? tablePx : Math.max(tablePx, input.caption.needPx + TABLE_BORDER_PX);
 }
 
-function describeTable(table: Element): void {
-	const rows = ownRows(table);
+function describeTable(input: { table: Element; budget: Budget }): void {
+	const rows = ownRows(input.table);
 	if (rows.every(({ row }) => cellsOf(row).length <= 1)) {
-		table.setAttribute(READER_TABLE_FLOW_ATTRIBUTE, "");
+		input.table.setAttribute(READER_TABLE_FLOW_ATTRIBUTE, "");
 		return;
 	}
+	const headerRows = new Set(headerRowIndexes(rows));
+	if (!spend({ budget: input.budget, work: gridWork({ rows, headerRows }) })) return;
 	const placed = placeCells(rows);
-	labelCells({ rows, placed });
-	const caption = Array.from(table.children).find((child) => child.tagName === "CAPTION");
-	if (estimatedWidthPx({ placed, caption }) <= GRID_COLUMN_PX) table.setAttribute(READER_TABLE_FITS_ATTRIBUTE, "");
+	const captionElement = Array.from(input.table.children).find((child) => child.tagName === "CAPTION");
+	const caption = captionElement === undefined ? undefined : readContent(captionElement);
+	const readWork = placed.reduce((sum, { content }) => sum + content.readWork, caption?.readWork ?? 0);
+	if (!spend({ budget: input.budget, work: readWork })) return;
+	labelCells({ rows, placed, headerRows, budget: input.budget });
+	if (estimatedWidthPx({ placed, caption }) <= GRID_COLUMN_PX) input.table.setAttribute(READER_TABLE_FITS_ATTRIBUTE, "");
 }
 
 export function describeReaderTables(html: string): string {
@@ -197,6 +292,10 @@ export function describeReaderTables(html: string): string {
 	]) {
 		for (const element of Array.from(root.querySelectorAll(`[${attribute}]`))) element.removeAttribute(attribute);
 	}
-	for (const table of Array.from(root.querySelectorAll("table"))) describeTable(table);
+	const budget: Budget = {
+		labelHtml: LABEL_HTML_PER_BODY_CHARACTER * html.length,
+		work: WORK_PER_BODY_CHARACTER * html.length,
+	};
+	for (const table of Array.from(root.querySelectorAll("table"))) describeTable({ table, budget });
 	return root.innerHTML;
 }

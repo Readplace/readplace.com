@@ -42,6 +42,10 @@ function word(length: number): string {
 	return "x".repeat(length);
 }
 
+function words(count: number): string {
+	return Array.from({ length: count }, () => "word").join(" ");
+}
+
 function twoColumns(input: {
 	first: number;
 	second: number;
@@ -55,6 +59,42 @@ function twoColumns(input: {
 
 function inCode(text: string): string {
 	return `<code>${text}</code>`;
+}
+
+function headedTable(input: { heading: string; rows: number }): string {
+	return `<table><thead><tr><th>${input.heading}</th><th>b</th></tr></thead><tbody>${"<tr><td>1</td><td>2</td></tr>".repeat(input.rows)}</tbody></table>`;
+}
+
+function twoHeaderRowsTable(input: { heading: string; rows: number }): string {
+	return `<table><thead><tr><th>${input.heading}</th><th>c</th></tr><tr><th>a</th><th>b</th></tr></thead><tbody>${"<tr><td>1</td><td>2</td></tr>".repeat(input.rows)}</tbody></table>`;
+}
+
+function firstBodyCell(table: Element): Element {
+	const cell = table.querySelector("td");
+	assert(cell, "the table must hold a body cell");
+	return cell;
+}
+
+function fitMarks(html: string): boolean[] {
+	return Array.from(described(html).querySelectorAll("table"), (table) => table.hasAttribute("data-reader-fits"));
+}
+
+function wideHeadingsTable(columnSpan: number): string {
+	return `<table><thead><tr><th colspan="${columnSpan}">a</th><th>b</th></tr></thead><tbody><tr><td colspan="${columnSpan}">1</td><td>2</td></tr></tbody></table>`;
+}
+
+function spannedTable(input: { columnSpan: number; rowSpan: number; rows: number }): string {
+	return `<table><tr><td colspan="${input.columnSpan}" rowspan="${input.rowSpan}"></td><td></td></tr>${"<tr><td></td></tr>".repeat(input.rows - 1)}</table>`;
+}
+
+function emptyHeadedTable(rows: number): string {
+	return `<table><thead>${"<tr><th></th><th></th></tr>".repeat(rows)}</thead><tbody>${"<tr><td></td><td></td></tr>".repeat(rows)}</tbody></table>`;
+}
+
+function nestedAroundCaption(caption: string): string {
+	const open = "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>x</td><td>";
+	const close = "</td></tr></tbody></table>";
+	return `${open}${open}<table><caption>${caption}</caption><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table>${close}${close}`;
 }
 
 describe("describeReaderTables", () => {
@@ -268,6 +308,11 @@ describe("describeReaderTables", () => {
 		assert.equal(fits(`<table><tbody><tr><td>${"x&nbsp;".repeat(30)}</td><td>y</td></tr></tbody></table>`), false);
 	});
 
+	it("estimates keyboard and sample text at the code glyph width", () => {
+		assert.equal(fits(twoColumns({ first: 30, second: 29, wrap: (text) => `<kbd>${text}</kbd>` })), true);
+		assert.equal(fits(twoColumns({ first: 30, second: 29, wrap: (text) => `<samp>${text}</samp>` })), true);
+	});
+
 	it("counts an invalid span as one and survives a huge one", () => {
 		assert.deepEqual(
 			labels(
@@ -355,5 +400,105 @@ describe("describeReaderTables", () => {
 	it("removes a captured flow mark", () => {
 		const table = firstTable(described('<table data-reader-flow=""><tr><td>a</td><td>b</td></tr></table>'));
 		assert.equal(table.hasAttribute("data-reader-flow"), false);
+	});
+
+	it("labels a table whose labels add exactly three times the body's length to the HTML, and leaves one past it unlabelled with its header row shown", () => {
+		const atBudget = headedTable({ heading: word(451), rows: 4 });
+		const pastBudget = headedTable({ heading: word(452), rows: 4 });
+		assert.deepEqual(labels(atBudget), Array.from({ length: 4 }, () => [word(451), "b"]).flat());
+		assert.deepEqual(markedRows(atBudget), [0]);
+		assert.deepEqual(labels(pastBudget), Array.from({ length: 8 }, () => null));
+		assert.deepEqual(markedRows(pastBudget), []);
+	});
+
+	it("measures a label as the HTML writes it, each quote, ampersand and angle bracket as long as the longest escape", () => {
+		const escapes = '"&amp;&lt;&gt;';
+		assert.equal(labels(headedTable({ heading: word(22), rows: 4 }))[0], word(22));
+		assert.equal(labels(headedTable({ heading: '"'.repeat(22), rows: 4 }))[0], null);
+		assert.equal(labels(headedTable({ heading: escapes.repeat(8), rows: 4 }))[0], '"&<>'.repeat(8));
+		assert.equal(labels(headedTable({ heading: escapes.repeat(9), rows: 4 }))[0], null);
+	});
+
+	it("measures a label joined from two header rows with the separator between its headings", () => {
+		assert.equal(labels(twoHeaderRowsTable({ heading: word(506), rows: 4 }))[0], `${word(506)} · a`);
+		assert.equal(labels(twoHeaderRowsTable({ heading: word(507), rows: 4 }))[0], null);
+	});
+
+	it("spends one budget on a body's tables in order, so a table past what is left gets no labels and the tables around it keep theirs", () => {
+		const heading = "ab ".repeat(250);
+		const tables = Array.from(
+			described(
+				headedTable({ heading, rows: 4 }) + headedTable({ heading, rows: 4 }) + headedTable({ heading: "a", rows: 1 }),
+			).querySelectorAll("table"),
+		);
+		assert.deepEqual(
+			tables.map((table) => firstBodyCell(table).getAttribute("data-label")),
+			[heading.trim(), null, "a"],
+		);
+		assert.deepEqual(
+			tables.map((table) => Array.from(table.querySelectorAll("tr")).some((row) => row.hasAttribute("data-reader-header"))),
+			[true, false, true],
+		);
+		assert.deepEqual(
+			tables.map((table) => table.hasAttribute("data-reader-fits")),
+			[true, true, true],
+		);
+	});
+
+	it("describes a table whose work is exactly twice the HTML the step receives, and leaves one past it undescribed with its headings shown", () => {
+		const atBudget = wideHeadingsTable(125);
+		const pastBudget = wideHeadingsTable(126);
+		assert.deepEqual(labels(atBudget), ["a", "b"]);
+		assert.deepEqual(markedRows(atBudget), [0]);
+		assert.equal(fits(atBudget), true);
+		assert.deepEqual(labels(pastBudget), [null, null]);
+		assert.deepEqual(markedRows(pastBudget), []);
+		assert.equal(fits(pastBudget), false);
+	});
+
+	it("counts a cell's grid slots in every row it spans, up to the table's last row", () => {
+		assert.equal(fits(spannedTable({ columnSpan: 68, rowSpan: 2, rows: 3 })), true);
+		assert.equal(fits(spannedTable({ columnSpan: 68, rowSpan: 3, rows: 3 })), false);
+		assert.equal(fits(spannedTable({ columnSpan: 68, rowSpan: 9, rows: 2 })), true);
+	});
+
+	it("counts a heading lookup for every body cell under every header row, so a table of as many header rows as body rows is described up to 52 of each", () => {
+		assert.deepEqual(
+			markedRows(emptyHeadedTable(52)),
+			Array.from({ length: 52 }, (_, index) => index),
+		);
+		assert.equal(fits(emptyHeadedTable(52)), true);
+		assert.deepEqual(markedRows(emptyHeadedTable(53)), []);
+		assert.equal(fits(emptyHeadedTable(53)), false);
+	});
+
+	it("reads a nested table again for every table around it, caption included, so the innermost of three tables around a caption of 113 words is left undescribed", () => {
+		const atBudget = nestedAroundCaption(words(112));
+		const pastBudget = nestedAroundCaption(words(113));
+		assert.deepEqual(fitMarks(atBudget), [true, true, true]);
+		assert.deepEqual(labelsAt({ html: atBudget, selector: "td:first-child" }), ["a", "a", "a"]);
+		assert.deepEqual(fitMarks(pastBudget), [true, true, false]);
+		assert.deepEqual(labelsAt({ html: pastBudget, selector: "td:first-child" }), ["a", "a", null]);
+	});
+
+	it("counts every node a read walks, so of 50 empty tables nested in one another only the outer 30 are described", () => {
+		const html = `${"<table><tr><td></td><td>".repeat(50)}${"</td></tr></table>".repeat(50)}`;
+		assert.deepEqual(fitMarks(html), [
+			...Array.from({ length: 30 }, () => true),
+			...Array.from({ length: 20 }, () => false),
+		]);
+	});
+
+	it("describes no table after one whose work passes the budget, and still flows a one-column table", () => {
+		const out = described(
+			`<table><tr><td colspan="1000"></td><td></td></tr></table>${headedTable({ heading: "a", rows: 1 })}<table><tr><td>flow</td></tr></table>`,
+		);
+		const [wide, headed, flow] = Array.from(out.querySelectorAll("table"));
+		assert(wide && headed && flow, "all three tables must survive");
+		assert.equal(wide.hasAttribute("data-reader-fits"), false);
+		assert.equal(firstBodyCell(headed).getAttribute("data-label"), null);
+		assert.equal(headed.querySelector("[data-reader-header]"), null);
+		assert.equal(headed.hasAttribute("data-reader-fits"), false);
+		assert.equal(flow.hasAttribute("data-reader-flow"), true);
 	});
 });
