@@ -55,6 +55,8 @@ export function buildAgentAuthMetadata(baseUrl: string): AgentAuthMetadata {
 	};
 }
 
+export const PROTECTED_RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource";
+
 interface ProtectedResourceMetadata {
 	resource: string;
 	resource_name: string;

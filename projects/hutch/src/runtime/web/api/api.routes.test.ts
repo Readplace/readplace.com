@@ -59,8 +59,26 @@ describe("GET /queue (Siren content negotiation)", () => {
 			.set("Accept", SIREN_MEDIA_TYPE);
 
 		expect(response.status).toBe(401);
+		expect(response.headers["www-authenticate"]).toBe(
+			`Bearer resource_metadata="${TEST_APP_ORIGIN}/.well-known/oauth-protected-resource"`,
+		);
 		expect(response.body.class).toContain("error");
 		expect(response.body.properties.code).toBe("missing-token");
+	});
+
+	it("points a client without a token at protected-resource metadata naming the Siren API", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const challenge = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE);
+
+		const pointer = /resource_metadata="([^"]+)"/.exec(challenge.headers["www-authenticate"]);
+		assert(pointer, "the 401 must carry a resource_metadata pointer");
+		const metadata = await request(harness.server).get(new URL(pointer[1]).pathname);
+		expect(metadata.status).toBe(200);
+		expect(metadata.body.resource).toBe(TEST_APP_ORIGIN);
+		expect(metadata.body.authorization_servers).toEqual([TEST_APP_ORIGIN]);
 	});
 
 	it("returns empty collection for new user", async () => {
@@ -119,6 +137,9 @@ describe("GET /queue (Siren content negotiation)", () => {
 			.set("Authorization", "Bearer invalid-token");
 
 		expect(response.status).toBe(401);
+		expect(response.headers["www-authenticate"]).toBe(
+			`Bearer error="invalid_token", resource_metadata="${TEST_APP_ORIGIN}/.well-known/oauth-protected-resource"`,
+		);
 		expect(response.body.properties.code).toBe("invalid-token");
 	});
 

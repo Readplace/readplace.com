@@ -292,6 +292,7 @@ import { readLastViewUrl } from "./web/last-view";
 import {
 	buildAgentAuthMetadata,
 	buildProtectedResourceMetadata,
+	PROTECTED_RESOURCE_METADATA_PATH,
 	renderAuthMarkdown,
 } from "./web/agent-auth";
 import { buildHomepageArmBody } from "./web/pages/home";
@@ -960,7 +961,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		});
 	});
 
-	app.get("/.well-known/oauth-protected-resource", (_req: Request, res: Response) => {
+	app.get(PROTECTED_RESOURCE_METADATA_PATH, (_req: Request, res: Response) => {
 		res.json(
 			buildProtectedResourceMetadata({
 				baseUrl: dependencies.baseUrl,
@@ -990,7 +991,7 @@ export function createApp(dependencies: AppDependencies): Express {
 								"service-doc": [{ href: `${dependencies.baseUrl}/llms-full.txt`, type: "text/plain" }],
 								"service-meta": [
 									{
-										href: `${dependencies.baseUrl}/.well-known/oauth-protected-resource`,
+										href: `${dependencies.baseUrl}${PROTECTED_RESOURCE_METADATA_PATH}`,
 										type: "application/json",
 									},
 								],
@@ -1409,6 +1410,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const dualAuthMiddleware = initDualAuth({
 		validateAccessToken: deps.validateAccessToken,
+		baseUrl: deps.baseUrl,
 	});
 	const markdownBearerAuth = initMarkdownBearerAuth({
 		validateAccessToken: deps.validateAccessToken,
