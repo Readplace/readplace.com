@@ -17,6 +17,7 @@ import request from "supertest";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
+import { shownSummary } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -55,11 +56,11 @@ function buildFixture(opts?: { summaryReady?: boolean }): TestAppFixture {
 		summary: opts?.summaryReady
 			? {
 					...base.summary,
-					findGeneratedSummary: async () => ({
+					findGeneratedSummary: async (url) => shownSummary({ url, summary: {
 						status: "ready",
 						summary: "A concise summary.",
 						excerpt: "Lead line.",
-					}),
+					} }),
 				}
 			: base.summary,
 		events: {

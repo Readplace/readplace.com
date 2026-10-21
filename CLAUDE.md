@@ -69,6 +69,25 @@ The rewrite is **scoped to our own host** (the iOS app config's server host — 
 
 Reuse also depends on the `hutch_sid` session cookie being **persistent** — it carries a `maxAge` (bounded by the server session TTL; the cookie name and its max age are exported together by the shared package that mints and reads the server session cookie — grep the workspace packages' non-test sources for `hutch_sid`) so a Chrome login survives Chrome fully closing; do not downgrade it back to a bare session cookie.
 
+### Webmail pages never leave the store
+
+A webmail tab — Gmail, Outlook and the other hosts on the domain package's non-article host list (grep its non-test sources for `"mail.163.com"`) — is someone's mailbox, not an article, and its URL is generic: every Gmail user's first inbox is `mail.google.com/mail/u/0/`. Article rows, bodies and summaries are keyed by URL and shared by everyone who saves or opens that URL, so a webmail row can hold another person's mailbox. Each surface used to check the host for itself, and a branch added to a route above that route's own check served a stored webmail body.
+
+The rule therefore lives in the read ports, and their types carry it:
+
+| Read | What a webmail URL gets |
+|---|---|
+| Article body | `not-an-article`, never a body |
+| Summary | `skipped` |
+| Display metadata (title, site, excerpt, word count, image) | The host stub |
+| Related-articles and past-reads rows | Dropped |
+
+Only the functions that apply the rule can mint the body and summary brands (grep the domain package's non-test sources for `brand<"ArticleBody">` and `brand<"ShownSummary">`). Every function written to turn a body into reader output — HTML, EPUB, markdown, MCP — takes the branded body, so a body that skipped the rule does not compile into one.
+
+- Read an article row's body, summary or display metadata only through those ports, and never mint either brand another way.
+- A new renderer types its body input as the branded body. The generic HTML converters (markdown, EPUB XHTML) take plain strings because they also convert other HTML: hand them a body only from a branded value.
+- A surface's own host check drives behaviour only — no crawl, no polling, the not-an-article notice. It is not what keeps a webmail row private.
+
 ## Architecture Guidelines
 
 ### Brand & Design Guidelines
@@ -519,6 +538,15 @@ Current as of 2026-10-15. Pick by the kind of judgment the step needs, not by wh
 | Complex reasoning and decisions — architecture choices, root-cause analysis across a pipeline, security judgments, ambiguous trade-offs, reviewing another agent's plan | Fable 5.1 | default | Mythos-class reasoning is what catches the subtle failure; a cheaper model's confident wrong answer costs more than the tokens saved |
 
 The split applies to delegated work too: a subagent or workflow step that implements a decision runs on Opus 5.5 at medium effort, and the step that makes the decision runs on Fable 5.1. When one task mixes both — a decision that is then implemented — make the decision first on Fable, then hand the implementation to Opus with the decision written into its brief.
+
+If Fable is unavailable or has hit the limit, Use Opus 5.5 Max in its place instead after user's approval asked via the Ask tool.
+
+### Delegated agents never run the full check
+
+`pnpm check`, a project's full `check` and the pre-commit hook are the heaviest work in the workspace: hutch's `check` alone runs 14 parallel coverage shards, then its Playwright suite in Docker. The machine that runs them locally also hosts the self-hosted CI runners: the OrbStack runner that runs `web-tests` and the `@claude` listener, and the macOS runner whose Visual Review loads an ~18 GB vision model (the [macOS runner README](./.github/runner/macos/README.md)). On 2026-10-18 an implementer agent and a reviewer agent each ran full checks while another session checked 15 worktrees, and memory reached about 56 GB on a 48 GiB machine. Later that day a single local hook that overlapped CI's `web-tests` and Visual Review left 4% of memory free.
+
+- Never brief a subagent or workflow step to run `pnpm check`, a project's full `check`, or a `git commit` that fires the hook. The session that spawned the agents runs the one full check once their changes are in; an agent fixing a failure that check surfaced re-runs only the failing test.
+- Run one heavy check at a time, and start it only when no other session's check and no CI job is running on the machine. `gh api repos/{owner}/{repo}/actions/runners` shows whether a self-hosted runner is busy, and the process list shows other sessions' `nx run-many`, jest and Playwright processes. A `@claude` listener run starts the check its prompt asks for without waiting: on the OrbStack runner it holds the runner's only job slot, and a GitHub-hosted runner is not on this machine at all.
 
 ## Architecture
 

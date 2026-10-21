@@ -1,5 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type ComparableArticle, isSameArticle } from "@packages/domain/article";
+import { type ComparableArticle, isNonArticleHost, isSameArticle } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
@@ -37,6 +37,7 @@ export function initInMemoryPastReads(deps: {
 		for (const link of links) {
 			const article = await deps.findArticleByUrl(link.url);
 			if (!article) continue;
+			if (isNonArticleHost(article.url)) continue;
 			const saved = await deps.findArticleById(article.id, userId);
 			if (saved?.status !== "read") continue;
 			const comparable = { url: article.url, displayUrl: article.destinationUrl, title: article.metadata.title };

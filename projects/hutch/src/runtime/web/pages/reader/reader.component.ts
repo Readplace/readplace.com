@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
-import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
+import type { ArticleBody, ArticleStatus, SavedArticle } from "@packages/domain/article";
 import { nextReadDismissalOf } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -102,6 +102,7 @@ export function ReaderPage(
 	article: SavedArticle,
 	options: {
 		appOrigin: string;
+		content: ArticleBody | undefined;
 		summary?: GeneratedSummary;
 		summaryPollUrl?: string;
 		crawl?: ArticleCrawl;
@@ -195,13 +196,13 @@ export function ReaderPage(
 			(pastReadsInput !== undefined && hasVisiblePastReads(pastReadsInput)) ||
 			isTableOfContentsVisible({
 				crawl: options.crawl,
-				content: article.content,
+				content: options.content,
 				notice: options.readerNotice,
 			}),
 	});
 	const railHtml = renderArticleRail({
 		crawl: options.crawl,
-		content: article.content,
+		content: options.content,
 		readerNotice: options.readerNotice,
 		appOrigin: options.appOrigin,
 		crawlVersions: options.crawlVersions,
@@ -228,7 +229,7 @@ export function ReaderPage(
 		provenance: options.provenance,
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: options.now }),
 		readlistTags: options.readlistFiling.tags,
-		content: article.content,
+		content: options.content,
 		crawl: options.crawl,
 		readerPollUrl: options.readerPollUrl,
 		capturePollUrl: options.capturePollUrl,

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
+import type { QueueDigestKind } from "@packages/web-analytics";
 
 import {
 	QUEUE_DIGEST_EMAIL_SUBJECT,
@@ -15,8 +16,10 @@ const QUEUE_DIGEST_UNSUBSCRIBE_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+export type UnsubscribedEmail = { kind: QueueDigestKind } | Record<never, never>;
+
 export type QueueDigestUnsubscribeState =
-	| { kind: "confirm"; token: string }
+	| { kind: "confirm"; token: string; email: UnsubscribedEmail }
 	| { kind: "done" }
 	| { kind: "invalid" };
 
@@ -55,7 +58,7 @@ function confirmFormsFor(state: QueueDigestUnsubscribeState): ConfirmForm[] {
 	return [
 		{
 			action: withInternalTracking(
-				`${QUEUE_DIGEST_UNSUBSCRIBE_PATH}?${new URLSearchParams({ t: state.token }).toString()}`,
+				`${QUEUE_DIGEST_UNSUBSCRIBE_PATH}?${new URLSearchParams({ t: state.token, ...state.email }).toString()}`,
 				{ source: "queue-digest-unsubscribe", content: "confirm" },
 			),
 			label: UNSUBSCRIBE_LABEL,

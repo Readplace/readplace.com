@@ -9,6 +9,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { summaryMatchesCanonical } from "@packages/domain/article-aggregate";
+import { type ShownSummary, shownSummary } from "@packages/domain/article";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
@@ -109,11 +110,11 @@ export function initDynamoDbGeneratedSummary(deps: {
 	const findGeneratedSummary: FindGeneratedSummary = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await table.get({ url: articleResourceUniqueId.value }, { consistentRead: true });
-		return rowToGeneratedSummary(row);
+		return shownSummary({ url, summary: rowToGeneratedSummary(row) });
 	};
 
 	const findGeneratedSummaries: FindGeneratedSummaries = async (urls) => {
-		const result = new Map<string, GeneratedSummary | undefined>();
+		const result = new Map<string, ShownSummary | undefined>();
 		const keyToUrls = new Map<string, string[]>();
 		for (const url of urls) {
 			let normalizedKey: string;
@@ -153,7 +154,7 @@ export function initDynamoDbGeneratedSummary(deps: {
 		}
 		for (const [key, groupUrls] of keyToUrls) {
 			const value = valueByKey.get(key);
-			for (const url of groupUrls) result.set(url, value);
+			for (const url of groupUrls) result.set(url, shownSummary({ url, summary: value }));
 		}
 		return result;
 	};

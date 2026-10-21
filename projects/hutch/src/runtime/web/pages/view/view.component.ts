@@ -5,6 +5,7 @@ import type {
 	ArticleDestinationUrl,
 	Minutes,
 	SavedArticle,
+	ArticleBody,
 } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -113,7 +114,7 @@ export interface ViewPageInput {
 	appOrigin: string;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: Minutes;
-	content?: string;
+	content?: ArticleBody;
 	crawl?: ArticleCrawl;
 	readerPollUrl?: string;
 	summary?: GeneratedSummary;

@@ -6,6 +6,7 @@ import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/a
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { SAVE_TIP_COOKIE_NAME } from "../../shared/save-tip/save-tip-cookie";
 import { useTestServer } from "../../../test-app";
+import { shownSummary } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -84,7 +85,7 @@ describe("Save tip — the public view", () => {
 	it("leaves the call to action ungated while the reader view is still loading", async () => {
 		const harness = harnessFor({
 			crawl: async () => ({ status: "ready" }),
-			summary: async () => ({ status: "pending" }),
+			summary: async (url) => shownSummary({ url, summary: { status: "pending" } }),
 		});
 
 		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -95,7 +96,7 @@ describe("Save tip — the public view", () => {
 	it("leaves the call to action ungated once the reader view has succeeded", async () => {
 		const harness = harnessFor({
 			crawl: async () => ({ status: "ready" }),
-			summary: async () => ({ status: "ready", summary: "TLDR." }),
+			summary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "TLDR." } }),
 		});
 
 		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -106,7 +107,7 @@ describe("Save tip — the public view", () => {
 	it("gates the call to action when the summary has failed on a ready crawl", async () => {
 		const harness = harnessFor({
 			crawl: async () => ({ status: "ready" }),
-			summary: async () => ({ status: "failed", reason: "model timeout" }),
+			summary: async (url) => shownSummary({ url, summary: { status: "failed", reason: "model timeout" } }),
 		});
 
 		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);

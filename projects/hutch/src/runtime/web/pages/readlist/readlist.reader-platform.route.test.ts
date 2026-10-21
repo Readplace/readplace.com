@@ -18,6 +18,7 @@ import { MARKED_READ_EVENT } from "../reader/reader-exit-confirm.client";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 
 import request from "supertest";
+import { shownSummary } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -34,10 +35,10 @@ const ARTICLE_HTML = `
  * chromeless reader must keep. */
 function buildHarness(useServer: typeof useApp = useApp): ReturnType<typeof useApp> {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
-	const findGeneratedSummary = async () => ({
+	const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
 		status: "ready" as const,
 		summary: "Key points distilled into a brief summary.",
-	});
+	} });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 	const applyParseResult = createFakeApplyParseResult({
@@ -648,7 +649,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 			status: "failed" as const,
 			reason: "blocked",
 		});
-		const findGeneratedSummary = async () => ({ status: "skipped" as const });
+		const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: { status: "skipped" as const } });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -704,7 +705,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 			status: "failed" as const,
 			reason: "blocked",
 		});
-		const findGeneratedSummary = async () => ({ status: "skipped" as const });
+		const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: { status: "skipped" as const } });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,

@@ -12,7 +12,7 @@ describe("initReadArticleContent", () => {
 		});
 
 		const content = await readArticleContent("https://example.com/article");
-		expect(content).toBe("s3 content");
+		expect(content).toEqual({ kind: "article", body: "s3 content" });
 	});
 
 	it("falls back to second provider when first throws", async () => {
@@ -28,7 +28,7 @@ describe("initReadArticleContent", () => {
 		});
 
 		const content = await readArticleContent("https://example.com/article");
-		expect(content).toBe("dynamodb content");
+		expect(content).toEqual({ kind: "article", body: "dynamodb content" });
 		expect(errors).toHaveLength(1);
 	});
 
@@ -42,7 +42,7 @@ describe("initReadArticleContent", () => {
 		});
 
 		const content = await readArticleContent("https://example.com/article");
-		expect(content).toBe("dynamodb content");
+		expect(content).toEqual({ kind: "article", body: "dynamodb content" });
 	});
 
 	it("falls back to second provider when first returns empty string", async () => {
@@ -55,10 +55,10 @@ describe("initReadArticleContent", () => {
 		});
 
 		const content = await readArticleContent("https://example.com/article");
-		expect(content).toBe("dynamodb content");
+		expect(content).toEqual({ kind: "article", body: "dynamodb content" });
 	});
 
-	it("returns undefined when all providers fail", async () => {
+	it("reports a missing body when all providers fail", async () => {
 		const s3: ContentProvider = async () => {
 			throw new Error("NoSuchKey");
 		};
@@ -70,7 +70,7 @@ describe("initReadArticleContent", () => {
 		});
 
 		const content = await readArticleContent("https://example.com/article");
-		expect(content).toBeUndefined();
+		expect(content).toEqual({ kind: "missing" });
 	});
 
 	it("passes undefined to logError when a provider throws a non-Error", async () => {
@@ -88,7 +88,7 @@ describe("initReadArticleContent", () => {
 		});
 
 		const content = await readArticleContent("https://example.com/article");
-		expect(content).toBe("dynamodb content");
+		expect(content).toEqual({ kind: "article", body: "dynamodb content" });
 		expect(loggedError).toBeUndefined();
 	});
 
@@ -106,5 +106,17 @@ describe("initReadArticleContent", () => {
 
 		await readArticleContent("https://example.com/article#heading");
 		expect(receivedValues[0]).toBe("example.com/article");
+	});
+
+	it("reports a webmail page as not an article even when a provider holds its body", async () => {
+		const s3: ContentProvider = async () => "<p>Inbox</p>";
+
+		const readArticleContent = initReadArticleContent({
+			storageProviderQueryOrder: [s3],
+			logError: () => {},
+		});
+
+		const content = await readArticleContent("https://mail.google.com/mail/u/2/");
+		expect(content).toEqual({ kind: "not-an-article" });
 	});
 });

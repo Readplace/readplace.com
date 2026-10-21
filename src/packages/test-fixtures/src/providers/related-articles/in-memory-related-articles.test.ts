@@ -176,6 +176,29 @@ describe("initInMemoryRelatedArticles", () => {
 		});
 	});
 
+	it("drops a relation to a webmail page", async () => {
+		const { store, save } = build();
+		await save({ userId: USER_ID, url: URL, title: "Target" });
+		await save({ userId: USER_ID, url: "https://mail.google.com/mail/u/2/", title: "Inbox (12)" });
+		const kept = await save({ userId: USER_ID, url: RELATED_URL, title: "Earlier read" });
+		await store.markRelatedArticlesReady({
+			userId: USER_ID,
+			url: URL,
+			relatedArticles: [
+				{ url: "https://mail.google.com/mail/u/2/", reason: "Inbox" },
+				{ url: RELATED_URL, reason: "Same argument" },
+			],
+			inputTokens: 10,
+			outputTokens: 2,
+			at: AT,
+		});
+
+		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+
+		assert(result.status === "ready", "a written relation reports ready");
+		expect(result.items.map((item) => item.id)).toEqual([kept.id]);
+	});
+
 	it("records a completed computation with no relations", async () => {
 		const { store } = build();
 		const outcome = await store.markRelatedArticlesReady({

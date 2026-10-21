@@ -1118,7 +1118,7 @@ describe("createRevokeOtherUserOAuthGrants", () => {
 		expect(await s.model.getAccessToken(rotated.accessToken)).toMatchObject({ accessToken: rotated.accessToken });
 	});
 
-	it("reads again when a rotation lands between the keep's reads and its write", async () => {
+	it("reads again when a rotation lands between the keep's reads and its transaction", async () => {
 		const s = await setup();
 		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
 		const stale = s.deps.grants.get(s.grantId);
@@ -1208,7 +1208,7 @@ describe("createRevokeOtherUserOAuthGrants", () => {
 		expect(await s.model.refresh.rotate(boundRotation({ clientId: iosAppId, refreshToken: second.refreshToken }))).toMatchObject({ reason: "revoked" });
 	});
 
-	it.each(["logout-all", "account-deletion"] as const)("falls back to a full logout-all when a %s lands between the keep's reads and its write", async cause => {
+	it.each(["logout-all", "account-deletion"] as const)("falls back to a full logout-all when a %s lands between the keep's reads and its transaction", async cause => {
 		const s = await setup();
 		const bound = await rotateBound(s.model.refresh, { clientId: iosAppId, refreshToken: "r" });
 		const injections: Promise<void>[] = [];

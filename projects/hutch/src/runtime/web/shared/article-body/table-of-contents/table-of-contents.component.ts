@@ -7,6 +7,7 @@ import { render } from "@packages/web-shell";
 import { isReaderViewReady } from "../../article-state/is-reader-view-ready";
 import { prepareReaderContent } from "../reader-slot/reader-content";
 import type { ArticleSection } from "../reader-slot/section-anchors";
+import type { ArticleBody } from "@packages/domain/article";
 
 const TABLE_OF_CONTENTS_TEMPLATE = readFileSync(
 	join(__dirname, "table-of-contents.template.html"),
@@ -42,7 +43,7 @@ export function isTableOfContentsVisible(input: {
 
 function resolveState(input: {
 	crawl: ArticleCrawl | undefined;
-	content: string | undefined;
+	content: ArticleBody | undefined;
 	notice: ReaderFailedVariant | undefined;
 	appOrigin: string;
 }): TableOfContentsState {
@@ -69,7 +70,7 @@ function cardHtmlFor(state: TableOfContentsState): string {
 
 export function renderTableOfContents(input: {
 	crawl: ArticleCrawl | undefined;
-	content: string | undefined;
+	content: ArticleBody | undefined;
 	notice: ReaderFailedVariant | undefined;
 	appOrigin: string;
 	oob: boolean;

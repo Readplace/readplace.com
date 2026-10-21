@@ -33,7 +33,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 
 		expect(
 			await result.articleStore.readArticleContent("https://example.com/article"),
-		).toBeUndefined();
+		).toEqual({ kind: "missing" });
 	});
 
 	it("requires the caller to declare a full google bundle when wiring Google auth", () => {

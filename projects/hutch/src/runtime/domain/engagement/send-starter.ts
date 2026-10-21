@@ -19,7 +19,7 @@ import type {
 	ListUserSavesForUrl,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { type ArticleBody, ReaderArticleHashId } from "@packages/domain/article";
 import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindReaderReadyEmailState } from "@packages/provider-contracts/reader-ready-state";
 import type { EmailAttachment, SendEmail } from "@packages/provider-contracts/email";
@@ -38,7 +38,7 @@ import { reservedDomainOf } from "../../providers/email/skip-reserved-domain";
 function toChapter(input: {
 	article: GlobalArticleData;
 	summary: GeneratedSummary | undefined;
-	contentHtml: string;
+	contentHtml: ArticleBody;
 }): BookChapter {
 	return {
 		articleUrl: input.article.url,
@@ -88,14 +88,14 @@ export function initSendStarter(deps: {
 	const chaptersFor = (urls: readonly string[]): Promise<BookChapter[]> =>
 		Promise.all(
 			urls.map(async (url) => {
-				const [article, summary, contentHtml] = await Promise.all([
+				const [article, summary, stored] = await Promise.all([
 					deps.findArticleByUrl(url),
 					deps.findGeneratedSummary(url),
 					deps.readArticleContent(url),
 				]);
 				assert(article, `a claimed starter pick is a stored article: ${url}`);
-				assert(contentHtml !== undefined, `a claimed starter pick had a readable body: ${url}`);
-				return toChapter({ article, summary, contentHtml });
+				assert(stored.kind === "article", `a claimed starter pick had a readable body: ${url}`);
+				return toChapter({ article, summary, contentHtml: stored.body });
 			}),
 		);
 	const bookFor = async (input: { pack: StarterPack; message: FrozenStarterMessage }) => {
@@ -173,7 +173,7 @@ export function initSendStarter(deps: {
 			const items: QueueDigestEmailItem[] = [];
 			const chapters: BookChapter[] = [];
 			for (const pick of pack.picks) {
-				const [article, summary, memberships, contentHtml] = await Promise.all([
+				const [article, summary, memberships, stored] = await Promise.all([
 					deps.findArticleByUrl(pick.url),
 					deps.findGeneratedSummary(pick.url),
 					deps.listUserSavesForUrl({ userId, url: pick.url }),
@@ -183,7 +183,7 @@ export function initSendStarter(deps: {
 					article?.purgedAt !== undefined ||
 					article?.readerAvailableAt === undefined ||
 					summary?.status !== "ready" ||
-					contentHtml === undefined
+					stored.kind !== "article"
 				) {
 					continue;
 				}
@@ -212,7 +212,7 @@ export function initSendStarter(deps: {
 						siteName: article.metadata.siteName,
 						preview: buildDigestPreview(summary),
 					});
-					chapters.push(toChapter({ article, summary, contentHtml }));
+					chapters.push(toChapter({ article, summary, contentHtml: stored.body }));
 				}
 			}
 			if (items.length === 0) {

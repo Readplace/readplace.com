@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
-import type { ArticleDestinationUrl, DisplayableReadTime, SiteLabel } from "@packages/domain/article";
+import type { ArticleDestinationUrl, DisplayableReadTime, SiteLabel, ArticleBody } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { render } from "@packages/web-shell";
@@ -34,7 +34,7 @@ export interface ArticleBodyInput {
 	readTime: DisplayableReadTime | undefined;
 	url: ArticleDestinationUrl;
 	articleId: string | undefined;
-	content?: string;
+	content?: ArticleBody;
 	crawl?: ArticleCrawl;
 	readerPollUrl?: string;
 	capturePollUrl?: string;
@@ -60,7 +60,7 @@ export interface ArticleBodyInput {
 
 export interface ArticleRailInput {
 	crawl: ArticleCrawl | undefined;
-	content: string | undefined;
+	content: ArticleBody | undefined;
 	readerNotice: ReaderFailedVariant | undefined;
 	appOrigin: string;
 	crawlVersions?: ArticleVersion[];

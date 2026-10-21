@@ -11,6 +11,7 @@ import {
 	type ViewAction,
 	type ViewPageInput,
 } from "./view.component";
+import { articleBody } from "@packages/test-fixtures";
 
 const baseInput: ViewPageInput = {
 	articleUrl: "https://example.com/post",
@@ -25,7 +26,7 @@ const baseInput: ViewPageInput = {
 	},
 	estimatedReadTime: calculateReadTime(500),
 	saveTip: { state: "due", html: "" },
-	content: "<p>Body copy.</p>",
+	content: articleBody("<p>Body copy.</p>"),
 	summary: { status: "skipped" },
 	actions: [
 		{

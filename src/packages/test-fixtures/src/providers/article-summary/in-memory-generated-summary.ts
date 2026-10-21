@@ -1,4 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { shownSummary } from "@packages/domain/article";
 import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
@@ -26,7 +27,7 @@ export function initInMemoryGeneratedSummary(): {
 
 	const findGeneratedSummary: FindGeneratedSummary = async (url) => {
 		const id = ArticleResourceUniqueId.parse(url);
-		return states.get(id.value);
+		return shownSummary({ url, summary: states.get(id.value) });
 	};
 
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {

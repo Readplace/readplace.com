@@ -12,6 +12,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MAX_POLLS } from "@packages/web-shell";
+import { shownSummary } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -63,14 +64,14 @@ describe("Readlist routes", () => {
 				?.getAttribute("data-test-article");
 
 			const readerResponse = await agent.get(`/queue/${articleId}/view`);
-			const doc = new JSDOM(readerResponse.text).window.document;
+			const readerSlot = new JSDOM(readerResponse.text).window.document.querySelector("[data-test-reader-slot]");
+			assert(readerSlot, "reader slot must be rendered");
+			expect(readerSlot.getAttribute("hx-get")).toBe(`/queue/${articleId}/reader?poll=1`);
+
+			const pollResponse = await agent.get(`/queue/${articleId}/reader?poll=${MAX_POLLS}`);
+			const doc = new JSDOM(pollResponse.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
-			// crawl=ready + empty content is the worker-bug catch-all: with no
-			// pollUrl on the first render (the parser produced an empty body, so
-			// shouldKeepPollingReader returns false) the slot routes to the
-			// "slow" reframe — the user sees the source-link CTA instead of a
-			// dead "Still fetching — refresh to check again." message.
 			expect(slot.getAttribute("data-reader-status")).toBe("slow");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
 			const primary = doc.querySelector("[data-test-reader-failed-primary]");
@@ -81,10 +82,10 @@ describe("Readlist routes", () => {
 		it("should render a ready summary collapsed on /queue/:id/view (internal reader; an expand is a deliberate, measurable act)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async () => ({
+			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
 				status: "ready" as const,
 				summary: "Ready summary.",
-			});
+			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -145,10 +146,10 @@ describe("Readlist routes", () => {
 		it("GET /queue/:id/summary renders a ready summary collapsed on poll (internal reader)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async () => ({
+			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
 				status: "ready" as const,
 				summary: "Poll ready summary.",
-			});
+			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({

@@ -242,6 +242,39 @@ describe("GET /view/<url>?format=<download>", () => {
 		expect(response.status).toBe(404);
 	});
 
+	it("answers a logged-out EPUB download of a webmail URL with the not-found page and no attachment", async () => {
+		const url = "https://mail.google.com/mail/u/2/";
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const summary = createFakeSummaryProvider();
+		const harness = useApp({ ...fixture, summary });
+		await fixture.articleStore.saveArticleGlobally({
+			url,
+			metadata: {
+				title: "Inbox (12) - private.person@example.com",
+				siteName: "mail.google.com",
+				excerpt: "PRIVATE-PARSED-EXCERPT",
+				wordCount: 9,
+				imageUrl: "https://cdn.readplace.test/media/private-avatar.png",
+			},
+			estimatedReadTime: calculateReadTime(9),
+			savedAt: new Date("2026-08-01T00:00:00.000Z"),
+		});
+		await fixture.articleStore.writeContent({ url, content: "<p>PRIVATE-INBOX-BODY</p>" });
+		summary.markSummaryReady({ url, summary: "PRIVATE-SUMMARY of the inbox", excerpt: "PRIVATE-SUMMARY-EXCERPT" });
+
+		const response = await request(harness.server)
+			.get("/view/mail.google.com/mail/u/2/?format=epub")
+			.set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(404);
+		expect(response.type).toBe("text/html");
+		expect(response.headers["content-disposition"]).toBeUndefined();
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("main.not-found h1")?.textContent).toBe("Page not found");
+		const markers = ["private.person@example.com", "PRIVATE-INBOX-BODY", "PRIVATE-SUMMARY", "PRIVATE-PARSED-EXCERPT", "private-avatar"];
+		expect(markers.filter((marker) => response.text.includes(marker))).toEqual([]);
+	});
+
 	it("treats an unrecognised format as a normal reader request", async () => {
 		const { harness, fixture } = buildDownloadHarness();
 		await seedReadyArticle(fixture);

@@ -3,7 +3,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { noopLogger } from "@packages/hutch-logger";
-import { calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
+import { calculateReadTime, shownSummary, storedArticleBody, validateSaveableUrl } from "@packages/domain/article";
 import type {
 	BotDefenseEvent,
 	ConversionEvent,
@@ -150,7 +150,7 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 				state.set(id, { status: "ready", summary: `Fake summary for ${url}.` });
 			}
 		}
-		return state.get(id);
+		return shownSummary({ url, summary: state.get(id) });
 	};
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
@@ -404,7 +404,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			clearReadlistDefinitionPurpose: articleStoreMemory.clearReadlistDefinitionPurpose,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
 			readArticleContent: (url) =>
-				articleStoreMemory.readContent(ArticleResourceUniqueId.parse(url)),
+				articleStoreMemory
+					.readContent(ArticleResourceUniqueId.parse(url))
+					.then((html) => storedArticleBody({ url, html })),
 			readContent: articleStoreMemory.readContent,
 			writeContent: articleStoreMemory.writeContent,
 			readArticleImage: articleStoreMemory.readArticleImage,

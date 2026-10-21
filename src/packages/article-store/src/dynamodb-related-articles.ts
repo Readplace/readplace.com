@@ -6,6 +6,7 @@ import {
 	type ComparableArticle,
 	articleDestinationUrl,
 	articleLinkedDisplay,
+	isNonArticleHost,
 	isSameArticle,
 	stubMetadataFor,
 } from "@packages/domain/article";
@@ -137,6 +138,7 @@ export function initDynamoDbRelatedArticles(deps: {
 		});
 
 	const findRelatedTargetArticle: FindRelatedTargetArticle = async (url) => {
+		if (isNonArticleHost(url)) return { state: "not-an-article" };
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await articles.get(
 			{ url: articleResourceUniqueId.value },

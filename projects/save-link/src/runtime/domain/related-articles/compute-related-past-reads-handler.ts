@@ -117,6 +117,12 @@ export function initComputeRelatedPastReadsHandler(
 					});
 					continue;
 				}
+				if (lookup.state === "not-an-article") {
+					logger.info("[ComputeRelatedPastReads] target is not an article; nothing to compare", {
+						url: entry.url,
+					});
+					continue;
+				}
 				if (lookup.state === "absent" || lookup.article.crawlStatus === "pending") {
 					throw new MetadataNotReadyError(entry.url);
 				}

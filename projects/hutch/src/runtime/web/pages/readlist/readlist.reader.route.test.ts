@@ -12,7 +12,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
-import { ReaderArticleHashId, calculateReadTime } from "@packages/domain/article";
+import { ReaderArticleHashId, calculateReadTime, shownSummary } from "@packages/domain/article";
 
 import request from "supertest";
 import { viewPathFor } from "../view/view-path";
@@ -888,10 +888,10 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async () => ({
+			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
 				status: "ready" as const,
 				summary: "Key points from the article distilled into a brief summary.",
-			});
+			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -1072,7 +1072,7 @@ describe("Readlist routes", () => {
 				},
 				articleStore: {
 					...fixture.articleStore,
-					readArticleContent: async () => undefined,
+					readArticleContent: async () => ({ kind: "missing" }),
 				},
 			});
 			const { auth } = harness;
@@ -1118,10 +1118,10 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async () => ({
+			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
 				status: "failed" as const,
 				reason: "deepseek timeout",
-			});
+			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -1195,10 +1195,10 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async () => ({
+			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
 				status: "skipped" as const,
 				reason: "content-too-short",
-			});
+			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -1390,10 +1390,10 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async () => ({
+			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
 				status: "ready" as const,
 				summary: "Fragment ready summary.",
-			});
+			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -2194,7 +2194,7 @@ describe("Readlist routes", () => {
 				...fixture,
 				summary: {
 					...fixture.summary,
-					findGeneratedSummary: async () => ({ status: "ready", summary: STORED_SUMMARY }),
+					findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: STORED_SUMMARY } }),
 				},
 			});
 			const agent = await loginAgent(harness.server, harness.auth);

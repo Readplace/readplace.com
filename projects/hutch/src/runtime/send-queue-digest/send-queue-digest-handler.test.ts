@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, shownSummary } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
 import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
@@ -709,7 +709,7 @@ describe("initSendQueueDigestHandler", () => {
 				async (subject) => {
 					await subject.articleStore.setReaderAvailableAt({ url: NOT_READY_URL, at: hoursBefore(40) });
 				},
-				{ findGeneratedSummary: async () => failedSummary },
+				{ findGeneratedSummary: async (url) => shownSummary({ url, summary: failedSummary })},
 			],
 		];
 

@@ -4,6 +4,7 @@ import {
 	displayableReadTime,
 	hostStubMetadata,
 	isNonArticleHost,
+	type ArticleBody,
 } from "@packages/domain/article";
 import type { ReadlistRef, ReadlistSlug } from "@packages/domain/readlist";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -22,7 +23,7 @@ interface ArticleMarkdownInput {
 	readlists: readonly ReadlistRef[];
 	appOrigin: string;
 	crawl: ArticleCrawl | undefined;
-	content: string | undefined;
+	content: ArticleBody | undefined;
 	summary: GeneratedSummary | undefined;
 }
 

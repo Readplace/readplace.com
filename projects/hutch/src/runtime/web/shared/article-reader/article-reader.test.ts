@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ReaderArticleHashId, shownSummary, storedArticleBody } from "@packages/domain/article";
 import type { ArticleCrawlVersion } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -91,8 +91,8 @@ function initFakeDeps(initial: {
 	};
 	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
-		findGeneratedSummary: async () => state.summary,
-		readArticleContent: async () => state.content,
+		findGeneratedSummary: async (url) => shownSummary({ url, summary: state.summary }),
+		readArticleContent: async (url) => storedArticleBody({ url, html: state.content }),
 		findArticleByUrl: async () => state.article,
 		findArticleCrawlVersions: async () => state.crawlVersions,
 		findArticleFreshness: async () =>

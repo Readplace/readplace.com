@@ -1,6 +1,6 @@
 import { NoSuchKey } from "@aws-sdk/client-s3";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, validateSaveableUrl } from "@packages/domain/article";
+import { MinutesSchema, validateSaveableUrl, shownSummary, storedArticleBody } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
 import { initStartAnonymousCrawl } from "@packages/save-article";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
@@ -51,7 +51,8 @@ function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
 		resolveSaveIdentity: async (url) => resolvedAs(url),
 		findArticleByUrl: articles.findArticleByUrl,
 		findArticleCrawlStatus: crawl.findArticleCrawlStatus,
-		readArticleContent: async (url) => articles.readContent(ArticleResourceUniqueId.parse(url)),
+		readArticleContent: async (url) =>
+			storedArticleBody({ url, html: await articles.readContent(ArticleResourceUniqueId.parse(url)) }),
 		findGeneratedSummary: summaries.findGeneratedSummary,
 		startAnonymousCrawl: initStartAnonymousCrawl({
 			saveArticleGlobally: articles.saveArticleGlobally,
@@ -203,7 +204,7 @@ describe("shared HN preparation", () => {
 		const app = subject({
 			findGeneratedSummary: async (url) =>
 				url.endsWith("summary-failed")
-					? { status: "failed", reason: "provider-error" }
+					? shownSummary({ url, summary: { status: "failed", reason: "provider-error" } })
 					: app.summaries.findGeneratedSummary(url),
 		});
 		const slugs = ["crawl-failed", "crawl-unsupported", "summary-skipped", "summary-failed", "in-flight"];
@@ -265,7 +266,7 @@ describe("shared HN preparation", () => {
 		await app.prepareSnapshot();
 		expect(await app.statuses()).toEqual(["pending"]);
 		await app.summarised("https://publisher.com/1");
-		await initHnSnapshot({ ...app.deps, readArticleContent: async () => "" }).prepareSnapshot();
+		await initHnSnapshot({ ...app.deps, readArticleContent: async (url) => storedArticleBody({ url, html: "" }) }).prepareSnapshot();
 		expect(await app.statuses()).toEqual(["pending"]);
 		await app.prepareSnapshot();
 		expect(await app.statuses()).toEqual(["ready"]);

@@ -3,8 +3,9 @@ import type { ReadArticleImage } from "@packages/provider-contracts/article-stor
 import { type ArticleFrontMatter, articleFrontMatterXhtml } from "./article-front-matter";
 import { type EpubChapter, type EpubImage, packageEpub } from "./epub-package";
 import { chapterEpubXhtml, collectArticleImages } from "./epub-xhtml";
+import type { ArticleBody } from "@packages/domain/article";
 
-export type BookChapter = ArticleFrontMatter & { articleUrl: string; contentHtml: string };
+export type BookChapter = ArticleFrontMatter & { articleUrl: string; contentHtml: ArticleBody };
 
 export type BuildBookEpub = (params: {
 	title: string;

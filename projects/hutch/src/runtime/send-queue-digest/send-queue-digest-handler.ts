@@ -2,7 +2,7 @@ import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { ReaderArticleHashId } from "@packages/domain/article";
+import type { ArticleBody, ReaderArticleHashId } from "@packages/domain/article";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/hutch-infra-components";
@@ -33,6 +33,7 @@ import type {
 	SubscriptionRecord,
 } from "@packages/provider-contracts/subscription-providers";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
+import type { QueueDigestKind } from "@packages/web-analytics";
 import { STRIPE_TRIAL_PERIOD_DAYS, isPayDigestDue } from "../domain/stripe/stripe-trial-config";
 import type {
 	EmitQueueDigestEvent,
@@ -46,7 +47,6 @@ import { CONSENT_SEED_ARTICLE_URL } from "../web/oauth/consent-seed-save";
 import {
 	QueueDigestEmail,
 	type QueueDigestEmailItem,
-	type QueueDigestKind,
 	type QueueDigestLinks,
 } from "../web/queue-digest-email";
 
@@ -89,7 +89,7 @@ export interface SendQueueDigestDeps {
 interface ReadyItem {
 	candidate: DigestCandidate;
 	summary: GeneratedSummary;
-	contentHtml: string;
+	contentHtml: ArticleBody;
 }
 
 interface DigestQuery {
@@ -390,8 +390,8 @@ async function readyItemsOf(params: {
 		loaded.map(async (candidate): Promise<ReadyItem[]> => {
 			const summary = await params.deps.findGeneratedSummary(candidate.article.url);
 			if (summary?.status !== "ready") return [];
-			const contentHtml = await params.deps.readArticleContent(candidate.article.url);
-			return contentHtml === undefined ? [] : [{ candidate, summary, contentHtml }];
+			const stored = await params.deps.readArticleContent(candidate.article.url);
+			return stored.kind === "article" ? [{ candidate, summary, contentHtml: stored.body }] : [];
 		}),
 	);
 	return ready.flat();

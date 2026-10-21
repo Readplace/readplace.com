@@ -8,7 +8,7 @@ import type {
 	SuggestionAttribution,
 	SavedArticle,
 } from "@packages/domain/article";
-import type { ReaderArticleHashId } from "@packages/domain/article";
+import type { ReaderArticleHashId, StoredArticleBody } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
@@ -248,7 +248,7 @@ export type FindUnreadSavesForDigest = (query: {
 
 export type ContentProvider = (articleResourceUniqueId: ArticleResourceUniqueId) => Promise<string | undefined>;
 
-export type ReadArticleContent = (url: string) => Promise<string | undefined>;
+export type ReadArticleContent = (url: string) => Promise<StoredArticleBody>;
 
 export type ReadArticleImage = (params: {
 	url: string;

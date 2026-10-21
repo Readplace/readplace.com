@@ -5,6 +5,7 @@ import {
 	viewPathFor,
 } from "../../../pages/view/view-path";
 import { renderReaderReady } from "./reader-ready.component";
+import { articleBody } from "@packages/test-fixtures";
 
 const APP_ORIGIN = "https://readplace.com";
 const VIEW_PREFIX = "/view/";
@@ -42,7 +43,7 @@ function readerContent(doc: Document): Element {
 
 describe("renderReaderReady", () => {
 	it("renders the article content as document text a reader or extractor can read", () => {
-		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>Body copy</p>" }));
+		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: articleBody("<p>Body copy</p>") }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -52,7 +53,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("carries the article content on a styled div, not a frame the page has to measure", () => {
-		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
+		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }));
 
 		const content = readerContent(doc);
 		expect(content.tagName).toBe("DIV");
@@ -62,7 +63,7 @@ describe("renderReaderReady", () => {
 	it("strips event-handler attributes from captured markup, which the page origin would otherwise execute", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: '<p>safe</p><img src="https://cdn.example.com/x.jpg" onerror="alert(1)">',
+				content: articleBody('<p>safe</p><img src="https://cdn.example.com/x.jpg" onerror="alert(1)">'),
 				appOrigin: "https://readplace.com",
 			}),
 		);
@@ -76,7 +77,7 @@ describe("renderReaderReady", () => {
 	it("strips a captured stylesheet so article CSS cannot repaint the page around it", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: "<style>body { position: fixed; }</style><p>safe</p>",
+				content: articleBody("<style>body { position: fixed; }</style><p>safe</p>"),
 				appOrigin: "https://readplace.com",
 			}),
 		);
@@ -87,7 +88,7 @@ describe("renderReaderReady", () => {
 	it("retargets a same-host link to the reader's own tab", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: '<a href="https://readplace.com/queue" target="_blank">Readlist</a>',
+				content: articleBody('<a href="https://readplace.com/queue" target="_blank">Readlist</a>'),
 				appOrigin: "https://readplace.com",
 			}),
 		);
@@ -100,7 +101,7 @@ describe("renderReaderReady", () => {
 	it("leaves an external link's own target alone", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: '<a href="https://example.com/post" target="_blank">Post</a>',
+				content: articleBody('<a href="https://example.com/post" target="_blank">Post</a>'),
 				appOrigin: "https://readplace.com",
 			}),
 		);
@@ -116,7 +117,7 @@ describe("renderReaderReady", () => {
 			'<p><a href="#lispm">#</a>\n<A HREF="ftp://ftp.cs.cmu.edu/user/ai/lang/lisp/code/impdep/explorer/0.html" NAME="lispm">\nLisp Machines</A></p>';
 
 		const doc = parse(
-			renderReaderReady({ content: captured, appOrigin: APP_ORIGIN }),
+			renderReaderReady({ content: articleBody(captured), appOrigin: APP_ORIGIN }),
 		);
 
 		expect(articleUrlsAnAnchorWalkWouldMint(doc, articleUrl)).toEqual([
@@ -128,7 +129,7 @@ describe("renderReaderReady", () => {
 	it("gives each section heading the id its table-of-contents row links to", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: "<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>",
+				content: articleBody("<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>"),
 				appOrigin: APP_ORIGIN,
 			}),
 		);
@@ -140,7 +141,7 @@ describe("renderReaderReady", () => {
 	it("replaces a publisher id on a heading with the minted id, so captured markup cannot claim a swap target", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: '<h2 id="article-body-reader-slot">Overview</h2><p>Body copy</p>',
+				content: articleBody('<h2 id="article-body-reader-slot">Overview</h2><p>Body copy</p>'),
 				appOrigin: APP_ORIGIN,
 			}),
 		);
@@ -154,7 +155,7 @@ describe("renderReaderReady", () => {
 	it("never decodes an entity-encoded href into a live javascript: link while it mints the section ids", () => {
 		const doc = parse(
 			renderReaderReady({
-				content: '<h2>Overview</h2><p><a href="&amp;amp;#106;avascript:alert(1)">Click</a></p>',
+				content: articleBody('<h2>Overview</h2><p><a href="&amp;amp;#106;avascript:alert(1)">Click</a></p>'),
 				appOrigin: APP_ORIGIN,
 			}),
 		);
@@ -166,7 +167,7 @@ describe("renderReaderReady", () => {
 
 	it("flags the slot with hx-swap-oob when oob is true so HTMX swaps replace the live slot", () => {
 		const doc = parse(
-			renderReaderReady({ content: "<p>x</p>", oob: true, appOrigin: "https://readplace.com" }),
+			renderReaderReady({ content: articleBody("<p>x</p>"), oob: true, appOrigin: "https://readplace.com" }),
 		);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
@@ -175,7 +176,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("omits hx-swap-oob when oob is absent (initial SSR render)", () => {
-		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
+		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
