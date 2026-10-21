@@ -2,6 +2,8 @@ import {
 	actionLabel,
 	actionVariant,
 	humanize,
+	isUserControl,
+	isUserControlLink,
 	linkLabel,
 	linkPresentation,
 } from "./action-affordance";
@@ -71,5 +73,37 @@ describe("linkLabel", () => {
 		expect(linkLabel({ rel: "summary", href: "https://x/summary" })).toBe(
 			"Summary",
 		);
+	});
+});
+
+describe("isUserControl", () => {
+	it("renders a recognised action even when the server gave it no title", () => {
+		expect(isUserControl({ name: "update-status" })).toBe(true);
+	});
+
+	it("renders an unrecognised action the server titled", () => {
+		expect(isUserControl({ name: "archive", title: "Archive" })).toBe(true);
+	});
+
+	it("skips a title-less action it does not recognise, which is a machine capability", () => {
+		expect(isUserControl({ name: "remove-from-readlist" })).toBe(false);
+	});
+
+	it("does not mistake an inherited object key for a recognised action", () => {
+		expect(isUserControl({ name: "constructor" })).toBe(false);
+	});
+});
+
+describe("isUserControlLink", () => {
+	it("renders a recognised link even when the server gave it no title", () => {
+		expect(isUserControlLink({ rel: "read", href: "https://x/read" })).toBe(true);
+	});
+
+	it("renders an unrecognised link the server titled", () => {
+		expect(isUserControlLink({ rel: "summary", title: "TL;DR", href: "https://x/summary" })).toBe(true);
+	});
+
+	it("skips a title-less link it does not recognise", () => {
+		expect(isUserControlLink({ rel: "summary", href: "https://x/summary" })).toBe(false);
 	});
 });

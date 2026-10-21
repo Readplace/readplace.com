@@ -21,6 +21,10 @@ export function actionVariant(name: string): ActionVariant {
 	return VARIANT_BY_NAME[name] ?? "default";
 }
 
+export function isUserControl(action: ActionDescriptor): boolean {
+	return action.title !== undefined || Object.hasOwn(VARIANT_BY_NAME, action.name);
+}
+
 /** Turns a wire `name` (`mark-read`, `archive_now`) into a human label when the
  * server advertised no `title`: split on `-`/`_`, then Title-Case each word so an
  * unlabelled affordance still renders a readable control instead of a raw slug. */
@@ -57,6 +61,10 @@ const PRESENTATION_BY_REL: Record<string, LinkPresentation> = {
 
 export function linkPresentation(rel: string): LinkPresentation {
 	return PRESENTATION_BY_REL[rel] ?? "control";
+}
+
+export function isUserControlLink(link: LinkDescriptor): boolean {
+	return link.title !== undefined || Object.hasOwn(PRESENTATION_BY_REL, link.rel);
 }
 
 /** The link control's text and aria-label: the server's `title` when present,
