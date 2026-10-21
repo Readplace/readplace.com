@@ -1,5 +1,5 @@
 import { isIP, isIPv6 } from "node:net";
-import { toCanonicalHostUrl } from "@packages/article-resource-unique-id";
+import { toCanonicalArticleUrl } from "@packages/article-resource-unique-id";
 import { z } from "zod";
 import { isPrivateIPv4, isPrivateIPv6, unwrapIpv6 } from "./blocked-address";
 
@@ -112,7 +112,7 @@ export function validateSaveableUrl(value: unknown): SaveableUrlResult {
 }
 
 export function prepareNewSaveUrl(url: SaveableUrl): SaveableUrl {
-	return SaveableUrlBrand.parse(toCanonicalHostUrl(url));
+	return SaveableUrlBrand.parse(toCanonicalArticleUrl(url));
 }
 
 export function withNewSavePreparation(validate: ValidateSaveableUrl): ValidateSaveableUrl {

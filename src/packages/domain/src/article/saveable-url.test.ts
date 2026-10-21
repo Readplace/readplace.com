@@ -267,6 +267,12 @@ describe("prepareNewSaveUrl", () => {
 		);
 	});
 
+	it("saves an Amazon product's title link under its bare product link", () => {
+		expect(
+			prepareNewSaveUrl(saveable("https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451")),
+		).toBe("https://www.amazon.com.au/dp/1492043451");
+	});
+
 	it("leaves every other saveable link as validated", () => {
 		expect(prepareNewSaveUrl(saveable("https://mobile.twitter.com/jack"))).toBe("https://mobile.twitter.com/jack");
 		expect(prepareNewSaveUrl(saveable("https://example.com/a?b=c"))).toBe("https://example.com/a?b=c");

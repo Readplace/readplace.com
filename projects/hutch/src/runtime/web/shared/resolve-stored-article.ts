@@ -1,4 +1,4 @@
-import { toCanonicalHostUrl } from "@packages/article-resource-unique-id";
+import { toCanonicalArticleUrl } from "@packages/article-resource-unique-id";
 import type { FindArticleByUrl, GlobalArticleData } from "@packages/provider-contracts/article-store";
 
 export type StoredArticle = { articleUrl: string; existing: GlobalArticleData | null };
@@ -16,7 +16,7 @@ export function initResolveStoredArticle(deps: {
 	return async (url) => {
 		const requested = await lookUp(url);
 		const stored = requested.existing !== null || requested.articleUrl !== url;
-		const canonicalUrl = toCanonicalHostUrl(url);
+		const canonicalUrl = toCanonicalArticleUrl(url);
 		if (stored || canonicalUrl === url) return requested;
 		return lookUp(canonicalUrl);
 	};
