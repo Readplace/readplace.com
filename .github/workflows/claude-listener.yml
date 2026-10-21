@@ -51,7 +51,7 @@ jobs:
           github.event.issue.author_association == 'COLLABORATOR'
         )
       )
-    runs-on: ${{ contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association || github.event.issue.author_association) && fromJSON('["self-hosted", "orbstack"]') || 'ubuntu-latest' }}
+    runs-on: ${{ contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association || github.event.issue.author_association) && !(github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.comment.body, '<!-- CLAUDE_REVIEW_REQUEST -->') || contains(github.event.comment.body, 'claude-PR-code-reviewer.md'))) && fromJSON('["self-hosted", "orbstack"]') || 'ubuntu-latest' }}
     environment: staging
     permissions:
       contents: write
