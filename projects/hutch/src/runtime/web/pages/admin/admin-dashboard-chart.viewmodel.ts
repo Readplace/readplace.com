@@ -71,8 +71,8 @@ export function buildSmallMultiples(input: {
 	const seriesFields = others.filter((field) => !isValueField(field));
 
 	const series = new Map<string, { title: string; points: { time: number; value: number }[] }>();
-	for (const record of records) {
-		const time = binTime(record.get(xField));
+	const binned = records.map((record) => ({ record, time: binTime(record.get(xField)) }));
+	for (const { record, time } of binned) {
 		const seriesKey = seriesFields.map((field) => record.get(field) ?? MISSING_SERIES_VALUE).join(SERIES_SEPARATOR);
 		for (const valueField of valueFields) {
 			const value = record.get(valueField);
@@ -86,7 +86,7 @@ export function buildSmallMultiples(input: {
 
 	const largest = Math.max(1, ...[...series.values()].flatMap((multiple) => multiple.points.map((point) => point.value)));
 	const yMax = niceCeiling(largest);
-	const start = input.startTime.getTime();
+	const start = Math.min(input.startTime.getTime(), ...binned.map((entry) => entry.time));
 	const span = input.endTime.getTime() - start;
 	const x = (time: number) => round(PLOT_LEFT + ((time - start) / span) * (PLOT_RIGHT - PLOT_LEFT));
 	const y = (value: number) => round(PLOT_BOTTOM - (value / yMax) * (PLOT_BOTTOM - PLOT_TOP));
@@ -99,7 +99,7 @@ export function buildSmallMultiples(input: {
 			gridLines: yTicks.map((value) => ({ x1: PLOT_LEFT, x2: PLOT_RIGHT, y: y(value) })),
 			yLabels: yTicks.map((value) => ({ x: PLOT_LEFT - 6, y: y(value), label: formatValue(value) })),
 			xLabels: [
-				{ x: PLOT_LEFT, y: X_LABEL_BASELINE, label: toAbsoluteDate({ iso: input.startTime.toISOString() }).label, anchor: "start" },
+				{ x: PLOT_LEFT, y: X_LABEL_BASELINE, label: toAbsoluteDate({ iso: new Date(start).toISOString() }).label, anchor: "start" },
 				{ x: PLOT_RIGHT, y: X_LABEL_BASELINE, label: toAbsoluteDate({ iso: input.endTime.toISOString() }).label, anchor: "end" },
 			],
 		},

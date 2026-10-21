@@ -56,6 +56,20 @@ describe("buildSmallMultiples", () => {
 		assert.deepEqual(chart.frame.yLabels.map((label) => label.label), ["0", "0.5", "1"]);
 	});
 
+	it("starts the x-axis at the earliest bin when Logs Insights floors it before the requested window", () => {
+		const chart = buildSmallMultiples({
+			startTime: new Date("2026-10-11T14:00:00.000Z"),
+			endTime: new Date("2026-10-18T14:00:00.000Z"),
+			rows: [
+				[{ field: "bin(1d)", value: "2026-10-11 00:00:00.000" }, { field: "calls", value: "2" }],
+				[{ field: "bin(1d)", value: "2026-10-18 00:00:00.000" }, { field: "calls", value: "4" }],
+			],
+		});
+
+		assert.deepEqual(chart.multiples.flatMap((multiple) => multiple.points.map((point) => point.cx)), [48, 288]);
+		assert.deepEqual(chart.frame.xLabels.map((label) => label.label), ["Oct 11, 2026", "Oct 18, 2026"]);
+	});
+
 	it("refuses rows without a bin() field, which a time-series widget always groups by", () => {
 		assert.throws(
 			() => buildSmallMultiples({ ...WEEK, rows: [[{ field: "outcome", value: "ok" }, { field: "calls", value: "4" }]] }),
