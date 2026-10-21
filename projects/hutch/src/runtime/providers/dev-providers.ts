@@ -22,6 +22,7 @@ import { initUpdateNewsletterCatalog } from "../domain/newsletter-catalog/update
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
 import { initInMemoryCanaryReports } from "@packages/test-fixtures/providers/canary-report";
+import { initInMemoryLogsInsights } from "@packages/test-fixtures/providers/logs-insights";
 import { GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { mergeSubmittedSender } from "@packages/domain/newsletter-catalog";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
@@ -576,6 +577,11 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		readNewsletterCatalog: newsletterCatalog.readCatalog,
 		writeNewsletterCatalog: newsletterCatalog.writeCatalog,
 		findCanaryReport: initInMemoryCanaryReports().findCanaryReport,
+		adminDashboards: {
+			runLogsInsightsQuery: initInMemoryLogsInsights().runLogsInsightsQuery,
+			readExcludedIdentities: async () => ({ excludedVisitorIds: [], excludedUserIds: [] }),
+			now: () => new Date(),
+		},
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens,

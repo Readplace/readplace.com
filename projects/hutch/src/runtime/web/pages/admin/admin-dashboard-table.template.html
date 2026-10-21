@@ -1,0 +1,20 @@
+<div class="admin-dashboard__table-frame">
+  <table class="admin-dashboard__table" data-test-admin-dashboard-table>
+    <thead>
+      <tr>
+        {{#each columns}}
+        <th class="admin-dashboard__column" scope="col" data-test-admin-dashboard-column>{{this}}</th>
+        {{/each}}
+      </tr>
+    </thead>
+    <tbody>
+      {{#each rows}}
+      <tr class="admin-dashboard__row" data-test-admin-dashboard-row>
+        {{#each cells}}
+        <td class="admin-dashboard__cell {{modifier}}" data-label="{{label}}" data-test-admin-dashboard-cell="{{label}}">{{text}}</td>
+        {{/each}}
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>

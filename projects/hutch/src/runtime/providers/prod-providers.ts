@@ -1,4 +1,9 @@
 /* c8 ignore start -- composition root, no logic to test */
+import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
+import { SSMClient } from "@aws-sdk/client-ssm";
+import { EXCLUDED_IDENTITIES_PARAMETER_NAME, parseExcludedIdentities } from "../observability/excluded-identities";
+import { initSsmExcludedIdentities } from "./excluded-identities/ssm-excluded-identities";
+import { initCloudWatchLogsInsights } from "./logs-insights/cloudwatch-logs-insights";
 import { initAuthDiagnosticRecorder } from "../auth-diagnostics/record";
 import assert from "node:assert";
 import {
@@ -170,6 +175,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
 	const eventBusArn = requireEnv("EVENT_BUS_ARN");
 	const client = createDynamoDocumentClient();
+	const logsClient = new CloudWatchLogsClient({});
+	const ssmClient = new SSMClient({});
 	const s3Client = new S3Client({});
 	const schedulerClient = new SchedulerClient({});
 
@@ -535,6 +542,20 @@ export function initProdProviders(input: { appOrigin: string }) {
 		readNewsletterCatalog: newsletterCatalog.readCatalog,
 		writeNewsletterCatalog: newsletterCatalog.writeCatalog,
 		findCanaryReport: initDynamoDbCanaryReports({ client, tableName: tables.canaryReports }).findCanaryReport,
+		adminDashboards: {
+			runLogsInsightsQuery: initCloudWatchLogsInsights({
+				startQuery: (command) => logsClient.send(command),
+				getQueryResults: (command) => logsClient.send(command),
+				sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+				pollIntervalMs: 1000,
+			}),
+			readExcludedIdentities: initSsmExcludedIdentities({
+				getParameter: (command) => ssmClient.send(command),
+				parameterName: EXCLUDED_IDENTITIES_PARAMETER_NAME,
+				parseExcludedIdentities,
+			}),
+			now: () => new Date(),
+		},
 		appleAuth,
 		oauthModel,
 		revokeAllUserOAuthTokens: oauthModel.revokeAllUserOAuthTokens,
