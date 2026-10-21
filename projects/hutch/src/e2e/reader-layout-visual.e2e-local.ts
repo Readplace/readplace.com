@@ -13,7 +13,7 @@ import { requireEnv } from "@packages/require-env";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { openAddLink } from "./page-interactions";
 import { measureBoxes, neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
-import { htmxIsLive, htmxProcessed, readScrollY } from "./readlist-reader-skeleton.browser";
+import { htmxIsLive, readScrollY } from "./readlist-reader-skeleton.browser";
 import { maxScrollY, recordScrollAfterSwap } from "./readlist-scroll-stability.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -779,22 +779,20 @@ test.describe("A capture host starting the reader's capture poll", () => {
 		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
 	});
 
-	test("a capture-failed event while copying shows the copy never arrived at once, offers the capture again and the page holds still", async ({
+	test("a capture-failed event sent before the copying state lands shows the copy never arrived at once, offers the capture again and the page holds still", async ({
 		page,
 	}, testInfo) => {
 		await openBlockedReader(page, `capture-failed-${testInfo.workerIndex}-${Date.now()}`);
 		const title = await measuredBox(page, TITLE);
 		await scrollToY(page, Math.round(title.y + 4));
-		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-started")));
-		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
 		const before = await page.evaluate(readScrollY);
 		expect(before).toBeGreaterThan(0);
-		await expect
-			.poll(() => page.evaluate(htmxProcessed, `${READER_NOTICE}[hx-trigger^="readplace-capture-failed"]`))
-			.toBe(true);
 
 		await page.evaluate(recordScrollAfterSwap, READER_NOTICE);
-		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-failed")));
+		await page.evaluate(() => {
+			document.dispatchEvent(new Event("readplace-capture-started"));
+			document.dispatchEvent(new Event("readplace-capture-failed"));
+		});
 
 		await expect(page.locator(CAPTURE_MISSING_NOTICE)).toHaveCount(1);
 		await awaitScrollStamp(page);

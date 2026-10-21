@@ -29,6 +29,7 @@ import {
 } from "../readlist/mark-status-confirm.component";
 import type { ArticleHistoryRemoval } from "../../shared/article-body/article-history/article-history.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
+import { CAPTURE_FAILED_RELAY_SCRIPT } from "../../shared/article-body/reader-slot/reader-slot.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../shared/article-body/summary-slot/summary-slot.component";
 import {
 	TABLE_OF_CONTENTS_SCRIPT,
@@ -313,6 +314,7 @@ export function ReaderPage(
 			page:
 				SHARE_DIALOG_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
+				CAPTURE_FAILED_RELAY_SCRIPT +
 				READLIST_PICKER_SCRIPT +
 				READLIST_CLIENT_SCRIPT +
 				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +

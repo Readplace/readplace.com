@@ -8,6 +8,7 @@ const useApp = useTestServer();
 const READER_PAGE_BUNDLES = [
 	"/client-dist/share-dialog.client.js",
 	"/client-dist/summary-toggle.client.js",
+	"/client-dist/capture-failed-relay.client.js",
 	"/client-dist/readlist-picker.client.js",
 	"/client-dist/reader-exit-confirm.client.js",
 	"/client-dist/reader-open.client.js",

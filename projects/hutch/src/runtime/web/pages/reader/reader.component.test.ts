@@ -557,6 +557,27 @@ describe("ReaderPage", () => {
 		expect(html).toContain("/client-dist/summary-toggle.client.js");
 	});
 
+	it("loads the script that holds a device's capture-failed report until htmx can hear it", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), {
+				content: undefined,
+				appOrigin: DEFAULT_APP_ORIGIN,
+				summary: { status: "ready", summary: "Key points." },
+				crawl: { status: "ready" },
+				backLink: TEST_BACK_LINK,
+				renderActions: WebReader,
+				readlistFiling: NO_QUEUE_FILING,
+				provenance: undefined,
+				now: NOW,
+				currentPath: TEST_CURRENT_PATH,
+				readerPathFor: TEST_READER_PATH,
+			}),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
+
+		expect(html).toContain('<script src="/client-dist/capture-failed-relay.client.js" defer></script>');
+	});
+
 	it("keeps same-host in-article links in the reader tab while leaving external links alone", () => {
 		const article = makeArticle();
 		const body = articleBody(

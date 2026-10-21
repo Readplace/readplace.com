@@ -19,6 +19,8 @@ import {
 import { READER_PENDING_DESCRIPTION, renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady } from "./reader-ready.component";
 
+export const CAPTURE_FAILED_RELAY_SCRIPT = `<script src="/client-dist/capture-failed-relay.client.js" defer></script>`;
+
 export type ReaderSlotCapture =
 	| { kind: "none" }
 	| { kind: "copying"; pollUrl: string; gaveUpUrl: string }
