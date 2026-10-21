@@ -62,10 +62,10 @@ const BUILT_IN_APP_COPY = {
 } satisfies Record<BuiltInClientName, { title: string; description: string }>;
 
 const BUILT_IN_DISCONNECT_BODY =
-	"It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.";
+	"It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.";
 
 const ASSISTANT_DISCONNECT_BODY =
-	"It can't reach your readlist until you connect it again. Your saved articles stay in your readlist.";
+	"It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist.";
 
 const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set(["127.0.0.1", "[::1]"]);
 
@@ -165,7 +165,7 @@ export function buildConnectedAppsSection(input: {
 			id,
 			clientId: app.client.id,
 			href,
-			title: `Disconnect ${app.title}?`,
+			title: `Sign out ${app.title} from all devices?`,
 			lead: app.description,
 			body: app.body,
 		};

@@ -11,12 +11,12 @@
                 </div>
                 <div class="account-row__actions">
                   {{#each disconnects}}
-                  <button type="button" class="btn btn--destructive btn--m connected-apps__trigger" popovertarget="{{popoverTarget}}" aria-haspopup="dialog" data-test-action="disconnect-app-open">Disconnect<span class="sr-only"> {{title}}, {{description}}</span></button>
+                  <button type="button" class="btn btn--destructive btn--m connected-apps__trigger" popovertarget="{{popoverTarget}}" aria-haspopup="dialog" data-test-action="disconnect-app-open">Sign out from all devices<span class="sr-only"> {{title}}, {{description}}</span></button>
                   <details class="connected-apps__fallback" data-test-connected-app-fallback>
-                    <summary class="btn btn--destructive btn--m" data-test-action="disconnect-app-fallback-open">Disconnect<span class="sr-only"> {{title}}, {{description}}</span></summary>
+                    <summary class="btn btn--destructive btn--m" data-test-action="disconnect-app-fallback-open">Sign out from all devices<span class="sr-only"> {{title}}, {{description}}</span></summary>
                     <p class="connected-apps__fallback-body">{{body}}</p>
                     <form method="POST" action="{{href}}" class="connected-apps__fallback-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-connected-app-action="disconnect">
-                      <button type="submit" class="btn btn--destructive btn--m" data-test-action="disconnect-app-fallback-confirm"><span class="account__action-label">Disconnect<span class="sr-only"> {{title}}, {{description}}</span></span>{{{loaderHtml}}}</button>
+                      <button type="submit" class="btn btn--destructive btn--m" data-test-action="disconnect-app-fallback-confirm"><span class="account__action-label">Sign out from all devices<span class="sr-only"> {{title}}, {{description}}</span></span>{{{loaderHtml}}}</button>
                     </form>
                   </details>
                   {{/each}}

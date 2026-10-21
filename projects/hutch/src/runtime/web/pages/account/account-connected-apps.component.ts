@@ -15,7 +15,7 @@ const CONNECTED_APPS_TEMPLATE = readFileSync(join(__dirname, "account-connected-
 const LOADER_HTML = renderInFlightDots("account__action-loader in-flight-dots");
 
 const DISCONNECT_ACTIONS_TEMPLATE =
-	'<form method="POST" action="{{href}}" class="confirm-popover__actions confirm-popover__buttons" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-connected-app-action="disconnect-confirm"><button type="button" class="btn btn--neutral" popovertarget="{{id}}" popovertargetaction="hide" data-test-action="disconnect-app-cancel">Cancel</button><button type="submit" class="btn btn--primary" data-test-action="disconnect-app-confirm" autofocus><span class="account__action-label">Disconnect</span>{{{loaderHtml}}}</button></form>';
+	'<form method="POST" action="{{href}}" class="confirm-popover__actions confirm-popover__buttons" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-connected-app-action="disconnect-confirm"><button type="button" class="btn btn--neutral" popovertarget="{{id}}" popovertargetaction="hide" data-test-action="disconnect-app-cancel">Cancel</button><button type="submit" class="btn btn--primary" data-test-action="disconnect-app-confirm" autofocus><span class="account__action-label">Sign out from all devices</span>{{{loaderHtml}}}</button></form>';
 
 function logoHtml(logo: ConnectedAppLogo): string {
 	return logo === "plug" ? iconSvg("plug") : CLIENT_ICON_SVG[logo];

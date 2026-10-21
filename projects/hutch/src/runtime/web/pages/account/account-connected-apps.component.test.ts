@@ -34,13 +34,13 @@ function rowFor(section: Element, clientId: string): Element {
 
 function panelFor({ section, trigger }: { section: Element; trigger: Element }): Element {
 	const panel = section.querySelector(`[data-test-confirm-popover="disconnect-app"][id="${trigger.getAttribute("popovertarget")}"]`);
-	assert(panel, "every Disconnect trigger must open a rendered panel");
+	assert(panel, "every sign-out trigger must open a rendered panel");
 	return panel;
 }
 
 function triggerIn(row: Element): Element {
 	const trigger = row.querySelector('[data-test-action="disconnect-app-open"]');
-	assert(trigger, "a client row must carry a Disconnect trigger");
+	assert(trigger, "a client row must carry a sign-out trigger");
 	return trigger;
 }
 
@@ -65,7 +65,7 @@ describe("renderConnectedApps", () => {
 		expect([...well.querySelectorAll("svg path")].map((path) => path.getAttribute("fill"))).toEqual(["#DB4437", "#FFCD40", "#0F9D58"]);
 	});
 
-	it("opens a plain Disconnect panel from each row's trigger, Cancel before Disconnect and no close control", () => {
+	it("opens a plain sign-out panel from each row's trigger, Cancel before Sign out from all devices and no close control", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		for (const clientId of ["hutch-chrome-extension", "dyn-claude"]) {
@@ -84,18 +84,18 @@ describe("renderConnectedApps", () => {
 		}
 	});
 
-	it("titles the panel with the app and states what Disconnect does", () => {
+	it("titles the panel with the app and states that it signs the app out on every device", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		const panel = panelFor({ section, trigger: triggerIn(rowFor(section, "hutch-chrome-extension")) });
-		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe("Disconnect Chrome extension?");
+		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe("Sign out Chrome extension from all devices?");
 		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
+			"It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
 		);
 		expect(panel.querySelector(".sr-only")?.textContent).toBe("Save any page to Readplace with one click.");
 	});
 
-	it("names the app and where it connects from on every Disconnect control", () => {
+	it("names the app and where it connects from on every sign-out control", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		const row = rowFor(section, "dyn-claude");
@@ -105,9 +105,9 @@ describe("renderConnectedApps", () => {
 			return control;
 		});
 		expect(controls.map((control) => control.textContent)).toEqual([
-			"Disconnect Claude, Connected from claude.ai.",
-			"Disconnect Claude, Connected from claude.ai.",
-			"Disconnect Claude, Connected from claude.ai.",
+			"Sign out from all devices Claude, Connected from claude.ai.",
+			"Sign out from all devices Claude, Connected from claude.ai.",
+			"Sign out from all devices Claude, Connected from claude.ai.",
 		]);
 		expect(controls.map((control) => control.querySelector(".sr-only")?.textContent)).toEqual([
 			" Claude, Connected from claude.ai.",
@@ -123,8 +123,8 @@ describe("renderConnectedApps", () => {
 		]);
 
 		expect([...section.querySelectorAll('[data-test-action="disconnect-app-open"]')].map((trigger) => trigger.textContent)).toEqual([
-			"Disconnect Claude, Connected from claude.ai.",
-			"Disconnect Claude, Connected from example.com.",
+			"Sign out from all devices Claude, Connected from claude.ai.",
+			"Sign out from all devices Claude, Connected from example.com.",
 		]);
 	});
 
@@ -140,11 +140,11 @@ describe("renderConnectedApps", () => {
 			"form.connected-apps__fallback-form",
 		]);
 		expect(fallback.querySelector(".connected-apps__fallback-body")?.textContent).toBe(
-			"It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
+			"It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
 		);
 	});
 
-	it("posts the fallback to the same Disconnect as the panel, through one red submit that shows its round trip", () => {
+	it("posts the fallback to the same sign-out as the panel, through one red submit that shows its round trip", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		const row = rowFor(section, "hutch-chrome-extension");
@@ -168,7 +168,7 @@ describe("renderConnectedApps", () => {
 		expect([...row.querySelectorAll("form")].map((form) => form.className)).toEqual(["connected-apps__fallback-form"]);
 	});
 
-	it("swaps the page's main on either Disconnect without moving the reader", () => {
+	it("swaps the page's main on either sign-out without moving the reader", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		const forms = [...section.querySelectorAll('form[data-test-connected-app-action]')];

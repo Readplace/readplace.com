@@ -107,7 +107,7 @@ describe("buildConnectedAppsSection", () => {
 		]);
 	});
 
-	it("posts a web Disconnect to the client's own route, tagged as an account click", () => {
+	it("posts a web sign-out to the client's own route, tagged as an account click", () => {
 		const section = webSection([builtIn("hutch-chrome-extension")]);
 
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.href))).toEqual([
@@ -116,7 +116,7 @@ describe("buildConnectedAppsSection", () => {
 		expect(section.rows.map((row) => row.links)).toEqual([[]]);
 	});
 
-	it("keeps the app sheet's markers on a Disconnect posted from inside it", () => {
+	it("keeps the app sheet's markers on a sign-out posted from inside it", () => {
 		const section = buildConnectedAppsSection({ clients: [builtIn("hutch-chrome-extension")], appShell: true, platform: "ios" });
 
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.href))).toEqual([
@@ -124,7 +124,7 @@ describe("buildConnectedAppsSection", () => {
 		]);
 	});
 
-	it("asks before disconnecting a built-in app, naming it and saying it signs out", () => {
+	it("asks before signing a built-in app out, naming it and saying it signs out on every device", () => {
 		const section = webSection([builtIn("hutch-chrome-extension")]);
 
 		expect(section.dialogs).toEqual([
@@ -132,25 +132,25 @@ describe("buildConnectedAppsSection", () => {
 				id: "disconnect-app-1",
 				clientId: "hutch-chrome-extension",
 				href: "/account/connected-apps/hutch-chrome-extension/disconnect?utm_source=account&utm_medium=internal&utm_content=disconnect-app",
-				title: "Disconnect Chrome extension?",
+				title: "Sign out Chrome extension from all devices?",
 				lead: "Save any page to Readplace with one click.",
-				body: "It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
+				body: "It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
 			},
 		]);
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.body))).toEqual([
-			["It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist."],
+			["It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist."],
 		]);
 	});
 
-	it("asks before disconnecting an assistant, leading with where it connects from", () => {
+	it("asks before signing an assistant out everywhere, leading with where it connects from", () => {
 		const section = webSection([
 			CLAUDE,
 			registered({ id: "dyn-unknown", name: "Mystery", redirectUri: "https://example.com/callback" }),
 		]);
 
 		expect(section.dialogs.map((dialog) => [dialog.title, dialog.lead, dialog.body])).toEqual([
-			["Disconnect Claude?", "Connected from claude.ai.", "It can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
-			["Disconnect AI assistant?", "Connected from example.com.", "It can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
+			["Sign out Claude from all devices?", "Connected from claude.ai.", "It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
+			["Sign out AI assistant from all devices?", "Connected from example.com.", "It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
 		]);
 	});
 

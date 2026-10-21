@@ -33,7 +33,7 @@ describe("GET /privacy", () => {
 
 		expect(response.text).toContain("Connected AI assistants");
 		expect(response.text).toContain("It cannot delete anything");
-		expect(response.text).toContain("Disconnect an assistant under");
+		expect(response.text).toContain("Sign an assistant out under");
 		expect(response.text).toContain("on your Account page");
 		expect(response.text).toContain("revokes its Readplace token");
 		expect(response.text).toContain("list your readlists, create a readlist and add a saved article to one");

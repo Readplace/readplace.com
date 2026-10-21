@@ -190,7 +190,7 @@ describe("GET /account (connected apps)", () => {
 		expect(untracked).toEqual([]);
 	});
 
-	it("keeps the app sheet's markers on the Disconnect it renders inside the sheet", async () => {
+	it("keeps the app sheet's markers on the sign-out it renders inside the sheet", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await signIn(harness, "connected-sheet@example.com");
 		await grant(harness, { agent, clientId: "hutch-chrome-extension", redirectUri: EXTENSION_CALLBACK });
