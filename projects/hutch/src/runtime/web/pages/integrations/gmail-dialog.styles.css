@@ -54,7 +54,7 @@
   }
 }
 
-.gmail-mappings__header {
+.gmail__mappings-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -63,7 +63,7 @@
   margin-bottom: 8px;
 }
 
-.gmail-mappings__header .gmail__section-title {
+.gmail__mappings-header .gmail__section-title {
   margin-bottom: 0;
 }
 

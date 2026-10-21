@@ -436,7 +436,7 @@ export function toGmailMappingsViewModel(input: GmailMappingsInput): GmailMappin
 		emptyActions: rows.length > 0 ? [] : addActions,
 		polling,
 		pollUrl: polling
-			? `${buildGmailUrl({ ...input.state, discovery: "started" })}&imports_poll=${input.importsPollCount + 1}`
+			? `${buildGmailUrl({ ...closeGmailDialog(input.state), discovery: "started" })}&imports_poll=${input.importsPollCount + 1}`
 			: undefined,
 		exhausted: importing && !polling,
 		filter: {

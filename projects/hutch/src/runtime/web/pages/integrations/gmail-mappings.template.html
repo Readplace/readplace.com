@@ -1,5 +1,5 @@
 <section id="gmail-mappings" class="gmail__mappings"{{#if outOfBand}} hx-swap-oob="outerHTML"{{/if}} data-test-gmail-mappings data-imports-polling="{{#if polling}}true{{else}}false{{/if}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-select="#gmail-mappings" hx-swap="outerHTML"{{/if}}>
-          <div class="gmail-mappings__header">
+          <div class="gmail__mappings-header">
             <h2 class="gmail__section-title">Your newsletters</h2>
             {{{headerActionsHtml}}}
           </div>

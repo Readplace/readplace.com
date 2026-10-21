@@ -1772,11 +1772,11 @@ describe("Your newsletters", () => {
 		expect(rowActionKeys(mapped)).toEqual(["edit", "start-import", "remove"]);
 	});
 
-	it("polls the mappings while an import runs, keeps the picker state, and stops at the poll budget", async () => {
+	it("polls the mappings while an import runs, keeps the picker state without the popup, and stops at the poll budget", async () => {
 		const { agent, mapSender, seedJob } = await connectedAgent();
 		const destination = await mapSender(TLDR, "default");
 		await seedJob({ sender: TLDR, destination, state: "running" });
-		const first = load((await agent.get(`${GMAIL}?search=dan&sender=${encodeURIComponent(MORNING)}`)).text);
+		const first = load((await agent.get(`${GMAIL}?search=dan&sender=${encodeURIComponent(MORNING)}&add=1`)).text);
 		const section = first.querySelector("#gmail-mappings");
 		assert(section);
 		expect(section.getAttribute("data-imports-polling")).toBe("true");
