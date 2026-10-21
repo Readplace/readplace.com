@@ -13,7 +13,6 @@ interface EpubGuideCopy {
 }
 
 export interface EpubDownloadGuide extends EpubGuideCopy {
-	platform: EpubGuidePlatform;
 	downloadHref: string;
 	learnMoreHref: string;
 }
@@ -62,7 +61,6 @@ export function epubDownloadGuideFor(input: {
 	const platform = GUIDED_OS[input.osFamily];
 	if (platform === undefined) return undefined;
 	return {
-		platform,
 		...GUIDE_COPY[platform],
 		downloadHref: input.downloadHref,
 		learnMoreHref: input.learnMoreHref,

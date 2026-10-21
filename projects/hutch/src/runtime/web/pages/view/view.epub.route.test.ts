@@ -435,6 +435,18 @@ describe("GET /view/<url> Download on a platform with no EPUB reader", () => {
 		});
 	});
 
+	it("keeps the bare download link on an app surface whatever the User-Agent", async () => {
+		const { harness, fixture } = buildDownloadHarness();
+		await seedReadyArticle(fixture);
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}?shell=app`).set(BROWSER_REQUEST_HEADERS);
+
+		expect(publicDownloads(new JSDOM(response.text).window.document)).toEqual({
+			children: ["A"],
+			links: [{ format: "epub", href: PUBLIC_EPUB_HREF }],
+		});
+	});
+
 	it("keeps the bare download link for a browser that names no platform", async () => {
 		const { harness, fixture } = buildDownloadHarness();
 		await seedReadyArticle(fixture);

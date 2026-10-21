@@ -46,6 +46,7 @@ import {
 	isExtensionInstalled,
 } from "../../onboarding/extension-install";
 import { setLastViewUrl } from "../../last-view";
+import { isNativeSurface } from "../../onboarding/native-client";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen, saveTipState, type SaveTipState } from "../../shared/save-tip/save-tip";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
@@ -573,6 +574,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 }
 
 function viewEpubGuideFor(req: Request, articleUrl: string): EpubDownloadGuide | undefined {
+	if (isNativeSurface(req)) return undefined;
 	return epubDownloadGuideFor({
 		osFamily: classifyOsFamily(req.get("user-agent")),
 		downloadHref: viewEpubHref(articleUrl),

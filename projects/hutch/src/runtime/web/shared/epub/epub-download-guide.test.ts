@@ -9,7 +9,6 @@ const HREFS = {
 describe("epubDownloadGuideFor", () => {
 	it("guides a Windows reader to Thorium Reader on the Microsoft Store", () => {
 		expect(epubDownloadGuideFor({ osFamily: "windows", ...HREFS })).toEqual({
-			platform: "windows",
 			title: "Reading an EPUB on Windows",
 			body: "Windows doesn't include an app that opens EPUB files, so the download needs a reader app to open.",
 			readerApp: {
@@ -23,7 +22,6 @@ describe("epubDownloadGuideFor", () => {
 
 	it("guides a Linux reader to Foliate on Flathub", () => {
 		expect(epubDownloadGuideFor({ osFamily: "linux", ...HREFS })).toEqual({
-			platform: "linux",
 			title: "Reading an EPUB on Linux",
 			body: "Most Linux desktops don't include an app that opens EPUB files, so the download needs a reader app to open.",
 			readerApp: {
@@ -37,7 +35,6 @@ describe("epubDownloadGuideFor", () => {
 
 	it("guides a Chromebook reader to upload the file to Google Play Books", () => {
 		expect(epubDownloadGuideFor({ osFamily: "chromeos", ...HREFS })).toEqual({
-			platform: "chromeos",
 			title: "Reading an EPUB on a Chromebook",
 			body: "ChromeOS doesn't include an app that opens EPUB files, so the download needs a reader app to open.",
 			readerApp: {
