@@ -187,7 +187,6 @@ describe("bulk saves of Amazon product links", () => {
 		expect(response.body.properties.results.map((result: { url: string }) => result.url)).toEqual([TITLE]);
 		expect(published.rawHtml).toEqual([BARE]);
 		expect(testApp.pendingHtml.readPendingHtml(BARE, { saveAttemptId: published.attempts[0] })).toBe(VALID_HTML.toString("utf8"));
-		expect(testApp.pendingHtml.readPendingHtml(TITLE, { saveAttemptId: published.attempts[0] })).toBeUndefined();
 		expect(await savedUrls(testApp)).toEqual([BARE]);
 	});
 

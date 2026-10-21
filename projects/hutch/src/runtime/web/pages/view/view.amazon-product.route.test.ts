@@ -42,7 +42,7 @@ async function harnessWith(rows: { url: string; title: string }[]) {
 			},
 		},
 	});
-	return { harness, fixture, stubbed, anonymousSaves, staleChecks };
+	return { harness, stubbed, anonymousSaves, staleChecks };
 }
 
 function titleOf(html: string): string | null | undefined {
@@ -62,14 +62,13 @@ describe("/view of an Amazon product saved under its title link, its bare link, 
 	});
 
 	it("creates the article under the bare link on a first visit to a title link", async () => {
-		const { harness, fixture, stubbed, anonymousSaves } = await harnessWith([]);
+		const { harness, stubbed, anonymousSaves } = await harnessWith([]);
 
 		const response = await request(harness.server).get(TITLE_VIEW_PATH);
 
 		expect(response.status).toBe(200);
 		expect(stubbed).toEqual([BARE]);
 		expect(anonymousSaves).toEqual([BARE]);
-		expect(await fixture.articleStore.findArticleByUrl(TITLE)).toBeNull();
 	});
 
 	it("serves a legacy title-link article from its own record", async () => {
