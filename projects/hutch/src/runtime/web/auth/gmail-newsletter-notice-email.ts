@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { GMAIL_HISTORY_IMPORT_WINDOW_DAYS } from "@packages/domain/gmail";
 import { render } from "@packages/web-shell";
-import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS } from "../../domain/gmail/gmail-newsletter-notice-cadence";
+import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS, GMAIL_NEWSLETTER_NOTICE_MAX_NEWSLETTERS } from "../../domain/gmail/gmail-newsletter-notice-cadence";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "../email-colors";
 import { EMAIL_REPLY_INVITATION } from "../email-copy";
 
@@ -45,6 +45,7 @@ function groupCopy(count: number) {
 function waitingCopy(waiting: number): { text: string }[] {
 	if (waiting === 0) return [];
 	if (waiting === 1) return [{ text: `1 more newsletter is waiting and will be in your next email in about ${GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS} days.` }];
+	if (waiting > GMAIL_NEWSLETTER_NOTICE_MAX_NEWSLETTERS) return [{ text: `${waiting} more newsletters are waiting; the next ${GMAIL_NEWSLETTER_NOTICE_MAX_NEWSLETTERS} will be in your next email in about ${GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS} days.` }];
 	return [{ text: `${waiting} more newsletters are waiting and will be in your next email in about ${GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS} days.` }];
 }
 
