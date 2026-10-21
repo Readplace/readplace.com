@@ -14,6 +14,7 @@ import type { ExchangeAppleCode } from "@packages/test-fixtures/providers/apple-
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { MAX_APPLE_STATE_COOKIE_BYTES } from "./apple-state";
+import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -281,13 +282,7 @@ describe("Apple auth routes", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
-				email: {
-					...fixture.email,
-					sendEmail: async (message) => {
-						await new Promise((resolve) => setTimeout(resolve, 50));
-						await fixture.email.sendEmail(message);
-					},
-				},
+				email: withDelayedSendEmail(fixture.email),
 				apple: appleWith(stubExchange({ email: "welcome-apple@example.com" })),
 			});
 			const state = signState(freshState());

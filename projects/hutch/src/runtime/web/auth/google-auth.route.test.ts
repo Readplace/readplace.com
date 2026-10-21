@@ -14,6 +14,7 @@ import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/googl
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -270,13 +271,7 @@ describe("Google auth routes", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
-				email: {
-					...fixture.email,
-					sendEmail: async (message) => {
-						await new Promise((resolve) => setTimeout(resolve, 50));
-						await fixture.email.sendEmail(message);
-					},
-				},
+				email: withDelayedSendEmail(fixture.email),
 				google: {
 					exchangeGoogleCode: stubExchange({ email: "welcome-google@example.com" }),
 					clientId: "test-google-client-id",

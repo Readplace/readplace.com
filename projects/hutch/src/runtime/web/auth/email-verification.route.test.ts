@@ -8,6 +8,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
 
 const useApp = useTestServer();
 
@@ -39,13 +40,7 @@ describe("Email verification", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
-				email: {
-					...fixture.email,
-					sendEmail: async (message) => {
-						await new Promise((resolve) => setTimeout(resolve, 50));
-						await fixture.email.sendEmail(message);
-					},
-				},
+				email: withDelayedSendEmail(fixture.email),
 			});
 
 			await signup(harness.server, "new@example.com");
@@ -231,13 +226,7 @@ describe("Email verification", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
-				email: {
-					...fixture.email,
-					sendEmail: async (message) => {
-						await new Promise((resolve) => setTimeout(resolve, 50));
-						await fixture.email.sendEmail(message);
-					},
-				},
+				email: withDelayedSendEmail(fixture.email),
 			});
 			await signup(harness.server, "welcome@example.com");
 			const tokenMatch = harness.email.getSentEmails()[0].html.match(/token&#x3D;([a-f0-9]+)/);
