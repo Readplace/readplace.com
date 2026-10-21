@@ -17,6 +17,8 @@ import com.readplace.android.core.SirenAction
 import com.readplace.android.core.SirenLink
 import com.readplace.android.core.UnseenSave
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Everything the reading list renders, published as one value through
@@ -125,6 +128,7 @@ class ReadingListViewModel(
 	private val reportAutomaticCaptureFailure: (String) -> Unit,
 	private val drainUploadJobs: suspend () -> Unit,
 	private val onSessionExpired: () -> Unit,
+	private val scope: CoroutineScope,
 ) {
 	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
 	val state: StateFlow<ReadingListState> = states.asStateFlow()
@@ -186,6 +190,9 @@ class ReadingListViewModel(
 	private var readsStarted = 0
 	private var readApplied = 0
 	private var readsInFlight = 0
+
+	var shareTargetReconciliation: Job? = null
+		private set
 
 	/** Whether a collection has ever been applied. Gates the foreground refresh so
 	 * it never races the launch-time load with a second fetch. */
@@ -504,7 +511,7 @@ class ReadingListViewModel(
 	 * in-flight one — only a newer one that has actually applied. Returns whether
 	 * this collection was applied.
 	 */
-	private suspend fun replace(firstPage: ReadlistPage, deeperPages: List<ReadlistPage>, read: Int): Boolean {
+	private fun replace(firstPage: ReadlistPage, deeperPages: List<ReadlistPage>, read: Int): Boolean {
 		if (read <= readApplied) return false
 		readApplied = read
 		apply(firstPage, replacing = true)
@@ -513,9 +520,16 @@ class ReadingListViewModel(
 		return true
 	}
 
-	private suspend fun reconcileShareTargets(advertised: List<Readlist>) {
+	private fun reconcileShareTargets(advertised: List<Readlist>) {
+		if (shareTargetReconciliation?.isActive == true) return
+		val unadvertised = shareTarget.hrefs.filterNot { href -> advertised.any { it.matches(listOf(href)) } }
+		if (unadvertised.isEmpty()) return
+		shareTargetReconciliation = scope.launch { rewriteUnadvertisedShareTargets(advertised, unadvertised) }
+	}
+
+	private suspend fun rewriteUnadvertisedShareTargets(advertised: List<Readlist>, unadvertised: List<String>) {
 		val default = advertised.firstOrNull() ?: return
-		for (persisted in shareTarget.hrefs.filterNot { href -> advertised.any { it.matches(listOf(href)) } }) {
+		for (persisted in unadvertised) {
 			val followed = try {
 				api.loadReadlist(path = persisted)
 			} catch (_: Exception) {

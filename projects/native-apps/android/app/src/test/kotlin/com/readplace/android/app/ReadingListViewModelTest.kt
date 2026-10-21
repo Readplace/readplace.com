@@ -131,6 +131,7 @@ class ReadingListViewModelTest {
 			reportAutomaticCaptureFailure = reportAutomaticCaptureFailure,
 			drainUploadJobs = drainUploadJobs,
 			onSessionExpired = onSessionExpired,
+			scope = backgroundScope,
 		)
 
 	/** Waits — off the test scheduler, so the launched operation can run — until the
@@ -3501,6 +3502,7 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel(shareTarget = shareTarget)
 
 		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
 
 		assertEquals(
 			"the legacy href is rewritten to the advertised one its redirect chain reached",
@@ -3511,8 +3513,27 @@ class ReadingListViewModelTest {
 		assertEquals("Work is badged as a share target", listOf(true, true), viewModel.state.value.readlistMenu.map { it.isShareTarget })
 
 		viewModel.refresh()
+		viewModel.shareTargetReconciliation?.join()
 
 		assertEquals("the rewritten href is advertised, so the follow never repeats", 1, legacyFollows("work"))
+	}
+
+	@Test
+	fun `the list is shown and stops loading before a stale share target is followed`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?queue=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertFalse("the load is over once the page applies", viewModel.state.value.isLoading)
+		assertEquals("the follow has not held the load back", 0, legacyFollows("work"))
+
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals(1, legacyFollows("work"))
+		assertEquals(setOf("/queue?readlist=work"), shareTarget.hrefs)
 	}
 
 	@Test
@@ -3523,6 +3544,7 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel(shareTarget = shareTarget)
 
 		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
 
 		assertEquals("the entry for the unknown readlist is dropped", setOf("/queue?readlist=work"), shareTarget.hrefs)
 		assertTrue("the reader's answer stays decided", shareTarget.isDecided)
@@ -3536,6 +3558,7 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel(shareTarget = shareTarget)
 
 		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
 
 		assertEquals("only the mainline collection is read", listOf<String?>(null), server.records("/queue").map { it.request.url.query })
 		assertEquals(setOf("/queue?readlist=work"), shareTarget.hrefs)
@@ -3548,6 +3571,7 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel(shareTarget = shareTarget)
 
 		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
 
 		assertEquals("a failed follow leaves the entry for a later load", setOf("/queue?readlist=broken"), shareTarget.hrefs)
 		assertNull(viewModel.state.value.errorText)

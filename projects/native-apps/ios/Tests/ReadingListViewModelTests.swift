@@ -1613,6 +1613,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
 
 		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
 
 		XCTAssertEqual(
 			requestedHrefs(), ["/", "/queue", "/queue?queue=work", "/queue?readlist=work"],
@@ -1627,6 +1628,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		StubURLProtocol.reset()
 		StubURLProtocol.setHandler(canonicalReadlistHandler())
 		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
 
 		XCTAssertEqual(requestedHrefs(), ["/", "/queue"], "once rewritten, the tick is never followed again")
 	}
@@ -1638,6 +1640,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
 
 		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
 
 		XCTAssertEqual(
 			ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"],
@@ -1652,6 +1655,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
 
 		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
 
 		XCTAssertEqual(requestedHrefs(), ["/", "/queue"], "an advertised tick needs no round trip")
 		XCTAssertEqual(ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"])
@@ -1664,6 +1668,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
 
 		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
 
 		XCTAssertEqual(requestedHrefs(), ["/", "/queue", "/queue?queue=broken"])
 		XCTAssertEqual(

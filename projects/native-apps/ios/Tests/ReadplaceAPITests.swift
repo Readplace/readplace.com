@@ -213,6 +213,26 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
+	func testFollowingAStoredHrefBypassesTheCacheAndGivesUpAfterTenSilentSeconds() async throws {
+		StubURLProtocol.setHandler { request, _ in
+			(request.url?.query ?? "").contains("queue=work")
+				? .redirect(to: "/queue?readlist=work")
+				: .json(200, Fixtures.collection(entitiesJSON: []))
+		}
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).followReadlist(path: "/queue?queue=work")
+
+		XCTAssertEqual(
+			StubURLProtocol.records.map { "\($0.request.url?.query ?? "") \($0.request.timeoutInterval)" },
+			["queue=work 10.0", "readlist=work 10.0"],
+			"a follow nothing waits on is still bounded, so a stalled one never holds the next reconciliation back"
+		)
+		XCTAssertEqual(
+			StubURLProtocol.records.map { $0.request.cachePolicy }, [.reloadIgnoringLocalCacheData, .reloadIgnoringLocalCacheData],
+			"and it asks the origin, so a cached copy never answers where the href now lands"
+		)
+	}
+
 	func testAListReadCarriesEveryHrefItWasRedirectedThrough() async throws {
 		StubURLProtocol.setHandler { request, _ in
 			(request.url?.query ?? "").contains("queue=work")

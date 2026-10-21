@@ -53,6 +53,7 @@ final class ReadingListViewModel: ObservableObject {
 	private var isLoadingMore = false
 	private var isDrainingUploads = false
 	private var offlineDownloadTask: Task<Void, Never>?
+	private(set) var shareTargetReconciliation: Task<Void, Never>?
 	private var pagesHeld = 0
 	/// Whether a collection has ever been applied. Gates the foreground refresh so
 	/// it never races the initial `.task` load with a second fetch at launch.
@@ -226,7 +227,7 @@ final class ReadingListViewModel: ObservableObject {
 		do {
 			let page = try await api.loadReadlist(path: path)
 			snapshot.save(page, href: path, savedAt: Date())
-			await rewriteUnadvertisedShareTargets(against: page)
+			reconcileShareTargets(against: page)
 			return page
 		} catch let error where OfflineReading.isTransportFailure(error) {
 			let now = Date()
@@ -236,11 +237,20 @@ final class ReadingListViewModel: ObservableObject {
 		}
 	}
 
+	private func reconcileShareTargets(against page: ReadlistPage) {
+		guard shareTargetReconciliation == nil else { return }
+		shareTargetReconciliation = Task {
+			defer { shareTargetReconciliation = nil }
+			await rewriteUnadvertisedShareTargets(against: page)
+		}
+	}
+
 	private func rewriteUnadvertisedShareTargets(against page: ReadlistPage) async {
 		guard let shareTarget, let mainline = page.readlists.first else { return }
 		let advertised = page.readlists.map(\.href)
 		for href in shareTarget.hrefs where !advertised.contains(href) {
-			guard let followed = try? await api.rediscoverReadlist(path: href) else { continue }
+			guard let followed = try? await api.followReadlist(path: href) else { continue }
+			objectWillChange.send()
 			let landed = followed.redirectChain + [followed.currentReadlistHref].compactMap { $0 }
 			shareTarget.remove(href: href)
 			if let match = page.readlists.first(where: { Href.matches($0.href, anyOf: landed, baseURL: api.baseURL) }),

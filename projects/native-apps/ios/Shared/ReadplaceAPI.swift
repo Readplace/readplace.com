@@ -171,18 +171,24 @@ final class ReadplaceAPI {
 	/// otherwise it follows a link href the server already handed back (e.g. the
 	/// `next` link).
 	func loadReadlist(path: String? = nil) async throws -> ReadlistPage {
-		try await loadReadlist(path: path, cachePolicy: .reloadRevalidatingCacheData)
+		try await loadReadlist(path: path, cachePolicy: .reloadRevalidatingCacheData, timeout: Self.listReadTimeout)
 	}
 
 	func discoverReadlist() async throws -> ReadlistPage {
-		try await loadReadlist(path: nil, cachePolicy: .useProtocolCachePolicy)
+		try await loadReadlist(path: nil, cachePolicy: .useProtocolCachePolicy, timeout: nil)
 	}
 
 	func rediscoverReadlist(path: String? = nil) async throws -> ReadlistPage {
-		try await loadReadlist(path: path, cachePolicy: .reloadIgnoringLocalCacheData)
+		try await loadReadlist(path: path, cachePolicy: .reloadIgnoringLocalCacheData, timeout: nil)
 	}
 
-	private func loadReadlist(path: String?, cachePolicy: URLRequest.CachePolicy) async throws -> ReadlistPage {
+	func followReadlist(path: String) async throws -> ReadlistPage {
+		try await loadReadlist(path: path, cachePolicy: .reloadIgnoringLocalCacheData, timeout: Self.listReadTimeout)
+	}
+
+	private func loadReadlist(
+		path: String?, cachePolicy: URLRequest.CachePolicy, timeout: TimeInterval?
+	) async throws -> ReadlistPage {
 		let url: URL
 		if let path {
 			url = try absoluteURL(path)
@@ -193,7 +199,7 @@ final class ReadplaceAPI {
 		var request = URLRequest(url: url)
 		request.httpMethod = "GET"
 		request.cachePolicy = cachePolicy
-		if cachePolicy == .reloadRevalidatingCacheData { request.timeoutInterval = Self.listReadTimeout }
+		if let timeout { request.timeoutInterval = timeout }
 		let (data, http, redirectChain) = try await send(request)
 		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
 		return ReadlistPage(
