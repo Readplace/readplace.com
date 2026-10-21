@@ -1,5 +1,12 @@
-<div id="reader-downloads-slot" class="article-body__downloads-slot {{#if downloadHref}}article-body__downloads-slot--visible{{else}}article-body__downloads-slot--hidden{{/if}}" data-test-downloads-slot{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
-  {{#if downloadHref}}
-  <a id="reader-download-epub" class="btn btn--neutral btn--icon article-body__download" href="{{downloadHref}}" data-test-download="epub">{{icon "download"}}<span class="sr-only">Download EPUB</span></a>
+<div id="reader-downloads-slot" class="article-body__downloads-slot {{#if visible}}article-body__downloads-slot--visible{{else}}article-body__downloads-slot--hidden{{/if}}" data-test-downloads-slot{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
+  {{#if link}}
+  <a id="reader-download-epub" class="btn btn--neutral btn--icon article-body__download" href="{{link.href}}" data-test-download="epub">{{icon "download"}}<span class="sr-only">Download EPUB</span></a>
+  {{/if}}
+  {{#if guide}}
+  <button class="btn btn--neutral btn--icon article-body__download-open" type="button" popovertarget="{{guide.popoverId}}" aria-haspopup="dialog" data-test-action="download-open">{{icon "download"}}<span class="sr-only">Download EPUB</span></button>
+  <details class="article-body__download-fallback" data-test-download-fallback>
+    <summary class="btn btn--neutral btn--icon">{{icon "download"}}<span class="sr-only">Download EPUB</span></summary>
+    <div class="article-body__download-fallback-panel">{{{guide.fallbackHtml}}}</div>
+  </details>
   {{/if}}
 </div>

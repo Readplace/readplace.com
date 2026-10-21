@@ -379,3 +379,71 @@ describe("GET /view/<url>?format=<download>", () => {
 		]);
 	});
 });
+
+const PUBLIC_EPUB_HREF =
+	"/view/example.com/post?format=epub&utm_source=view-article&utm_medium=internal&utm_content=download-epub&utm_term=reader-public";
+
+function publicDownloads(doc: Document) {
+	const slot = doc.querySelector("[data-test-downloads-slot]");
+	assert(slot, "the Download slot must render");
+	return {
+		children: Array.from(slot.children, (child) => child.tagName),
+		links: Array.from(doc.querySelectorAll('[data-test-download="epub"], [data-test-download="epub-fallback"]'), (link) => ({
+			format: link.getAttribute("data-test-download"),
+			href: link.getAttribute("href"),
+		})),
+	};
+}
+
+describe("GET /view/<url> Download on a platform with no EPUB reader", () => {
+	it("opens a guide before the download, holding the public download in the dialog and the fallback", async () => {
+		const { harness, fixture } = buildDownloadHarness();
+		await seedReadyArticle(fixture);
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.vary).toContain("User-Agent");
+		const doc = new JSDOM(response.text).window.document;
+		expect(publicDownloads(doc)).toEqual({
+			children: ["BUTTON", "DETAILS"],
+			links: [
+				{ format: "epub-fallback", href: PUBLIC_EPUB_HREF },
+				{ format: "epub", href: PUBLIC_EPUB_HREF },
+			],
+		});
+		const dialog = doc.querySelector('[data-test-confirm-popover="download-guide"]');
+		assert(dialog, "the public reader must carry the download guide");
+		expect(dialog.querySelector("[data-test-download-learn-more]")?.getAttribute("href")).toBe(
+			"/blog/read-your-saved-articles-on-a-kindle-or-kobo?utm_source=view-article&utm_medium=internal&utm_content=epub-guide-kindle-kobo&utm_term=reader-public",
+		);
+	});
+
+	it("re-renders the guide's opener when a poll swaps the slot in", async () => {
+		const { harness, fixture } = buildDownloadHarness();
+		await seedReadyArticle(fixture);
+
+		const response = await request(harness.server)
+			.get(`/view/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`)
+			.set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.vary).toContain("User-Agent");
+		expect(publicDownloads(new JSDOM(response.text).window.document)).toEqual({
+			children: ["BUTTON", "DETAILS"],
+			links: [{ format: "epub-fallback", href: PUBLIC_EPUB_HREF }],
+		});
+	});
+
+	it("keeps the bare download link for a browser that names no platform", async () => {
+		const { harness, fixture } = buildDownloadHarness();
+		await seedReadyArticle(fixture);
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+		expect(publicDownloads(new JSDOM(response.text).window.document)).toEqual({
+			children: ["A"],
+			links: [{ format: "epub", href: PUBLIC_EPUB_HREF }],
+		});
+	});
+});

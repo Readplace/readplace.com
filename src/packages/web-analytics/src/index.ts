@@ -79,6 +79,7 @@ export {
 	tagPageviewSortOrder,
 	classifyDeviceClass,
 	classifyBrowser,
+	classifyOsFamily,
 	deriveSaveSurface,
 	buildSaveIntentEvent,
 	buildSignupAttemptedEvent,
@@ -121,6 +122,7 @@ export {
 	type FirstArticleSeededEvent,
 	type DeviceClass,
 	type BrowserFamily,
+	type OsFamily,
 } from "./analytics";
 export {
 	initRecordAudienceEvent,

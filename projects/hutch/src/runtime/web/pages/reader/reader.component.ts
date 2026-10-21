@@ -34,6 +34,8 @@ import {
 	TABLE_OF_CONTENTS_SCRIPT,
 	isTableOfContentsVisible,
 } from "../../shared/article-body/table-of-contents/table-of-contents.component";
+import { renderDownloadGuideDialog } from "../../shared/download-guide/download-guide.component";
+import type { EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
 import { railLandmarkFor } from "../../shared/reading-layout/rail-landmark";
 import { READER_OPEN_SCRIPT } from "../../shared/reader-open/reader-open-script";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
@@ -131,6 +133,7 @@ export function ReaderPage(
 		markStatusConfirmReadlists?: readonly ReadlistRef[];
 		readerNotice?: ReaderFailedVariant;
 		epubDownloadHref?: string;
+		epubDownloadGuide?: EpubDownloadGuide;
 		provenance: ReaderProvenance | undefined;
 		issueLinks?: IssueLinksSectionInput;
 	},
@@ -179,6 +182,7 @@ export function ReaderPage(
 				? undefined
 				: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
 			epubDownloadHref: options.epubDownloadHref,
+			epubDownloadGuide: options.epubDownloadGuide,
 		},
 	});
 	const pastReadsInput: PastReadsSectionInput | undefined =
@@ -252,6 +256,8 @@ export function ReaderPage(
 					}),
 	});
 	const shareDialogHtml = isPrivateIssue ? "" : renderShareDialog(share);
+	const downloadGuideHtml =
+		options.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(options.epubDownloadGuide);
 	const readlistCreateHtml =
 		picker?.create === undefined
 			? ""
@@ -294,6 +300,7 @@ export function ReaderPage(
 		exitConfirmHtml,
 		markStatusConfirmHtml,
 		shareDialogHtml,
+		downloadGuideHtml,
 		readlistCreateHtml,
 		statusToastHtml,
 	});

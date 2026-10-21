@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
+import { MACOS_CHROME_USER_AGENT } from "./user-agents";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
@@ -16,6 +17,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		timezoneId: "UTC",
 		viewport: { width: 758, height: 1024 },
 		javaScriptEnabled: false,
+		userAgent: MACOS_CHROME_USER_AGENT,
 	});
 
 	async function seedArticle(page: Page, stamp: string): Promise<string> {

@@ -31,6 +31,8 @@ import {
 	isTableOfContentsVisible,
 } from "../../shared/article-body/table-of-contents/table-of-contents.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
+import { renderDownloadGuideDialog } from "../../shared/download-guide/download-guide.component";
+import type { EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import {
 	SHARE_DIALOG_POPOVER_ID,
@@ -101,10 +103,15 @@ export function renderViewCtaActionOob(action: ViewAction): string {
 	return renderViewCtaAction(action, true);
 }
 
-export function renderViewDownloadsOob(articleUrl: string): string {
-	return renderReaderDownloadsSlotOob(
-		withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article", appClient: undefined }), CLICK_SURFACES.readerPublic),
+export function viewEpubHref(articleUrl: string): string {
+	return withClickSurface(
+		articleEpubHref({ articleUrl, utmSource: "view-article", appClient: undefined }),
+		CLICK_SURFACES.readerPublic,
 	);
+}
+
+export function renderViewDownloadsOob(params: { articleUrl: string; guide: EpubDownloadGuide | undefined }): string {
+	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref(params.articleUrl), guide: params.guide });
 }
 
 export interface ViewPageInput {
@@ -121,6 +128,7 @@ export interface ViewPageInput {
 	summaryPollUrl?: string;
 	actions: ViewAction[];
 	epubDownloadHref?: string;
+	epubDownloadGuide?: EpubDownloadGuide;
 	saveTip: SaveTip;
 	extensionInstallUrl?: string;
 	crawlVersions?: ArticleVersion[];
@@ -139,6 +147,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			markReadActions: undefined,
 			share: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
 			epubDownloadHref: input.epubDownloadHref,
+			epubDownloadGuide: input.epubDownloadGuide,
 		},
 	});
 	const innerContent = renderArticleBody({
@@ -192,6 +201,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		ctaItems,
 		saveTipHtml: input.saveTip.html,
 		shareDialogHtml: renderShareDialog(share),
+		downloadGuideHtml: input.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(input.epubDownloadGuide),
 	});
 
 	const ogImage = input.metadata.imageUrl ?? DEFAULT_OG_IMAGE;

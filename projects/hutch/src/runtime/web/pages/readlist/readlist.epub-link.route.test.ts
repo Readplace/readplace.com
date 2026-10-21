@@ -11,7 +11,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
-import { useTestServer } from "../../../test-app";
+import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
 const ARTICLE_URL = "https://example.com/shareable";
@@ -25,7 +25,7 @@ const ARTICLE_HTML = `
 
 const useApp = useTestServer();
 
-async function openReaderHarness(opts: { ready: boolean; query?: string }) {
+async function openReaderHarness(opts: { ready: boolean; query?: string; headers?: Record<string, string> }) {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
@@ -61,12 +61,13 @@ async function openReaderHarness(opts: { ready: boolean; query?: string }) {
 
 	const response = await request(harness.server)
 		.get(`/queue/${articleId}/view${opts.query ?? ""}`)
+		.set(opts.headers ?? {})
 		.set("Cookie", sessionCookie);
 	expect(response.status).toBe(200);
 	return { document: new JSDOM(response.text).window.document, harness, fixture, sessionCookie, articleId };
 }
 
-async function openReader(opts: { ready: boolean; query?: string }): Promise<Document> {
+async function openReader(opts: { ready: boolean; query?: string; headers?: Record<string, string> }): Promise<Document> {
 	return (await openReaderHarness(opts)).document;
 }
 
@@ -183,5 +184,95 @@ describe("GET /queue/:id/view Download", () => {
 			"reader-downloads-slot",
 			"article-body-reader-notice",
 		]);
+	});
+});
+
+const MACOS_HEADERS = {
+	...BROWSER_REQUEST_HEADERS,
+	"User-Agent":
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+};
+
+const OWNER_EPUB_HREF =
+	"/view/example.com/shareable?format=epub&utm_source=reader&utm_medium=internal&utm_content=download-epub";
+
+function slotShape(doc: Document) {
+	const slot = downloadsSlot(doc);
+	return {
+		children: Array.from(slot.children, (child) => child.tagName),
+		opener: slot.querySelector('[data-test-action="download-open"]')?.getAttribute("popovertarget"),
+	};
+}
+
+function epubLinks(doc: Document) {
+	return Array.from(doc.querySelectorAll('[data-test-download="epub"]'), (link) => ({
+		inDialog: link.closest('[data-test-confirm-popover="download-guide"]') !== null,
+		href: link.getAttribute("href"),
+	}));
+}
+
+describe("GET /queue/:id/view Download on a platform with no EPUB reader", () => {
+	it("opens a guide naming Windows before the download, and holds the download in the guide", async () => {
+		const doc = await openReader({ ready: true, headers: BROWSER_REQUEST_HEADERS });
+
+		expect(slotShape(doc)).toEqual({ children: ["BUTTON", "DETAILS"], opener: "reader-download-guide" });
+		const dialog = doc.querySelector('[data-test-confirm-popover="download-guide"]');
+		assert(dialog, "the reader must carry the download guide");
+		expect(dialog.querySelector(".confirm-popover__title")?.textContent).toBe("Reading an EPUB on Windows");
+		expect(epubLinks(doc)).toEqual([{ inDialog: true, href: OWNER_EPUB_HREF }]);
+		expect(dialog.querySelector("[data-test-download-learn-more]")?.getAttribute("href")).toBe(
+			"/blog/read-your-saved-articles-on-a-kindle-or-kobo?utm_source=reader&utm_medium=internal&utm_content=epub-guide-kindle-kobo",
+		);
+	});
+
+	it("already holds the guide while the article is pending, so the poll that reveals Download finds it", async () => {
+		const doc = await openReader({ ready: false, headers: BROWSER_REQUEST_HEADERS });
+
+		expect([
+			downloadsSlot(doc).classList.contains("article-body__downloads-slot--hidden"),
+			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (panel) =>
+				panel.getAttribute("data-test-confirm-popover"),
+			).includes("download-guide"),
+		]).toEqual([true, true]);
+	});
+
+	it.each([
+		{ surface: "the iOS app on a Windows UA", query: "?platform=ios", headers: BROWSER_REQUEST_HEADERS, utmTerm: "&utm_term=ios_app" },
+		{ surface: "the Android app on a Windows UA", query: "?platform=android", headers: BROWSER_REQUEST_HEADERS, utmTerm: "&utm_term=android_app" },
+		{ surface: "the app shell on a Windows UA", query: "?shell=app", headers: BROWSER_REQUEST_HEADERS, utmTerm: "&utm_term=ios_app" },
+		{ surface: "a Mac browser", query: "", headers: MACOS_HEADERS, utmTerm: "" },
+	])("keeps the bare download link for $surface", async ({ query, headers, utmTerm }) => {
+		const doc = await openReader({ ready: true, query, headers });
+
+		expect(slotShape(doc)).toEqual({ children: ["A"], opener: undefined });
+		expect(epubLinks(doc)).toEqual([{ inDialog: false, href: `${OWNER_EPUB_HREF}${utmTerm}` }]);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (panel) =>
+				panel.getAttribute("data-test-confirm-popover"),
+			).includes("download-guide"),
+		).toBe(false);
+	});
+
+	it.each([
+		{ poll: "reader", settledSiblingOob: ["article-body-summary-slot", "table-of-contents"] },
+		{ poll: "summary", settledSiblingOob: [] },
+	])("re-renders the guide's opener when the $poll poll swaps the slot", async ({ poll, settledSiblingOob }) => {
+		const { harness, sessionCookie, articleId } = await openReaderHarness({ ready: true, headers: BROWSER_REQUEST_HEADERS });
+		const response = await request(harness.server)
+			.get(`/queue/${articleId}/${poll}?poll=1`)
+			.set(BROWSER_REQUEST_HEADERS)
+			.set("Cookie", sessionCookie);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.vary).toContain("User-Agent");
+		const document = new JSDOM(response.text).window.document;
+		expect(Array.from(document.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
+			...settledSiblingOob,
+			"article-header",
+			"document-title",
+			"reader-downloads-slot",
+			"article-body-reader-notice",
+		]);
+		expect(slotShape(document)).toEqual({ children: ["BUTTON", "DETAILS"], opener: "reader-download-guide" });
 	});
 });

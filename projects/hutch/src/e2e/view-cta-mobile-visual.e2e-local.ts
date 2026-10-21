@@ -10,6 +10,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { measureBoxes, neutraliseVolatileChrome } from "./page-measurements.browser";
+import { MACOS_CHROME_USER_AGENT } from "./user-agents";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const CONTENT_FETCHED_AT = "2026-07-10T09:14:00.000Z";
@@ -235,7 +236,7 @@ function checkpoint(name: string, geometry: (page: Page) => Promise<void>): Visu
 }
 
 test.describe("Public view CTA row on a phone", () => {
-	test.use({ timezoneId: "UTC", viewport: PHONE });
+	test.use({ timezoneId: "UTC", viewport: PHONE, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("paste and save share one row without squeezing it to three lines", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
@@ -273,7 +274,7 @@ test.describe("Public view CTA row on a phone", () => {
 });
 
 test.describe("Public view CTA row above the breakpoint", () => {
-	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("keeps the full labels, with the bar's edges on the card column's on a page whose rail shows no card", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });

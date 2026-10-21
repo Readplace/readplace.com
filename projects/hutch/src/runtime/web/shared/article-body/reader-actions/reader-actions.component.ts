@@ -10,6 +10,8 @@ import {
 	render,
 	renderInFlightDots,
 } from "@packages/web-shell";
+import { DOWNLOAD_GUIDE_POPOVER_ID, renderDownloadGuideFallback } from "../../download-guide/download-guide.component";
+import type { EpubDownloadGuide } from "../../epub/epub-download-guide";
 import { articleEpubHref } from "../../epub/epub-link";
 
 export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker.client.js" defer></script>`;
@@ -44,6 +46,7 @@ export interface ActionButtons {
 	readlistPicker: ReaderReadlistPicker | undefined;
 	share?: { popoverId: string; fallbackHtml: string };
 	epubDownloadHref?: string;
+	epubDownloadGuide?: EpubDownloadGuide;
 }
 
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
@@ -82,14 +85,31 @@ function markReadFields(action: MarkReadAction | undefined) {
 	};
 }
 
-export function renderReaderDownloadsSlotOob(downloadHref: string): string {
-	return render(DOWNLOADS_TEMPLATE, { downloadHref, oob: true });
+function downloadsSlotView(params: { href: string | undefined; guide: EpubDownloadGuide | undefined }) {
+	if (params.href === undefined) return { visible: false };
+	if (params.guide === undefined) return { visible: true, link: { href: params.href } };
+	return {
+		visible: true,
+		guide: { popoverId: DOWNLOAD_GUIDE_POPOVER_ID, fallbackHtml: renderDownloadGuideFallback(params.guide) },
+	};
 }
 
-export function renderReaderDownloadsOob(params: { articleUrl: string; appClient: SaveClient | undefined }): string {
-	return renderReaderDownloadsSlotOob(
-		articleEpubHref({ articleUrl: params.articleUrl, utmSource: "reader", appClient: params.appClient }),
-	);
+export function renderReaderDownloadsSlotOob(params: {
+	downloadHref: string;
+	guide: EpubDownloadGuide | undefined;
+}): string {
+	return render(DOWNLOADS_TEMPLATE, { ...downloadsSlotView({ href: params.downloadHref, guide: params.guide }), oob: true });
+}
+
+export function renderReaderDownloadsOob(params: {
+	articleUrl: string;
+	appClient: SaveClient | undefined;
+	guide: EpubDownloadGuide | undefined;
+}): string {
+	return renderReaderDownloadsSlotOob({
+		downloadHref: articleEpubHref({ articleUrl: params.articleUrl, utmSource: "reader", appClient: params.appClient }),
+		guide: params.guide,
+	});
 }
 
 function topBar(actionBtns: ActionButtons): string {
@@ -99,7 +119,10 @@ function topBar(actionBtns: ActionButtons): string {
 			: undefined,
 		readlistPicker: actionBtns.readlistPicker,
 		share: actionBtns.share,
-		downloadsHtml: render(DOWNLOADS_TEMPLATE, { downloadHref: actionBtns.epubDownloadHref, oob: false }),
+		downloadsHtml: render(DOWNLOADS_TEMPLATE, {
+			...downloadsSlotView({ href: actionBtns.epubDownloadHref, guide: actionBtns.epubDownloadGuide }),
+			oob: false,
+		}),
 		markRead: markReadFields(actionBtns.markReadActions?.find((action) => action.position === "top")),
 	});
 }

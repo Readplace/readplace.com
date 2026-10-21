@@ -54,6 +54,7 @@ const TOOLBAR_CONTROLS = [
 	{ selector: "summary[data-test-readlists-trigger]", auditId: "toolbar-add", ink: "label" },
 	{ selector: '[data-test-mark-read-slot] [data-test-action="mark-read"]', auditId: "toolbar-mark", ink: "label" },
 	{ selector: '[data-test-action="share-open"]', auditId: "toolbar-share", ink: "glyph" },
+	{ selector: '[data-test-action="download-open"]', auditId: "toolbar-download", ink: "glyph" },
 ] as const;
 
 type Lens = (colour: Rgb) => Rgb;

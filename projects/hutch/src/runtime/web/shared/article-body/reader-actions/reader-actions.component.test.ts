@@ -10,6 +10,7 @@ import {
 	renderReaderDownloadsOob,
 	renderReaderDownloadsSlotOob,
 } from "./reader-actions.component";
+import { epubDownloadGuideFor } from "../../epub/epub-download-guide";
 
 const BACK = {
 	topHref: "/queue?utm_content=back-top",
@@ -236,7 +237,7 @@ describe("downloads", () => {
 	});
 
 	it("swaps the toolbar's slot out of band with the link a page hands it", () => {
-		const doc = parse(renderReaderDownloadsSlotOob("/view/example.com/a?format=epub&utm_source=view-article"));
+		const doc = parse(renderReaderDownloadsSlotOob({ downloadHref: "/view/example.com/a?format=epub&utm_source=view-article", guide: undefined }));
 
 		const slot = doc.querySelector("[data-test-downloads-slot]");
 		assert(slot, "the out-of-band downloads slot must render");
@@ -251,7 +252,7 @@ describe("downloads", () => {
 	});
 
 	it("links the owner reader's out-of-band download from the reader's own section", () => {
-		const doc = parse(renderReaderDownloadsOob({ articleUrl: "https://example.com/a", appClient: undefined }));
+		const doc = parse(renderReaderDownloadsOob({ articleUrl: "https://example.com/a", appClient: undefined, guide: undefined }));
 
 		const download = doc.querySelector('#reader-downloads-slot [data-test-download="epub"]');
 		assert(download, "the owner reader's out-of-band slot must carry the EPUB link");
@@ -261,6 +262,82 @@ describe("downloads", () => {
 			"epub",
 			"reader",
 		]);
+	});
+});
+
+describe("downloads on a platform with no EPUB reader", () => {
+	const DOWNLOAD_HREF = "/view/example.com/a?format=epub&utm_source=reader";
+	const LEARN_MORE_HREF = "/blog/read-your-saved-articles-on-a-kindle-or-kobo?utm_source=reader";
+	const WINDOWS_GUIDE = epubDownloadGuideFor({
+		osFamily: "windows",
+		downloadHref: DOWNLOAD_HREF,
+		learnMoreHref: LEARN_MORE_HREF,
+	});
+
+	function gatedSlot(): Element {
+		const { top } = WebReader({
+			actionBtns: { ...ACTION_BTNS, epubDownloadHref: DOWNLOAD_HREF, epubDownloadGuide: WINDOWS_GUIDE },
+		});
+		const slot = parse(top.to("text/html").body).querySelector("[data-test-downloads-slot]");
+		assert(slot, "the downloads slot must render");
+		return slot;
+	}
+
+	it("opens the guide from the same square download button, beside a disclosure holding the same guide", () => {
+		const slot = gatedSlot();
+
+		expect(slot.classList.contains("article-body__downloads-slot--visible")).toBe(true);
+		expect(Array.from(slot.children, (child) => child.tagName)).toEqual(["BUTTON", "DETAILS"]);
+		const opener = slot.querySelector('[data-test-action="download-open"]');
+		assert(opener, "the slot must open the guide");
+		expect([
+			opener.className,
+			opener.getAttribute("popovertarget"),
+			opener.getAttribute("aria-haspopup"),
+			opener.querySelector(".sr-only")?.textContent,
+		]).toEqual(["btn btn--neutral btn--icon article-body__download-open", "reader-download-guide", "dialog", "Download EPUB"]);
+		expect(drawingOf(opener.querySelector(":scope > svg"))).toBe(iconDrawing("download"));
+	});
+
+	it("holds the reader app, the Kindle and Kobo guide and one download in the no-popover fallback", () => {
+		const slot = gatedSlot();
+
+		const fallback = slot.querySelector("[data-test-download-fallback]");
+		assert(fallback, "the slot must carry the fallback disclosure");
+		const readerApp = fallback.querySelector("[data-test-download-reader-app]");
+		assert(readerApp, "the fallback must link the reader app");
+		expect([readerApp.getAttribute("href"), readerApp.getAttribute("target"), readerApp.getAttribute("rel")]).toEqual([
+			"https://apps.microsoft.com/detail/9NFZP1G7M2SC",
+			"_blank",
+			"noopener",
+		]);
+		expect(fallback.querySelector("[data-test-download-learn-more]")?.getAttribute("href")).toBe(LEARN_MORE_HREF);
+		const downloads = Array.from(fallback.querySelectorAll('[data-test-download="epub-fallback"]'));
+		expect(downloads.map((download) => [download.getAttribute("href"), download.hasAttribute("autofocus")])).toEqual([
+			[DOWNLOAD_HREF, false],
+		]);
+	});
+
+	it("keeps the gated slot hidden until the article has content to download", () => {
+		const { top } = WebReader({ actionBtns: { ...ACTION_BTNS, epubDownloadGuide: WINDOWS_GUIDE } });
+		const slot = parse(top.to("text/html").body).querySelector("[data-test-downloads-slot]");
+		assert(slot, "the downloads slot must render");
+
+		expect([slot.classList.contains("article-body__downloads-slot--hidden"), slot.children.length]).toEqual([true, 0]);
+	});
+
+	it("swaps the gated slot in out of band with no id inside it", () => {
+		const doc = parse(
+			renderReaderDownloadsOob({ articleUrl: "https://example.com/a", appClient: undefined, guide: WINDOWS_GUIDE }),
+		);
+
+		const slot = doc.querySelector("#reader-downloads-slot");
+		assert(slot, "the out-of-band slot must render");
+		expect([
+			slot.getAttribute("hx-swap-oob"),
+			slot.querySelector('[data-test-action="download-open"]')?.getAttribute("popovertarget"),
+			slot.querySelectorAll("[id]").length,
+		]).toEqual(["outerHTML", "reader-download-guide", 0]);
 	});
 });
 

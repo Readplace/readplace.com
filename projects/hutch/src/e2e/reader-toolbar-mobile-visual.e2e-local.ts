@@ -11,6 +11,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
+import { MACOS_CHROME_USER_AGENT } from "./user-agents";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -312,7 +313,7 @@ function checkpoint(name: string, geometry: (page: Page) => Promise<void>): Visu
 }
 
 test.describe("Reader toolbar on a phone", () => {
-	test.use({ timezoneId: "UTC", viewport: PHONE });
+	test.use({ timezoneId: "UTC", viewport: PHONE, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("back, the picker, mark-read, Share and Download share one row", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
@@ -346,7 +347,7 @@ test.describe("Reader toolbar on a phone", () => {
 });
 
 test.describe("Reader toolbar above the breakpoint", () => {
-	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("keeps the full labels and drops the phone icons", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
@@ -361,7 +362,7 @@ test.describe("Reader toolbar above the breakpoint", () => {
 });
 
 test.describe("Chromeless reader toolbar on a tablet sheet", () => {
-	test.use({ timezoneId: "UTC", viewport: TABLET_SHEET });
+	test.use({ timezoneId: "UTC", viewport: TABLET_SHEET, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("the pinned strip spans the sheet while the column and the rail scroll under it", async ({
 		page,
@@ -388,7 +389,7 @@ test.describe("Chromeless reader toolbar on a tablet sheet", () => {
 });
 
 test.describe("Reader toolbar on a 320px phone", () => {
-	test.use({ timezoneId: "UTC", viewport: PHONE_320 });
+	test.use({ timezoneId: "UTC", viewport: PHONE_320, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("keeps one row by dropping Add's chevron", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
@@ -403,7 +404,7 @@ test.describe("Reader toolbar on a 320px phone", () => {
 });
 
 test.describe("Reader toolbar in the dark", () => {
-	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("keeps the full labels on the dark canvas", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
@@ -418,7 +419,7 @@ test.describe("Reader toolbar in the dark", () => {
 });
 
 test.describe("Reader toolbar in the read state", () => {
-	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("keeps one row with Back down to its arrow at 620px, beside the rail's card at 1024px, and beside the table of contents' empty card on the chromeless tablet sheet", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
@@ -495,7 +496,7 @@ test.describe("Reader toolbar in the read state", () => {
 });
 
 test.describe("Reader toolbar without the Add control", () => {
-	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("keeps Mark, Share and Download together at the trailing edge once the default copy is gone", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
