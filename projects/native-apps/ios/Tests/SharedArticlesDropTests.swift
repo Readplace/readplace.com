@@ -17,7 +17,8 @@ final class SharedArticlesDropTests: XCTestCase {
 
 	func testTheMainlineReadlistIsAlwaysWhereSharedArticlesDrop() {
 		let drop = SharedArticlesDrop(
-			readlist: readlist(label: "All", href: "/queue"), mainlineHref: "/queue", tickedHrefs: []
+			readlist: readlist(label: "All", href: "/queue"), mainlineHref: "/queue", tickedHrefs: [],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(drop, .always(label: "All"), "every save lands in the whole queue, ticked or not")
@@ -31,8 +32,12 @@ final class SharedArticlesDropTests: XCTestCase {
 	func testAReaderOwnedReadlistReadsTickedOnlyWhileItIsTicked() {
 		let work = readlist(label: "Work", href: "/queue?queue=work")
 
-		let ticked = SharedArticlesDrop(readlist: work, mainlineHref: "/queue", tickedHrefs: ["/queue?queue=work"])
-		let unticked = SharedArticlesDrop(readlist: work, mainlineHref: "/queue", tickedHrefs: [])
+		let ticked = SharedArticlesDrop(
+			readlist: work, mainlineHref: "/queue", tickedHrefs: ["/queue?queue=work"], baseURL: AppConfig.serverBaseURL
+		)
+		let unticked = SharedArticlesDrop(
+			readlist: work, mainlineHref: "/queue", tickedHrefs: [], baseURL: AppConfig.serverBaseURL
+		)
 
 		XCTAssertEqual(ticked, .ticked(work), "the readlist the reader ticked claims shared articles")
 		XCTAssertTrue(ticked.showsTick)
@@ -46,7 +51,8 @@ final class SharedArticlesDropTests: XCTestCase {
 
 	func testAReaderWhoTickedTheMainlineOnAnOlderBuildStillSeesItLocked() {
 		let drop = SharedArticlesDrop(
-			readlist: readlist(label: "All", href: "/queue"), mainlineHref: "/queue", tickedHrefs: ["/queue"]
+			readlist: readlist(label: "All", href: "/queue"), mainlineHref: "/queue", tickedHrefs: ["/queue"],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(
@@ -59,7 +65,9 @@ final class SharedArticlesDropTests: XCTestCase {
 	func testAReadlistIsOnlyTheMainlineWhenTheCollectionSaysSo() {
 		let all = readlist(label: "All", href: "/queue")
 
-		let drop = SharedArticlesDrop(readlist: all, mainlineHref: nil, tickedHrefs: [])
+		let drop = SharedArticlesDrop(
+			readlist: all, mainlineHref: nil, tickedHrefs: [], baseURL: AppConfig.serverBaseURL
+		)
 
 		XCTAssertEqual(
 			drop, .unticked(all),
@@ -76,7 +84,9 @@ final class SharedArticlesDropTests: XCTestCase {
 	}
 
 	func testTheFirstAskOffersEveryReadlistWithTheMainlineLocked() {
-		let drops = SharedArticlesDrop.firstAsk(readlists: advertised(), mainlineHref: "/queue")
+		let drops = SharedArticlesDrop.firstAsk(
+			readlists: advertised(), mainlineHref: "/queue", baseURL: AppConfig.serverBaseURL
+		)
 
 		XCTAssertEqual(
 			drops.map(\.label), ["All", "Work", "Home"],
@@ -94,7 +104,7 @@ final class SharedArticlesDropTests: XCTestCase {
 
 	func testTheFirstAskOfAReaderWithOnlyTheMainlineHasNothingToChoose() {
 		let drops = SharedArticlesDrop.firstAsk(
-			readlists: [readlist(label: "All", href: "/queue")], mainlineHref: "/queue"
+			readlists: [readlist(label: "All", href: "/queue")], mainlineHref: "/queue", baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(drops, [.always(label: "All")])
@@ -183,7 +193,9 @@ final class SharedArticlesDropTests: XCTestCase {
 	func testTheExplanationCallsTheMainlineWhateverTheServerCallsIt() {
 		let renamed = readlist(label: "Everything", href: "/queue")
 
-		let drop = SharedArticlesDrop(readlist: renamed, mainlineHref: "/queue", tickedHrefs: [])
+		let drop = SharedArticlesDrop(
+			readlist: renamed, mainlineHref: "/queue", tickedHrefs: [], baseURL: AppConfig.serverBaseURL
+		)
 
 		XCTAssertEqual(
 			SharedArticlesDropPresentation.explanation(for: drop),

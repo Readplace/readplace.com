@@ -600,6 +600,11 @@ enum Href {
 		}
 	}
 
+	static func matches(_ advertised: String, anyOf hrefs: [String], baseURL: String) -> Bool {
+		guard let target = resolve(advertised, baseURL: baseURL) else { return false }
+		return hrefs.contains { resolve($0, baseURL: baseURL)?.absoluteString == target.absoluteString }
+	}
+
 	/// Appends a query item to an already-resolved URL, preserving any query the
 	/// URL already carries, or nil when the URL can't be decomposed/recomposed.
 	/// Kept beside `resolve` so appending a client parameter (e.g. the reader's

@@ -1573,6 +1573,106 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
+	private func canonicalReadlists(current href: String) -> String {
+		func rel(_ entry: String) -> String { entry == href ? "current" : "readlist" }
+		return """
+		{ "label": "All", "rel": "\(rel("/queue"))", "href": "/queue" },
+		{ "label": "Work", "rel": "\(rel("/queue?readlist=work"))", "href": "/queue?readlist=work" }
+		"""
+	}
+
+	private func canonicalReadlistHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		return { request, _ in
+			switch (request.url?.path, request.url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "queue=work"):
+				return .redirect(to: "/queue?readlist=work")
+			case ("/queue", "queue=gone"):
+				return .redirect(to: "/queue")
+			case ("/queue", "readlist=work"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [self.workArticle(id: "w1")],
+					readlistsJSON: self.canonicalReadlists(current: "/queue?readlist=work")
+				))
+			case ("/queue", ""):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")],
+					readlistsJSON: self.canonicalReadlists(current: "/queue")
+				))
+			default:
+				return .json(500, "{}")
+			}
+		}
+	}
+
+	func testATickedHrefTheServerRedirectsIsRewrittenToTheHrefItNowAdvertises() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=work"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(
+			requestedHrefs(), ["/", "/queue", "/queue?queue=work", "/queue?readlist=work"],
+			"a ticked href the collection does not advertise is followed once, through the redirect the server answers"
+		)
+		XCTAssertEqual(
+			ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"],
+			"the href the redirect landed on is the one the collection advertises, so the tick is kept in that form"
+		)
+		XCTAssertEqual(viewModel.readlistMenu.map(\.isShareTarget), [true, true], "and the menu badges it again")
+
+		StubURLProtocol.reset()
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		await viewModel.refresh()
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue"], "once rewritten, the tick is never followed again")
+	}
+
+	func testATickedHrefTheServerAnswersWithTheMainlineIsDropped() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=gone", "/queue?readlist=work"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(
+			ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"],
+			"a readlist the server no longer knows answers with the mainline, which every save reaches anyway, so its tick is dropped"
+		)
+	}
+
+	func testNothingIsFollowedWhileEveryTickedHrefIsAdvertised() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?readlist=work"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue"], "an advertised tick needs no round trip")
+		XCTAssertEqual(ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"])
+	}
+
+	func testATickedHrefWhoseFollowFailsIsKeptForTheNextLoad() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=broken"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue", "/queue?queue=broken"])
+		XCTAssertEqual(
+			ShareTarget(container: shareContainer).hrefs, ["/queue?queue=broken"],
+			"a follow the server did not answer says nothing about where the tick belongs"
+		)
+		XCTAssertNil(viewModel.errorText, "and it is no reason to fail the list the reader asked for")
+	}
+
 	func testReadlistSwitchingIsOfferedOnlyWhenMoreThanOneReadlistIsAdvertised() async {
 		let onlyAll = """
 		{ "label": "All", "rel": "current", "href": "/queue" }

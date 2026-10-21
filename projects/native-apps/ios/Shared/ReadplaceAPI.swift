@@ -70,8 +70,9 @@ struct ReadlistPage {
 	let appearance: String?
 	let isStoredCopy: Bool
 	let sirenBody: Data?
+	let redirectChain: [String]
 
-	init(collection: SirenCollection, sirenBody: Data? = nil, isStoredCopy: Bool = false) {
+	init(collection: SirenCollection, sirenBody: Data? = nil, isStoredCopy: Bool = false, redirectChain: [String] = []) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
 		let links = collection.links ?? []
 		nextHref = links.first { $0.rel.contains("next") }?.href
@@ -86,6 +87,7 @@ struct ReadlistPage {
 		appearance = collection.properties?.appearance
 		self.isStoredCopy = isStoredCopy
 		self.sirenBody = sirenBody
+		self.redirectChain = redirectChain
 	}
 
 	var currentTabHref: String? { tabs.first(where: \.isCurrent)?.href }
@@ -192,9 +194,13 @@ final class ReadplaceAPI {
 		request.httpMethod = "GET"
 		request.cachePolicy = cachePolicy
 		if cachePolicy == .reloadRevalidatingCacheData { request.timeoutInterval = Self.listReadTimeout }
-		let (data, http) = try await send(request)
+		let (data, http, redirectChain) = try await send(request)
 		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
-		return ReadlistPage(collection: try decodeSiren(SirenCollection.self, data: data, response: http), sirenBody: data)
+		return ReadlistPage(
+			collection: try decodeSiren(SirenCollection.self, data: data, response: http),
+			sirenBody: data,
+			redirectChain: redirectChain
+		)
 	}
 
 	/// Invokes a simple entity action via its own server-declared href, method and
@@ -217,7 +223,7 @@ final class ReadplaceAPI {
 		}
 		var request = try invocationRequest(for: action, fields: fields)
 		request.cachePolicy = .reloadRevalidatingCacheData
-		let (data, http) = try await send(request)
+		let (data, http, _) = try await send(request)
 		guard (200...399).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
@@ -272,7 +278,7 @@ final class ReadplaceAPI {
 		let priorCookies = Set(
 			(session.configuration.httpCookieStorage?.cookies(for: url) ?? []).map(CookieIdentity.init)
 		)
-		let (data, http) = try await send(request)
+		let (data, http, _) = try await send(request)
 		guard (200...299).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
@@ -371,13 +377,15 @@ final class ReadplaceAPI {
 		let messages: [ServerMessage]
 	}
 
-	func saveArticle(action: SirenAction, url: String, queues: Set<String>) async throws -> SaveConfirmation {
+	func saveArticle(action: SirenAction, url: String, readlists: Set<String>) async throws -> SaveConfirmation {
 		var body: [String: Any] = ["url": url]
-		if !queues.isEmpty { body["queues"] = queues.sorted() }
+		if !readlists.isEmpty, let field = action.fields?.first(where: { $0.name == "readlists" }) {
+			body[field.name] = readlists.sorted()
+		}
 		var request = jsonRequest(try absoluteURL(action.href), method: action.method,
 			contentType: action.type ?? "application/json", body: body)
 		request.setValue("return=representation", forHTTPHeaderField: "Prefer")
-		let (data, http) = try await send(request)
+		let (data, http, _) = try await send(request)
 		guard http.statusCode == 201 || http.statusCode == 200 else {
 			throw apiError(from: data, status: http.statusCode)
 		}
@@ -396,7 +404,7 @@ final class ReadplaceAPI {
 		request.httpMethod = action.method
 		request.setValue(contentType, forHTTPHeaderField: "Content-Type")
 		request.httpBody = body
-		let (data, http) = try await send(request)
+		let (data, http, _) = try await send(request)
 		guard (200...299).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
@@ -404,7 +412,7 @@ final class ReadplaceAPI {
 
 	// MARK: - Transport
 
-	private func send(_ request: URLRequest, retryOn401: Bool = true, refreshed: OAuthService.RefreshResult? = nil) async throws -> (Data, HTTPURLResponse) {
+	private func send(_ request: URLRequest, retryOn401: Bool = true, refreshed: OAuthService.RefreshResult? = nil) async throws -> (Data, HTTPURLResponse, [String]) {
 		let credentials: OAuthService.Snapshot
 		do { credentials = try await oauth.snapshot() }
 		catch OAuthError.noRefreshToken { throw APIError.noToken }
@@ -424,7 +432,8 @@ final class ReadplaceAPI {
 		authed.setValue(AppConfig.clientIos, forHTTPHeaderField: AppConfig.clientHeader)
 		authed.setValue(AppConfig.saveContinuityBackground, forHTTPHeaderField: AppConfig.saveContinuityHeader)
 		authed.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")
-		let (data, response) = try await session.data(for: authed)
+		let redirects = RedirectHeaderPreservingDelegate()
+		let (data, response) = try await session.data(for: authed, delegate: redirects)
 		guard let http = response as? HTTPURLResponse else { throw APIError.decoding }
 		if http.statusCode == 401 && retryOn401 {
 			let result: OAuthService.RefreshResult
@@ -433,7 +442,8 @@ final class ReadplaceAPI {
 			try Task.checkCancellation()
 			return try await send(request, retryOn401: false, refreshed: result)
 		}
-		return (data, http)
+		let followed = [authed.url].compactMap { $0 } + redirects.hops + [http.url].compactMap { $0 }
+		return (data, http, followed.map(\.absoluteString))
 	}
 
 	private func jsonRequest(
@@ -553,6 +563,14 @@ final class ReadplaceAPI {
 }
 
 private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDelegate {
+	private let lock = NSLock()
+	private var followedHops: [URL?] = []
+
+	var hops: [URL] {
+		lock.lock(); defer { lock.unlock() }
+		return followedHops.compactMap { $0 }
+	}
+
 	func urlSession(
 		_ session: URLSession,
 		task: URLSessionTask,
@@ -562,6 +580,9 @@ private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDe
 	) {
 		var followed = RedirectHeaders.preserving(from: task.originalRequest, onto: request)
 		if let original = task.originalRequest { followed.cachePolicy = original.cachePolicy }
+		lock.lock()
+		followedHops.append(followed.url)
+		lock.unlock()
 		completionHandler(followed)
 	}
 }

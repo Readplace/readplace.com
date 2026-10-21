@@ -213,6 +213,37 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
+	func testAListReadCarriesEveryHrefItWasRedirectedThrough() async throws {
+		StubURLProtocol.setHandler { request, _ in
+			(request.url?.query ?? "").contains("queue=work")
+				? .redirect(to: "/queue?readlist=work")
+				: .json(200, Fixtures.collection(entitiesJSON: []))
+		}
+
+		let page = try await makeAPI(store: TestSupport.loggedInStore()).rediscoverReadlist(path: "/queue?queue=work")
+
+		XCTAssertEqual(
+			page.redirectChain,
+			[
+				"\(AppConfig.serverBaseURL)/queue?queue=work",
+				"\(AppConfig.serverBaseURL)/queue?readlist=work",
+				"\(AppConfig.serverBaseURL)/queue?readlist=work",
+			],
+			"the page names the href it was asked for, each hop it followed, and where it landed"
+		)
+	}
+
+	func testAnUnredirectedListReadLandsWhereItWasAsked() async throws {
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.collection(entitiesJSON: [])) }
+
+		let page = try await makeAPI(store: TestSupport.loggedInStore()).rediscoverReadlist(path: "/queue?readlist=work")
+
+		XCTAssertEqual(
+			page.redirectChain,
+			["\(AppConfig.serverBaseURL)/queue?readlist=work", "\(AppConfig.serverBaseURL)/queue?readlist=work"]
+		)
+	}
+
 	func testLoadReadlistFollowsEntryPointRedirectAndPreservesAuthHeader() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		StubURLProtocol.setHandler { request, _ in
@@ -563,7 +594,7 @@ final class ReadplaceAPITests: XCTestCase {
 			return .json(201, Fixtures.article(id: "url-saved"))
 		}
 
-		let confirmation = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", queues: [])
+		let confirmation = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", readlists: [])
 
 		XCTAssertEqual(confirmation.article.id, "url-saved")
 		XCTAssertEqual(confirmation.messages, [], "a server that predates the confirmation channel yields no copy, so the sheet keeps its own")
@@ -600,7 +631,7 @@ final class ReadplaceAPITests: XCTestCase {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { _, _ in .json(403, Fixtures.accountLockedError()) }
 		do {
-			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", queues: [])
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", readlists: [])
 			XCTFail("Expected a message-only refusal")
 		} catch let APIError.refused(messages) {
 			XCTAssertEqual(messages.first?.type, "warning")
@@ -623,7 +654,7 @@ final class ReadplaceAPITests: XCTestCase {
 			]))
 		}
 		do {
-			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", queues: [])
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", readlists: [])
 			XCTFail("Expected a message-only refusal")
 		} catch let APIError.refused(messages) {
 			XCTAssertTrue(messages.first?.content.body.contains("subscription isn't active") ?? false)
@@ -638,7 +669,7 @@ final class ReadplaceAPITests: XCTestCase {
 			.json(403, Fixtures.messageRefusal([(type: "warning", mediaType: "text/markdown", body: "**locked**")]))
 		}
 		do {
-			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", queues: [])
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", readlists: [])
 			XCTFail("Expected a refusal")
 		} catch let APIError.refused(messages) {
 			XCTAssertEqual(
@@ -684,7 +715,7 @@ final class ReadplaceAPITests: XCTestCase {
 			""")
 		}
 		do {
-			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", queues: [])
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", readlists: [])
 			XCTFail("Expected a refusal")
 		} catch let APIError.refused(messages) {
 			XCTAssertEqual(
@@ -707,7 +738,7 @@ final class ReadplaceAPITests: XCTestCase {
 			""")
 		}
 
-		let confirmation = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", queues: [])
+		let confirmation = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", readlists: [])
 
 		XCTAssertEqual(confirmation.article.id, "saved-1", "the accepted save still decodes as the article it created")
 		XCTAssertEqual(
@@ -725,7 +756,7 @@ final class ReadplaceAPITests: XCTestCase {
 			]))
 		}
 		do {
-			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", queues: [])
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x", readlists: [])
 			XCTFail("Expected a refusal")
 		} catch let APIError.refused(messages) {
 			XCTAssertEqual(messages.map(\.content.type), ["text/html"], "unknown media types are dropped, text/html kept")
