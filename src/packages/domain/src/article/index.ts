@@ -58,7 +58,14 @@ export {
 	type SuggestionAttribution,
 	type SaveProvenance,
 } from "./save-provenance";
-export { ARTICLE_SECTION_ID_PREFIX, sanitizeArticleHtml } from "./sanitize-article-html";
+export {
+	ARTICLE_SECTION_ID_PREFIX,
+	READER_CELL_LABEL_ATTRIBUTE,
+	READER_HEADER_ROW_ATTRIBUTE,
+	READER_TABLE_FITS_ATTRIBUTE,
+	READER_TABLE_FLOW_ATTRIBUTE,
+	sanitizeArticleHtml,
+} from "./sanitize-article-html";
 export { isBlockedIpAddress } from "./blocked-address";
 export { isNonArticleHost } from "./non-article-host";
 export {

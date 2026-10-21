@@ -126,6 +126,7 @@
   line-height: 1.5;
   color: var(--foreground);
   overflow-wrap: anywhere;
+  container: reader-article / inline-size;
 }
 
 .article-body__content p {
@@ -317,56 +318,146 @@
 /**
  * 1. Full-column width is the most useful default for tables in a
  *    reading surface — narrow tables left-aligned in a wide column look
- *    orphaned. Authors can still constrain a specific table via inline
- *    width on the wrapper if they want.
+ *    orphaned.
  * 3. Header cells get the surface background (the same colour blockquote
  *    uses) so the header row is distinguishable without introducing a
  *    brand-tinted bar that would clash on a reader page.
  */
-.article-body__content table {
-  width: 100%; /* 1 */
-  table-layout: fixed;
-  border-collapse: separate;
-  border-spacing: 0;
+.article-body__content :where(table) {
+  display: block;
+  margin: 1rem 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  margin: 1rem 0;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--text-md);
 }
 
-.article-body__content th,
-.article-body__content td {
+.article-body__content :where(table > :is(caption, thead, tbody, tfoot)) {
+  display: block;
+}
+
+.article-body__content :where(table > caption) {
   padding: 15px 16px;
-  text-align: left;
-  vertical-align: top;
-  border: 0;
   border-bottom: 1px solid var(--border);
-  overflow-wrap: anywhere;
-}
-
-.article-body__content th {
-  background: var(--muted); /* 3 */
   font-weight: 600;
+  text-align: left;
 }
 
-.article-body__content :is(thead, tbody, tfoot):last-child > tr:last-child > :is(th, td) {
+.article-body__content :where(table > * > tr) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.article-body__content :where(table > :is(thead, tbody, tfoot):last-child > tr:last-child) {
   border-bottom: 0;
 }
 
-.article-body__content :is(thead, tbody):not(:is(thead, tbody, tfoot) ~ *) > tr:first-child > :first-child {
-  border-top-left-radius: calc(var(--radius-lg) - 1px);
+.article-body__content :where(table > * > tr > :is(th, td)) {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  vertical-align: top;
+  border: 0;
 }
 
-.article-body__content :is(thead, tbody):not(:is(thead, tbody, tfoot) ~ *) > tr:first-child > :last-child {
-  border-top-right-radius: calc(var(--radius-lg) - 1px);
+.article-body__content :where(table > * > tr > th) {
+  font-weight: 600;
 }
 
-.article-body__content :is(thead, tbody, tfoot):last-child > tr:last-child > :first-child {
-  border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+.article-body__content :where(table:not([data-reader-flow]) > * > tr > :is(th, td)) > :first-child {
+  margin-top: 0;
 }
 
-.article-body__content :is(thead, tbody, tfoot):last-child > tr:last-child > :last-child {
-  border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+.article-body__content :where(table:not([data-reader-flow]) > * > tr > :is(th, td)) > :last-child {
+  margin-bottom: 0;
+}
+
+.article-body__content :where(table > * > tr > :is(th, td)[data-label])::before {
+  content: attr(data-label);
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.article-body__content :where(table > * > tr[data-reader-header]) {
+  display: none;
+}
+
+@container reader-article (width >= 37.5rem) {
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table)) {
+    display: table;
+    width: 100%; /* 1 */
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(caption, thead, tbody, tfoot)),
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr),
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr > :is(th, td)) {
+    display: revert;
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > caption) {
+    padding: revert;
+    border: revert;
+    font-weight: revert;
+    text-align: revert;
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr) {
+    padding: 0;
+    border: 0;
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr > :is(th, td)) {
+    padding: 15px 16px;
+    border-bottom: 1px solid var(--border);
+    overflow-wrap: break-word;
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr > th) {
+    background: var(--muted); /* 3 */
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > * > tr > :is(th, td)[data-label])::before {
+    content: none;
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody, tfoot):last-child > tr:last-child > :is(th, td)) {
+    border-bottom: 0;
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody):not(:is(thead, tbody, tfoot) ~ *) > tr:first-child > :first-child) {
+    border-top-left-radius: calc(var(--radius-lg) - 1px);
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody):not(:is(thead, tbody, tfoot) ~ *) > tr:first-child > :last-child) {
+    border-top-right-radius: calc(var(--radius-lg) - 1px);
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody, tfoot):last-child > tr:last-child > :first-child) {
+    border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+  }
+
+  .article-body__content :where(table[data-reader-fits]:not(:is(td, th) table) > :is(thead, tbody, tfoot):last-child > tr:last-child > :last-child) {
+    border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+  }
+}
+
+.article-body__content :where(table[data-reader-flow]),
+.article-body__content :where(table[data-reader-flow] > *),
+.article-body__content :where(table[data-reader-flow] > * > tr),
+.article-body__content :where(table[data-reader-flow] > * > tr > :is(th, td)) {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
 /**

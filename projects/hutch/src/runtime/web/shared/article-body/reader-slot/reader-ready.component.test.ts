@@ -182,4 +182,100 @@ describe("renderReaderReady", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.hasAttribute("hx-swap-oob")).toBe(false);
 	});
+
+	it("labels each body cell with its column heading, hides the header row the labels carry, and marks a table that fits the grid", () => {
+		const doc = parse(
+			renderReaderReady({
+				appOrigin: "https://readplace.com",
+				content: articleBody(
+					"<table><thead><tr><th>stage</th><th>owner</th></tr></thead><tbody><tr><td>extract</td><td>parser</td></tr></tbody></table>",
+				),
+			}),
+		);
+
+		const content = readerContent(doc);
+		expect(Array.from(content.querySelectorAll("td"), (cell) => cell.getAttribute("data-label"))).toEqual([
+			"stage",
+			"owner",
+		]);
+		expect(content.querySelector("thead tr")?.hasAttribute("data-reader-header")).toBe(true);
+		expect(content.querySelector("table")?.hasAttribute("data-reader-fits")).toBe(true);
+	});
+
+	it("keeps a title row visible and out of the labels, joining the headings below it outer row first", () => {
+		const doc = parse(
+			renderReaderReady({
+				appOrigin: "https://readplace.com",
+				content: articleBody(
+					'<table><thead><tr><th colspan="3">Bundle sizes</th></tr><tr><th rowspan="2">name</th><th colspan="2">size</th></tr><tr><th>w</th><th>h</th></tr></thead><tbody><tr><td>n</td><td>1</td><td>2</td></tr></tbody></table>',
+				),
+			}),
+		);
+
+		const content = readerContent(doc);
+		expect(Array.from(content.querySelectorAll("td"), (cell) => cell.getAttribute("data-label"))).toEqual([
+			"name",
+			"size · w",
+			"size · h",
+		]);
+		expect(Array.from(content.querySelectorAll("thead tr"), (row) => row.hasAttribute("data-reader-header"))).toEqual([
+			false,
+			true,
+			true,
+		]);
+	});
+
+	it("labels a row header in the body with the heading over its column", () => {
+		const doc = parse(
+			renderReaderReady({
+				appOrigin: "https://readplace.com",
+				content: articleBody(
+					"<table><thead><tr><th>Model</th><th>ain</th></tr></thead><tbody><tr><th>whisper</th><td>1.2</td></tr></tbody></table>",
+				),
+			}),
+		);
+
+		expect(readerContent(doc).querySelector("tbody th")?.getAttribute("data-label")).toBe("Model");
+	});
+
+	it("carries a heading's quotes and markup into its label as text, never as an element", () => {
+		const doc = parse(
+			renderReaderReady({
+				appOrigin: "https://readplace.com",
+				content: articleBody(
+					"<table><thead><tr><th>a \"b\" &lt;i&gt;</th><th>x</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>",
+				),
+			}),
+		);
+
+		const content = readerContent(doc);
+		expect(content.querySelector("td")?.getAttribute("data-label")).toBe('a "b" <i>');
+		expect(content.querySelector("i")).toBeNull();
+	});
+
+	it("drops reader attributes the captured markup already carried", () => {
+		const doc = parse(
+			renderReaderReady({
+				appOrigin: "https://readplace.com",
+				content: articleBody(
+					`<table data-reader-fits="" data-reader-flow=""><tbody><tr data-reader-header=""><td data-label="fake">${"x".repeat(100)}</td><td>y</td></tr></tbody></table>`,
+				),
+			}),
+		);
+
+		expect(
+			readerContent(doc).querySelector("[data-label], [data-reader-header], [data-reader-fits], [data-reader-flow]"),
+		).toBeNull();
+	});
+
+	it("marks a one-column table to read as the text it holds", () => {
+		const doc = parse(
+			renderReaderReady({
+				appOrigin: "https://readplace.com",
+				content: articleBody("<table><tbody><tr><td>a</td></tr><tr><td>b</td></tr></tbody></table>"),
+			}),
+		);
+
+		expect(readerContent(doc).querySelector("table")?.hasAttribute("data-reader-flow")).toBe(true);
+	});
 });

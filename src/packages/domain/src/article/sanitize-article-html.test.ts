@@ -8,11 +8,38 @@ describe("sanitizeArticleHtml", () => {
 		expect(sanitizeArticleHtml(article)).toBe(article);
 	});
 
-	it("keeps table structure so a wide data table still renders as a grid", () => {
+	it("keeps a table's structure and cell spans, which the reader lays out as a grid or as stacked rows", () => {
 		const table =
 			'<table><caption>Cap</caption><thead><tr><th colspan="2">Head</th></tr></thead><tbody><tr><td>Cell</td><td>Cell</td></tr></tbody></table>';
 
 		expect(sanitizeArticleHtml(table)).toBe(table);
+	});
+
+	it("keeps the reader's table attributes on the elements the reader writes them to", () => {
+		const described =
+			'<table data-reader-fits="" data-reader-flow=""><tbody><tr data-reader-header=""><th data-label="h">h</th><td data-label="stage">x</td></tr></tbody></table>';
+
+		expect(sanitizeArticleHtml(described)).toBe(
+			'<table data-reader-fits data-reader-flow><tbody><tr data-reader-header><th data-label="h">h</th><td data-label="stage">x</td></tr></tbody></table>',
+		);
+	});
+
+	it("drops every other data attribute, and the reader's attributes on elements the reader does not write them to", () => {
+		const captured =
+			'<table data-x="1"><tbody><tr data-y="1"><th data-z="1">h</th><td data-foo="1" data-label="v">v</td></tr></tbody></table><p data-label="p" data-reader-header="">p</p><div data-reader-fits="">d</div>';
+
+		expect(sanitizeArticleHtml(captured)).toBe(
+			'<table><tbody><tr><th>h</th><td data-label="v">v</td></tr></tbody></table><p>p</p><div>d</div>',
+		);
+	});
+
+	it("escapes quotes and markup inside a cell label so a label cannot open an element", () => {
+		const labelled =
+			"<table><tbody><tr><td data-label='a \"b\" <i>'>x</td><th data-label='c &amp; <b>'>y</th></tr></tbody></table>";
+
+		expect(sanitizeArticleHtml(labelled)).toBe(
+			'<table><tbody><tr><td data-label="a &quot;b&quot; &lt;i&gt;">x</td><th data-label="c &amp; &lt;b&gt;">y</th></tr></tbody></table>',
+		);
 	});
 
 	it("removes a captured stylesheet and its contents so article CSS cannot repaint the page around it", () => {
