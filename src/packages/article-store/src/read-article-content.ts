@@ -1,4 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { storedArticleBody } from "@packages/domain/article";
 import type {
 	ContentProvider,
 	ReadArticleContent,
@@ -12,7 +13,7 @@ export function initReadArticleContent(deps: {
 }): ReadArticleContent {
 	const { storageProviderQueryOrder, logError } = deps;
 
-	return async (url) => {
+	const firstStoredHtml = async (url: string): Promise<string | undefined> => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 
 		for (const provider of storageProviderQueryOrder) {
@@ -26,4 +27,6 @@ export function initReadArticleContent(deps: {
 
 		return undefined;
 	};
+
+	return async (url) => storedArticleBody({ url, html: await firstStoredHtml(url) });
 }

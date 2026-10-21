@@ -27,7 +27,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | `browser-image.yml` | Builds the digest-pinned browser image every browser job consumes, validates the candidate by running both extension suites against it, and prints the digest to promote. Versions come from `.github/browser-image/image.env`; nothing else builds a browser | Manual |
 | `perf-soak.yml` | Re-derives the save-latency budgets `ci.yml`'s `perf-tests` job gates on: 20 independent github-hosted runs, each uploading its own distribution | Manual |
 | `screen-response-soak.yml` | Re-derives the budgets the hutch post-deploy screen-response ratchet gates on: N independent github-hosted runs against the deployed staging stack, one at a time, each uploading its own distribution | Manual |
-| `claude-listener.yml` | Central hub - ONLY workflow that runs Claude | `@claude` comments |
+| `claude-listener.yml` | Central hub - ONLY workflow that runs Claude. Runs on the self-hosted OrbStack runner, in the same one-job-at-a-time queue as `web-tests` and `detect-projects`; a PR or issue opened by someone outside the repo's owners, members and collaborators runs on `ubuntu-latest` | `@claude` comments |
 | `claude-PR-CI-failure-fixer.yml` | Auto-fix CI failures (max 5 attempts) | CI fails on PR |
 | `claude-PR-code-reviewer.yml` | Automated code review | CI succeeds on PR |
 | `claude-PR-code-review-auto-apply.yml` | Post the review comment from the review run's saved output, then fix HIGH/MEDIUM issues | Review run completes (`workflow_run`) + the posted review comment |

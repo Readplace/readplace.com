@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isNonArticleHost } from "./non-article-host";
 
 const SiteLabelSchema = z.string().brand<"SiteLabel">();
 const ArticleDestinationUrlSchema = z.string().brand<"ArticleDestinationUrl">();
@@ -79,6 +80,16 @@ interface StoredDisplayMetadata {
 	title: string;
 	siteName: string;
 	excerpt: string;
+	wordCount: number;
+	imageUrl: string | undefined;
+}
+
+interface DisplayMetadata {
+	title: string;
+	siteName: SiteLabel;
+	excerpt: string;
+	wordCount: number;
+	imageUrl?: string;
 }
 
 function rehostTitle(params: {
@@ -105,7 +116,18 @@ function rehostExcerpt(params: {
 	return excerpt;
 }
 
-export function articleDisplayMetadata(stored: StoredDisplayMetadata): {
+export function articleDisplayMetadata(stored: StoredDisplayMetadata): DisplayMetadata {
+	if (isNonArticleHost(stored.url)) {
+		return { ...hostStubMetadata(stored.destinationUrl), wordCount: 0 };
+	}
+	return {
+		...displayText(stored),
+		wordCount: stored.wordCount,
+		...(stored.imageUrl === undefined ? {} : { imageUrl: stored.imageUrl }),
+	};
+}
+
+function displayText(stored: StoredDisplayMetadata): {
 	title: string;
 	siteName: SiteLabel;
 	excerpt: string;
@@ -139,7 +161,7 @@ export function articleLinkedDisplay(stored: {
 	title: string;
 	siteName: string;
 }): { title: string; siteName: SiteLabel } {
-	const { title, siteName } = articleDisplayMetadata({ ...stored, excerpt: "" });
+	const { title, siteName } = articleDisplayMetadata({ ...stored, excerpt: "", wordCount: 0, imageUrl: undefined });
 	return { title, siteName };
 }
 

@@ -4,6 +4,7 @@ import {
 	ReaderArticleHashId,
 	type SavedArticle,
 	articleDestinationUrl,
+	type ArticleBody,
 } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST,
@@ -17,6 +18,7 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { articleMarkdown } from "./article-markdown";
+import { articleBody } from "@packages/test-fixtures";
 
 const APP_ORIGIN = "https://readplace.test";
 const ARTICLE_URL = "https://example.com/post";
@@ -51,7 +53,7 @@ describe("articleMarkdown", () => {
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Body copy.</p>",
+					content: articleBody("<p>Body copy.</p>"),
 					summary: {
 						status: "ready",
 						summary: "First point.\n\nSecond point.",
@@ -91,7 +93,7 @@ describe("articleMarkdown", () => {
 				readlists: [DEFAULT_READLIST],
 				appOrigin: APP_ORIGIN,
 				crawl: { status: "ready" },
-				content: "<h2>Why</h2><p>Because.</p>",
+				content: articleBody("<h2>Why</h2><p>Because.</p>"),
 				summary: {
 					status: "ready",
 					summary: "First point.\n\nSecond point.",
@@ -144,7 +146,7 @@ describe("articleMarkdown", () => {
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<hr><p>Hello</p>",
+					content: articleBody("<hr><p>Hello</p>"),
 					summary: undefined,
 				}),
 			);
@@ -180,7 +182,7 @@ describe("articleMarkdown", () => {
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Body copy.</p>",
+					content: articleBody("<p>Body copy.</p>"),
 					summary: undefined,
 				}),
 			);
@@ -230,7 +232,7 @@ describe("articleMarkdown", () => {
 						readlists: [DEFAULT_READLIST],
 						appOrigin: APP_ORIGIN,
 						crawl: { status: "ready" },
-						content: "<p>Body copy.</p>",
+						content: articleBody("<p>Body copy.</p>"),
 						summary,
 					}),
 				);
@@ -263,7 +265,7 @@ describe("articleMarkdown", () => {
 				readlists: [DEFAULT_READLIST],
 				appOrigin: APP_ORIGIN,
 				crawl: { status: "ready" },
-				content: "<p>Body copy.</p>",
+				content: articleBody("<p>Body copy.</p>"),
 				summary: { status: "ready", summary },
 			});
 
@@ -302,7 +304,7 @@ describe("articleMarkdown", () => {
 		const contentStates: {
 			label: string;
 			crawl: ArticleCrawl | undefined;
-			content: string | undefined;
+			content: ArticleBody | undefined;
 			summary: GeneratedSummary | undefined;
 			frontmatter: Record<string, string>;
 			body: string;
@@ -310,7 +312,7 @@ describe("articleMarkdown", () => {
 			{
 				label: "a failed crawl with older content still stored and no summary row",
 				crawl: { status: "failed", reason: "blocked" },
-				content: "<p>Older body.</p>",
+				content: articleBody("<p>Older body.</p>"),
 				summary: undefined,
 				frontmatter: { readplace_content_status: "failed" },
 				body: "",
@@ -318,7 +320,7 @@ describe("articleMarkdown", () => {
 			{
 				label: "an unsupported crawl with older content still stored",
 				crawl: { status: "unsupported", reason: "binary content" },
-				content: "<p>Older body.</p>",
+				content: articleBody("<p>Older body.</p>"),
 				summary: undefined,
 				frontmatter: { readplace_content_status: "failed" },
 				body: "",
@@ -342,7 +344,7 @@ describe("articleMarkdown", () => {
 			{
 				label: "a failed crawl while a ready summary is still stored",
 				crawl: { status: "failed", reason: "blocked" },
-				content: "<p>Older body.</p>",
+				content: articleBody("<p>Older body.</p>"),
 				summary: { status: "ready", summary: "Older point." },
 				frontmatter: { readplace_content_status: "failed" },
 				body: "",
@@ -350,7 +352,7 @@ describe("articleMarkdown", () => {
 			{
 				label: "a pending crawl with older content still stored",
 				crawl: { status: "pending" },
-				content: "<p>Older body.</p>",
+				content: articleBody("<p>Older body.</p>"),
 				summary: undefined,
 				frontmatter: {
 					readplace_content_status: "processing",
@@ -384,7 +386,7 @@ describe("articleMarkdown", () => {
 			{
 				label: "a ready crawl with content",
 				crawl: { status: "ready" },
-				content: "<p>Body copy.</p>",
+				content: articleBody("<p>Body copy.</p>"),
 				summary: undefined,
 				frontmatter: {
 					readplace_content_status: "ready",
@@ -406,7 +408,7 @@ describe("articleMarkdown", () => {
 			{
 				label: "no crawl row and content present",
 				crawl: undefined,
-				content: "<p>Body copy.</p>",
+				content: articleBody("<p>Body copy.</p>"),
 				summary: undefined,
 				frontmatter: {
 					readplace_content_status: "ready",
@@ -518,7 +520,7 @@ describe("articleMarkdown", () => {
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Stored body that must not show.</p>",
+					content: articleBody("<p>Stored body that must not show.</p>"),
 					summary: {
 						status: "ready",
 						summary: "Stored summary that must not show.",
@@ -612,7 +614,7 @@ describe("articleMarkdown", () => {
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Body copy.</p>",
+					content: articleBody("<p>Body copy.</p>"),
 					summary: undefined,
 				}),
 			);
@@ -651,7 +653,7 @@ describe("articleMarkdown", () => {
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Body copy.</p>",
+					content: articleBody("<p>Body copy.</p>"),
 					summary: undefined,
 				}),
 			);
@@ -721,7 +723,7 @@ describe("articleMarkdown", () => {
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Body copy.</p>",
+					content: articleBody("<p>Body copy.</p>"),
 					summary,
 				}),
 			);
@@ -772,7 +774,7 @@ describe("articleMarkdown", () => {
 					],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Body copy.</p>",
+					content: articleBody("<p>Body copy.</p>"),
 					summary: { status: "ready", summary, excerpt: "Generated blurb." },
 				}),
 			);
@@ -836,7 +838,7 @@ describe("articleMarkdown", () => {
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Body copy.</p>",
+					content: articleBody("<p>Body copy.</p>"),
 					summary: undefined,
 				}),
 			);
@@ -909,7 +911,7 @@ describe("articleMarkdown", () => {
 					readlists,
 					appOrigin: APP_ORIGIN,
 					crawl: { status: "ready" },
-					content: "<p>Body copy.</p>",
+					content: articleBody("<p>Body copy.</p>"),
 					summary: undefined,
 				}),
 			);

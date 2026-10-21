@@ -5,6 +5,7 @@ import {
 	DEFAULT_CRAWL_STAGE,
 	crawlProgressPct,
 	crawlStagePct,
+	type ArticleBody,
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
@@ -20,7 +21,7 @@ import { renderReaderReady } from "./reader-ready.component";
 
 export interface ReaderSlotInput {
 	crawl?: ArticleCrawl;
-	content?: string;
+	content?: ArticleBody;
 	url: ArticleDestinationUrl;
 	articleId: string | undefined;
 	readerPollUrl?: string;
@@ -133,7 +134,7 @@ function pollOrSlow(input: ReaderSlotInput, oob: boolean, pct: number): ReaderRe
 			});
 }
 
-function ready(input: ReaderSlotInput, content: string, oob: boolean): ReaderRegions {
+function ready(input: ReaderSlotInput, content: ArticleBody, oob: boolean): ReaderRegions {
 	return withEmptyNotice(
 		renderReaderReady({ content, oob, appOrigin: input.appOrigin }),
 		input.noticeOob,

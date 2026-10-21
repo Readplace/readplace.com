@@ -9,6 +9,7 @@ import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
 	ArticleStatus,
 	DisplayableReadTime,
+	ArticleBody,
 } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -128,7 +129,7 @@ export type AddToReadlistResult =
 	| { readonly status: "access_denied"; readonly message: string };
 
 export type ArticleContentResult =
-	| { readonly status: "ready"; readonly content: string }
+	| { readonly status: "ready"; readonly content: ArticleBody }
 	| { readonly status: "pending" }
 	| { readonly status: "not_an_article" }
 	| { readonly status: "not_found" };

@@ -3,6 +3,7 @@ import type {
 	ArticleDestinationUrl,
 	Minutes,
 	SavedArticle,
+	ArticleBody,
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -68,7 +69,7 @@ export interface AdminRecrawlPageInput {
 	destinationUrl: ArticleDestinationUrl;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: Minutes;
-	content?: string;
+	content?: ArticleBody;
 	crawl?: ArticleCrawl;
 	readerPollUrl?: string;
 	summary?: GeneratedSummary;

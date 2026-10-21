@@ -1,4 +1,4 @@
-import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, storedArticleBody, shownSummary } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
@@ -13,7 +13,7 @@ import type {
 	ReadArticleContent,
 	UpdateArticleStatusAcrossReadlists,
 } from "@packages/provider-contracts/article-store";
-import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
+import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import type { FindRelatedArticles } from "@packages/provider-contracts/related-articles";
 import {
@@ -96,7 +96,7 @@ function buildOps(overrides: DepOverrides = {}) {
 				page: 1,
 				pageSize: 20,
 			})),
-		readArticleContent: overrides.readArticleContent ?? (async () => undefined),
+		readArticleContent: overrides.readArticleContent ?? (async () => ({ kind: "missing" })),
 		findGeneratedSummary:
 			overrides.findGeneratedSummary ?? (async () => undefined),
 		findRelatedArticles:
@@ -216,8 +216,8 @@ describe("initMcpArticleOperations", () => {
 		});
 		const ops = buildOps({
 			findArticleById: async () => article,
-			readArticleContent: async () => "<p>Article</p>",
-			findGeneratedSummary: async () => ({ status: "ready", summary: "Summary" }),
+			readArticleContent: async (url) => storedArticleBody({ url, html: "<p>Article</p>" }),
+			findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "Summary" } }),
 			updateArticleStatusAcrossReadlists: async ({ status }) => ({ ...article, status }),
 			recordEngagementActivity: async (input) => {
 				activity.push(input);
@@ -252,10 +252,10 @@ describe("initMcpArticleOperations", () => {
 		const article = buildArticle();
 		await buildOps({
 			findArticleById: async () => article,
-			readArticleContent: async () => undefined,
+			readArticleContent: async () => ({ kind: "missing" }),
 			recordEngagementActivity,
 		}).getArticleContent({ userId, id: article.id.value });
-		const undelivered: Awaited<ReturnType<FindGeneratedSummary>>[] = [
+		const undelivered: (GeneratedSummary | undefined)[] = [
 			undefined,
 			{ status: "pending" },
 			{ status: "failed", reason: "too long" },
@@ -264,15 +264,15 @@ describe("initMcpArticleOperations", () => {
 		for (const summary of undelivered) {
 			await buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async () => summary,
+				findGeneratedSummary: async (url) => shownSummary({ url, summary }),
 				recordEngagementActivity,
 			}).getArticleSummary({ userId, id: article.id.value });
 		}
 		const mailbox = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
 		const mailboxOps = buildOps({
 			findArticleById: async () => mailbox,
-			readArticleContent: async () => "<p>42 unread</p>",
-			findGeneratedSummary: async () => ({ status: "ready", summary: "42 unread" }),
+			readArticleContent: async (url) => storedArticleBody({ url, html: "<p>42 unread</p>" }),
+			findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "42 unread" } }),
 			recordEngagementActivity,
 		});
 		await mailboxOps.getArticleContent({ userId, id: mailbox.id.value });
@@ -491,7 +491,7 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle();
 			const ops = buildOps({
 				findArticleById: async () => article,
-				readArticleContent: async () => undefined,
+				readArticleContent: async () => ({ kind: "missing" }),
 			});
 			expect(
 				await ops.getArticleContent({ userId, id: article.id.value }),
@@ -502,7 +502,7 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle();
 			const ops = buildOps({
 				findArticleById: async () => article,
-				readArticleContent: async () => "<article>hi</article>",
+				readArticleContent: async (url) => storedArticleBody({ url, html: "<article>hi</article>" }),
 			});
 			expect(
 				await ops.getArticleContent({ userId, id: article.id.value }),
@@ -513,7 +513,7 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
 			const ops = buildOps({
 				findArticleById: async () => article,
-				readArticleContent: async () => "<article>Inbox (42)</article>",
+				readArticleContent: async (url) => storedArticleBody({ url, html: "<article>Inbox (42)</article>" }),
 			});
 			expect(
 				await ops.getArticleContent({ userId, id: article.id.value }),
@@ -533,7 +533,7 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle();
 			const ops = buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async () => ({ status: "ready", summary: "TL;DR" }),
+				findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "TL;DR" } }),
 			});
 			expect(
 				await ops.getArticleSummary({ userId, id: article.id.value }),
@@ -544,7 +544,7 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
 			const ops = buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async () => ({ status: "ready", summary: "42 unread" }),
+				findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "42 unread" } }),
 			});
 			expect(
 				await ops.getArticleSummary({ userId, id: article.id.value }),

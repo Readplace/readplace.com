@@ -1,6 +1,7 @@
 import type {
 	ArticleMetadata,
 	Minutes,
+	ArticleBody,
 } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
@@ -84,7 +85,7 @@ export interface ArticleVersion {
 }
 
 export interface ReaderState {
-	content: string | undefined;
+	content: ArticleBody | undefined;
 	crawl: ArticleCrawl | undefined;
 	summary: GeneratedSummary | undefined;
 	readerPollUrl: string | undefined;

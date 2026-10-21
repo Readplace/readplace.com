@@ -1,5 +1,5 @@
 import { CrawlStatusSchema } from "@packages/article-state-types";
-import { articleDestinationUrl, stubMetadataFor } from "@packages/domain/article";
+import { articleDestinationUrl, isNonArticleHost, stubMetadataFor } from "@packages/domain/article";
 import {
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
@@ -42,13 +42,15 @@ export const LinkableArticle = ArticleRelatedRow.extend({
 /** Rows that fail their schema, or carry a tombstone, are dropped rather than
  * defaulted — a half-written row can never reach the model as empty strings, or
  * the reader as a link with no title. */
-export function usable<T extends z.ZodObject>(
+export function usable<T extends z.ZodType<z.infer<typeof ArticleRelatedRow>>>(
 	schema: T,
 	row: unknown,
 ): z.infer<T> | undefined {
 	const parsed = schema.safeParse(row);
 	if (!parsed.success) return undefined;
-	return parsed.data.purgedAt ? undefined : parsed.data;
+	if (parsed.data.purgedAt) return undefined;
+	if (isNonArticleHost(parsed.data.originalUrl ?? `https://${parsed.data.url}`)) return undefined;
+	return parsed.data;
 }
 
 export function descriptionOf(row: {

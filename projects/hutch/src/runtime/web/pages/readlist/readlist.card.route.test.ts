@@ -14,6 +14,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MAX_POLLS } from "@packages/web-shell";
+import { shownSummary } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -32,10 +33,10 @@ describe("Readlist routes", () => {
 		function createTerminalPipelineFixture() {
 			const articleHtml = `<html><head><title>Terminal Post</title></head><body><article><h1>Terminal Post</h1><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async () => ({
+			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
 				status: "ready" as const,
 				summary: "Ready summary.",
-			});
+			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({

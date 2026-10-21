@@ -10,7 +10,7 @@ function makeGlobalArticle(overrides: Partial<GlobalArticleData> = {}): GlobalAr
 		id: ReaderArticleHashId.from(canonicalUrl),
 		url: canonicalUrl,
 		destinationUrl: destination,
-		metadata: { ...articleDisplayMetadata({ url: canonicalUrl, destinationUrl: destination, title: "t", siteName: "s", excerpt: "e" }), wordCount: 100 },
+		metadata: articleDisplayMetadata({ url: canonicalUrl, destinationUrl: destination, title: "t", siteName: "s", excerpt: "e", wordCount: 100, imageUrl: undefined }),
 		estimatedReadTime: MinutesSchema.parse(1),
 		savedAt: new Date("2026-06-01T00:00:00.000Z"),
 		...overrides,

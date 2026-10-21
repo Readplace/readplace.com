@@ -1084,6 +1084,17 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 	});
 });
 
+const WEBMAIL_ROW = {
+	url: "mail.google.com/mail/u/2/",
+	originalUrl: "https://mail.google.com/mail/u/2/#inbox",
+	title: "Inbox (12) - private.person@example.com",
+	siteName: "Gmail",
+	excerpt: "A private message",
+	imageUrl: "https://cdn.readplace.test/media/private-avatar.png",
+	wordCount: 9,
+	content: undefined,
+};
+
 describe("initDynamoDbSavedArticleStore reads by id", () => {
 	it("findArticleById joins the global row with the user row", async () => {
 		const { client } = createFakeClient({
@@ -1172,6 +1183,22 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 			url: "https://nodeweekly.com/link/190528",
 			destinationUrl: "https://memcached.org/",
 			siteName: "memcached.org",
+		});
+	});
+
+	it("findArticleById shows only the host of a webmail page", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem(WEBMAIL_ROW)], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem({ url: WEBMAIL_ROW.url }) } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.metadata).toStrictEqual({
+			title: "mail.google.com",
+			siteName: "mail.google.com",
+			excerpt: "",
+			wordCount: 0,
 		});
 	});
 
@@ -2180,6 +2207,21 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		const data = await initStore(client).findArticleByUrl(URL);
 
 		expect(data?.readerAvailableAt).toBeUndefined();
+	});
+
+	it("findArticleByUrl shows only the host of a webmail page", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: articleItem(WEBMAIL_ROW) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl("https://mail.google.com/mail/u/2/#inbox");
+
+		expect(data?.metadata).toStrictEqual({
+			title: "mail.google.com",
+			siteName: "mail.google.com",
+			excerpt: "",
+			wordCount: 0,
+		});
 	});
 
 	it("findArticleByUrl surfaces the redirect destination for a merged row", async () => {

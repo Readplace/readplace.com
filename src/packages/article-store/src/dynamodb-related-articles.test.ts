@@ -299,6 +299,25 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(await store.findRelatedTargetArticle(TARGET_URL)).toEqual({ state: "absent" });
 		});
 
+		it("reports a webmail page as not an article without reading its row", async () => {
+			const { sent, store } = build(() => ({
+				Item: {
+					url: "mail.google.com/mail/u/2/",
+					originalUrl: "https://mail.google.com/mail/u/2/",
+					title: "Inbox (12) - private.person@example.com",
+					siteName: "Gmail",
+					excerpt: "A private message",
+					summary: "Private inbox summary",
+					crawlStatus: "ready",
+				},
+			}));
+
+			expect(await store.findRelatedTargetArticle("https://mail.google.com/mail/u/2/")).toEqual({
+				state: "not-an-article",
+			});
+			expect(sent).toEqual([]);
+		});
+
 		it("reports a half-written row whose metadata the crawl has not filled in yet as absent", async () => {
 			const { store } = build(() => ({
 				Item: {
@@ -465,6 +484,40 @@ describe("initDynamoDbRelatedArticles", () => {
 			});
 
 			const { candidates } = await store.findRelatedCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 10,
+			});
+
+			expect(candidates.map((candidate) => candidate.title)).toEqual(["Good"]);
+		});
+
+		it("drops saves of a webmail page, whether or not the row records its original URL", async () => {
+			const { candidates } = await candidateClient({
+				pages: [
+					{
+						urls: ["mail.google.com/mail/u/2/", "mail.google.com/mail/u/0/", "example.com/good"],
+					},
+				],
+				articles: [
+					{
+						url: "mail.google.com/mail/u/2/",
+						originalUrl: "https://mail.google.com/mail/u/2/#inbox",
+						title: "Inbox (12) - private.person@example.com",
+						siteName: "Gmail",
+						excerpt: "A private message",
+						summary: "Private inbox summary",
+					},
+					{
+						url: "mail.google.com/mail/u/0/",
+						title: "Inbox (3) - another.person@example.com",
+						siteName: "Gmail",
+						excerpt: "Another private message",
+						summary: "Another private summary",
+					},
+					{ url: "example.com/good", title: "Good", siteName: "Example", excerpt: "" },
+				],
+			}).store.findRelatedCandidateArticles({
 				userId: USER_ID,
 				excludeUrl: TARGET_URL,
 				limit: 10,
@@ -1122,6 +1175,66 @@ describe("initDynamoDbRelatedArticles", () => {
 					savedAt: new Date("2026-05-20T00:00:00.000Z"),
 				},
 			]);
+		});
+
+		it("drops a relation to a webmail page", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							relatedStatus: "ready",
+							relatedArticles: [
+								{ url: "mail.google.com/mail/u/2/", reason: "Inbox" },
+								{ url: "example.com/kept", reason: "Same argument" },
+							],
+						},
+					};
+				}
+				const tableName = Object.keys(
+					z.object({ RequestItems: z.record(z.string(), z.unknown()) }).parse(command.input).RequestItems,
+				)[0];
+				if (tableName === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ url: "mail.google.com/mail/u/2/", status: "unread", savedAt: "2026-06-01T00:00:00.000Z" },
+								{ url: "example.com/kept", status: "unread", savedAt: "2026-05-20T00:00:00.000Z" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "mail.google.com/mail/u/2/",
+								originalUrl: "https://mail.google.com/mail/u/2/#inbox",
+								routeId: "11111111111111111111111111111111",
+								title: "Inbox (12) - private.person@example.com",
+								siteName: "Gmail",
+								excerpt: "",
+							},
+							{
+								url: "example.com/kept",
+								originalUrl: "https://example.com/kept",
+								routeId: "22222222222222222222222222222222",
+								title: "Kept",
+								siteName: "Example",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => item.title)).toEqual(["Kept"]);
 		});
 
 		describe("copies of the saved article and repeated picks", () => {

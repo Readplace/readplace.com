@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { MinutesSchema } from "@packages/domain/article";
+import { MinutesSchema, shownSummary } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import type {
 	ParseArticle,
@@ -670,10 +670,10 @@ describe("View routes", () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const publishSaveAnonymousLink = jest.fn(async () => {});
 			const publishStaleCheckRequested = jest.fn(async () => {});
-			const findGeneratedSummary: FindGeneratedSummary = async () => ({
+			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 				status: "ready",
 				summary: "Cached summary.",
-			});
+			} });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -939,11 +939,11 @@ describe("View routes", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const publishSaveAnonymousLink = jest.fn(async () => {});
 			const publishStaleCheckRequested = jest.fn(async () => {});
-			const findGeneratedSummary: FindGeneratedSummary = async () => ({
+			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 				status: "ready",
 				summary: STORED_SUMMARY,
 				excerpt: "Re: your invoice is attached",
-			});
+			} });
 			const harness = useApp({
 				...fixture,
 				summary: { ...fixture.summary, findGeneratedSummary },

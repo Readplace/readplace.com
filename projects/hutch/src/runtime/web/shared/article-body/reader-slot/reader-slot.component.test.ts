@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { destinationUrl } from "../../../test-helpers/article-fixtures";
 import { type ReaderSlotInput, renderReaderSlot } from "./reader-slot.component";
+import { articleBody } from "@packages/test-fixtures";
 
 function parse(regions: { slot: string; notice: string }) {
 	return new JSDOM(
@@ -35,7 +36,7 @@ describe("renderReaderSlot", () => {
 	it("returns only the two region fragments (no outer page)", () => {
 		const { slot, notice } = renderReaderSlot({
 			crawl: { status: "ready" },
-			content: "<p>Body</p>",
+			content: articleBody("<p>Body</p>"),
 			url: URL,
 			articleId: ARTICLE_ID,
 			appOrigin: APP_ORIGIN,
@@ -252,7 +253,7 @@ describe("renderReaderSlot", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: { status: "ready" },
-				content: "<p>Body copy</p>",
+				content: articleBody("<p>Body copy</p>"),
 				url: URL,
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
@@ -297,7 +298,7 @@ describe("renderReaderSlot", () => {
 	it("treats a legacy row (no crawl status) with content as ready", () => {
 		const doc = parse(
 			renderReaderSlot({
-				content: "<p>Legacy body</p>",
+				content: articleBody("<p>Legacy body</p>"),
 				url: URL,
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
@@ -422,7 +423,7 @@ describe("renderReaderSlot", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: { status: "ready" },
-				content: "<p>Captured body</p>",
+				content: articleBody("<p>Captured body</p>"),
 				url: URL,
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=3&capturing=1",
@@ -478,7 +479,7 @@ describe("renderReaderSlot", () => {
 		},
 		{
 			state: "a link that is not an article",
-			input: { notice: "not-an-article", crawl: { status: "ready" }, content: "<p>x</p>" },
+			input: { notice: "not-an-article", crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
 			status: "not-an-article",
 		},
 		{
@@ -551,7 +552,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				notice: "not-an-article",
 				crawl: { status: "ready" },
-				content: "<p>Inbox (42) — someone@example.com</p>",
+				content: articleBody("<p>Inbox (42) — someone@example.com</p>"),
 				url: destinationUrl("https://mail.google.com/mail/u/0/"),
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
@@ -577,13 +578,13 @@ describe("renderReaderSlot", () => {
 	}>([
 		{
 			state: "ready",
-			input: { crawl: { status: "ready" }, content: "<p>x</p>" },
+			input: { crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
 			slot: { status: "ready", stateClass: "article-body__reader-slot--ready" },
 			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
 		},
 		{
 			state: "legacy row with content",
-			input: { content: "<p>x</p>" },
+			input: { content: articleBody("<p>x</p>") },
 			slot: { status: "ready", stateClass: "article-body__reader-slot--ready" },
 			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
 		},
@@ -629,7 +630,7 @@ describe("renderReaderSlot", () => {
 		},
 		{
 			state: "a notice override on a ready crawl",
-			input: { notice: "not-an-article", crawl: { status: "ready" }, content: "<p>x</p>" },
+			input: { notice: "not-an-article", crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
 			slot: { status: "not-an-article", stateClass: "article-body__reader-slot--notice" },
 			notice: { status: "not-an-article", stateClass: "article-body__reader-notice--visible" },
 		},
@@ -686,7 +687,7 @@ describe("renderReaderSlot", () => {
 			input: Parameters<typeof renderReaderSlot>[0];
 			expected: string;
 		}> = [
-			{ input: { crawl: { status: "ready" }, content: "<p>x</p>", url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "ready" },
+			{ input: { crawl: { status: "ready" }, content: articleBody("<p>x</p>"), url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "ready" },
 			{ input: { crawl: { status: "pending" }, url: URL, articleId: ARTICLE_ID, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false }, expected: "pending" },
 			{ input: { crawl: { status: "failed", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "failed" },
 			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "unsupported" },

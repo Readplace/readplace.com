@@ -8,21 +8,24 @@ import {
 	isTableOfContentsVisible,
 	renderTableOfContents,
 } from "./table-of-contents.component";
+import { articleBody } from "@packages/test-fixtures";
+import type { ArticleBody } from "@packages/domain/article";
 
 const APP_ORIGIN = "https://readplace.com";
-const HEADED_CONTENT =
-	"<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p><h4>Footnotes</h4><h2>Why it matters</h2><p>Three</p>";
+const HEADED_CONTENT = articleBody(
+	"<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p><h4>Footnotes</h4><h2>Why it matters</h2><p>Three</p>",
+);
 
 interface ReaderViewCase {
 	reader: string;
 	crawl: ArticleCrawl | undefined;
-	content: string | undefined;
+	content: ArticleBody | undefined;
 	notice: ReaderFailedVariant | undefined;
 }
 
 const STATE_CASES: (ReaderViewCase & { state: string })[] = [
 	{ reader: "ready, with h2 and h3 sections", crawl: { status: "ready" }, content: HEADED_CONTENT, notice: undefined, state: "listed" },
-	{ reader: "ready, with no h2 or h3", crawl: { status: "ready" }, content: "<p>One</p><h4>Minor</h4>", notice: undefined, state: "empty" },
+	{ reader: "ready, with no h2 or h3", crawl: { status: "ready" }, content: articleBody("<p>One</p><h4>Minor</h4>"), notice: undefined, state: "empty" },
 	{ reader: "a legacy row with no crawl record", crawl: undefined, content: HEADED_CONTENT, notice: undefined, state: "listed" },
 	{ reader: "pending", crawl: { status: "pending" }, content: undefined, notice: undefined, state: "hidden" },
 	{ reader: "ready before its content landed", crawl: { status: "ready" }, content: undefined, notice: undefined, state: "hidden" },
@@ -52,10 +55,10 @@ const STATE_CASES: (ReaderViewCase & { state: string })[] = [
 ];
 
 const VISIBILITY_CASES: (ReaderViewCase & { visible: boolean })[] = [
-	{ reader: "ready", crawl: { status: "ready" }, content: "<p>One</p>", notice: undefined, visible: true },
-	{ reader: "a legacy row", crawl: undefined, content: "<p>One</p>", notice: undefined, visible: true },
-	{ reader: "pending with published content", crawl: { status: "pending" }, content: "<p>One</p>", notice: undefined, visible: false },
-	{ reader: "under a notice", crawl: { status: "ready" }, content: "<p>One</p>", notice: "not-an-article", visible: false },
+	{ reader: "ready", crawl: { status: "ready" }, content: articleBody("<p>One</p>"), notice: undefined, visible: true },
+	{ reader: "a legacy row", crawl: undefined, content: articleBody("<p>One</p>"), notice: undefined, visible: true },
+	{ reader: "pending with published content", crawl: { status: "pending" }, content: articleBody("<p>One</p>"), notice: undefined, visible: false },
+	{ reader: "under a notice", crawl: { status: "ready" }, content: articleBody("<p>One</p>"), notice: "not-an-article", visible: false },
 ];
 
 function parse(html: string): Document {
@@ -70,7 +73,7 @@ function wrapperOf(html: string): Element {
 
 function render(input: {
 	crawl: ArticleCrawl | undefined;
-	content: string | undefined;
+	content: ArticleBody | undefined;
 	notice?: ReaderFailedVariant;
 	oob?: boolean;
 }): string {
@@ -130,7 +133,7 @@ describe("renderTableOfContents", () => {
 	});
 
 	it("tells the reader there are no sections when a ready article has no h2 or h3", () => {
-		const wrapper = wrapperOf(render({ crawl: { status: "ready" }, content: "<p>One paragraph.</p>" }));
+		const wrapper = wrapperOf(render({ crawl: { status: "ready" }, content: articleBody("<p>One paragraph.</p>") }));
 
 		const empty = wrapper.querySelector("details[data-test-toc-card] > .disclosure-card__body[data-test-toc-empty]");
 		assert(empty, "the empty state must be the card's body");
@@ -141,7 +144,7 @@ describe("renderTableOfContents", () => {
 	});
 
 	it("marks the wrapper for an out-of-band swap only when asked", () => {
-		const content = "<p>One paragraph.</p>";
+		const content = articleBody("<p>One paragraph.</p>");
 
 		expect([
 			wrapperOf(render({ crawl: { status: "ready" }, content, oob: true })).getAttribute("hx-swap-oob"),
@@ -164,8 +167,9 @@ describe("renderTableOfContents", () => {
 	});
 
 	it("lists only the headings the reader body keeps, under the text the body shows", () => {
-		const content =
-			"<h2>Intro<script>track()</script></h2><noscript><h2>Enable JavaScript</h2></noscript><h3>Method</h3>";
+		const content = articleBody(
+			"<h2>Intro<script>track()</script></h2><noscript><h2>Enable JavaScript</h2></noscript><h3>Method</h3>",
+		);
 
 		const wrapper = wrapperOf(render({ crawl: { status: "ready" }, content }));
 

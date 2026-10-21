@@ -4,6 +4,7 @@ import { toAbsoluteDate, toAbsoluteTime } from "@packages/web-shell/local-time.f
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { ArticleVersion } from "../article-reader/article-reader.types";
 import { type ArticleRailInput, renderArticleBody, renderArticleRail } from "./article-body.component";
+import { articleBody } from "@packages/test-fixtures";
 
 const baseInput = {
 	title: "Hello World",
@@ -51,7 +52,7 @@ describe("renderArticleBody", () => {
 	it("renders the article title, site name, reading time and content", () => {
 		const html = renderArticleBody({
 			...baseInput,
-			content: "<p>Body copy</p>",
+			content: articleBody("<p>Body copy</p>"),
 		});
 		const doc = parse(html);
 
@@ -72,7 +73,7 @@ describe("renderArticleBody", () => {
 	it("delegates to the summary slot renderer", () => {
 		const html = renderArticleBody({
 			...baseInput,
-			content: "<p>Body</p>",
+			content: articleBody("<p>Body</p>"),
 			summary: { status: "ready", summary: "Key points." },
 		});
 		const doc = parse(html);
@@ -104,7 +105,7 @@ describe("renderArticleBody", () => {
 	it("shows 'Generating summary' once the reader view is ready and the summary is still pending", () => {
 		const html = renderArticleBody({
 			...baseInput,
-			content: "<p>Body</p>",
+			content: articleBody("<p>Body</p>"),
 			crawl: { status: "ready" },
 			summary: { status: "pending" },
 			summaryPollUrl: "/queue/abc/summary?poll=1",
@@ -122,7 +123,7 @@ describe("renderArticleBody", () => {
 	it("splices the injected action bars above the header and below the reader slot", () => {
 		const html = renderArticleBody({
 			...baseInput,
-			content: "<p>Body</p>",
+			content: articleBody("<p>Body</p>"),
 			topActionsHtml: '<div data-test-top-actions>top</div>',
 			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
 		});
@@ -135,7 +136,7 @@ describe("renderArticleBody", () => {
 	});
 
 	it("leaves the rail's cards out of the article column, so the summary slot is followed directly by the reader slot", () => {
-		const doc = parse(renderArticleBody({ ...baseInput, content: "<p>Body</p>" }));
+		const doc = parse(renderArticleBody({ ...baseInput, content: articleBody("<p>Body</p>") }));
 
 		const summarySlot = doc.querySelector("#article-body-summary-slot");
 		assert(summarySlot, "the summary slot must be rendered");
@@ -199,7 +200,7 @@ describe("renderArticleBody", () => {
 	it("wraps the header, the panels and the reader slot in one article card", () => {
 		const html = renderArticleBody({
 			...baseInput,
-			content: "<p>Body</p>",
+			content: articleBody("<p>Body</p>"),
 			summary: { status: "ready", summary: "Key points." },
 		});
 		const doc = parse(html);
@@ -220,7 +221,7 @@ describe("renderArticleBody", () => {
 		const doc = parse(
 			renderArticleBody({
 				...baseInput,
-				content: "<p>Body</p>",
+				content: articleBody("<p>Body</p>"),
 				previouslyReadHtml: '<section id="article-body-topic-reads-inline-slot">past reads</section>',
 			}),
 		);
@@ -263,7 +264,7 @@ describe("renderArticleBody", () => {
 
 	it("leaves the table of contents to the rail, so the body carries only the anchored article", () => {
 		const doc = parse(
-			renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: "<h2>Why it matters</h2><p>One</p>" }),
+			renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<h2>Why it matters</h2><p>One</p>") }),
 		);
 
 		const heading = doc.querySelector("[data-test-reader-content] h2");
@@ -275,7 +276,7 @@ describe("renderArticleBody", () => {
 	});
 
 	it("renders the notice region hidden after the card while the reader view is ready", () => {
-		const doc = parse(renderArticleBody({ ...baseInput, content: "<p>Body</p>" }));
+		const doc = parse(renderArticleBody({ ...baseInput, content: articleBody("<p>Body</p>") }));
 
 		const notice = doc.querySelector("[data-test-reader-notice]");
 		assert(notice, "the notice region must be rendered unconditionally");
@@ -347,7 +348,7 @@ describe("renderArticleRail", () => {
 	it("lists the ready article's sections in the table of contents above Article history", () => {
 		const html = renderArticleRail({
 			crawl: { status: "ready" },
-			content: "<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>",
+			content: articleBody("<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>"),
 			readerNotice: undefined,
 			appOrigin: "https://readplace.com",
 			crawlVersions: versions,
@@ -366,7 +367,7 @@ describe("renderArticleRail", () => {
 	it("shows the empty table of contents for a ready article with no h2 or h3", () => {
 		const html = renderArticleRail({
 			crawl: { status: "ready" },
-			content: "<p>One paragraph</p><h4>A minor heading</h4>",
+			content: articleBody("<p>One paragraph</p><h4>A minor heading</h4>"),
 			readerNotice: undefined,
 			appOrigin: "https://readplace.com",
 		});
@@ -375,7 +376,7 @@ describe("renderArticleRail", () => {
 	});
 
 	it("keeps the table of contents hidden while the reader view is pending, after it failed, and for a link that is not an article", () => {
-		const content = "<h2>Why it matters</h2><p>One</p>";
+		const content = articleBody("<h2>Why it matters</h2><p>One</p>");
 
 		expect([
 			tableOfContentsState(renderArticleRail({ ...pendingReader, content })),

@@ -14,6 +14,7 @@ import type { TestAppFixture } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
+import { shownSummary } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -63,11 +64,11 @@ function buildFixture(now: () => Date): TestAppFixture {
 		parser: { parseArticle, crawlArticle },
 		summary: {
 			...base.summary,
-			findGeneratedSummary: async () => ({
+			findGeneratedSummary: async (url) => shownSummary({ url, summary: {
 				status: "ready",
 				summary: "A concise summary.",
 				excerpt: "Lead line.",
-			}),
+			} }),
 		},
 		events: {
 			...base.events,

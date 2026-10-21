@@ -879,6 +879,64 @@ describe("initDynamoDbPastReads", () => {
 			});
 		});
 
+		it("drops a past read of a webmail page", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [
+								{ url: "mail.google.com/mail/u/2/", reason: "Inbox" },
+								{ url: "example.com/kept", reason: "Same subject" },
+							],
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") return { Items: [] };
+				if (tableOf(command) === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ userId: USER_ID, url: "mail.google.com/mail/u/2/", status: "read" },
+								{ userId: USER_ID, url: "example.com/kept", status: "read" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: "mail.google.com/mail/u/2/",
+								originalUrl: "https://mail.google.com/mail/u/2/#inbox",
+								routeId: "fedcba9876543210fedcba9876543210",
+								title: "Inbox (12) - private.person@example.com",
+								siteName: "Gmail",
+								excerpt: "",
+							},
+							{
+								url: "example.com/kept",
+								originalUrl: "https://example.com/kept",
+								routeId: "0123456789abcdef0123456789abcdef",
+								title: "Kept",
+								siteName: "Example",
+								excerpt: "",
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => item.title)).toEqual(["Kept"]);
+		});
+
 		it("lists a repeated past read once, at its first copy, and keeps a copy of the open article", async () => {
 			const { store } = build((command) => {
 				if (command.constructorName === "GetCommand") {

@@ -8,6 +8,7 @@ import { mediaFilename } from "@packages/finalize-article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 import { destinationUrl } from "../../test-helpers/article-fixtures";
 import { epubFilename, initBuildArticleEpub } from "./article-epub";
+import { articleBody } from "@packages/test-fixtures";
 
 const ARTICLE_URL = "https://example.com/article";
 const ID = ArticleResourceUniqueId.parse(ARTICLE_URL);
@@ -38,7 +39,7 @@ describe("initBuildArticleEpub", () => {
 		const logError = jest.fn();
 		const build = initBuildArticleEpub({ readArticleImage, logError, now: NOW });
 
-		const files = unzipSync(await build({ articleUrl, title: "Article", siteName: "Example", excerpt: "", summary: undefined, contentHtml: `<p><img src="${imageUrl}" alt="Photo"></p>` }));
+		const files = unzipSync(await build({ articleUrl, title: "Article", siteName: "Example", excerpt: "", summary: undefined, contentHtml: articleBody(`<p><img src="${imageUrl}" alt="Photo"></p>`) }));
 
 		expect(readArticleImage).toHaveBeenCalledWith({ url: articleUrl, filename });
 		expect(files[`OEBPS/images/${filename}`]).toEqual(new Uint8Array(body));
@@ -62,7 +63,7 @@ describe("initBuildArticleEpub", () => {
 			siteName: "example.com",
 			excerpt: "",
 			summary: undefined,
-			contentHtml: `<p><img src="${embeddedSrc(filename)}"></p>`,
+			contentHtml: articleBody(`<p><img src="${embeddedSrc(filename)}"></p>`),
 		});
 
 		const files = unzipSync(bytes);
@@ -91,7 +92,7 @@ describe("initBuildArticleEpub", () => {
 			siteName: "example.com",
 			excerpt: "",
 			summary: undefined,
-			contentHtml: `<img src="${embeddedSrc(webp)}"><img src="${embeddedSrc(avif)}"><img src="${embeddedSrc(svg)}">`,
+			contentHtml: articleBody(`<img src="${embeddedSrc(webp)}"><img src="${embeddedSrc(avif)}"><img src="${embeddedSrc(svg)}">`),
 		});
 
 		expect(
@@ -120,7 +121,7 @@ describe("initBuildArticleEpub", () => {
 			siteName: "example.com",
 			excerpt: "",
 			summary: undefined,
-			contentHtml: `<p><img src="${embeddedSrc(fits)}"></p><p><img src="${embeddedSrc(over)}"></p>`,
+			contentHtml: articleBody(`<p><img src="${embeddedSrc(fits)}"></p><p><img src="${embeddedSrc(over)}"></p>`),
 		});
 
 		const files = unzipSync(bytes);
@@ -144,7 +145,7 @@ describe("initBuildArticleEpub", () => {
 			siteName: "example.com",
 			excerpt: "",
 			summary: undefined,
-			contentHtml: `<p><img src="${embeddedSrc(filename)}"></p>`,
+			contentHtml: articleBody(`<p><img src="${embeddedSrc(filename)}"></p>`),
 		});
 
 		expect(unzipSync(bytes)[`OEBPS/images/${filename}`]).toBeUndefined();
@@ -167,7 +168,7 @@ describe("initBuildArticleEpub", () => {
 				siteName: "example.com",
 				excerpt: "",
 				summary: undefined,
-				contentHtml: `<p><img src="${embeddedSrc("4444444444444444.jpg")}"></p>`,
+				contentHtml: articleBody(`<p><img src="${embeddedSrc("4444444444444444.jpg")}"></p>`),
 			}),
 		).rejects.toThrow("s3 down");
 	});
@@ -189,7 +190,7 @@ describe("initBuildArticleEpub", () => {
 				summary: "First point.\n\nSecond point.",
 				excerpt: "Generated blurb.",
 			},
-			contentHtml: "<p>Body copy.</p>",
+			contentHtml: articleBody("<p>Body copy.</p>"),
 		});
 
 		expect(contentOutline(bytes)).toEqual([

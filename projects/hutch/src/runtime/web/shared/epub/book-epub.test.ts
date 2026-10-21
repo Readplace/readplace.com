@@ -4,6 +4,7 @@ import { DOMParser } from "linkedom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { type BookChapter, initBuildBookEpub } from "./book-epub";
+import { articleBody } from "@packages/test-fixtures";
 
 const MODIFIED_AT = new Date("2026-10-12T08:30:00.000Z");
 const FIRST_URL = "https://example.com/first";
@@ -22,7 +23,7 @@ function chapter(input: Partial<BookChapter> & { articleUrl: string }): BookChap
 		siteName: "Example",
 		excerpt: "",
 		summary: undefined,
-		contentHtml: "<p>Body.</p>",
+		contentHtml: articleBody("<p>Body.</p>"),
 		...input,
 	};
 }
@@ -43,8 +44,8 @@ describe("initBuildBookEpub", () => {
 				identifier: "urn:readplace:queue-digest:send-1",
 				modifiedAt: MODIFIED_AT,
 				chapters: [
-					chapter({ articleUrl: SECOND_URL, title: "Second saved", siteName: "example.org", contentHtml: "<p>Second body.</p>" }),
-					chapter({ articleUrl: FIRST_URL, title: "First saved", siteName: "example.com", contentHtml: "<p>First body.</p>" }),
+					chapter({ articleUrl: SECOND_URL, title: "Second saved", siteName: "example.org", contentHtml: articleBody("<p>Second body.</p>") }),
+					chapter({ articleUrl: FIRST_URL, title: "First saved", siteName: "example.com", contentHtml: articleBody("<p>First body.</p>") }),
 				],
 			}),
 		);
@@ -79,7 +80,7 @@ describe("initBuildBookEpub", () => {
 				identifier: "book",
 				modifiedAt: MODIFIED_AT,
 				chapters: [FIRST_URL, SECOND_URL].map((articleUrl) =>
-					chapter({ articleUrl, contentHtml: `<p><img src="${imageSrc({ articleUrl, filename })}" /></p>` }),
+					chapter({ articleUrl, contentHtml: articleBody(`<p><img src="${imageSrc({ articleUrl, filename })}" /></p>`) }),
 				),
 			}),
 		);
@@ -115,10 +116,10 @@ describe("initBuildBookEpub", () => {
 				chapters: [FIRST_URL, SECOND_URL].map((articleUrl) =>
 					chapter({
 						articleUrl,
-						contentHtml: images
+						contentHtml: articleBody(images
 							.filter((image) => image.articleUrl === articleUrl)
 							.map((image) => `<p>Text for ${image.filename}</p><img src="${imageSrc(image)}" />`)
-							.join(""),
+							.join("")),
 					}),
 				),
 			}),
@@ -143,7 +144,7 @@ describe("initBuildBookEpub", () => {
 				title: "Book",
 				identifier: "book",
 				modifiedAt: MODIFIED_AT,
-				chapters: [chapter({ articleUrl: FIRST_URL, contentHtml: `<p>Kept text.</p><img src="${unsupported}" />` })],
+				chapters: [chapter({ articleUrl: FIRST_URL, contentHtml: articleBody(`<p>Kept text.</p><img src="${unsupported}" />`) })],
 			}),
 		);
 
@@ -162,7 +163,7 @@ describe("initBuildBookEpub", () => {
 				title: "Book",
 				identifier: "book",
 				modifiedAt: MODIFIED_AT,
-				chapters: [chapter({ articleUrl: FIRST_URL, contentHtml: `<img src="${imageSrc({ articleUrl: FIRST_URL, filename })}" />` })],
+				chapters: [chapter({ articleUrl: FIRST_URL, contentHtml: articleBody(`<img src="${imageSrc({ articleUrl: FIRST_URL, filename })}" />`) })],
 			}),
 		).rejects.toThrow(`[BookEpub] image ${filename} of ${FIRST_URL} is missing from the store`);
 	});
@@ -183,7 +184,7 @@ describe("initBuildBookEpub", () => {
 				chapters: [
 					chapter({
 						articleUrl: FIRST_URL,
-						contentHtml: `<img src="${imageSrc({ articleUrl: FIRST_URL, filename: "5555555555555555.jpg" })}" />`,
+						contentHtml: articleBody(`<img src="${imageSrc({ articleUrl: FIRST_URL, filename: "5555555555555555.jpg" })}" />`),
 					}),
 				],
 			}),

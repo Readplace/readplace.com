@@ -13,6 +13,7 @@ import {
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import { shownSummary } from "@packages/domain/article";
 
 /** Android's app is not advertised, so an Android visitor has no client the
  * banner could send them to install. */
@@ -61,9 +62,9 @@ describe("GET /queue — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "pending",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -98,9 +99,9 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "pending",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -121,9 +122,9 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			status: "failed",
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "skipped",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -146,10 +147,10 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			html: articleHtml,
 			bodyHash: "a".repeat(64),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "ready",
 			summary: "TLDR.",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const { parseArticle } = initReadabilityParser({
 			crawlArticle,
@@ -194,10 +195,10 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			html: articleHtml,
 			bodyHash: "a".repeat(64),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "failed",
 			reason: "model timeout",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const { parseArticle } = initReadabilityParser({
 			crawlArticle,
@@ -267,9 +268,9 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			status: "failed",
 			reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "skipped",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -303,9 +304,9 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			status: "failed",
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "skipped",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -331,9 +332,9 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			status: "failed",
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "skipped",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -358,9 +359,9 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async () => ({
+		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
 			status: "pending",
-		});
+		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,

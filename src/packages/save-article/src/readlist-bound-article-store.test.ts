@@ -19,7 +19,7 @@ const savedArticle: SavedArticle = {
 	userId: USER,
 	url: URL,
 	destinationUrl: DESTINATION,
-	metadata: { ...articleDisplayMetadata({ url: URL, destinationUrl: DESTINATION, title: "T", siteName: "S", excerpt: "E" }), wordCount: 1 },
+	metadata: articleDisplayMetadata({ url: URL, destinationUrl: DESTINATION, title: "T", siteName: "S", excerpt: "E", wordCount: 1, imageUrl: undefined }),
 	estimatedReadTime: ONE_MINUTE,
 	status: "unread",
 	savedAt: new Date("2026-08-19T10:00:00.000Z"),

@@ -1,5 +1,6 @@
 import type { BuildBookEpub } from "./shared/epub/book-epub";
 import { initBuildQueueDigestBook } from "./queue-digest-book";
+import { articleBody } from "@packages/test-fixtures";
 
 describe("initBuildQueueDigestBook", () => {
 	it("names the book after the email and its send date, identifies it by the send, and attaches it as an EPUB file", async () => {
@@ -11,7 +12,7 @@ describe("initBuildQueueDigestBook", () => {
 				siteName: "example.com",
 				excerpt: "",
 				summary: undefined,
-				contentHtml: "<p>A</p>",
+				contentHtml: articleBody("<p>A</p>"),
 			},
 		];
 		const buildQueueDigestBook = initBuildQueueDigestBook({

@@ -44,8 +44,10 @@ describe("articleDisplayMetadata", () => {
 			title: "A real post",
 			siteName: "nodeweekly.com",
 			excerpt: "A real excerpt.",
+			wordCount: 120,
+			imageUrl: undefined,
 		});
-		expect(result).toEqual({ title: "A real post", siteName: "nodeweekly.com", excerpt: "A real excerpt." });
+		expect(result).toStrictEqual({ title: "A real post", siteName: "nodeweekly.com", excerpt: "A real excerpt.", wordCount: 120 });
 	});
 
 	it("keeps everything verbatim for a same-host redirect", () => {
@@ -55,8 +57,10 @@ describe("articleDisplayMetadata", () => {
 			title: "A real post",
 			siteName: "nodeweekly.com",
 			excerpt: "A real excerpt.",
+			wordCount: 120,
+			imageUrl: undefined,
 		});
-		expect(result).toEqual({ title: "A real post", siteName: "nodeweekly.com", excerpt: "A real excerpt." });
+		expect(result).toEqual({ title: "A real post", siteName: "nodeweekly.com", excerpt: "A real excerpt.", wordCount: 120 });
 	});
 
 	it("rehosts the site name, the 'Article from' title and the 'Content saved from' excerpt to the destination", () => {
@@ -66,11 +70,15 @@ describe("articleDisplayMetadata", () => {
 			title: articleFromHostTitle("nodeweekly.com"),
 			siteName: "nodeweekly.com",
 			excerpt: contentSavedFromHostExcerpt("nodeweekly.com"),
+			wordCount: 120,
+			imageUrl: undefined,
 		});
 		expect(result).toEqual({
 			title: articleFromHostTitle("memcached.org"),
 			siteName: "memcached.org",
 			excerpt: contentSavedFromHostExcerpt("memcached.org"),
+			wordCount: 120,
+			imageUrl: undefined,
 		});
 	});
 
@@ -81,8 +89,10 @@ describe("articleDisplayMetadata", () => {
 			title: "nodeweekly.com",
 			siteName: "nodeweekly.com",
 			excerpt: savedFromHostExcerpt("nodeweekly.com"),
+			wordCount: 120,
+			imageUrl: undefined,
 		});
-		expect(result).toEqual({ title: "memcached.org", siteName: "memcached.org", excerpt: savedFromHostExcerpt("memcached.org") });
+		expect(result).toEqual({ title: "memcached.org", siteName: "memcached.org", excerpt: savedFromHostExcerpt("memcached.org"), wordCount: 120 });
 	});
 
 	it("keeps a declared title, rehosts the site name, and rehosts an 'Image saved from' excerpt", () => {
@@ -92,8 +102,10 @@ describe("articleDisplayMetadata", () => {
 			title: "Declared Title",
 			siteName: "nodeweekly.com",
 			excerpt: imageSavedFromHostExcerpt("nodeweekly.com"),
+			wordCount: 120,
+			imageUrl: undefined,
 		});
-		expect(result).toEqual({ title: "Declared Title", siteName: "memcached.org", excerpt: imageSavedFromHostExcerpt("memcached.org") });
+		expect(result).toEqual({ title: "Declared Title", siteName: "memcached.org", excerpt: imageSavedFromHostExcerpt("memcached.org"), wordCount: 120 });
 	});
 
 	it("keeps a declared site name and a bare-host title that does not match it, and keeps a real excerpt", () => {
@@ -103,8 +115,10 @@ describe("articleDisplayMetadata", () => {
 			title: "nodeweekly.com",
 			siteName: "Node Weekly",
 			excerpt: "A real excerpt.",
+			wordCount: 120,
+			imageUrl: undefined,
 		});
-		expect(result).toEqual({ title: "nodeweekly.com", siteName: "Node Weekly", excerpt: "A real excerpt." });
+		expect(result).toEqual({ title: "nodeweekly.com", siteName: "Node Weekly", excerpt: "A real excerpt.", wordCount: 120 });
 	});
 
 	it("is idempotent: a site name already naming the destination is kept", () => {
@@ -114,6 +128,8 @@ describe("articleDisplayMetadata", () => {
 			title: "Declared Title",
 			siteName: "memcached.org",
 			excerpt: "A real excerpt.",
+			wordCount: 120,
+			imageUrl: undefined,
 		});
 		expect(result.siteName).toBe("memcached.org");
 	});
@@ -125,8 +141,43 @@ describe("articleDisplayMetadata", () => {
 			title: "A Post",
 			siteName: "example.com",
 			excerpt: "x",
+			wordCount: 120,
+			imageUrl: undefined,
 		});
 		expect(result.siteName).toBe("www.example.com");
+	});
+
+	it("passes the word count and the image through", () => {
+		const result = articleDisplayMetadata({
+			url: SAVED,
+			destinationUrl: destinationOf(SAVED, undefined),
+			title: "A real post",
+			siteName: "nodeweekly.com",
+			excerpt: "A real excerpt.",
+			wordCount: 120,
+			imageUrl: "https://nodeweekly.com/cover.png",
+		});
+		expect(result).toEqual({
+			title: "A real post",
+			siteName: "nodeweekly.com",
+			excerpt: "A real excerpt.",
+			wordCount: 120,
+			imageUrl: "https://nodeweekly.com/cover.png",
+		});
+	});
+
+	it("shows only the host of a webmail page, with no word count and no image", () => {
+		const url = "https://mail.google.com/mail/u/2/";
+		const result = articleDisplayMetadata({
+			url,
+			destinationUrl: destinationOf(url, "https://mail.google.com/mail/u/2/#inbox"),
+			title: "Inbox (12) - private.person@example.com",
+			siteName: "Gmail",
+			excerpt: "A private message",
+			wordCount: 9,
+			imageUrl: "https://cdn.readplace.test/media/private-avatar.png",
+		});
+		expect(result).toStrictEqual({ title: "mail.google.com", siteName: "mail.google.com", excerpt: "", wordCount: 0 });
 	});
 });
 
@@ -139,6 +190,17 @@ describe("articleLinkedDisplay", () => {
 			siteName: "nodeweekly.com",
 		});
 		expect(result).toEqual({ title: articleFromHostTitle("memcached.org"), siteName: "memcached.org" });
+	});
+
+	it("names a webmail page after its host", () => {
+		const url = "https://mail.google.com/mail/u/2/";
+		const result = articleLinkedDisplay({
+			url,
+			destinationUrl: destinationOf(url, undefined),
+			title: "Inbox (12) - private.person@example.com",
+			siteName: "Gmail",
+		});
+		expect(result).toEqual({ title: "mail.google.com", siteName: "mail.google.com" });
 	});
 });
 

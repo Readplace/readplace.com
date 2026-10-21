@@ -41,9 +41,8 @@ jobs:
           CLAUDE_STEP: Run Claude Code
         run: |
           set -euo pipefail
-          started=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_started_at)
-          ended=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .updated_at)
-          dur=$(( $(date -d "$ended" +%s) - $(date -d "$started" +%s) ))
+          dur=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+            --jq '[.jobs[] | select(.name == "claude") | .steps[]? | select(.name == env.CLAUDE_STEP and .started_at != null and .completed_at != null) | (.completed_at | fromdate) - (.started_at | fromdate)] | first // 999999')
           failed_step=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
             --jq '[.jobs[].steps[]? | select(.conclusion == "failure") | .name] | first // "unknown"')
           echo "run $RUN_ID attempt $ATTEMPT failed at \"$failed_step\" after ${dur}s"

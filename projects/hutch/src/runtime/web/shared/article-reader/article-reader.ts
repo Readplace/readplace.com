@@ -4,6 +4,8 @@ import {
 	displayableReadTime,
 	hostStubMetadata,
 	isNonArticleHost,
+	type ArticleBody,
+	type StoredArticleBody,
 } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -53,7 +55,7 @@ interface PollResponseBodyInput {
 	articleId: string | undefined;
 	crawl: ArticleCrawl | undefined;
 	summary: GeneratedSummary | undefined;
-	content: string | undefined;
+	content: ArticleBody | undefined;
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
 	capturePollUrl: string | undefined;
@@ -190,12 +192,16 @@ function settledFailureOob(input: {
 		: "";
 }
 
+function bodyOf(stored: StoredArticleBody): ArticleBody | undefined {
+	return stored.kind === "article" ? stored.body : undefined;
+}
+
 /**
  * 1. Pending: the normal in-flight case.
  * 2. Read-after-write race: markCrawlPending hasn't propagated yet.
  * 3. Promotion race: save-link-work flipped crawlStatus="ready" but
  *    select-most-complete-content-handler hasn't copied the canonical S3
- *    object yet, so readArticleContent still returns undefined. MAX_POLLS
+ *    object yet. MAX_POLLS
  *    bounds the wait if the canonical write genuinely never lands.
  */
 function shouldKeepPollingReader(
@@ -270,7 +276,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const freshness = await deps.findArticleFreshness(article.url);
 		const versions = await deps.findArticleCrawlVersions(article.url);
 
-		const content = await deps.readArticleContent(article.url);
+		const content = bodyOf(await deps.readArticleContent(article.url));
 		const summaryStatus = summary?.status ?? "pending";
 		const summaryPollUrl = summaryStatus === "pending"
 			? pollUrlBuilder.summary(1)
@@ -373,7 +379,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary(articleUrl),
-			deps.readArticleContent(articleUrl),
+			deps.readArticleContent(articleUrl).then(bodyOf),
 			deps.findArticleByUrl(articleUrl),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
@@ -420,7 +426,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary(articleUrl),
-			deps.readArticleContent(articleUrl),
+			deps.readArticleContent(articleUrl).then(bodyOf),
 			deps.findArticleByUrl(articleUrl),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });

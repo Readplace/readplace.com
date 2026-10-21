@@ -108,6 +108,32 @@ describe("initInMemoryPastReads", () => {
 		});
 	});
 
+	it("drops a past read of a webmail page", async () => {
+		const { articleStore, store, save } = build();
+		await save({ url: URL, title: "Target" });
+		const webmail = await save({ url: "https://mail.google.com/mail/u/2/", title: "Inbox (12)" });
+		const kept = await save({ url: PAST_URL, title: "Read earlier" });
+		await articleStore.updateArticleStatus(webmail.id, USER_ID, "read");
+		await articleStore.updateArticleStatus(kept.id, USER_ID, "read");
+		await store.markPastReadsReady({
+			userId: USER_ID,
+			url: URL,
+			pastReads: [
+				{ url: "https://mail.google.com/mail/u/2/", reason: "Inbox" },
+				{ url: PAST_URL, reason: "Same subject" },
+			],
+			fingerprint: "fp",
+			inputTokens: 1,
+			outputTokens: 1,
+			at: AT,
+		});
+
+		const result = await store.findPastReads({ userId: USER_ID, url: URL });
+
+		assert(result.status === "ready", "a settled computation reports ready");
+		expect(result.items.map((item) => item.id)).toEqual([kept.id]);
+	});
+
 	it("drops a match whose article was never saved", async () => {
 		const { store, save } = build();
 		await save({ url: URL, title: "Target" });
