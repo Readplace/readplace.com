@@ -30,7 +30,7 @@ function labelForClient(clientName: string): ProvenanceLabel | undefined {
  * generic label. */
 function labelForAssistant(registeredName: string): ProvenanceLabel {
 	const assistant = findRosterAssistant(registeredName);
-	if (!assistant) return { label: "via AI assistant" };
+	if (!assistant) return { label: "via a connected app" };
 	return { label: `via ${assistant.displayName}`, iconSvg: CLIENT_ICON_SVG[assistant.name] };
 }
 
