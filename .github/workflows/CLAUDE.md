@@ -80,7 +80,7 @@ Each workflow has a corresponding `.md` file containing detailed instructions fo
 | HTML Marker | Purpose |
 |-------------|---------|
 | `<!-- CLAUDE_REVIEW_REQUEST -->` | Code review request |
-| `<!-- CLAUDE_REVIEW_START/END -->` | Review content boundaries; posted by `claude-PR-code-review-auto-apply.yml` from the review run's saved `execution_file` artifact (unsanitized), not by the agent |
+| `<!-- CLAUDE_REVIEW_START/END -->` | Review content boundaries; posted by `claude-PR-code-review-auto-apply.yml` from the review run's saved `execution_file` artifact (unsanitized), not by the agent. `claude-listener.yml` never starts a run from a comment carrying `<!-- CLAUDE_REVIEW_START -->`. The review is posted under the PAT owner's identity, which passes the listener's author gate, so a review that mentions `@claude` would otherwise run its text as a prompt |
 | `<!-- REVIEW_RUN: <run-id> -->` | Dedup marker on the workflow-authored review comment (one per review run) |
 | `<!-- HIGH/MEDIUM_PRIORITY_COUNT: N -->` | Issue counts |
 | `<!-- CLAUDE_CONFLICT_FIX -->` | Conflict fix request |
