@@ -7,6 +7,16 @@ import org.junit.Test
 
 class ShareTargetTest {
 	@Test
+	fun `rewriting an href replaces it and keeps the others`() {
+		val store = ShareTarget(InMemoryReaderChoiceStorage())
+		store.record(setOf("/queue?queue=work", "/queue?readlist=later"))
+
+		store.rewrite(from = "/queue?queue=work", to = "/queue?readlist=work")
+
+		assertEquals(setOf("/queue?readlist=work", "/queue?readlist=later"), store.hrefs)
+	}
+
+	@Test
 	fun `a fresh store is undecided with no hrefs`() {
 		val store = ShareTarget(InMemoryReaderChoiceStorage())
 

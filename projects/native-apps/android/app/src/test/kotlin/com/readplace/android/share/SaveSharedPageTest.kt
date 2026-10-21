@@ -259,9 +259,8 @@ class SaveSharedPageTest {
 	private fun postedUrl(record: RecordingServer.Record): String? =
 		Json.parseToJsonElement(String(record.body, Charsets.UTF_8)).jsonObject["url"]?.jsonPrimitive?.content
 
-	/** The `queues` array of a save POST body, or null when the field is absent. */
-	private fun postedQueues(record: RecordingServer.Record): List<String>? =
-		Json.parseToJsonElement(String(record.body, Charsets.UTF_8)).jsonObject["queues"]
+	private fun postedReadlists(record: RecordingServer.Record): List<String>? =
+		Json.parseToJsonElement(String(record.body, Charsets.UTF_8)).jsonObject["readlists"]
 			?.jsonArray
 			?.map { it.jsonPrimitive.content }
 
@@ -297,7 +296,7 @@ class SaveSharedPageTest {
 	}
 
 	@Test
-	fun `a first share asks once and files into the chosen extras as a sorted queues array`() = runTest {
+	fun `a first share asks once and files into the chosen extras as a sorted readlists array`() = runTest {
 		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
 		val chooser = RecordingChooser(setOf(readlist("Later", "/queue?queue=later"), readlist("Work", "/queue?queue=work")))
 		val saver = chooserSaver(shareTarget, chooser)
@@ -313,14 +312,14 @@ class SaveSharedPageTest {
 		assertEquals(
 			"the save carries the chosen extras, sorted, with mainline (the root) subtracted",
 			listOf("/queue?queue=later", "/queue?queue=work"),
-			postedQueues(urlOnlyPosts().single()),
+			postedReadlists(urlOnlyPosts().single()),
 		)
 		assertTrue(shareTarget.isDecided)
 		assertEquals(setOf("/queue?queue=work", "/queue?queue=later"), shareTarget.hrefs)
 	}
 
 	@Test
-	fun `a Done with no extras is an answer, sends no queues, and is not asked again`() = runTest {
+	fun `a Done with no extras is an answer, sends no readlists, and is not asked again`() = runTest {
 		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
 		val chooser = RecordingChooser(emptySet())
 		val saver = chooserSaver(shareTarget, chooser)
@@ -330,7 +329,7 @@ class SaveSharedPageTest {
 
 		assertEquals("Done with nothing ticked is a complete answer, so the reader is asked only once", 1, chooser.invocations)
 		assertTrue("an empty Done still decides the choice", shareTarget.isDecided)
-		assertEquals(listOf<List<String>?>(null, null), urlOnlyPosts().map { postedQueues(it) })
+		assertEquals(listOf<List<String>?>(null, null), urlOnlyPosts().map { postedReadlists(it) })
 	}
 
 	@Test
@@ -343,7 +342,7 @@ class SaveSharedPageTest {
 		saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
 
 		assertEquals("an answered reader is never re-asked", 0, chooser.invocations)
-		assertEquals(listOf("/queue?queue=work"), postedQueues(urlOnlyPosts().single()))
+		assertEquals(listOf("/queue?queue=work"), postedReadlists(urlOnlyPosts().single()))
 	}
 
 	@Test
@@ -357,7 +356,7 @@ class SaveSharedPageTest {
 
 		assertEquals("only mainline: no chooser", 0, chooser.invocations)
 		assertFalse("only mainline: no answer recorded", shareTarget.isDecided)
-		assertNull(postedQueues(urlOnlyPosts().single()))
+		assertNull(postedReadlists(urlOnlyPosts().single()))
 	}
 
 	@Test
@@ -370,7 +369,7 @@ class SaveSharedPageTest {
 
 		assertEquals(0, chooser.invocations)
 		assertFalse(shareTarget.isDecided)
-		assertNull(postedQueues(urlOnlyPosts().single()))
+		assertNull(postedReadlists(urlOnlyPosts().single()))
 	}
 
 	@Test
@@ -397,7 +396,7 @@ class SaveSharedPageTest {
 		assertEquals(
 			"a stored href the server no longer lists is still sent — the server filters to owned readlists",
 			listOf("/queue?queue=deleted", "/queue?queue=work"),
-			postedQueues(urlOnlyPosts().single()),
+			postedReadlists(urlOnlyPosts().single()),
 		)
 	}
 
@@ -412,7 +411,7 @@ class SaveSharedPageTest {
 		saver.run(url = "https://example.com/post", fallbackTitle = null, sharedPdf = null)
 
 		assertEquals("the prior process's answer is read back, so no re-ask", 0, chooser.invocations)
-		assertEquals(listOf("/queue?queue=work"), postedQueues(urlOnlyPosts().single()))
+		assertEquals(listOf("/queue?queue=work"), postedReadlists(urlOnlyPosts().single()))
 	}
 
 	@Test
@@ -1603,7 +1602,7 @@ class SaveSharedPageTest {
 		/** The collection-level actions a healthy `/queue` advertises (URL-only save,
 		 * content save, search). */
 		const val COLLECTION_ACTIONS = """
-			{ "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] },
+			{ "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }, { "name": "readlists", "type": "text", "maxItems": 7 }] },
 			{ "name": "save-content", "href": "/queue/save-content", "method": "POST", "type": "multipart/form-data", "fields": [{ "name": "url", "type": "url" }, { "name": "content", "type": "file" }, { "name": "mediaType", "type": "text" }, { "name": "title", "type": "text" }] },
 			{ "name": "search", "href": "/queue", "method": "GET", "fields": [{ "name": "status", "type": "text" }] }
 		"""

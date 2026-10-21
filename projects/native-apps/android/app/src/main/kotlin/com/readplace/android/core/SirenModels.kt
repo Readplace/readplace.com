@@ -490,6 +490,8 @@ data class Readlist(
 	val href: String,
 	val isCurrent: Boolean,
 ) {
+	fun matches(chain: Iterable<String>): Boolean = href in chain
+
 	companion object {
 		fun of(entry: CollectionReadlistEntry): Readlist =
 			Readlist(label = entry.label, href = entry.href, isCurrent = entry.rel == CURRENT_REL)

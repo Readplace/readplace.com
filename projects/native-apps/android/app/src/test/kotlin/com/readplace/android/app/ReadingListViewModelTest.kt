@@ -3465,6 +3465,95 @@ class ReadingListViewModelTest {
 		assertNull(viewModel.state.value.errorText)
 	}
 
+	private fun canonicalReadlistsHandler(): (Record) -> Stub = { record ->
+		val url = record.request.url
+		val legacySlug = url.queryParameter("queue")
+		when {
+			record.path == "/" -> Stub.redirect(to = "/queue")
+			record.path != "/queue" -> Stub.json(404, "{}")
+			legacySlug != null -> Stub.redirect(to = "/queue?readlist=$legacySlug")
+			url.queryParameter("readlist") == "broken" -> Stub.json(500, "{}")
+			url.queryParameter("readlist") == "work" ->
+				Stub.json(200, canonicalCollection(current = "/queue?readlist=work", articleId = "w1"))
+			else -> Stub.json(200, canonicalCollection(current = "/queue", articleId = "a1"))
+		}
+	}
+
+	private fun canonicalCollection(current: String, articleId: String): String {
+		fun rel(href: String) = if (href == current) "current" else "readlist"
+		return Fixtures.collection(
+			listOf(Fixtures.article(articleId)),
+			tabsJson = Fixtures.tabs(queue = current),
+			readlistsJson = """
+				{ "label": "All", "rel": "${rel("/queue")}", "href": "/queue" },
+				{ "label": "Work", "rel": "${rel("/queue?readlist=work")}", "href": "/queue?readlist=work" }
+			""",
+		)
+	}
+
+	private fun legacyFollows(slug: String): Int =
+		server.records("/queue").count { it.request.url.queryParameter("queue") == slug }
+
+	@Test
+	fun `a persisted share target redirected to an advertised readlist is matched and rewritten`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?queue=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals(
+			"the legacy href is rewritten to the advertised one its redirect chain reached",
+			setOf("/queue?readlist=work"),
+			shareTarget.hrefs,
+		)
+		assertEquals(setOf("/queue?readlist=work"), viewModel.state.value.shareTargetHrefs)
+		assertEquals("Work is badged as a share target", listOf(true, true), viewModel.state.value.readlistMenu.map { it.isShareTarget })
+
+		viewModel.refresh()
+
+		assertEquals("the rewritten href is advertised, so the follow never repeats", 1, legacyFollows("work"))
+	}
+
+	@Test
+	fun `a persisted share target the server answers with the default readlist is dropped`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+			.apply { record(setOf("/queue?queue=gone", "/queue?readlist=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("the entry for the unknown readlist is dropped", setOf("/queue?readlist=work"), shareTarget.hrefs)
+		assertTrue("the reader's answer stays decided", shareTarget.isDecided)
+		assertEquals(setOf("/queue?readlist=work"), viewModel.state.value.shareTargetHrefs)
+	}
+
+	@Test
+	fun `nothing is followed when every persisted share target is advertised`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?readlist=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("only the mainline collection is read", listOf<String?>(null), server.records("/queue").map { it.request.url.query })
+		assertEquals(setOf("/queue?readlist=work"), shareTarget.hrefs)
+	}
+
+	@Test
+	fun `a persisted share target whose follow fails is kept and surfaces no error`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?readlist=broken")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals("a failed follow leaves the entry for a later load", setOf("/queue?readlist=broken"), shareTarget.hrefs)
+		assertNull(viewModel.state.value.errorText)
+		assertEquals(listOf("a1"), viewModel.articleIds)
+	}
+
 	// endregion
 
 	private val readTabLanding = "/queue?landing=after-toggle"

@@ -18,6 +18,7 @@ import com.readplace.android.core.SirenLink
 import com.readplace.android.core.UnseenSave
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,7 +71,7 @@ data class ReadingListState(
 
 	/** The label of the readlist on screen, for the subtitle, or null before one has
 	 * loaded. */
-	val currentReadlistLabel: String? get() = readlists.firstOrNull { it.href == selectedReadlistHref }?.label
+	val currentReadlistLabel: String? get() = readlists.firstOrNull { it.matches(listOfNotNull(selectedReadlistHref)) }?.label
 
 	/** The switcher menu, built only from advertised readlists — a stale stored share
 	 * destination the server no longer lists produces no item. */
@@ -90,7 +91,7 @@ data class ReadingListState(
 		if (!offersReadlistSwitching) return null
 		val landing = tabs.firstOrNull()?.href ?: return null
 		if (landing != selectedTabHref) return null
-		val readlist = readlists.firstOrNull { it.href == selectedReadlistHref } ?: return null
+		val readlist = readlists.firstOrNull { it.matches(listOfNotNull(selectedReadlistHref)) } ?: return null
 		return SharedArticlesDrop.of(readlist, mainlineHref = rootHref, tickedHrefs = shareTargetHrefs)
 	}
 }
@@ -233,7 +234,7 @@ class ReadingListViewModel(
 	 * without a fetch. Removing the last extra leaves a chosen-empty answer, not an
 	 * unasked one. */
 	fun toggleSharedArticlesDrop(readlist: Readlist) {
-		if (shareTarget.hrefs.contains(readlist.href)) {
+		if (readlist.matches(shareTarget.hrefs)) {
 			shareTarget.remove(readlist.href)
 		} else {
 			shareTarget.add(readlist.href)
@@ -503,12 +504,29 @@ class ReadingListViewModel(
 	 * in-flight one — only a newer one that has actually applied. Returns whether
 	 * this collection was applied.
 	 */
-	private fun replace(firstPage: ReadlistPage, deeperPages: List<ReadlistPage>, read: Int): Boolean {
+	private suspend fun replace(firstPage: ReadlistPage, deeperPages: List<ReadlistPage>, read: Int): Boolean {
 		if (read <= readApplied) return false
 		readApplied = read
 		apply(firstPage, replacing = true)
 		for (page in deeperPages) apply(page, replacing = false)
+		reconcileShareTargets(advertised = firstPage.readlists)
 		return true
+	}
+
+	private suspend fun reconcileShareTargets(advertised: List<Readlist>) {
+		val default = advertised.firstOrNull() ?: return
+		for (persisted in shareTarget.hrefs.filterNot { href -> advertised.any { it.matches(listOf(href)) } }) {
+			val followed = try {
+				api.loadReadlist(path = persisted)
+			} catch (_: Exception) {
+				currentCoroutineContext().ensureActive()
+				continue
+			}
+			val answered = followed.chain + listOfNotNull(followed.currentReadlistHref)
+			val resolved = advertised.firstOrNull { it.matches(answered) } ?: continue
+			if (resolved == default) shareTarget.remove(persisted) else shareTarget.rewrite(from = persisted, to = resolved.href)
+		}
+		syncShareTargetHrefs()
 	}
 
 	/**

@@ -45,6 +45,10 @@ class ShareTarget(private val storage: ReaderChoiceStorage) {
 		record(hrefs - href)
 	}
 
+	fun rewrite(from: String, to: String) {
+		record(hrefs - from + to)
+	}
+
 	fun forget() {
 		storage.remove(KEY)
 	}
