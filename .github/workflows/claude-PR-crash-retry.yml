@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           dur=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
-            --jq '[.jobs[] | select(.name == "claude" and .started_at != null and .completed_at != null) | (.completed_at | fromdate) - (.started_at | fromdate)] | first // 999999')
+            --jq '[.jobs[] | select(.name == "claude") | .steps[]? | select(.name == env.CLAUDE_STEP and .started_at != null and .completed_at != null) | (.completed_at | fromdate) - (.started_at | fromdate)] | first // 999999')
           failed_step=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
             --jq '[.jobs[].steps[]? | select(.conclusion == "failure") | .name] | first // "unknown"')
           echo "run $RUN_ID attempt $ATTEMPT failed at \"$failed_step\" after ${dur}s"
