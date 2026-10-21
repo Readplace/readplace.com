@@ -70,16 +70,14 @@ jobs:
       CLAUDE_ARGS: '--model "claude-opus-5-5[1m]" --effort medium --dangerously-skip-permissions --allowedTools WebSearch,WebFetch --disallowedTools Monitor,Task,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskOutput,TaskStop --settings /tmp/claude-headless-settings.json'
 
     steps:
-      - name: Start from an empty home, temp dir and nx cache
+      - name: Start from an empty home and temp dir
         id: fresh-state
         if: runner.environment == 'self-hosted'
         run: |
-          mkdir -p "$RUNNER_TEMP/home" "$RUNNER_TEMP/tmp" "$RUNNER_TEMP/nx/cache" "$RUNNER_TEMP/nx/workspace-data"
+          mkdir -p "$RUNNER_TEMP/home" "$RUNNER_TEMP/tmp"
           {
             echo "HOME=$RUNNER_TEMP/home"
             echo "TMPDIR=$RUNNER_TEMP/tmp"
-            echo "NX_CACHE_DIRECTORY=$RUNNER_TEMP/nx/cache"
-            echo "NX_WORKSPACE_DATA_DIRECTORY=$RUNNER_TEMP/nx/workspace-data"
           } >> "$GITHUB_ENV"
 
       - name: Checkout repository
