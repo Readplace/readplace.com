@@ -39,6 +39,7 @@
 .saving-view__skeleton[hidden],
 .saving-view__failure[hidden],
 .save-all-view__progress[hidden],
+.save-all-view__count[hidden],
 .save-all-view__failed[hidden] {
   display: none;
 }
@@ -186,6 +187,25 @@ input {
 
 .save-all-view__fact {
   white-space: nowrap;
+}
+
+.save-all-view__count {
+  display: grid;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.save-all-view__count-line {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.save-all-view__count-twin {
+  visibility: hidden;
+}
+
+.save-all-view__pending {
+  visibility: hidden;
 }
 
 .save-all-view__failed {

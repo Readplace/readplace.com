@@ -26,7 +26,11 @@
   <div id="save-all-view" class="view saved-view" hidden>
     <div id="save-all-progress" class="save-all-view__progress" role="status">
       <p id="save-all-title" class="saved-view__title" data-test-save-all-title>Saving tabs&hellip;</p>
-      <p id="save-all-hint" class="saved-view__subtitle" data-test-save-all-hint>Saving continues if you close this popup. You&rsquo;ll get a notification when it&rsquo;s done.</p>
+      <p id="save-all-count" class="saved-view__subtitle save-all-view__count save-all-view__pending" data-test-save-all-progress-count>
+        <span class="save-all-view__count-line"><span class="saving-view__pulse" aria-hidden="true"></span><span id="save-all-count-text"></span></span>
+        <span class="save-all-view__count-line save-all-view__count-twin" aria-hidden="true"><span class="saving-view__pulse"></span>Sent 999 of 999 &middot; Sending 999</span>
+      </p>
+      <p id="save-all-hint" class="saved-view__subtitle save-all-view__pending" data-test-save-all-hint>Saving continues if you close this popup. You&rsquo;ll get a notification when it&rsquo;s done.</p>
       <p id="save-all-summary" class="saved-view__subtitle" data-test-save-all-summary></p>
       <p id="save-all-too-big" class="saved-view__subtitle" data-test-save-all-too-big hidden></p>
     </div>
@@ -38,6 +42,7 @@
       </div>
     </div>
     <ul id="save-all-failed" class="save-all-view__failed" data-test-save-all-failed hidden></ul>
+    <button id="save-all-continue" class="btn btn--neutral save-all-view__pending" type="button" data-test-save-all-continue>Continue in background</button>
     <button id="save-all-view-readlist" class="btn btn--neutral" type="button" hidden>View readlist</button>
     <p id="save-all-shortcut-hint" class="shortcut-hint" hidden>Save all tabs with <kbd class="shortcut-hint__key">Ctrl</kbd>+<kbd class="shortcut-hint__key">Shift</kbd>+<kbd class="shortcut-hint__key">D</kbd>.</p>
   </div>

@@ -11,7 +11,6 @@ import type {
 	LoadSort,
 	InvokeAction,
 	SaveUrl,
-	SavePages,
 } from "./reading-list.types";
 
 export function initInMemoryReadingList(): {
@@ -21,7 +20,6 @@ export function initInMemoryReadingList(): {
 	getItems: GetItems;
 	loadPage: LoadPage;
 	loadSort: LoadSort;
-	savePages: SavePages;
 } {
 	const items = new Map<ReadingListItemId, ReadingListItem>();
 
@@ -78,31 +76,6 @@ export function initInMemoryReadingList(): {
 
 	const loadSort: LoadSort = async () => wholeList();
 
-	const savePages: SavePages = async ({ pages }) => {
-		let saved = 0;
-		const skippedUrls: { url: string; code: string }[] = [];
-		for (const page of pages) {
-			const result = await saveUrl({ url: page.url, title: page.title ?? page.url });
-			if (result.ok) {
-				saved += 1;
-			} else {
-				skippedUrls.push({ url: page.url, code: "already-saved" });
-			}
-		}
-		return {
-			queued: 0,
-			saved,
-			skipped: skippedUrls.length,
-			failed: 0,
-			tooBig: [],
-			skippedUrls,
-			failedUrls: [],
-			alreadySaved: 0,
-			pendingRetry: 0,
-			unauthorized: false,
-		};
-	};
-
 	return {
 		saveUrl,
 		invokeAction,
@@ -110,6 +83,5 @@ export function initInMemoryReadingList(): {
 		getItems,
 		loadPage,
 		loadSort,
-		savePages,
 	};
 }

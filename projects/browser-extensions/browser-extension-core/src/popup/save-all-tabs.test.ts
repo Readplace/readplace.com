@@ -1,4 +1,4 @@
-import { buildSaveAllDetailLines, classifyTabs, saveAllTabsLabel, summarizeBulkSave } from "./save-all-tabs";
+import { buildSaveAllDetailLines, classifyTabs, saveAllTabsLabel, savingTabsTitle, summarizeBulkSave, windowIdOf } from "./save-all-tabs";
 
 describe("classifyTabs", () => {
 	const appDomains = ["readplace.com"];
@@ -118,30 +118,48 @@ describe("classifyTabs", () => {
 		).toEqual([{ url: "https://example.com/a", title: "Committed", tabId: 1 }]);
 	});
 
-	it("names each kind of drop once, in the order the window first hit it", () => {
+	it("names why each dropped tab was left behind, by tab", () => {
 		expect(
 			classifyTabs(
 				[
 					{ url: "chrome://settings" },
-					{ url: "about:blank" },
-					{ url: "https://readplace.com/queue" },
+					{ id: 5, url: "about:blank" },
+					{ id: 6, url: "https://readplace.com/queue" },
 					{ id: 1, url: "https://example.com/a", title: "A" },
 					{ id: 2, url: "https://example.com/a", title: "A again" },
-					{ id: 3, url: "https://example.com/a", title: "A once more" },
 				],
 				appDomains,
-			).skipReasons,
+			).skipped,
 		).toEqual([
-			"Only http and https URLs can be saved",
-			"Readplace's own pages aren't saved",
-			"Already open in another tab",
+			{ tabId: null, reason: "Only http and https URLs can be saved" },
+			{ tabId: 5, reason: "Only http and https URLs can be saved" },
+			{ tabId: 6, reason: "Readplace's own pages aren't saved" },
+			{ tabId: 2, reason: "Already open in another tab" },
 		]);
 	});
 
-	it("reports no reasons when every tab is saveable", () => {
-		expect(
-			classifyTabs([{ id: 1, url: "https://example.com/a", title: "A" }], appDomains).skipReasons,
-		).toEqual([]);
+	it("reports no skips when every tab is saveable", () => {
+		expect(classifyTabs([{ id: 1, url: "https://example.com/a", title: "A" }], appDomains).skipped).toEqual([]);
+	});
+});
+
+describe("windowIdOf", () => {
+	it("names the window every tab of the answer belongs to", () => {
+		expect(windowIdOf([{ windowId: 7 }, { windowId: 7 }])).toBe(7);
+	});
+
+	it("refuses an answer that holds no tab", () => {
+		expect(() => windowIdOf([])).toThrow();
+	});
+});
+
+describe("savingTabsTitle", () => {
+	it("counts the tabs being saved", () => {
+		expect([savingTabsTitle(28), savingTabsTitle(1), savingTabsTitle(0)]).toEqual([
+			"Saving 28 tabs…",
+			"Saving 1 tab…",
+			"Saving tabs…",
+		]);
 	});
 });
 
