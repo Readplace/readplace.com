@@ -305,7 +305,7 @@ describe("GET /queue (Siren content negotiation)", () => {
 		expect(saveAction.method).toBe("POST");
 		expect(saveAction.fields).toEqual([
 			{ name: "url", type: "url" },
-			{ name: "queues", type: "text", maxItems: READLIST_MAX_PER_USER },
+			{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER },
 		]);
 	});
 
@@ -1323,14 +1323,14 @@ describe("Siren readlists", () => {
 
 	function saveThrough(
 		harness: ReturnType<typeof useApp>,
-		params: { accessToken: string; path: string; url: string; queues?: string[] },
+		params: { accessToken: string; path: string; url: string; readlists?: string[] },
 	) {
 		return request(harness.server)
 			.post(params.path)
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${params.accessToken}`)
 			.set("Content-Type", "application/json")
-			.send(params.queues ? { url: params.url, queues: params.queues } : { url: params.url });
+			.send(params.readlists ? { url: params.url, readlists: params.readlists } : { url: params.url });
 	}
 
 	async function advertisedReadlistHrefs(
@@ -1679,7 +1679,7 @@ describe("Siren readlists", () => {
 			accessToken,
 			path: "/queue",
 			url: "https://example.com/filed-into-both",
-			queues: [hrefs[WORK_LABEL], hrefs[RECIPES_LABEL]],
+			readlists: [hrefs[WORK_LABEL], hrefs[RECIPES_LABEL]],
 		});
 
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work' and 'Recipes'"]);
@@ -1711,7 +1711,7 @@ describe("Siren readlists", () => {
 			accessToken,
 			path: "/queue",
 			url: "https://archive.ph/abc",
-			queues: [hrefs[WORK_LABEL], hrefs[RECIPES_LABEL]],
+			readlists: [hrefs[WORK_LABEL], hrefs[RECIPES_LABEL]],
 		});
 
 		expect(queued.status).toBe(409);
@@ -1722,7 +1722,7 @@ describe("Siren readlists", () => {
 		expect(submitLinks.map((link) => link.saveAttemptId)).toEqual(Array(3).fill(submitLinks[0].saveAttemptId));
 	});
 
-	it("leaves the reader's other readlists alone when the save names no queues", async () => {
+	it("leaves the reader's other readlists alone when the save names no readlists", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { readlist, recipes, accessToken } = await readerWithTwoReadlists(harness, {
 			email: "readlists-save-none-ticked@example.com",
@@ -1749,7 +1749,7 @@ describe("Siren readlists", () => {
 		]);
 	});
 
-	it("ignores a ticked queue the reader does not own", async () => {
+	it("ignores a ticked readlist the reader does not own", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { readlist, accessToken } = await readerWithReadlist(harness, {
 			email: "readlists-save-ticked-unowned@example.com",
@@ -1760,7 +1760,7 @@ describe("Siren readlists", () => {
 			accessToken,
 			path: `/queue?queue=${readlist}`,
 			url: "https://example.com/one-owned-queue",
-			queues: ["/queue?queue=nobodys"],
+			readlists: ["/queue?queue=nobodys"],
 		});
 
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
@@ -1781,7 +1781,7 @@ describe("Siren readlists", () => {
 			accessToken,
 			path: `/queue?queue=${readlist}`,
 			url: "https://example.com/mainline-ticked",
-			queues: [hrefs.All],
+			readlists: [hrefs.All],
 		});
 
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
@@ -1799,7 +1799,7 @@ describe("Siren readlists", () => {
 			accessToken,
 			path: `/queue?queue=${readlist}`,
 			url: "https://example.com/ticked-twice",
-			queues: [hrefs[WORK_LABEL], hrefs[WORK_LABEL]],
+			readlists: [hrefs[WORK_LABEL], hrefs[WORK_LABEL]],
 		});
 
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
@@ -1825,7 +1825,7 @@ describe("Siren readlists", () => {
 			accessToken,
 			path: "/queue",
 			url: "https://example.com/already-held",
-			queues: [hrefs[RECIPES_LABEL]],
+			readlists: [hrefs[RECIPES_LABEL]],
 		});
 
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Recipes'"]);
@@ -1845,7 +1845,7 @@ describe("Siren readlists", () => {
 			accessToken,
 			path: "/queue",
 			url: "https://example.com/held-in-both",
-			queues: [hrefs[WORK_LABEL], hrefs[RECIPES_LABEL]],
+			readlists: [hrefs[WORK_LABEL], hrefs[RECIPES_LABEL]],
 		};
 		await saveThrough(harness, intoBoth);
 
@@ -1855,5 +1855,58 @@ describe("Siren readlists", () => {
 			"Already saved",
 			"Bumped to the top of the list",
 		]);
+	});
+
+	it("still files the readlists a save names under the retired queues key, which shipped iOS and Android builds send", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+			email: "readlists-save-legacy-key@example.com",
+		});
+
+		const saved = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/legacy-key", queues: [hrefs[WORK_LABEL]] });
+
+		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
+		const inWork = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+		});
+		expect(articleUrls(inWork.body)).toEqual(["https://example.com/legacy-key"]);
+	});
+
+	it("files a readlist whose href names it under either query key", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, recipes, accessToken } = await readerWithTwoReadlists(harness, {
+			email: "readlists-save-both-href-forms@example.com",
+		});
+
+		const saved = await saveThrough(harness, {
+			accessToken,
+			path: "/queue",
+			url: "https://example.com/both-href-forms",
+			readlists: [`/queue?readlist=${readlist}`, `/queue?queue=${recipes}`],
+		});
+
+		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work' and 'Recipes'"]);
+	});
+
+	it("ignores a ticked href whose readlist name is malformed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { accessToken } = await readerWithTwoReadlists(harness, {
+			email: "readlists-save-malformed-href@example.com",
+		});
+
+		const saved = await saveThrough(harness, {
+			accessToken,
+			path: "/queue",
+			url: "https://example.com/malformed-href",
+			readlists: ["/queue?readlist=%%%", `/queue?readlist=${"a".repeat(500)}`],
+		});
+
+		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'All'"]);
 	});
 });

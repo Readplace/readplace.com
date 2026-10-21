@@ -65,6 +65,14 @@ describe("parseReadlistUrl", () => {
 		expect(parseReadlistUrl({ queue: "someone-elses" }).readlist).toBe("someone-elses");
 	});
 
+	it("should parse the readlist named by the readlist key", () => {
+		expect(parseReadlistUrl({ readlist: "work" }).readlist).toBe("work");
+	});
+
+	it("should prefer the readlist key over the queue key when a URL carries both", () => {
+		expect(parseReadlistUrl({ readlist: "work", queue: "recipes" }).readlist).toBe("work");
+	});
+
 	it("should fall back to the default readlist for a name no readlist could ever carry", () => {
 		for (const readlist of ["Bad Name", "UPPER", "", "-lead", "a".repeat(25)]) {
 			expect(parseReadlistUrl({ readlist }).readlist).toBe("default");

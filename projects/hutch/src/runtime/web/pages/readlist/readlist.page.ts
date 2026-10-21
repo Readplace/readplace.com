@@ -390,7 +390,7 @@ const CrawlVersionMinuteIdSchema = z
 	.string()
 	.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/);
 
-const SaveArticleQueuesSchema = z.array(z.string()).optional().catch(undefined);
+const SaveArticleReadlistsSchema = z.array(z.string()).optional().catch(undefined);
 
 interface ReadlistDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -2022,7 +2022,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		try {
 			const addressedFiling = readlistToFileInto(context);
 			const ticked = readlistsAtHrefs({
-				hrefs: SaveArticleQueuesSchema.parse(req.body?.queues) ?? [],
+				hrefs: [
+					...(SaveArticleReadlistsSchema.parse(req.body?.readlists) ?? []),
+					...(SaveArticleReadlistsSchema.parse(req.body?.queues) ?? []),
+				],
 				readlists: context.readlists,
 			});
 			const destinations = [

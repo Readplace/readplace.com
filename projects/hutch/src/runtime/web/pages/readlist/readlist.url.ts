@@ -34,6 +34,7 @@ const MAX_SEARCH_LENGTH = 200;
 const RepeatableParam = z.union([z.string(), z.array(z.string())]).optional().catch(undefined);
 
 const ReadlistQuerySchema = z.looseObject({
+	readlist: ReadlistSlugSchema.optional().catch(undefined),
 	queue: ReadlistSlugSchema.optional().catch(undefined),
 	tab: z.enum(TAB_IDS).optional().catch(undefined),
 	status: z.enum(["unread", "read"]).optional().catch(undefined),
@@ -68,7 +69,7 @@ export function parseReadlistUrl(query: Record<string, unknown>): ReadlistUrlSta
 	const parsed = ReadlistQuerySchema.parse(query);
 	const tab = parsed.tab ?? (parsed.status === "read" ? "done" : "queue");
 	return {
-		readlist: parsed.queue ?? DEFAULT_READLIST_SLUG,
+		readlist: parsed.readlist ?? parsed.queue ?? DEFAULT_READLIST_SLUG,
 		tab,
 		order: parsed.order,
 		discovery: discoveryOf(parsed),
