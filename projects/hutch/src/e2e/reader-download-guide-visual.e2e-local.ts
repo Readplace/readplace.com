@@ -82,7 +82,7 @@ async function downloadGuideSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function downloadGuideGeometry(page: Page): Promise<void> {
+async function guideInsidePanel(page: Page): Promise<void> {
 	const panel = await measuredBox(page, DIALOG);
 	for (const selector of [READER_APP, CANCEL, DOWNLOAD]) {
 		const box = await measuredBox(page, selector);
@@ -91,16 +91,27 @@ async function downloadGuideGeometry(page: Page): Promise<void> {
 			`${selector} must sit inside the panel`,
 		);
 	}
+}
+
+async function desktopGuideGeometry(page: Page): Promise<void> {
+	await guideInsidePanel(page);
 	const cancel = await measuredBox(page, CANCEL);
 	const download = await measuredBox(page, DOWNLOAD);
 	assert.ok(cancel.y <= download.y + download.height, "Cancel must not sit below the download");
 }
 
-function checkpoint(name: string): VisualCheckpoint {
+async function phoneGuideGeometry(page: Page): Promise<void> {
+	await guideInsidePanel(page);
+	const cancel = await measuredBox(page, CANCEL);
+	const download = await measuredBox(page, DOWNLOAD);
+	assert.ok(download.y + download.height <= cancel.y, "on a phone Download EPUB stacks above Cancel");
+}
+
+function checkpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
 	return {
 		name,
 		settled: downloadGuideSettled,
-		geometry: downloadGuideGeometry,
+		geometry,
 		target: DIALOG,
 		capture: "element",
 		pinnedText: [{ selector: "[data-test-reader-saved]", text: "6h ago" }],
@@ -113,13 +124,13 @@ test.describe("Reader download guide on Windows", () => {
 	test("explains the file and offers a reader app before the download (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openOwnerReader(page, `light-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, checkpoint("reader-download-guide-light"));
+		await captureCheckpoint(page, checkpoint("reader-download-guide-light", desktopGuideGeometry));
 	});
 
 	test("explains the file and offers a reader app before the download (dark)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "dark" });
 		await openOwnerReader(page, `dark-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, checkpoint("reader-download-guide-dark"));
+		await captureCheckpoint(page, checkpoint("reader-download-guide-dark", desktopGuideGeometry));
 	});
 
 	test("Cancel closes the guide and the download is the EPUB file", async ({ page }, testInfo) => {
@@ -140,7 +151,7 @@ test.describe("Reader download guide on a Windows phone width", () => {
 	test("keeps the guide inside the panel", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openOwnerReader(page, `phone-${testInfo.workerIndex}-${Date.now()}`);
-		await captureCheckpoint(page, checkpoint("reader-download-guide-phone"));
+		await captureCheckpoint(page, checkpoint("reader-download-guide-phone", phoneGuideGeometry));
 	});
 });
 
