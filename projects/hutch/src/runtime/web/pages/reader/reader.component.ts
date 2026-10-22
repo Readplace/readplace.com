@@ -201,6 +201,7 @@ export function ReaderPage(
 			}),
 	});
 	const railHtml = renderArticleRail({
+		title: article.metadata.title,
 		crawl: options.crawl,
 		content: options.content,
 		readerNotice: options.readerNotice,

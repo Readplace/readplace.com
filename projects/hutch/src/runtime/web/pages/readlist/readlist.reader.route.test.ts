@@ -1816,6 +1816,28 @@ describe("Readlist routes", () => {
 			expect(rows).toEqual(["#section-why-it-matters", "#section-how-to-start"]);
 		});
 
+		it("leaves the article's own title out of the owner's table of contents, while the body keeps the heading", async () => {
+			const doc = await ownerReader(async (fixture) => {
+				await fixture.articleStore.writeContent({
+					url: ARTICLE_URL,
+					content: "<h2>Article from example.com</h2><p>Intro</p><h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>",
+				});
+				await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+			});
+
+			const content = doc.querySelector("[data-test-reader-content]");
+			assert(content, "reader content must be rendered");
+			expect([
+				doc.querySelector("[data-test-reader-title]")?.textContent,
+				Array.from(tableOfContentsOf(doc).querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href")),
+				Array.from(content.querySelectorAll("h2, h3"), (heading) => `#${heading.id}`),
+			]).toEqual([
+				"Article from example.com",
+				["#section-why-it-matters", "#section-how-to-start"],
+				["#section-article-from-example-com", "#section-why-it-matters", "#section-how-to-start"],
+			]);
+		});
+
 		it("shows the empty table of contents for a ready article with no h2 or h3", async () => {
 			const doc = await ownerReader(async (fixture) => {
 				await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>One paragraph and nothing else.</p>" });

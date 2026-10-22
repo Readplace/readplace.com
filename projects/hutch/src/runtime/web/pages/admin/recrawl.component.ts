@@ -116,6 +116,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 	});
 	const railHtml = renderArticleRail({
+		title: input.metadata.title,
 		crawl: input.crawl,
 		content: input.content,
 		readerNotice: undefined,

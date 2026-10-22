@@ -173,6 +173,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			}),
 	});
 	const railHtml = renderArticleRail({
+		title: input.metadata.title,
 		crawl: input.crawl,
 		content: input.content,
 		readerNotice: input.readerNotice,

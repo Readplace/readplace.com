@@ -2,11 +2,6 @@ import assert from "node:assert";
 import { ARTICLE_SECTION_ID_PREFIX } from "@packages/domain/article";
 import { parseHTML } from "linkedom";
 
-export interface ArticleSection {
-	anchorId: string;
-	text: string;
-}
-
 const SLUG_MAX_CODE_POINTS = 60;
 
 function slugOf(text: string): string {
@@ -35,10 +30,7 @@ function readHeadingText(node: Node): string {
 	return Array.from(node.childNodes, readHeadingText).join("");
 }
 
-export function anchorArticleSections(html: string): {
-	html: string;
-	sections: readonly ArticleSection[];
-} {
+export function anchorArticleSections(html: string): string {
 	const { document } = parseHTML(
 		`<!DOCTYPE html><html><body><div id="reader-section-anchors-root">${html}</div></body></html>`,
 	);
@@ -46,7 +38,6 @@ export function anchorArticleSections(html: string): {
 	assert(root, "parseHTML must produce the reader-section-anchors wrapper div");
 	const headings: Element[] = Array.from(root.querySelectorAll("h2, h3"));
 	const used = new Set<string>();
-	const sections: ArticleSection[] = [];
 	for (const heading of headings) {
 		const text = readHeadingText(heading).replace(/\s+/g, " ").trim();
 		if (text === "") {
@@ -54,12 +45,7 @@ export function anchorArticleSections(html: string): {
 			continue;
 		}
 		const slug = slugOf(text);
-		const anchorId = mintAnchorId({
-			slug: slug === "" ? String(sections.length + 1) : slug,
-			used,
-		});
-		heading.setAttribute("id", anchorId);
-		sections.push({ anchorId, text });
+		heading.setAttribute("id", mintAnchorId({ slug: slug === "" ? String(used.size + 1) : slug, used }));
 	}
-	return { html: root.innerHTML, sections };
+	return root.innerHTML;
 }

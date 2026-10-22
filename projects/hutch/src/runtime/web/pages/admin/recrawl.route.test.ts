@@ -561,6 +561,49 @@ describe("Admin recrawl routes", () => {
 			).toEqual([true]);
 		});
 
+		it("leaves the article's own title out of a ready recrawl's table of contents", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "Sectioned article", siteName: "example.com", excerpt: "", wordCount: 4 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleStore.writeContent({
+				url: ARTICLE_URL,
+				content: "<h2>Sectioned article</h2><h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>",
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+			await harness.articleStore.setCrawlVersions({ url: ARTICLE_URL, versions: [{ crawledAtMinute: "2026-07-10T09:14Z" }] });
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const rail = doc.querySelector("[data-test-admin-recrawl] > .admin-recrawl__rail");
+			assert(rail, "the recrawl page must render its rail wrapper");
+			const tableOfContents = rail.firstElementChild;
+			assert(tableOfContents, "the rail wrapper must hold the table of contents first");
+			expect([
+				tableOfContents.id,
+				tableOfContents.getAttribute("data-test-table-of-contents"),
+				Array.from(tableOfContents.querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href")),
+				Array.from(rail.children, (child) => child.tagName),
+			]).toEqual([
+				"table-of-contents",
+				"listed",
+				["#section-why-it-matters", "#section-how-to-start"],
+				["DIV", "DETAILS"],
+			]);
+			expect(
+				Array.from(doc.querySelectorAll('script[src="/client-dist/table-of-contents.client.js"]'), (script) =>
+					script.hasAttribute("defer"),
+				),
+			).toEqual([true]);
+		});
+
 		it("triggers a fresh recrawl on POST and redirects (303) to the started result view rendered in pending state", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

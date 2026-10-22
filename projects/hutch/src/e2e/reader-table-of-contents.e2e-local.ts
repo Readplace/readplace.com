@@ -249,6 +249,22 @@ test.describe("Table of contents in the reader's rail", () => {
 			if (previous) assert.equal(row.y, previous.y + previous.height, `row ${index + 1} follows row ${index} with no gap`);
 			if (index !== LONG_ROW) assert.equal(row.height, ROW_HEIGHT, `row ${index + 1} is 49px tall`);
 		}
+		const nesting = await page.locator(ROW).evaluateAll((links) =>
+			links.map((link) => ({
+				nested: link.closest("ol")?.classList.contains("table-of-contents__list--nested") === true,
+				indent: getComputedStyle(link).paddingLeft,
+				visible: link.checkVisibility(),
+			})),
+		);
+		assert.deepEqual(
+			nesting,
+			HEADINGS.map((heading) => ({
+				nested: heading.level === "h3",
+				indent: heading.level === "h3" ? "32px" : "16px",
+				visible: true,
+			})),
+			"each h3 row sits, expanded, in a list under its h2 row, indented 16px further",
+		);
 		const longRow = rows[LONG_ROW];
 		assert.ok(longRow, "the fixture lists its long heading");
 		const extraLines = (longRow.height - ROW_HEIGHT) / ROW_LINE;
@@ -339,6 +355,30 @@ test.describe("Table of contents in the chromeless reader", () => {
 			`the heading lands below the pinned toolbar's ${toolbar.y + toolbar.height}px edge, measured ${top}px`,
 		);
 		await expectCurrentRow(page, switched);
+	});
+});
+
+test.describe("Table of contents without JavaScript", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP, javaScriptEnabled: false });
+
+	test("lists the hierarchy expanded and a nested row still brings its heading to the scroll padding", async ({
+		page,
+	}, testInfo) => {
+		const reader = await seedOwnerArticle(page, {
+			stamp: `no-js-${testInfo.workerIndex}-${Date.now()}`,
+			content: SECTIONED_ARTICLE,
+		});
+		await openReader(page, { reader, query: "" });
+		await page.waitForSelector(READY_SLOT);
+		await expect(page.locator(ROW)).toHaveCount(HEADINGS.length);
+
+		const switched = await rowAnchor(page, SWITCHED_ROW);
+		await expect(page.locator(ROW).nth(SWITCHED_ROW)).toBeVisible();
+		await page.locator(ROW).nth(SWITCHED_ROW).click();
+		await expect.poll(() => page.evaluate(() => window.location.hash)).toBe(`#${switched}`);
+		const line = await scrollPaddingTop(page);
+		const top = await headingTop(page, switched);
+		assert.ok(Math.abs(top - line) <= 2, `the heading lands on the ${line}px scroll padding, measured ${top}px`);
 	});
 });
 
