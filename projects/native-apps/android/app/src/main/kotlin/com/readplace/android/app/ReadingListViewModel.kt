@@ -516,19 +516,25 @@ class ReadingListViewModel(
 		readApplied = read
 		apply(firstPage, replacing = true)
 		for (page in deeperPages) apply(page, replacing = false)
-		reconcileShareTargets(advertised = firstPage.readlists)
+		reconcileShareTargets(against = firstPage)
 		return true
 	}
 
-	private fun reconcileShareTargets(advertised: List<Readlist>) {
+	private fun reconcileShareTargets(against: ReadlistPage) {
 		if (shareTargetReconciliation?.isActive == true) return
+		val advertised = against.readlists
+		if (advertised.isEmpty()) return
 		val unadvertised = shareTarget.hrefs.filterNot { href -> advertised.any { it.matches(listOf(href)) } }
 		if (unadvertised.isEmpty()) return
-		shareTargetReconciliation = scope.launch { rewriteUnadvertisedShareTargets(advertised, unadvertised) }
+		val mainline = listOfNotNull(against.rootHref)
+		shareTargetReconciliation = scope.launch { rewriteUnadvertisedShareTargets(advertised, mainline, unadvertised) }
 	}
 
-	private suspend fun rewriteUnadvertisedShareTargets(advertised: List<Readlist>, unadvertised: List<String>) {
-		val default = advertised.firstOrNull() ?: return
+	private suspend fun rewriteUnadvertisedShareTargets(
+		advertised: List<Readlist>,
+		mainline: List<String>,
+		unadvertised: List<String>,
+	) {
 		for (persisted in unadvertised) {
 			val followed = try {
 				api.loadReadlist(path = persisted)
@@ -536,9 +542,14 @@ class ReadingListViewModel(
 				currentCoroutineContext().ensureActive()
 				continue
 			}
+			if (persisted !in shareTarget.hrefs) continue
 			val answered = followed.chain + listOfNotNull(followed.currentReadlistHref)
-			val resolved = advertised.firstOrNull { it.matches(answered) } ?: continue
-			if (resolved == default) shareTarget.remove(persisted) else shareTarget.rewrite(from = persisted, to = resolved.href)
+			val resolved = advertised.firstOrNull { it.matches(answered) }
+			if (resolved == null || resolved.matches(mainline)) {
+				shareTarget.remove(persisted)
+			} else {
+				shareTarget.rewrite(from = persisted, to = resolved.href)
+			}
 		}
 		syncShareTargetHrefs()
 	}

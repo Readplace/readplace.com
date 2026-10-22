@@ -3476,6 +3476,8 @@ class ReadingListViewModelTest {
 			url.queryParameter("readlist") == "broken" -> Stub.json(500, "{}")
 			url.queryParameter("readlist") == "work" ->
 				Stub.json(200, canonicalCollection(current = "/queue?readlist=work", articleId = "w1"))
+			url.queryParameter("readlist") == "orphan" ->
+				Stub.json(200, canonicalCollection(current = "/queue?readlist=orphan", articleId = "o1"))
 			else -> Stub.json(200, canonicalCollection(current = "/queue", articleId = "a1"))
 		}
 	}
@@ -3562,6 +3564,45 @@ class ReadingListViewModelTest {
 
 		assertEquals("only the mainline collection is read", listOf<String?>(null), server.records("/queue").map { it.request.url.query })
 		assertEquals(setOf("/queue?readlist=work"), shareTarget.hrefs)
+	}
+
+	@Test
+	fun `a persisted share target that loads but matches no advertised readlist is dropped`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+			.apply { record(setOf("/queue?readlist=orphan", "/queue?readlist=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals("the entry no advertised readlist claims is dropped", setOf("/queue?readlist=work"), shareTarget.hrefs)
+
+		viewModel.refresh()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals(
+			"so it is not followed again",
+			1,
+			server.records("/queue").count { it.request.url.queryParameter("readlist") == "orphan" },
+		)
+	}
+
+	@Test
+	fun `a share target the reader removes while its follow is in flight stays removed`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?queue=work")) }
+		val canonical = canonicalReadlistsHandler()
+		server.handle { record ->
+			if (record.request.url.queryParameter("queue") == "work") shareTarget.remove("/queue?queue=work")
+			canonical(record)
+		}
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals(1, legacyFollows("work"))
+		assertEquals("the follow does not bring back a tick the reader cleared", emptySet<String>(), shareTarget.hrefs)
 	}
 
 	@Test

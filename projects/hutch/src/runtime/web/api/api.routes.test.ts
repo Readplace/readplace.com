@@ -1,4 +1,4 @@
-import assert from "node:assert";
+import assert from "node:assert/strict";
 import request from "supertest";
 import { loginAgent, useTestServer } from "../../test-app";
 import {

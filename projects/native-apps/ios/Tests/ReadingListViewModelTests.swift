@@ -1661,6 +1661,42 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"])
 	}
 
+	func testAnAbsoluteTickedHrefTheCollectionAdvertisesRelativelyIsNotFollowed() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let absolute = "\(AppConfig.serverBaseURL)/queue?readlist=work"
+		ShareTarget(container: shareContainer).record(hrefs: [absolute])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue"], "an href that resolves to an advertised one needs no round trip")
+		XCTAssertEqual(ShareTarget(container: shareContainer).hrefs, [absolute])
+	}
+
+	func testATickTheReaderClearsWhileItsFollowIsInFlightStaysCleared() async {
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=work"])
+		let canonical = canonicalReadlistHandler()
+		StubURLProtocol.setHandler { request, body in
+			if request.url?.query == "queue=work" {
+				ShareTarget(container: shareContainer).remove(href: "/queue?queue=work")
+			}
+			return canonical(request, body)
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue", "/queue?queue=work", "/queue?readlist=work"])
+		XCTAssertEqual(
+			ShareTarget(container: shareContainer).hrefs, [],
+			"the follow does not bring back a tick the reader cleared"
+		)
+	}
+
 	func testATickedHrefWhoseFollowFailsIsKeptForTheNextLoad() async {
 		StubURLProtocol.setHandler(canonicalReadlistHandler())
 		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())

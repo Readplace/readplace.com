@@ -246,15 +246,16 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	private func rewriteUnadvertisedShareTargets(against page: ReadlistPage) async {
-		guard let shareTarget, let mainline = page.readlists.first else { return }
+		guard let shareTarget, !page.readlists.isEmpty else { return }
 		let advertised = page.readlists.map(\.href)
-		for href in shareTarget.hrefs where !advertised.contains(href) {
-			guard let followed = try? await api.followReadlist(path: href) else { continue }
+		let mainline = [page.rootHref].compactMap { $0 }
+		for href in shareTarget.hrefs where !advertised.contains(where: { Href.matches($0, anyOf: [href], baseURL: api.baseURL) }) {
+			guard let followed = try? await api.followReadlist(path: href), shareTarget.hrefs.contains(href) else { continue }
 			objectWillChange.send()
 			let landed = followed.redirectChain + [followed.currentReadlistHref].compactMap { $0 }
 			shareTarget.remove(href: href)
 			if let match = page.readlists.first(where: { Href.matches($0.href, anyOf: landed, baseURL: api.baseURL) }),
-				match != mainline {
+				!Href.matches(match.href, anyOf: mainline, baseURL: api.baseURL) {
 				shareTarget.add(href: match.href)
 			}
 		}
