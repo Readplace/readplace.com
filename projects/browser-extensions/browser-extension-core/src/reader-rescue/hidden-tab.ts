@@ -1,9 +1,6 @@
 import "../zod-config";
 import { z } from "zod";
-
-function assert(value: unknown, message: string): asserts value {
-	if (!value) throw new Error(message);
-}
+import { assert } from "../invariant";
 
 export interface Timers {
 	after: (ms: number) => Promise<"timeout">;
