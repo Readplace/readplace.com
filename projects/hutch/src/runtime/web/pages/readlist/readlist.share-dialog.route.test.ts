@@ -112,4 +112,14 @@ describe("GET /queue/:id/view share dialog", () => {
 			"https://staging.readplace.com",
 		]);
 	});
+
+	it("offers a report link naming the same public view", async () => {
+		const doc = await saveAndOpenReader(TEST_APP_ORIGIN);
+
+		const report = doc.querySelector('[data-test-action="report-article"]');
+		assert(report, "the reader must offer a report link");
+		const href = new URL(report.getAttribute("href") ?? "");
+		assert.equal(href.pathname, "readplace+report@readplace.com");
+		expect(href.searchParams.get("body")).toContain(`${TEST_APP_ORIGIN}/view/example.com/shareable`);
+	});
 });

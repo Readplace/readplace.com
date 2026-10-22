@@ -29,6 +29,48 @@ function versionAt(iso: string): ArticleVersion {
 }
 
 describe("renderArticleBody", () => {
+	it("renders a report link after the article when given its href", () => {
+		const doc = parse(
+			renderArticleBody({
+				...baseInput,
+				crawl: { status: "ready" },
+				content: articleBody("<p>Body</p>"),
+				reportHref: "mailto:report@example.com?subject=Report",
+			}),
+		);
+
+		const report = doc.querySelector('[data-test-action="report-article"]');
+		assert(report, "the report link must render");
+		assert.equal(report.getAttribute("href"), "mailto:report@example.com?subject=Report");
+		assert.equal(report.textContent, "Report this article");
+	});
+
+	it("renders no report link without an href", () => {
+		const doc = parse(renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") }));
+
+		assert.equal(doc.querySelector('[data-test-action="report-article"]'), null);
+	});
+
+	it("renders no report link when a failed-crawl notice stands in for a stored body", () => {
+		const doc = parse(
+			renderArticleBody({
+				...baseInput,
+				crawl: { status: "ready" },
+				content: articleBody("<p>Body</p>"),
+				readerNotice: "failed",
+				reportHref: "mailto:report@example.com?subject=Report",
+			}),
+		);
+
+		assert.equal(doc.querySelector('[data-test-action="report-article"]'), null);
+	});
+
+	it("renders no report link while the article has no content to report", () => {
+		const doc = parse(renderArticleBody({ ...baseInput, reportHref: "mailto:report@example.com?subject=Report" }));
+
+		assert.equal(doc.querySelector('[data-test-action="report-article"]'), null);
+	});
+
 	it("renders a finalized plain-text resource with its original whitespace and escaped markup", async () => {
 		const plainText = '\n\t  x < y && café\n<script>"saved text"</script>\n  ';
 		const finalizeArticle = initFinalizeArticle({

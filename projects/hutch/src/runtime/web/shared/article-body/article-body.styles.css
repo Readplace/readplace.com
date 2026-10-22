@@ -96,6 +96,20 @@
   border-top: 1px solid var(--border);
 }
 
+.article-body__report {
+  margin-bottom: 0;
+  font-size: var(--text-sm);
+  overflow-anchor: none;
+}
+
+.article-body__report-link {
+  color: var(--muted-foreground);
+}
+
+.article-body__report-link:hover {
+  color: var(--primary-text);
+}
+
 .article-body__back-bottom-slot--visible {
   display: inline-flex;
 }

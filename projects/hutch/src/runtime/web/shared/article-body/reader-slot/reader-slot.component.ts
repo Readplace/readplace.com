@@ -44,7 +44,7 @@ const EMPTY_NOTICE_TEMPLATE = readFileSync(
 );
 
 function withEmptyNotice(slot: string, noticeOob: boolean): ReaderRegions {
-	return { slot, notice: render(EMPTY_NOTICE_TEMPLATE, { noticeOob }) };
+	return { slot, notice: render(EMPTY_NOTICE_TEMPLATE, { noticeOob }), showsBody: false };
 }
 
 /**
@@ -135,10 +135,10 @@ function pollOrSlow(input: ReaderSlotInput, oob: boolean, pct: number): ReaderRe
 }
 
 function ready(input: ReaderSlotInput, content: ArticleBody, oob: boolean): ReaderRegions {
-	return withEmptyNotice(
-		renderReaderReady({ content, oob, appOrigin: input.appOrigin }),
-		input.noticeOob,
-	);
+	return {
+		...withEmptyNotice(renderReaderReady({ content, oob, appOrigin: input.appOrigin }), input.noticeOob),
+		showsBody: true,
+	};
 }
 
 export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {

@@ -146,6 +146,18 @@ describe("View routes", () => {
 			expect(doc.body.className).toBe("page-view page-distraction-free");
 		});
 
+		it("offers an anonymous visitor a report link naming the article's public view", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const report = new JSDOM(response.text).window.document.querySelector('[data-test-action="report-article"]');
+			assert(report, "the public reader must offer a report link");
+			const href = new URL(report.getAttribute("href") ?? "");
+			assert.equal(href.pathname, "readplace+report@readplace.com");
+			expect(href.searchParams.get("body")).toContain(`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`);
+		});
+
 		it("lists the article's sections in the table of contents for a logged-out visitor, each row linking to its heading", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async () => {} } });

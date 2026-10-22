@@ -4,6 +4,9 @@
       {{{summarySlotHtml}}}
       {{{previouslyReadHtml}}}
       {{{readerSlotHtml}}}
+      {{#if reportHref}}
+      <p class="article-body__report"><a class="article-body__report-link" href="{{reportHref}}" data-test-action="report-article">Report this article</a></p>
+      {{/if}}
     </article>
     {{{readerNoticeHtml}}}
     {{{issueLinksHtml}}}

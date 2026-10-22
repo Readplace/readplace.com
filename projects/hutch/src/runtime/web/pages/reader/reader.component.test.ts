@@ -395,7 +395,7 @@ describe("ReaderPage", () => {
 	it("withholds Share from a private newsletter issue, whose public link would leak it", () => {
 		const html = Base(
 			ReaderPage(makeArticle({ url: "email://inbox/owner/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E" }), {
-				content: undefined,
+				content: articleBody("<p>Issue body</p>"),
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
 				renderActions: WebReader,
@@ -418,6 +418,21 @@ describe("ReaderPage", () => {
 			"article-body__downloads-slot",
 		]);
 		expect(doc.querySelectorAll("[data-test-confirm-popover]").length).toBe(0);
+		expect(doc.querySelector('[data-test-action="report-article"]')).toBeNull();
+	});
+
+	it("offers a report link naming the article's public view, against the supplied appOrigin", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), { content: articleBody("<p>Body</p>"), appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
+			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const report = doc.querySelector('[data-test-action="report-article"]');
+		assert(report, "the reader must offer a report link");
+		const href = new URL(report.getAttribute("href") ?? "");
+		assert.equal(href.pathname, "readplace+report@readplace.com");
+		expect(href.searchParams.get("body")).toContain("https://staging.readplace.com/view/example.com/post");
 	});
 
 	it("styles the share and naming dialogs", () => {

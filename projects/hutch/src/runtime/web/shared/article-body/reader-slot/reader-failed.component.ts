@@ -42,6 +42,7 @@ export interface ReaderFailedInput {
 export interface ReaderRegions {
 	slot: string;
 	notice: string;
+	showsBody: boolean;
 }
 
 const TITLES: Record<ReaderFailedVariant, string> = {
@@ -156,5 +157,6 @@ export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 			rescue: rescueFor(input),
 			...renderCapturePitch(input),
 		}),
+		showsBody: false,
 	};
 }
