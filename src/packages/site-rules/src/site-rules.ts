@@ -41,7 +41,7 @@ export type SiteRules = {
 	matches: (params: { url: string; hostname: string }) => boolean;
 	onCrawl: (params: { url: string }) => Promise<SiteCrawlOutcome>;
 	recoverContent: (params: { url: string }) => Promise<string | undefined>;
-	extract: (params: { html: string; url?: string }) => SiteArticleContent | undefined;
+	extract: (params: { html: string }) => SiteArticleContent | undefined;
 	transform: (params: { document: Document }) => void;
 };
 
