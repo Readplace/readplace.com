@@ -418,7 +418,9 @@ describe("ReaderPage", () => {
 			"article-body__downloads-slot",
 		]);
 		expect(doc.querySelectorAll("[data-test-confirm-popover]").length).toBe(0);
-		expect(doc.querySelector('[data-test-action="report-article"]')).toBeNull();
+		const report = doc.querySelector("[data-test-report-article]");
+		assert(report, "the reader must render the report slot");
+		expect(report.classList.contains("article-body__report--withheld")).toBe(true);
 	});
 
 	it("offers a report link naming the article's public view, against the supplied appOrigin", () => {

@@ -1955,6 +1955,34 @@ describe("View routes", () => {
 			assert(hxGet, "a pending reader slot must poll");
 			expect(hxGet.endsWith("&utm_source=medium")).toBe(true);
 		});
+
+		it("reveals the report link once the reader poll swaps a pending slot for the article body", async () => {
+			let crawlStatus: "pending" | "ready" = "pending";
+			const { fixture, harness } = pollHarness({
+				crawl: async () => ({ status: crawlStatus }),
+			});
+			await seedRow(fixture);
+			const page = new JSDOM(
+				(await request(harness.server).get(`/view/${CANONICAL_PATH}`)).text,
+			).window.document;
+			const report = page.querySelector("[data-test-report-article]");
+			assert(report, "the public reader must render its report slot");
+			const shown = ".article-body__reader-slot--ready + .article-body__report--offered";
+			expect(report.matches(shown)).toBe(false);
+
+			crawlStatus = "ready";
+			await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>Body copy.</p>" });
+			const poll = new JSDOM(
+				(await request(harness.server).get(`/view/reader?url=${ENCODED}&poll=1`)).text,
+			).window.document;
+			const readySlot = poll.querySelector("#article-body-reader-slot");
+			assert(readySlot, "the reader poll must carry the reader slot");
+			const pendingSlot = page.querySelector("#article-body-reader-slot");
+			assert(pendingSlot, "the pending page must render the reader slot");
+			pendingSlot.replaceWith(page.importNode(readySlot, true));
+
+			expect(report.matches(shown)).toBe(true);
+		});
 	});
 
 	describe("anonymous crawl-trigger rate limiting", () => {

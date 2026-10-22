@@ -97,9 +97,18 @@
 }
 
 .article-body__report {
+  display: none;
   margin-bottom: 0;
   font-size: var(--text-sm);
   overflow-anchor: none;
+}
+
+.article-body__reader-slot--ready + .article-body__report--offered {
+  display: block;
+}
+
+.article-body__report--withheld {
+  display: none;
 }
 
 .article-body__report-link {

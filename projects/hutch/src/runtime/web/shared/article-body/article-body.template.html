@@ -5,7 +5,9 @@
       {{{previouslyReadHtml}}}
       {{{readerSlotHtml}}}
       {{#if reportHref}}
-      <p class="article-body__report"><a class="article-body__report-link" href="{{reportHref}}" data-test-action="report-article">Report this article</a></p>
+      <p id="article-body-report" class="article-body__report article-body__report--offered" data-test-report-article><a class="article-body__report-link" href="{{reportHref}}" data-test-action="report-article">Report this article</a></p>
+      {{else}}
+      <p id="article-body-report" class="article-body__report article-body__report--withheld" data-test-report-article></p>
       {{/if}}
     </article>
     {{{readerNoticeHtml}}}

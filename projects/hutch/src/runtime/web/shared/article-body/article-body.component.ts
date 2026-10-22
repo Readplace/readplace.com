@@ -137,6 +137,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		previouslyReadHtml: input.previouslyReadHtml ?? "",
 		issueLinksHtml: input.issueLinksHtml ?? "",
 		bottomActionsHtml: input.bottomActionsHtml,
-		reportHref: readerRegions.showsBody ? input.reportHref : undefined,
+		reportHref: input.reportHref,
 	});
 }
