@@ -76,6 +76,7 @@ export interface AnalyticsPageview {
 	 */
 	device_class: DeviceClass;
 	browser: BrowserFamily;
+	os_family: OsFamily;
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
@@ -102,6 +103,7 @@ export interface AnalyticsClick {
 	utm_term?: string;
 	device_class: DeviceClass;
 	browser: BrowserFamily;
+	os_family: OsFamily;
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
@@ -299,6 +301,23 @@ export function classifyBrowser(userAgent: string | undefined): BrowserFamily {
 	if (userAgent.includes("FxiOS/") || userAgent.includes("Firefox/")) return "firefox";
 	if (userAgent.includes("CriOS/") || userAgent.includes("Chrome/")) return "chrome";
 	if (userAgent.includes("Safari/")) return "safari";
+	return "other";
+}
+
+export type OsFamily = "windows" | "macos" | "linux" | "chromeos" | "ios" | "android" | "ereader" | "other";
+
+export function classifyOsFamily(userAgent: string | undefined): OsFamily {
+	if (!userAgent) return "other";
+	const nativeClient = readplaceNativeClientOf(userAgent);
+	if (nativeClient !== undefined) return nativeClient;
+	if (/Kobo|Kindle\/|PocketBook\//.test(userAgent)) return "ereader";
+	if (isbot(userAgent)) return "other";
+	if (userAgent.includes("CrOS")) return "chromeos";
+	if (userAgent.includes("Android")) return "android";
+	if (/iPhone|iPad|iPod/.test(userAgent)) return "ios";
+	if (userAgent.includes("Windows NT")) return "windows";
+	if (userAgent.includes("Macintosh")) return "macos";
+	if (userAgent.includes("Linux") || userAgent.includes("X11")) return "linux";
 	return "other";
 }
 
@@ -1140,6 +1159,7 @@ export function createAnalyticsMiddleware(deps: {
 					utm_term: extractQueryString(req, "utm_term"),
 					device_class: classifyDeviceClass(userAgent),
 					browser: classifyBrowser(userAgent),
+					os_family: classifyOsFamily(userAgent),
 					visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 					visitor_id: req.visitorId ?? null,
 					is_authenticated: req.userId ? 1 : 0,
@@ -1188,6 +1208,7 @@ export function createAnalyticsMiddleware(deps: {
 				sort_order: pageviewSortOrders.get(res),
 				device_class: classifyDeviceClass(userAgent),
 				browser: classifyBrowser(userAgent),
+				os_family: classifyOsFamily(userAgent),
 				visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
 				visitor_id: req.visitorId ?? null,
 				is_authenticated: req.userId ? 1 : 0,

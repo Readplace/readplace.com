@@ -94,17 +94,20 @@
 }
 
 .article-body__readlists-trigger,
-.article-body__share-fallback > summary {
+.article-body__share-fallback > summary,
+.article-body__download-fallback > summary {
   list-style: none;
 }
 
 .article-body__readlists-trigger::-webkit-details-marker,
-.article-body__share-fallback > summary::-webkit-details-marker {
+.article-body__share-fallback > summary::-webkit-details-marker,
+.article-body__download-fallback > summary::-webkit-details-marker {
   display: none;
 }
 
 .article-body__readlists-trigger:focus-visible,
-.article-body__share-fallback > summary:focus-visible {
+.article-body__share-fallback > summary:focus-visible,
+.article-body__download-fallback > summary:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
@@ -125,7 +128,8 @@
 }
 
 .article-body__readlists-menu,
-.article-body__share-fallback-panel {
+.article-body__share-fallback-panel,
+.article-body__download-fallback-panel {
   position: absolute;
   top: calc(100% + 4px);
   z-index: 13;
@@ -247,11 +251,16 @@
   position: relative;
 }
 
+.article-body__downloads-slot {
+  position: relative;
+}
+
 .article-body__share {
   display: none;
 }
 
-.article-body__share-fallback-panel {
+.article-body__share-fallback-panel,
+.article-body__download-fallback-panel {
   right: 0;
   width: min(22rem, calc(100vw - 2 * var(--page-gutter)));
   padding: 16px;
@@ -311,12 +320,14 @@
   }
 
   .article-body__readlists,
-  .article-body__share-slot {
+  .article-body__share-slot,
+  .article-body__downloads-slot {
     position: static;
   }
 
   .article-body__readlists-menu,
-  .article-body__share-fallback-panel {
+  .article-body__share-fallback-panel,
+  .article-body__download-fallback-panel {
     left: 0;
     right: 0;
     width: auto;
@@ -362,9 +373,14 @@
   display: none; /* 1 */
 }
 
+.article-body__download-open {
+  display: none;
+}
+
 @supports selector(:popover-open) {
   .article-body__confirm-trigger,
-  .article-body__share {
+  .article-body__share,
+  .article-body__download-open {
     display: inline-flex;
   }
 
@@ -374,9 +390,15 @@
 
   .article-body__mark-read-fallback,
   .article-body__readlists-create-fallback,
-  .article-body__share-fallback {
+  .article-body__share-fallback,
+  .article-body__download-fallback {
     display: none;
   }
+}
+
+.article-body__download-guide-link {
+  color: var(--primary-text);
+  text-decoration: underline;
 }
 
 .article-body__mark-read {

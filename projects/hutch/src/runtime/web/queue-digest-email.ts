@@ -8,6 +8,7 @@ import { QUEUE_DIGEST_MIN_SAVE_AGE_DAYS } from "../domain/email/queue-digest-cad
 import { payCutoff } from "../domain/stripe/stripe-trial-config";
 import { EMAIL_COLORS, EMAIL_FONT_STACK } from "./email-colors";
 import { EMAIL_POSTAL_ADDRESS, EMAIL_REPLY_INVITATION } from "./email-copy";
+import { KINDLE_GUIDE_PATH } from "./shared/epub/epub-download-guide";
 import { ACCOUNT_PLANS_URL } from "./pages/account/account.url";
 import { buildOwnerReaderPath } from "./pages/readlist/owner-reader-link";
 
@@ -23,7 +24,6 @@ const STARTER_CONTINUE_LABEL = "Read your Hacker News picks";
 const KEEP_READPLACE_LABEL = "Keep Readplace";
 export const UNSUBSCRIBE_LABEL = "Stop these emails";
 const KINDLE_GUIDE_LABEL = "How Send to Kindle works";
-const KINDLE_GUIDE_PATH = "/blog/read-your-saved-articles-on-a-kindle-or-kobo";
 const FOOTER_REASON: Record<QueueDigestKind, string> = {
 	regular: `You're getting this because Readplace sends a one-time reminder for articles that stay unread in your readlist for ${QUEUE_DIGEST_MIN_SAVE_AGE_DAYS} days.`,
 	pay: "You're getting this because you save articles to Readplace.",

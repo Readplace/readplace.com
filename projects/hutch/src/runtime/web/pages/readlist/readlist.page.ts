@@ -27,7 +27,7 @@ import type {
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import type { UserId } from "@packages/domain/user";
 import { SaveAttemptIdSchema, newSaveAttemptId, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema } from "@packages/domain/article";
-import { buildSaveIntentEvent, classifyDeviceClass, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
+import { buildSaveIntentEvent, classifyDeviceClass, classifyOsFamily, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import { appClientOf, saveClientOf } from "../../shared/save-client";
@@ -110,6 +110,7 @@ import type {
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import { renderReaderDownloadsOob, type RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
+import { EPUB_GUIDE_CONTENT, epubDownloadGuideFor, KINDLE_GUIDE_PATH, type EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import type {
 	PublishLinkDequeued,
@@ -1046,9 +1047,19 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			? undefined
 			: articleEpubHref({ articleUrl: article.url, utmSource: "reader", appClient: appClientOf(req) });
 
+	const epubGuideFor = (req: Request, article: SavedArticle): EpubDownloadGuide | undefined =>
+		isAppPlatform(req) || parseEmailIssueArticleUrl(article.url) !== undefined
+			? undefined
+			: epubDownloadGuideFor({
+					osFamily: classifyOsFamily(req.get("user-agent")),
+					downloadHref: articleEpubHref({ articleUrl: article.url, utmSource: "reader", appClient: undefined }),
+					learnMoreHref: withInternalTracking(KINDLE_GUIDE_PATH, { source: "reader", content: EPUB_GUIDE_CONTENT }),
+				});
+
 	const downloadsOobFor = (req: Request, article: SavedArticle): ((articleUrl: string) => string) | undefined =>
 		parseEmailIssueArticleUrl(article.url) === undefined
-			? (articleUrl) => renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req) })
+			? (articleUrl) =>
+					renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
 			: undefined;
 
 	const parseCapturingFlag = (raw: unknown): boolean =>
@@ -1345,6 +1356,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 
 		res.vary("Cookie");
+		res.vary("User-Agent");
 
 		const showExtensionSuggestionBanner =
 			state.readerContentUnavailable && canOfferExtensionInstall(req);
@@ -1397,6 +1409,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					readerPathFor: readerPathFor(req),
 					readerNotice: state.notice,
 					epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
+					epubDownloadGuide: epubGuideFor(req, ownedArticle),
 					issueLinks,
 				}), cspNonce), {
 					...(await deps.buildBannerState(req)),
@@ -2786,6 +2799,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
 		});
+		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
 
@@ -2825,6 +2839,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
 		});
+		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
 

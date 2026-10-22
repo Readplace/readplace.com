@@ -130,7 +130,7 @@ describe("Reader view browser cache (GET /queue/:id/view)", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers["cache-control"]).toBe("private, max-age=1800");
-		expect(varyFields(response.headers.vary)).toEqual(["accept", "origin", "cookie"]);
+		expect(varyFields(response.headers.vary)).toEqual(["accept", "origin", "cookie", "user-agent"]);
 		assert(response.headers.etag?.startsWith('W/"'), "the reader must carry a weak ETag");
 	});
 

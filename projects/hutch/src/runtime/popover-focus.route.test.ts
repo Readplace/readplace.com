@@ -157,6 +157,7 @@ describe("every popup opens on its first decision", () => {
 			"delete",
 			"delete-account",
 			"disconnect-app",
+			"download-guide",
 			"exit-confirm",
 			"mark-status",
 			"move",
