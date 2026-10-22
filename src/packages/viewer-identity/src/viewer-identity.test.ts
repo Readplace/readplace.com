@@ -102,6 +102,10 @@ describe("viewer location", () => {
 		expect(locationFrom({ [VIEWER_CITY_HEADER]: "S%C3%A3o%20Paulo", [VIEWER_COUNTRY_HEADER]: "BR" })).toStrictEqual({ city: "São Paulo", country: "BR" });
 	});
 
+	it("drops a city whose percent-encoding cannot be decoded", () => {
+		expect(locationFrom({ [VIEWER_CITY_HEADER]: "S%E3o", [VIEWER_COUNTRY_HEADER]: "BR" })).toStrictEqual({ country: "BR" });
+	});
+
 	it("drops a country that is not a two-letter region code", () => {
 		expect(locationFrom({ [VIEWER_CITY_HEADER]: "Sydney", [VIEWER_COUNTRY_HEADER]: "Australia" })).toStrictEqual({ city: "Sydney" });
 	});

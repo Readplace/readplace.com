@@ -55,11 +55,20 @@ function toViewerIp(value: string | undefined): ViewerIp | undefined {
 	return value === undefined ? undefined : ViewerIpSchema.parse(value);
 }
 
+function decodedCity(raw: string | undefined): string | undefined {
+	if (raw === undefined) return undefined;
+	try {
+		return decodeURIComponent(raw);
+	} catch {
+		return undefined;
+	}
+}
+
 function statedLocation(req: Request): ViewerLocation | undefined {
-	const city = headerValue(req, VIEWER_CITY_HEADER);
+	const city = decodedCity(headerValue(req, VIEWER_CITY_HEADER));
 	const country = ViewerCountrySchema.safeParse(headerValue(req, VIEWER_COUNTRY_HEADER));
 	const location: ViewerLocation = {
-		...(city === undefined ? {} : { city: decodeURIComponent(city) }),
+		...(city === undefined ? {} : { city }),
 		...(country.success ? { country: country.data } : {}),
 	};
 	return Object.keys(location).length === 0 ? undefined : location;
