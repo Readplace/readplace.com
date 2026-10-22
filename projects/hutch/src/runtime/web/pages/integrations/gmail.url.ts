@@ -21,6 +21,8 @@ export function buildGmailMailboxUrl(accountEmail: GmailAccountEmail | undefined
 	return `${GMAIL_MAIL_URL}?authuser=${encodeURIComponent(accountEmail)}`;
 }
 
+export const GMAIL_DIALOG_BODY_ID = "gmail-dialog-body";
+
 export const GMAIL_CONFIRM_MAX_POLLS = 100;
 
 export const GMAIL_DISCOVERY_MAX_POLLS = 260;
@@ -67,6 +69,7 @@ export interface GmailPickerState {
 	delivery?: GmailDeliveryMode;
 	import?: "1";
 	edit?: "1";
+	add?: "1";
 	discovery_after?: string;
 }
 
@@ -90,6 +93,7 @@ const GMAIL_URL_PARAM_ORDER = [
 	"delivery",
 	"import",
 	"edit",
+	"add",
 	"discovery",
 	"discovery_after",
 ] as const satisfies readonly (keyof GmailUrlParams)[];
@@ -120,6 +124,7 @@ export const GmailPickerStateSchema = z.object({
 	delivery: GmailDeliveryModeSchema.optional().catch(undefined),
 	import: z.literal("1").optional().catch(undefined),
 	edit: z.literal("1").optional().catch(undefined),
+	add: z.literal("1").optional().catch(undefined),
 	discovery_after: optionalText,
 });
 
@@ -132,12 +137,17 @@ export function parseGmailPickerState(source: unknown): GmailPickerState {
 	return GmailPickerStateSchema.catch({}).parse(source);
 }
 
+export function closeGmailDialog(state: GmailPickerState): GmailPickerState {
+	const { add: _add, edit: _edit, ...closed } = state;
+	return closed;
+}
+
 export const GMAIL_COMMAND_PARAMS = ["confirm_readlists", "pick", "select"] as const;
 
 export function confirmGmailReadlists(state: GmailPickerState): GmailPickerState {
 	const choiceFor = state.readlist_choice_for;
 	const confirmed = choiceFor !== undefined && (state.sender ?? []).includes(choiceFor);
-	return { ...state, edit: undefined, readlist_choice_for: confirmed ? undefined : choiceFor };
+	return { ...state, readlist_choice_for: confirmed ? undefined : choiceFor };
 }
 
 export const GMAIL_POLL_STATES = ["awaiting-confirmation", "confirm-failed"] as const;

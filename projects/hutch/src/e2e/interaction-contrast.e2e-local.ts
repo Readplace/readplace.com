@@ -492,7 +492,7 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
 		const userId = await signInAsNewReader(page, `gmail-checklist-focus-${stampId}@example.com`);
 		await seedGmailChecklist(page, { userId, namespace: `gmail-checklist-focus-${stampId}` });
-		await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
+		await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started&add=1`, { waitUntil: "domcontentloaded" });
 		await expect(page.locator("body.page-integrations-gmail")).toHaveCount(1);
 		await auditCheckboxFocusRing(page, {
 			before: GMAIL_CHECKLIST_CHECKBOX_BEFORE,

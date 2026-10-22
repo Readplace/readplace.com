@@ -1238,7 +1238,7 @@ test.describe("GMail Newsletters colour roles hold their WCAG contrast in both t
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started&notice=sender_mapped&sender=dan%40tldr.tech`, {
+			await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started&notice=sender_mapped&sender=dan%40tldr.tech&add=1`, {
 				waitUntil: "domcontentloaded",
 			});
 			await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");

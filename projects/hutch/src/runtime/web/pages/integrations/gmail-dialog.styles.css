@@ -1,0 +1,72 @@
+.gmail-dialog {
+  padding-bottom: 0;
+}
+
+.gmail-dialog .gmail__mapping-choice,
+.gmail-dialog .gmail__selection {
+  display: contents;
+}
+
+.gmail-dialog__body.htmx-swapping {
+  overflow-anchor: none;
+}
+
+.gmail-dialog .gmail__save {
+  margin: 0 -24px;
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+
+.gmail-dialog:popover-open .gmail__save {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+.gmail-dialog .gmail__picker-menu {
+  position: static;
+  max-height: none;
+  margin-top: 4px;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.gmail-dialog .gmail__search {
+  position: static;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.gmail-dialog .gmail__checklist-rows {
+  max-height: none;
+  overflow: visible;
+}
+
+.gmail-dialog .gmail__checklist-group-title {
+  position: static;
+}
+
+@media (min-width: 768px) {
+  .gmail-dialog .gmail__save {
+    margin-inline: -32px;
+    padding: 16px 32px 32px;
+  }
+}
+
+.gmail__mappings-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+
+.gmail__mappings-header .gmail__section-title {
+  margin-bottom: 0;
+}
+
+.gmail__empty-copy {
+  margin-bottom: 16px;
+}

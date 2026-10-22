@@ -1,5 +1,8 @@
 <section id="gmail-mappings" class="gmail__mappings"{{#if outOfBand}} hx-swap-oob="outerHTML"{{/if}} data-test-gmail-mappings data-imports-polling="{{#if polling}}true{{else}}false{{/if}}"{{#if pollUrl}} data-background-request hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-select="#gmail-mappings" hx-swap="outerHTML"{{/if}}>
-          <h2 class="gmail__section-title">Your newsletters</h2>
+          <div class="gmail__mappings-header">
+            <h2 class="gmail__section-title">Your newsletters</h2>
+            {{{headerActionsHtml}}}
+          </div>
           <div class="gmail__filter" data-test-gmail-filter-state="{{filter.state}}">
             {{{filterMessageHtml}}}
             <div class="gmail__filter-actions">
@@ -16,5 +19,10 @@
             {{{this}}}
             {{/each}}
           </ul>
-          {{#unless hasRows}}<p class="gmail__empty" data-test-gmail-mappings-empty>No newsletters yet. Choose a newsletter above.</p>{{/unless}}
+          {{#unless hasRows}}
+          <div class="gmail__empty" data-test-gmail-mappings-empty>
+            <p class="gmail__empty-copy">No newsletters yet.</p>
+            {{{emptyActionsHtml}}}
+          </div>
+          {{/unless}}
         </section>

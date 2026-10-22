@@ -25,6 +25,7 @@ import {
 	confirmGmailReadlists,
 	GMAIL_COMMAND_PARAMS,
 	GMAIL_CONFIRM_MAX_POLLS,
+	GMAIL_DIALOG_BODY_ID,
 	GMAIL_DISCOVERY_MAX_POLLS,
 	GmailPollStateSchema,
 	parseGmailPickerState,
@@ -167,6 +168,7 @@ export function registerGmailPageRoutes(
 			notice: queryValue(req, "notice"),
 			saved: saved.success ? saved.data : undefined,
 			notification: queryValue(req, "notification") === "1",
+			focusOnOpen: req.get("HX-Target") !== GMAIL_DIALOG_BODY_ID,
 		});
 	};
 

@@ -107,7 +107,6 @@
 
 .gmail__step,
 .gmail__reconnect,
-.gmail__senders,
 .gmail__mappings,
 .gmail__disconnect {
   padding: 20px 24px;
@@ -402,10 +401,6 @@ form.htmx-request .gmail__submit-loader {
   }
 }
 
-.gmail__mapping-form > :last-child {
-  margin-bottom: 0;
-}
-
 .gmail__mapping-choice > :last-child {
   margin-bottom: 0;
 }
@@ -453,7 +448,7 @@ form.htmx-request .gmail__submit-loader {
 }
 
 [data-gmail-notification-highlight] .gmail__readlist-picker > .gmail__picker-trigger,
-[data-gmail-notification-highlight] .gmail__save > button {
+[data-gmail-notification-highlight] .gmail__save > .gmail__submit {
   border-color: var(--color-brand);
   box-shadow: 0 0 0 1px var(--color-brand);
 }

@@ -16,6 +16,7 @@ export interface GmailChecklistRow {
 	email: ForwardableSender;
 	name: string | undefined;
 	checked: boolean;
+	autofocus: boolean;
 	fields: FormField[];
 }
 
@@ -100,6 +101,7 @@ export function toGmailSenderChecklist(input: {
 		email: candidate.email,
 		name: gmailSenderName(candidate),
 		checked: ticked.has(candidate.email),
+		autofocus: false,
 		fields: fields(candidate),
 	});
 	const groups: GmailChecklistGroup[] = [

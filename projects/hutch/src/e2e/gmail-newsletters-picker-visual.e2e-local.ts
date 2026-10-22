@@ -3,8 +3,7 @@ import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { captureCheckpoint, expect, measuredBox, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
-import { fitViewportToPage } from "./fit-viewport-to-page";
-import { measureScrollBox, scrollBoxTo } from "./gmail-newsletters-visual.browser";
+import { measureScrollBox, scrollBoxTo, scrollPanelToShow } from "./gmail-newsletters-visual.browser";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -19,7 +18,9 @@ const WIDTHS = [
 const THEMES = ["light", "dark"] as const;
 const VOLATILE_CHROME = [".offline-banner", ".newer-version-banner", "[data-test-extension-suggestion-banner]", "[data-test-changelog-banner]"];
 
-const MAIN = "main.gmail";
+const DIALOG = "#gmail-dialog";
+const OPEN_DIALOG = "#gmail-dialog:popover-open";
+const DIALOG_FOOTER = "[data-test-gmail-dialog-footer]";
 const SENDER_STATUS = "#gmail-sender-status";
 const SENDER_PICKER = "[data-test-gmail-sender-picker]";
 const SENDER_MENU = `${SENDER_PICKER} .gmail__picker-menu`;
@@ -101,9 +102,10 @@ async function openGmail(page: Page, input: { stamp: string; seed: PickerSeed })
 	await page.locator('input[name="password"]').fill(PASSWORD);
 	await page.locator('[data-test-form="login"] button[type="submit"]').click();
 	await page.waitForSelector("body.page-readlist");
-	await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started&add=1`, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-integrations-gmail");
 	await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
+	await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-add");
 	await statusSettled(page);
 	return namespace;
 }
@@ -113,8 +115,9 @@ async function statusSettled(page: Page): Promise<void> {
 }
 
 async function openSenderPicker(page: Page): Promise<void> {
-	await page.locator(`${SENDER_PICKER} summary`).click();
-	await expect(page.locator(SENDER_PICKER)).toHaveAttribute("open", "");
+	const picker = page.locator(SENDER_PICKER);
+	if ((await picker.getAttribute("open")) === null) await picker.locator("summary").click();
+	await expect(picker).toHaveAttribute("open", "");
 	await expect(page.locator(SEARCH)).toBeFocused();
 }
 
@@ -153,7 +156,7 @@ async function noSidewaysScroll(page: Page): Promise<void> {
 }
 
 async function checklistLaidOut(page: Page): Promise<void> {
-	await noSidewaysScroll(page);
+	await panelScrollsAsOneBox(page);
 	const toolbar = await measuredBox(page, CHECKLIST_TOOLBAR);
 	const summary = await measuredBox(page, CHECKLIST_SUMMARY);
 	assert.ok(Math.abs(summary.y - toolbar.y) <= 0.5, "the selected count must share the toolbar's first row");
@@ -167,36 +170,64 @@ async function checklistLaidOut(page: Page): Promise<void> {
 	}
 }
 
-async function menuFitsInsidePage(page: Page): Promise<void> {
+async function panelScrollsAsOneBox(page: Page): Promise<void> {
 	await noSidewaysScroll(page);
-	const main = await measuredBox(page, MAIN);
+	const viewport = page.viewportSize();
+	assert(viewport, "the popup capture must use a fixed viewport");
+	const panel = await measuredBox(page, DIALOG);
+	const footer = await measuredBox(page, DIALOG_FOOTER);
+	assert.ok(panel.x >= 0 && panel.x + panel.width <= viewport.width, "the panel must fit the viewport sideways");
+	assert.ok(panel.y >= 0 && panel.y + panel.height <= viewport.height, "the panel must fit the viewport");
+	const box = await page.evaluate(measureScrollBox, DIALOG);
+	assert.equal(box.overflowY, "auto", "the panel must be the box that scrolls");
+	assert.ok(box.scrollWidth <= box.clientWidth, "the panel must never scroll sideways");
+	assert.ok(
+		footer.y >= panel.y && footer.y + footer.height <= panel.y + panel.height + 0.5,
+		"Cancel and Save must stay visible at the panel bottom",
+	);
+}
+
+async function menuOpensInFlowInsidePanel(page: Page): Promise<void> {
+	await panelScrollsAsOneBox(page);
+	const panel = await measuredBox(page, DIALOG);
 	const trigger = await measuredBox(page, `${SENDER_PICKER} summary`);
 	const menu = await measuredBox(page, SENDER_MENU);
+	const menuBox = await page.evaluate(measureScrollBox, SENDER_MENU);
+	assert.ok(menuBox.scrollHeight <= menuBox.clientHeight, "the sender menu must grow with its results instead of scrolling on its own");
 	assert.ok(menu.y >= trigger.y + trigger.height, "the sender menu must open below its trigger");
 	assert.ok(
 		Math.abs(menu.x - trigger.x) <= 0.5 && Math.abs(menu.width - trigger.width) <= 0.5,
 		"the sender menu must hang flush under its trigger",
 	);
-	assert.ok(menu.y + menu.height <= main.y + main.height, "the sender menu must stay inside the captured page body");
+	assert.ok(menu.x >= panel.x && menu.x + menu.width <= panel.x + panel.width, "the sender menu must stay inside the panel");
 }
 
 async function captureMatrix(
 	page: Page,
-	input: { state: string; settled: (page: Page) => Promise<void>; geometry: (page: Page) => Promise<void> },
+	input: {
+		state: string;
+		reveal?: string;
+		settled: (page: Page) => Promise<void>;
+		geometry: (page: Page) => Promise<void>;
+	},
 ): Promise<void> {
 	for (const width of WIDTHS) {
-		await fitViewportToPage(page, width.viewport);
+		await page.setViewportSize(width.viewport);
 		for (const theme of THEMES) {
 			await page.emulateMedia({ colorScheme: theme });
 			await captureCheckpoint(page, {
 				name: `gmail-picker-${input.state}-${width.name}-${theme}`,
 				settled: async (settling) => {
+					await expect(settling.locator(OPEN_DIALOG)).toBeVisible();
 					await settling.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
 					await settling.mouse.move(0, 0);
 					await input.settled(settling);
+					if (input.reveal !== undefined) {
+						await settling.evaluate(scrollPanelToShow, { panel: DIALOG, target: input.reveal, gap: 24 });
+					}
 				},
 				geometry: input.geometry,
-				target: MAIN,
+				target: DIALOG,
 				capture: "element",
 				pinnedText: [],
 			});
@@ -241,8 +272,9 @@ test.describe("GMail Newsletters sender picker", () => {
 		await openSenderPicker(page);
 		await captureMatrix(page, {
 			state: "open",
+			reveal: SENDER_PICKER,
 			settled: (settling) => resultsListed(settling, { state: "listed", options: 4, named: 3 }),
-			geometry: menuFitsInsidePage,
+			geometry: menuOpensInFlowInsidePanel,
 		});
 	});
 
@@ -258,18 +290,20 @@ test.describe("GMail Newsletters sender picker", () => {
 		await page.locator(SEARCH).fill("hacker");
 		await captureMatrix(page, {
 			state: "unknown-sender-search",
+			reveal: SENDER_PICKER,
 			settled: async (settling) => {
 				await resultsListed(settling, { state: "listed", options: 1, named: 1 });
 				await expect(settling.locator(`[data-test-gmail-sender-option="${KALE.email}"]`)).toBeVisible();
 			},
-			geometry: menuFitsInsidePage,
+			geometry: menuOpensInFlowInsidePanel,
 		});
 
 		await page.locator(SEARCH).fill("zebra");
 		await captureMatrix(page, {
 			state: "no-matches",
+			reveal: SENDER_PICKER,
 			settled: (settling) => resultsListed(settling, { state: "no-matches", options: 0, named: 0 }),
-			geometry: menuFitsInsidePage,
+			geometry: menuOpensInFlowInsidePanel,
 		});
 
 		await page.locator(SEARCH).fill("");
@@ -288,7 +322,7 @@ test.describe("GMail Newsletters sender picker", () => {
 		});
 	});
 
-	test("keeps a long checklist inside a fixed-height box that scrolls down only", async ({ page }, testInfo) => {
+	test("scrolls a long checklist with the rest of the popup as one box, down only, with Cancel and Save in view", async ({ page }, testInfo) => {
 		const digests = digestNewsletters(120);
 		await openGmail(page, {
 			stamp: `long-${testInfo.workerIndex}-${Date.now()}`,
@@ -298,24 +332,24 @@ test.describe("GMail Newsletters sender picker", () => {
 			state: "checklist-long",
 			settled: async (settling) => {
 				await checklistListed(settling, { state: "listed", groups: { known: 120 }, ticked: 0, named: 120 });
-				await settling.evaluate(scrollBoxTo, { selector: CHECKLIST_ROWS, top: 600 });
+				await settling.evaluate(scrollBoxTo, { selector: DIALOG, top: 600 });
 			},
 			geometry: async (measuring) => {
 				await checklistLaidOut(measuring);
-				const box = await measuring.evaluate(measureScrollBox, CHECKLIST_ROWS);
-				assert.ok(Number.isFinite(box.maxHeight), `the checklist rows box must resolve a pixel max-height, got ${box.maxHeight}`);
-				assert.ok(Math.abs(box.height - box.maxHeight) <= 0.5, `the rows box must sit at its ${box.maxHeight}px max-height, got ${box.height}px`);
-				assert.equal(box.overflowY, "auto", "the rows box must scroll vertically");
-				assert.ok(box.scrollHeight > box.clientHeight, "120 newsletters must overflow the rows box so it scrolls");
-				assert.ok(box.scrollWidth <= box.clientWidth, "the rows box must never scroll sideways");
-				const rows = await measuredBox(measuring, CHECKLIST_ROWS);
-				const title = await measuredBox(measuring, `${CHECKLIST_ROWS} .gmail__checklist-group-title`);
-				assert.ok(Math.abs(title.y - rows.y) <= 1, "the group title must stay pinned to the top of the scrolled rows box");
+				const panel = await measuring.evaluate(measureScrollBox, DIALOG);
+				assert.ok(panel.scrollHeight > panel.clientHeight, "120 newsletters must overflow the panel so it scrolls");
+				assert.equal(
+					await measuring.locator(DIALOG).evaluate((element) => element.scrollTop),
+					600,
+					"the panel itself must carry the checklist's scroll",
+				);
+				const rows = await measuring.evaluate(measureScrollBox, CHECKLIST_ROWS);
+				assert.ok(rows.scrollHeight <= rows.clientHeight, "the checklist rows must grow with the list instead of scrolling on their own");
 			},
 		});
 	});
 
-	test("says none of the senders is a known newsletter yet and points at the search", async ({ page }, testInfo) => {
+	test("says none of the senders is a known newsletter yet and opens the search", async ({ page }, testInfo) => {
 		await openGmail(page, {
 			stamp: `no-known-${testInfo.workerIndex}-${Date.now()}`,
 			seed: { catalogMode: "available", approved: [TLDR], discovered: [POINTER, KALE] },
@@ -323,11 +357,12 @@ test.describe("GMail Newsletters sender picker", () => {
 		await captureMatrix(page, {
 			state: "checklist-no-known",
 			settled: async (settling) => {
-				await expect(settling.locator(SENDER_PICKER)).not.toHaveAttribute("open");
+				await expect(settling.locator(SENDER_PICKER)).toHaveAttribute("open", "");
+				await expect(settling.locator(SEARCH)).toBeFocused();
 				await checklistListed(settling, { state: "no-known-newsletters", groups: {}, ticked: 0, named: 0 });
 				await expect(settling.locator(SELECT_TOGGLE)).toHaveCount(0);
 			},
-			geometry: noSidewaysScroll,
+			geometry: menuOpensInFlowInsidePanel,
 		});
 	});
 
@@ -343,7 +378,7 @@ test.describe("GMail Newsletters sender picker", () => {
 				await checklistListed(settling, { state: "no-discovered-senders", groups: {}, ticked: 0, named: 0 });
 				await resultsListed(settling, { state: "no-discovered-senders", options: 0, named: 0 });
 			},
-			geometry: menuFitsInsidePage,
+			geometry: menuOpensInFlowInsidePanel,
 		});
 	});
 
@@ -358,10 +393,10 @@ test.describe("GMail Newsletters sender picker", () => {
 			state: "result-limit",
 			settled: async (settling) => {
 				await resultsListed(settling, { state: "limited", options: 100, named: 100 });
-				await settling.evaluate(scrollBoxTo, { selector: SENDER_MENU, top: Number.MAX_SAFE_INTEGER });
+				await settling.evaluate(scrollPanelToShow, { panel: DIALOG, target: "[data-test-gmail-refine-search]", gap: 24 });
 				await expect(settling.locator("[data-test-gmail-refine-search]")).toBeInViewport();
 			},
-			geometry: menuFitsInsidePage,
+			geometry: menuOpensInFlowInsidePanel,
 		});
 	});
 
@@ -375,16 +410,17 @@ test.describe("GMail Newsletters sender picker", () => {
 		await captureMatrix(page, {
 			state: "catalog-unavailable",
 			settled: async (settling) => {
-				await expect(settling.locator(SENDER_PICKER)).not.toHaveAttribute("open");
+				await expect(settling.locator(SENDER_PICKER)).toHaveAttribute("open", "");
 				await checklistListed(settling, { state: "catalog-unavailable", groups: {}, ticked: 0, named: 0 });
 				await expect(settling.locator(RETRY)).toBeVisible();
 			},
-			geometry: noSidewaysScroll,
+			geometry: panelScrollsAsOneBox,
 		});
 
 		await seedCatalog(page, { namespace, mode: "available", approved: [TLDR] });
 		await page.locator(RETRY).click();
 		await expect(page.locator(CHECKLIST)).toHaveAttribute("data-checklist-state", "listed");
 		await expect(page.locator(`[data-test-gmail-checklist-row="${TLDR.email}"] ${CHECKLIST_NAME}`)).toHaveCount(1);
+		await expect(page.locator(OPEN_DIALOG)).toBeVisible();
 	});
 });

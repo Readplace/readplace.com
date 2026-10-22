@@ -6,7 +6,7 @@ import { isLiveAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import { type GmailImportActions, importFollowsMapping, UNFINISHED_IMPORT_STATES } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
-import { buildGmailUrl, confirmGmailReadlists, type GmailPageError, type GmailPageNotice, type GmailPickerState, parseGmailPickerState, gmailSelectedReadlists } from "./gmail.url";
+import { buildGmailUrl, closeGmailDialog, confirmGmailReadlists, type GmailPageError, type GmailPageNotice, type GmailPickerState, parseGmailPickerState, gmailSelectedReadlists } from "./gmail.url";
 
 const SenderBodySchema = z.object({ sender: ForwardableSenderSchema });
 const JobBodySchema = z.object({ job: GmailHistoryImportJobIdSchema });
@@ -20,7 +20,7 @@ export interface GmailMappingRoutesContext {
 }
 
 function listState(body: unknown): GmailPickerState {
-	const { sender: _sender, edit: _edit, ...state } = parseGmailPickerState(body);
+	const { sender: _sender, ...state } = closeGmailDialog(parseGmailPickerState(body));
 	return state;
 }
 

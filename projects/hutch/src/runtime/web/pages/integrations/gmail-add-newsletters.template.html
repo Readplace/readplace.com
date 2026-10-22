@@ -1,0 +1,6 @@
+<form id="gmail-add-newsletters-form" class="gmail__add-newsletters" method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-gmail-senders>
+              {{#each fields}}
+              <input type="hidden" name="{{name}}" value="{{value}}">
+              {{/each}}
+              <button id="gmail-add-newsletters-button" class="btn btn--{{variant}} btn--s" type="submit" data-gmail-opener="add" data-test-gmail-add-newsletters>{{label}}</button>
+            </form>

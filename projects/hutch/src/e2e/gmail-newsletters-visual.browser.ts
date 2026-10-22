@@ -57,3 +57,10 @@ export function scrollBoxTo(input: { selector: string; top: number }): void {
 	if (!element) throw new Error(`"${input.selector}" must exist to be scrolled`);
 	element.scrollTop = input.top;
 }
+
+export function scrollPanelToShow(input: { panel: string; target: string; gap: number }): void {
+	const panel = document.querySelector(input.panel);
+	const target = document.querySelector(input.target);
+	if (!panel || !target) throw new Error(`"${input.target}" must be laid out inside "${input.panel}" to be shown`);
+	panel.scrollTop += target.getBoundingClientRect().top - panel.getBoundingClientRect().top - input.gap;
+}

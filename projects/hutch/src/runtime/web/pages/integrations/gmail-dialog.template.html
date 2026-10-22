@@ -1,0 +1,7 @@
+<div id="gmail-dialog" class="confirm-popover confirm-popover--in-flow gmail-dialog" popover="auto" role="dialog" tabindex="-1" aria-labelledby="gmail-dialog-title" hx-history="false" data-gmail-dialog data-gmail-dialog-opener="{{opener}}" data-test-confirm-popover="{{key}}">
+          <div class="confirm-popover__header">
+            <h2 class="confirm-popover__title" id="gmail-dialog-title" data-test-gmail-dialog-title>{{title}}</h2>
+            <a class="confirm-popover__close" href="{{closeHref}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-action="{{key}}-dismiss">{{icon "x"}}<span class="sr-only">Close</span></a>
+          </div>
+          {{{bodyHtml}}}
+        </div>

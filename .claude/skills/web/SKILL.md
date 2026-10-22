@@ -233,6 +233,20 @@ IMPORTANT: Ask for human intervention whenever a deviation from htmx is needed a
 
 **Sanctioned deviation — card-scoped list mutations.** A mutation whose only visible effect is that one list row changes may swap the row instead of re-shipping the whole `<main>`, when re-rendering `<main>` is the measured cost. The queue's card mark-read/unread do this: the form targets the row (`hx-target` set to `closest` plus the card's block class, `hx-swap="outerHTML show:none"` — see [Every Swap Declares Where the Page Ends Up](#every-swap-declares-where-the-page-ends-up)); a `swap=card` marker on the action href — a response-representation hint the server never trusts as state, consistent with the URL-as-state rule above — routes an htmx submit to a small card-removal fragment plus out-of-band toast/counts; and the **server**, never the client, decides when the DOM has drifted (page emptied, page beyond the last, the pagination controls changed, or the change didn't apply) and answers with the full listing via `HX-Retarget: main`. The no-JS, Undo, reader and API callers keep the byte-identical `<main>`/303 path, and delete and move keep their full-`<main>` confirm-popover flows. This is already decided — follow it for equivalent list-row mutations instead of re-asking. See the queue page's card status-swap handler — the one that answers with the `HX-Retarget` header when the DOM has drifted (grep for `HX-Retarget` in the web pages of the project that serves `/queue` — the single hit there is it; the repo-wide second hit is the newsletter inbox's lock-check middleware) — and the mutation-fragments module it imports, which renders the card-removal fragment plus the out-of-band toast and counts.
 
+**Sanctioned deviation — a popup whose open state is a URL parameter.** A popup that hosts a page's whole selection form, where the reader opens it from far down the page and expects it right where they are, renders server-side whenever the URL says it is open, so a link, an email, a reload and Back/Forward all reopen it. The Gmail newsletters page (`/newsletters/gmail`) does this for its `add=1` and `edit=1` parameters; follow it for an equivalent popup instead of re-asking.
+
+| Piece | Behaviour | Why |
+|---|---|---|
+| Opening | The server resolves the mode once and renders the popup closed; a page script shows it on load, after a settle and after a history restore | htmx cannot open a popover, and the URL, not a click, is the source of truth |
+| History | The popup carries `hx-history="false"` | A snapshot would restore it without its opening focus, so Back refetches it |
+| Forms inside | Target the popup's body, which keeps the panel and its scroll; search, polls and Load keep their own targets | Re-shipping `<main>` would close and reopen the popup on every tick |
+| Foreign answers | An answer that lacks the swap target's id (Save success, a login redirect) is retargeted to `main` by the script | Otherwise a whole page lands inside the popup |
+| Closing | ✕ and Cancel are boosted links to the closed URL; Escape and click-outside follow Cancel, unless a request from inside the popup is still in flight | Closing is a navigation, so the URL and history stay true; an in-flight answer must land where it was asked for |
+| Success | Save answers the closed page, which swaps `main` and drops the popup; focus returns to the control that opened it | Removing an open popover fires no toggle, so there is no second navigation |
+| No JavaScript or no popover | The same element renders in flow, with its autofocus, through a shared in-flow modifier of the confirm panel | Every form still posts or gets normally and lands on the page |
+
+The popup body's `outerHTML` swap needs the same scroll-anchoring reset as `<main>` (see the next section), or the panel jumps to its bottom. Its sticky footer applies only while the popup is open, or in flow it covers the page.
+
 ### Every Swap Declares Where the Page Ends Up
 
 Every swap has one intended scroll outcome, and the swap spec states it:
@@ -275,6 +289,8 @@ A popup that opens focused on its own container is a dead stop: the reader must 
 | Choice with a pre-checked option | the submit; the inline plans page takes none | a valid answer is already in place |
 | Copy the link | the Copy control once the script knows the clipboard is writable; otherwise focus stays on the trigger | a hidden control cannot take focus |
 | Side drawer | the first chip of the first group, popover copy only | the drawer's work starts there |
+| Edit a saved item (a URL-state popup) | its Save | the choice is already in place |
+| Add items from a checklist (a URL-state popup) | the first ticked row, else the first row, else the search box with its picker rendered open | a box inside a closed `<details>` cannot take focus; a request that only refreshes the popup's body renders no autofocus |
 | `<details>` picker | its script focuses the first option on toggle | `<details>` has no focusing steps |
 | Tooltip popover, the unprompted balloon, `<details>` menus, switchers and header disclosures | none | no primary action; focus stays on the toggle |
 
@@ -282,7 +298,7 @@ A popup that opens focused on its own container is a dead stop: the reader must 
 |---|---|
 | One `autofocus` per popover, never on the `[popover]` element | each popover is its own autofocus scoping root, and the panel's own attribute wins over every descendant's |
 | Keep `tabindex="-1"` on the panel | a click inside keeps focus inside — Safari does not focus clicked buttons |
-| A template shared with an inline page or a `<details>` fallback sets the attribute from a per-surface map; the page copy never carries it on GET | a visible `autofocus` is focused on load and by htmx after every swap ([first match, no visibility check](https://github.com/bigskysoftware/htmx/blob/v2.0.8/src/htmx.js)) |
+| A template shared with an inline page or a `<details>` fallback sets the attribute from a per-surface map; the page copy never carries it on GET. The one exception is a URL-state popup's in-flow fallback, which is the same element and is only ever rendered open | a visible `autofocus` is focused on load and by htmx after every swap ([first match, no visibility check](https://github.com/bigskysoftware/htmx/blob/v2.0.8/src/htmx.js)) |
 | `autofocus` inside a closed popover is inert | a closed popover's content is not rendered, so neither the page-load flush nor htmx's post-swap focus can reach it |
 
 **This is enforced, not remembered.** The shared web test harness has a popover-focus checker — grep the non-test sources for its report helper — and the project that serves `/queue` runs it over every popover-bearing page, asserting no gap and pinning the set of dialogs it meets. A new dialog belongs in that test's path list and key list, and its browser spec asserts the focused element right after the popover opens.
