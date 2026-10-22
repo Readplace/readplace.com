@@ -1,4 +1,4 @@
-import { OAuthSignInSchema, laterSignIn, oauthSignIn } from "./sign-in";
+import { OAuthSignInSchema, laterSignIn, oauthSignIn, signInOf } from "./sign-in";
 
 describe("oauthSignIn", () => {
 	it("records the time, where and what the reader approved from", () => {
@@ -49,5 +49,21 @@ describe("laterSignIn", () => {
 		const sameMoment = oauthSignIn({ at: 1_000, location: { country: "AU" }, device: undefined });
 
 		expect(laterSignIn(earlier, sameMoment)).toBe(earlier);
+	});
+});
+
+describe("signInOf", () => {
+	it("reads the sign-in the authorize route attached to the user", () => {
+		const signedIn = oauthSignIn({ at: 1, location: { city: "Sydney", country: "AU" }, device: { browser: "chrome", os: "macos" } });
+
+		expect(signInOf({ signedIn })).toEqual(signedIn);
+	});
+
+	it("reads no sign-in from a user that carries none", () => {
+		expect(signInOf({})).toBeUndefined();
+	});
+
+	it("refuses a sign-in that does not match the schema", () => {
+		expect(() => signInOf({ signedIn: { at: "yesterday" } })).toThrow();
 	});
 });

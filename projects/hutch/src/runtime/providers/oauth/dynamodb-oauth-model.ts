@@ -31,7 +31,7 @@ import type {
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
-import { OAuthSignInSchema, generateToken, initOAuthRefresh } from "@packages/domain/oauth";
+import { OAuthSignInSchema, generateToken, initOAuthRefresh, signInOf } from "@packages/domain/oauth";
 
 function toEpochSeconds(date: Date): number {
 	return Math.floor(date.getTime() / 1000);
@@ -123,7 +123,7 @@ export function initDynamoDbOAuthModel(deps: {
 					scope: code.scope,
 					expiresAt: toEpochSeconds(code.expiresAt),
 					emailVerified: user.emailVerified === true,
-					signedIn: OAuthSignInSchema.optional().parse(user.signedIn),
+					signedIn: signInOf(user),
 				},
 			});
 
@@ -177,7 +177,7 @@ export function initDynamoDbOAuthModel(deps: {
 				grantId: grant.grantId, epoch: typeof user.epoch === "number" ? user.epoch : (await atomic.store.readAccount(user.id)).epoch, generation: 0,
 				userId: user.id, clientId: oauthClient.id, accessToken: token.accessToken, refreshToken,
 				accessExpiresAt: accessTokenExpiresAt.getTime(), refreshExpiresAt: refreshTokenExpiresAt.getTime(),
-				scope: token.scope, emailVerified: user.emailVerified === true, signedIn: OAuthSignInSchema.optional().parse(user.signedIn),
+				scope: token.scope, emailVerified: user.emailVerified === true, signedIn: signInOf(user),
 			});
 
 			// Token issuance is the "used" signal that extends a dynamic client's

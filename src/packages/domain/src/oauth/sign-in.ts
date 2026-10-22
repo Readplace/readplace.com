@@ -15,6 +15,10 @@ export type OAuthSignIn = z.infer<typeof OAuthSignInSchema>;
 export type OAuthSignInLocation = NonNullable<OAuthSignIn["location"]>;
 export type OAuthSignInDevice = NonNullable<OAuthSignIn["device"]>;
 
+export function signInOf(user: { signedIn?: unknown }): OAuthSignIn | undefined {
+	return OAuthSignInSchema.optional().parse(user.signedIn);
+}
+
 function signInLocation(location: OAuthSignInLocation): OAuthSignInLocation {
 	return {
 		...(location.city === undefined ? {} : { city: location.city }),

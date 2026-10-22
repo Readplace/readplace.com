@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { createHash, randomUUID } from "node:crypto";
-import { type AdvanceEpochKeeping, initKeepCurrentGrant, initOAuthRefresh, isCurrentGrant, laterSignIn, type OAuthGrantId, type OAuthSignIn, OAuthSignInSchema, type RefreshAccount, type RefreshCredential, type RefreshExemption, type RefreshGrant, type RefreshHistory, type RefreshStore } from "@packages/domain/oauth";
+import { type AdvanceEpochKeeping, initKeepCurrentGrant, initOAuthRefresh, isCurrentGrant, laterSignIn, type OAuthGrantId, type OAuthSignIn, type RefreshAccount, type RefreshCredential, type RefreshExemption, type RefreshGrant, type RefreshHistory, type RefreshStore, signInOf } from "@packages/domain/oauth";
 import type {
 	Client,
 	Token,
@@ -294,7 +294,7 @@ export function createOAuthModel(
 				expiresAt: code.expiresAt,
 				scope: code.scope,
 				emailVerified: user.emailVerified === true,
-				signedIn: OAuthSignInSchema.optional().parse(user.signedIn),
+				signedIn: signInOf(user),
 			};
 			deps.codes.set(code.authorizationCode, stored);
 			return {
@@ -359,7 +359,7 @@ export function createOAuthModel(
 				userId: UserIdSchema.parse(user.id),
 				scope: token.scope,
 				emailVerified: user.emailVerified === true,
-				signedIn: OAuthSignInSchema.optional().parse(user.signedIn),
+				signedIn: signInOf(user),
 			};
 
 			deps.tokens.set(token.accessToken, stored);
