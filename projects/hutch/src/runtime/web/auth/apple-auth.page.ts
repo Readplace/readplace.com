@@ -302,7 +302,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			signIn(res, sessionId);
 			clearPendingSave();
 			clearLastView();
-			sendWelcomeEmail(tokenResult.email);
+			await sendWelcomeEmail(tokenResult.email);
 			deps.recordConversionEvent(
 				req,
 				buildUserCreatedEvent(
@@ -364,7 +364,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		signIn(res, sessionId);
 		clearPendingSave();
 		clearLastView();
-		sendWelcomeEmail(tokenResult.email);
+		await sendWelcomeEmail(tokenResult.email);
 		deps.recordConversionEvent(
 			req,
 			buildUserCreatedEvent(
