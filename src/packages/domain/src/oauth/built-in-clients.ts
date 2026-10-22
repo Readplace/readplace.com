@@ -70,8 +70,8 @@ export function getBuiltInClient(clientId: string): OAuthClient | undefined {
 /**
  * Clients whose token revocation means "the user pressed sign out on a device
  * that mints a server session per reader open and keeps none of their ids".
- * A revoke from a client mapped to
- * false — or from any dynamically-registered client — touches no sessions at all.
+ * A revoke from a client mapped to false — or from any dynamically-registered
+ * client — touches no sessions at all.
  */
 const REVOKE_DESTROYS_GRANT_SESSIONS = {
 	"hutch-firefox-extension": false,
