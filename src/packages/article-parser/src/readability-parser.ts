@@ -144,7 +144,7 @@ function tryExtractFromSiteRules(params: {
 	for (const site of params.siteRules) {
 		try {
 			if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
-			const extracted = site.extract({ html: params.html });
+			const extracted = site.extract({ html: params.html, url: params.url });
 			if (extracted) return extracted;
 		} catch (error) {
 			params.logError(

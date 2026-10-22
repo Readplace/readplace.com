@@ -1,5 +1,7 @@
 import { parseHTML } from "linkedom";
 import { normalizeImplicitBody } from "./normalize-implicit-body";
+import { readabilityAdditions } from "./readability-additions";
+import { initReadabilityParser } from "./readability-parser";
 
 describe("normalizeImplicitBody", () => {
 	it("gives a page with no <body> a head for its metadata and a body for its flow content", () => {
@@ -36,5 +38,52 @@ describe("normalizeImplicitBody", () => {
 		expect(document.documentElement.outerHTML).toBe(
 			"<html><head><title>Post</title></head><body><article><p>Post body</p></article></body></html>",
 		);
+	});
+
+	it("wraps top-level head and body siblings while preserving their doctype, order, and content", () => {
+		const { document } = parseHTML(
+			'<!DOCTYPE html><head><title>Message archive</title><meta name="description" content="An archived message"></head><body><pre>Opening <a href="/thread/2">next message</a> closing</pre></body>',
+		);
+
+		normalizeImplicitBody(document);
+
+		expect(document.doctype?.name).toBe("html");
+		expect(document.documentElement.outerHTML).toBe(
+			'<html><head><title>Message archive</title><meta name="description" content="An archived message"></head><body><pre>Opening <a href="/thread/2">next message</a> closing</pre></body></html>',
+		);
+	});
+
+	it("leaves a well-formed document with a doctype unchanged", () => {
+		const source = '<!DOCTYPE html><html><head><title>Post</title></head><body><main>Body</main></body></html>';
+		const { document } = parseHTML(source);
+		const before = document.toString();
+
+		normalizeImplicitBody(document);
+
+		expect(document.toString()).toBe(before);
+	});
+
+	it("keeps the opening, closing, and resolved links of an archived message through Readability", () => {
+		const opening = "Opening passage explains the problem with enough detail to identify this message.";
+		const closing = "Closing passage gives the solution and its final context for the reader.";
+		const html = `<head><title>Archived discussion</title></head><body><pre>${opening.repeat(12)} <a href="/thread/2">Next message</a> <a href="https://example.test/reference">Reference</a> ${closing.repeat(12)}</pre></body>`;
+		const url = "https://example.test/thread/1";
+		const parser = initReadabilityParser({
+			crawlArticle: async () => ({ status: "failed" }),
+			siteRules: [],
+			readabilityAdditions,
+			logError: () => {},
+		});
+
+		const result = parser.parseHtml({ url, documentUrl: url, html, thumbnailUrl: null });
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.article.title).toBe("Archived discussion");
+		expect(result.article.wordCount).toBeGreaterThan(100);
+		expect(result.article.content).toContain(opening);
+		expect(result.article.content).toContain(closing);
+		expect(result.article.content).toContain('href="https://example.test/thread/2"');
+		expect(result.article.content).toContain('href="https://example.test/reference"');
 	});
 });
