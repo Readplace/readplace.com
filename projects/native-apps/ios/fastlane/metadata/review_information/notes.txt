@@ -8,14 +8,19 @@ SAVING ARTICLES
 - In Safari (or any app), open a web page, tap Share, and choose Readplace. The page is captured and appears in the reading list. Pull to refresh.
 - On the first share, choose any additional readlists and tap "Done". Shared articles always appear in the main readlist. The app remembers the additional destinations; the "Shared articles drop here" checkbox in each readlist changes that choice.
 
-CHANGES IN 1.0.117
-- The menu next to the reading-list title switches between readlists. The last viewed readlist is restored on launch; To Read and Read tabs apply to the selected list.
-- Account settings offer system, light, and dark appearance.
-- In the reader, Next Read asks for confirmation before changing articles. EPUB downloads open the iOS share sheet so the file can be saved or opened in another app.
-- Page capture and session refresh are more reliable. The sign-in animation is updated, and launching the app preserves audio playing in other apps.
+CHANGES IN 1.0.132
+- Offline reading: an article opened once is kept on the device. With no connection (e.g. Airplane Mode), opening it shows the stored copy, marked "Saved offline" with a green check, and the readlists show as they last loaded.
+- The download button at the top of a readlist downloads every unread article ahead of time. An interrupted download can be continued.
+- Automatic page capture: when the server could not load an article from its site, opening that article makes the app load the article's page in an off-screen web view on the device and upload that page to the user's own account. It runs at most once per article on each device, only for an article the user saved, and the app never uploads a site's error or CAPTCHA page. To see it, save a page whose site blocks automated fetches and open it from the reading list.
+- Swiping a reading-list row all the way left marks the article read or unread.
+- The sign-in consent page shows which Readplace account the app will connect to. Tapping Cancel there closes the sheet without an error.
+- The account page (opened in-app from the person icon) is grouped into headed sections and adds a display name, Change password (which signs out other connected apps) and a list of connected apps that can each be disconnected.
+- The reader sets the article in a card led by its tags, the save date and icon-led facts. Each article has a "Report this article" link that emails readplace+report@readplace.com.
+- Fixes: sharing an article that was already read confirms the save, the reader keeps its mute choice when the intro replays, and an interrupted sign-in renewal keeps the user signed in.
 
 NOTES FOR REVIEW
-- The app communicates only with https://readplace.com. The NSAllowsArbitraryLoadsInWebContent ATS exception exists solely so the reader and capture web views can load arbitrary user-saved article pages (some are http-only).
+- The app's API traffic goes only to https://readplace.com. The reader and the page-capture web views also load the article pages users saved, from those pages' own sites; the NSAllowsArbitraryLoadsInWebContent ATS exception exists solely for those web views, because some saved pages are http-only.
+- The reader, account and help screens are readplace.com pages shown in an in-app web view, so their content is served by readplace.com and can change between submissions. Changes made there since the last reviewed build are listed above.
 - Readplace is a subscription service purchased on the web, not via In-App Purchase. The app is fully functional during the free trial and sells no digital content in-app.
 - TRACKING: the app does not track. It links no third-party SDK of any kind, contains no AppTrackingTransparency, IDFA or AdSupport reference, and shares no data with any third party or data broker. The bundled privacy manifest declares NSPrivacyTracking = false with an empty NSPrivacyTrackingDomains; the email address, user ID and reading history it collects are used only to run the user's own reading list, on our own server.
 - ACCOUNT DELETION: in the Reading List, tap "Account" (person icon, top-right toolbar) — the account page opens in-app. Scroll to "Danger zone" and tap "Delete account". A dialog asks for the exact phrase
