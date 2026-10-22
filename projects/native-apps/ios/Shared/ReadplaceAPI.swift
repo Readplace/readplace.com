@@ -585,7 +585,10 @@ private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDe
 		completionHandler: @escaping (URLRequest?) -> Void
 	) {
 		var followed = RedirectHeaders.preserving(from: task.originalRequest, onto: request)
-		if let original = task.originalRequest { followed.cachePolicy = original.cachePolicy }
+		if let original = task.originalRequest {
+			followed.cachePolicy = original.cachePolicy
+			followed.timeoutInterval = original.timeoutInterval
+		}
 		lock.lock()
 		followedHops.append(followed.url)
 		lock.unlock()
