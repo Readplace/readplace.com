@@ -282,7 +282,7 @@ export function initBulkSaveQueue(deps: {
 					url: job.url,
 					tooBigMb: degradedMb.get(job.url) ?? null,
 				})),
-			);
+			).catch((error) => deps.logger.error("[bulk-save-queue] reporting a chunk sending failed", error));
 			try {
 				const bulk = await session.sendChunk(chunk);
 				progressed = true;

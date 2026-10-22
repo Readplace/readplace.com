@@ -723,6 +723,30 @@ describe("initBulkSaveQueue progress", () => {
 		]);
 	});
 
+	it("logs a rejected sending report and still saves the chunk", async () => {
+		const errors: string[] = [];
+		const jobs = createFakeJobStore();
+		const queue = initBulkSaveQueue({
+			jobs,
+			payloads: createFakePayloads(),
+			scheduler: createFakeScheduler(),
+			openSession: createFakeSession(allCreated).openSession,
+			progress: async (events) => {
+				if (events.some((event) => event.kind === "sending")) throw new Error("store down");
+			},
+			logger: HutchLogger.from({
+				...noopLogger,
+				error: (...args) => errors.push(String(args[0])),
+			}),
+		});
+
+		const report = await savePages(queue, [{ url: "https://example.com/a" }]);
+
+		expect(errors).toEqual(["[bulk-save-queue] reporting a chunk sending failed"]);
+		expect(report.saved).toBe(1);
+		expect(storedJobs(jobs)).toEqual([]);
+	});
+
 	it("settles each page with the outcome the server named for it", async () => {
 		const { queue, reports } = createQueue({
 			respond: () => ({
