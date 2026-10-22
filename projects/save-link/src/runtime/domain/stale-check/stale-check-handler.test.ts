@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import { initPrepareArticleIdentity } from "@packages/save-article";
 import { initCrawlArticle, initFetchPinnedCrawl } from "@packages/crawl-article";
-import { initCrawlAndFinalizeArticle } from "@packages/finalize-article";
+import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
+import { parseHTML } from "linkedom";
 import { initEventBridgeRefreshArticleContent } from "@packages/refresh-article-content";
 import { initRefreshArticleContentHandler } from "../save-link/refresh-article-content-handler";
 import type { LoadArticle, TransitionAndPersist } from "@packages/domain/article-aggregate";
@@ -857,4 +858,67 @@ it.each([
 	expect(fetched).toEqual([URL_UNDER_TEST]);
 	expect(storedOriginal).toBe(URL_UNDER_TEST);
 	expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: storedUrl, html, evaluationHtml: raw, metadata: expect.objectContaining({ kind: "live", originalUrl: URL_UNDER_TEST, sourceUrl: URL_UNDER_TEST }) }));
+});
+
+it.each<{ kind: "image" | "plain-text"; contentType: string; body: string }>([
+	{ kind: "image", contentType: "image/png", body: "captured image bytes" },
+	{ kind: "plain-text", contentType: "text/plain", body: '\n\t  0 < 1 && café\n  "data"\n' },
+])("preserves verified $kind through fetching, finalization, refresh serialization, and candidate storage", async ({ kind, contentType, body }) => {
+	const url = `https://example.com/resource.${kind === "image" ? "png" : "txt"}`;
+	const parseHtml = jest.fn();
+	const putImageObject = jest.fn();
+	const finalizeArticle = initFinalizeArticle({
+		parseHtml,
+		downloadMedia: jest.fn(),
+		processContent: jest.fn(),
+		fetchThumbnailImage: jest.fn(),
+		putImageObject,
+		imagesCdnBaseUrl: "https://cdn.example.com",
+	});
+	const crawlArticle = initCrawlArticle({
+		crawlFetch: async () => new Response(body, { headers: { "content-type": contentType } }),
+		siteRules: [], logError: jest.fn(), logInfo: jest.fn(),
+	});
+	let staged: { html: string; evaluationHtml: string } | undefined;
+	const putTierSource = jest.fn();
+	const refresh = initRefreshArticleContentHandler({
+		resolveOriginalUrl: async () => url,
+		readRefreshHtml: async (_url, options) => {
+			assert(staged);
+			return options?.representation === "evaluation" ? staged.evaluationHtml : staged.html;
+		},
+		putTierSource, publishEvent: jest.fn(), logger: noopLogger,
+	});
+	const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({
+		putRefreshHtml: async (params) => { staged = params; },
+		publishEvent: async (_event, detail) => {
+			const event = createSqsEvent({ url });
+			event.Records[0].body = JSON.stringify({ detail });
+			await expect(refresh(event, buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+		},
+	});
+	const handler = createHandler({
+		crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle }),
+		publishRefreshArticleContent,
+		findArticleFreshness: async () => ({ contentFetchedAt: "2025-01-01T00:00:00.000Z" }),
+	});
+	await expect(handler(createSqsEvent({ url }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+	expect(putTierSource).toHaveBeenCalledTimes(1);
+	expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+		url, tier: "tier-1",
+		metadata: expect.objectContaining({ directResourceKind: kind, attemptId: REFRESH_ATTEMPT_ID, originalUrl: url, sourceUrl: url, kind: "live" }),
+	}));
+	assert(staged);
+	if (kind === "plain-text") {
+		const { document } = parseHTML(staged.html);
+		const code = document.querySelector("pre code");
+		assert(code);
+		expect(code.textContent).toBe(body);
+		expect(staged.evaluationHtml).toBe(body);
+		expect(putImageObject).toHaveBeenCalledTimes(0);
+	} else {
+		expect(putImageObject).toHaveBeenCalledWith(expect.objectContaining({ body: Buffer.from(body), contentType }));
+		expect(staged.html).toContain('<figure><img src="https://cdn.example.com/');
+	}
+	expect(parseHtml).toHaveBeenCalledTimes(0);
 });

@@ -44,6 +44,20 @@ function metadata(id: string): CandidateProvenance {
 }
 
 describe("immutable content candidates", () => {
+	it.each(["image", "plain-text"] satisfies Array<"image" | "plain-text">)("round-trips verified %s evidence through immutable manifests and tier pointers", async (directResourceKind) => {
+		const { client } = storage();
+		const { putTierSource } = initPutTierSource({ client, bucketName: "content" });
+		const { readTierSource } = initReadTierSource({ client, bucketName: "content", logger: noopLogger });
+		const original = { ...metadata("resource"), directResourceKind };
+		await putTierSource({ url: URL, tier: "tier-1", html: "<p>Resource body</p>", metadata: original });
+		const pointer = await readTierSource({ url: URL, tier: "tier-1" });
+		const exact = await readTierSource({ url: URL, tier: "tier-1", candidateId: original.id });
+		expect(pointer?.metadata).toMatchObject(original);
+		expect(exact?.metadata).toEqual(pointer?.metadata);
+		await putTierSource({ url: URL, tier: "tier-1", html: "<p>Resource body</p>", metadata: { ...original, fetchedAt: "2026-10-23T00:00:00Z" } });
+		expect((await readTierSource({ url: URL, tier: "tier-1" }))?.metadata).toEqual(pointer?.metadata);
+	});
+
 	it("reads an earlier event's exact bytes after a later extraction replaces the tier pointer", async () => {
 		const { client } = storage();
 		const { putTierSource } = initPutTierSource({ client, bucketName: "content" });

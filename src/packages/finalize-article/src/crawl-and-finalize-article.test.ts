@@ -357,6 +357,39 @@ describe("initCrawlAndFinalizeArticle", () => {
 		});
 	});
 
+	it("forwards decoded plain text and retains the original text for evaluation", async () => {
+		const plainText = "\n\t  <literal> & text\n";
+		const html = "<html><body><pre><code>escaped wrapper</code></pre></body></html>";
+		const finalizeArticle = jest.fn(okFinalize);
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({ status: "fetched", html, mediaType: "plain-text", plainText, bodyHash: "a".repeat(64) }),
+			finalizeArticle,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST, includeEvaluationHtml: true });
+
+		expect(finalizeArticle).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			documentUrl: URL_UNDER_TEST,
+			html,
+			resolvedThumbnail: undefined,
+			mediaType: "plain-text",
+			plainText,
+		});
+		expect(result).toEqual(expect.objectContaining({ status: "fetched", evaluationHtml: plainText }));
+	});
+
+	it("rejects whitespace-only plain text even when response retention is enabled", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({ status: "fetched", html: "<pre><code>\n\t </code></pre>", mediaType: "plain-text", plainText: "\n\t ", bodyHash: "a".repeat(64) }),
+			finalizeArticle: async () => ({ ok: false, reason: "Plain-text response is empty" }),
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST, retainResponseBody: true });
+
+		expect(result).toEqual({ status: "failed", reason: "Plain-text response is empty" });
+	});
+
 	it("returns the finalizer's parse failure verbatim so callers can drive the markCrawlFailed transition", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle: async () => ({ status: "fetched", html: "<html></html>", bodyHash: "a".repeat(64) }),

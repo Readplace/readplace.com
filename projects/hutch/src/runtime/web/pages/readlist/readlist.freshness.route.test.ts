@@ -29,14 +29,17 @@ describe("Readlist freshness integration", () => {
 				}
 				return { status: "not-modified" };
 			},
-			parseHtml: () => ({
+			finalizeArticle: async () => ({
 				ok: true as const,
 				article: {
-					title: "Updated Article",
-					siteName: "example.com",
-					excerpt: "New content",
-					wordCount: 100,
-					content: "<p>New content</p>",
+					html: "<p>New content</p>",
+					metadata: {
+						title: "Updated Article",
+						siteName: "example.com",
+						excerpt: "New content",
+						wordCount: 100,
+						estimatedReadTime: 1,
+					},
 				},
 			}),
 			publishRefreshArticleContent: async (p) => { refreshPublished.push(p); },
@@ -92,7 +95,7 @@ describe("Readlist freshness integration", () => {
 		expect(refreshPublished[0]).toEqual({
 			url: "https://example.com/article",
 			saveAttemptId: expect.any(String),
-			html: expect.any(String),
+			html: "<p>New content</p>",
 			evaluationHtml: "<html><head><title>Updated</title></head><body><article><p>New content</p></article></body></html>",
 			sourceUrl: "https://example.com/article",
 			sourceOriginalUrl: "https://example.com/article",
@@ -101,7 +104,7 @@ describe("Readlist freshness integration", () => {
 				siteName: "example.com",
 				wordCount: 100,
 			}),
-			estimatedReadTime: expect.any(Number),
+			estimatedReadTime: 1,
 			etag: '"fresh-etag"',
 			lastModified: undefined,
 			contentFetchedAt: expect.any(String),

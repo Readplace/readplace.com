@@ -5,6 +5,7 @@ import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { ArticleVersion } from "../article-reader/article-reader.types";
 import { type ArticleRailInput, renderArticleBody, renderArticleRail } from "./article-body.component";
 import { articleBody } from "@packages/test-fixtures";
+import { initFinalizeArticle } from "@packages/finalize-article";
 
 const baseInput = {
 	title: "Hello World",
@@ -28,6 +29,24 @@ function versionAt(iso: string): ArticleVersion {
 }
 
 describe("renderArticleBody", () => {
+	it("renders a finalized plain-text resource with its original whitespace and escaped markup", async () => {
+		const plainText = '\n\t  x < y && café\n<script>"saved text"</script>\n  ';
+		const finalizeArticle = initFinalizeArticle({
+			parseHtml: jest.fn(), downloadMedia: jest.fn(), processContent: jest.fn(), fetchThumbnailImage: jest.fn(),
+			putImageObject: jest.fn(), imagesCdnBaseUrl: "https://cdn.example.com",
+		});
+		const finalized = await finalizeArticle({
+			url: "https://example.com/code.txt", documentUrl: "https://example.com/code.txt", html: "",
+			mediaType: "plain-text", plainText,
+		});
+		assert(finalized.ok);
+		const doc = parse(renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody(finalized.article.html) }));
+		const code = doc.querySelector(".article-body__content pre code");
+		assert(code);
+		expect(code.textContent).toBe(plainText);
+		expect(code.children.length).toBe(0);
+	});
+
 	it("passes the owner's save provenance through to the header, and leaves it off when the caller has none", () => {
 		const tagOf = (html: string) =>
 			parse(html).querySelector("[data-test-reader-provenance]")?.textContent?.trim();

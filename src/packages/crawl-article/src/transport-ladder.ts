@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { isAwsWafChallenge } from "./aws-waf-challenge";
 import { callerHasGivenUp, type CrawlBudget, type LegDeadline } from "./crawl-budget";
 import { type OnRedirect, withResolvedUrl } from "./follow-redirects";
 
@@ -93,7 +94,7 @@ export function runTransportLadder(deps: {
 			try {
 				const response = await leg.fetch(url, { headers, deadline: lease.deadline, onRedirect });
 				const unlockerError = unlockerErrorOf(response.headers);
-				if (!ESCALATE_STATUS_CODES.has(response.status)) {
+				if (!ESCALATE_STATUS_CODES.has(response.status) && !isAwsWafChallenge(response)) {
 					logAttempt({
 						leg: leg.name,
 						outcome: "answered",

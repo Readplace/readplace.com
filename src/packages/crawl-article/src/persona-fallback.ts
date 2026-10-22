@@ -18,6 +18,7 @@
  * wrapper.
  */
 import assert from "node:assert";
+import { isAwsWafChallenge } from "./aws-waf-challenge";
 import type { LadderFetch } from "./transport-ladder";
 
 export type Persona = {
@@ -41,7 +42,7 @@ export function isBlockClassStatus(status: number): boolean {
 }
 
 export function isBlockClassResponse(response: Response): boolean {
-	return isBlockClassStatus(response.status);
+	return isBlockClassStatus(response.status) || isAwsWafChallenge(response);
 }
 
 export function isBlockClassError(error: unknown): boolean {

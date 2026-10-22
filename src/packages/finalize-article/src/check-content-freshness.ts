@@ -1,5 +1,4 @@
 import { type CrawlArticle, type CrawlArticleResult, resolveDocumentUrl } from "@packages/crawl-article";
-import type { ParseHtml } from "@packages/article-parser";
 import type {
 	ContentFreshnessResult,
 	RefreshArticleIfStale,
@@ -8,7 +7,8 @@ import type { FindArticleCrawlStatus } from "@packages/provider-contracts/articl
 import type { FindArticleFreshness } from "@packages/provider-contracts/article-store";
 import type { PublishRefreshArticleContent } from "@packages/provider-contracts/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import { newSaveAttemptId, calculateReadTime } from "@packages/domain/article";
+import { newSaveAttemptId, type SaveAttemptId } from "@packages/domain/article";
+import type { FinalizeArticle } from "./finalize-article";
 import { decideTerminalAction } from "./decide-terminal-action";
 
 export type { ContentFreshnessResult, RefreshArticleIfStale };
@@ -17,7 +17,7 @@ export function initRefreshArticleIfStale(deps: {
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	crawlArticle: CrawlArticle;
-	parseHtml: ParseHtml;
+	finalizeArticle: FinalizeArticle;
 	publishRefreshArticleContent: PublishRefreshArticleContent;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	/** Collapse an adopted terminal URL onto the article it aliases before any
@@ -48,6 +48,7 @@ export function initRefreshArticleIfStale(deps: {
 
 		const result = await deps.crawlArticle({
 			url: originalUrl,
+			fetchThumbnail: true,
 			etag: freshness.etag,
 			lastModified: freshness.lastModified,
 			previousBodyHash: freshness.bodyHash,
@@ -71,45 +72,53 @@ export function initRefreshArticleIfStale(deps: {
 			return { action: "skip" };
 		}
 
-		return handleFetchedContent({ url, originalUrl, result });
+		return handleFetchedContent({ url, originalUrl, result, saveAttemptId: newSaveAttemptId() });
 	};
 
 	async function handleFetchedContent(input: {
 		url: string;
 		originalUrl: string;
 		result: CrawlArticleResult & { status: "fetched" };
+		saveAttemptId: SaveAttemptId;
 	}): Promise<ContentFreshnessResult> {
-		const { url, originalUrl, result } = input;
-		const parsed = deps.parseHtml({
+		const { url, originalUrl, result, saveAttemptId } = input;
+		const finalized = await deps.finalizeArticle({
 			url: originalUrl,
+			writeContext: { url, attemptId: saveAttemptId },
 			documentUrl: resolveDocumentUrl({ requestedUrl: originalUrl, finalUrl: result.finalUrl }),
 			html: result.html,
-			thumbnailUrl: result.thumbnailUrl ?? null,
+			resolvedThumbnail: result.thumbnail,
+			...(result.mediaType === "plain-text" ? { mediaType: result.mediaType, plainText: result.plainText } : { mediaType: result.mediaType }),
 		});
-		if (!parsed.ok) return { action: "skip" };
+		if (!finalized.ok) return { action: "skip" };
+		const { estimatedReadTime, ...metadata } = finalized.article.metadata;
 
 		await deps.publishRefreshArticleContent({
 			url,
-			saveAttemptId: newSaveAttemptId(),
-			html: result.html,
+			saveAttemptId,
+			html: finalized.article.html,
 			evaluationHtml: result.evaluationHtml ?? result.html,
 			sourceOriginalUrl: originalUrl,
 			sourceUrl: result.finalUrl ?? originalUrl,
-			metadata: {
-				title: parsed.article.title,
-				siteName: parsed.article.siteName,
-				excerpt: parsed.article.excerpt,
-				wordCount: parsed.article.wordCount,
-				imageUrl: parsed.article.imageUrl,
-			},
-			estimatedReadTime: calculateReadTime(parsed.article.wordCount),
+			metadata,
+			estimatedReadTime,
 			etag: result.etag,
 			lastModified: result.lastModified,
 			contentFetchedAt: deps.now().toISOString(),
 			bodyHash: result.bodyHash,
 		});
 
-		return { action: "refreshed", article: parsed };
+		return {
+			action: "refreshed",
+			article: { ok: true, article: {
+				title: metadata.title,
+				siteName: metadata.siteName,
+				excerpt: metadata.excerpt,
+				wordCount: metadata.wordCount,
+				imageUrl: metadata.imageUrl,
+				content: finalized.article.html,
+			} },
+		};
 	}
 
 	return { refreshArticleIfStale };

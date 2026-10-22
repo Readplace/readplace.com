@@ -32,6 +32,14 @@ describe("isBlockClassResponse", () => {
 	it.each([200, 301, 404, 429, 500, 503])("treats %i as non-block-class", (status) => {
 		expect(isBlockClassResponse(new Response(null, { status }))).toBe(false);
 	});
+
+	it.each(["challenge", "captcha"])("treats AWS WAF %s as block-class even with HTTP 202", (action) => {
+		expect(isBlockClassResponse(new Response(null, { status: 202, headers: { "x-amzn-waf-action": action } }))).toBe(true);
+	});
+
+	it("accepts an AWS WAF allow header on an ordinary HTTP 202", () => {
+		expect(isBlockClassResponse(new Response(null, { status: 202, headers: { "x-amzn-waf-action": "allow" } }))).toBe(false);
+	});
 });
 
 describe("isBlockClassError", () => {
@@ -132,6 +140,22 @@ describe("withPersonaFallback", () => {
 		expect(calls).toHaveLength(2);
 		expect(calls[0]["user-agent"]).toBe("Primary/1.0");
 		expect(calls[1]["user-agent"]).toBe("Fallback/1.0");
+	});
+
+	it.each(["challenge", "captcha"])("tries another persona for an AWS WAF %s response", async (action) => {
+		const calls: string[] = [];
+		const inner: LadderFetch = async (_url, init) => {
+			calls.push(init.headers["user-agent"]);
+			return calls.length === 1
+				? new Response("verification required", { status: 202, headers: { "x-amzn-waf-action": action } })
+				: new Response("article", { status: 200 });
+		};
+		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
+
+		const response = await wrapped("https://example.com", request());
+
+		expect(await response.text()).toBe("article");
+		expect(calls).toEqual(["Primary/1.0", "Fallback/1.0"]);
 	});
 
 	it("advances to the next persona when the inner fetch throws a block-class error", async () => {

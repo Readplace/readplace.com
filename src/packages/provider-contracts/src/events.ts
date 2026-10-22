@@ -81,6 +81,7 @@ export type PublishRefreshArticleContent = (params: {
 		excerpt: string;
 		wordCount: number;
 		imageUrl?: string;
+		directResourceKind?: "image" | "plain-text";
 	};
 	estimatedReadTime: number;
 	etag?: string;

@@ -9,6 +9,7 @@ export const TierSourceMetadataSchema = z.object({
 	wordCount: z.number(),
 	estimatedReadTime: z.number(),
 	imageUrl: z.string().optional(),
+	directResourceKind: z.enum(["image", "plain-text"]).optional(),
 	/** Who captured this source. Present only on tier-0 sidecars written after
 	 * attribution shipped; tier-1 (anonymous crawler) sources never carry one.
 	 * The tier-0 slot is a single object per URL, so among co-savers the

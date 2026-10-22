@@ -12,7 +12,7 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import { initComprehensiveCrawlHandler } from "./comprehensive-crawl-handler";
-import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
+import { initFinalizeArticle, type FinalizeArticle, type FinalizedArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -168,6 +168,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			documentUrl: "https://example.com/doc.pdf",
 			html: "<html><body>X</body></html>",
 			resolvedThumbnail: { image: resolvedImage, provenUnusable: [] },
+			mediaType: undefined,
 		});
 	});
 
@@ -1128,4 +1129,29 @@ describe("deferred refresh of a source-bound article", () => {
 		expect(publishEvent).toHaveBeenCalledTimes(0);
 		expect(transitionAndPersist).toHaveBeenCalledTimes(0);
 	});
+});
+
+it.each<{ contentType: string; kind: "image" | "plain-text" }>([
+	{ contentType: "image/png", kind: "image" },
+	{ contentType: "text/plain", kind: "plain-text" },
+])("finalizes a comprehensive $kind fetch with verified resource evidence", async ({ contentType, kind }) => {
+	const url = "https://example.com/resource";
+	const parseHtml = jest.fn();
+	const putTierSource = jest.fn();
+	const publishEvent = jest.fn();
+	const finalizeArticle = initFinalizeArticle({
+		parseHtml, downloadMedia: jest.fn(), processContent: jest.fn(), fetchThumbnailImage: jest.fn(),
+		putImageObject: jest.fn(), imagesCdnBaseUrl: "https://cdn.example.com",
+	});
+	const crawlArticle = initCrawlArticle({
+		crawlFetch: async () => new Response("resource bytes", { headers: { "content-type": contentType } }),
+		siteRules: [], logError: jest.fn(), logInfo: jest.fn(),
+	});
+	const handler = createHandler({ crawlArticle, finalizeArticle, putTierSource, publishEvent });
+	await expect(handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });
+	expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+		url, tier: "tier-1", metadata: expect.objectContaining({ directResourceKind: kind, kind: "live", attemptId: "attempt-1" }),
+	}));
+	expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({ url }));
+	expect(parseHtml).toHaveBeenCalledTimes(0);
 });

@@ -46,6 +46,7 @@ import {
 import { initUpsertReadlist } from '@packages/save-article'
 import { readNewsletterCatalogSeed } from '../runtime/domain/newsletter-catalog/newsletter-catalog-seed'
 import { createTestApp } from '../runtime/test-app'
+import { initInMemoryArticleImages } from '../runtime/providers/in-memory-article-images'
 import {
 	createDefaultTestAppFixture,
 	createFakeApplyParseResult,
@@ -56,10 +57,10 @@ import {
 } from '@packages/test-fixtures'
 import { getEnv, requireEnv } from "@packages/require-env"
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
-import { initRefreshArticleIfStale } from '@packages/finalize-article'
+import { initFinalizeArticle, initRefreshArticleIfStale } from '@packages/finalize-article'
 import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from '@packages/save-article'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
-import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
+import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
@@ -124,6 +125,15 @@ const extractPdf: ExtractPdf = async () => ({
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError })
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
+const images = initInMemoryArticleImages()
+const finalizeArticle = initFinalizeArticle({
+	parseHtml,
+	downloadMedia: async () => [],
+	processContent: async ({ html }) => html,
+	fetchThumbnailImage: initFetchThumbnailImage({ crawlFetch, logError, logInfo }),
+	putImageObject: images.putImageObject,
+	imagesCdnBaseUrl: origin,
+})
 
 /** E2E tests use localhost URLs because the test server IS localhost.
  * Skip private-network rejection so test articles can be saved and viewed. */
@@ -312,7 +322,7 @@ const SAVE_PIPELINES = {
 			findArticleFreshness: fixture.articleStore.findArticleFreshness,
 			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 			crawlArticle,
-			parseHtml,
+			finalizeArticle,
 			publishRefreshArticleContent,
 			publishUpdateFetchTimestamp,
 			resolveCanonicalIdentity: async (url) => {
@@ -397,7 +407,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 	},
 })
 
-const server = express()
+const server = express().use(images.router)
 
 // JSON body parser for /e2e/* fixture POSTs. Mounted on the outer router only;
 // hutch's app keeps urlencoded for its own forms.

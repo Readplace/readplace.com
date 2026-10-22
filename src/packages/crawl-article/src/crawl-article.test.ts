@@ -452,8 +452,11 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		const result = await crawlArticle({ url: "https://example.com/notes/readme.txt" });
 
 		assertFetched(result);
+		expect(result.mediaType).toBe("plain-text");
+		assert(result.mediaType === "plain-text");
+		expect(result.plainText).toBe("Line one.\n\nLine two.");
 		expect(result.html).toBe(
-			"<!DOCTYPE html><html><head><title>readme</title></head><body><article><h1>readme</h1><p>Line one.</p><p>Line two.</p></article></body></html>",
+			"<!DOCTYPE html><html><head><title>readme</title></head><body><article><h1>readme</h1><pre><code>Line one.\n\nLine two.</code></pre></article></body></html>",
 		);
 		expect(result.etag).toBe('"txt-1"');
 		expect(result.evaluationHtml).toBe("Line one.\n\nLine two.");
@@ -2044,5 +2047,82 @@ describe("bounded wrapper response candidates", () => {
 		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
 		const result = await crawlArticle({ url: "https://archive.ph/abcde", retainResponseBody: true });
 		expect(result).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: status, finalUrl: undefined });
+	});
+});
+
+describe.each([false, true])("AWS WAF classification with retainResponseBody=%s", (retainResponseBody) => {
+	it.each([
+		{ status: 202, action: "challenge" },
+		{ status: 200, action: "challenge" },
+		{ status: 202, action: "captcha" },
+		{ status: 200, action: "captcha" },
+	])("blocks HTTP $status carrying $action before reading the body", async ({ status, action }) => {
+		const response = new Response(
+			new ReadableStream<Uint8Array>({
+				pull(controller) {
+					controller.error(new Error("challenge body must not be read"));
+				},
+			}),
+			{ status, headers: { "content-type": "text/html", "x-amzn-waf-action": action } },
+		);
+		Object.defineProperty(response, "url", { value: DESTINATION_URL });
+		const logInfo = jest.fn();
+		const logError = jest.fn();
+		const crawlArticle = initCrawlArticle({
+			crawlFetch: async () => response,
+			siteRules: [],
+			logInfo,
+			logError,
+		});
+
+		const result = await crawlArticle({ url: WRAPPER_URL, retainResponseBody });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: status, finalUrl: DESTINATION_URL });
+		expect(response.bodyUsed).toBe(false);
+		expect(logInfo.mock.calls).toEqual([
+			[`[CrawlArticle] HTTP ${status} for ${WRAPPER_URL} → ${DESTINATION_URL} (x-amzn-waf-action=${action})`],
+		]);
+		expect(logError.mock.calls).toEqual([]);
+	});
+
+	it("preserves an ordinary HTTP 202 article", async () => {
+		const html = "<html><body><article>Accepted article content.</article></body></html>";
+		const crawlArticle = initCrawl({
+			fetch: async () => new Response(html, { status: 202, headers: { "content-type": "text/html" } }),
+			siteRules: [],
+		});
+
+		const result = await crawlArticle({ url: DESTINATION_URL, retainResponseBody });
+
+		expect(result).toMatchObject({ status: "fetched", html, finalUrl: DESTINATION_URL });
+	});
+});
+
+describe("AWS WAF recovery", () => {
+	it("keeps the redirected terminal after every transport and persona remains challenged", async () => {
+		const challenge = () => new Response("verification required", {
+			status: 202,
+			headers: { "content-type": "text/html", "x-amzn-waf-action": "challenge" },
+		});
+		const primary = jest.fn(redirectingOrigin(challenge));
+		const h2 = jest.fn(followingFallback(challenge));
+		const curl = jest.fn(followingFallback(challenge));
+		const crawlArticle = initCrawl({
+			fetch: primary,
+			fetchH2: h2,
+			fetchCurl: curl,
+			personas: [
+				{ name: "browser", headers: { "user-agent": "Browser/1.0" } },
+				{ name: "bot", headers: { "user-agent": "Bot/1.0" } },
+			],
+			siteRules: [],
+		});
+
+		const result = await crawlArticle({ url: WRAPPER_URL, retainResponseBody: true });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: 202, finalUrl: DESTINATION_URL });
+		expect(primary).toHaveBeenCalledTimes(4);
+		expect(h2).toHaveBeenCalledTimes(2);
+		expect(curl).toHaveBeenCalledTimes(2);
 	});
 });

@@ -147,6 +147,59 @@ describe("withProxiedLadderFallback", () => {
 		expect(harness.proxyBudgets).toHaveLength(1);
 	});
 
+	it.each([
+		{ status: 202, action: "challenge" },
+		{ status: 200, action: "challenge" },
+		{ status: 202, action: "captcha" },
+		{ status: 200, action: "captcha" },
+	])("recovers an AWS WAF $action served as HTTP $status through the proxy", async ({ status, action }) => {
+		const harness = makeHarness({
+			direct: async () => {
+				const response = stamped(status, DEST_URL);
+				response.headers.set("x-amzn-waf-action", action);
+				return response;
+			},
+			proxy: [async () => new Response("article via proxy", { status: 200 })],
+		});
+
+		const response = await harness.fetchIt();
+
+		expect(await response.text()).toBe("article via proxy");
+		expect(harness.proxyUrls).toEqual([DEST_URL]);
+		expect(harness.directBudgets).toEqual([45_000]);
+		expect(harness.proxyBudgets).toEqual([90_000]);
+	});
+
+	it("preserves the exhausted AWS WAF challenge and its terminal URL when the proxy fails", async () => {
+		const harness = makeHarness({
+			direct: async () => {
+				const response = stamped(202, DEST_URL);
+				response.headers.set("x-amzn-waf-action", "challenge");
+				return response;
+			},
+			proxy: [async () => gateway(502), async () => gateway(502)],
+		});
+
+		const response = await harness.fetchIt();
+
+		expect(response.status).toBe(202);
+		expect(response.url).toBe(DEST_URL);
+		expect(response.headers.get("x-amzn-waf-action")).toBe("challenge");
+		expect(await response.text()).toBe("stamped-body");
+		expect(harness.proxyBudgets).toHaveLength(2);
+	});
+
+	it("returns an ordinary HTTP 202 without a proxied pass", async () => {
+		const accepted = new Response("accepted article", { status: 202 });
+		const harness = makeHarness({ direct: async () => accepted });
+
+		const response = await harness.fetchIt();
+
+		expect(response).toBe(accepted);
+		expect(await response.text()).toBe("accepted article");
+		expect(harness.proxyBudgets).toEqual([]);
+	});
+
 	it("returns the proxied answer whatever its status, so a residential 404 wins", async () => {
 		const harness = makeHarness({
 			direct: async () => new Response("denied", { status: 403 }),

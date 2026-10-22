@@ -626,6 +626,7 @@ export const RefreshArticleContentCommand = defineEvent({
 			excerpt: z.string(),
 			wordCount: z.number(),
 			imageUrl: z.string().optional(),
+			directResourceKind: z.enum(["image", "plain-text"]).optional(),
 		}),
 		estimatedReadTime: z.number(),
 		etag: z.string().optional(),

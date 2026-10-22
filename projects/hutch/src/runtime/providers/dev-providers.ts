@@ -46,7 +46,7 @@ import {
 	initResolveAppleNewsStoryUrl,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
+import { initCrawlAndFinalizeArticle, initFinalizeArticle, type PutImageObject } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/finalize-article";
@@ -149,7 +149,7 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 	};
 }
 
-export function initDevProviders(input: { appOrigin: string }) {
+export function initDevProviders(input: { appOrigin: string; putImageObject: PutImageObject }) {
 	const logger = HutchLogger.from(consoleLogger);
 	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 	const logInfo = (message: string) => logger.info(JSON.stringify({ level: "INFO", timestamp: new Date().toISOString(), message }));
@@ -371,17 +371,13 @@ export function initDevProviders(input: { appOrigin: string }) {
 		logError,
 	});
 	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
-	/* Dev composition: no S3, no CDN. Stub the media + image-upload deps so the
-	 * in-memory app still routes through the same `finalizeArticle` pipeline
-	 * every prod Lambda uses — identical algorithm, identical metadata shape,
-	 * just with no-op upload sinks. */
 	const finalizeArticle = initFinalizeArticle({
 		parseHtml,
 		downloadMedia: async () => [],
 		processContent: async ({ html }) => html,
 		fetchThumbnailImage,
-		putImageObject: async () => {},
-		imagesCdnBaseUrl: "https://dev-images.invalid",
+		putImageObject: input.putImageObject,
+		imagesCdnBaseUrl: input.appOrigin,
 	});
 	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({
 		crawlArticle, // dev: crawlArticle is built with extractPdf, so PDFs extract inline
@@ -494,7 +490,7 @@ export function initDevProviders(input: { appOrigin: string }) {
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		crawlArticle,
-		parseHtml,
+		finalizeArticle,
 		publishRefreshArticleContent,
 		publishUpdateFetchTimestamp,
 		resolveCanonicalIdentity: async (url) => {

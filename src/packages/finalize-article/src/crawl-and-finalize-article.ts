@@ -103,16 +103,20 @@ export function initCrawlAndFinalizeArticle(deps: {
 			};
 		}
 
+		const evaluationHtml = crawlResult.mediaType === "plain-text"
+			? crawlResult.plainText
+			: crawlResult.evaluationHtml ?? crawlResult.html;
 		const finalized = await finalizeArticle({
 			writeContext: params.writeContext,
 			url: params.url,
 			documentUrl: resolveDocumentUrl({ requestedUrl: fetchUrl, finalUrl: crawlResult.finalUrl }),
 			html: crawlResult.html,
 			resolvedThumbnail: crawlResult.thumbnail,
-			mediaType: crawlResult.mediaType,
+			...(crawlResult.mediaType === "plain-text"
+				? { mediaType: crawlResult.mediaType, plainText: crawlResult.plainText }
+				: { mediaType: crawlResult.mediaType }),
 		});
 		if (!finalized.ok) {
-			const evaluationHtml = crawlResult.evaluationHtml ?? crawlResult.html;
 			if (!params.retainResponseBody || evaluationHtml.trim() === "") return { status: "failed", reason: finalized.reason, finalUrl: crawlResult.finalUrl };
 			return {
 				status: "fetched",
@@ -132,7 +136,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 			etag: crawlResult.etag,
 			lastModified: crawlResult.lastModified,
 			bodyHash: crawlResult.bodyHash,
-			...(params.retainResponseBody || params.includeEvaluationHtml ? { evaluationHtml: crawlResult.evaluationHtml ?? crawlResult.html, httpStatus: crawlResult.httpStatus } : {}),
+			...(params.retainResponseBody || params.includeEvaluationHtml ? { evaluationHtml, httpStatus: crawlResult.httpStatus } : {}),
 		};
 	};
 }

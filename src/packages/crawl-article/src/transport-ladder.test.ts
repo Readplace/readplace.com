@@ -118,6 +118,78 @@ describe("runTransportLadder", () => {
 		]);
 	});
 
+	it.each([
+		{ status: 202, action: "challenge" },
+		{ status: 200, action: "challenge" },
+		{ status: 202, action: "captcha" },
+		{ status: 200, action: "captcha" },
+	])("escalates an AWS WAF $action served as HTTP $status", async ({ status, action }) => {
+		const challenged = new Response("verification required", {
+			status,
+			headers: { "x-amzn-waf-action": action },
+		});
+		const drainedBeforeRecovery: boolean[] = [];
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 50, fetch: async () => challenged },
+				{
+					name: "h2",
+					maxRunMs: 20,
+					fetch: async () => {
+						drainedBeforeRecovery.push(challenged.bodyUsed);
+						return new Response("article", { status: 200 });
+					},
+				},
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(await response.text()).toBe("article");
+		expect(drainedBeforeRecovery).toEqual([true]);
+		expect(attempts.map((attempt) => [attempt.leg, attempt.outcome, attempt.status])).toEqual([
+			["primary", "escalated", status],
+			["h2", "answered", 200],
+		]);
+	});
+
+	it("returns an exhausted AWS WAF response with its final URL, headers and body", async () => {
+		const challenge = new Response("verification required", {
+			status: 202,
+			headers: { "x-amzn-waf-action": "challenge" },
+		});
+		Object.defineProperty(challenge, "url", { value: "https://publisher.example/article" });
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf([{ name: "primary", maxRunMs: 50, fetch: async () => challenge }], attempts);
+
+		const response = await ladder("https://wrapper.example/link", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(202);
+		expect(response.url).toBe("https://publisher.example/article");
+		expect(response.headers.get("x-amzn-waf-action")).toBe("challenge");
+		expect(await response.text()).toBe("verification required");
+		expect(attempts.map((attempt) => attempt.outcome)).toEqual(["escalated"]);
+	});
+
+	it("returns an ordinary HTTP 202 without opening another transport", async () => {
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 50, fetch: answers(202, "accepted article") },
+				{ name: "h2", maxRunMs: 20, fetch: answers(200, "other article") },
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(202);
+		expect(await response.text()).toBe("accepted article");
+		expect(attempts.map((attempt) => [attempt.leg, attempt.outcome])).toEqual([["primary", "answered"]]);
+	});
+
 	it("answers a 401 from the first leg and never opens a later transport", async () => {
 		const h2 = jest.fn<ReturnType<LegFetch>, Parameters<LegFetch>>();
 		const curl = jest.fn<ReturnType<LegFetch>, Parameters<LegFetch>>();

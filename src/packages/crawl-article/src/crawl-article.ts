@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isAwsWafChallenge } from "./aws-waf-challenge";
 import {
 	classifyFailedResponse,
 	classifyFetchError,
@@ -109,7 +110,7 @@ function redirectSuffix(params: { requestedUrl: string; responseUrl: string | un
 
 function describeEdgeHeaders(headers: Headers): string {
 	const parts: string[] = [];
-	for (const name of ["server", "cf-mitigated", "cf-ray", "retry-after"]) {
+	for (const name of ["server", "cf-mitigated", "cf-ray", "retry-after", "x-amzn-waf-action"]) {
 		const value = headers.get(name);
 		if (value !== null) parts.push(`${name}=${value}`);
 	}
@@ -239,6 +240,10 @@ function initConditionalGet(deps: {
 			}
 			const finalUrl = terminalUrl(response);
 			const suffix = redirectSuffix({ requestedUrl: params.url, responseUrl: finalUrl });
+			if (isAwsWafChallenge(response)) {
+				logInfo(`[CrawlArticle] HTTP ${response.status} for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`);
+				return { status: "blocked", httpStatus: response.status, finalUrl };
+			}
 			if (!params.retainResponseBody && (response.status === 404 || response.status === 410)) {
 				logFetchFailure({
 					status: response.status,
@@ -507,7 +512,7 @@ export function initCrawlArticle(deps: {
 		 * article's identity uniformly across HTML/PDF/text/image. */
 		if (result.status === "fetched") {
 			result.finalUrl = terminalUrl(response);
-			if (mediaType === "plain-text") result.evaluationHtml = new TextDecoder().decode(buffer);
+			if (result.mediaType === "plain-text") result.evaluationHtml = result.plainText;
 			if (params.retainResponseBody) {
 				result.httpStatus = response.status;
 			}

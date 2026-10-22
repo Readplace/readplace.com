@@ -7,7 +7,7 @@ import {
 	type ThumbnailImage,
 } from "@packages/crawl-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { imageSavedFromHostExcerpt } from "@packages/domain/article";
+import { articleFromHostTitle, imageSavedFromHostExcerpt } from "@packages/domain/article";
 import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
 import { mediaFilename } from "./media-filename";
 import type { PutImageObject, MediaWriteContext } from "./put-image-object.types";
@@ -27,6 +27,7 @@ export type FinalizedArticle = {
 		wordCount: number;
 		estimatedReadTime: number;
 		imageUrl?: string;
+		directResourceKind?: "image" | "plain-text";
 	};
 };
 
@@ -52,12 +53,16 @@ export type FinalizeArticle = (input: {
 	 * when an origin is already failing. Left unset by raw-HTML / comprehensive
 	 * callers, which genuinely have not fetched and still need the finalizer to. */
 	resolvedThumbnail?: ThumbnailCascade;
-	/** Set by the crawler when the fetched body was itself an image. Routes the
-	 * save to image synthesis (host the image, store an `<img>` body, skip
-	 * Readability). The browser-extension raw-HTML save leaves this unset; the
-	 * finalizer then detects a bare-image capture via `isBareImageCapture`. */
-	mediaType?: "image";
-}) => Promise<FinalizeArticleResult>;
+} & (
+	| {
+			/** Set by the crawler when the fetched body was itself an image. Routes the
+			 * save to image synthesis (host the image, store an `<img>` body, skip
+			 * Readability). The browser-extension raw-HTML save leaves this unset; the
+			 * finalizer then detects a bare-image capture via `isBareImageCapture`. */
+			mediaType?: "image";
+		}
+	| { mediaType: "plain-text"; plainText: string }
+)) => Promise<FinalizeArticleResult>;
 
 /**
  * The single source of truth for turning a fetched resource into the canonical
@@ -94,6 +99,8 @@ export function initFinalizeArticle(deps: {
 	} = deps;
 
 	return async (input) => {
+		if (input.mediaType === "plain-text") return finalizePlainTextArticle(input);
+
 		/* Two-pass HTML parse is intentional: extractThumbnailCandidates uses
 		 * linkedom for og:image / meta-tag extraction, while parseHtml uses
 		 * Readability for content extraction — different libraries, different
@@ -107,6 +114,7 @@ export function initFinalizeArticle(deps: {
 				documentUrl: input.documentUrl,
 				candidates,
 				resolvedThumbnail: input.resolvedThumbnail,
+				mediaType: input.mediaType,
 				fetchThumbnailImage,
 				putImageObject,
 				imagesCdnBaseUrl,
@@ -170,6 +178,39 @@ export function initFinalizeArticle(deps: {
 	};
 }
 
+function finalizePlainTextArticle(input: {
+	url: string;
+	documentUrl: string;
+	plainText: string;
+}): FinalizeArticleResult {
+	const text = input.plainText;
+	if (text.trim() === "") return { ok: false, reason: "Plain-text response is empty" };
+	let identityUrl: URL;
+	let documentUrl: URL;
+	try {
+		identityUrl = new URL(input.url);
+		documentUrl = new URL(input.documentUrl);
+	} catch {
+		return { ok: false, reason: "Invalid URL" };
+	}
+	const hostname = identityUrl.hostname;
+	const wordCount = text.trim().split(/\s+/).length;
+	return {
+		ok: true,
+		article: {
+			html: `<pre><code>${escapeHtmlText(text)}</code></pre>`,
+			metadata: {
+				title: imageTitleFromPathname(documentUrl.pathname) || articleFromHostTitle(hostname),
+				siteName: hostname,
+				excerpt: text.trim().replace(/\s+/g, " ").slice(0, 200),
+				wordCount,
+				estimatedReadTime: estimatedReadTimeFromWordCount(wordCount),
+				directResourceKind: "plain-text",
+			},
+		},
+	};
+}
+
 /**
  * Build the canonical article for an image resource: host the bytes on the CDN
  * (reusing the pre-fetched bytes when the crawler already has them, else
@@ -186,6 +227,7 @@ async function finalizeImageArticle(args: {
 	documentUrl: string;
 	candidates: string[];
 	resolvedThumbnail: ThumbnailCascade | undefined;
+	mediaType?: "image";
 	fetchThumbnailImage: FetchThumbnailImage;
 	putImageObject: PutImageObject;
 	imagesCdnBaseUrl: string;
@@ -212,6 +254,7 @@ async function finalizeImageArticle(args: {
 				wordCount: 0,
 				estimatedReadTime: estimatedReadTimeFromWordCount(0),
 				imageUrl,
+				...(args.mediaType === "image" && image ? { directResourceKind: "image" } : {}),
 			},
 		},
 	};

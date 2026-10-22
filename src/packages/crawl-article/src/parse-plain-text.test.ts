@@ -22,7 +22,7 @@ function htmlOf(input: { body: string; url: string; headers?: Record<string, str
 }
 
 describe("parsePlainTextFromBuffer", () => {
-	it("wraps blank-line-separated blocks as <p> in a titled <article> and forwards validators", () => {
+	it("preserves the decoded text in a titled article and forwards validators", () => {
 		const body = "First paragraph.\n\nSecond paragraph.\n\n   \n";
 		const result = parsePlainTextFromBuffer({
 			buffer: Buffer.from(body, "utf-8"),
@@ -33,9 +33,12 @@ describe("parsePlainTextFromBuffer", () => {
 
 		assert.equal(result.status, "fetched");
 		assert(result.status === "fetched");
+		assert.equal(result.mediaType, "plain-text");
+		assert(result.mediaType === "plain-text");
+		assert.equal(result.plainText, body);
 		assert.equal(
 			result.html,
-			"<!DOCTYPE html><html><head><title>my notes</title></head><body><article><h1>my notes</h1><p>First paragraph.</p><p>Second paragraph.</p></article></body></html>",
+			"<!DOCTYPE html><html><head><title>my notes</title></head><body><article><h1>my notes</h1><pre><code>First paragraph.\n\nSecond paragraph.\n\n   \n</code></pre></article></body></html>",
 		);
 		assert.equal(result.etag, '"abc"');
 		assert.equal(result.lastModified, "Wed, 21 Oct 2025 07:28:00 GMT");
@@ -46,7 +49,7 @@ describe("parsePlainTextFromBuffer", () => {
 		const html = htmlOf({ body: "Body.", url: "https://example.com/release-notes" });
 		assert.equal(
 			html,
-			"<!DOCTYPE html><html><head><title>release notes</title></head><body><article><h1>release notes</h1><p>Body.</p></article></body></html>",
+			"<!DOCTYPE html><html><head><title>release notes</title></head><body><article><h1>release notes</h1><pre><code>Body.</code></pre></article></body></html>",
 		);
 	});
 
@@ -62,7 +65,7 @@ describe("parsePlainTextFromBuffer", () => {
 		assert(result.status === "fetched");
 		assert.equal(
 			result.html,
-			"<!DOCTYPE html><html><head></head><body><article><p>a &lt; b &amp; c</p></article></body></html>",
+			"<!DOCTYPE html><html><head></head><body><article><pre><code>a &lt; b &amp; c</code></pre></article></body></html>",
 		);
 		assert.equal(result.etag, undefined);
 		assert.equal(result.lastModified, undefined);
@@ -72,7 +75,35 @@ describe("parsePlainTextFromBuffer", () => {
 		const html = htmlOf({ body: "Body.", url: "::not a url::" });
 		assert.equal(
 			html,
-			"<!DOCTYPE html><html><head></head><body><article><p>Body.</p></article></body></html>",
+			"<!DOCTYPE html><html><head></head><body><article><pre><code>Body.</code></pre></article></body></html>",
 		);
+	});
+
+	it("retains leading newlines, tabs, spaces, and UTF-8 while escaping markup", () => {
+		const body = '\n\t  café <script>"&\'</script>\n  ';
+		const result = parsePlainTextFromBuffer({
+			buffer: Buffer.from(body, "utf-8"),
+			bodyHash: hashOf(body),
+			response: response(),
+			documentUrl: "https://example.com/code.txt",
+		});
+
+		assert(result.status === "fetched" && result.mediaType === "plain-text");
+		assert.equal(result.plainText, body);
+		assert(result.html.includes("<pre><code>\n\t  café &lt;script&gt;&quot;&amp;&#39;&lt;/script&gt;\n  </code></pre>"));
+	});
+
+	it("retains a whitespace-only response for the finalizer to reject", () => {
+		const body = "\n\t  \n";
+		const result = parsePlainTextFromBuffer({
+			buffer: Buffer.from(body),
+			bodyHash: hashOf(body),
+			response: response(),
+			documentUrl: "https://example.com/empty.txt",
+		});
+
+		assert(result.status === "fetched" && result.mediaType === "plain-text");
+		assert.equal(result.plainText, body);
+		assert(result.html.includes(`<pre><code>${body}</code></pre>`));
 	});
 });
