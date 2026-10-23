@@ -716,6 +716,40 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(blockedCurl).toHaveBeenCalledTimes(2);
 	});
 
+	it("returns blocked and logs at info when every leg under every persona is refused with 419", async () => {
+		const refusedFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
+			new Response("Sorry\n", { status: 419 }),
+		);
+		const refusedH2 = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("Sorry\n", { status: 419 }),
+		);
+		const refusedCurl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
+			new Response("Sorry\n", { status: 419 }),
+		);
+		const logError = jest.fn();
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: refusedFetch,
+			fetchH2: refusedH2,
+			fetchCurl: refusedCurl,
+			personas: [
+				{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } },
+				{ name: "test-honest-bot", headers: { "user-agent": "TestBot/1.0", accept: "*/*" } },
+			],
+			logError,
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: 419 });
+		expect(logInfo).toHaveBeenCalledWith("[CrawlArticle] HTTP 419 for https://example.com");
+		expect(logError).not.toHaveBeenCalled();
+		expect(refusedFetch).toHaveBeenCalledTimes(2);
+		expect(refusedH2).toHaveBeenCalledTimes(2);
+		expect(refusedCurl).toHaveBeenCalledTimes(2);
+	});
+
 	it("fetches the article when a pay-per-crawl 402 gives way to a disclosed-bot persona", async () => {
 		const blockedH2: typeof fetchH2 = async () => new Response(null, { status: 402 });
 		const blockedCurl: CurlFetch = async () => new Response(null, { status: 402 });

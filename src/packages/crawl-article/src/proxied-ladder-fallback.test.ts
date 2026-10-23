@@ -147,6 +147,17 @@ describe("withProxiedLadderFallback", () => {
 		expect(harness.proxyBudgets).toHaveLength(1);
 	});
 
+	it("treats a direct 419 as a refusal of this client worth overturning", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("Sorry\n", { status: 419 }),
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("via proxy");
+		expect(harness.proxyBudgets).toHaveLength(1);
+	});
+
 	it.each([
 		{ status: 202, action: "challenge" },
 		{ status: 200, action: "challenge" },

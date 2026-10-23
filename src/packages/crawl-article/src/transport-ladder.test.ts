@@ -99,7 +99,7 @@ describe("runTransportLadder", () => {
 		expect(attempts.map((a) => a.leg)).toEqual(["primary", "h2", "curl"]);
 	});
 
-	it.each([402, 403])("escalates a block-class %i to the next transport", async (status) => {
+	it.each([402, 403, 419])("escalates a block-class %i to the next transport", async (status) => {
 		const attempts: LegAttempt[] = [];
 		const ladder = ladderOf(
 			[

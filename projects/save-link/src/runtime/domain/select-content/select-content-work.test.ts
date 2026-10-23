@@ -237,6 +237,7 @@ describe("initSelectContentWork", () => {
 
 	it.each([
 		{ httpStatus: 403, reason: { kind: "blocked", cause: "edge-block" } },
+		{ httpStatus: 419, reason: { kind: "blocked", cause: "edge-block" } },
 		{ httpStatus: 429, reason: { kind: "blocked", cause: "rate-limited" } },
 		{ httpStatus: 404, reason: { kind: "not-found", httpStatus: 404 } },
 		{ httpStatus: 500, reason: { kind: "parse-error", detail: "no readable article candidate: Error page" } },
