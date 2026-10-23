@@ -309,6 +309,19 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		expectedDestinationUrl: UPLOAD_URL,
 		expectsThumbnail: false,
 	},
+	// HN answers Node's built-in HTTP client with 419 "Sorry" whatever the
+	// headers, and serves the same page to the HTTP/2 and curl-impersonate
+	// legs, so this entry goes red when a 419 stops escalating past the first
+	// leg. The thread is closed to new comments, so both needles are stable.
+	{
+		label: "Hacker News (419 on the primary leg)",
+		url: "https://news.ycombinator.com/item?id=8863",
+		expectedContent: [
+			"you can already build such a system yourself quite trivially by getting an FTP account",
+			"If you take your laptop offline, modify your image, then modify the same image on your desktop",
+		],
+		expectsThumbnail: false,
+	},
 	{
 		label: "The Hill (residential unlocker path)",
 		url: "https://thehill.com/changing-america/enrichment/arts-culture/578724-5-points-for-anger-1-for-a-like-how-facebooks",
