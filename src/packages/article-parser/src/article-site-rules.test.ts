@@ -4,6 +4,7 @@ import { initArticleSiteRules } from "./article-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
+import { slideshareSiteRules } from "./slideshare-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
 
@@ -30,6 +31,7 @@ describe("initArticleSiteRules", () => {
 			linkedinSiteRules,
 			mediaWikiSiteRules,
 			substackSiteRules,
+			slideshareSiteRules,
 			...crawlClaimingSiteRules,
 		]);
 		expect(crawlClaimingSiteRules).toHaveLength(4);
