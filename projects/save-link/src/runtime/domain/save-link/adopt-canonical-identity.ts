@@ -41,7 +41,7 @@ function carriesReturnUrl(url: string): boolean {
 }
 
 /**
- * Pure so
+ * The redirect terminal to adopt, or `undefined` when a gate rejects it. Pure so
  * every gate is unit-testable in isolation. Gates:
  *   - never on an admin recrawl (first-crawl-of-a-new-article only);
  *   - for a finalized crawl, only when it produced real content
