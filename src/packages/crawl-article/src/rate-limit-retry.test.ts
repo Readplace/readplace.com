@@ -1,5 +1,6 @@
 import { createCrawlBudget } from "./crawl-budget";
 import { withRateLimitRetry } from "./rate-limit-retry";
+import { TransportLadderFailure } from "./transport-ladder-failure";
 
 function budgetFrom(signal: AbortSignal) {
 	return createCrawlBudget({ signal, totalMs: 30_000, now: () => Date.now() });
@@ -57,10 +58,7 @@ describe("withRateLimitRetry", () => {
 		});
 		const fetchWithRetry = withRateLimitRetry(innerFetch, { delaysMs: [1] });
 
-		const response = await fetchWithRetry("https://example.com", request(controller.signal));
-
-		expect(response.status).toBe(429);
-		expect(await response.text()).toBe("slow down");
+		await expect(fetchWithRetry("https://example.com", request(controller.signal))).rejects.toThrow("caller gave up");
 		expect(innerFetch).toHaveBeenCalledTimes(1);
 	});
 
@@ -70,9 +68,31 @@ describe("withRateLimitRetry", () => {
 		const fetchWithRetry = withRateLimitRetry(innerFetch, { delaysMs: [60_000] });
 
 		setTimeout(() => controller.abort(new Error("caller gave up")), 5);
-		const response = await fetchWithRetry("https://example.com", request(controller.signal));
-
-		expect(response.status).toBe(429);
+		await expect(fetchWithRetry("https://example.com", request(controller.signal))).rejects.toThrow("caller gave up");
 		expect(innerFetch).toHaveBeenCalledTimes(1);
 	});
+});
+
+it.each(["recoverable", "unclassified"] as const)("handles a %s retry failure after the latest 429", async (retryDisposition) => {
+	const error = new TransportLadderFailure({ error: new Error("connection failed"), previousErrors: [], retryDisposition });
+	const innerFetch = jest.fn()
+		.mockResolvedValueOnce(new Response("old 429", { status: 429 }))
+		.mockResolvedValueOnce(new Response("latest 429", { status: 429, headers: { "retry-after": "60" } }))
+		.mockRejectedValueOnce(error);
+	const retry = withRateLimitRetry(innerFetch, { delaysMs: [0, 0] });
+	const promise = retry("https://example.com", request());
+	if (retryDisposition === "recoverable") {
+		const response = await promise;
+		expect(response.status).toBe(429);
+		expect(response.headers.get("retry-after")).toBe("60");
+		expect(await response.text()).toBe("latest 429");
+	} else {
+		await expect(promise).rejects.toBe(error);
+	}
+});
+
+it("propagates an unclassified raw rejection after a 429", async () => {
+	const error = new Error("programming failure");
+	const innerFetch = jest.fn().mockResolvedValueOnce(new Response("slow down", { status: 429 })).mockRejectedValueOnce(error);
+	await expect(withRateLimitRetry(innerFetch, { delaysMs: [0] })("https://example.com", request())).rejects.toBe(error);
 });

@@ -1,8 +1,9 @@
-import { callerHasGivenUp, createCrawlBudget } from "./crawl-budget";
+import { createCrawlBudget } from "./crawl-budget";
 import { isFastlyClientChallenge } from "./fastly-client-challenge";
 import type { OnRedirect } from "./follow-redirects";
 import { isBlockClassError, isBlockClassResponse } from "./persona-fallback";
 import { bufferedCopyOf, type LadderFetch } from "./transport-ladder";
+import { isHardCrawlFailure, TransportLadderFailure } from "./transport-ladder-failure";
 
 /**
  * Run the whole direct-egress ladder first and, only when it ends blocked or
@@ -61,6 +62,7 @@ export function withProxiedLadderFallback(deps: {
 		let directOutcome: DirectOutcome;
 		try {
 			const response = await directFetch(url, { headers, onRedirect: captureDirectHop, budget: directBudget });
+			budget.deadline.signal.throwIfAborted();
 			if (isProxyWorthyResponse(response)) {
 				directOutcome = { response };
 			} else if (await isFastlyClientChallenge(response)) {
@@ -69,12 +71,13 @@ export function withProxiedLadderFallback(deps: {
 				return response;
 			}
 		} catch (error) {
+			budget.deadline.signal.throwIfAborted();
 			if (!isProxyWorthyError(error)) throw error;
 			directOutcome = { thrown: error };
 		}
 		const proxyTargetUrl = frozenProxyTarget({ entryUrl: url, directOutcome, lastDirectHopTarget });
 		for (let attempt = 0; attempt < PROXY_ATTEMPTS; attempt++) {
-			if (callerHasGivenUp(budget.deadline)) break;
+			budget.deadline.signal.throwIfAborted();
 			if (budget.remainingMs() < PROXY_ATTEMPT_FLOOR_MILLISECONDS) break;
 			const proxyBudget = createCrawlBudget({
 				signal: budget.deadline.signal,
@@ -85,15 +88,19 @@ export function withProxiedLadderFallback(deps: {
 			try {
 				response = await proxyFetch(proxyTargetUrl, { headers, onRedirect, budget: proxyBudget });
 			} catch (error) {
+				budget.deadline.signal.throwIfAborted();
+				if (isHardCrawlFailure(error) || (error instanceof TransportLadderFailure && error.retryDisposition === "unclassified")) throw error;
 				if (!isTimeout(error)) break;
 				continue;
 			}
+			budget.deadline.signal.throwIfAborted();
 			if (!PROXY_GATEWAY_STATUSES.has(response.status)) return response;
 			/* Drain the body of the answer being discarded, for the same reason the
 			 * transport ladder drains an escalated one: an unread body holds its
 			 * pooled socket, and the next attempt reuses that pool. */
 			await response.text();
 		}
+		budget.deadline.signal.throwIfAborted();
 		return surface(directOutcome);
 	};
 }
@@ -106,7 +113,7 @@ function frozenProxyTarget(params: {
 	const { entryUrl, directOutcome, lastDirectHopTarget } = params;
 	if ("response" in directOutcome) {
 		const stamped = directOutcome.response.url;
-		if (stamped !== "" && stamped !== entryUrl) return stamped;
+		if (stamped !== "") return stamped;
 	}
 	return lastDirectHopTarget ?? entryUrl;
 }
@@ -121,10 +128,12 @@ function isProxyWorthyResponse(response: Response): boolean {
 }
 
 function isTimeout(error: unknown): boolean {
+	if (error instanceof TransportLadderFailure) return error.retryDisposition === "recoverable" && isTimeout(error.cause);
 	return error instanceof Error && error.name === "TimeoutError";
 }
 
 function isProxyWorthyError(error: unknown): boolean {
+	if (isHardCrawlFailure(error)) return false;
 	if (isBlockClassError(error)) return true;
 	return isTimeout(error);
 }

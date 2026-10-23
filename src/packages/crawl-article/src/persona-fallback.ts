@@ -20,6 +20,7 @@
 import assert from "node:assert";
 import { isAwsWafChallenge } from "./aws-waf-challenge";
 import type { LadderFetch } from "./transport-ladder";
+import { isHardCrawlFailure, TransportLadderFailure } from "./transport-ladder-failure";
 
 export type Persona = {
 	readonly name: string;
@@ -46,6 +47,10 @@ export function isBlockClassResponse(response: Response): boolean {
 }
 
 export function isBlockClassError(error: unknown): boolean {
+	if (isHardCrawlFailure(error)) return false;
+	if (error instanceof TransportLadderFailure) {
+		return error.retryDisposition === "recoverable" && [...error.previousErrors, error.cause].some(isBlockClassError);
+	}
 	let link: unknown = error;
 	while (link instanceof Error) {
 		const message = link.message.toLowerCase();
