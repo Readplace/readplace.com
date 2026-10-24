@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { initCreateDeepseekMessage } from "@packages/ai-message";
 import { noopLogger } from "@packages/hutch-logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import { initLinkSummariser } from "./link-summariser";
@@ -15,6 +17,72 @@ const noopMarkStage: MarkSummaryStage = async () => {};
 const identity = (text: string) => text;
 
 describe("initLinkSummariser", () => {
+	it("fits dense registry text within provider capacity through the real DeepSeek request adapter", async () => {
+		const registry = "000001;EXAMPLE ENTRY;AB;12;Z;0;0;0;N;T;;;;;\n".repeat(55_000);
+		let submittedArticle = "";
+		const createMessage = initCreateDeepseekMessage({
+			createChatCompletion: async (params) => {
+				const promptCharacters = params.messages.reduce((total, message) => total + message.content.length, 0);
+				const promptTokens = Math.ceil(promptCharacters / 2) + 128;
+				if (promptTokens + params.max_tokens > 1_048_576) {
+					throw new Error("Provider rejected dense input exceeding context capacity");
+				}
+				const article = params.messages.find((message) => message.role === "user");
+				assert(article);
+				submittedArticle = article.content;
+				expect(params.max_tokens).toBe(8192);
+				return {
+					choices: [{ message: { content: JSON.stringify({ summary: "A synthetic registry of example entries and their properties.", excerpt: "Example entry properties." }) } }],
+					usage: { prompt_tokens: promptTokens, completion_tokens: 20 },
+				};
+			},
+		});
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		expect(registry.length).toBeLessThan(2_647_728);
+		expect(Math.ceil(registry.length / 2) + 8192).toBeGreaterThan(1_048_576);
+		const result = await summarizeArticle({ url: "https://example.com/registry", textContent: registry });
+
+		assert(result.kind === "ready");
+		expect(result.summary).toBe("A synthetic registry of example entries and their properties.");
+		expect(result.excerpt).toBe("Example entry properties.");
+		expect(submittedArticle).toBe(registry.slice(0, 1_757_152));
+	});
+
+	it("preserves ordinary article text exactly in the actual provider request", async () => {
+		const prose = "An ordinary article.\n\nIts next paragraph keeps its spaces, punctuation & examples.\n";
+		const submittedMessages: Array<{ role: string; content: string }> = [];
+		const createMessage = initCreateDeepseekMessage({
+			createChatCompletion: async (params) => {
+				submittedMessages.push(...params.messages);
+				return {
+					choices: [{ message: { content: JSON.stringify({ summary: "An ordinary summary.", excerpt: "Ordinary article." }) } }],
+					usage: { prompt_tokens: 50, completion_tokens: 10 },
+				};
+			},
+		});
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({ url: "https://example.com/article", textContent: prose });
+
+		assert(result.kind === "ready");
+		expect(submittedMessages.map((message) => message.role)).toEqual(["system", "user"]);
+		expect(submittedMessages.filter((message) => message.role === "user")).toEqual([{ role: "user", content: prose }]);
+		expect(result.summary).toBe("An ordinary summary.");
+	});
+
 	it("returns kind 'ready' with summary/excerpt/inputTokens/outputTokens on the happy path", async () => {
 		const createMessage = createStubCreateMessage({
 			summary: "A good summary.",
