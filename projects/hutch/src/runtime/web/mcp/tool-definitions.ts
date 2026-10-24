@@ -4,7 +4,6 @@ import {
 } from "@packages/domain/readlist";
 import { mcpOperationMetadata } from "@packages/domain/mcp";
 import { z } from "zod";
-import { LIST_QUEUE_PUBLISHED_TOOL } from "./list-queue-published-tool";
 
 /** MCP tool annotations: advisory hints a client uses to decide how much to
  * trust or how loudly to confirm a tool call. `readOnlyHint` marks a tool that
@@ -24,7 +23,7 @@ interface McpToolAnnotations {
  * a test keeps the two shapes in lock-step so an agent's
  * understanding of a tool's input never diverges from what the server accepts.
  */
-export interface McpToolDefinition {
+interface McpToolDefinition {
 	readonly name: string;
 	readonly title: string;
 	readonly description: string;
@@ -325,7 +324,6 @@ export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	SAVE_LINK_TOOL,
 	LIST_READLISTS_TOOL,
 	LIST_READLIST_ARTICLES_TOOL,
-	LIST_QUEUE_PUBLISHED_TOOL,
 	GET_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,

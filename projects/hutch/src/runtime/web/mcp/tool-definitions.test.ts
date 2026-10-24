@@ -8,6 +8,7 @@ import {
 	CreateReadlistArgs,
 	CREATE_READLIST_TOOL,
 	LIST_READLISTS_TOOL,
+	LIST_READLIST_ARTICLES_LEGACY_NAME,
 	ArticleIdArgs,
 	DELETE_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
@@ -29,7 +30,6 @@ describe("MCP tool definitions", () => {
 			"save_link",
 			"list_readlists",
 			"list_readlist_articles",
-			"list_queue",
 			"get_article",
 			"get_article_content",
 			"get_article_summary",
@@ -40,6 +40,11 @@ describe("MCP tool definitions", () => {
 			"mark_as_unread",
 			"delete_article",
 		]);
+		expect(
+			TOOL_DEFINITIONS.filter(
+				(tool) => tool.name === LIST_READLIST_ARTICLES_LEGACY_NAME,
+			),
+		).toEqual([]);
 	});
 
 	it("annotates every tool with its read/write and reach hints", () => {

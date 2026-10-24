@@ -137,7 +137,6 @@ describe("initMcpServer", () => {
 					{ name: "save_link", annotations: { openWorldHint: true } },
 					{ name: "list_readlists", annotations: { readOnlyHint: true } },
 					{ name: "list_readlist_articles", annotations: { readOnlyHint: true } },
-					{ name: "list_queue", annotations: { readOnlyHint: true } },
 					{ name: "get_article", annotations: { readOnlyHint: true } },
 					{ name: "get_article_content" },
 					{ name: "get_article_summary" },
