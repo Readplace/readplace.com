@@ -41,7 +41,7 @@ The danger is in the recording direction, not the verifying one. A stale capture
 
 ## Every release describes everything that changed since the one Apple last saw
 
-App Review Guideline 2.3.1(a) requires every new feature to be described with specificity in the Notes for Review, and 2.5.19 rejects features hidden from the reviewer. Build 132 was about to be submitted with review notes that still listed build 117's changes. They named none of its five new features, and missed the change-password and connected-apps controls the server had already added to the in-app account page. Notes written from memory miss things. Write them from the git history.
+App Review Guideline 2.3.1(a) requires every new feature to be described with specificity in the Notes for Review, and 2.5.19 rejects features hidden from the reviewer. Notes written from memory miss features, including the ones the server shipped without a new binary. Write them from the git history.
 
 | Note | Baseline to diff from |
 |---|---|

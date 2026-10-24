@@ -15,7 +15,7 @@ CHANGES IN 1.0.132
 - Swiping a reading-list row all the way left marks the article read or unread.
 - The sign-in consent page shows which Readplace account the app will connect to. Tapping Cancel there closes the sheet without an error.
 - The account page (opened in-app from the person icon) is grouped into headed sections and adds a display name, Change password (which signs out other connected apps) and a list of connected apps that can each be disconnected.
-- The reader sets the article in a card led by its tags, the save date and icon-led facts. Each article has a "Report this article" link that emails readplace+report@readplace.com.
+- The reader sets the article in a card led by its tags, the save date and icon-led facts. Under any article whose text has loaded (not a private newsletter issue), a "Report this article" link emails readplace+report@readplace.com.
 - Fixes: sharing an article that was already read confirms the save, the reader keeps its mute choice when the intro replays, and an interrupted sign-in renewal keeps the user signed in.
 
 NOTES FOR REVIEW

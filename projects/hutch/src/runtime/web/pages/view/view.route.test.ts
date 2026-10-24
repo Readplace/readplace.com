@@ -153,7 +153,9 @@ describe("View routes", () => {
 
 			const report = new JSDOM(response.text).window.document.querySelector('[data-test-action="report-article"]');
 			assert(report, "the public reader must offer a report link");
-			const href = new URL(report.getAttribute("href") ?? "");
+			const reportHref = report.getAttribute("href");
+			assert(reportHref, "the report link must carry an href");
+			const href = new URL(reportHref);
 			assert.equal(href.pathname, "readplace+report@readplace.com");
 			expect(href.searchParams.get("body")).toContain(`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`);
 		});

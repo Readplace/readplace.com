@@ -107,10 +107,6 @@
   display: block;
 }
 
-.article-body__report--withheld {
-  display: none;
-}
-
 .article-body__report-link {
   color: var(--muted-foreground);
 }
