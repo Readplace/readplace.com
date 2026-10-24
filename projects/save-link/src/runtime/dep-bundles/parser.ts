@@ -2,7 +2,9 @@ import type {
 	CrawlArticle,
 	CrawlFetch,
 	ExtractPdf,
+	ThumbnailNotDeliveredEvent,
 } from "@packages/crawl-article";
+import { HutchLogger } from "@packages/hutch-logger";
 import {
 	initCrawlArticle,
 	initCrawlFetch,
@@ -61,6 +63,7 @@ export function initParserDepBundle(deps: {
 			siteRules,
 			logError: deps.logError,
 			logInfo: deps.logInfo,
+			logThumbnailNotDelivered: HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn,
 			fetchTimeouts: PROXIED_FETCH_TIMEOUTS,
 		}),
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
@@ -110,6 +113,7 @@ export function initComprehensiveParserDepBundle(deps: {
 			extractPdf: deps.extractPdf,
 			logError: deps.logError,
 			logInfo: deps.logInfo,
+			logThumbnailNotDelivered: HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn,
 			fetchTimeouts: PROXIED_FETCH_TIMEOUTS,
 		}),
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,

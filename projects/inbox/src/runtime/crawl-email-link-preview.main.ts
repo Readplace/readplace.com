@@ -11,6 +11,7 @@ import {
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchThumbnailImage,
+	type ThumbnailNotDeliveredEvent,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
@@ -57,14 +58,15 @@ if (getEnv("AWS_LAMBDA_FUNCTION_NAME")) {
 	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
 }
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
-const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo });
+const logThumbnailNotDelivered = HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
+const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo, logThumbnailNotDelivered });
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,
 	siteRules,
 	readabilityAdditions,
 	logError,
 });
-const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
+const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo, logThumbnailNotDelivered });
 const { putImageObject } = initS3PutImageObject({ client: s3Client, bucketName: contentBucketName });
 // A preview keeps only the article metadata and discards the body, so media
 // rewriting is a no-op here; the lead-image upload to the content-bucket CDN is

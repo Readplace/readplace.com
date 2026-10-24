@@ -1,7 +1,8 @@
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import type { DownloadMedia, ProcessContent } from "@packages/finalize-article";
-import { initDownloadMedia } from "../domain/save-link/download-media";
+import { HutchLogger } from "@packages/hutch-logger";
+import { type ImageLeftAtOriginEvent, initDownloadMedia } from "../domain/save-link/download-media";
 import { initProcessContentWithLocalMedia } from "../domain/save-link/process-content-with-local-media";
 import type { ParserDepBundle } from "./parser";
 import type { ArticleStoreDepBundle } from "./article-store";
@@ -21,6 +22,7 @@ export function initMediaDepBundle(deps: {
 	const downloadMedia = initDownloadMedia({
 		putImageObject: deps.articleStore.putImageObject,
 		logError: deps.logError,
+		logImageLeftAtOrigin: HutchLogger.fromJSON<ImageLeftAtOriginEvent>().warn,
 		crawlFetch: deps.parser.crawlFetch,
 		imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 	});
