@@ -16,7 +16,7 @@ export type {
 export { generateToken } from "./generate-token";
 export { initOAuthRefresh } from "./refresh";
 export type { OAuthRefresh, RefreshCredential, RefreshGrant, RefreshHistory, RefreshProof, RefreshStore, RefreshCommit, RefreshFailure, RotateRefreshInput, RotateRefreshResult } from "./refresh";
-export { getBuiltInClient, isBuiltInRedirectUri, revokeDestroysUserSessions } from "./built-in-clients";
+export { getBuiltInClient, isBuiltInRedirectUri, revokeDestroysGrantSessions } from "./built-in-clients";
 export {
 	computeOAuthClientDedupeKey,
 	defaultOAuthClientName,

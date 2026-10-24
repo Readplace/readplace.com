@@ -1,8 +1,8 @@
 import type { RequestHandler } from "express";
 import { z } from "zod";
-import { revokeDestroysUserSessions } from "@packages/domain/oauth";
+import { OAuthGrantIdSchema, revokeDestroysGrantSessions } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
-import type { DestroyUserSessions } from "@packages/provider-contracts/auth";
+import type { DestroyOAuthGrantSessions } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import { type AnalyticsEvent, buildOAuthTokenRevokedEvent, type RecordUngatedEvent, UNKNOWN_OAUTH_CLIENT } from "@packages/web-analytics";
 import { initDPoP } from "../../oauth-refresh/dpop";
@@ -14,7 +14,7 @@ const revokeBody = z.object({ token: z.string().min(1), client_id: z.string().op
 	readplace_refresh_protocol: z.literal(1).optional(), readplace_refresh_operation_id: z.uuid().optional() });
 
 export function initTokenRevocation(deps: {
-	model: Pick<OAuthModel, "refresh">; destroyUserSessions: DestroyUserSessions;
+	model: Pick<OAuthModel, "refresh">; destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>; now: () => Date; salt: string; baseUrl: string;
 }): RequestHandler {
 	const dpop = initDPoP(deps);
@@ -40,7 +40,7 @@ export function initTokenRevocation(deps: {
 			res.status(400).json({ error: result.error, readplace_reason: result.reason }); return;
 		}
 		const grant = result.grant;
-		if (grant && revokeDestroysUserSessions(grant.clientId)) await deps.destroyUserSessions(UserIdSchema.parse(grant.userId));
+		if (grant && revokeDestroysGrantSessions(grant.clientId)) await deps.destroyOAuthGrantSessions({ userId: UserIdSchema.parse(grant.userId), oauthGrantId: OAuthGrantIdSchema.parse(grant.id) });
 		deps.recordUngatedAnalyticsEvent(buildOAuthTokenRevokedEvent({ now: deps.now, salt: deps.salt }, { req,
 			clientId: grant?.clientId ?? UNKNOWN_OAUTH_CLIENT, grantId: grant?.id, outcome: grant ? "revoked" : "not_found",
 			tokenKind: grant ? grant.accessToken === body.token ? "access" : "refresh" : "unknown",

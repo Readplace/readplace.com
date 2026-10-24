@@ -22,6 +22,7 @@ import type {
 	CreateSession,
 	CreateUser,
 	CreateUserWithPasswordHash,
+	DestroyOAuthGrantSessions,
 	DestroySession,
 	DestroyUserSessions,
 	FindEmailByUserId,
@@ -364,6 +365,7 @@ interface AppDependencies {
 	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
@@ -1800,7 +1802,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateRedirectUri: deps.validateOAuthRedirectUri,
 		registerClient: deps.registerOAuthClient,
 		destroySession: deps.destroySession,
-		destroyUserSessions: deps.destroyUserSessions,
+		destroyOAuthGrantSessions: deps.destroyOAuthGrantSessions,
 		findEmailByUserId: deps.findEmailByUserId,
 		consumeRateLimit: deps.consumeRateLimit,
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
