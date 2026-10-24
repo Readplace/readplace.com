@@ -63,12 +63,14 @@ const { transitionAndPersist } = initTransitionAndPersist({
 });
 
 const logger = consoleLogger;
+const now = () => new Date();
 
 export const handler = initDeadLetterRouter({
 	routes: {
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveLinkCommand]: initSaveLinkDlqHandler({
 			transitionAndPersist,
 			logger,
+			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.submitLink]: initSubmitLinkDlqHandler({
 			publishEvent,
@@ -77,32 +79,39 @@ export const handler = initDeadLetterRouter({
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveLinkRawHtmlCommand]: initSaveLinkRawHtmlDlqHandler({
 			transitionAndPersist,
 			logger,
+			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveAnonymousLinkCommand]: initSaveAnonymousLinkDlqHandler({
 			transitionAndPersist,
 			logger,
+			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.simpleCrawlUnsupportedPolicy]:
 			initSimpleCrawlUnsupportedPolicyDlqHandler({
 				transitionAndPersist,
 				logger,
+				now,
 			}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.comprehensiveCrawlCommand]: initComprehensiveCrawlDlqHandler({
 			transitionAndPersist,
 			logger,
+			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveLinkRawPdfCommand]: initSaveLinkRawPdfDlqHandler({
 			transitionAndPersist,
 			logger,
+			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.selectMostCompleteContent]:
 			initSelectMostCompleteContentDlqHandler({
 				transitionAndPersist,
 				logger,
+				now,
 			}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.reselectAfterRemoval]: initReselectAfterRemovalDlqHandler({
 			transitionAndPersist,
 			logger,
+			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.generateSummary]: initGenerateSummaryDlqHandler({
 			transitionAndPersist,
@@ -111,10 +120,12 @@ export const handler = initDeadLetterRouter({
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.recrawlLinkInitiated]: initRecrawlLinkInitiatedDlqHandler({
 			transitionAndPersist,
 			logger,
+			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.recrawlContentExtracted]: initRecrawlContentExtractedDlqHandler({
 			transitionAndPersist,
 			logger,
+			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.filterEmailLinks]: initFilterEmailLinksDlqHandler({
 			publishEvent,

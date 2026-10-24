@@ -17,15 +17,13 @@ export interface PromoteTierInput {
 	estimatedReadTime: number;
 	contentFetchedAt: string;
 	now: string;
-	/** True when the canonical tier flipped this run; gates the publish-link-saved / publish-anonymous-link-saved effect so a re-pick of the same tier does not re-fire user-facing notifications. */
+	/** True when the canonical tier flipped this run. */
 	canonicalChanged: boolean;
 	/** Hash of the new canonical readable text. Compared to the row's existing
 	 * `freshness.canonicalContentHash` to detect a readable-text change even when
 	 * the tier did not flip — so a same-tier re-pick whose text differs still
 	 * announces CanonicalContentChanged. */
 	canonicalContentHash: string;
-	/** Authenticated save: emits publish-link-saved. Absent: emits publish-anonymous-link-saved. */
-	userId?: string;
 }
 
 export function promoteTier(
@@ -54,13 +52,6 @@ export function promoteTier(
 		effects.push({ kind: "publish-canonical-content-changed", url: article.url });
 	}
 	effects.push({ kind: "publish-crawl-article-completed", url: article.url });
-	if (input.canonicalChanged) {
-		effects.push(
-			input.userId
-				? { kind: "publish-link-saved", url: article.url, userId: input.userId }
-				: { kind: "publish-anonymous-link-saved", url: article.url },
-		);
-	}
 
 	const nextFreshness: Article["freshness"] = {
 		...article.freshness,

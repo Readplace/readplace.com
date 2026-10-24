@@ -4,6 +4,7 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import OpenAI from "openai";
+import { initDeepseekChatCompletion } from "./providers/deepseek/deepseek-chat-completion";
 import { requireEnv } from "@packages/require-env";
 import { initRecrawlContentExtractedHandler } from "./domain/select-content/recrawl-content-extracted-handler";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
@@ -21,10 +22,11 @@ const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
 const eventBridgeClient = new EventBridgeClient({});
-const deepseekClient = new OpenAI({
+const { createChatCompletion } = initDeepseekChatCompletion({
 	apiKey: deepseekApiKey,
-	baseURL: "https://api.deepseek.com",
-	timeout: SELECT_CONTENT_TIMEOUTS.deepseekMs,
+	timeoutMs: SELECT_CONTENT_TIMEOUTS.deepseekMs,
+	logger: consoleLogger,
+	newClient: (options) => new OpenAI(options),
 });
 
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
@@ -34,7 +36,7 @@ const selectContent = initSelectContentDepBundle({
 	dynamoClient,
 	contentBucketName,
 	articlesTable,
-	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
+	createChatCompletion,
 	logger: consoleLogger,
 });
 

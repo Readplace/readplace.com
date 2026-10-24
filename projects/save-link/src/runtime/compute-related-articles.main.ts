@@ -12,6 +12,7 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import OpenAI from "openai";
+import { initDeepseekChatCompletion } from "./providers/deepseek/deepseek-chat-completion";
 import { initSelectAgreedPicks } from "./domain/related-articles/agreed-picks";
 import { initComputeRelatedPasses } from "./domain/related-articles/compute-related-passes";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
@@ -30,17 +31,15 @@ const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
 const dynamoClient = createDynamoDocumentClient();
-const deepseekClient = new OpenAI({
+const { createChatCompletion } = initDeepseekChatCompletion({
 	apiKey: deepseekApiKey,
-	baseURL: "https://api.deepseek.com",
-	timeout: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
-	maxRetries: 0,
+	timeoutMs: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
+	logger: consoleLogger,
+	newClient: (options) => new OpenAI(options),
 });
 
 const createMessage = initCreateDeepseekMessage({
-	createChatCompletion: (params) => deepseekClient.chat.completions.create(params, {
-		signal: AbortSignal.timeout(RELATED_ARTICLES_TIMEOUTS.deepseekMs),
-	}),
+	createChatCompletion,
 });
 
 const { selectRelatedArticles } = initSelectRelatedArticlesWithoutSharedBoilerplate(

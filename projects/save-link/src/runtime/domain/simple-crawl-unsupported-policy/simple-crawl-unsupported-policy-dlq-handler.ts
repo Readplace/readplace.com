@@ -4,7 +4,7 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { SimpleCrawlUnsupportedEvent } from "@packages/hutch-infra-components";
@@ -14,9 +14,10 @@ export function initSimpleCrawlUnsupportedPolicyDlqHandler(
 	deps: {
 		transitionAndPersist: TransitionAndPersist;
 		logger: HutchLogger;
+		now: () => Date;
 	},
 ): Handler<SQSEvent, SQSBatchResponse> {
-	const { transitionAndPersist, logger } = deps;
+	const { transitionAndPersist, logger, now } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -27,10 +28,6 @@ export function initSimpleCrawlUnsupportedPolicyDlqHandler(
 				const detail = SimpleCrawlUnsupportedEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-				logger.info("[SimpleCrawlUnsupportedPolicyDlq] marking crawl exhausted", {
-					url: detail.url,
-					receiveCount,
-				});
 
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,
@@ -39,6 +36,11 @@ export function initSimpleCrawlUnsupportedPolicyDlqHandler(
 						receiveCount,
 					},
 				});
+				logger.error(formatErrorLogLine({
+					message: `[SimpleCrawlUnsupportedPolicyDlq] dead-lettered after ${receiveCount} receives (messageId ${record.messageId}); marking crawl exhausted`,
+					url: detail.url,
+					now,
+				}));
 			} catch (error) {
 				logger.error("[SimpleCrawlUnsupportedPolicyDlq] record failed", {
 					messageId: record.messageId,
