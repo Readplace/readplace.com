@@ -12,7 +12,15 @@ import {
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
 import type { Page } from "@playwright/test";
-import { FIXED_NOW, OVERSIZED_TITLE, WIDE_TITLE, popupListUrl, popupRuntimeStub, popupSaveUrl } from "./popup-visual-fixture";
+import {
+	FIXED_NOW,
+	OVERSIZED_TITLE,
+	WIDE_TITLE,
+	popupListUrl,
+	popupRuntimeStub,
+	popupSaveUrl,
+	popupToolbarUrl,
+} from "./popup-visual-fixture";
 
 const VIEWPORT = { width: 1024, height: 900 };
 
@@ -75,6 +83,16 @@ async function savedSettled(page: Page): Promise<void> {
 async function saveAllSettled(page: Page): Promise<void> {
 	await expect(page.locator("#save-all-view-readlist")).toBeVisible();
 	await expect(page.locator("#save-all-failed > li")).toHaveCount(3);
+}
+
+const SAVE_ALL_COUNT_TEXT = "#save-all-count-text";
+
+async function saveAllProgressSettled(page: Page): Promise<void> {
+	await expect(page.locator("#save-all-title")).toHaveText("Saving 8 tabs…");
+	await expect(page.locator(SAVE_ALL_COUNT_TEXT)).toHaveText("Sent 3 of 8 · Sending 5");
+	await expect(page.locator("#save-all-hint")).toBeVisible();
+	await expect(page.locator("#save-all-continue")).toBeVisible();
+	await expect(page.locator("#save-all-progress")).toHaveAttribute("aria-busy", "true");
 }
 
 async function emptySettled(page: Page): Promise<void> {
@@ -219,7 +237,7 @@ type InkRole = "text" | "non-text";
 type InkProbe = {
 	name: string;
 	selector: string;
-	ink: "color" | "border";
+	ink: "color" | "border" | "background";
 	surface: "ground" | "own";
 	role: InkRole;
 };
@@ -251,7 +269,7 @@ async function inkPairs(page: Page, probes: readonly InkProbe[]): Promise<InkPai
 		});
 		measured.push({
 			name: pair.name,
-			ink: pair.ink === "color" ? element.color : element.border,
+			ink: { color: element.color, border: element.border, background: element.fill }[pair.ink],
 			surface: pair.surface === "ground" ? ground : element.fill,
 			role: pair.role,
 			fontSizePx: element.fontSizePx,
@@ -311,6 +329,19 @@ const LIST_INK: readonly InkProbe[] = [
 	{ name: "sort", selector: "#sort-button", ink: "color", surface: "ground", role: "text" },
 	{ name: "row action label", selector: ".list-view__action", ink: "color", surface: "own", role: "text" },
 	{ name: "row action border", selector: ".list-view__action", ink: "border", surface: "ground", role: "non-text" },
+];
+
+const PROGRESS_INK: readonly InkProbe[] = [
+	{ name: "count line", selector: SAVE_ALL_COUNT_TEXT, ink: "color", surface: "ground", role: "text" },
+	{
+		name: "count pulse",
+		selector: ".save-all-view__count-line:not(.save-all-view__count-twin) .saving-view__pulse",
+		ink: "background",
+		surface: "ground",
+		role: "non-text",
+	},
+	{ name: "background hint", selector: "#save-all-hint", ink: "color", surface: "ground", role: "text" },
+	{ name: "continue label", selector: "#save-all-continue", ink: "color", surface: "own", role: "text" },
 ];
 
 const EMPTY_INK: readonly InkProbe[] = [
@@ -725,6 +756,12 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 				expect(contrastShortfalls(await inkPairs(page, LIST_INK))).toEqual([]);
 			});
 
+			test("keeps WCAG contrast on the save-all progress in colour and under the greyscale lens", async ({ page }) => {
+				await openSaveAllProgress(page);
+				await saveAllProgressSettled(page);
+				expect(contrastShortfalls(await inkPairs(page, PROGRESS_INK))).toEqual([]);
+			});
+
 			test("keeps WCAG contrast on the empty list in colour and under the greyscale lens", async ({
 				page,
 			}) => {
@@ -738,6 +775,182 @@ export function registerPopupVisualSuite(input: { packagedPopup: string }): void
 			});
 		});
 	}
+
+	async function openSaveAllProgress(page: Page): Promise<void> {
+		await open(page, {
+			url: popupListUrl(input.packagedPopup),
+			stub: popupRuntimeStub({ pendingBulkSave: true, saveAllStart: "progress", saveAllFollows: ["held"] }),
+			wait: "#save-all-continue:not([hidden])",
+		});
+	}
+
+	async function openSaveAll(page: Page, stub: Parameters<typeof popupRuntimeStub>[0], wait: string): Promise<void> {
+		await open(page, { url: popupListUrl(input.packagedPopup), stub: popupRuntimeStub({ pendingBulkSave: true, ...stub }), wait });
+	}
+
+	async function countLineBox(page: Page): Promise<{ pulseLeft: number; left: number; width: number; height: number }> {
+		return page.locator("#save-all-count").evaluate((count) => {
+			const pulse = count.querySelector(".save-all-view__count-line:not(.save-all-view__count-twin) .saving-view__pulse");
+			const bounds = count.getBoundingClientRect();
+			return {
+				pulseLeft: pulse === null ? Number.NaN : pulse.getBoundingClientRect().left,
+				left: bounds.left,
+				width: bounds.width,
+				height: bounds.height,
+			};
+		});
+	}
+
+	test.describe("popup save all tabs progress", () => {
+		test("names the tab count on the first frame, then fills the count line from the background's records", async ({ page }) => {
+			await openSaveAll(page, { saveAllStart: "held" }, "#save-all-view:not([hidden])");
+			await expect(page.locator("#save-all-title")).toHaveText("Saving 8 tabs…");
+			await expect(page.locator(SAVE_ALL_COUNT_TEXT)).toHaveText("");
+			await expect(page.locator("#save-all-count")).toHaveClass(/save-all-view__pending/);
+
+			await page.evaluate(() => window.__popupEmitRecord?.("capturing"));
+			await expect(page.locator(SAVE_ALL_COUNT_TEXT)).toHaveText("Captured 0 of 8");
+			await page.evaluate(() => window.__popupEmitRecord?.("progress"));
+			await expect(page.locator(SAVE_ALL_COUNT_TEXT)).toHaveText("Sent 3 of 8 · Sending 5");
+			await page.evaluate(() => window.__popupEmitRecord?.("sent"));
+			await expect(page.locator(SAVE_ALL_COUNT_TEXT)).toHaveText("Sent 8 of 8");
+
+			const messages = await page.evaluate(() => window.__popupSaveAllMessages);
+			expect(messages[0]).toMatchObject({ type: "save-all-tabs", windowId: 1 });
+		});
+
+		test("keeps the pulse and the count line's box still as the count moves, and the view's extent as the background answers", async ({
+			page,
+		}) => {
+			await openSaveAll(page, { saveAllStart: "held", saveAllFollows: ["held"] }, "#save-all-view:not([hidden])");
+			await expect(page.locator("#save-all-title")).toHaveText("Saving 8 tabs…");
+			const extent = { first: "#save-all-title", last: "#save-all-continue" };
+			const before = await extentOf(page, extent);
+			const boxes = [];
+			for (const kind of ["capturing", "progress", "sent"] as const) {
+				await page.evaluate((emitted) => window.__popupEmitRecord?.(emitted), kind);
+				await expect(page.locator(SAVE_ALL_COUNT_TEXT)).not.toHaveText("");
+				boxes.push(await countLineBox(page));
+			}
+			await page.evaluate(() => window.__popupReleaseStart?.());
+			await expect(page.locator("#save-all-continue")).not.toHaveClass(/save-all-view__pending/);
+			const after = await extentOf(page, extent);
+
+			expect(new Set(boxes.map((box) => JSON.stringify(box))).size).toBe(1);
+			expect(after).toEqual(before);
+		});
+
+		test("ends on the alert when neither the start nor its follow is answered", async ({ page }) => {
+			for (const saveAllStart of ["lost", "rejected"] as const) {
+				await openSaveAll(page, { saveAllStart, saveAllFollows: ["null"] }, "#save-all-failure:not([hidden])");
+				await expect(page.locator("#save-all-failure-title")).toHaveText("Couldn't save tabs");
+				await expect(page.locator("#save-all-progress")).toHaveAttribute("aria-busy", "false");
+				await expect(page.locator("#save-all-view-readlist")).toBeVisible();
+			}
+		});
+
+		test("follows once more after a lost follow and paints the outcome", async ({ page }) => {
+			await openSaveAll(page, { saveAllFollows: ["lost", "finished"] }, "#save-all-view-readlist:not([hidden])");
+			await saveAllSettled(page);
+			const follows = await page.evaluate(() => window.__popupSaveAllMessages.filter((message) => message.type === "follow-save-all"));
+			expect(follows).toHaveLength(2);
+		});
+
+		test("shows an outcome the background already covers, acknowledging it once", async ({ page }) => {
+			await openSaveAll(page, { saveAllStart: "covered" }, "#save-all-view-readlist:not([hidden])");
+			await saveAllSettled(page);
+			await expect.poll(() => page.evaluate(() => window.__popupAcknowledgements)).toBe(1);
+		});
+
+		test("closes the popup when the reader continues in the background", async ({ page }) => {
+			await openSaveAllProgress(page);
+			await page.locator("#save-all-continue").click();
+			expect(await page.evaluate(() => window.__popupClosed)).toBe(1);
+		});
+
+		test("keeps the outcome painted through a record without its run, and repaints a retry without a second mark", async ({
+			page,
+		}) => {
+			await page.addInitScript(popupRuntimeStub({ pendingBulkSave: true }));
+			await page.setViewportSize(VIEWPORT);
+			await page.goto(popupListUrl(input.packagedPopup));
+			await page.waitForSelector("#save-all-view-readlist:not([hidden])");
+			await saveAllSettled(page);
+			await page.evaluate(() => window.__popupEmitRecord?.("empty"));
+			await page.evaluate(() => window.__popupEmitRecord?.("other-window"));
+			await expect(page.locator("#save-all-summary")).toHaveText("Saved 6 · Already in readlist 1 · Skipped 2 · Failed 1");
+
+			await page.evaluate(() => window.__popupEmitRecord?.("retried"));
+			await expect(page.locator("#save-all-summary")).toHaveText("Saved 7 · Already in readlist 1 · Skipped 2");
+			expect(await page.evaluate(() => performance.getEntriesByName("save-all-rendered").length)).toBe(1);
+			expect(await page.evaluate(() => window.__popupAcknowledgements)).toBe(1);
+		});
+	});
+
+	test.describe("popup reopened during a Save all", () => {
+		test("shows the live run for a tab it holds in this window", async ({ page }) => {
+			await open(page, {
+				url: popupToolbarUrl(input.packagedPopup),
+				stub: popupRuntimeStub({
+					seededRuns: [{ windowId: 1, phase: "running", url: "https://example.com/pinned" }],
+					saveAllFollows: ["held"],
+				}),
+				wait: "#save-all-view:not([hidden])",
+			});
+			await expect(page.locator("#save-all-continue")).toBeVisible();
+			const messages = await page.evaluate(() => ({ saves: window.__popupSaveMessages, saveAll: window.__popupSaveAllMessages }));
+			expect(messages.saves).toEqual([]);
+			expect(messages.saveAll).toMatchObject([{ type: "follow-save-all" }]);
+		});
+
+		test("saves the tab as usual when the run holding it is another window's, or has finished", async ({ page }) => {
+			for (const seed of [
+				{ windowId: 2, phase: "running" },
+				{ windowId: 1, phase: "finished" },
+			] as const) {
+				await open(page, {
+					url: popupToolbarUrl(input.packagedPopup),
+					stub: popupRuntimeStub({
+						seededRuns: [{ ...seed, url: "https://example.com/pinned" }],
+						saveReplies: ["saved"],
+					}),
+					wait: "#saved-view:not([hidden])",
+				});
+				const saves = await page.evaluate(() => window.__popupSaveMessages);
+				expect(saves).toEqual([{ url: "https://example.com/pinned", title: "Pinned reading" }]);
+			}
+		});
+	});
+
+	test.describe("popup save all tabs progress checkpoint", () => {
+		test("renders the run mid-request against the light palette", async ({ page }) => {
+			await openSaveAllProgress(page);
+			await captureCheckpoint(page, {
+				name: "popup-save-all-progress-light",
+				settled: saveAllProgressSettled,
+				geometry: framed(noOverflow),
+				target: "body",
+				capture: "element",
+				pinnedText: [],
+			});
+		});
+
+		test.describe("in dark mode", () => {
+			test.use({ colorScheme: "dark" });
+
+			test("renders the run mid-request against the dark palette", async ({ page }) => {
+				await openSaveAllProgress(page);
+				await captureCheckpoint(page, {
+					name: "popup-save-all-progress-dark",
+					settled: saveAllProgressSettled,
+					geometry: framed(noOverflow),
+					target: "body",
+					capture: "element",
+					pinnedText: [],
+				});
+			});
+		});
+	});
 
 	const STATES = [
 		{

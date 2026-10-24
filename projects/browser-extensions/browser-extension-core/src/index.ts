@@ -57,7 +57,12 @@ export {
 } from "./upload-queue/indexed-db-payload-store.browser";
 export type { UploadJob } from "./upload-queue/upload-job";
 export { initBulkSaveQueue, type BulkSaveJobStore, type BulkSaveQueue } from "./bulk-save-queue/bulk-save-queue";
-export type { BulkSaveJob } from "./bulk-save-queue/bulk-save-job";
+export { BulkSaveJobIdSchema, type BulkSaveJob, type BulkSaveJobId } from "./bulk-save-queue/bulk-save-job";
+export { BULK_SAVE_RUNS_KEY, type BulkSaveRun, type BulkSaveRunId } from "./bulk-save-run/bulk-save-run";
+export { initBulkSaveRunRecord, type BulkSaveRunArea, type BulkSaveRunRecord } from "./bulk-save-run/bulk-save-run-record";
+export { initSaveAllRuns, type SaveAllRuns } from "./bulk-save-run/save-all-runs";
+export { SaveAllMessageSchema, type SaveAllMessage, type SaveAllReply } from "./bulk-save-run/save-all-messages";
+export { WindowIdSchema, type WindowId } from "./domain/window-id";
 export type {
 	CaptureForJob,
 	PayloadStore,
@@ -75,7 +80,6 @@ export {
 	MENU_ITEM_SAVE_LINK,
 	MENU_ITEM_SAVE_ALL_TABS,
 } from "./get-context-menu-target";
-export { bulkSaveNotification } from "./bulk-save-notification";
 export type { ContextMenuItem, ContextMenuItemId } from "./advertised-capabilities";
 export {
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
