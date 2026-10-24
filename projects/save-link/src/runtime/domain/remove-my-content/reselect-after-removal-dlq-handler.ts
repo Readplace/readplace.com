@@ -1,5 +1,5 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 import {
 	markCrawlExhausted,
 	type TransitionAndPersist,
@@ -10,8 +10,9 @@ import { ReselectAfterRemovalEvent } from "@packages/hutch-infra-components";
 export function initReselectAfterRemovalDlqHandler(deps: {
 	transitionAndPersist: TransitionAndPersist;
 	logger: HutchLogger;
+	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { transitionAndPersist, logger } = deps;
+	const { transitionAndPersist, logger, now } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -22,10 +23,6 @@ export function initReselectAfterRemovalDlqHandler(deps: {
 				const detail = ReselectAfterRemovalEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-				logger.info("[ReselectAfterRemovalDlq] marking crawl exhausted", {
-					url: detail.url,
-					receiveCount,
-				});
 
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,
@@ -34,6 +31,11 @@ export function initReselectAfterRemovalDlqHandler(deps: {
 						receiveCount,
 					},
 				});
+				logger.error(formatErrorLogLine({
+					message: `[ReselectAfterRemovalDlq] dead-lettered after ${receiveCount} receives (messageId ${record.messageId}); marking crawl exhausted`,
+					url: detail.url,
+					now,
+				}));
 			} catch (error) {
 				logger.error("[ReselectAfterRemovalDlq] record failed", {
 					messageId: record.messageId,

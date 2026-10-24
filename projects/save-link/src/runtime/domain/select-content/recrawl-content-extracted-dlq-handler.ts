@@ -1,5 +1,5 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 import {
 	markCrawlExhausted,
 	type TransitionAndPersist,
@@ -9,13 +9,14 @@ import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 interface RecrawlContentExtractedDlqHandlerDeps {
 	transitionAndPersist: TransitionAndPersist;
 	logger: HutchLogger;
+	now: () => Date;
 }
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initRecrawlContentExtractedDlqHandler(
 	deps: RecrawlContentExtractedDlqHandlerDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	const { transitionAndPersist, logger } = deps;
+	const { transitionAndPersist, logger, now } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -26,10 +27,6 @@ export function initRecrawlContentExtractedDlqHandler(
 				const detail = RecrawlContentExtractedEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-				logger.info("[RecrawlContentExtractedDlq] marking crawl exhausted", {
-					url: detail.url,
-					receiveCount,
-				});
 
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,
@@ -38,6 +35,11 @@ export function initRecrawlContentExtractedDlqHandler(
 						receiveCount,
 					},
 				});
+				logger.error(formatErrorLogLine({
+					message: `[RecrawlContentExtractedDlq] dead-lettered after ${receiveCount} receives (messageId ${record.messageId}); marking crawl exhausted`,
+					url: detail.url,
+					now,
+				}));
 			} catch (error) {
 				logger.error("[RecrawlContentExtractedDlq] record failed", {
 					messageId: record.messageId,
