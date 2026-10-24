@@ -59,7 +59,7 @@ describe("provenanceLabel", () => {
 
 	it("stays generic for an assistant it cannot recognise, so a client-supplied name is never rendered", () => {
 		expect(provenanceLabel({ kind: "mcp", registeredName: "dyn-registered-mcp-client" })).toEqual({
-			label: "via AI assistant",
+			label: "via a connected app",
 		});
 	});
 });

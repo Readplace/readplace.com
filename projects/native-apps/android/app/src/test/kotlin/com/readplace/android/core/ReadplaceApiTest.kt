@@ -102,8 +102,16 @@ class ReadplaceApiTest {
 		return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, ioDispatcher, maxExternalContentBytes)
 	}
 
-	private fun saveArticleAction(): SirenAction =
-		SirenAction(name = "save-article", href = "/queue", method = "POST", title = null, type = "application/json", fields = null)
+	private fun saveArticleAction(fields: List<SirenField>? = null): SirenAction =
+		SirenAction(name = "save-article", href = "/queue", method = "POST", title = null, type = "application/json", fields = fields)
+
+	private fun saveArticleActionDeclaringReadlists(): SirenAction =
+		saveArticleAction(
+			fields = listOf(
+				SirenField(name = "url", type = "url", value = null),
+				SirenField(name = "readlists", type = "text", value = null),
+			),
+		)
 
 	private fun saveArticleActionJson(href: String): String =
 		"""{ "name": "save-article", "href": "$href", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }"""
@@ -734,30 +742,70 @@ class ReadplaceApiTest {
 	}
 
 	@Test
-	fun `saveArticle sends the extra readlists as a sorted queues array`() = runTest {
+	fun `saveArticle sends the extra readlists as a sorted array under the declared readlists field`() = runTest {
 		server.handle { Stub.json(201, Fixtures.article("url-saved")) }
 
 		api().saveArticle(
-			saveArticleAction(),
+			saveArticleActionDeclaringReadlists(),
 			url = "https://example.com/x",
-			queues = setOf("/queue?queue=work", "/queue?queue=later"),
+			readlists = setOf("/queue?queue=work", "/queue?queue=later"),
 		)
 
 		val body = jsonObject(server.records("/queue").single().body)
 		assertEquals("https://example.com/x", string(body, "url"))
 		assertEquals(
 			listOf("/queue?queue=later", "/queue?queue=work"),
-			body["queues"]?.jsonArray?.map { it.jsonPrimitive.content },
+			body["readlists"]?.jsonArray?.map { it.jsonPrimitive.content },
 		)
+		assertNull("the legacy queues key is never sent", body["queues"])
 	}
 
 	@Test
-	fun `saveArticle omits the queues field entirely when there are no extra readlists`() = runTest {
+	fun `saveArticle omits the readlists field entirely when there are no extra readlists`() = runTest {
 		server.handle { Stub.json(201, Fixtures.article("url-saved")) }
 
-		api().saveArticle(saveArticleAction(), url = "https://example.com/x", queues = emptySet())
+		api().saveArticle(saveArticleActionDeclaringReadlists(), url = "https://example.com/x", readlists = emptySet())
 
-		assertNull("an empty set sends no queues field", jsonObject(server.records("/queue").single().body)["queues"])
+		assertNull("an empty set sends no readlists field", jsonObject(server.records("/queue").single().body)["readlists"])
+	}
+
+	@Test
+	fun `saveArticle sends no readlist field when the action declares none`() = runTest {
+		server.handle { Stub.json(201, Fixtures.article("url-saved")) }
+
+		api().saveArticle(
+			saveArticleAction(fields = listOf(SirenField(name = "url", type = "url", value = null))),
+			url = "https://example.com/x",
+			readlists = setOf("/queue?queue=work"),
+		)
+
+		val body = jsonObject(server.records("/queue").single().body)
+		assertEquals("only the url is posted", setOf("url"), body.keys)
+	}
+
+	@Test
+	fun `loadReadlist surfaces the href it followed and every redirect hop as its chain`() = runTest {
+		server.handle { record ->
+			when {
+				record.path == "/queue" && record.request.url.query == "queue=work" -> Stub.redirect(to = "/queue?readlist=work")
+				record.path == "/queue" -> Stub.json(200, Fixtures.collection(emptyList()))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val page = api().loadReadlist(path = "/queue?queue=work")
+
+		assertEquals(listOf("/queue?queue=work", "/queue?readlist=work"), page.chain)
+	}
+
+	@Test
+	fun `a hop to another origin stays absolute in the chain`() = runTest {
+		redirectTarget.handle { Stub.json(200, Fixtures.collection(emptyList())) }
+		server.handle { Stub.redirect(to = "${redirectTarget.baseUrl}/queue") }
+
+		val page = api().loadReadlist(path = "/queue?queue=work")
+
+		assertEquals(listOf("/queue?queue=work", "${redirectTarget.baseUrl}/queue"), page.chain)
 	}
 
 	@Test

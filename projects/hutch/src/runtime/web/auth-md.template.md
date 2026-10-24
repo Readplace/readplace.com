@@ -1,7 +1,7 @@
 # auth.md
 
 Readplace publishes this file so AI agents can obtain delegated access to a
-signed-in user's reading readlist. Readplace is both the OAuth 2.0 authorization
+signed-in user's readlists. Readplace is both the OAuth 2.0 authorization
 server and the protected resource; its issuer is `{{baseUrl}}`.
 
 An MCP-capable client does not need this recipe: add `{{baseUrl}}/mcp` as an MCP
@@ -70,20 +70,21 @@ GET {{baseUrl}}/oauth/authorize
   &code_challenge=BASE64URL(SHA256(code_verifier))
   &code_challenge_method=S256
   &state=OPAQUE_VALUE
-  &scope=queue
-  &resource={{baseUrl}}/mcp
+  &resource={{baseUrl}}
 ```
 
 `resource` ([RFC 8707](https://www.rfc-editor.org/rfc/rfc8707)) names the protected
-resource the token is for — `{{baseUrl}}/mcp`. It is optional: Readplace is a single
+resource the token is for — `{{baseUrl}}` for a client of the Siren API, or
+`{{baseUrl}}/mcp` for an MCP client. It is optional: Readplace is a single
 authorization server and resource server, so every token it issues is already bound
 to that one resource.
 
-`scope` is optional and makes no difference: Readplace does not sub-divide
-access, so every token carries the same full read/write access to the user's
-readlist (see step 6). The discovery metadata labels that single access level
-`queue`. The user signs in if needed and approves, then Readplace redirects to
-`YOUR_REDIRECT_URI?code=AUTH_CODE&state=OPAQUE_VALUE`.
+`scope` is optional and best omitted. Readplace does not sub-divide access, so
+every token carries the same full read/write access to the user's readlists (see
+step 6); the discovery metadata labels that single access level `account`. A
+refresh request must not carry `scope`, because Readplace refuses it with
+`400 invalid_scope`. The user signs in if needed and approves, then Readplace
+redirects to `YOUR_REDIRECT_URI?code=AUTH_CODE&state=OPAQUE_VALUE`.
 
 ## 5. Exchange the code
 
@@ -91,7 +92,7 @@ readlist (see step 6). The discovery metadata labels that single access level
 POST {{baseUrl}}/oauth/token
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=authorization_code&code=AUTH_CODE&redirect_uri=YOUR_REDIRECT_URI&client_id=YOUR_CLIENT_ID&code_verifier=CODE_VERIFIER&resource={{baseUrl}}/mcp
+grant_type=authorization_code&code=AUTH_CODE&redirect_uri=YOUR_REDIRECT_URI&client_id=YOUR_CLIENT_ID&code_verifier=CODE_VERIFIER&resource={{baseUrl}}
 ```
 
 The response is JSON with `access_token`, `refresh_token`, and
@@ -104,15 +105,24 @@ Send the bearer token on every request, start at the entry point, and follow the
 links and actions it returns:
 
 ```
-GET {{baseUrl}}/queue
+GET {{baseUrl}}/
 Authorization: Bearer ACCESS_TOKEN
 Accept: application/vnd.siren+json
 ```
 
+The entry point answers `303 See Other` with the collection's location; follow it
+rather than hard-coding where the collection lives. Actions such as
+`update-status` answer `303` too. Some HTTP clients — .NET `HttpClient`,
+PowerShell `Invoke-RestMethod` and `Invoke-WebRequest` — drop `Authorization` when
+they follow a redirect, and the API then answers `401`. On any `3xx` from the API,
+either request the `Location` yourself with the bearer token, or configure the
+client to keep `Authorization` across redirects.
+
 A Readplace access token carries full read/write access to the authenticated
-user's reading readlist — the single access level the discovery metadata labels
-`queue`. Readplace does not sub-divide or separately enforce scopes. When the
-access token expires, refresh it:
+user's readlists — the single access level the discovery metadata labels
+`account`. Readplace does not sub-divide that access. When the access token
+expires, refresh it, without a `scope` parameter — a refresh that carries one is
+refused with `400 invalid_scope`:
 
 ```
 POST {{baseUrl}}/oauth/token

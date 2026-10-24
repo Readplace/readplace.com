@@ -41,7 +41,7 @@ class SirenModelsTest {
 			content = ServerMessage.Content(type = ServerMessage.RENDERABLE_MEDIA_TYPE, body = body),
 		)
 
-	private fun decodedPage(source: String): ReadlistPage = ReadlistPage(decodedCollection(source))
+	private fun decodedPage(source: String): ReadlistPage = ReadlistPage(decodedCollection(source), chain = emptyList())
 
 	private fun collectionWithTabs(tabsJson: String, entitiesJson: String = ""): String =
 		"""

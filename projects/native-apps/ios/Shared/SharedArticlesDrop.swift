@@ -5,18 +5,18 @@ enum SharedArticlesDrop: Hashable {
 	case ticked(Readlist)
 	case unticked(Readlist)
 
-	init(readlist: Readlist, mainlineHref: String?, tickedHrefs: Set<String>) {
-		if readlist.href == mainlineHref {
+	init(readlist: Readlist, mainlineHref: String?, tickedHrefs: Set<String>, baseURL: String) {
+		if Href.matches(readlist.href, anyOf: [mainlineHref].compactMap { $0 }, baseURL: baseURL) {
 			self = .always(label: readlist.label)
-		} else if tickedHrefs.contains(readlist.href) {
+		} else if Href.matches(readlist.href, anyOf: Array(tickedHrefs), baseURL: baseURL) {
 			self = .ticked(readlist)
 		} else {
 			self = .unticked(readlist)
 		}
 	}
 
-	static func firstAsk(readlists: [Readlist], mainlineHref: String?) -> [SharedArticlesDrop] {
-		readlists.map { SharedArticlesDrop(readlist: $0, mainlineHref: mainlineHref, tickedHrefs: []) }
+	static func firstAsk(readlists: [Readlist], mainlineHref: String?, baseURL: String) -> [SharedArticlesDrop] {
+		readlists.map { SharedArticlesDrop(readlist: $0, mainlineHref: mainlineHref, tickedHrefs: [], baseURL: baseURL) }
 	}
 
 	var label: String {

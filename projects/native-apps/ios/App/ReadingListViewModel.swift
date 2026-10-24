@@ -53,6 +53,7 @@ final class ReadingListViewModel: ObservableObject {
 	private var isLoadingMore = false
 	private var isDrainingUploads = false
 	private var offlineDownloadTask: Task<Void, Never>?
+	private(set) var shareTargetReconciliation: Task<Void, Never>?
 	private var pagesHeld = 0
 	/// Whether a collection has ever been applied. Gates the foreground refresh so
 	/// it never races the initial `.task` load with a second fetch at launch.
@@ -147,7 +148,7 @@ final class ReadingListViewModel: ObservableObject {
 
 	func toggleSharedArticlesDrop(into readlist: Readlist) {
 		objectWillChange.send()
-		if shareTargetHrefs.contains(readlist.href) {
+		if Href.matches(readlist.href, anyOf: Array(shareTargetHrefs), baseURL: api.baseURL) {
 			shareTarget?.remove(href: readlist.href)
 		} else {
 			shareTarget?.add(href: readlist.href)
@@ -157,14 +158,20 @@ final class ReadingListViewModel: ObservableObject {
 	var offersReadlistSwitching: Bool { readlists.count > 1 }
 
 	var currentReadlistLabel: String? {
-		readlists.first { $0.href == selectedReadlistHref }?.label
+		readlists.first { isOnScreen($0) }?.label
+	}
+
+	private func isOnScreen(_ readlist: Readlist) -> Bool {
+		Href.matches(readlist.href, anyOf: [selectedReadlistHref].compactMap { $0 }, baseURL: api.baseURL)
 	}
 
 	var sharedArticlesDrop: SharedArticlesDrop? {
 		guard shareTarget != nil, offersReadlistSwitching, let landing = tabs.first?.href, landing == selectedTabHref,
-			let readlist = readlists.first(where: { $0.href == selectedReadlistHref })
+			let readlist = readlists.first(where: { isOnScreen($0) })
 		else { return nil }
-		return SharedArticlesDrop(readlist: readlist, mainlineHref: rootHref, tickedHrefs: shareTargetHrefs)
+		return SharedArticlesDrop(
+			readlist: readlist, mainlineHref: rootHref, tickedHrefs: shareTargetHrefs, baseURL: api.baseURL
+		)
 	}
 
 	var readlistMenu: [ReadlistMenuItem] {
@@ -172,7 +179,8 @@ final class ReadingListViewModel: ObservableObject {
 			readlists: readlists,
 			selectedHref: selectedReadlistHref,
 			mainlineHref: rootHref,
-			shareTargetHrefs: shareTargetHrefs
+			shareTargetHrefs: shareTargetHrefs,
+			baseURL: api.baseURL
 		)
 	}
 
@@ -219,12 +227,37 @@ final class ReadingListViewModel: ObservableObject {
 		do {
 			let page = try await api.loadReadlist(path: path)
 			snapshot.save(page, href: path, savedAt: Date())
+			reconcileShareTargets(against: page)
 			return page
 		} catch let error where OfflineReading.isTransportFailure(error) {
 			let now = Date()
 			if let stored = snapshot.page(href: path, now: now) { return stored }
 			guard let alternative, let stored = snapshot.page(href: alternative, now: now) else { throw error }
 			return stored
+		}
+	}
+
+	private func reconcileShareTargets(against page: ReadlistPage) {
+		guard shareTargetReconciliation == nil else { return }
+		shareTargetReconciliation = Task {
+			defer { shareTargetReconciliation = nil }
+			await rewriteUnadvertisedShareTargets(against: page)
+		}
+	}
+
+	private func rewriteUnadvertisedShareTargets(against page: ReadlistPage) async {
+		guard let shareTarget, !page.readlists.isEmpty else { return }
+		let advertised = page.readlists.map(\.href)
+		let mainline = [page.rootHref].compactMap { $0 }
+		for href in shareTarget.hrefs where !advertised.contains(where: { Href.matches($0, anyOf: [href], baseURL: api.baseURL) }) {
+			guard let followed = try? await api.followReadlist(path: href), shareTarget.hrefs.contains(href) else { continue }
+			objectWillChange.send()
+			let landed = followed.redirectChain + [followed.currentReadlistHref].compactMap { $0 }
+			shareTarget.remove(href: href)
+			if let match = page.readlists.first(where: { Href.matches($0.href, anyOf: landed, baseURL: api.baseURL) }),
+				!Href.matches(match.href, anyOf: mainline, baseURL: api.baseURL) {
+				shareTarget.add(href: match.href)
+			}
 		}
 	}
 

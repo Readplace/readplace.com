@@ -91,12 +91,25 @@ describe("renderAuthMarkdown", () => {
 		expect(markdown).toContain("https://readplace.com/oauth/revoke");
 	});
 
-	it("documents queue as the single full-access level it advertises, without overstating enforcement", () => {
-		expect(AGENT_SCOPES_SUPPORTED).toEqual(["queue"]);
+	it("documents account as the single full-access level it advertises, without overstating enforcement", () => {
+		expect(AGENT_SCOPES_SUPPORTED).toEqual(["account"]);
 		const markdown = renderAuthMarkdown(BASE_URL);
 		expect(markdown).toContain("full read/write access");
 		expect(markdown).toContain("does not sub-divide");
-		expect(markdown).toContain("`queue`");
+		expect(markdown).toContain("`account`");
+	});
+
+	it("tells clients to omit scope, since a refresh that carries one is refused", () => {
+		const markdown = renderAuthMarkdown(BASE_URL);
+		expect(markdown).not.toContain("&scope=");
+		expect(markdown).toContain("best omitted");
+		expect(markdown).toContain("`400 invalid_scope`");
+	});
+
+	it("tells clients to keep the bearer token on every redirect the API answers", () => {
+		const markdown = renderAuthMarkdown(BASE_URL);
+		expect(markdown).toContain("On any `3xx` from the API");
+		expect(markdown).toContain("keep `Authorization` across redirects");
 	});
 
 	it("documents the dynamic client registration endpoint for client_id provisioning", () => {

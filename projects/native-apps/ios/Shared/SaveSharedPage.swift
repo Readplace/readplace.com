@@ -81,16 +81,16 @@ struct SaveSharedPage {
 
 		do {
 			var page = try await api.discoverReadlist()
-			let queues = await tickedReadlists(on: page)
+			let readlists = await tickedReadlists(on: page)
 			onNotice(page.noticeMessages)
 			guard let action = page.action(named: "save-article") else { return .noSaveAction }
 			let confirmation: ReadplaceAPI.SaveConfirmation
 			do {
-				confirmation = try await api.saveArticle(action: action, url: url.absoluteString, queues: queues)
+				confirmation = try await api.saveArticle(action: action, url: url.absoluteString, readlists: readlists)
 			} catch let error where !APIError.isRefusalOrAuthFailure(error) {
 				page = try await api.rediscoverReadlist()
 				guard let rediscovered = page.action(named: "save-article") else { return .noSaveAction }
-				confirmation = try await api.saveArticle(action: rediscovered, url: url.absoluteString, queues: queues)
+				confirmation = try await api.saveArticle(action: rediscovered, url: url.absoluteString, readlists: readlists)
 			}
 			unseenSave?.record()
 			let admitted = await admit(page: page, url: url, title: fallbackTitle)
@@ -114,7 +114,7 @@ struct SaveSharedPage {
 
 	private func tickedReadlists(on page: ReadlistPage) async -> Set<String> {
 		guard let shareTarget else { return [] }
-		let drops = SharedArticlesDrop.firstAsk(readlists: page.readlists, mainlineHref: page.rootHref)
+		let drops = SharedArticlesDrop.firstAsk(readlists: page.readlists, mainlineHref: page.rootHref, baseURL: api.baseURL)
 		if !shareTarget.isDecided, drops.contains(where: { $0.choice != nil }) {
 			shareTarget.record(hrefs: Set(await readlistChooser.choose(among: drops).map(\.href)))
 		}

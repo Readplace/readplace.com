@@ -28,7 +28,15 @@ import type {
 	SortDescriptor,
 } from "../reading-list/reading-list.types";
 import { ADVERTISED_CAPABILITIES_STORAGE_KEY, parseStoredCapabilities } from "../sync-context-menus";
-import { type ActionVariant, actionLabel, actionVariant, linkLabel, linkPresentation } from "./action-affordance";
+import {
+	type ActionVariant,
+	actionLabel,
+	actionVariant,
+	isUserControl,
+	isUserControlLink,
+	linkLabel,
+	linkPresentation,
+} from "./action-affordance";
 import { filterByQuery } from "./filter-by-query";
 import { isAppUrl } from "./is-app-url";
 import { isMacPlatform } from "./is-mac-platform";
@@ -338,7 +346,7 @@ export function initPopup(deps: {
 		// link control, so a future rel (e.g. `summary`) renders with no popup
 		// change. Presentation comes from the one client-side rel map, never a
 		// per-rel `if`.
-		for (const link of item.links) {
+		for (const link of item.links.filter(isUserControlLink)) {
 			if (linkPresentation(link.rel) === "row-anchor") {
 				itemLink.href = link.href;
 				continue;
@@ -356,7 +364,7 @@ export function initPopup(deps: {
 		// descriptors and render a button each. No per-capability boolean and no
 		// hardcoded "does the client know action X" check, so a newly-advertised
 		// server action renders here with no popup change.
-		for (const action of item.actions) {
+		for (const action of item.actions.filter(isUserControl)) {
 			const button = document.createElement("button");
 			button.type = "button";
 			button.className = ACTION_CLASS_BY_VARIANT[actionVariant(action.name)];
@@ -635,7 +643,7 @@ export function initPopup(deps: {
 		const affordances = document.getElementById("saved-affordances");
 		if (!affordances) return;
 		affordances.replaceChildren();
-		for (const link of saved.item.links) {
+		for (const link of saved.item.links.filter(isUserControlLink)) {
 			const presentation = linkPresentation(link.rel);
 			if (presentation === "row-anchor") continue;
 			const control =

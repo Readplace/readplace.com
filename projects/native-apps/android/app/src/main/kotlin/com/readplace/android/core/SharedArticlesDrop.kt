@@ -36,8 +36,8 @@ sealed interface SharedArticlesDrop {
 
 	companion object {
 		fun of(readlist: Readlist, mainlineHref: String?, tickedHrefs: Set<String>): SharedArticlesDrop = when {
-			readlist.href == mainlineHref -> Always(label = readlist.label)
-			tickedHrefs.contains(readlist.href) -> Ticked(readlist)
+			readlist.matches(listOfNotNull(mainlineHref)) -> Always(label = readlist.label)
+			readlist.matches(tickedHrefs) -> Ticked(readlist)
 			else -> Unticked(readlist)
 		}
 
