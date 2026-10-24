@@ -18,7 +18,7 @@ import {
 	DISPLAY_NAME_MAX_LENGTH,
 	parseDisplayNameInput,
 } from "@packages/domain/user";
-import { type OAuthClient, OAuthClientIdSchema } from "@packages/domain/oauth";
+import { type OAuthClient, OAuthClientIdSchema, type OAuthSignIn } from "@packages/domain/oauth";
 import type {
 	FindOAuthClient,
 	ListUserOAuthClients,
@@ -228,10 +228,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		}
 	}
 
-	async function loadConnectedClients(userId: UserId): Promise<OAuthClient[]> {
-		const clientIds = await deps.listUserOAuthClients(userId);
-		const clients = await Promise.all(clientIds.map((clientId) => deps.findOAuthClient(clientId)));
-		return clients.filter((client): client is OAuthClient => client !== undefined);
+	async function loadConnectedClients(
+		userId: UserId,
+	): Promise<{ client: OAuthClient; latestSignIn: OAuthSignIn | undefined }[]> {
+		const listed = await deps.listUserOAuthClients(userId);
+		const resolved = await Promise.all(
+			listed.map(async ({ clientId, latestSignIn }) => ({ client: await deps.findOAuthClient(clientId), latestSignIn })),
+		);
+		return resolved.flatMap(({ client, latestSignIn }) => (client === undefined ? [] : [{ client, latestSignIn }]));
 	}
 
 	async function renderAccount(
@@ -266,13 +270,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
+		const now = deps.now();
 		const connectedApps = buildConnectedAppsSection({
-			clients: connectedClients,
+			apps: connectedClients,
+			now,
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
 		const queryState = parseAccountQuery(req.query);
-		const now = deps.now();
 		const security = buildSecuritySection({
 			status: passwordStatus,
 			now,

@@ -797,7 +797,10 @@ describe("createListUserOAuthClients", () => {
 
 		const listUserOAuthClients = createListUserOAuthClients(deps);
 
-		expect(await listUserOAuthClients(TEST_USER_ID)).toEqual([TEST_CLIENT_ID, CHROME_CLIENT_ID]);
+		expect(await listUserOAuthClients(TEST_USER_ID)).toEqual([
+			{ clientId: TEST_CLIENT_ID, latestSignIn: undefined },
+			{ clientId: CHROME_CLIENT_ID, latestSignIn: undefined },
+		]);
 	});
 
 	it("lists a client whose refresh token outlives its expired access token", async () => {
@@ -808,7 +811,7 @@ describe("createListUserOAuthClients", () => {
 
 		await model.saveToken(createTestToken({ accessTokenExpiresAt: past }), firefox, { id: TEST_USER_ID });
 
-		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([TEST_CLIENT_ID]);
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([{ clientId: TEST_CLIENT_ID, latestSignIn: undefined }]);
 	});
 
 	it("leaves out a client whose access and refresh tokens have both expired", async () => {
@@ -833,11 +836,43 @@ describe("createListUserOAuthClients", () => {
 		await model.saveToken(createTestToken({ accessToken: "other-firefox", refreshToken: "other-refresh" }), firefox, { id: OTHER_USER_ID });
 		await model.saveAuthorizationCode(createTestAuthCode({ authorizationCode: "firefox-code" }), firefox, { id: TEST_USER_ID });
 
-		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([CHROME_CLIENT_ID]);
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([{ clientId: CHROME_CLIENT_ID, latestSignIn: undefined }]);
 	});
 
 	it("lists nothing for a user with no tokens", async () => {
 		expect(await createListUserOAuthClients(initInMemoryOAuthModel())(TEST_USER_ID)).toEqual([]);
+	});
+
+	it("reports each client's latest sign-in across its live tokens", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const firefox = await model.getClient(TEST_CLIENT_ID, "");
+		assert(firefox, "Test client must exist");
+		const fromSydney = { at: 2_000, location: { city: "Sydney", country: "AU" }, device: { browser: "firefox", os: "linux" } };
+
+		await model.saveToken(createTestToken({ accessToken: "firefox-1", refreshToken: "firefox-refresh-1" }), firefox, { id: TEST_USER_ID, signedIn: { at: 1_000 } });
+		await model.saveToken(createTestToken({ accessToken: "firefox-2", refreshToken: "firefox-refresh-2" }), firefox, { id: TEST_USER_ID, signedIn: fromSydney });
+		await model.saveToken(createTestToken({ accessToken: "firefox-3", refreshToken: "firefox-refresh-3" }), firefox, { id: TEST_USER_ID });
+
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([{ clientId: TEST_CLIENT_ID, latestSignIn: fromSydney }]);
+	});
+
+	it("carries the sign-in from the authorization code to the token and on to its rotated successor", async () => {
+		const deps = initInMemoryOAuthModel();
+		const model = createOAuthModel(deps);
+		const firefox = await model.getClient(TEST_CLIENT_ID, "");
+		assert(firefox, "Test client must exist");
+		const signedIn = { at: 1_000, location: { country: "AU" }, device: { browser: "firefox", os: "windows" } };
+
+		await model.saveAuthorizationCode(createTestAuthCode({ authorizationCode: "signed-in-code" }), firefox, { id: TEST_USER_ID, signedIn });
+		const code = await model.getAuthorizationCode("signed-in-code");
+		assert(code, "the saved code must be found");
+		await model.saveToken(createTestToken({ accessToken: "signed-in-access", refreshToken: "signed-in-refresh" }), firefox, code.user);
+		const rotated = await model.refresh.rotate({ clientId: TEST_CLIENT_ID, refreshToken: "signed-in-refresh", now: Date.now() });
+
+		expect(code.user.signedIn).toEqual(signedIn);
+		expect(rotated).toMatchObject({ ok: true, credential: { signedIn } });
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([{ clientId: TEST_CLIENT_ID, latestSignIn: signedIn }]);
 	});
 });
 
@@ -867,7 +902,7 @@ describe("createRevokeUserOAuthClient", () => {
 		assert(userTokens, "The user keeps an index entry for the Firefox token");
 		expect([...userTokens]).toEqual(["firefox-1"]);
 		expect([...deps.codes.keys()]).toEqual(["firefox-code", "other-chrome-code"]);
-		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([TEST_CLIENT_ID]);
+		expect(await createListUserOAuthClients(deps)(TEST_USER_ID)).toEqual([{ clientId: TEST_CLIENT_ID, latestSignIn: undefined }]);
 	});
 
 	it("changes nothing for a client the user never connected", async () => {

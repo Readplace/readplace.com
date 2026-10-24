@@ -7,7 +7,7 @@ import {
 	defineDynamoTable,
 	forEachQueryPage,
 } from "@packages/hutch-storage-client";
-import { initKeepCurrentGrant, isCurrentGrant, isExemptGrant, type OAuthClientId, OAuthClientIdSchema, type OAuthGrantId as GrantId } from "@packages/domain/oauth";
+import { initKeepCurrentGrant, isCurrentGrant, isExemptGrant, laterSignIn, type OAuthClientId, OAuthClientIdSchema, type OAuthGrantId as GrantId, type OAuthSignIn } from "@packages/domain/oauth";
 import type {
 	ListUserOAuthClients,
 	RevokeAllUserOAuthTokens,
@@ -95,7 +95,7 @@ export function initOAuthCredentialLifecycle(deps: {
 	};
 
 	const listClients: ListUserOAuthClients = async userId => {
-		const clientIds = new Set<OAuthClientId>();
+		const latest = new Map<OAuthClientId, OAuthSignIn | undefined>();
 		await forEachQueryPage(byUser, {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
@@ -105,11 +105,12 @@ export function initOAuthCredentialLifecycle(deps: {
 				if (!row.pk.startsWith("token#")) return;
 				const token = await tokens.get({ pk: row.pk }, { consistentRead: true });
 				if (token && Math.max(token.accessTokenExpiresAt, token.refreshTokenExpiresAt) * 1000 > Date.now()) {
-					clientIds.add(OAuthClientIdSchema.parse(token.clientId));
+					const clientId = OAuthClientIdSchema.parse(token.clientId);
+					latest.set(clientId, laterSignIn(latest.get(clientId), token.signedIn));
 				}
 			}));
 		});
-		return [...clientIds];
+		return [...latest].map(([clientId, latestSignIn]) => ({ clientId, latestSignIn }));
 	};
 
 	async function disconnect(row: OAuthTokenRow): Promise<void> {

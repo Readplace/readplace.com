@@ -3,8 +3,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { EDGE_SECRET_HEADER, VIEWER_CITY_HEADER, VIEWER_COUNTRY_HEADER } from "@packages/viewer-identity";
 import { BROWSER_USER_AGENT, describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-harness";
-import { useTestServer } from "../../../test-app";
+import { TEST_EDGE_SECRET, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
 
@@ -16,6 +17,9 @@ const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 const EXTENSION_CALLBACK = "http://127.0.0.1:3000/oauth/callback";
 const IOS_CALLBACK = "readplace://oauth-callback";
 const ANDROID_CALLBACK = "readplace://oauth-callback/android";
+const CHROME_ON_WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const FIREFOX_ON_LINUX = "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0";
+const FROM_SYDNEY = { [EDGE_SECRET_HEADER]: TEST_EDGE_SECRET, [VIEWER_CITY_HEADER]: "Sydney", [VIEWER_COUNTRY_HEADER]: "AU" };
 
 function generatePKCE() {
 	const verifier = randomBytes(32).toString("base64url");
@@ -32,10 +36,10 @@ async function signIn(harness: Harness, email: string): Promise<Agent> {
 
 async function grant(
 	harness: Harness,
-	input: { agent: Agent; clientId: string; redirectUri: string },
+	input: { agent: Agent; clientId: string; redirectUri: string; headers?: Record<string, string> },
 ): Promise<{ refreshToken: string }> {
 	const pkce = generatePKCE();
-	const authorize = await input.agent.post("/oauth/authorize").type("form").send({
+	const authorize = await input.agent.post("/oauth/authorize").set(input.headers ?? {}).type("form").send({
 		client_id: input.clientId,
 		redirect_uri: input.redirectUri,
 		response_type: "code",
@@ -96,6 +100,10 @@ function rowFor(section: Element, clientId: string): Element {
 	const row = section.querySelector(`[data-test-connected-app-client="${clientId}"]`);
 	assert(row, `the ${clientId} row must render`);
 	return row;
+}
+
+function signInLine(section: Element, clientId: string): string | null | undefined {
+	return rowFor(section, clientId).querySelector("[data-test-connected-app-sign-in]")?.textContent;
 }
 
 function disconnectActions(section: Element): string[] {
@@ -190,7 +198,7 @@ describe("GET /account (connected apps)", () => {
 		expect(untracked).toEqual([]);
 	});
 
-	it("keeps the app sheet's markers on the Disconnect it renders inside the sheet", async () => {
+	it("keeps the app sheet's markers on the sign-out it renders inside the sheet", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await signIn(harness, "connected-sheet@example.com");
 		await grant(harness, { agent, clientId: "hutch-chrome-extension", redirectUri: EXTENSION_CALLBACK });
@@ -201,6 +209,87 @@ describe("GET /account (connected apps)", () => {
 			"/account/connected-apps/hutch-chrome-extension/disconnect?platform=ios&shell=app&utm_source=account&utm_medium=internal&utm_content=disconnect-app",
 			"/account/connected-apps/hutch-chrome-extension/disconnect?platform=ios&shell=app&utm_source=account&utm_medium=internal&utm_content=disconnect-app",
 		]);
+	});
+});
+
+describe("GET /account (connected apps' latest sign-in)", () => {
+	it("shows the browser, operating system and place the reader approved the app from", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await signIn(harness, "sign-in-line-edge@example.com");
+		await grant(harness, {
+			agent,
+			clientId: "hutch-chrome-extension",
+			redirectUri: EXTENSION_CALLBACK,
+			headers: { "User-Agent": CHROME_ON_WINDOWS, ...FROM_SYDNEY },
+		});
+
+		const section = connectedApps(await accountPage(agent, "/account"));
+
+		expect(signInLine(section, "hutch-chrome-extension")).toBe("Chrome on Windows · Sydney, Australia · Signed in just now");
+	});
+
+	it("leaves the place off a sign-in that did not come through the edge", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await signIn(harness, "sign-in-line-origin@example.com");
+		await grant(harness, {
+			agent,
+			clientId: "hutch-chrome-extension",
+			redirectUri: EXTENSION_CALLBACK,
+			headers: { "User-Agent": CHROME_ON_WINDOWS, [VIEWER_CITY_HEADER]: "Sydney", [VIEWER_COUNTRY_HEADER]: "AU" },
+		});
+
+		const section = connectedApps(await accountPage(agent, "/account"));
+
+		expect(signInLine(section, "hutch-chrome-extension")).toBe("Chrome on Windows · Signed in just now");
+	});
+
+	it("draws no sign-in line for a grant saved before sign-ins were recorded", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const model = fixture.oauth.oauthModel;
+		const saveAuthorizationCode = model.saveAuthorizationCode.bind(model);
+		model.saveAuthorizationCode = (code, client, { signedIn: _signedIn, ...preShipUser }) => saveAuthorizationCode(code, client, preShipUser);
+		const harness = useApp(fixture);
+		const agent = await signIn(harness, "sign-in-line-legacy@example.com");
+		await grant(harness, { agent, clientId: "hutch-chrome-extension", redirectUri: EXTENSION_CALLBACK, headers: FROM_SYDNEY });
+
+		const section = connectedApps(await accountPage(agent, "/account"));
+
+		expect([...rowFor(section, "hutch-chrome-extension").querySelectorAll(".account-row__text > *")].map((child) => child.className)).toEqual([
+			"account-row__title",
+			"account-row__description",
+		]);
+	});
+
+	it("shows the later of two sign-ins to the same app", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let minutesAhead = 0;
+		fixture.shared.now = () => new Date(Date.now() + minutesAhead * 60_000);
+		const harness = useApp(fixture);
+		const agent = await signIn(harness, "sign-in-line-latest@example.com");
+		await grant(harness, { agent, clientId: "hutch-chrome-extension", redirectUri: EXTENSION_CALLBACK, headers: { "User-Agent": FIREFOX_ON_LINUX } });
+		minutesAhead = 5;
+		await grant(harness, { agent, clientId: "hutch-chrome-extension", redirectUri: EXTENSION_CALLBACK, headers: { "User-Agent": CHROME_ON_WINDOWS, ...FROM_SYDNEY } });
+
+		const section = connectedApps(await accountPage(agent, "/account"));
+
+		expect(signInLine(section, "hutch-chrome-extension")).toBe("Chrome on Windows · Sydney, Australia · Signed in just now");
+	});
+
+	it("keeps the sign-in after the app refreshes its token", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await signIn(harness, "sign-in-line-refresh@example.com");
+		const chrome = await grant(harness, {
+			agent,
+			clientId: "hutch-chrome-extension",
+			redirectUri: EXTENSION_CALLBACK,
+			headers: { "User-Agent": CHROME_ON_WINDOWS, ...FROM_SYDNEY },
+		});
+		const refreshed = await refresh(harness, { clientId: "hutch-chrome-extension", refreshToken: chrome.refreshToken });
+		assert.equal(refreshed.status, 200, "the app's refresh must rotate its token");
+
+		const section = connectedApps(await accountPage(agent, "/account"));
+
+		expect(signInLine(section, "hutch-chrome-extension")).toBe("Chrome on Windows · Sydney, Australia · Signed in just now");
 	});
 });
 

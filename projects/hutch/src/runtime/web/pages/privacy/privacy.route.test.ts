@@ -33,7 +33,7 @@ describe("GET /privacy", () => {
 
 		expect(response.text).toContain("Connected AI assistants");
 		expect(response.text).toContain("It cannot delete anything");
-		expect(response.text).toContain("Disconnect an assistant under");
+		expect(response.text).toContain("Sign an assistant out under");
 		expect(response.text).toContain("on your Account page");
 		expect(response.text).toContain("revokes its Readplace token");
 		expect(response.text).toContain("list your readlists, create a readlist and add a saved article to one");
@@ -42,6 +42,17 @@ describe("GET /privacy", () => {
 		expect(Array.from(doc.querySelectorAll('.legal-page__section a[href^="/account"]')).map((link) => link.getAttribute("href"))).toEqual([
 			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-assistants#connected-apps",
 			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-rights",
+		]);
+	});
+
+	it("lists what a connected app's sign-in records and where the reader sees it", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const items = Array.from(doc.querySelectorAll(".legal-page__list li"), (item) => item.textContent);
+		expect(items.filter((text) => text?.startsWith("Connected app sign-ins:"))).toEqual([
+			"Connected app sign-ins: when you connect an app or an AI assistant, Readplace records the time you approved it, the browser and operating system you approved it from, and the city and country your network address pointed to at that moment. These show under Connected apps on your Account page and are deleted when that sign-in ends.",
 		]);
 	});
 
@@ -56,7 +67,7 @@ describe("GET /privacy", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 17 October 2026");
+		expect(response.text).toContain("Last updated: 19 October 2026");
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {
