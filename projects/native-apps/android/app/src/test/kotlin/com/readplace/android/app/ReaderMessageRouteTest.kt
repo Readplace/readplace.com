@@ -1,6 +1,7 @@
 package com.readplace.android.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ReaderMessageRouteTest {
@@ -145,6 +146,31 @@ class ReaderMessageRouteTest {
 		assertEquals(
 			"document.dispatchEvent(new Event(\"readplace-capture-started\"))",
 			ReaderMessageRoute.CAPTURE_STARTED_SCRIPT,
+		)
+	}
+
+	@Test
+	fun `a capture that copied nothing is announced with the DOM event the server's markup listens for`() {
+		assertEquals(
+			"document.dispatchEvent(new Event(\"readplace-capture-failed\"))",
+			ReaderMessageRoute.CAPTURE_FAILED_SCRIPT,
+		)
+	}
+
+	@Test
+	fun `a capture that copied nothing tells the page it failed`() {
+		assertEquals(
+			"without the event the page keeps showing the copy as in flight until its poll gives up",
+			ReaderMessageRoute.CAPTURE_FAILED_SCRIPT,
+			ReaderMessageRoute.scriptAfterCapture(CaptureEnding.NotCopied),
+		)
+	}
+
+	@Test
+	fun `a capture that copied the page dispatches nothing`() {
+		assertNull(
+			"the page's own poll picks up the arrived copy, so a failed event would contradict it",
+			ReaderMessageRoute.scriptAfterCapture(CaptureEnding.Copied),
 		)
 	}
 }

@@ -12,6 +12,8 @@ function reasonAsString(reason: CrawlFailureReason): string {
 	switch (reason.kind) {
 		case "parse-error":
 			return `parse-error: ${reason.detail}`;
+		case "capture-unreadable":
+			return `capture-unreadable: ${reason.detail}`;
 		case "fetch-failed":
 			return reason.httpStatus !== undefined
 				? `fetch-failed: HTTP ${reason.httpStatus}`

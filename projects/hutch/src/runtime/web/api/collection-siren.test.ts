@@ -272,7 +272,7 @@ describe("toArticleCollectionEntity", () => {
 				crawlByUrl: new Map<string, ArticleCrawl | undefined>([
 					[
 						blocked.url,
-						{ status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+						{ status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
 					],
 					[ready.url, { status: "ready" }],
 				]),

@@ -299,7 +299,24 @@ describe("initDynamoDbArticleCrawl", () => {
 
 			const result = await findArticleCrawlStatus(URL);
 
-			expect(result).toEqual({ status: "failed", reason: "connect timeout" });
+			expect(result).toEqual({ status: "failed", reason: "connect timeout", outcomeRevision: 0 });
+		});
+
+		it("returns the row's crawl outcome revision with a failed crawl", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "failed",
+					crawlFailureReason: "connect timeout",
+					crawlOutcomeRevision: 7,
+				}),
+				tableName: TABLE,
+				now,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({ status: "failed", reason: "connect timeout", outcomeRevision: 7 });
 		});
 
 		it("returns unsupported with reason when crawlStatus=unsupported", async () => {

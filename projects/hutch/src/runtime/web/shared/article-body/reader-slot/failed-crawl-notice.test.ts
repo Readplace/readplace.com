@@ -4,6 +4,7 @@ import { failedCrawlNotice } from "./failed-crawl-notice";
 describe("failedCrawlNotice", () => {
 	it.each([
 		[JSON.stringify({ kind: "parse-error", detail: "no readable article candidate" }), "failed", "offered"],
+		[JSON.stringify({ kind: "capture-unreadable", detail: "no readable article candidate" }), "capture-unreadable", "offered"],
 		[JSON.stringify({ kind: "fetch-failed" }), "failed", "offered"],
 		[JSON.stringify({ kind: "fetch-failed", httpStatus: 503 }), "failed", "offered"],
 		[JSON.stringify({ kind: "exhausted-retries", receiveCount: 4 }), "failed", "offered"],

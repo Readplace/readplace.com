@@ -120,6 +120,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 	it("sets data-show='true' when the owned article's crawl has failed", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "failed",
+			outcomeRevision: 1,
 			reason: "blocked",
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
@@ -266,6 +267,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 	it("sets data-show='true' when the owned article's page is gone — a not-found crawl still has no content to show", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "failed",
+			outcomeRevision: 1,
 			reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
@@ -302,6 +304,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 	it("reveals the banner OOB on a settled failed owner reader poll", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "failed",
+			outcomeRevision: 1,
 			reason: "blocked",
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
@@ -330,6 +333,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 	it("emits no banner OOB on a settled failed poll for a platform with no advertised client", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "failed",
+			outcomeRevision: 1,
 			reason: "blocked",
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {

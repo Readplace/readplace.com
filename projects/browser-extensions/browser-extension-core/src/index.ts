@@ -99,10 +99,12 @@ export type { CapturedContent } from "./capture-active-tab-bytes";
 export { isHtmlDocument } from "./is-html-document";
 export type { TabContent } from "./reading-list/reading-list.types";
 export {
+	CAPTURE_FAILED_EVENT,
 	CAPTURE_STARTED_EVENT,
+	READER_RESCUE_ENDED_MESSAGE_TYPE,
 	ReaderRescueRequestSchema,
 } from "./reader-rescue/reader-rescue-message.types";
-export type { ReaderRescueAnswer } from "./reader-rescue/reader-rescue-message.types";
+export type { ReaderRescueAnswer, ReaderRescueEnded } from "./reader-rescue/reader-rescue-message.types";
 export { initAnnounceCaptureStarted } from "./reader-rescue/announce-capture-started";
 export { initCaptureHost } from "./reader-rescue/capture-host";
 export { navigationResponseStatus } from "./reader-rescue/navigation-response-status";

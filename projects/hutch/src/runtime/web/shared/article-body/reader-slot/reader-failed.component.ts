@@ -4,6 +4,7 @@ import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleDestinationUrl } from "@packages/domain/article";
 import { render, renderAlert, renderIllustration, withInternalTracking } from "@packages/web-shell";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../client-surface-phrases";
+import type { CapturePollUrls } from "../../article-reader/article-reader.types";
 import type { CaptureRescue } from "./failed-crawl-notice";
 
 const TEMPLATE = readFileSync(
@@ -33,7 +34,7 @@ export interface ReaderFailedInput {
 	variant: ReaderFailedVariant;
 	/** Install URL for the browser extension; omit when the user already has it installed. */
 	extensionInstallUrl?: string;
-	capturePollUrl?: string;
+	capturePollUrls?: CapturePollUrls;
 	captureRescue: CaptureRescue;
 	oob?: boolean;
 	noticeOob: boolean;
@@ -52,6 +53,8 @@ const TITLES: Record<ReaderFailedVariant, string> = {
 	"origin-down": "Your link is saved",
 	"not-found": "Link saved, but the article is unavailable",
 	"not-an-article": "Your link is saved",
+	"capture-unreadable": "Readplace copied the page, but it isn't an article",
+	"capture-missing": "The copy from your device didn't arrive",
 };
 
 const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
@@ -62,6 +65,8 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	"origin-down": "Readplace couldn't reach this site right now. It may be temporarily unavailable, so you can try again later.",
 	"not-found": "This page no longer appears to exist, so Readplace couldn't retrieve the article content.",
 	"not-an-article": "This link isn't an article, so it can't be shown in reader view.",
+	"capture-unreadable": "The saved copy of this page has no article in it to show in reader view. You can read it on the original site, or capture it again once the article has loaded.",
+	"capture-missing": "Readplace didn't receive a copy of this page from your device. You can capture it again, or read it on the original site.",
 };
 
 const CAPTURE_RESCUE_CLASS = {
@@ -77,6 +82,8 @@ const CTA_LABELS: Record<ReaderFailedVariant, string> = {
 	"origin-down": "Read original article",
 	"not-found": "Visit original page",
 	"not-an-article": "Read original article",
+	"capture-unreadable": "Read original article",
+	"capture-missing": "Read original article",
 };
 
 /* Every other variant can still be rescued by capturing the page from a client,
@@ -132,7 +139,7 @@ function renderCapturePitch(input: ReaderFailedInput): CapturePitch {
 
 function rescueFor(input: ReaderFailedInput): { url: ArticleDestinationUrl; articleId: string } | undefined {
 	if (input.captureRescue !== "offered") return undefined;
-	if (input.capturePollUrl === undefined) return undefined;
+	if (input.capturePollUrls === undefined) return undefined;
 	if (input.articleId === undefined) return undefined;
 	return { url: input.url, articleId: input.articleId };
 }
@@ -152,7 +159,7 @@ export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 			explanation: EXPLANATIONS[input.variant],
 			ctaLabel: CTA_LABELS[input.variant],
 			captureClass: CAPTURE_RESCUE_CLASS[input.captureRescue],
-			capturePollUrl: input.capturePollUrl,
+			capturePollUrls: input.capturePollUrls,
 			rescue: rescueFor(input),
 			...renderCapturePitch(input),
 		}),

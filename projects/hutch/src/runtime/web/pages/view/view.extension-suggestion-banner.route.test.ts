@@ -153,6 +153,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "failed",
+			outcomeRevision: 1,
 			reason: "blocked",
 		});
 		const harness = useApp({
@@ -173,6 +174,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "failed",
+			outcomeRevision: 1,
 			reason: "blocked",
 		});
 		const harness = useApp({

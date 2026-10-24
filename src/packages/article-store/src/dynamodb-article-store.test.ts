@@ -1356,6 +1356,39 @@ describe("initDynamoDbArticleStore (unit)", () => {
 		});
 	});
 
+	describe("save (crawl outcome revision)", () => {
+		async function updateFor(crawl: Article["crawl"]) {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+			await store.save({ article: buildArticle({ crawl }), writes: ["crawl"] });
+			return capturedCommand(received).input;
+		}
+
+		it.each([
+			["failed", { kind: "failed", reason: { kind: "capture-unreadable", detail: "none" } } as const],
+			["unsupported", { kind: "unsupported", reason: { kind: "paywall" } } as const],
+			["ready", { kind: "ready" } as const],
+		])("moves crawlOutcomeRevision on a %s write, starting from zero on a row that never had one", async (_label, crawl) => {
+			const input = await updateFor(crawl);
+
+			expect(input.UpdateExpression).toContain(
+				"crawlOutcomeRevision = if_not_exists(crawlOutcomeRevision, :zero) + :one",
+			);
+			expect(input.ExpressionAttributeValues?.[":zero"]).toBe(0);
+			expect(input.ExpressionAttributeValues?.[":one"]).toBe(1);
+		});
+
+		it("leaves crawlOutcomeRevision as it is on a pending write, which is not an outcome", async () => {
+			const input = await updateFor({ kind: "pending", pendingSince: PENDING_SINCE });
+
+			expect(input.UpdateExpression?.includes("crawlOutcomeRevision")).toBe(false);
+		});
+	});
+
 	describe("save (recrawl-tie-kept-canonical shape: writes crawl only)", () => {
 		it("writes crawlStatus=ready and REMOVEs lingering failure / failedAt attributes", async () => {
 			let received: unknown;

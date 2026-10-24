@@ -202,7 +202,7 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: undefined,
-			crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
+			crawl: { status: "failed", outcomeRevision: 1, reason: "exceeded SQS maxReceiveCount" },
 		});
 		const doc = parse(html);
 
@@ -214,6 +214,28 @@ describe("renderArticleBody", () => {
 		expect(notice.getAttribute("data-reader-status")).toBe("failed");
 		const link = notice.querySelector("[data-test-reader-failed-primary]");
 		expect(link?.getAttribute("href")).toBe("https://example.com/post");
+	});
+
+	it("kicks off a tapped capture from the notice's button and an automatic one from the notice itself", () => {
+		const capturePollUrls = {
+			manual: "/queue/0123456789abcdef0123456789abcdef/reader?poll=1&captureNotice=1&captureTrigger=manual",
+			automatic: "/queue/0123456789abcdef0123456789abcdef/reader?poll=1&captureNotice=1&captureTrigger=automatic",
+		};
+		const doc = parse(
+			renderArticleBody({
+				...baseInput,
+				content: undefined,
+				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+				capturePollUrls,
+			}),
+		);
+
+		const notice = doc.querySelector("[data-test-reader-notice]");
+		assert(notice, "the notice must be rendered");
+		expect({
+			manual: notice.querySelector("[data-reader-capture]")?.getAttribute("hx-get"),
+			automatic: notice.getAttribute("hx-get"),
+		}).toEqual(capturePollUrls);
 	});
 
 	it("wraps the header, the panels and the reader slot in one article card", () => {
@@ -259,7 +281,7 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: undefined,
-			crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
+			crawl: { status: "failed", outcomeRevision: 1, reason: "exceeded SQS maxReceiveCount" },
 			topActionsHtml: '<div data-test-top-actions>top</div>',
 			issueLinksHtml: '<section data-test-issue-links>links</section>',
 			bottomActionsHtml: '<div data-test-bottom-actions>bottom</div>',
@@ -416,7 +438,7 @@ describe("renderArticleRail", () => {
 		expect([
 			tableOfContentsState(renderArticleRail({ ...pendingReader, content })),
 			tableOfContentsState(
-				renderArticleRail({ ...pendingReader, crawl: { status: "failed", reason: "fetch-failed" } }),
+				renderArticleRail({ ...pendingReader, crawl: { status: "failed", outcomeRevision: 1, reason: "fetch-failed" } }),
 			),
 			tableOfContentsState(
 				renderArticleRail({ ...pendingReader, crawl: { status: "ready" }, content, readerNotice: "not-an-article" }),

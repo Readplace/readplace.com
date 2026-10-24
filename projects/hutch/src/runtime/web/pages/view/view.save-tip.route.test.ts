@@ -74,7 +74,7 @@ async function openPublicView(server: Parameters<typeof request>[0], url: string
 describe("Save tip — the public view", () => {
 	it("gates the save call to action once the crawl has failed", async () => {
 		const harness = harnessFor({
-			crawl: async () => ({ status: "failed", reason: "blocked" }),
+			crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 		});
 
 		const article = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
@@ -117,7 +117,7 @@ describe("Save tip — the public view", () => {
 
 	it("marks the gated call to action as already seen for a warned session", async () => {
 		const harness = harnessFor({
-			crawl: async () => ({ status: "failed", reason: "blocked" }),
+			crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 		});
 
 		const article = await request(harness.server)

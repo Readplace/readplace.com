@@ -319,6 +319,21 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/article-body/reader-slot/capture-failed-relay.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "capture-failed-relay.client.js"),
+    globalName: "CaptureFailedRelay",
+    footer: [
+      "CaptureFailedRelay.initCaptureFailedRelay({",
+      "  document: window.document,",
+      "  isCaptureControl: function (target) { return target instanceof Element && target.closest('[data-reader-capture]') !== null; },",
+      "  dispatchCaptureFailed: function () { window.document.dispatchEvent(new Event('readplace-capture-failed')); }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/shared/reader-open/reader-open.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-open.client.js"),

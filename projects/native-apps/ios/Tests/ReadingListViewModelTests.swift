@@ -3333,7 +3333,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureBlockedArticle(with: htmlCaptor("<html>captured in the app</html>"))
+		let ending = await viewModel.captureBlockedArticle(with: htmlCaptor("<html>captured in the app</html>"))
+
+		XCTAssertEqual(ending, .copied, "an uploaded capture ends with a copy on its way")
 
 		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
 		let parts = TestSupport.multipartParts(
@@ -3357,7 +3359,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		let captor = htmlCaptor("<html>hi</html>")
 
-		await viewModel.captureBlockedArticle(with: captor)
+		let ending = await viewModel.captureBlockedArticle(with: captor)
+
+		XCTAssertEqual(ending, .notCopied, "with no article open nothing was copied")
 
 		XCTAssertEqual(captor.capturedURLs, [], "nothing is rendered for an article the user is not reading")
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
@@ -3374,7 +3378,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureBlockedArticle(with: htmlCaptor(nil))
+		let ending = await viewModel.captureBlockedArticle(with: htmlCaptor(nil))
+
+		XCTAssertEqual(ending, .notCopied, "an empty capture uploads nothing")
 
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
 		XCTAssertEqual(
@@ -3396,7 +3402,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureBlockedArticle(with: htmlCaptor("<html>hi</html>"))
+		let ending = await viewModel.captureBlockedArticle(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertEqual(ending, .notCopied, "a refused upload leaves no copy on its way")
 
 		XCTAssertTrue(
 			viewModel.messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false,
@@ -3454,7 +3462,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>captured in the app</html>"))
+		let ending = await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>captured in the app</html>"))
+
+		XCTAssertEqual(ending, .copied, "an uploaded rescue ends with a copy on its way")
 
 		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
 		let parts = TestSupport.multipartParts(
@@ -3486,7 +3496,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		let captor = htmlCaptor("<html>hi</html>")
 
-		await viewModel.captureArticleAutomatically(with: captor)
+		let ending = await viewModel.captureArticleAutomatically(with: captor)
+
+		XCTAssertEqual(ending, .notCopied, "with no article open nothing was copied")
 
 		XCTAssertEqual(captor.capturedURLs, [], "a reader closed before the render started leaves no article to render")
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
@@ -3508,7 +3520,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureArticleAutomatically(with: htmlCaptor(nil))
+		let ending = await viewModel.captureArticleAutomatically(with: htmlCaptor(nil))
+
+		XCTAssertEqual(ending, .notCopied, "an empty rescue uploads nothing")
 
 		XCTAssertEqual(
 			reported, ["This device couldn't capture that page either — the site returned nothing to save."],
@@ -3534,9 +3548,11 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureArticleAutomatically(with: FakeHTMLCaptor(
+		let ending = await viewModel.captureArticleAutomatically(with: FakeHTMLCaptor(
 			page: CapturedPage(rawHtml: "<html>captcha</html>", title: "Just a moment", mediaType: "text/html", mainFrameStatus: 403)
 		))
+
+		XCTAssertEqual(ending, .notCopied, "an error page is never uploaded as the article")
 
 		XCTAssertEqual(
 			reported, ["This device couldn't load the article either — the site answered with an error page instead of it."]
@@ -3565,7 +3581,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+		let ending = await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertEqual(ending, .notCopied, "a refused rescue leaves no copy on its way")
 
 		XCTAssertEqual(
 			reported, ["request failed"],
@@ -3591,7 +3609,9 @@ final class ReadingListViewModelTests: XCTestCase {
 			request.url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
 		}
 
-		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+		let ending = await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertEqual(ending, .notCopied, "a capture cut short by a dead session copied nothing")
 
 		XCTAssertTrue(expired, "a dead session signs the reader out whichever capture discovered it")
 		XCTAssertEqual(reported, [], "a sign-out is acted on, not logged as a failed capture")

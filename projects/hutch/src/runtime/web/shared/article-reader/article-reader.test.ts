@@ -6,9 +6,10 @@ import type { ArticleCrawlVersion } from "@packages/provider-contracts/article-s
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
-import { MAX_POLLS } from "@packages/web-shell";
+import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import { initArticleReader } from "./article-reader";
+import { type CaptureWatch, captureWatchQuery, NO_CAPTURE_WATCH } from "./capture-watch";
 import type {
 	ArticleReaderDeps,
 	ArticleSnapshot,
@@ -34,8 +35,7 @@ function makeSnapshot(): ArticleSnapshot {
 function makePollUrlBuilder(): PollUrlBuilder {
 	return {
 		summary: (n) => `/test/summary?poll=${n}`,
-		reader: (n, capturing) =>
-			`/test/reader?poll=${n}${capturing ? "&capturing=1" : ""}`,
+		reader: (n, capture) => `/test/reader?poll=${n}${captureWatchQuery(capture)}`,
 	};
 }
 
@@ -140,7 +140,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.crawl).toEqual({ status: "pending" });
@@ -166,7 +165,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			// Provider versions win over the contentFetchedAt fallback.
@@ -201,7 +199,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.crawlVersions).toHaveLength(10);
@@ -231,7 +228,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.crawlVersions).toEqual([
@@ -253,7 +249,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.crawlVersions).toEqual([]);
@@ -270,7 +265,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.readerPollUrl).toBeUndefined();
@@ -289,7 +283,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.summaryPollUrl).toBeUndefined();
@@ -298,7 +291,7 @@ describe("initArticleReader", () => {
 
 		it("omits readerPollUrl when the crawl has failed", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				summary: { status: "pending" },
 				content: undefined,
 			});
@@ -307,11 +300,10 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.readerPollUrl).toBeUndefined();
-			expect(result.crawl).toEqual({ status: "failed", reason: "blocked" });
+			expect(result.crawl).toEqual({ status: "failed", reason: "blocked", outcomeRevision: 1 });
 		});
 
 		it("does NOT re-prime a legacy stub from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {
@@ -325,7 +317,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			// crawl + summary stay undefined; the read-after-write race branch in
@@ -348,7 +339,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.crawl).toBeUndefined();
@@ -367,7 +357,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.readerPollUrl).toBeUndefined();
@@ -384,7 +373,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.crawl).toEqual({ status: "ready" });
@@ -394,7 +382,7 @@ describe("initArticleReader", () => {
 
 		it("flags readerViewFailed and readerContentUnavailable when the crawl has failed", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				summary: { status: "pending" },
 			});
 			const reader = initArticleReader(deps);
@@ -402,7 +390,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.readerViewFailed).toBe(true);
@@ -420,7 +407,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.readerViewFailed).toBe(true);
@@ -437,7 +423,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.readerViewFailed).toBe(false);
@@ -455,7 +440,6 @@ describe("initArticleReader", () => {
 			const result = await reader.resolveReaderState({
 				article: makeSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(result.readerViewFailed).toBe(false);
@@ -476,7 +460,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 3,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -504,7 +488,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -533,7 +517,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -563,7 +547,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -595,7 +579,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: "/queue/abc/summary-toggle",
 				provenance: undefined,
@@ -614,7 +598,7 @@ describe("initArticleReader", () => {
 
 		it("collapses the summary slot when the crawl has failed (no further polling)", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				summary: { status: "pending" },
 			});
 			const reader = initArticleReader(deps);
@@ -624,7 +608,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -654,7 +638,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 2,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -681,7 +665,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -713,7 +697,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -743,7 +727,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -771,7 +755,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -799,7 +783,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -827,7 +811,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -844,7 +828,7 @@ describe("initArticleReader", () => {
 
 		it("renders the reader as failed when the crawl has failed", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 			});
 			const reader = initArticleReader(deps);
 
@@ -853,7 +837,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -889,7 +873,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -929,7 +913,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -962,7 +946,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -993,7 +977,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: { kind: "web" },
@@ -1021,7 +1005,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1055,7 +1039,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1085,7 +1069,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1128,7 +1112,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1163,7 +1147,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: { kind: "web" },
@@ -1195,7 +1179,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1234,7 +1218,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1265,7 +1249,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1299,7 +1283,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1330,7 +1314,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1361,7 +1345,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1402,7 +1386,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 0,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1426,20 +1410,21 @@ describe("initArticleReader", () => {
 		});
 	});
 
-	describe("on-device capture keeps the reader loop armed", () => {
-		it("keeps a reader poll URL on a failed crawl while capturing, and preserves the flag on the next tick", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
-				content: undefined,
-			});
-			const reader = initArticleReader(deps);
+	describe("an on-device capture ends on the first poll that sees its outcome", () => {
+		const BLOCKED = JSON.stringify({ kind: "blocked", cause: "edge-block" });
 
-			const component = await reader.handleReaderPoll({
+		async function capturePoll(params: {
+			crawl: ArticleCrawl | undefined;
+			capture: CaptureWatch;
+			pollCount: number;
+		}): Promise<Document> {
+			const { deps } = initFakeDeps({ crawl: params.crawl, content: undefined });
+			const component = await initArticleReader(deps).handleReaderPoll({
 				articleUrl: ARTICLE_URL,
-				articleId: undefined,
-				pollCount: 1,
+				articleId: "0123456789abcdef0123456789abcdef",
+				pollCount: params.pollCount,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: true,
+				capture: params.capture,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1448,128 +1433,205 @@ describe("initArticleReader", () => {
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
+			return parse(toHtml(component));
+		}
 
-			const doc = parse(toHtml(component));
+		function regionsOf(doc: Document) {
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
-			expect(slot.getAttribute("data-reader-status")).toBe("pending");
-			expect(slot.getAttribute("hx-get")).toBe("/test/reader?poll=2&capturing=1");
 			const notice = doc.querySelector("[data-test-reader-notice]");
-			assert(notice, "the capture poll must carry the notice region");
-			expect([
-				notice.getAttribute("data-reader-status"),
-				notice.classList.contains("article-body__reader-notice--hidden"),
-				notice.getAttribute("hx-swap-oob"),
-			]).toEqual(["none", true, "outerHTML"]);
-		});
+			assert(notice, "the notice region must be rendered");
+			return {
+				slot: { status: slot.getAttribute("data-reader-status"), poll: slot.getAttribute("hx-get") },
+				notice: { status: notice.getAttribute("data-reader-status"), poll: notice.getAttribute("hx-get"), trigger: notice.getAttribute("hx-trigger") },
+			};
+		}
 
-		it("leaves the same failed crawl unpolled when no capture is in flight", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
-				content: undefined,
-			});
-			const reader = initArticleReader(deps);
-
-			const component = await reader.handleReaderPoll({
-				articleUrl: ARTICLE_URL,
-				articleId: undefined,
+		it("shows the copy in progress at kick-off, polling with the rendered notice's revision as the baseline and listening for the device to give up", async () => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
+				capture: { kind: "started", noticeRevision: 2, trigger: "manual" },
 				pollCount: 1,
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
-				extensionInstallUrl: undefined,
-				summaryToggleUrl: undefined,
-				provenance: undefined,
-				saved: undefined,
-				readlistTags: undefined,
-				readerViewFailedOob: () => "",
-				renderDownloadsOob: undefined,
 			});
 
-			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
-			assert(slot, "reader slot must be rendered");
-			expect(slot.getAttribute("data-reader-status")).toBe("blocked");
-			expect(slot.hasAttribute("hx-get")).toBe(false);
+			expect(regionsOf(doc)).toEqual({
+				slot: { status: "pending", poll: "/test/reader?poll=2&captureSince=2&captureTrigger=manual" },
+				notice: {
+					status: "none",
+					poll: "/test/reader?poll=2&captureSince=2&captureGaveUp=1&captureTrigger=manual",
+					trigger: "readplace-capture-failed from:document",
+				},
+			});
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, "the notice region must be rendered");
+			expect([
+				notice.getAttribute("hx-target"),
+				notice.getAttribute("hx-swap"),
+				notice.hasAttribute("data-background-request"),
+			]).toEqual(["#article-body-reader-slot", "outerHTML show:none", true]);
 		});
 
-		it("stops the loop once the capture has healed the row: the ready fragment carries no hx-get even with the flag still set", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "ready" },
-				summary: { status: "ready", summary: "TL;DR" },
-				content: "<p>Captured body</p>",
-			});
-			const reader = initArticleReader(deps);
-
-			const component = await reader.handleReaderPoll({
-				articleUrl: ARTICLE_URL,
-				articleId: undefined,
-				pollCount: 3,
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: true,
-				extensionInstallUrl: undefined,
-				summaryToggleUrl: undefined,
-				provenance: undefined,
-				saved: undefined,
-				readlistTags: undefined,
-				readerViewFailedOob: () => "",
-				renderDownloadsOob: undefined,
+		it("carries an automatic capture's trigger onto the next poll and onto the device's give-up", async () => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
+				capture: { kind: "started", noticeRevision: 2, trigger: "automatic" },
+				pollCount: 1,
 			});
 
-			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
-			assert(slot, "reader slot must be rendered");
-			expect(slot.getAttribute("data-reader-status")).toBe("ready");
-			expect(slot.hasAttribute("hx-get")).toBe(false);
+			expect([regionsOf(doc).slot.poll, regionsOf(doc).notice.poll]).toEqual([
+				"/test/reader?poll=2&captureSince=2&captureTrigger=automatic",
+				"/test/reader?poll=2&captureSince=2&captureGaveUp=1&captureTrigger=automatic",
+			]);
 		});
 
-		it("still stops at MAX_POLLS, so a capture that never uploads cannot poll forever", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
-				content: undefined,
-			});
-			const reader = initArticleReader(deps);
-
-			const component = await reader.handleReaderPoll({
-				articleUrl: ARTICLE_URL,
-				articleId: undefined,
-				pollCount: MAX_POLLS,
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: true,
-				extensionInstallUrl: undefined,
-				summaryToggleUrl: undefined,
-				provenance: undefined,
-				saved: undefined,
-				readlistTags: undefined,
-				readerViewFailedOob: () => "",
-				renderDownloadsOob: undefined,
+		it("takes the row's newer revision as the baseline at kick-off, so an outcome written before the tap is not mistaken for the capture's", async () => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 3 },
+				capture: { kind: "started", noticeRevision: 1, trigger: "manual" },
+				pollCount: 1,
 			});
 
-			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
-			assert(slot, "reader slot must be rendered");
-			expect(slot.getAttribute("data-reader-status")).toBe("blocked");
-			expect(slot.hasAttribute("hx-get")).toBe(false);
+			expect(regionsOf(doc).slot).toEqual({ status: "pending", poll: "/test/reader?poll=2&captureSince=3&captureTrigger=manual" });
 		});
 
-		it("hands the blocked notice a capture kick-off URL that arms the flag from poll 1", async () => {
-			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
-				content: undefined,
-			});
-			const reader = initArticleReader(deps);
-
-			const result = await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+		it("renders the row's own notice on the first poll after the outcome revision moves past the baseline, offering a fresh capture from the new baseline", async () => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: JSON.stringify({ kind: "capture-unreadable", detail: "none" }), outcomeRevision: 3 },
+				capture: { kind: "watching", since: 2, trigger: "manual" },
+				pollCount: 4,
 			});
 
-			expect(result.readerPollUrl).toBeUndefined();
-			expect(result.capturePollUrl).toBe("/test/reader?poll=1&capturing=1");
+			expect(regionsOf(doc)).toEqual({
+				slot: { status: "capture-unreadable", poll: null },
+				notice: {
+					status: "capture-unreadable",
+					poll: "/test/reader?poll=1&captureNotice=3&captureTrigger=automatic",
+					trigger: "readplace-capture-started from:document",
+				},
+			});
+		});
+
+		it("keeps copying when a lagging read shows a revision below the baseline, because only a higher revision is an outcome", async () => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
+				capture: { kind: "watching", since: 3, trigger: "manual" },
+				pollCount: 4,
+			});
+
+			expect(regionsOf(doc).slot).toEqual({ status: "pending", poll: "/test/reader?poll=5&captureSince=3&captureTrigger=manual" });
+		});
+
+		it.each([
+			{ when: "the device gave up", capture: { kind: "device-gave-up", since: 2, trigger: "manual" } as const, pollCount: 4 },
+			{ when: "the capture budget is spent", capture: { kind: "watching", since: 2, trigger: "manual" } as const, pollCount: MAX_CAPTURE_POLLS },
+		])("says a tapped copy never arrived when $when and nothing was judged, offering the capture again and polling no further", async ({ capture, pollCount }) => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
+				capture,
+				pollCount,
+			});
+
+			expect(regionsOf(doc)).toEqual({
+				slot: { status: "capture-missing", poll: null },
+				notice: {
+					status: "capture-missing",
+					poll: "/test/reader?poll=1&captureNotice=2&captureTrigger=automatic",
+					trigger: "readplace-capture-started from:document",
+				},
+			});
+			const captureControl = doc.querySelector('[data-test-reader-action="capture"]');
+			assert(captureControl, "the capture-missing notice must render its capture control");
+			expect(captureControl.classList.contains("article-body__reader-notice-capture--offered")).toBe(true);
+		});
+
+		it.each([
+			{ when: "the device gave up", capture: { kind: "device-gave-up", since: 2, trigger: "automatic" } as const, pollCount: 4 },
+			{ when: "the capture budget is spent", capture: { kind: "watching", since: 2, trigger: "automatic" } as const, pollCount: MAX_CAPTURE_POLLS },
+		])("renders the row's stored notice when $when on an automatic capture, offering the capture again and polling no further", async ({ capture, pollCount }) => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
+				capture,
+				pollCount,
+			});
+
+			expect(regionsOf(doc)).toEqual({
+				slot: { status: "blocked", poll: null },
+				notice: {
+					status: "blocked",
+					poll: "/test/reader?poll=1&captureNotice=2&captureTrigger=automatic",
+					trigger: "readplace-capture-started from:document",
+				},
+			});
+			const captureControl = doc.querySelector('[data-test-reader-action="capture"]');
+			assert(captureControl, "the stored notice must render its capture control");
+			expect(captureControl.classList.contains("article-body__reader-notice-capture--offered")).toBe(true);
+			expect(captureControl.getAttribute("data-reader-capture-poll")).toBe("/test/reader?poll=1&captureNotice=2&captureTrigger=manual");
+		});
+
+		it("renders the judged outcome rather than the missing copy when the device gives up after the row moved", async () => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 3 },
+				capture: { kind: "device-gave-up", since: 2, trigger: "manual" },
+				pollCount: 4,
+			});
+
+			expect(regionsOf(doc).slot).toEqual({ status: "blocked", poll: null });
+		});
+
+		it.each([
+			{ crawl: { status: "pending" } as const, capture: { kind: "started", noticeRevision: 1, trigger: "manual" } as const, next: "/test/reader?poll=3&captureSince=1&captureTrigger=manual" },
+			{ crawl: { status: "pending" } as const, capture: { kind: "started", noticeRevision: 1, trigger: "automatic" } as const, next: "/test/reader?poll=3&captureSince=1&captureTrigger=automatic" },
+			{ crawl: undefined, capture: { kind: "watching", since: 4, trigger: "manual" } as const, next: "/test/reader?poll=3&captureSince=4&captureTrigger=manual" },
+			{ crawl: { status: "pending" } as const, capture: { kind: "device-gave-up", since: 4, trigger: "automatic" } as const, next: "/test/reader?poll=3&captureSince=4&captureGaveUp=1&captureTrigger=automatic" },
+		])("carries a $capture.trigger $capture.kind watch over a row with no outcome yet onto the next poll", async ({ crawl, capture, next }) => {
+			const doc = await capturePoll({ crawl, capture, pollCount: 2 });
+
+			expect(regionsOf(doc).slot).toEqual({ status: "pending", poll: next });
+		});
+
+		it.each([
+			{ crawl: { status: "ready" } as const, status: "pending" },
+			{ crawl: { status: "unsupported", reason: "non-html" } as const, status: "unsupported" },
+		])("drops the watch once the row is $crawl.status, which is itself the capture's outcome", async ({ crawl, status }) => {
+			const doc = await capturePoll({ crawl, capture: { kind: "watching", since: 2, trigger: "manual" }, pollCount: 3 });
+
+			expect(regionsOf(doc).slot).toEqual({ status, poll: status === "pending" ? "/test/reader?poll=4" : null });
+		});
+
+		it("leaves a failed crawl unpolled when no capture is in flight", async () => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 1 },
+				capture: NO_CAPTURE_WATCH,
+				pollCount: 1,
+			});
+
+			expect(regionsOf(doc).slot).toEqual({ status: "blocked", poll: null });
+		});
+
+		it("mints one capture kick-off URL per trigger from the rendered failure's revision, and none for a row that has not failed", async () => {
+			const failed = initFakeDeps({ crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 5 }, content: undefined });
+			const pending = initFakeDeps({ crawl: { status: "pending" }, content: undefined });
+
+			const states = await Promise.all(
+				[failed, pending].map(({ deps }) =>
+					initArticleReader(deps).resolveReaderState({ article: makeSnapshot(), pollUrlBuilder: makePollUrlBuilder() }),
+				),
+			);
+
+			expect(states.map((state) => state.capturePollUrls)).toEqual([
+				{
+					manual: "/test/reader?poll=1&captureNotice=5&captureTrigger=manual",
+					automatic: "/test/reader?poll=1&captureNotice=5&captureTrigger=automatic",
+				},
+				undefined,
+			]);
 		});
 	});
 
 	describe("the notice region rides every poll out of band", () => {
 		it("answers a pending→failed reader poll with the empty in-card marker as the primary piece and the visible notice last", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },
+				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },
 				summary: { status: "skipped" },
 			});
 			const reader = initArticleReader(deps);
@@ -1579,7 +1641,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 2,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1623,7 +1685,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1653,7 +1715,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1690,30 +1752,24 @@ describe("initArticleReader", () => {
 			expect(headingIds).toEqual(["#section-why-it-matters", "#section-how-to-start"]);
 		});
 
-		it.each([
-			{ poll: "handleReaderPoll", capturing: false },
-			{ poll: "handleSummaryPoll", capturing: true },
-		] as const)(
-			"leaves the article's own title out of the card that $poll lands, while the slot keeps the heading",
-			async ({ poll, capturing }) => {
-				const { deps } = initFakeDeps({
-					crawl: { status: "ready" },
-					summary: { status: "pending" },
-					content: `<h2>Post</h2>${HEADED_CONTENT}`,
-				});
-				const reader = initArticleReader(deps);
+		it("leaves the article's own title out of the card that handleReaderPoll lands, while the slot keeps the heading", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending" },
+				content: `<h2>Post</h2>${HEADED_CONTENT}`,
+			});
+			const reader = initArticleReader(deps);
 
-				const doc = parse(toHtml(await reader[poll]({ ...pollParams(), capturing })));
+			const doc = parse(toHtml(await reader.handleReaderPoll(pollParams())));
 
-				expect([
-					Array.from(tableOfContentsOf(doc).querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href")),
-					Array.from(doc.querySelectorAll("[data-test-reader-content] h2"), (heading) => heading.id),
-				]).toEqual([
-					["#section-why-it-matters", "#section-how-to-start"],
-					["section-post", "section-why-it-matters"],
-				]);
-			},
-		);
+			expect([
+				Array.from(tableOfContentsOf(doc).querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href")),
+				Array.from(doc.querySelectorAll("[data-test-reader-content] h2"), (heading) => heading.id),
+			]).toEqual([
+				["#section-why-it-matters", "#section-how-to-start"],
+				["section-post", "section-why-it-matters"],
+			]);
+		});
 
 		it("lists a heading that repeats nothing when the article row has gone missing", async () => {
 			const { deps } = initFakeDeps({
@@ -1735,7 +1791,7 @@ describe("initArticleReader", () => {
 
 		it("keeps the card hidden when a pending reader poll lands on a failed crawl", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },
+				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },
 				summary: { status: "skipped" },
 			});
 			const reader = initArticleReader(deps);
@@ -1821,7 +1877,7 @@ describe("initArticleReader", () => {
 
 		it("appends the fragment on a reader poll once the crawl has failed and both chains are settled, telling it the reader has no content", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				summary: { status: "skipped" },
 			});
 			const reader = initArticleReader(deps);
@@ -1831,7 +1887,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1862,7 +1918,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1894,7 +1950,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1919,7 +1975,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1944,7 +2000,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -1970,7 +2026,7 @@ describe("initArticleReader", () => {
 				articleId: undefined,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
+				capture: NO_CAPTURE_WATCH,
 				extensionInstallUrl: undefined,
 				summaryToggleUrl: undefined,
 				provenance: undefined,
@@ -2013,7 +2069,6 @@ describe("initArticleReader", () => {
 			const state = await reader.resolveReaderState({
 				article: gatedSnapshot(),
 				pollUrlBuilder: makePollUrlBuilder(),
-				capturing: false,
 			});
 
 			expect(state).toEqual({
@@ -2022,7 +2077,7 @@ describe("initArticleReader", () => {
 				summary: undefined,
 				readerPollUrl: undefined,
 				summaryPollUrl: undefined,
-				capturePollUrl: undefined,
+				capturePollUrls: undefined,
 				crawlVersions: [],
 				readerViewFailed: false,
 				readerContentUnavailable: true,
@@ -2045,7 +2100,7 @@ describe("initArticleReader", () => {
 						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
-						capturing: false,
+						capture: NO_CAPTURE_WATCH,
 						extensionInstallUrl: "/install?client=chrome",
 						summaryToggleUrl: undefined,
 						provenance: undefined,
@@ -2091,7 +2146,7 @@ describe("initArticleReader", () => {
 						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
-						capturing: false,
+						capture: NO_CAPTURE_WATCH,
 						extensionInstallUrl: undefined,
 						summaryToggleUrl: undefined,
 						provenance: undefined,
@@ -2122,7 +2177,7 @@ describe("initArticleReader", () => {
 						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
-						capturing: false,
+						capture: NO_CAPTURE_WATCH,
 						extensionInstallUrl: undefined,
 						summaryToggleUrl: undefined,
 						provenance: undefined,
@@ -2154,7 +2209,7 @@ describe("initArticleReader", () => {
 						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
-						capturing: false,
+						capture: NO_CAPTURE_WATCH,
 						extensionInstallUrl: undefined,
 						summaryToggleUrl: undefined,
 						provenance: undefined,
@@ -2191,7 +2246,7 @@ describe("initArticleReader", () => {
 						articleId: undefined,
 						pollCount: 1,
 						pollUrlBuilder: makePollUrlBuilder(),
-						capturing: false,
+						capture: NO_CAPTURE_WATCH,
 						extensionInstallUrl: undefined,
 						summaryToggleUrl: undefined,
 						provenance: { kind: "web" },

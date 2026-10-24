@@ -12,6 +12,7 @@ import {
 	READER_RESCUE_MESSAGE_TYPE,
 	type ReaderRescueRequest,
 	ReaderRescueAnswerSchema,
+	ReaderRescueEndedSchema,
 } from "./reader-rescue-message.types";
 
 export type CaptureHostDocument = RescueNoticeDocument & {
@@ -22,9 +23,15 @@ export function initCaptureHost(deps: {
 	document: CaptureHostDocument;
 	requestRescue: (request: ReaderRescueRequest) => Promise<unknown>;
 	announceCaptureStarted: () => void;
+	announceCaptureFailed: () => void;
 	logger: HutchLogger;
-}): { pageChanged: () => Promise<void>; tapped: (target: RescueTapTarget) => Promise<void> } {
+}): {
+	pageChanged: () => Promise<void>;
+	tapped: (target: RescueTapTarget) => Promise<void>;
+	rescueEnded: (raw: unknown) => void;
+} {
 	const askedArticleIds = new Set<string>();
+	let awaited: { articleId: string; trigger: CaptureTrigger } | undefined;
 
 	function request(params: { rescue: OfferedRescue; trigger: CaptureTrigger }): Promise<unknown> {
 		return deps
@@ -40,12 +47,14 @@ export function initCaptureHost(deps: {
 			});
 	}
 
-	function hostTheCapture(raw: unknown): void {
-		const answer = ReaderRescueAnswerSchema.safeParse(raw);
+	function hostTheCapture(params: { rescue: OfferedRescue; raw: unknown }): void {
+		const answer = ReaderRescueAnswerSchema.safeParse(params.raw);
 		if (!answer.success) return;
 		if (answer.data.outcome === "skipped" && answer.data.reason === "not-logged-in") return;
 		deps.document.documentElement.setAttribute(CAPTURE_HOST_ATTRIBUTE, "");
-		if (answer.data.outcome === "started") deps.announceCaptureStarted();
+		if (answer.data.outcome !== "started") return;
+		awaited = { articleId: params.rescue.articleId, trigger: "automatic" };
+		deps.announceCaptureStarted();
 	}
 
 	return {
@@ -53,13 +62,23 @@ export function initCaptureHost(deps: {
 			const rescue = readReaderRescue(deps.document);
 			if (!rescue || askedArticleIds.has(rescue.articleId)) return;
 			askedArticleIds.add(rescue.articleId);
-			hostTheCapture(await request({ rescue, trigger: "automatic" }));
+			hostTheCapture({ rescue, raw: await request({ rescue, trigger: "automatic" }) });
 		},
 
 		async tapped(target) {
 			const rescue = readTappedRescue(target);
 			if (!rescue) return;
-			await request({ rescue, trigger: "manual" });
+			awaited = { articleId: rescue.articleId, trigger: "manual" };
+			const answer = ReaderRescueAnswerSchema.safeParse(await request({ rescue, trigger: "manual" }));
+			if (answer.success && answer.data.outcome === "started") return;
+			deps.announceCaptureFailed();
+		},
+
+		rescueEnded(raw) {
+			const ended = ReaderRescueEndedSchema.safeParse(raw);
+			if (!ended.success) return;
+			if (ended.data.articleId !== awaited?.articleId || ended.data.trigger !== awaited.trigger) return;
+			deps.announceCaptureFailed();
 		},
 	};
 }

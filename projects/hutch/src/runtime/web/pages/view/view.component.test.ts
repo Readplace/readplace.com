@@ -450,7 +450,7 @@ describe("ViewPage", () => {
 
 		const crawlFailed = render({
 			...baseInput,
-			crawl: { status: "failed", reason: "blocked" },
+			crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 		});
 		const slotCrawlFailed = crawlFailed.querySelector(
 			"[data-test-reader-summary]",

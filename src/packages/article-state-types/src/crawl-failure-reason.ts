@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const CrawlFailureReasonSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("parse-error"), detail: z.string() }),
+	z.object({ kind: z.literal("capture-unreadable"), detail: z.string() }),
 	z.object({
 		kind: z.literal("fetch-failed"),
 		httpStatus: z.number().optional(),

@@ -112,6 +112,11 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   the render with `captureTrigger=automatic`, so the server judges it like a crawl
   instead of trusting it as the reader's own capture. The app names the event and
   nothing more, so what the page does with it can change without an app release.
+  Whenever a capture, tapped or automatic, ends without a copy uploaded, the app
+  dispatches a `readplace-capture-failed` DOM event on the same `document`, so the
+  page ends its "Copying the page from your device" notice at once instead of
+  polling until it gives up. After a tapped capture the page says the copy didn't
+  arrive; after an automatic one it returns to the notice it showed before.
   A failed automatic capture is logged rather than shown (an expired session still
   signs the app out), and the capture button stays as the retry.
 - **Save by sharing**: a **Share Extension** appears in the iOS share sheet for
