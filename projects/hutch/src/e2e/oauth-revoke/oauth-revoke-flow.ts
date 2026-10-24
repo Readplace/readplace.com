@@ -4,8 +4,9 @@ import { request as playwrightRequest } from '@playwright/test'
 
 /** Drives the iOS sign-out contract end-to-end over plain HTTP, the way the
  * app does it: sign in, authorize the built-in `ios-app` PKCE client, mint
- * reader sessions from the bearer, then revoke. Against staging this exercises the deployed
- * DynamoDB GSI + IAM grant that no fake-client unit test can reach. */
+ * reader sessions from the bearer, then revoke. Against staging this
+ * exercises the deployed DynamoDB GSI + IAM grant that no fake-client unit
+ * test can reach. */
 export async function runOAuthRevokeFlow(options: {
 	baseURL: string
 	email: string
