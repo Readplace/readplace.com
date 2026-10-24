@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
 import { sendComponent } from "@packages/web-shell";
@@ -64,17 +65,26 @@ export function initAdminDashboardsRoutes(deps: AdminDashboardsDependencies): Ro
 		const range = parseDashboardRange(req.query);
 		const { startTime, endTime } = dashboardWindow({ range, now: deps.now() });
 		const identities = dashboard.usesExclusions ? await deps.readExcludedIdentities() : NO_EXCLUSIONS;
-		const widgets = await Promise.all(
-			dashboard.widgets(identities).map(async (spec) => ({
-				spec,
-				rows: await deps.runLogsInsightsQuery({
-					logGroupNames: spec.logGroupNames,
-					queryString: spec.query,
-					startTime,
-					endTime,
-				}),
-			})),
+		const abort = new AbortController();
+		const settled = await Promise.allSettled(
+			dashboard.widgets(identities).map(async (spec) => {
+				try {
+					const rows = await deps.runLogsInsightsQuery(
+						{ logGroupNames: spec.logGroupNames, queryString: spec.query, startTime, endTime },
+						{ signal: abort.signal },
+					);
+					return { spec, rows };
+				} catch (error) {
+					abort.abort(error);
+					throw error;
+				}
+			}),
 		);
+		if (abort.signal.aborted) throw abort.signal.reason;
+		const widgets = settled.map((result) => {
+			assert(result.status === "fulfilled", "a rejected widget query aborts the request before rendering");
+			return result.value;
+		});
 		const viewModel = buildAdminDashboardViewModel({ slug: slug.data, dashboard, range, startTime, endTime, widgets });
 		sendComponent(req, res, Base(AdminDashboardPage(viewModel), await deps.buildBannerState(req)));
 	});

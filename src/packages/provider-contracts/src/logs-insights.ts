@@ -12,6 +12,9 @@ export interface LogsInsightsQuery {
 
 export type LogsInsightsRow = readonly { field: string; value: string }[];
 
-export type RunLogsInsightsQuery = (query: LogsInsightsQuery) => Promise<readonly LogsInsightsRow[]>;
+export type RunLogsInsightsQuery = (
+	query: LogsInsightsQuery,
+	options: { signal: AbortSignal },
+) => Promise<readonly LogsInsightsRow[]>;
 
 export type ReadExcludedIdentities = () => Promise<ExcludedIdentities>;

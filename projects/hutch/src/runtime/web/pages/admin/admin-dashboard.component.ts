@@ -5,6 +5,7 @@ import { ADMIN_DASHBOARD_STYLES } from "./admin-dashboard.styles";
 import type {
 	AdminDashboardViewModel,
 	AdminDashboardsIndexViewModel,
+	DashboardCellKind,
 	DashboardTable,
 	DashboardWidgetBody,
 } from "./admin-dashboard.viewmodel";
@@ -17,8 +18,9 @@ const CHART_TEMPLATE = readFileSync(join(__dirname, "admin-dashboard-chart.templ
 
 const CELL_MODIFIERS = {
 	numeric: "admin-dashboard__cell--numeric",
+	timestamp: "admin-dashboard__cell--timestamp",
 	text: "",
-} as const;
+} as const satisfies Record<DashboardCellKind, string>;
 
 const EMPTY_MODIFIERS = {
 	empty: "",
@@ -36,7 +38,7 @@ function renderTable(table: DashboardTable): string {
 		rows: table.rows.map((row) => ({
 			cells: row.cells.map((cell) => ({
 				...cell,
-				modifier: CELL_MODIFIERS[cell.numeric ? "numeric" : "text"],
+				modifier: CELL_MODIFIERS[cell.kind],
 			})),
 		})),
 	});

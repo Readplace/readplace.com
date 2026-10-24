@@ -189,7 +189,7 @@
 .admin-dashboard__cell {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .admin-dashboard__row:last-child .admin-dashboard__cell {
@@ -199,6 +199,10 @@
 .admin-dashboard__cell--numeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard__cell--timestamp {
+  white-space: nowrap;
 }
 
 .admin-dashboard__multiples {

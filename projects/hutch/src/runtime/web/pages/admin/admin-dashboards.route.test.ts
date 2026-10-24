@@ -313,6 +313,25 @@ describe("GET /admin/dashboards/mcp", () => {
 	});
 });
 
+describe("GET /admin/dashboards/:slug when a widget query fails", () => {
+	it("aborts every sibling query and answers 500", async () => {
+		const widgets = DASHBOARDS.mcp.widgets(EXCLUDED);
+		const logsInsights = initInMemoryLogsInsights();
+		logsInsights.failQuery({ queryString: widgets[1].query, error: new Error("Logs Insights query query-7 ended Timeout") });
+		const harness = buildHarness({ logsInsights });
+		const agent = await adminAgent(harness);
+
+		const response = await agent.get("/admin/dashboards/mcp");
+
+		assert.equal(response.status, 500);
+		assert.equal(logsInsights.signals.length, widgets.length);
+		assert.deepEqual(
+			logsInsights.signals.map((signal) => signal.reason?.message),
+			widgets.map(() => "Logs Insights query query-7 ended Timeout"),
+		);
+	});
+});
+
 describe("GET /admin/dashboards/login", () => {
 	it("queries the analytics and auth-diagnostics groups without reading the exclusion parameter", async () => {
 		const logsInsights = initInMemoryLogsInsights();

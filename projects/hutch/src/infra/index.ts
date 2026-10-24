@@ -1926,7 +1926,7 @@ new aws.iam.RolePolicy("hutch-admin-dashboards-read", {
 					},
 					{
 						Effect: "Allow",
-						Action: ["logs:GetQueryResults"],
+						Action: ["logs:GetQueryResults", "logs:StopQuery"],
 						Resource: ["*"],
 					},
 					{

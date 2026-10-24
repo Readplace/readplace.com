@@ -126,6 +126,8 @@ import type { ReadlistSlug } from "@packages/domain/readlist";
 import { initReportReadlistCap } from "../observability/readlist-cap";
 import type { ReadlistCapApproachedLine } from "../observability/events";
 
+const ADMIN_DASHBOARD_QUERY_MAX_WAIT_MS = 25_000;
+
 /** `appOrigin` is threaded in rather than read from the environment because the
  * dev server may have bound a different port than `APP_ORIGIN` names, and every
  * absolute URL handed to a client has to point back at this process. */
@@ -546,8 +548,10 @@ export function initProdProviders(input: { appOrigin: string }) {
 			runLogsInsightsQuery: initCloudWatchLogsInsights({
 				startQuery: (command) => logsClient.send(command),
 				getQueryResults: (command) => logsClient.send(command),
+				stopQuery: (command) => logsClient.send(command),
 				sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 				pollIntervalMs: 1000,
+				maxWaitMs: ADMIN_DASHBOARD_QUERY_MAX_WAIT_MS,
 			}),
 			readExcludedIdentities: initSsmExcludedIdentities({
 				getParameter: (command) => ssmClient.send(command),

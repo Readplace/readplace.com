@@ -7,9 +7,10 @@ const WEEK = {
 };
 
 describe("buildSmallMultiples", () => {
-	it("splits rows into one series per non-numeric key and value column, on one y-scale over the requested window", () => {
+	it("splits rows into one series per group-by key and value column, on one y-scale over the requested window", () => {
 		const chart = buildSmallMultiples({
 			...WEEK,
+			query: "filter event = \"oauth_token_revoked\" | stats count(*) as revocations by bin(1d), client_id, outcome",
 			rows: [
 				[{ field: "bin(1d)", value: "2026-10-17 00:00:00.000" }, { field: "client_id", value: "readplace-ios" }, { field: "outcome", value: "revoked" }, { field: "revocations", value: "7" }],
 				[{ field: "bin(1d)", value: "2026-10-14 00:00:00.000" }, { field: "client_id", value: "readplace-ios" }, { field: "outcome", value: "revoked" }, { field: "revocations", value: "3" }],
@@ -49,6 +50,7 @@ describe("buildSmallMultiples", () => {
 	it("names a series by its value column when the rows carry no key, and scales an all-zero series to 1", () => {
 		const chart = buildSmallMultiples({
 			...WEEK,
+			query: "filter cohort = \"all\" | stats max(treatment.activated) as treatment_activated by bin(6h)",
 			rows: [[{ field: "bin(6h)", value: "2026-10-11 00:00:00.000" }, { field: "treatment_activated", value: "0" }]],
 		});
 
@@ -60,6 +62,7 @@ describe("buildSmallMultiples", () => {
 		const chart = buildSmallMultiples({
 			startTime: new Date("2026-10-11T14:00:00.000Z"),
 			endTime: new Date("2026-10-18T14:00:00.000Z"),
+			query: "stats count(*) as calls by bin(1d)",
 			rows: [
 				[{ field: "bin(1d)", value: "2026-10-11 00:00:00.000" }, { field: "calls", value: "2" }],
 				[{ field: "bin(1d)", value: "2026-10-18 00:00:00.000" }, { field: "calls", value: "4" }],
@@ -70,10 +73,27 @@ describe("buildSmallMultiples", () => {
 		assert.deepEqual(chart.frame.xLabels.map((label) => label.label), ["Oct 11, 2026", "Oct 18, 2026"]);
 	});
 
-	it("refuses rows without a bin() field, which a time-series widget always groups by", () => {
+	it("splits series by a group-by key whose values look like numbers", () => {
+		const chart = buildSmallMultiples({
+			...WEEK,
+			query: "filter event = \"mcp_request_refused\" | stats count(*) as refusals by bin(1d), status | sort refusals desc",
+			rows: [
+				[{ field: "bin(1d)", value: "2026-10-14 00:00:00.000" }, { field: "status", value: "401" }, { field: "refusals", value: "3" }],
+				[{ field: "bin(1d)", value: "2026-10-15 00:00:00.000" }, { field: "status", value: "404" }, { field: "refusals", value: "1" }],
+			],
+		});
+
+		assert.deepEqual(chart.multiples.map((multiple) => multiple.title), ["401 · refusals", "404 · refusals"]);
+	});
+
+	it.each([
+		{ query: "filter event = \"mcp_tool_called\"", error: /must aggregate with stats/ },
+		{ query: "filter event = \"mcp_tool_called\" | stats count(*) as calls", error: /stats must group by bin\(\) \(got: stats count\(\*\) as calls\)/ },
+		{ query: "stats count(*) as calls by outcome", error: /stats must group by bin\(\) \(got: outcome\)/ },
+	])("refuses a time-series query that does not group by bin(): $query", ({ query, error }) => {
 		assert.throws(
-			() => buildSmallMultiples({ ...WEEK, rows: [[{ field: "outcome", value: "ok" }, { field: "calls", value: "4" }]] }),
-			/a time-series widget's rows must carry a bin\(\) field \(got: outcome, calls\)/,
+			() => buildSmallMultiples({ ...WEEK, query, rows: [[{ field: "outcome", value: "ok" }, { field: "calls", value: "4" }]] }),
+			error,
 		);
 	});
 });

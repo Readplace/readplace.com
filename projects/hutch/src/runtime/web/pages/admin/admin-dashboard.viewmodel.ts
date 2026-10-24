@@ -24,10 +24,12 @@ export interface AdminGetForm {
 	fields: AdminHiddenField[];
 }
 
+export type DashboardCellKind = "numeric" | "timestamp" | "text";
+
 export interface DashboardTableCell {
 	label: string;
 	text: string;
-	numeric: boolean;
+	kind: DashboardCellKind;
 }
 
 export interface DashboardTable {
@@ -58,6 +60,7 @@ export interface AdminDashboardViewModel {
 
 const ID_FIELD = /(^|_)id$/;
 const NUMBER = /^-?\d+(\.\d+)?$/;
+const TIMESTAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}$/;
 const MISSING_CELL = "—";
 
 function trackedGetForm(input: { action: string; content: string; fields: AdminHiddenField[] }): AdminGetForm {
@@ -73,9 +76,10 @@ function trackedGetForm(input: { action: string; content: string; fields: AdminH
 	};
 }
 
-export function formatCell(cell: { field: string; value: string }): { text: string; numeric: boolean } {
-	if (ID_FIELD.test(cell.field) || !NUMBER.test(cell.value)) return { text: cell.value, numeric: false };
-	return { text: Number(cell.value).toLocaleString("en-US", { maximumFractionDigits: 4 }), numeric: true };
+export function formatCell(cell: { field: string; value: string }): { text: string; kind: DashboardCellKind } {
+	if (TIMESTAMP.test(cell.value)) return { text: cell.value, kind: "timestamp" };
+	if (ID_FIELD.test(cell.field) || !NUMBER.test(cell.value)) return { text: cell.value, kind: "text" };
+	return { text: Number(cell.value).toLocaleString("en-US", { maximumFractionDigits: 4 }), kind: "numeric" };
 }
 
 export function buildDashboardTable(rows: readonly LogsInsightsRow[]): DashboardTable {
@@ -87,7 +91,7 @@ export function buildDashboardTable(rows: readonly LogsInsightsRow[]): Dashboard
 			cells: columns.map((column) => {
 				const value = record.get(column);
 				const formatted =
-					value === undefined ? { text: MISSING_CELL, numeric: false } : formatCell({ field: column, value });
+					value === undefined ? { text: MISSING_CELL, kind: "text" as const } : formatCell({ field: column, value });
 				return { label: column, ...formatted };
 			}),
 		})),
@@ -97,7 +101,7 @@ export function buildDashboardTable(rows: readonly LogsInsightsRow[]): Dashboard
 const WIDGET_BODIES: Partial<
 	Record<
 		LogWidgetSpec["view"],
-		(input: { rows: readonly LogsInsightsRow[]; startTime: Date; endTime: Date }) => DashboardWidgetBody
+		(input: { query: string; rows: readonly LogsInsightsRow[]; startTime: Date; endTime: Date }) => DashboardWidgetBody
 	>
 > = {
 	table: ({ rows }) => ({ view: "table", table: buildDashboardTable(rows) }),
@@ -116,7 +120,7 @@ function widgetBody(input: {
 }): DashboardWidgetBody {
 	const build = WIDGET_BODIES[input.spec.view];
 	assert(build, `No admin renderer for a ${input.spec.view} widget (${input.spec.title})`);
-	return build(input);
+	return build({ query: input.spec.query, rows: input.rows, startTime: input.startTime, endTime: input.endTime });
 }
 
 function nextRange(range: DashboardRange): DashboardRange[] {

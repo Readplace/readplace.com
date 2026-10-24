@@ -3,7 +3,8 @@ import type { LogsInsightsRow } from "@packages/provider-contracts/logs-insights
 import { toAbsoluteDate, toAbsoluteDateTime } from "@packages/web-shell";
 
 const BIN_FIELD = /^bin\(\d+(ms|s|m|h|d|w|mo|q|y)\)$/;
-const NUMBER = /^-?\d+(\.\d+)?$/;
+const STATS_STAGE = /^\s*stats\s/;
+const GROUP_BY = /\sby\s+(.+)$/s;
 const SERIES_SEPARATOR = " · ";
 const MISSING_SERIES_VALUE = "—";
 
@@ -55,20 +56,27 @@ function round(value: number): number {
 	return Math.round(value * 10) / 10;
 }
 
+function groupFields(query: string): string[] {
+	const stats = query.split("|").filter((stage) => STATS_STAGE.test(stage)).at(-1);
+	assert(stats, `a time-series widget's query must aggregate with stats (got: ${query})`);
+	const groupBy = GROUP_BY.exec(stats);
+	assert(groupBy, `a time-series widget's stats must group by bin() (got: ${stats.trim()})`);
+	return groupBy[1].split(",").map((field) => field.trim());
+}
+
 export function buildSmallMultiples(input: {
+	query: string;
 	rows: readonly LogsInsightsRow[];
 	startTime: Date;
 	endTime: Date;
 }): SmallMultiples {
 	const records = input.rows.map((row) => new Map(row.map((cell) => [cell.field, cell.value])));
 	const fields = [...new Set(input.rows.flatMap((row) => row.map((cell) => cell.field)))];
-	const xField = fields.find((field) => BIN_FIELD.test(field));
-	assert(xField, `a time-series widget's rows must carry a bin() field (got: ${fields.join(", ")})`);
-	const others = fields.filter((field) => field !== xField);
-	const isValueField = (field: string) =>
-		records.every((record) => NUMBER.test(record.get(field) ?? "0"));
-	const valueFields = others.filter(isValueField);
-	const seriesFields = others.filter((field) => !isValueField(field));
+	const keys = groupFields(input.query);
+	const xField = keys.find((field) => BIN_FIELD.test(field));
+	assert(xField, `a time-series widget's stats must group by bin() (got: ${keys.join(", ")})`);
+	const seriesFields = keys.filter((field) => field !== xField);
+	const valueFields = fields.filter((field) => !keys.includes(field));
 
 	const series = new Map<string, { title: string; points: { time: number; value: number }[] }>();
 	const binned = records.map((record) => ({ record, time: binTime(record.get(xField)) }));

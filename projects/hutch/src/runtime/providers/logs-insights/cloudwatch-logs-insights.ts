@@ -1,10 +1,11 @@
 import assert from "node:assert";
-import { GetQueryResultsCommand, StartQueryCommand } from "@aws-sdk/client-cloudwatch-logs";
+import { GetQueryResultsCommand, StartQueryCommand, StopQueryCommand } from "@aws-sdk/client-cloudwatch-logs";
 import type { RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import { z } from "zod";
 
 export type StartLogsInsightsQuery = (command: StartQueryCommand) => Promise<{ queryId?: string }>;
 export type GetLogsInsightsQueryResults = (command: GetQueryResultsCommand) => Promise<unknown>;
+export type StopLogsInsightsQuery = (command: StopQueryCommand) => Promise<unknown>;
 
 const QueryResultsSchema = z.object({
 	status: z.string(),
@@ -24,10 +25,12 @@ function toEpochSeconds(date: Date): number {
 export function initCloudWatchLogsInsights(deps: {
 	startQuery: StartLogsInsightsQuery;
 	getQueryResults: GetLogsInsightsQueryResults;
+	stopQuery: StopLogsInsightsQuery;
 	sleep: (ms: number) => Promise<void>;
 	pollIntervalMs: number;
+	maxWaitMs: number;
 }): RunLogsInsightsQuery {
-	return async (query) => {
+	return async (query, { signal }) => {
 		const { queryId } = await deps.startQuery(
 			new StartQueryCommand({
 				logGroupNames: [...query.logGroupNames],
@@ -42,9 +45,18 @@ export function initCloudWatchLogsInsights(deps: {
 		const poll = async () =>
 			QueryResultsSchema.parse(await deps.getQueryResults(new GetQueryResultsCommand({ queryId })));
 
+		const stop = async (reason: string) => {
+			await deps.stopQuery(new StopQueryCommand({ queryId }));
+			throw new Error(`Logs Insights query ${queryId} stopped: ${reason}`);
+		};
+
+		let waitedMs = 0;
 		let response = await poll();
 		while (STILL_RUNNING.has(response.status)) {
+			if (signal.aborted) await stop("the request was aborted");
+			if (waitedMs >= deps.maxWaitMs) await stop(`still ${response.status} after ${deps.maxWaitMs} ms`);
 			await deps.sleep(deps.pollIntervalMs);
+			waitedMs += deps.pollIntervalMs;
 			response = await poll();
 		}
 		assert(response.status === "Complete", `Logs Insights query ${queryId} ended ${response.status}`);
