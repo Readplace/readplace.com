@@ -29,7 +29,6 @@ describe("classifyFetchError", () => {
 		const refused = new TypeError("fetch failed", { cause: Object.assign(new Error("refused"), { code: "ECONNREFUSED" }) });
 		const curl = new CurlFetchFailure({ url: "https://example.com", error: Object.assign(new Error("could not connect"), { code: 7 }) });
 		expect(classifyFetchError(new TransportLadderFailure({ error: curl, previousErrors: [refused], retryDisposition: "recoverable" }))).toEqual({ kind: "origin-unreachable", code: "ECONNREFUSED" });
-		expect(classifyFetchError(curl)).toEqual({ kind: "origin-unreachable" });
 	});
 
 	it("does not classify unrelated earlier network errors as the cause of an unknown failure", () => {

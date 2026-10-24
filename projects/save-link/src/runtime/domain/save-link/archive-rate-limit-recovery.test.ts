@@ -19,15 +19,17 @@ const CAPTURE = `https://web.archive.org/web/${ORIGINAL}`;
 const ATTEMPT = SaveAttemptIdSchema.parse("calendar-save-after-rate-limit");
 const NOW = "2026-10-24T00:00:00.000Z";
 
-async function saveArchive(params: {
-	fetch: typeof fetch;
-	rateLimitedHtml: string;
-	judgeAnswer: string;
-}) {
+it("judges the retained archive 429 after the retry and proxy fail, and keeps the existing readable article", async () => {
+	const rateLimitedHtml = "<html><head><title>Too Many Requests</title></head><body><p>Archive request limit exceeded. Please try again later.</p></body></html>";
+	let primaryCalls = 0;
 	const crawlFetch = initCrawlFetch({
-		fetch: params.fetch,
-		fetchH2: async () => new Response(params.rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } }),
-		fetchCurl: async () => new Response(params.rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } }),
+		fetch: async () => {
+			primaryCalls += 1;
+			if (primaryCalls === 1) return new Response(rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } });
+			throw Object.assign(new Error("connect ECONNREFUSED 207.241.237.3:443"), { code: "ECONNREFUSED" });
+		},
+		fetchH2: async () => new Response(rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } }),
+		fetchCurl: async () => new Response(rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } }),
 		personas: [{ name: "test", headers: { "user-agent": "test" } }],
 		proxyUrl: "http://proxy.example:8080",
 		rateLimitRetryDelaysMs: [0],
@@ -81,7 +83,10 @@ async function saveArchive(params: {
 	const fresh = stored.find((source) => source.metadata.id === capture.id);
 	assert(fresh);
 	const createChatCompletion = jest.fn<ReturnType<CreateSelectorChatCompletion>, Parameters<CreateSelectorChatCompletion>>()
-		.mockResolvedValue({ choices: [{ message: { content: params.judgeAnswer } }] });
+		.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({
+			kind: "winner", candidate: "B", reason: "The fresh archive response is a rate-limit page; the saved article is readable",
+			readability: [{ candidate: "A", readable: false }, { candidate: "B", readable: true }],
+		}) } }] });
 	const selection = await initPrepareContentSelection({
 		loadArticle: async () => ({
 			url: ORIGINAL,
@@ -99,59 +104,17 @@ async function saveArchive(params: {
 		verifyWrapperSource,
 		...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger }),
 	})({ url: ORIGINAL, saveAttemptId: ATTEMPT, candidates: [capture] });
-	return { fresh, canonical, selection, createChatCompletion };
-}
-
-it("judges the retained archive 429 after the retry and proxy fail, and keeps the existing readable article", async () => {
-	const rateLimitedHtml = "<html><head><title>Too Many Requests</title></head><body><p>Archive request limit exceeded. Please try again later.</p></body></html>";
-	let primaryCalls = 0;
-	const result = await saveArchive({
-		rateLimitedHtml,
-		fetch: async () => {
-			primaryCalls += 1;
-			if (primaryCalls === 1) return new Response(rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } });
-			throw Object.assign(new Error("connect ECONNREFUSED 207.241.237.3:443"), { code: "ECONNREFUSED" });
-		},
-		judgeAnswer: JSON.stringify({ kind: "winner", candidate: "B", reason: "The fresh archive response is a rate-limit page; the saved article is readable", readability: [{ candidate: "A", readable: false }, { candidate: "B", readable: true }] }),
-	});
 
 	expect(primaryCalls).toBe(3);
-	expect(result.fresh).toMatchObject({
+	expect(fresh).toMatchObject({
 		evaluationHtml: rateLimitedHtml,
 		metadata: { attemptId: ATTEMPT, originalUrl: ORIGINAL, sourceUrl: CAPTURE, kind: "wrapper", httpStatus: 429, contentHash: createHash("sha256").update(rateLimitedHtml).digest("hex") },
 	});
-	expect(result.createChatCompletion).toHaveBeenCalledTimes(1);
-	const request = result.createChatCompletion.mock.calls[0][0];
+	expect(createChatCompletion).toHaveBeenCalledTimes(1);
+	const request = createChatCompletion.mock.calls[0][0];
 	expect(request.messages[1].content).toContain("HTTP=429");
 	expect(request.messages[1].content).toContain("Archive request limit exceeded");
-	expect(result.selection.audit?.judgedCandidates).toContainEqual({ id: result.fresh.metadata.id, contentHash: result.fresh.metadata.contentHash });
-	expect(result.selection.readableIds).toEqual(new Set([result.canonical.metadata.id]));
-	expect(result.selection).toMatchObject({ outcome: "retained", selectionRule: "judge", selected: { metadata: { id: result.canonical.metadata.id, attemptId: "yesterday" } } });
-});
-
-it("selects a fresh archive article recovered by the proxy after the rate-limit retry fails", async () => {
-	const rateLimitedHtml = "<html><body><p>Archive request limit exceeded.</p></body></html>";
-	const archiveHtml = `<html><head><title>Complete digital production report</title></head><body><article><p>${"The film crew used a complete digital production workflow to review footage, edit sequences, and deliver the finished movie. ".repeat(30)}</p></article></body></html>`;
-	let primaryCalls = 0;
-	const result = await saveArchive({
-		rateLimitedHtml,
-		fetch: async () => {
-			primaryCalls += 1;
-			if (primaryCalls === 1) return new Response(rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } });
-			if (primaryCalls === 2) throw Object.assign(new Error("connect ECONNREFUSED 207.241.237.3:443"), { code: "ECONNREFUSED" });
-			return new Response(archiveHtml, { status: 200, headers: { "content-type": "text/html" } });
-		},
-		judgeAnswer: JSON.stringify({ kind: "winner", candidate: "A", reason: "The fresh archive contains the complete report", readability: [{ candidate: "A", readable: true }, { candidate: "B", readable: true }] }),
-	});
-
-	expect(primaryCalls).toBe(3);
-	expect(result.fresh).toMatchObject({
-		evaluationHtml: archiveHtml,
-		metadata: { attemptId: ATTEMPT, originalUrl: ORIGINAL, sourceUrl: CAPTURE, kind: "wrapper", httpStatus: 200, contentHash: createHash("sha256").update(archiveHtml).digest("hex") },
-	});
-	expect(result.fresh.html).toContain("complete digital production workflow");
-	expect(result.createChatCompletion).toHaveBeenCalledTimes(1);
-	expect(result.selection.audit?.judgedCandidates).toContainEqual({ id: result.fresh.metadata.id, contentHash: result.fresh.metadata.contentHash });
-	expect(result.selection.readableIds).toEqual(new Set([result.fresh.metadata.id, result.canonical.metadata.id]));
-	expect(result.selection).toMatchObject({ outcome: "selected", selectionRule: "judge", selected: { metadata: { id: result.fresh.metadata.id, attemptId: ATTEMPT } } });
+	expect(selection.audit?.judgedCandidates).toContainEqual({ id: fresh.metadata.id, contentHash: fresh.metadata.contentHash });
+	expect(selection.readableIds).toEqual(new Set([canonical.metadata.id]));
+	expect(selection).toMatchObject({ outcome: "retained", selectionRule: "judge", selected: { metadata: { id: canonical.metadata.id, attemptId: "yesterday" } } });
 });

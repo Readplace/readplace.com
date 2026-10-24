@@ -1,5 +1,4 @@
 import { TERMINAL_NETWORK_CODES } from "./transport-ladder";
-import { CurlFetchFailure } from "./curl-fetch";
 import { TransportLadderFailure } from "./transport-ladder-failure";
 
 export type FetchFailureClassification =
@@ -33,7 +32,6 @@ export function classifyFetchError(error: unknown): FetchFailureClassification {
 	}
 	let link: unknown = error;
 	while (link instanceof Error) {
-		if (link instanceof CurlFetchFailure && link.exitCode === 7) return { kind: "origin-unreachable" };
 		if (
 			"code" in link &&
 			typeof link.code === "string" &&
