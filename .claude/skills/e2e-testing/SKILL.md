@@ -100,7 +100,7 @@ A screenshot mismatch that the change under work intends is fixed by regeneratin
 
 | Host | Renderer the updater uses | What it needs |
 |------|---------------------------|---------------|
-| Prepared Linux CI job (the Claude listener, the web-test jobs) | Native, against the pinned browsers from the browser image: the self-hosted runner's own image carries them, and a hosted runner materialises them along with the image's fonts. Either way `PLAYWRIGHT_BROWSERS_PATH` is set, and the web-test job that verifies the baseline is routed to the same kind of runner | Nothing more. The updater skips its own browser download when browsers are supplied, so the baseline is rendered by the same bytes the gate compares with |
+| Prepared Linux CI job (the Claude listener, the web-test jobs) | Native, against the pinned browsers from the browser image: the self-hosted runner's own image carries them, and a hosted runner materialises them along with the image's fonts. Either way `PLAYWRIGHT_BROWSERS_PATH` is set, and the web-test job that verifies the baseline is routed to the same kind of runner — grep the workflows for `fromJSON('["self-hosted", "orbstack"]')`: the listener's and the web-test job's `runs-on` are the two hits, and the claim holds only while both send a trusted PR to that label | Nothing more. The updater skips its own browser download when browsers are supplied, so the baseline is rendered by the same bytes the gate compares with |
 | Linux without supplied browsers (a fresh developer clone) | Native, after the updater installs Chromium | Nothing more |
 | Not Linux (a Mac) | The pinned Playwright container | Docker running, because a host renderer would drift from the one the gate uses |
 
@@ -110,7 +110,7 @@ An authoring session that has no Docker (a remote sandbox, for example) shows no
 
 1. Confirm that the failing screenshot is a change the PR intends. Read the commit history and the diff the failure points at. A mismatch nobody intended is a defect: fix the code and leave the baseline alone.
 2. Find the target: `pnpm nx show projects --with-target update-visual-baselines` lists the projects that have one. Use the project that owns the failing spec.
-3. Pass only the failing specs, by path relative to that project, a few at a time: `pnpm nx run <project>:update-visual-baselines -- <spec> [<spec> …]`. With no paths the updater regenerates every visual spec, which is never what a fix needs.
+3. Pass only the failing specs, by path relative to that project, following the small-batch rule in the table above: `pnpm nx run <project>:update-visual-baselines -- <spec> [<spec> …]`. With no paths the updater regenerates every visual spec.
 4. Open every regenerated PNG at full size and judge it against the design and the PR's intent. A defect it shows (clipping, overlap, an off-centre layout, a missing font) is fixed in the code, followed by another regeneration, never by accepting the image.
 5. Verify with E2E enabled. `CLAUDE_CODE_REMOTE` must be unset so the run renders and compares the new baselines (see [Coverage for E2E Test Support Code](#coverage-for-e2e-test-support-code)). A cached or E2E-skipped green proves nothing.
 6. Commit the source change and its regenerated baselines together, so no commit carries one without the other.
