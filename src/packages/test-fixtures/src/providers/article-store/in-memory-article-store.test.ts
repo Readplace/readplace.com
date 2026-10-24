@@ -145,6 +145,37 @@ describe("initInMemoryArticleStore", () => {
 			expect(found?.status).toBe("unread");
 		});
 
+		it("serves the legacy body of an article saved without content", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+
+			expect((await store.findArticleById(saved.id, USER_A))?.servedBody).toEqual({ kind: "legacy" });
+		});
+
+		it("serves a committed body named after the content that was written", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+
+			await store.writeContent({ url: URL, content: "<p>First body</p>" });
+			const first = (await store.findArticleById(saved.id, USER_A))?.servedBody;
+			await store.writeContent({ url: URL, content: "<p>Second body</p>" });
+			const second = (await store.findArticleById(saved.id, USER_A))?.servedBody;
+
+			assert.equal(first?.kind, "committed");
+			assert.equal(second?.kind, "committed");
+			assert.notDeepEqual(first, second);
+		});
+
+		it("withholds the body of a purged article", async () => {
+			const store = initInMemoryArticleStore();
+			const { saved } = await store.saveArticle(makeArticleParams());
+			await store.writeContent({ url: URL, content: "<p>Body</p>" });
+
+			await store.setPurgedAt({ url: URL, at: new Date("2026-07-16T10:00:00.000Z") });
+
+			expect((await store.findArticleById(saved.id, USER_A))?.servedBody).toEqual({ kind: "withheld" });
+		});
+
 		it("should return null when user has no relationship to the article", async () => {
 			const store = initInMemoryArticleStore();
 			const { saved } = await store.saveArticle(makeArticleParams({ userId: USER_A }));

@@ -24,6 +24,7 @@ function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		url,
 		destinationUrl,
 		metadata: articleDisplayMetadata({ url, destinationUrl, title: "t", siteName: "s", excerpt: "e", wordCount: 1, imageUrl: undefined }),
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(1),
 		status: "unread",
 		savedAt: NOW,

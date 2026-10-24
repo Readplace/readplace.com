@@ -9,6 +9,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
+import { ServedBodyFields, servedBodyOf } from "./served-body";
 import type { ArticleDiscoveryQuery, ArticleStatus, SavedArticle } from "@packages/domain/article";
 import {
 	MinutesSchema,
@@ -97,7 +98,7 @@ const ArticleCrawlVersionsRow = z.object({
 });
 
 const ArticleRow = z.object({
-	...VerificationFields,
+	...ServedBodyFields,
 	url: z.string(),
 	routeId: ReaderArticleHashIdSchema,
 	originalUrl: z.string(),
@@ -109,7 +110,6 @@ const ArticleRow = z.object({
 	content: dynamoField(z.string()),
 	estimatedReadTime: MinutesSchema,
 	savedAt: dynamoField(z.string()),
-	purgedAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
 });
@@ -189,6 +189,7 @@ function toSavedArticle(
 			imageUrl: article.imageUrl,
 		}),
 		content: isUnverifiedWrapperContent(article) ? undefined : article.content,
+		servedBody: servedBodyOf(article),
 		estimatedReadTime: article.estimatedReadTime,
 		status: userArticle.status,
 		savedAt: new Date(userArticle.savedAt),

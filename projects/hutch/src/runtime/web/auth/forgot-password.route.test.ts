@@ -9,6 +9,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
 
 const useApp = useTestServer();
 
@@ -93,13 +94,7 @@ describe("Forgot password", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
-				email: {
-					...fixture.email,
-					sendEmail: async (message) => {
-						await new Promise((resolve) => setTimeout(resolve, 50));
-						await fixture.email.sendEmail(message);
-					},
-				},
+				email: withDelayedSendEmail(fixture.email),
 			});
 			await harness.auth.createUser({ email: "user@example.com", password: "password123" });
 

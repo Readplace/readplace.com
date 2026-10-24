@@ -59,6 +59,7 @@ export interface ArticleBodyInput {
 }
 
 export interface ArticleRailInput {
+	title: string;
 	crawl: ArticleCrawl | undefined;
 	content: ArticleBody | undefined;
 	readerNotice: ReaderFailedVariant | undefined;
@@ -81,6 +82,7 @@ export function renderArticleRail(input: ArticleRailInput): string {
 			content: input.content,
 			notice: input.readerNotice,
 			appOrigin: input.appOrigin,
+			title: input.title,
 			oob: false,
 		}),
 		articleHistoryHtml: renderArticleHistory({

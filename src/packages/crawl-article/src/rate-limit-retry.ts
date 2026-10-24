@@ -1,5 +1,5 @@
-import { callerHasGivenUp } from "./crawl-budget";
 import type { LadderFetch } from "./transport-ladder";
+import { TransportLadderFailure } from "./transport-ladder-failure";
 
 export const RATE_LIMIT_RETRY_DELAYS_MS: readonly number[] = [10_000];
 
@@ -30,8 +30,14 @@ export function withRateLimitRetry(
 		for (const delayMs of options.delaysMs) {
 			if (response.status !== 429) return response;
 			await sleepUnlessAborted(delayMs, init.budget.deadline.signal);
-			if (callerHasGivenUp(init.budget.deadline)) return response;
-			response = await innerFetch(url, init);
+			init.budget.deadline.signal.throwIfAborted();
+			try {
+				response = await innerFetch(url, init);
+			} catch (error) {
+				init.budget.deadline.signal.throwIfAborted();
+				if (!(error instanceof TransportLadderFailure) || error.retryDisposition !== "recoverable") throw error;
+				return response;
+			}
 		}
 		return response;
 	};

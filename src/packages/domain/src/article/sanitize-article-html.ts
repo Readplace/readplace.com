@@ -66,6 +66,11 @@ const RULE_CLASSES = ["ocr-page-break"];
 
 export const ARTICLE_SECTION_ID_PREFIX = "section-";
 
+export const READER_CELL_LABEL_ATTRIBUTE = "data-label";
+export const READER_HEADER_ROW_ATTRIBUTE = "data-reader-header";
+export const READER_TABLE_FITS_ATTRIBUTE = "data-reader-fits";
+export const READER_TABLE_FLOW_ATTRIBUTE = "data-reader-flow";
+
 const keepOnlySectionId: sanitizeHtml.Transformer = (tagName, attribs) => {
 	const { id = "", ...rest } = attribs;
 	return {
@@ -79,8 +84,10 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 	allowedAttributes: {
 		a: ["href", "target", "rel", "title"],
 		img: ["src", "srcset", "sizes", "alt", "width", "height", "loading"],
-		td: ["colspan", "rowspan"],
-		th: ["colspan", "rowspan"],
+		td: ["colspan", "rowspan", READER_CELL_LABEL_ATTRIBUTE],
+		th: ["colspan", "rowspan", READER_CELL_LABEL_ATTRIBUTE],
+		tr: [READER_HEADER_ROW_ATTRIBUTE],
+		table: [READER_TABLE_FITS_ATTRIBUTE, READER_TABLE_FLOW_ATTRIBUTE],
 		h2: ["id"],
 		h3: ["id"],
 		p: ["class"],

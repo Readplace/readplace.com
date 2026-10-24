@@ -4,6 +4,7 @@ import { initArticleSiteRules } from "./article-site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
+import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
 
 function recordingCrawlFetch(requested: string[]): CrawlFetch {
@@ -28,9 +29,10 @@ describe("initArticleSiteRules", () => {
 			mediumSiteRules,
 			linkedinSiteRules,
 			mediaWikiSiteRules,
+			substackSiteRules,
 			...crawlClaimingSiteRules,
 		]);
-		expect(crawlClaimingSiteRules).toHaveLength(3);
+		expect(crawlClaimingSiteRules).toHaveLength(4);
 	});
 
 	it("claims X, Apple News and Stack Overflow URLs among the crawl-claiming rules", () => {
@@ -43,6 +45,7 @@ describe("initArticleSiteRules", () => {
 		expect(claimed("https://twitter.com/jack/status/20")).toBe(1);
 		expect(claimed("https://apple.news/A123")).toBe(1);
 		expect(claimed("https://stackoverflow.com/questions/42/why")).toBe(1);
+		expect(claimed("https://hn.algolia.com/?dateRange=all&page=0&prefix=true&query=typescript&sort=byPopularity&type=story")).toBe(1);
 		expect(claimed("https://example.com/story")).toBe(0);
 	});
 

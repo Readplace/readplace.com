@@ -11,6 +11,8 @@ import {
 import { redirectable } from "./follow-redirects";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 
+const DEFAULT_PORTS = new Map([["http:", 80], ["https:", 443]]);
+
 type CurlFetchInit = {
 	headers?: Record<string, string>;
 	signal: AbortSignal;
@@ -27,6 +29,15 @@ export type ExecCurl = (
 ) => CurlChild;
 
 export type CurlFetch = (url: string, init: CurlFetchInit) => Promise<Response>;
+
+export class CurlFetchFailure extends Error {
+	readonly exitCode: number | undefined;
+
+	constructor(params: { url: string; error: Error }) {
+		super(`fetchCurl failed for ${params.url}: ${params.error.message}`, { cause: params.error });
+		this.exitCode = "code" in params.error && typeof params.error.code === "number" ? params.error.code : undefined;
+	}
+}
 
 /**
  * Binary name for the curl-impersonate Chrome variant. Lambda layers mount at
@@ -112,13 +123,13 @@ export function createCurlFetch(deps: {
 		init: { headers?: Record<string, string>; signal: AbortSignal },
 	): Promise<Response> {
 		const parsed = new URL(url);
-		const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
+		const port = Number(parsed.port || DEFAULT_PORTS.get(parsed.protocol));
 		const pinnedAddress = await resolvePinnedAddress({ hostname: parsed.hostname });
 		return new Promise<Response>((resolve, reject) => {
 			const args = buildCurlArgs({ url, headers: init.headers, hostname: parsed.hostname, port, pinnedAddress });
 			const child = execCurl(args, (error, stdout) => {
 				if (error) {
-					reject(new Error(`fetchCurl failed for ${url}: ${error.message}`));
+					reject(new CurlFetchFailure({ url, error }));
 					return;
 				}
 				const { status, headers, body } = parseCurlOutput(stdout);

@@ -2,7 +2,7 @@
             <p class="gmail__checklist-intro">{{intro}}</p>
             <div class="gmail__checklist-toolbar">
               {{#each actions}}
-              <button class="btn btn--neutral btn--s" type="submit" form="gmail-readlist-selection" formmethod="get" formnovalidate{{#if name}} name="{{name}}" value="{{value}}"{{/if}} data-test-gmail-checklist-action="{{key}}">{{label}}</button>
+              <button id="gmail-checklist-{{key}}" class="btn btn--neutral btn--s" type="submit" form="gmail-readlist-selection" formmethod="get" formnovalidate{{#if name}} name="{{name}}" value="{{value}}"{{/if}} data-test-gmail-checklist-action="{{key}}">{{label}}</button>
               {{/each}}
             </div>
             <p class="gmail__checklist-message" data-test-gmail-checklist-message>{{message}}</p>
@@ -14,7 +14,7 @@
                   {{#each rows}}
                   <li class="gmail__checklist-row" data-test-gmail-checklist-row="{{email}}">
                     <label class="gmail__checklist-label">
-                      <input class="form-choice gmail__checklist-checkbox" type="checkbox" form="gmail-readlist-selection" name="sender" value="{{email}}"{{#if checked}} checked{{/if}} data-test-gmail-checklist-sender="{{email}}">
+                      <input class="form-choice gmail__checklist-checkbox" type="checkbox" form="gmail-readlist-selection" name="sender" value="{{email}}"{{#if checked}} checked{{/if}}{{#if autofocus}} autofocus{{/if}} data-test-gmail-checklist-sender="{{email}}">
                       <span class="gmail__checklist-text">{{#if name}}<span class="gmail__checklist-name" data-test-gmail-checklist-name>{{name}}</span>{{/if}}<span class="gmail__checklist-email">{{email}}</span></span>
                     </label>
                     {{#each fields}}

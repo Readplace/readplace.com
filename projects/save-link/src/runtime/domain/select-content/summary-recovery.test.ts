@@ -1,6 +1,9 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { initSelectMostCompleteContent } from "./select-content";
+import { initSelectMostCompleteContent, type SelectMostCompleteContent } from "./select-content";
+import { initSelectContentWork } from "./select-content-work";
 import { noopLogger } from "@packages/hutch-logger";
+import type { CreateAiMessage } from "@packages/ai-message";
+import { MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import {
 	type Article,
 	type DispatchEffect,
@@ -11,7 +14,8 @@ import { initSelectMostCompleteContentHandler } from "./select-most-complete-con
 import { initGenerateSummaryHandler } from "../generate-summary/generate-summary-handler";
 import { initCanonicalContentChangedHandler } from "../save-link/canonical-content-changed-handler";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
-import type { SummarizeArticle } from "../generate-summary/link-summariser";
+import { initLinkSummariser, type SummarizeArticle } from "../generate-summary/link-summariser";
+import { stripHtml } from "../generate-summary/strip-html";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import { candidateProvenance } from "./candidate-provenance";
 import type { VerifiedTierSource } from "./tier-source.types";
@@ -71,6 +75,82 @@ function stuckArticle(canonicalContentHash: string): Article {
 }
 
 describe("summary recovery on canonical content change", () => {
+	it.each(["image", "plain-text"] satisfies Array<"image" | "plain-text">)("persists a verified %s resource despite a historical rejected crawl and completes its summary lifecycle", async (directResourceKind) => {
+		const attemptId = SaveAttemptIdSchema.parse("resource-attempt");
+		const html = directResourceKind === "image"
+			? '<img src="https://cdn.example.com/resource.png">'
+			: `<pre>${"A detailed plain text resource documents the operating procedure and its supporting evidence. ".repeat(100)}</pre>`;
+		const resource: VerifiedTierSource = { tier: "tier-1", html, metadata: candidateProvenance({
+			metadata: { title: "Resource", siteName: "example.com", excerpt: "", wordCount: directResourceKind === "image" ? 0 : 1500, estimatedReadTime: 1, directResourceKind },
+			html, evaluationHtml: html, attemptId, originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: FIXED_NOW.toISOString(), httpStatus: 200,
+		}) };
+		const rejectedHtml = "<p>Page not found</p>";
+		const historical: VerifiedTierSource = { tier: "tier-1", html: rejectedHtml, metadata: candidateProvenance({
+			metadata: { title: "Not found", siteName: "example.com", excerpt: "", wordCount: 3, estimatedReadTime: 1 },
+			html: rejectedHtml, evaluationHtml: rejectedHtml, attemptId: SaveAttemptIdSchema.parse("earlier-attempt"),
+			originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: "2026-01-01T00:00:00.000Z", httpStatus: 404,
+		}) };
+		const store = initInMemoryArticleStore();
+		store.seed({
+			url: URL, metadata: { title: "Not found", siteName: "example.com", excerpt: "", wordCount: 0 },
+			freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" }, estimatedReadTime: 1,
+			crawl: { kind: "failed", reason: { kind: "not-found", httpStatus: 404 } },
+			summary: { kind: "skipped", reason: "crawl-failed" }, summaryAutoHeal: { attempts: 0 },
+		});
+		const bodies = new Map<string, string>();
+		const findArticleContent: FindArticleContent = async (url) => {
+			const row = await store.load(url);
+			const location = row?.contentSelection?.contentLocation;
+			const content = location === undefined ? undefined : bodies.get(location);
+			return content === undefined ? undefined : { content };
+		};
+		const createMessage = jest.fn<ReturnType<CreateAiMessage>, Parameters<CreateAiMessage>>(async () => ({
+			content: [{ type: "text", text: JSON.stringify({ summary: "The resource explains its operating procedure.", excerpt: "An operating procedure." }) }],
+			usage: { input_tokens: 100, output_tokens: 20 },
+		}));
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage, markSummaryStage: async () => {}, logger: noopLogger, cleanContent: stripHtml,
+			isTooShortToSummarize: (text) => text.replace(/\s/g, "").length <= MAX_SUMMARY_LENGTH * 3,
+		});
+		let summaryHandler: Handler<SQSEvent, SQSBatchResponse>;
+		let canonicalChangedHandler: Handler<SQSEvent, SQSBatchResponse>;
+		const dispatchEffect: DispatchEffect = async (effect) => {
+			if (effect.kind === "publish-canonical-content-changed") {
+				await canonicalChangedHandler(sqsEvent({ url: effect.url }), buildLambdaContext(), () => {});
+			} else if (effect.kind === "generate-summary") {
+				await summaryHandler(sqsEvent({ url: effect.url }), buildLambdaContext(), () => {});
+			}
+		};
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect });
+		summaryHandler = initGenerateSummaryHandler({ summarizeArticle, findArticleContent, loadArticle: store.load, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger });
+		canonicalChangedHandler = initCanonicalContentChangedHandler({ findArticleContent, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger });
+		const judge = jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>();
+		const recordCrawlVersion = jest.fn(async () => {});
+		const work = initSelectContentWork({
+			listAvailableTierSources: async () => [historical, resource], selectMostCompleteContent: judge,
+			writeCanonicalContent: async ({ source }) => {
+				const contentLocation = `s3://content/${source.metadata.id}.html`;
+				bodies.set(contentLocation, source.html);
+				return { contentLocation, candidateId: source.metadata.id, tier: source.tier };
+			},
+			recordCrawlVersion, loadArticle: store.load, readCanonicalContent: findArticleContent, transitionAndPersist,
+			resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+			now: () => FIXED_NOW, logger: noopLogger,
+		});
+
+		await work({ url: URL, saveAttemptId: attemptId, candidates: [{ id: resource.metadata.id, tier: "tier-1" }], mode: "recrawl" });
+
+		const persisted = await store.load(URL);
+		expect(judge).toHaveBeenCalledTimes(0);
+		expect(persisted?.contentSelection).toMatchObject({ candidateId: resource.metadata.id, tier: "tier-1", contentLocation: `s3://content/${resource.metadata.id}.html` });
+		expect(await findArticleContent(URL)).toEqual({ content: html });
+		expect(persisted?.crawl).toEqual({ kind: "ready" });
+		expect(persisted?.freshness.canonicalContentHash).toBe(computeCanonicalContentHash(html));
+		expect(persisted?.summary).toMatchObject(directResourceKind === "image" ? { kind: "skipped", reason: "content-too-short" } : { kind: "ready", summary: "The resource explains its operating procedure.", sourceContentHash: computeCanonicalContentHash(html) });
+		expect(createMessage).toHaveBeenCalledTimes(directResourceKind === "image" ? 0 : 1);
+		expect(recordCrawlVersion).toHaveBeenCalledTimes(1);
+	});
+
 	it("recovers a row stuck at skipped(content-too-short) when the tier flips to the same-hash canonical content", async () => {
 		/* The winning tier-1 source's content hashes to exactly the value already
 		 * recorded on the row — so contentChanged is false. Only the TIER flips. */

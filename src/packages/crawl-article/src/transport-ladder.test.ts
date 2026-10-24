@@ -1,5 +1,6 @@
 import { createCrawlBudget } from "./crawl-budget";
 import { type Leg, type LegAttempt, type LegFetch, runTransportLadder } from "./transport-ladder";
+import { TransportLadderFailure } from "./transport-ladder-failure";
 
 function tarpit(): LegFetch {
 	return (_url, init) =>
@@ -99,7 +100,7 @@ describe("runTransportLadder", () => {
 		expect(attempts.map((a) => a.leg)).toEqual(["primary", "h2", "curl"]);
 	});
 
-	it.each([402, 403])("escalates a block-class %i to the next transport", async (status) => {
+	it.each([402, 403, 419])("escalates a block-class %i to the next transport", async (status) => {
 		const attempts: LegAttempt[] = [];
 		const ladder = ladderOf(
 			[
@@ -116,6 +117,78 @@ describe("runTransportLadder", () => {
 			["primary", "escalated", status],
 			["h2", "answered", 200],
 		]);
+	});
+
+	it.each([
+		{ status: 202, action: "challenge" },
+		{ status: 200, action: "challenge" },
+		{ status: 202, action: "captcha" },
+		{ status: 200, action: "captcha" },
+	])("escalates an AWS WAF $action served as HTTP $status", async ({ status, action }) => {
+		const challenged = new Response("verification required", {
+			status,
+			headers: { "x-amzn-waf-action": action },
+		});
+		const drainedBeforeRecovery: boolean[] = [];
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 50, fetch: async () => challenged },
+				{
+					name: "h2",
+					maxRunMs: 20,
+					fetch: async () => {
+						drainedBeforeRecovery.push(challenged.bodyUsed);
+						return new Response("article", { status: 200 });
+					},
+				},
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(await response.text()).toBe("article");
+		expect(drainedBeforeRecovery).toEqual([true]);
+		expect(attempts.map((attempt) => [attempt.leg, attempt.outcome, attempt.status])).toEqual([
+			["primary", "escalated", status],
+			["h2", "answered", 200],
+		]);
+	});
+
+	it("returns an exhausted AWS WAF response with its final URL, headers and body", async () => {
+		const challenge = new Response("verification required", {
+			status: 202,
+			headers: { "x-amzn-waf-action": "challenge" },
+		});
+		Object.defineProperty(challenge, "url", { value: "https://publisher.example/article" });
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf([{ name: "primary", maxRunMs: 50, fetch: async () => challenge }], attempts);
+
+		const response = await ladder("https://wrapper.example/link", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(202);
+		expect(response.url).toBe("https://publisher.example/article");
+		expect(response.headers.get("x-amzn-waf-action")).toBe("challenge");
+		expect(await response.text()).toBe("verification required");
+		expect(attempts.map((attempt) => attempt.outcome)).toEqual(["escalated"]);
+	});
+
+	it("returns an ordinary HTTP 202 without opening another transport", async () => {
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 50, fetch: answers(202, "accepted article") },
+				{ name: "h2", maxRunMs: 20, fetch: answers(200, "other article") },
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(202);
+		expect(await response.text()).toBe("accepted article");
+		expect(attempts.map((attempt) => [attempt.leg, attempt.outcome])).toEqual([["primary", "answered"]]);
 	});
 
 	it("answers a 401 from the first leg and never opens a later transport", async () => {
@@ -205,7 +278,7 @@ describe("runTransportLadder", () => {
 		expect(attempts[0]?.error).toBe("string-error");
 	});
 
-	it("hands the last leg's error the earlier leg's failure as its cause", async () => {
+	it("keeps original errors separate from previous transport attempts", async () => {
 		const primaryError = new Error("primary died");
 		const curlError = new Error("curl died");
 		const attempts: LegAttempt[] = [];
@@ -229,8 +302,10 @@ describe("runTransportLadder", () => {
 			attempts,
 		);
 
-		await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toBe(curlError);
-		expect(curlError.cause).toBe(primaryError);
+		await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toMatchObject({
+			cause: curlError, previousErrors: [primaryError], retryDisposition: "unclassified",
+		});
+		expect(curlError.cause).toBeUndefined();
 	});
 
 	it("opens no transport at all when the caller has already given up", async () => {
@@ -331,4 +406,82 @@ describe("runTransportLadder", () => {
 			["answered", 502, { "x-brd-err-code": "policy_20050", "x-brd-error-code": "net_err_tunnel" }],
 		]);
 	});
+});
+
+it("continues beyond a connection refusal after receiving a 429", async () => {
+	const attempts: LegAttempt[] = [];
+	const ladder = ladderOf([
+		{ name: "primary", maxRunMs: 50, fetch: answers(429, "slow down") },
+		{ name: "h2", maxRunMs: 20, fetch: async () => { throw Object.assign(new Error("connection refused"), { code: "ECONNREFUSED" }); } },
+		{ name: "curl", maxRunMs: 30, fetch: answers(200, "recovered article") },
+	], attempts);
+	expect(await (await ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).text()).toBe("recovered article");
+	expect(attempts.map(({ leg, outcome }) => [leg, outcome])).toEqual([["primary", "escalated"], ["h2", "escalated"], ["curl", "answered"]]);
+});
+
+it.each([
+	Object.assign(new Error("connection refused"), { code: "ECONNREFUSED" }),
+	Object.assign(new Error("connection timed out"), { code: "UND_ERR_CONNECT_TIMEOUT" }),
+	Object.assign(new Error("leg timed out"), { name: "TimeoutError" }),
+	new Error("HTTP/2 RST_STREAM INTERNAL_ERROR"),
+])("classifies a transport's own operational failure as recoverable: %s", async (error) => {
+	const ladder = ladderOf([{ name: "primary", maxRunMs: 50, fetch: async () => { throw error; } }], []);
+	await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toMatchObject({
+		cause: error, previousErrors: [], retryDisposition: "recoverable",
+	});
+});
+
+it.each([true, false])("keeps mixed unknown/network failures unclassified (unknown first: %s)", async (unknownFirst) => {
+	const unknown = new Error("programming failure");
+	const network = new TypeError("fetch failed", { cause: Object.assign(new Error("connection refused"), { code: "ECONNREFUSED" }) });
+	const errors = unknownFirst ? [unknown, network] : [network, unknown];
+	const ladder = ladderOf(errors.map((error) => ({ name: "primary", maxRunMs: 50, fetch: async () => { throw error; } })), []);
+	await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toMatchObject({
+		retryDisposition: "unclassified", cause: errors[1], previousErrors: [errors[0]],
+	});
+	expect(unknown.cause).toBeUndefined();
+});
+
+it("does not preserve a 429 when an earlier unknown failure precedes a terminal network failure", async () => {
+	const ladder = ladderOf([
+		{ name: "primary", maxRunMs: 50, fetch: async () => { throw new Error("programming failure"); } },
+		{ name: "h2", maxRunMs: 20, fetch: answers(429) },
+		{ name: "curl", maxRunMs: 30, fetch: async () => { throw Object.assign(new Error("refused"), { code: "ECONNREFUSED" }); } },
+	], []);
+	await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toMatchObject({ retryDisposition: "unclassified" });
+});
+
+it("does not hide an unknown failure behind a later block response after receiving a 429", async () => {
+	const ladder = ladderOf([
+		{ name: "primary", maxRunMs: 50, fetch: answers(429) },
+		{ name: "h2", maxRunMs: 20, fetch: answers(403) },
+		{ name: "curl", maxRunMs: 30, fetch: async () => { throw new Error("programming failure"); } },
+	], []);
+	await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toMatchObject({ retryDisposition: "unclassified" });
+});
+
+it("marks a non-Error exhausted rejection unclassified", async () => {
+	const ladder = ladderOf([{ name: "primary", maxRunMs: 50, fetch: async () => { throw "broken transport"; } }], []);
+	await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toMatchObject({
+		message: "broken transport", cause: "broken transport", retryDisposition: "unclassified",
+	});
+});
+
+it("propagates an explicit abort even when it carries a block signature", async () => {
+	const aborted = Object.assign(new Error("RST_STREAM cancelled"), { name: "AbortError" });
+	const ladder = ladderOf([{ name: "primary", maxRunMs: 50, fetch: async () => { throw aborted; } }], []);
+	await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toBe(aborted);
+});
+
+it("exposes a typed failure without modifying a reused error's cause", async () => {
+	const root = Object.assign(new Error("refused"), { code: "ECONNREFUSED" });
+	const reused = new Error("wrapped refusal", { cause: root });
+	const ladder = ladderOf([
+		{ name: "primary", maxRunMs: 50, fetch: async () => { throw reused; } },
+		{ name: "curl", maxRunMs: 20, fetch: async () => { throw reused; } },
+	], []);
+	for (let i = 0; i < 2; i++) {
+		await expect(ladder("https://example.com", { headers: {}, budget: budgetOf(500) })).rejects.toBeInstanceOf(TransportLadderFailure);
+	}
+	expect(reused.cause).toBe(root);
 });

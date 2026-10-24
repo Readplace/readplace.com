@@ -42,6 +42,20 @@ const BUNDLES = [
     footer: "GmailPicker.initGmailPicker({ document: window.document });",
   },
   {
+    entry: path.join(PROJECT_ROOT, "src/runtime/web/pages/integrations/gmail-dialog.client.ts"),
+    outfile: path.join(OUT_DIR, "gmail-dialog.client.js"),
+    globalName: "GmailDialog",
+    footer: [
+      "GmailDialog.initGmailDialog({",
+      "  document: window.document,",
+      "  supportsPopover: function () { return typeof HTMLElement.prototype.showPopover === 'function'; },",
+      "  isOpen: function (panel) { return panel.matches(':popover-open'); },",
+      "  showPopover: function (panel) { panel.showPopover(); },",
+      "  follow: function (anchor) { anchor.click(); }",
+      "});",
+    ].join("\n"),
+  },
+  {
     entry: path.join(
       PROJECT_ROOT,
       "src/runtime/web/shared/share-dialog/share-dialog.client.ts",

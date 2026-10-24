@@ -76,12 +76,14 @@ function render(input: {
 	content: ArticleBody | undefined;
 	notice?: ReaderFailedVariant;
 	oob?: boolean;
+	title?: string;
 }): string {
 	return renderTableOfContents({
 		crawl: input.crawl,
 		content: input.content,
 		notice: input.notice,
 		appOrigin: APP_ORIGIN,
+		title: input.title,
 		oob: input.oob === true,
 	});
 }
@@ -132,14 +134,14 @@ describe("renderTableOfContents", () => {
 		]).toEqual([true, "Table of contents", "Table of contents", "list"]);
 	});
 
-	it("tells the reader there are no sections when a ready article has no h2 or h3", () => {
+	it("tells the reader there are no section links when a ready article has no h2 or h3", () => {
 		const wrapper = wrapperOf(render({ crawl: { status: "ready" }, content: articleBody("<p>One paragraph.</p>") }));
 
 		const empty = wrapper.querySelector("details[data-test-toc-card] > .disclosure-card__body[data-test-toc-empty]");
 		assert(empty, "the empty state must be the card's body");
 		expect(Array.from(empty.querySelectorAll("p"), (line) => line.textContent)).toEqual([
-			"No sections found",
-			"This article doesn't have any sections to show.",
+			"No section links",
+			"A table of contents isn’t available for this article.",
 		]);
 	});
 
@@ -181,6 +183,50 @@ describe("renderTableOfContents", () => {
 			{ href: "#section-intro", text: "Intro" },
 			{ href: "#section-method", text: "Method" },
 		]);
+	});
+
+	it("nests each h3 row in a list under its h2 row, leaving an orphan h3 at the top level", () => {
+		const wrapper = wrapperOf(
+			render({
+				crawl: { status: "ready" },
+				content: articleBody("<h3>Prelude</h3><h2>Setup</h2><h3>Install</h3><h3>Configure</h3><h2>Usage</h2>"),
+			}),
+		);
+
+		const list = wrapper.querySelector("nav > ol.table-of-contents__list");
+		assert(list, "the card must hold the top-level list");
+		const tree = Array.from(list.children, (item) => ({
+			row: item.firstElementChild?.textContent,
+			children: Array.from(item.querySelectorAll("ol[role='list'] > li > a.table-of-contents__link--nested"), (link) => link.textContent),
+		}));
+		expect(tree).toEqual([
+			{ row: "Prelude", children: [] },
+			{ row: "Setup", children: ["Install", "Configure"] },
+			{ row: "Usage", children: [] },
+		]);
+	});
+
+	it("leaves the leading title heading out of the card while the reader body keeps it and its anchor", () => {
+		const content = articleBody("<h2>Field notes</h2><p>One</p><h2>Method <a href=\"#method\">¶</a></h2><p>Two</p>");
+		const doc = parse(
+			`${render({ crawl: { status: "ready" }, content, title: "Field notes" })}${renderReaderReady({ content, appOrigin: APP_ORIGIN })}`,
+		);
+
+		const slot = doc.querySelector("[data-test-reader-content]");
+		assert(slot, "the reader slot must render its content");
+		expect([
+			Array.from(doc.querySelectorAll("[data-test-toc-section]"), (row) => [row.getAttribute("href"), row.textContent]),
+			Array.from(slot.querySelectorAll("h2"), (heading) => heading.id),
+		]).toEqual([
+			[["#section-method", "Method"]],
+			["section-field-notes", "section-method"],
+		]);
+	});
+
+	it("shows the empty card when the only heading repeats the title", () => {
+		const wrapper = wrapperOf(render({ crawl: { status: "ready" }, content: articleBody("<h2>Field notes</h2><p>One</p>"), title: "Field notes" }));
+
+		expect(wrapper.getAttribute("data-test-table-of-contents")).toBe("empty");
 	});
 
 	it("loads its client bundle from the same origin, deferred", () => {

@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import type { SavedArticle } from "@packages/domain/article";
+import type { SavedArticle, ServedBody } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 
 export interface ArticleContentVersionInput {
-	article: Pick<SavedArticle, "metadata" | "contentFetchedAt">;
+	article: Pick<SavedArticle, "metadata" | "contentFetchedAt" | "servedBody">;
 	crawl: ArticleCrawl | undefined;
 	summary: GeneratedSummary | undefined;
 }
@@ -34,6 +34,12 @@ function summaryReasonOf(summary: GeneratedSummary | undefined): string {
 	return "";
 }
 
+function servedBodyFields(servedBody: ServedBody): string[] {
+	if (servedBody.kind === "legacy") return [];
+	if (servedBody.kind === "withheld") return ["withheld"];
+	return [servedBody.location];
+}
+
 export function computeArticleContentVersion(input: ArticleContentVersionInput): string {
 	const { article, crawl, summary } = input;
 	const fields = [
@@ -49,6 +55,7 @@ export function computeArticleContentVersion(input: ArticleContentVersionInput):
 		summaryExcerptOf(summary),
 		summaryReasonOf(summary),
 		article.contentFetchedAt === undefined ? "" : article.contentFetchedAt.toISOString(),
+		...servedBodyFields(article.servedBody),
 	];
 	const hash = createHash("sha256");
 	for (const field of fields) {

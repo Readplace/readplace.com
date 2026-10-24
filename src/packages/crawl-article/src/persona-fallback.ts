@@ -1,8 +1,8 @@
 /**
  * Iterate through a list of request "personas" — coherent sets of headers
  * that together look like a single client to the origin — when the inner
- * fetch returns a block-class response (401/402/403/406/451/498) or throws a
- * block-class error (HTTP/2 RST_STREAM INTERNAL_ERROR, curl exit 92, etc.).
+ * fetch returns a block-class response or throws a block-class error
+ * (HTTP/2 RST_STREAM INTERNAL_ERROR, curl exit 92, etc.).
  *
  * The wrapper is intentionally domain- and tool-agnostic: it never names
  * an origin, never names a fetcher implementation. Each persona's headers
@@ -18,14 +18,16 @@
  * wrapper.
  */
 import assert from "node:assert";
+import { isAwsWafChallenge } from "./aws-waf-challenge";
 import type { LadderFetch } from "./transport-ladder";
+import { isHardCrawlFailure, TransportLadderFailure } from "./transport-ladder-failure";
 
 export type Persona = {
 	readonly name: string;
 	readonly headers: Readonly<Record<string, string>>;
 };
 
-const BLOCK_STATUS_CODES = new Set([401, 402, 403, 406, 451, 498]);
+const BLOCK_STATUS_CODES = new Set([401, 402, 403, 406, 419, 451, 498]);
 
 const BLOCK_ERROR_SIGNATURES = [
 	"internal_error", /* HTTP/2 RST_STREAM frame, code 0x2 — Akamai BotManager hallmark */
@@ -41,10 +43,14 @@ export function isBlockClassStatus(status: number): boolean {
 }
 
 export function isBlockClassResponse(response: Response): boolean {
-	return isBlockClassStatus(response.status);
+	return isBlockClassStatus(response.status) || isAwsWafChallenge(response);
 }
 
 export function isBlockClassError(error: unknown): boolean {
+	if (isHardCrawlFailure(error)) return false;
+	if (error instanceof TransportLadderFailure) {
+		return error.retryDisposition === "recoverable" && [...error.previousErrors, error.cause].some(isBlockClassError);
+	}
 	let link: unknown = error;
 	while (link instanceof Error) {
 		const message = link.message.toLowerCase();

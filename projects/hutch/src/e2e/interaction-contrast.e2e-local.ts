@@ -54,6 +54,7 @@ const TOOLBAR_CONTROLS = [
 	{ selector: "summary[data-test-readlists-trigger]", auditId: "toolbar-add", ink: "label" },
 	{ selector: '[data-test-mark-read-slot] [data-test-action="mark-read"]', auditId: "toolbar-mark", ink: "label" },
 	{ selector: '[data-test-action="share-open"]', auditId: "toolbar-share", ink: "glyph" },
+	{ selector: '[data-test-action="download-open"]', auditId: "toolbar-download", ink: "glyph" },
 ] as const;
 
 type Lens = (colour: Rgb) => Rgb;
@@ -492,7 +493,7 @@ test.describe("Form controls hold their WCAG contrast in both themes", () => {
 		const stampId = `${testInfo.workerIndex}-${Date.now()}`;
 		const userId = await signInAsNewReader(page, `gmail-checklist-focus-${stampId}@example.com`);
 		await seedGmailChecklist(page, { userId, namespace: `gmail-checklist-focus-${stampId}` });
-		await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started`, { waitUntil: "domcontentloaded" });
+		await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started&add=1`, { waitUntil: "domcontentloaded" });
 		await expect(page.locator("body.page-integrations-gmail")).toHaveCount(1);
 		await auditCheckboxFocusRing(page, {
 			before: GMAIL_CHECKLIST_CHECKBOX_BEFORE,

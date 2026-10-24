@@ -27,7 +27,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | `browser-image.yml` | Builds the digest-pinned browser image every browser job consumes, validates the candidate by running both extension suites against it, and prints the digest to promote. Versions come from `.github/browser-image/image.env`; nothing else builds a browser | Manual |
 | `perf-soak.yml` | Re-derives the save-latency budgets `ci.yml`'s `perf-tests` job gates on: 20 independent github-hosted runs, each uploading its own distribution | Manual |
 | `screen-response-soak.yml` | Re-derives the budgets the hutch post-deploy screen-response ratchet gates on: N independent github-hosted runs against the deployed staging stack, one at a time, each uploading its own distribution | Manual |
-| `claude-listener.yml` | Central hub - ONLY workflow that runs Claude. Runs on the self-hosted OrbStack runner, in the same one-job-at-a-time queue as `web-tests` and `detect-projects`; a PR or issue opened by someone outside the repo's owners, members and collaborators runs on `ubuntu-latest` | `@claude` comments |
+| `claude-listener.yml` | Central hub - ONLY workflow that runs Claude. Runs on the self-hosted OrbStack runner, in the same one-job-at-a-time queue as `web-tests` and `detect-projects`. Two kinds of run go to `ubuntu-latest` instead. One is a review request: a comment in a PR's conversation that carries `<!-- CLAUDE_REVIEW_REQUEST -->` or names `claude-PR-code-reviewer.md`, the same test the listener uses to save the review output. A review runs no check, and on 2026-10-21 review jobs of under five minutes waited up to 95 minutes in that queue. The other is any run on a PR or issue opened by someone outside the repo's owners, members and collaborators | `@claude` comments |
 | `claude-PR-CI-failure-fixer.yml` | Auto-fix CI failures (max 5 attempts) | CI fails on PR |
 | `claude-PR-code-reviewer.yml` | Automated code review | CI succeeds on PR |
 | `claude-PR-code-review-auto-apply.yml` | Post the review comment from the review run's saved output, then fix HIGH/MEDIUM issues | Review run completes (`workflow_run`) + the posted review comment |
@@ -80,7 +80,7 @@ Each workflow has a corresponding `.md` file containing detailed instructions fo
 | HTML Marker | Purpose |
 |-------------|---------|
 | `<!-- CLAUDE_REVIEW_REQUEST -->` | Code review request |
-| `<!-- CLAUDE_REVIEW_START/END -->` | Review content boundaries; posted by `claude-PR-code-review-auto-apply.yml` from the review run's saved `execution_file` artifact (unsanitized), not by the agent |
+| `<!-- CLAUDE_REVIEW_START/END -->` | Review content boundaries; posted by `claude-PR-code-review-auto-apply.yml` from the review run's saved `execution_file` artifact (unsanitized), not by the agent. `claude-listener.yml` never starts a run from a comment carrying `<!-- CLAUDE_REVIEW_START -->`. The review is posted under the PAT owner's identity, which passes the listener's author gate, so a review that mentions `@claude` would otherwise run its text as a prompt |
 | `<!-- REVIEW_RUN: <run-id> -->` | Dedup marker on the workflow-authored review comment (one per review run) |
 | `<!-- HIGH/MEDIUM_PRIORITY_COUNT: N -->` | Issue counts |
 | `<!-- CLAUDE_CONFLICT_FIX -->` | Conflict fix request |

@@ -8,6 +8,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
 
 const useApp = useTestServer();
 
@@ -35,12 +36,21 @@ describe("Email verification", () => {
 			expect(sent[0].html).toContain("verify-email?token&#x3D;");
 		});
 
+		it("sends the verification email before it answers", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				email: withDelayedSendEmail(fixture.email),
+			});
+
+			await signup(harness.server, "new@example.com");
+
+			expect(harness.email.getSentEmails().map((sent) => sent.to)).toEqual(["new@example.com"]);
+		});
+
 		it("completes signup even when the verification email fails to send", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			let resolveErrorLogged: () => void;
-			const errorLogged = new Promise<void>((resolve) => {
-				resolveErrorLogged = resolve;
-			});
+			const loggedErrors: string[] = [];
 			const harness = useApp({
 				...fixture,
 				email: {
@@ -49,14 +59,14 @@ describe("Email verification", () => {
 				},
 				shared: {
 					...fixture.shared,
-					logError: () => { resolveErrorLogged(); },
+					logError: (message) => { loggedErrors.push(message); },
 				},
 			});
 
 			const response = await signup(harness.server, "fail-email@example.com");
 
 			expect(response.status).toBe(303);
-			await errorLogged;
+			expect(loggedErrors).toEqual(["[Email] Verification email failed"]);
 		});
 
 		it("sends no verification email when the signup form signs a visitor in to an existing account", async () => {
@@ -210,6 +220,24 @@ describe("Email verification", () => {
 			expect(welcome.replyTo).toBe("fayner@readplace.com");
 			expect(welcome.subject).toBe("Welcome to Readplace");
 			expect(welcome.html).toContain("/install");
+		});
+
+		it("sends the welcome email before it answers", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				email: withDelayedSendEmail(fixture.email),
+			});
+			await signup(harness.server, "welcome@example.com");
+			const tokenMatch = harness.email.getSentEmails()[0].html.match(/token&#x3D;([a-f0-9]+)/);
+			assert(tokenMatch, "Expected token in verification email");
+
+			await request(harness.server).get(`/verify-email?token=${tokenMatch[1]}`);
+
+			expect(harness.email.getSentEmails().map((sent) => sent.subject)).toEqual([
+				"Verify your email — Readplace",
+				"Welcome to Readplace",
+			]);
 		});
 
 		it("should not send a welcome email when the verification token is invalid", async () => {

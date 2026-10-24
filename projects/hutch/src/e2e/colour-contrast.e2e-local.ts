@@ -16,6 +16,7 @@ import { createReadlistFromReader, markReadWithConfirmation, openAddLink } from 
 import { CONNECTOR_REDIRECT_URI, gotoConsent, registerConnector } from "./oauth-consent";
 import { seedChromeGrant } from "./oauth-revoke/seed-grant";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
+import { MACOS_CHROME_USER_AGENT } from "./user-agents";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
@@ -950,7 +951,7 @@ test.describe("The reader's Next Read card holds its WCAG contrast in both theme
 });
 
 test.describe("Public reader colour roles hold their WCAG contrast in both themes", () => {
-	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT, userAgent: MACOS_CHROME_USER_AGENT });
 
 	test("the toolbar and the sticky action bar clear colour and greyscale minimums", async ({ page }, testInfo) => {
 		const slug = `colour-contrast-public-reader-${testInfo.workerIndex}-${Date.now()}`;
@@ -1238,7 +1239,7 @@ test.describe("GMail Newsletters colour roles hold their WCAG contrast in both t
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
-			await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started&notice=sender_mapped&sender=dan%40tldr.tech`, {
+			await page.goto(`${BASE_URL}/newsletters/gmail?discovery=started&notice=sender_mapped&sender=dan%40tldr.tech&add=1`, {
 				waitUntil: "domcontentloaded",
 			});
 			await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");

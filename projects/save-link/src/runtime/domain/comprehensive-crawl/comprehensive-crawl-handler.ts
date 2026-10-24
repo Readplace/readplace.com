@@ -247,6 +247,9 @@ export function initComprehensiveCrawlHandler(deps: {
 					documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: crawlResult.finalUrl }),
 					html: crawlResult.html,
 					resolvedThumbnail: crawlResult.thumbnail,
+					...(crawlResult.mediaType === "plain-text"
+						? { mediaType: crawlResult.mediaType, plainText: crawlResult.plainText }
+						: { mediaType: crawlResult.mediaType }),
 				});
 				if (!finalized.ok && ctx.candidates === undefined) {
 					logParseError({ url, reason: finalized.reason });

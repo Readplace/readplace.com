@@ -120,7 +120,7 @@ async function signInGmailReader(page: Page, input: { stamp: string; catalog: re
 
 async function openGmailPage(page: Page, query: Record<string, string>): Promise<void> {
 	const url = new URL(GMAIL_PAGE);
-	for (const [name, value] of Object.entries(query)) url.searchParams.set(name, value);
+	for (const [name, value] of Object.entries({ add: "1", ...query })) url.searchParams.set(name, value);
 	await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
 	await expect(page.locator("body.page-integrations-gmail")).toHaveCount(1);
 }
@@ -329,7 +329,7 @@ test.describe("GMail Newsletters without JavaScript", () => {
 			await page.locator("[data-test-gmail-save]").click();
 
 			await expect(page.locator('[data-test-alert="import_permission_needed"]')).toBeVisible();
-			await expect(page.locator("#gmail-sender-search")).toHaveValue("kale");
+			await expect(page.locator('#gmail-add-newsletters-form input[name="search"]')).toHaveValue("kale");
 			const row = mappingRow(page, KALE);
 			await expect(row.locator("[data-test-gmail-mapping-destination]")).toContainText("Tech");
 			await expect(row.locator("[data-test-gmail-import-state]")).toHaveAttribute("data-test-gmail-import-state", "awaiting-permission");
@@ -402,7 +402,7 @@ test.describe("Admin newsletter FROM field while typing", () => {
 test.describe("GMail Newsletters polling keeps the reader's choices", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP });
 
-	test("discovery and import polls keep the search, the ticked senders and the readlist in the URL and the page", async ({ page }, testInfo) => {
+	test("discovery polls keep the search and the readlist, import polls keep the search, and the popup keeps the ticked senders in the URL and the page", async ({ page }, testInfo) => {
 		await signInGmailReader(page, {
 			stamp: uniqueStamp("polling", testInfo.workerIndex),
 			catalog: [approved({ from: TLDR, name: "TLDR" }), approved({ from: BREW, name: "Morning Brew" })],
@@ -442,14 +442,10 @@ test.describe("GMail Newsletters polling keeps the reader's choices", () => {
 		await expect(page.locator("[data-test-gmail-mappings]")).toHaveAttribute("hx-get", /imports_poll=[3-9]/);
 
 		for (const polled of [...discoveryPolls, ...importPolls]) {
-			const params = new URL(polled).searchParams;
-			assert.equal(params.get("search"), "news", `${polled} must keep the search`);
-			assert.deepEqual(params.getAll("readlist"), ["default", techSlug], `${polled} must keep the chosen readlist`);
+			assert.equal(new URL(polled).searchParams.get("search"), "news", `${polled} must keep the search`);
 		}
-		for (const polled of importPolls) {
-			const params = new URL(polled).searchParams;
-			assert.deepEqual(params.getAll("sender"), [KALE], `${polled} must keep the ticked newsletter`);
-			assert.deepEqual(params.getAll("added"), [KALE], `${polled} must keep the added sender`);
+		for (const polled of discoveryPolls) {
+			assert.deepEqual(new URL(polled).searchParams.getAll("readlist"), ["default", techSlug], `${polled} must keep the chosen readlist`);
 		}
 		assert.equal(page.url(), chosenUrl, "a poll must not rewrite the address bar");
 		const address = new URL(page.url()).searchParams;
@@ -541,8 +537,9 @@ function gmailScenario(input: {
 }
 
 async function openSenderPicker(page: Page): Promise<void> {
-	await page.locator(`${SENDER_PICKER} summary`).click();
-	await expect(page.locator(SENDER_PICKER)).toHaveAttribute("open", "");
+	const picker = page.locator(SENDER_PICKER);
+	if ((await picker.getAttribute("open")) === null) await picker.locator("summary").click();
+	await expect(picker).toHaveAttribute("open", "");
 }
 
 async function openReadlistPicker(page: Page): Promise<void> {

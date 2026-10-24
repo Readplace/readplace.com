@@ -2535,10 +2535,25 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2", "a3", "a4"], "precondition: two pages are loaded")
 		unseenSave.record()
 
-		async let pull: Void = viewModel.refresh()
-		async let foreground: Void = viewModel.handleForeground()
-		await pull
-		await foreground
+		let firstPageHeld = DispatchSemaphore(value: 0)
+		let handler = threePageHandler()
+		var firstPageRequests = 0
+		StubURLProtocol.setHandler { request, body in
+			let stub = handler(request, body)
+			guard request.url?.path == "/queue", request.url?.query == nil else { return stub }
+			firstPageRequests += 1
+			return firstPageRequests == 1 ? stub.held(until: firstPageHeld) : stub
+		}
+		let requestsBefore = StubURLProtocol.records.count
+		let pull = Task { await viewModel.refresh() }
+		var gateReleased = false
+		defer { if !gateReleased { firstPageHeld.signal() } }
+		await awaitRecordedRequests(requestsBefore + 2)
+		XCTAssertTrue(viewModel.isLoading, "precondition: the pull-to-refresh is still in flight")
+		await viewModel.handleForeground()
+		firstPageHeld.signal()
+		gateReleased = true
+		await pull.value
 
 		let firstPageGETs = StubURLProtocol.records(path: "/queue").filter { $0.request.url?.query == nil }.count
 		XCTAssertEqual(firstPageGETs, 2, "setup's read plus the pull-to-refresh — the foreground did not add a third")

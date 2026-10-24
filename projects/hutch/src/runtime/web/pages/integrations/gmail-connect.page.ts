@@ -13,7 +13,7 @@ import { initRecordGmailDiagnostic } from "../../../observability/gmail-diagnost
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { signState, verifyState } from "../../auth/oauth-state";
 import { buildIntegrationsUrl, GMAIL_CALLBACK_PATH } from "./gmail-connect.url";
-import { buildGmailUrl, GmailPickerStateSchema, parseGmailPickerState } from "./gmail.url";
+import { buildGmailUrl, closeGmailDialog, GmailPickerStateSchema, parseGmailPickerState } from "./gmail.url";
 import { importFollowsMapping, initGmailImportActions, latestGmailImportsBySender } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import {
@@ -118,7 +118,7 @@ export function registerGmailConnectRoutes(
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = UserIdSchema.parse(req.userId);
 		const importBody = ImportIntentBodySchema.safeParse(req.body);
-		const { sender: _picked, edit: _edit, ...state } = GmailPickerStateSchema.parse(parseGmailPickerState(req.body));
+		const { sender: _picked, ...state } = GmailPickerStateSchema.parse(closeGmailDialog(parseGmailPickerState(req.body)));
 		const intent: ConnectIntent = importBody.success
 			? { kind: "import", sender: importBody.data.sender, state }
 			: { kind: "connect" };

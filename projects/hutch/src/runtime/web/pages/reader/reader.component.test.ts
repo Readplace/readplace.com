@@ -65,6 +65,7 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 			wordCount: 500,
 		},
 		content: "<p>Body copy.</p>",
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(3),
 		status: "unread",
 		savedAt: new Date(),

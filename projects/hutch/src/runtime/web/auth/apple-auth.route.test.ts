@@ -14,6 +14,7 @@ import type { ExchangeAppleCode } from "@packages/test-fixtures/providers/apple-
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { MAX_APPLE_STATE_COOKIE_BYTES } from "./apple-state";
+import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -275,6 +276,25 @@ describe("Apple auth routes", () => {
 			assert(conversionEvent, "Apple signup must emit a user_created conversion event");
 			expect(conversionEvent.method).toBe("apple");
 			expect(conversionEvent.tier).toBe("free");
+		});
+
+		it("sends the welcome email before it answers", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				email: withDelayedSendEmail(fixture.email),
+				apple: appleWith(stubExchange({ email: "welcome-apple@example.com" })),
+			});
+			const state = signState(freshState());
+
+			await postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+			});
+
+			expect(harness.email.getSentEmails().map((sent) => ({ to: sent.to, subject: sent.subject }))).toEqual([
+				{ to: "welcome-apple@example.com", subject: "Welcome to Readplace" },
+			]);
 		});
 
 		it("counts no user_created conversion when a crawler replays the Apple callback, so signup totals measure people rather than bots", async () => {

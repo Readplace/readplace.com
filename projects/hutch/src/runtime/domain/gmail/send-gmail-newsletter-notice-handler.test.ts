@@ -111,6 +111,11 @@ describe("approved Gmail newsletter notices", () => {
 			{ text: "Choose readlists", sender: null, utmContent: "choose-readlists" },
 		]);
 		assert.match(message.text ?? "", /^Example Letter \(letter@example\.com\): https:\/\/readplace\.test\/newsletters\/gmail\?sender=letter%40example\.com/m);
+		const opens = [...parseHTML(message.html).document.querySelectorAll("a")].map((anchor) => {
+			const params = new URL(anchor.getAttribute("href") ?? "").searchParams;
+			return `${params.get("utm_content")}:${params.get("add")}`;
+		});
+		assert.deepEqual([...new Set(opens)].sort(), ["choose-readlist:null", "choose-readlists:1"]);
 		assert.deepEqual([await h.status(SENDER), await h.status(SECOND), await h.status(THIRD)], ["sent", "sent", "sent"]);
 		assert.deepEqual(h.published, [sentEvent(SECOND), sentEvent(SENDER), sentEvent(THIRD)]);
 	});

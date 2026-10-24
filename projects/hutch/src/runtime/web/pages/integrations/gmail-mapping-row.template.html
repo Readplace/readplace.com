@@ -22,7 +22,7 @@
                   {{#each fields}}
                   <input type="hidden" name="{{name}}" value="{{value}}">
                   {{/each}}
-                  <button class="btn btn--{{variant}} btn--s" type="submit" data-test-gmail-mapping-action="{{key}}">{{label}}</button>
+                  <button class="btn btn--{{variant}} btn--s" type="submit"{{#if opener}} data-gmail-opener="{{opener}}"{{/if}} data-test-gmail-mapping-action="{{key}}">{{label}}</button>
                 </form>
                 {{/each}}
               </div>

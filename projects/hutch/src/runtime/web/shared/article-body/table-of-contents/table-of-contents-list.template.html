@@ -1,7 +1,16 @@
 <nav class="disclosure-card__body table-of-contents__nav" aria-label="Table of contents">
               <ol class="table-of-contents__list" role="list">
-                {{#each sections}}
-                <li class="table-of-contents__item"><a class="table-of-contents__link" href="#{{anchorId}}" data-test-toc-section="{{anchorId}}">{{text}}</a></li>
+                {{#each entries}}
+                <li class="table-of-contents__item">
+                  <a class="table-of-contents__link" href="#{{anchorId}}" data-test-toc-section="{{anchorId}}">{{label}}</a>
+                  {{#if children.length}}
+                  <ol class="table-of-contents__list table-of-contents__list--nested" role="list">
+                    {{#each children}}
+                    <li class="table-of-contents__item"><a class="table-of-contents__link table-of-contents__link--nested" href="#{{anchorId}}" data-test-toc-section="{{anchorId}}">{{label}}</a></li>
+                    {{/each}}
+                  </ol>
+                  {{/if}}
+                </li>
                 {{/each}}
               </ol>
             </nav>

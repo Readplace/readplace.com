@@ -1,20 +1,28 @@
 import { initRefreshArticleIfStale } from "./check-content-freshness";
+import type { FinalizeArticle } from "./finalize-article";
 
-function createDeps(overrides?: Record<string, unknown>) {
+type FreshnessDependencies = Parameters<typeof initRefreshArticleIfStale>[0];
+
+const finalizeArticle: FinalizeArticle = async () => ({
+	ok: true,
+	article: {
+		html: "<p>Test</p>",
+		metadata: {
+			title: "Test",
+			siteName: "example.com",
+			excerpt: "Excerpt",
+			wordCount: 100,
+			estimatedReadTime: 1,
+		},
+	},
+});
+
+function createDeps(overrides?: Partial<FreshnessDependencies>): FreshnessDependencies {
 	return {
 		findArticleFreshness: async (_url: string) => null,
 		findArticleCrawlStatus: async (_url: string) => undefined,
 		crawlArticle: async () => ({ status: "failed" as const }),
-		parseHtml: () => ({
-			ok: true as const,
-			article: {
-				title: "Test",
-				siteName: "example.com",
-				excerpt: "Excerpt",
-				wordCount: 100,
-				content: "<p>Test</p>",
-			},
-		}),
+		finalizeArticle,
 		publishRefreshArticleContent: async () => {},
 		publishUpdateFetchTimestamp: async () => {},
 		resolveCanonicalIdentity: async (url: string) => ({ url, originalUrl: url }),
@@ -144,6 +152,7 @@ describe("refreshArticleIfStale", () => {
 			findArticleFreshness: async () => ({
 				etag: '"abc"',
 				lastModified: "Wed, 19 Mar 2026 00:00:00 GMT",
+				bodyHash: "b".repeat(64),
 				contentFetchedAt: "2026-03-19T00:00:00Z",
 			}),
 			findArticleCrawlStatus: async () => ({ status: "ready" as const }),
@@ -158,8 +167,10 @@ describe("refreshArticleIfStale", () => {
 
 		expect(capturedParams[0]).toEqual({
 			url: "https://example.com/article",
+			fetchThumbnail: true,
 			etag: '"abc"',
 			lastModified: "Wed, 19 Mar 2026 00:00:00 GMT",
+			previousBodyHash: "b".repeat(64),
 		});
 	});
 
@@ -269,7 +280,8 @@ describe("refreshArticleIfStale", () => {
 		expect(publishCalled).toEqual([]);
 	});
 
-	it("returns action 'skip' when parseHtml returns not ok after fetched content", async () => {
+	it("skips publication when the finalizer rejects fetched content", async () => {
+		const published: string[] = [];
 		const deps = createDeps({
 			findArticleFreshness: async () => ({
 				etag: '"abc"',
@@ -282,13 +294,97 @@ describe("refreshArticleIfStale", () => {
 				etag: '"def"',
 				bodyHash: "a".repeat(64),
 			}),
-			parseHtml: () => ({ ok: false as const, reason: "could not parse" }),
+			finalizeArticle: async () => ({ ok: false, reason: "could not finalize" }),
+			publishRefreshArticleContent: async () => { published.push("content"); },
+			publishUpdateFetchTimestamp: async () => { published.push("timestamp"); },
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 
 		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
 
 		expect(result.action).toBe("skip");
+		expect(published).toEqual([]);
+	});
+
+	it("publishes finalized plain text with its evidence, metadata and read time intact", async () => {
+		const url = "https://example.com/report.txt";
+		const finalUrl = "https://cdn.example.com/reports/report.txt";
+		const plainText = "Report <draft>\n  Keep this indentation.";
+		const html = "<pre><code>Report &lt;draft&gt;\n  Keep this indentation.</code></pre>";
+		const thumbnail = { image: undefined, provenUnusable: [] };
+		const finalize = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>(async () => ({
+			ok: true,
+			article: {
+				html,
+				metadata: {
+					title: "report.txt",
+					siteName: "example.com",
+					excerpt: "Report <draft> Keep this indentation.",
+					wordCount: 6,
+					estimatedReadTime: 3,
+					directResourceKind: "plain-text",
+				},
+			},
+		}));
+		const published: Parameters<FreshnessDependencies["publishRefreshArticleContent"]>[0][] = [];
+		const { refreshArticleIfStale } = initRefreshArticleIfStale(createDeps({
+			findArticleFreshness: async () => ({ contentFetchedAt: "2026-03-19T00:00:00Z" }),
+			crawlArticle: async () => ({
+				status: "fetched",
+				html: "<p>crawler representation</p>",
+				mediaType: "plain-text",
+				plainText,
+				evaluationHtml: plainText,
+				finalUrl,
+				thumbnail,
+				bodyHash: "c".repeat(64),
+			}),
+			finalizeArticle: finalize,
+			publishRefreshArticleContent: async (event) => { published.push(event); },
+		}));
+
+		const result = await refreshArticleIfStale({ url });
+
+		expect(finalize).toHaveBeenCalledWith({
+			url,
+			writeContext: { url, attemptId: expect.any(String) },
+			documentUrl: finalUrl,
+			html: "<p>crawler representation</p>",
+			resolvedThumbnail: thumbnail,
+			mediaType: "plain-text",
+			plainText,
+		});
+		expect(published).toEqual([{
+			url,
+			saveAttemptId: expect.any(String),
+			html,
+			evaluationHtml: plainText,
+			sourceOriginalUrl: url,
+			sourceUrl: finalUrl,
+			metadata: {
+				title: "report.txt",
+				siteName: "example.com",
+				excerpt: "Report <draft> Keep this indentation.",
+				wordCount: 6,
+				directResourceKind: "plain-text",
+			},
+			estimatedReadTime: 3,
+			contentFetchedAt: "2026-03-20T10:00:00.000Z",
+			bodyHash: "c".repeat(64),
+			etag: undefined,
+			lastModified: undefined,
+		}]);
+		expect(result).toEqual({
+			action: "refreshed",
+			article: { ok: true, article: {
+				title: "report.txt",
+				siteName: "example.com",
+				excerpt: "Report <draft> Keep this indentation.",
+				wordCount: 6,
+				imageUrl: undefined,
+				content: html,
+			} },
+		});
 	});
 });
 

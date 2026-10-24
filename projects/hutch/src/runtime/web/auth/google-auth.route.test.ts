@@ -14,6 +14,7 @@ import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/googl
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/hosted-checkout";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import { withDelayedSendEmail } from "./test-helpers/with-delayed-send-email";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -265,6 +266,28 @@ describe("Google auth routes", () => {
 			);
 			expect(consumed).toBeNull();
 		}, 30000);
+
+		it("sends the welcome email before it answers", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				email: withDelayedSendEmail(fixture.email),
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "welcome-google@example.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			const state = signState(freshState());
+
+			await request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(harness.email.getSentEmails().map((sent) => ({ to: sent.to, subject: sent.subject }))).toEqual([
+				{ to: "welcome-google@example.com", subject: "Welcome to Readplace" },
+			]);
+		});
 
 		describe("first-article autosave", () => {
 			const ARTICLE_URL = "https://example.com/post";

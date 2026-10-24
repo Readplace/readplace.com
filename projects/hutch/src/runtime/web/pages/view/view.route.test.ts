@@ -177,6 +177,37 @@ describe("View routes", () => {
 			expect(rows).toEqual(["#section-why-it-matters", "#section-how-to-start"]);
 		});
 
+		it("leaves the article's own title out of a logged-out visitor's table of contents, while the body keeps the heading", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async () => {} } });
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "Hello World", siteName: "example.com", excerpt: "", wordCount: 500 },
+				estimatedReadTime: calculateReadTime(500),
+				savedAt: new Date("2026-05-03T13:00:00.000Z"),
+			});
+			await fixture.articleStore.writeContent({
+				url: ARTICLE_URL,
+				content: "<h2>Hello World</h2><h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>",
+			});
+			await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const tableOfContents = doc.querySelector('main.view aside[data-test-reader-rail][aria-label="Article details"] > #table-of-contents');
+			assert(tableOfContents, "the table of contents must lead the named rail");
+			const content = doc.querySelector("[data-test-reader-content]");
+			assert(content, "reader content must be rendered");
+			const rows = Array.from(tableOfContents.querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href"));
+			expect([
+				tableOfContents.getAttribute("data-test-table-of-contents"),
+				Array.from(content.querySelectorAll("h2, h3"), (heading) => `#${heading.id}`),
+			]).toEqual(["listed", ["#section-hello-world", ...rows]]);
+			expect(rows).toEqual(["#section-why-it-matters", "#section-how-to-start"]);
+		});
+
 		it("renders Article history in the rail once a crawl timestamp exists, with no way to remove a version", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

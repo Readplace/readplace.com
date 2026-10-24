@@ -6,8 +6,8 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { render } from "@packages/web-shell";
 import { isReaderViewReady } from "../../article-state/is-reader-view-ready";
 import { prepareReaderContent } from "../reader-slot/reader-content";
-import type { ArticleSection } from "../reader-slot/section-anchors";
 import type { ArticleBody } from "@packages/domain/article";
+import { buildArticleOutline, type OutlineEntry } from "./article-outline";
 
 const TABLE_OF_CONTENTS_TEMPLATE = readFileSync(
 	join(__dirname, "table-of-contents.template.html"),
@@ -23,7 +23,7 @@ const EMPTY_TEMPLATE = readFileSync(join(__dirname, "table-of-contents-empty.tem
 export const TABLE_OF_CONTENTS_SCRIPT = '<script src="/client-dist/table-of-contents.client.js" defer></script>';
 
 type TableOfContentsState =
-	| { kind: "listed"; sections: readonly ArticleSection[] }
+	| { kind: "listed"; entries: readonly OutlineEntry[] }
 	| { kind: "empty" }
 	| { kind: "hidden" };
 
@@ -46,11 +46,13 @@ function resolveState(input: {
 	content: ArticleBody | undefined;
 	notice: ReaderFailedVariant | undefined;
 	appOrigin: string;
+	title: string | undefined;
 }): TableOfContentsState {
 	if (!isTableOfContentsVisible(input)) return { kind: "hidden" };
 	assert(input.content !== undefined, "a ready reader view always carries its content");
-	const { sections } = prepareReaderContent({ content: input.content, appOrigin: input.appOrigin });
-	return sections.length > 0 ? { kind: "listed", sections } : { kind: "empty" };
+	const { html } = prepareReaderContent({ content: input.content, appOrigin: input.appOrigin });
+	const entries = buildArticleOutline({ html, title: input.title });
+	return entries.length > 0 ? { kind: "listed", entries } : { kind: "empty" };
 }
 
 function renderCard(bodyHtml: string): string {
@@ -60,7 +62,7 @@ function renderCard(bodyHtml: string): string {
 function cardHtmlFor(state: TableOfContentsState): string {
 	switch (state.kind) {
 		case "listed":
-			return renderCard(render(LIST_TEMPLATE, { sections: state.sections }).trim());
+			return renderCard(render(LIST_TEMPLATE, { entries: state.entries }).trim());
 		case "empty":
 			return renderCard(render(EMPTY_TEMPLATE, {}).trim());
 		case "hidden":
@@ -73,6 +75,7 @@ export function renderTableOfContents(input: {
 	content: ArticleBody | undefined;
 	notice: ReaderFailedVariant | undefined;
 	appOrigin: string;
+	title: string | undefined;
 	oob: boolean;
 }): string {
 	const state = resolveState(input);

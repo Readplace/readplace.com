@@ -45,6 +45,8 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 			url.searchParams.set("sender", senderEmail);
 			url.searchParams.set("notification", "1");
 			url.searchParams.set("readlist_choice_for", senderEmail);
+		} else {
+			url.searchParams.set("add", "1");
 		}
 		url.searchParams.set("utm_source", "gmail-newsletter-notice");
 		url.searchParams.set("utm_medium", "email");

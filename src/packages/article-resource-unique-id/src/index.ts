@@ -1,6 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex } from "@noble/hashes/utils";
-import { toCanonicalHostUrl } from "./equivalent-hosts";
+import { toCanonicalArticleUrl } from "./canonical-article-url";
 import { stripTrackingParams } from "./strip-tracking-params";
 
 const MAX_ENCODED_SEGMENT_LENGTH = 900;
@@ -77,7 +77,7 @@ export class ArticleResourceUniqueId {
 }
 
 export function canonicalIdentityOf(url: string): string {
-	return ArticleResourceUniqueId.parse(toCanonicalHostUrl(url)).value;
+	return ArticleResourceUniqueId.parse(toCanonicalArticleUrl(url)).value;
 }
 
 export function toCrawlVersionMinuteId(iso: string): string {
@@ -85,5 +85,6 @@ export function toCrawlVersionMinuteId(iso: string): string {
 }
 
 export { equivalentHostUrls, toCanonicalHostUrl } from "./equivalent-hosts";
+export { equivalentArticleUrls, toCanonicalArticleUrl } from "./canonical-article-url";
 export { resolveCanonicalUrl, type CanonicalSignals } from "./resolve-canonical-url";
 export { extractCanonicalCandidates, type CanonicalDocument } from "./extract-canonical-candidates";

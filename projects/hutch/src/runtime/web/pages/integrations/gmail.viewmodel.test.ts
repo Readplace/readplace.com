@@ -73,25 +73,26 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 		error: undefined,
 		notice: undefined,
 		saved: undefined,
+		focusOnOpen: true,
 		...overrides,
 	};
 }
 
 describe("GMail Newsletters calls to action", () => {
 	it("keeps Open Gmail the only amber CTA while the forwarding step shows", () => {
-		const awaiting = toGmailPageViewModel(input({ connection: connection({ forwardingConfirmedAt: undefined }), state: { sender: [TLDR], readlist: "default" } }));
-		assert.equal(awaiting.showStep, true);
-		assert.equal(awaiting.save.variant, "neutral");
-		const confirmed = toGmailPageViewModel(input({ state: { sender: [TLDR], readlist: "default" } }));
-		assert.equal(confirmed.showStep, false);
-		assert.equal(confirmed.save.variant, "primary");
+		const addVariants = (pageInput: GmailPageInput) => {
+			const vm = toGmailPageViewModel(pageInput);
+			return [vm.showStep, [...vm.mappings.headerActions, ...vm.mappings.emptyActions].map((action) => action.variant)];
+		};
+		assert.deepEqual(addVariants(input({ connection: connection({ forwardingConfirmedAt: undefined }) })), [true, ["neutral"]]);
+		assert.deepEqual(addVariants(input()), [false, ["primary"]]);
 	});
 
-	it("keeps the discovery Reconnect neutral beside the Save that is always on the page", () => {
+	it("keeps the discovery Reconnect neutral and offers no newsletters to add until the reader reconnects", () => {
 		const requiresReconnect: GmailPageInput["discovery"] = { state: "failed", mode: "full", checkedMessageCount: 0, requiresReconnect: true };
-		const vm = toGmailPageViewModel(input({ discovery: requiresReconnect }));
+		const vm = toGmailPageViewModel(input({ discovery: requiresReconnect, state: { add: "1" } }));
 		assert.deepEqual(vm.status.reconnectActions.map((action) => action.variant), ["neutral"]);
-		assert.equal(vm.save.variant, "primary");
+		assert.deepEqual([vm.dialog.mode, vm.mappings.emptyActions], ["none", []]);
 		assert.equal(vm.status.statusLead, "Reconnect Gmail to continue loading senders. The newsletters you set up stay in place.");
 		assert.equal(vm.status.checkedLabel, undefined);
 		assert.equal(vm.showMetadataReconnect, true);
@@ -264,15 +265,12 @@ describe("GMail Newsletters readlist choice", () => {
 	});
 
 	it.each(["readlist_invalid", "readlist_name_invalid", "readlist_limit"])("opens the readlist picker for %s", (error) => {
-		const picker = toGmailPageViewModel(input({ state: { sender: [TLDR] }, error })).readlistPicker;
-		assert.equal(picker.open, true);
-		assert.equal(picker.openedForEdit, false);
+		assert.equal(toGmailPageViewModel(input({ state: { sender: [TLDR] }, error })).readlistPicker.open, true);
 	});
 
-	it("opens the readlist picker without moving focus when editing a mapping", () => {
-		const picker = toGmailPageViewModel(input({ state: { sender: [TLDR], edit: "1" } })).readlistPicker;
-		assert.equal(picker.open, true);
-		assert.equal(picker.openedForEdit, true);
+	it("keeps the readlist picker closed when a mapping is opened for editing", () => {
+		const vm = toGmailPageViewModel(input({ senders: [mapped(TLDR)], destinations: new Map([[ALL_ADDRESS, ALL_ENTRY]]), state: { sender: [TLDR], edit: "1" } }));
+		assert.deepEqual([vm.dialog.mode, vm.readlistPicker.open], ["edit", false]);
 	});
 
 	it("keeps the picker closed for other errors and ignores unknown banner keys", () => {
@@ -387,5 +385,113 @@ describe("Gmail forwarding confirmation polling", () => {
 			toGmailPollViewModel({ pollCount: GMAIL_CONFIRM_MAX_POLLS, state: "confirm-failed" }).message,
 			"Still waiting. Once you've added the address again in Gmail, refresh this page.",
 		);
+	});
+});
+
+describe("GMail Newsletters popup", () => {
+	const editing = { senders: [mapped(TLDR)], destinations: new Map([[ALL_ADDRESS, ALL_ENTRY]]), detection: recognised([[TLDR, "TLDR"]]) };
+
+	it.each<[string, Partial<GmailPageInput>, string]>([
+		["a page with nothing open", {}, "none"],
+		["add=1", { state: { add: "1" } }, "add"],
+		["the notification email link", { state: { sender: [BREW] }, notification: true }, "add"],
+		["edit=1 for a mapped newsletter", { ...editing, state: { sender: [TLDR], edit: "1" } }, "edit"],
+		["edit=1 for a sender that is not mapped", { state: { sender: [BREW], edit: "1" } }, "add"],
+		["edit=1 for two ticked senders", { ...editing, state: { sender: [TLDR, BREW], edit: "1" } }, "add"],
+		["add=1 while Gmail needs reconnecting for senders", { state: { add: "1" }, metadataScopeGranted: false }, "none"],
+	])("resolves %s to the %s popup", (_name, overrides, mode) => {
+		assert.equal(toGmailPageViewModel(input(overrides)).dialog.mode, mode);
+	});
+
+	it("carries the resolved mode in every form and link the popup emits", () => {
+		const notified = toGmailPageViewModel(input({ state: { sender: [BREW] }, notification: true }));
+		assert.deepEqual([notified.pickerState.add, notified.pickerState.edit], ["1", undefined]);
+		assert.equal(new URL(notified.pageUrl, "https://readplace.com").searchParams.get("add"), "1");
+		assert.equal(notified.searchFields.find((field) => field.name === "add")?.value, "1");
+		const edit = toGmailPageViewModel(input({ ...editing, state: { sender: [TLDR], edit: "1", add: "1" } }));
+		assert.deepEqual([edit.pickerState.add, edit.pickerState.edit], [undefined, "1"]);
+		assert.deepEqual(edit.readlistPicker.fields.filter((field) => field.name === "edit" || field.name === "add").map((field) => `${field.name}=${field.value}`), ["edit=1"]);
+		const unmapped = toGmailPageViewModel(input({ state: { sender: [BREW], edit: "1" } }));
+		assert.deepEqual([unmapped.pickerState.add, unmapped.pickerState.edit], ["1", undefined]);
+	});
+
+	it("titles the popup by what it does and remembers the control that opened it", () => {
+		const add = toGmailPageViewModel(input({ state: { add: "1" } })).dialog;
+		assert.deepEqual([add.key, add.title, add.opener, add.senderFields], ["gmail-add", "Add newsletters", "add", []]);
+		const edit = toGmailPageViewModel(input({ ...editing, state: { sender: [TLDR], edit: "1" } })).dialog;
+		assert.deepEqual([edit.key, edit.title, edit.opener, edit.senderFields], ["gmail-edit", "Edit TLDR", TLDR, [{ name: "sender", value: TLDR }]]);
+		const searching = toGmailPageViewModel(input({ ...editing, state: { sender: [TLDR], edit: "1", search: "tl" } })).dialog;
+		assert.deepEqual(searching.senderFields, [{ name: "sender", value: TLDR }, { name: "search", value: "tl" }]);
+		const unnamed = toGmailPageViewModel(input({ ...editing, discoveredSenders: [], detection: recognised([]), state: { sender: [TLDR], edit: "1" } })).dialog;
+		assert.equal(unnamed.title, `Edit ${TLDR}`);
+	});
+
+	it("closes to the search with the page's own notice, leaving the popup's error behind", () => {
+		const closeParams = (pageInput: GmailPageInput) => {
+			const dialog = toGmailPageViewModel(pageInput).dialog;
+			return [dialog.closeHref, dialog.cancelHref].map((href) => Object.fromEntries(new URL(href, "https://readplace.com").searchParams));
+		};
+		const tracked = (content: string) => ({ utm_source: "integrations-gmail", utm_medium: "internal", utm_content: content });
+		assert.deepEqual(closeParams(input({ state: { add: "1", search: "tl", sender: [TLDR] }, notice: "senders_saved", saved: 2, error: "sender_unknown" })), [
+			{ notice: "senders_saved", saved: "2", search: "tl", discovery: "started", ...tracked("close-dialog") },
+			{ notice: "senders_saved", saved: "2", search: "tl", discovery: "started", ...tracked("cancel-dialog") },
+		]);
+		assert.deepEqual(closeParams(input({ state: { add: "1" }, notice: "readlist_created", error: "import_revoked" }))[0], {
+			error: "import_revoked", discovery: "started", ...tracked("close-dialog"),
+		});
+	});
+
+	it("shows the popup's own banners inside it while it is open and on the page while it is not", () => {
+		const banners = (pageInput: GmailPageInput) => {
+			const vm = toGmailPageViewModel(pageInput);
+			return {
+				page: [...vm.alerts, ...vm.notices].map((banner) => banner.key),
+				dialog: [...vm.dialog.alerts, ...vm.dialog.notices].map((banner) => banner.key),
+			};
+		};
+		for (const error of ["readlist_invalid", "readlist_name_invalid", "readlist_limit", "sender_invalid", "sender_unknown", "readlist_choice_required"]) {
+			assert.deepEqual(banners(input({ state: { add: "1" }, error })), { page: [], dialog: [error] });
+			assert.deepEqual(banners(input({ error })), { page: [error], dialog: [] });
+		}
+		for (const notice of ["readlist_created", "readlist_reused"]) {
+			assert.deepEqual(banners(input({ state: { add: "1" }, notice })), { page: [], dialog: [notice] });
+		}
+		assert.deepEqual(banners(input({ state: { add: "1" }, error: "import_in_progress", notice: "sender_mapped" })), { page: ["import_in_progress", "sender_mapped"], dialog: [] });
+	});
+
+	it("opens on exactly one control, and on none when the request only refreshes the popup", () => {
+		const focused = (pageInput: GmailPageInput) => {
+			const vm = toGmailPageViewModel(pageInput);
+			return {
+				save: vm.save.autofocus,
+				rows: vm.checklist.groups.flatMap((group) => group.rows.filter((row) => row.autofocus).map((row) => row.email)),
+				search: vm.senderPicker.searchAutofocus,
+				pickerOpen: vm.senderPicker.open,
+			};
+		};
+		const known = { discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: BREW, name: undefined }], detection: recognised([[TLDR, "TLDR"], [BREW, "Morning Brew"]]) };
+		assert.deepEqual(focused(input({ ...editing, state: { sender: [TLDR], edit: "1" } })), { save: true, rows: [], search: false, pickerOpen: false });
+		assert.deepEqual(focused(input({ ...known, state: { sender: [TLDR] }, notification: true })), { save: false, rows: [TLDR], search: false, pickerOpen: false });
+		assert.deepEqual(focused(input({ ...known, state: { add: "1" } })), { save: false, rows: [BREW], search: false, pickerOpen: false });
+		assert.deepEqual(focused(input({ discoveredSenders: [], state: { add: "1" } })), { save: false, rows: [], search: true, pickerOpen: true });
+		assert.deepEqual(focused(input({ ...known, state: { add: "1" }, focusOnOpen: false })), { save: false, rows: [], search: false, pickerOpen: false });
+		assert.deepEqual(focused(input({ ...editing, state: { sender: [TLDR], edit: "1" }, focusOnOpen: false })), { save: false, rows: [], search: false, pickerOpen: false });
+		assert.deepEqual(focused(input({ ...known })), { save: false, rows: [], search: false, pickerOpen: false });
+	});
+
+	it("places Add newsletters beside the title once newsletters are listed, and under the empty list before", () => {
+		const placement = (pageInput: GmailPageInput) => {
+			const mappings = toGmailPageViewModel(pageInput).mappings;
+			return [mappings.headerActions.map((action) => action.label), mappings.emptyActions.map((action) => action.label)];
+		};
+		assert.deepEqual(placement(input()), [[], ["Add newsletters"]]);
+		assert.deepEqual(placement(input(editing)), [["Add newsletters"], []]);
+	});
+
+	it("opens Add newsletters with the search, starting discovery only if the page has not", () => {
+		const fields = (pageInput: GmailPageInput) =>
+			toGmailPageViewModel(pageInput).mappings.emptyActions.flatMap((action) => action.fields.map((field) => `${field.name}=${field.value}`));
+		assert.deepEqual(fields(input({ state: { search: "tl", sender: [TLDR] } })), ["search=tl", "add=1", "utm_source=integrations-gmail", "utm_medium=internal", "utm_content=add-newsletters"]);
+		assert.deepEqual(fields(input({ state: { discovery_after: "none" }, discoveryStarted: true })), ["add=1", "discovery=started", "discovery_after=none", "utm_source=integrations-gmail", "utm_medium=internal", "utm_content=add-newsletters"]);
 	});
 });

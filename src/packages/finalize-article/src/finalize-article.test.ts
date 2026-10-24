@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { parseHTML } from "linkedom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { ParseHtml } from "@packages/article-parser";
 import type { FetchThumbnailImage, ThumbnailImage } from "@packages/crawl-article";
@@ -441,6 +442,7 @@ describe("initFinalizeArticle", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.article.metadata.title).toBe("lean engineering 638");
+			expect(result.article.metadata.directResourceKind).toBe("image");
 			expect(result.article.metadata.wordCount).toBe(0);
 			expect(result.article.metadata.estimatedReadTime).toBeGreaterThan(0);
 			expect(result.article.metadata.imageUrl).toMatch(
@@ -476,6 +478,7 @@ describe("initFinalizeArticle", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.article.metadata.wordCount).toBe(0);
+			expect(result.article.metadata).not.toHaveProperty("directResourceKind");
 			expect(result.article.html).toMatch(
 				/^<figure><img src="https:\/\/cdn\.example\.com\/content\/.+" alt="photo" loading="lazy"><\/figure>$/,
 			);
@@ -506,6 +509,7 @@ describe("initFinalizeArticle", () => {
 		if (result.ok) {
 			expect(result.article.metadata.wordCount).toBe(0);
 			expect(result.article.metadata.title).toBe("F1ab");
+			expect(result.article.metadata).not.toHaveProperty("directResourceKind");
 			expect(result.article.html).toMatch(
 				/^<figure><img src="https:\/\/cdn\.example\.com\/content\/.+" alt="F1ab" loading="lazy"><\/figure>$/,
 			);
@@ -524,6 +528,7 @@ describe("initFinalizeArticle", () => {
 				'<figure><img src="https://example.com/photo.jpg" alt="photo" loading="lazy"></figure>',
 			);
 			expect(result.article.metadata.imageUrl).toBe("https://example.com/photo.jpg");
+			expect(result.article.metadata).not.toHaveProperty("directResourceKind");
 		}
 	});
 
@@ -544,6 +549,7 @@ describe("initFinalizeArticle", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.article.metadata.imageUrl).toBe("https://example.com/photo.jpg");
+			expect(result.article.metadata).not.toHaveProperty("directResourceKind");
 		}
 	});
 
@@ -563,6 +569,7 @@ describe("initFinalizeArticle", () => {
 				'<figure><img src="https://example.com/photo.jpg" alt="photo" loading="lazy"></figure>',
 			);
 			expect(result.article.metadata.imageUrl).toBe("https://example.com/photo.jpg");
+			expect(result.article.metadata).not.toHaveProperty("directResourceKind");
 		}
 	});
 
@@ -619,6 +626,79 @@ describe("initFinalizeArticle", () => {
 		if (result.ok) {
 			expect(result.article.html).not.toContain(oversized);
 		}
+	});
+});
+
+describe("initFinalizeArticle plain-text resources", () => {
+	it("preserves literal text and whitespace without Readability or media processing", async () => {
+		const plainText = '\n\t  const café = "<tag>&";\n\n    value  \n';
+		const parseHtml = jest.fn(stubParseHtml);
+		const downloadMedia = jest.fn(noopDownloadMedia);
+		const processContent = jest.fn(noopProcessContent);
+		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
+		const putImageObject = jest.fn(noopPutImageObject);
+		const finalize = createFinalize({ parseHtml, downloadMedia, processContent, fetchThumbnailImage, putImageObject });
+
+		const result = await finalize({
+			url: URL_UNDER_TEST,
+			documentUrl: "https://example.com/docs/my_notes.txt",
+			html: "<html><body><p>Different synthetic content</p></body></html>",
+			mediaType: "plain-text",
+			plainText,
+		});
+
+		assert(result.ok);
+		expect(result.article.html).toBe('<pre><code>\n\t  const café = &quot;&lt;tag&gt;&amp;&quot;;\n\n    value  \n</code></pre>');
+		const { document } = parseHTML(result.article.html);
+		expect(document.querySelector("code")?.textContent).toBe(plainText);
+		expect(document.querySelector("tag")).toBeNull();
+		expect(result.article.metadata).toEqual({
+			title: "my notes",
+			siteName: "example.com",
+			excerpt: 'const café = "<tag>&"; value',
+			wordCount: 5,
+			estimatedReadTime: 1,
+			directResourceKind: "plain-text",
+		});
+		expect(parseHtml).not.toHaveBeenCalled();
+		expect(downloadMedia).not.toHaveBeenCalled();
+		expect(processContent).not.toHaveBeenCalled();
+		expect(fetchThumbnailImage).not.toHaveBeenCalled();
+		expect(putImageObject).not.toHaveBeenCalled();
+	});
+
+	it("uses the existing host title fallback and reading-time convention", async () => {
+		const finalize = createFinalize();
+		const plainText = "word ".repeat(239);
+
+		const result = await finalize({ url: "https://example.com/", documentUrl: "https://example.com/", html: "", mediaType: "plain-text", plainText });
+
+		assert(result.ok);
+		expect(result.article.metadata.title).toBe("Article from example.com");
+		expect(result.article.metadata.wordCount).toBe(239);
+		expect(result.article.metadata.estimatedReadTime).toBe(2);
+		expect(result.article.metadata.excerpt).toHaveLength(200);
+	});
+
+	it.each(["", "\n\t  \r\n"])("rejects empty plain-text content %j", async (plainText) => {
+		const parseHtml = jest.fn(stubParseHtml);
+		const finalize = createFinalize({ parseHtml });
+
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<p>synthetic wrapper</p>", mediaType: "plain-text", plainText });
+
+		expect(result).toEqual({ ok: false, reason: "Plain-text response is empty" });
+		expect(parseHtml).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ url: "::invalid::", documentUrl: URL_UNDER_TEST },
+		{ url: URL_UNDER_TEST, documentUrl: "::invalid::" },
+	])("rejects an invalid URL for plain text: %j", async ({ url, documentUrl }) => {
+		const finalize = createFinalize();
+
+		const result = await finalize({ url, documentUrl, html: "", mediaType: "plain-text", plainText: "text" });
+
+		expect(result).toEqual({ ok: false, reason: "Invalid URL" });
 	});
 });
 

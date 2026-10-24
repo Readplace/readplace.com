@@ -30,6 +30,9 @@ type Width = keyof typeof WIDTHS;
 type Theme = "light" | "dark";
 
 const GMAIL_MAIN = "main.gmail";
+const DIALOG = "#gmail-dialog";
+const OPEN_DIALOG = "#gmail-dialog:popover-open";
+const DIALOG_FOOTER = "[data-test-gmail-dialog-footer]";
 const SENDER_STATUS = "#gmail-sender-status";
 const DISCOVERY_STATUS = "[data-test-gmail-discovery-status]";
 const CHECKLIST = "[data-test-gmail-checklist]";
@@ -40,7 +43,7 @@ interface Scenario {
 	state: string;
 	open: (page: Page, stamp: string) => Promise<void>;
 	settled: (page: Page) => Promise<void>;
-	sendersShown: boolean;
+	surface: "popup" | "page";
 }
 
 async function createUser(page: Page, email: string): Promise<string> {
@@ -98,6 +101,7 @@ async function discoveryShown(
 	page: Page,
 	input: { state: string; status: string; checklist: string; results: string; loadLabel: string },
 ): Promise<void> {
+	await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-add");
 	await expect(page.locator(DISCOVERY_STATUS)).toHaveAttribute("data-discovery-state", input.state);
 	await expect(page.locator(DISCOVERY_STATUS)).toHaveText(input.status);
 	await expect(page.locator(CHECKLIST)).toHaveAttribute("data-checklist-state", input.checklist);
@@ -119,12 +123,12 @@ async function openWithSenders(page: Page, input: { stamp: string; seed: object;
 const SCENARIOS: readonly Scenario[] = [
 	{
 		state: "idle",
-		sendersShown: true,
+		surface: "popup",
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { discoveryState: "idle" } });
 			const autoStart = page.waitForResponse("**/newsletters/gmail/discovery/start**");
 			await page.route("**/newsletters/gmail/discovery/start**", (route) => route.fulfill({ status: 204 }));
-			await openGmailPage(page, "/newsletters/gmail");
+			await openGmailPage(page, "/newsletters/gmail?add=1");
 			await autoStart;
 		},
 		settled: (page) =>
@@ -138,10 +142,10 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "loading",
-		sendersShown: true,
+		surface: "popup",
 		open: async (page, stamp) => {
 			await signInWithGmail(page, { stamp, seed: { discoveryState: "idle" } });
-			await openGmailPage(page, "/newsletters/gmail");
+			await openGmailPage(page, "/newsletters/gmail?add=1");
 			await expect(page.locator(LOAD_BUTTON)).toHaveText("Checking…");
 		},
 		settled: (page) =>
@@ -155,12 +159,12 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "partial",
-		sendersShown: true,
+		surface: "popup",
 		open: (page, stamp) =>
 			openWithSenders(page, {
 				stamp,
 				seed: { discoveryState: "running", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 1_234 },
-				path: "/newsletters/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started&add=1",
 			}),
 		settled: (page) =>
 			discoveryShown(page, {
@@ -173,7 +177,7 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "history-checking",
-		sendersShown: true,
+		surface: "popup",
 		open: (page, stamp) =>
 			openWithSenders(page, {
 				stamp,
@@ -183,7 +187,7 @@ const SCENARIOS: readonly Scenario[] = [
 					discoveredSenders: DISCOVERED_SENDERS,
 					discoveryCheckedMessages: 5_678,
 				},
-				path: "/newsletters/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started&add=1",
 			}),
 		settled: (page) =>
 			discoveryShown(page, {
@@ -196,12 +200,12 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "complete",
-		sendersShown: true,
+		surface: "popup",
 		open: (page, stamp) =>
 			openWithSenders(page, {
 				stamp,
 				seed: { discoveryState: "complete", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 12_345 },
-				path: "/newsletters/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started&add=1",
 			}),
 		settled: (page) =>
 			discoveryShown(page, {
@@ -214,12 +218,12 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "no-discovered-senders",
-		sendersShown: true,
+		surface: "popup",
 		open: (page, stamp) =>
 			openWithSenders(page, {
 				stamp,
 				seed: { discoveryState: "complete", discoveredSenders: [], discoveryCheckedMessages: 250 },
-				path: "/newsletters/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started&add=1",
 			}),
 		settled: async (page) => {
 			await expect(page.locator("[data-test-gmail-results-message]")).toHaveText("No senders discovered yet.");
@@ -235,12 +239,12 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "failure",
-		sendersShown: true,
+		surface: "popup",
 		open: (page, stamp) =>
 			openWithSenders(page, {
 				stamp,
 				seed: { discoveryState: "failed", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 900 },
-				path: "/newsletters/gmail?discovery=started",
+				path: "/newsletters/gmail?discovery=started&add=1",
 			}),
 		settled: (page) =>
 			discoveryShown(page, {
@@ -253,13 +257,13 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "retry",
-		sendersShown: true,
+		surface: "popup",
 		open: async (page, stamp) => {
 			await signInWithGmail(page, {
 				stamp,
 				seed: { discoveryState: "failed", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 900 },
 			});
-			await openGmailPage(page, "/newsletters/gmail?discovery=started");
+			await openGmailPage(page, "/newsletters/gmail?discovery=started&add=1");
 			await expect(page.locator(DISCOVERY_STATUS)).toHaveAttribute("data-discovery-state", "failed");
 			await page.locator(LOAD_BUTTON).click();
 			await expect(page.locator(LOAD_BUTTON)).toHaveText("Checking…");
@@ -275,7 +279,7 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "reconnect",
-		sendersShown: false,
+		surface: "page",
 		open: async (page, stamp) => {
 			await signInWithGmail(page, {
 				stamp,
@@ -300,12 +304,12 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 	{
 		state: "polling-exhausted",
-		sendersShown: true,
+		surface: "popup",
 		open: (page, stamp) =>
 			openWithSenders(page, {
 				stamp,
 				seed: { discoveryState: "running", discoveredSenders: DISCOVERED_SENDERS, discoveryCheckedMessages: 4_321 },
-				path: `/newsletters/gmail?discovery=started&poll=${DISCOVERY_EXHAUSTED_POLL}`,
+				path: `/newsletters/gmail?discovery=started&add=1&poll=${DISCOVERY_EXHAUSTED_POLL}`,
 			}),
 		settled: async (page) => {
 			await expect(page.locator(`${SENDER_STATUS}:not([hx-get])`)).toBeAttached();
@@ -320,10 +324,40 @@ const SCENARIOS: readonly Scenario[] = [
 	},
 ];
 
+async function statusFeedsChecklistInsidePanel(page: Page, width: Width): Promise<void> {
+	assert.equal(await page.evaluate(pageOverflowsSideways), false, "the page must not scroll sideways");
+	const panel = await measuredBox(page, DIALOG);
+	const status = await measuredBox(page, SENDER_STATUS);
+	const checklist = await measuredBox(page, CHECKLIST);
+	const footer = await measuredBox(page, DIALOG_FOOTER);
+	assert.ok(status.y + status.height <= checklist.y, "the discovery status must sit above the checklist it feeds");
+	assert.ok(status.x >= panel.x && status.x + status.width <= panel.x + panel.width, "the discovery status must fit inside the panel");
+	assert.ok(
+		await page.locator(DIALOG).evaluate((element) => element.scrollWidth <= element.clientWidth),
+		"the panel must never scroll sideways",
+	);
+	assert.ok(
+		footer.y >= panel.y && footer.y + footer.height <= panel.y + panel.height + 0.5,
+		"Cancel and Save must stay visible at the panel bottom",
+	);
+	assert.ok(panel.y + panel.height <= WIDTHS[width].height, "the panel must fit the viewport");
+}
+
 function checkpoint(input: { scenario: Scenario; width: Width; theme: Theme }): VisualCheckpoint {
 	const { scenario, width, theme } = input;
+	const name = `gmail-discovery-${scenario.state}-${width}-${theme}`;
+	if (scenario.surface === "popup") {
+		return {
+			name,
+			target: DIALOG,
+			capture: "element",
+			pinnedText: [],
+			settled: scenario.settled,
+			geometry: (page) => statusFeedsChecklistInsidePanel(page, width),
+		};
+	}
 	return {
-		name: `gmail-discovery-${scenario.state}-${width}-${theme}`,
+		name,
 		target: GMAIL_MAIN,
 		capture: "element",
 		pinnedText: [],
@@ -333,10 +367,6 @@ function checkpoint(input: { scenario: Scenario; width: Width; theme: Theme }): 
 		},
 		geometry: async (page) => {
 			assert.equal(await page.evaluate(pageOverflowsSideways), false, "the page must not scroll sideways");
-			if (!scenario.sendersShown) return;
-			const status = await measuredBox(page, SENDER_STATUS);
-			const checklist = await measuredBox(page, CHECKLIST);
-			assert.ok(status.y + status.height <= checklist.y, "the discovery status must sit above the checklist it feeds");
 		},
 	};
 }

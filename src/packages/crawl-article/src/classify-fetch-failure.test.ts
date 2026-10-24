@@ -1,4 +1,6 @@
 import { classifyFailedResponse, classifyFetchError } from "./classify-fetch-failure";
+import { CurlFetchFailure } from "./curl-fetch";
+import { TransportLadderFailure } from "./transport-ladder-failure";
 
 describe("classifyFailedResponse", () => {
 	it.each([503, 522, 530])(
@@ -23,6 +25,23 @@ describe("classifyFailedResponse", () => {
 });
 
 describe("classifyFetchError", () => {
+	it("keeps the original network classification when all transports fail", () => {
+		const refused = new TypeError("fetch failed", { cause: Object.assign(new Error("refused"), { code: "ECONNREFUSED" }) });
+		const curl = new CurlFetchFailure({ url: "https://example.com", error: Object.assign(new Error("could not connect"), { code: 7 }) });
+		expect(classifyFetchError(new TransportLadderFailure({ error: curl, previousErrors: [refused], retryDisposition: "recoverable" }))).toEqual({ kind: "origin-unreachable", code: "ECONNREFUSED" });
+	});
+
+	it("does not classify unrelated earlier network errors as the cause of an unknown failure", () => {
+		const previousErrors = [Object.assign(new Error("refused"), { code: "ECONNREFUSED" })];
+		const error = new TransportLadderFailure({ error: new Error("programming failure"), previousErrors, retryDisposition: "unclassified" });
+		expect(classifyFetchError(error)).toEqual({ kind: "fetch-failed" });
+	});
+
+	it("keeps a transport timeout without a network code classified as fetch-failed", () => {
+		const error = Object.assign(new Error("timed out"), { name: "TimeoutError" });
+		expect(classifyFetchError(new TransportLadderFailure({ error, previousErrors: [], retryDisposition: "recoverable" }))).toEqual({ kind: "fetch-failed" });
+	});
+
 	it.each(["ENOTFOUND", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH"])(
 		"classifies terminal network error %s as origin-unreachable with its code",
 		(code) => {

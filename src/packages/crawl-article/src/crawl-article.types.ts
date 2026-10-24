@@ -15,15 +15,10 @@ export type ThumbnailCascade = {
 };
 
 export type CrawlArticleResult =
-	| {
+	| ({
 			status: "fetched";
 			html: string;
 			evaluationHtml?: string;
-			/* Set only when the fetched body was itself an image. Signals the
-			 * finalizer to synthesise an `<img>` body from `thumbnail.image`
-			 * instead of running Readability (which extracts no text from an
-			 * image and would persist an empty content body). */
-			mediaType?: "image";
 			thumbnailUrl?: string;
 			thumbnail?: ThumbnailCascade;
 			etag?: string;
@@ -38,7 +33,16 @@ export type CrawlArticleResult =
 			 * issues an HTTP fetch. */
 			finalUrl?: string;
 			httpStatus?: number;
-		}
+		} & (
+			| {
+					/* Set only when the fetched body was itself an image. Signals the
+					 * finalizer to synthesise an `<img>` body from `thumbnail.image`
+					 * instead of running Readability (which extracts no text from an
+					 * image and would persist an empty content body). */
+					mediaType?: "image";
+				}
+			| { mediaType: "plain-text"; plainText: string }
+		))
 	| { status: "not-modified" }
 	/* A failure carries the terminal too: the redirect chain's own `Location` is
 	 * the strongest available evidence of where a link lands, so a destination

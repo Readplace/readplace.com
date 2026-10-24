@@ -44,6 +44,7 @@ function makeArticle(idHint: string): SavedArticle {
 			wordCount: 1200,
 		},
 		content: "<p>Full content</p>",
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: 5 as Minutes,
 		status: "unread",
 		savedAt: new Date("2026-03-04T10:00:00.000Z"),

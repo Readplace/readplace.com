@@ -11,17 +11,17 @@ interface SendWelcomeEmailDeps {
 	logError: (message: string, error?: Error) => void;
 }
 
-export type SendWelcomeEmail = (email: string) => void;
+export type SendWelcomeEmail = (email: string) => Promise<void>;
 
 export function initSendWelcomeEmail(deps: SendWelcomeEmailDeps): SendWelcomeEmail {
-	return (email: string): void => {
+	return (email: string): Promise<void> => {
 		const installUrl = new URL(`${deps.baseUrl}/install`);
 		installUrl.searchParams.set("utm_source", "welcome-email");
 		installUrl.searchParams.set("utm_medium", "email");
 		installUrl.searchParams.set("utm_campaign", "onboarding");
 		installUrl.searchParams.set("utm_content", "install");
 		const avatarUrl = `${deps.staticBaseUrl}/fayner-brack.jpg`;
-		deps.sendEmail({
+		return deps.sendEmail({
 			from: WELCOME_EMAIL_FROM,
 			to: email,
 			bcc: "readplace+welcome@readplace.com",

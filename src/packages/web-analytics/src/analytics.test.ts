@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildFirstArticleSeededEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type FirstArticleSeededEvent, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildFirstArticleSeededEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, classifyOsFamily, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type FirstArticleSeededEvent, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
 import { MCP_REQUEST_REFUSAL_REASONS, OAUTH_TOKEN_GRANT_TYPES, OAUTH_TOKEN_KINDS, OAUTH_TOKEN_REVOCATION_OUTCOMES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES, FIRST_ARTICLE_SEEDED_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -131,6 +131,7 @@ describe("createAnalyticsMiddleware", () => {
 			path: "/queue",
 			device_class: "desktop",
 			browser: "chrome",
+			os_family: "windows",
 			visitor_hash: expect.any(String),
 			visitor_id: null,
 			is_authenticated: 0,
@@ -418,6 +419,7 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 			utm_content: "subscribe",
 			device_class: "desktop",
 			browser: "chrome",
+			os_family: "windows",
 			visitor_hash: expect.any(String),
 			visitor_id: "550e8400-e29b-41d4-a716-446655440000",
 			is_authenticated: 0,
@@ -540,6 +542,7 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 			path: "/signup",
 			device_class: "desktop",
 			browser: "chrome",
+			os_family: "windows",
 			visitor_hash: expect.any(String),
 			visitor_id: null,
 			is_authenticated: 0,
@@ -885,6 +888,121 @@ describe("classifyBrowser", () => {
 		expect(
 			classifyBrowser(
 				"Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/430.0.0.32.107;FBBV/517973715;FBDV/iPhone14,2;FBMD/iPhone;FBSN/iOS;FBSV/16.6;FBSS/3;FBID/phone;FBLC/en_US;FBOP/5]",
+			),
+		).toBe("other");
+	});
+});
+
+describe("classifyOsFamily", () => {
+	it("returns 'other' for an absent or empty User-Agent", () => {
+		expect(classifyOsFamily(undefined)).toBe("other");
+		expect(classifyOsFamily("")).toBe("other");
+	});
+
+	it("maps our own native clients to their platform", () => {
+		expect(classifyOsFamily(NATIVE_APP_USER_AGENT)).toBe("ios");
+		expect(classifyOsFamily(SHARE_EXTENSION_USER_AGENT)).toBe("ios");
+		expect(classifyOsFamily(ANDROID_APP_USER_AGENT)).toBe("android");
+	});
+
+	it("returns 'ereader' for Kobo, whose UA impersonates Android on Linux", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (Linux; U; Android 2.0; en-us;) AppleWebKit/538.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/538.1 (Kobo Touch 0377/4.38.21908)",
+			),
+		).toBe("ereader");
+	});
+
+	it("returns 'ereader' for a Kindle, whose UA carries X11 and Linux", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (X11; U; Linux armv7l like Android; en-us) AppleWebKit/531.2+ (KHTML, like Gecko) Version/5.0 Safari/533.2+ Kindle/3.0+",
+			),
+		).toBe("ereader");
+	});
+
+	it("returns 'ereader' for PocketBook, whose UA carries Linux", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (Linux; Ubuntu 14.04 like Android 4.4) AppleWebKit/537.36 Chromium/35.0.1870.2 Mobile Safari/537.36 PocketBook/631",
+			),
+		).toBe("ereader");
+	});
+
+	it("returns 'other' for Googlebot even though its smartphone UA carries Android", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+			),
+		).toBe("other");
+	});
+
+	it("returns 'chromeos' for a Chromebook, whose UA carries X11 and Linux-like tokens", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			),
+		).toBe("chromeos");
+	});
+
+	it("returns 'android' for an Android phone, whose UA carries Linux", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+			),
+		).toBe("android");
+	});
+
+	it("returns 'ios' for an iPhone, an iPad and an iPod, whose UAs carry 'like Mac OS X'", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			),
+		).toBe("ios");
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			),
+		).toBe("ios");
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (iPod touch; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+			),
+		).toBe("ios");
+	});
+
+	it("returns 'windows' for a Windows browser", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+			),
+		).toBe("windows");
+	});
+
+	it("returns 'macos' for a Mac, including an iPad in desktop mode that reports itself as one", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+			),
+		).toBe("macos");
+	});
+
+	it("returns 'linux' for a desktop Linux browser on an X11 or Linux token", () => {
+		expect(
+			classifyOsFamily("Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0"),
+		).toBe("linux");
+		expect(
+			classifyOsFamily("Mozilla/5.0 (X11; FreeBSD amd64; rv:121.0) Gecko/20100101 Firefox/121.0"),
+		).toBe("linux");
+		expect(
+			classifyOsFamily("Mozilla/5.0 (Wayland; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+		).toBe("linux");
+	});
+
+	it("returns 'other' for a browser UA naming no platform in the gated or never-gated sets", () => {
+		expect(
+			classifyOsFamily(
+				"Mozilla/5.0 (PlayStation; PlayStation 5/2.26) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15",
 			),
 		).toBe("other");
 	});

@@ -93,9 +93,9 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(body.widgets).toHaveLength(72);
 	});
 
-	it("counts EPUB visitor/article pairs after a public render or directly from the owner reader, preferring click labels over historical pageviews", () => {
+	it("counts EPUB visitor/article pairs after a public render or directly from the owner reader, by device, OS family and browser, preferring click labels over historical pageviews", () => {
 		const widget = buildBody().widgets.find(
-			({ properties }) => properties.title === "EPUB downloads by device / browser (human-shaped)",
+			({ properties }) => properties.title === "EPUB downloads by device / OS / browser (human-shaped)",
 		);
 		assert(widget, "the human-shaped EPUB downloads widget must exist");
 		expect(widget).toMatchObject({
@@ -110,12 +110,15 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain("min(download_ms) as first_download_ms, min(view_ms) as first_view_ms");
 		expect(query).toContain("sum(is_owner_download) as owner_clicks");
 		expect(query).toContain("latest(click_device) as click_device_class, latest(click_browser) as click_browser_label");
-		expect(query).toContain("latest(pageview_device) as pageview_device_class, latest(pageview_browser) as pageview_browser_label by visitor_id, path");
+		expect(query).toContain("latest(pageview_device) as pageview_device_class, latest(pageview_browser) as pageview_browser_label, latest(click_os) as click_os_family, latest(pageview_os) as pageview_os_family by visitor_id, path");
+		expect(query).toContain("if(is_download = 1, os_family, no_os) as click_os");
+		expect(query).toContain(`if(event = "${ANALYTICS_EVENTS.pageview}", os_family, no_os) as pageview_os`);
 		expect(query).toContain("clicks > 0 and (owner_clicks > 0 or first_download_ms - first_view_ms > 1000)");
 		expect(query).toContain('coalesce(click_device_class, pageview_device_class, "unclassified") as device');
+		expect(query).toContain('coalesce(click_os_family, pageview_os_family, "unclassified") as os_label');
 		expect(query).toContain('coalesce(click_browser_label, pageview_browser_label, "unclassified") as browser_label');
 		expect(query).toContain('if(owner_clicks > 0, "reader", "view-article") as source');
-		expect(query).toContain("stats count(*) as downloads, count_distinct(visitor_id) as downloaders by device, browser_label, source");
+		expect(query).toContain("stats count(*) as downloads, count_distinct(visitor_id) as downloaders by device, os_label, browser_label, source");
 	});
 
 	it("splits the starter activity widget by whether the activity acted on a suggestion", () => {

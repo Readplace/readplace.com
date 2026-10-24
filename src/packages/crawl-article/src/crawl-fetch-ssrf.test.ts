@@ -204,7 +204,8 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 			isBlocked: blocksPrivate,
 			resolve: allHostsResolveTo("10.1.2.3"),
 		});
-		await expect(crawlFetch("https://attacker.test/article", { budgetMs: 30_000 })).rejects.toThrow(/blocked address 10\.1\.2\.3/);
+		const error = await rejectionOf(crawlFetch("https://attacker.test/article", { budgetMs: 30_000 }));
+		expect(causeChainMessages(error)).toMatch(/blocked address 10\.1\.2\.3/);
 	});
 
 	it("re-checks a redirect hop the primary leg follows itself, refusing a target that resolves to a private IP", async () => {
@@ -212,8 +213,8 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 		const checkedAddresses: string[] = [];
 		// The h2 and curl legs run their own copy of the guard (covered above);
 		// stubbing them pins this test on the primary leg's redirect loop.
-		const h2Refused = new Error("h2 leg not under test");
-		const curlRefused = new Error("curl leg not under test");
+		const fetchH2 = jest.fn(async () => { throw new Error("h2 leg not under test"); });
+		const fetchCurl = jest.fn(async () => { throw new Error("curl leg not under test"); });
 		const hops: string[] = [];
 		const crawlFetch = initCrawlFetch({
 			fetch: globalThis.fetch,
@@ -225,18 +226,15 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 				return blocksPrivateExceptLoopback(address);
 			},
 			resolve: resolverFor({ "internal.attacker.test": "10.0.0.1" }),
-			fetchH2: async () => {
-				throw h2Refused;
-			},
-			fetchCurl: async () => {
-				throw curlRefused;
-			},
+			fetchH2,
+			fetchCurl,
 		});
 
 		try {
-			await expect(
-				crawlFetch(`${server.origin}/start`, { budgetMs: 30_000, onRedirect: (hop) => hops.push(hop.toUrl) }),
-			).rejects.toBe(curlRefused);
+			const error = await rejectionOf(crawlFetch(`${server.origin}/start`, { budgetMs: 30_000, onRedirect: (hop) => hops.push(hop.toUrl) }));
+			expect(causeChainMessages(error)).toMatch(/blocked address 10\.0\.0\.1/);
+			expect(fetchH2).toHaveBeenCalledTimes(0);
+			expect(fetchCurl).toHaveBeenCalledTimes(0);
 			expect(hops).toEqual(["http://internal.attacker.test/secret"]);
 			expect(checkedAddresses).toContain("10.0.0.1");
 		} finally {
@@ -253,8 +251,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 			isBlocked: blocksPrivate,
 			resolve: allHostsResolveTo("169.254.169.254"),
 		});
-		await expect(crawlFetch("http://169.254.169.254/latest/meta-data/", { budgetMs: 30_000 })).rejects.toThrow(
-			/blocked address 169\.254\.169\.254/,
-		);
+		const error = await rejectionOf(crawlFetch("http://169.254.169.254/latest/meta-data/", { budgetMs: 30_000 }));
+		expect(causeChainMessages(error)).toMatch(/blocked address 169\.254\.169\.254/);
 	});
 });

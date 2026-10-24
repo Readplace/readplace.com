@@ -36,6 +36,7 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 			excerpt: "Parsed blurb.",
 			wordCount: 1200,
 		},
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(6),
 		status: "unread",
 		savedAt: new Date("2026-09-30T01:02:03.000Z"),

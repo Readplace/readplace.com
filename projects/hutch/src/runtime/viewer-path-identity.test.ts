@@ -93,8 +93,8 @@ it("downloads the original from rendered owner, public and poll links even with 
 	await download(await link(viewPathFor(ORIGINAL), '[data-test-download="epub"]'));
 	expect(harness.analytics.events).toContainEqual(expect.objectContaining({ event: "view_opened", path: viewPathFor(ORIGINAL) }));
 	for (const poll of ["reader", "summary"]) {
-		await download(await link(`/view/${poll}?url=${encodeURIComponent(ORIGINAL)}&poll=1`, '[data-test-download="epub"]'));
-		await download(await link(`/queue/${id}/${poll}?poll=1`, '[data-test-download="epub"]'));
+		await download(await link(`/view/${poll}?url=${encodeURIComponent(ORIGINAL)}&poll=1`, '[data-test-download="epub-fallback"]'));
+		await download(await link(`/queue/${id}/${poll}?poll=1`, '[data-test-download="epub-fallback"]'));
 	}
 	const missingUrl = `${ORIGINAL}-missing`;
 	crawl.mockClear(); stale.mockClear();

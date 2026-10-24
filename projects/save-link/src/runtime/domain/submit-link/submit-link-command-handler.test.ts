@@ -82,6 +82,7 @@ function makeSaved(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		url: exampleUrl,
 		destinationUrl: exampleDestination,
 		metadata: articleDisplayMetadata({ url: exampleUrl, destinationUrl: exampleDestination, title: "", siteName: "", excerpt: "", wordCount: 0, imageUrl: undefined }),
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(0),
 		status: "unread",
 		savedAt: new Date("2026-06-01T00:00:00.000Z"),
@@ -865,5 +866,34 @@ describe("initSubmitLinkCommandHandler — a twitter.com link from an email", ()
 		await run(handler, createSqsEvent([{ url: "https://mobile.twitter.com/jack/status/20", userId }]));
 
 		expect(saveArticle).toHaveBeenCalledWith(expect.objectContaining({ url: "https://mobile.twitter.com/jack/status/20" }));
+	});
+});
+
+describe("initSubmitLinkCommandHandler — an Amazon title link from an email", () => {
+	const TITLE = "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451";
+	const BARE = "https://www.amazon.com.au/dp/1492043451";
+
+	it("checks freshness, saves, crawls and announces the bare product article", async () => {
+		const refreshArticleIfStale = jest.fn(refreshAs("new"));
+		const saveArticle = jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: true, wroteUserArticle: true });
+		const crawled: string[] = [];
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async (params) => {
+			crawled.push(params.url);
+			return fetchedResult;
+		};
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ refreshArticleIfStale, saveArticle, crawlAndFinalizeArticle, publishEvent });
+
+		const response = await run(handler, createSqsEvent([{ url: TITLE, userId, provenance: { kind: "email", senderEmail: "news@example.com" } }]));
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(refreshArticleIfStale).toHaveBeenCalledWith({ url: BARE });
+		expect(saveArticle).toHaveBeenCalledWith(expect.objectContaining({ url: BARE }));
+		expect(crawled).toEqual([BARE]);
+		expect(publishEvent.mock.calls.map((call) => [call[0].detailType, call[1].url])).toEqual([
+			["LinkQueued", BARE],
+			["QueueEntryCreated", BARE],
+			["TierContentExtracted", BARE],
+		]);
 	});
 });

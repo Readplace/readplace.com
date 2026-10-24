@@ -19,6 +19,7 @@ const saved: SavedArticle = {
 	url: exampleUrl,
 	destinationUrl: destination,
 	metadata: articleDisplayMetadata({ url: exampleUrl, destinationUrl: destination, title: "Post", siteName: "Example", excerpt: "", wordCount: 0, imageUrl: undefined }),
+	servedBody: { kind: "legacy" },
 	estimatedReadTime: MinutesSchema.parse(0),
 	status: "unread",
 	savedAt: allocatedInstant,

@@ -5,7 +5,7 @@ import type { PageBody } from "@packages/web-shell";
 import { requireEnv } from "@packages/require-env";
 import { GMAIL_PAGE_STYLES } from "./gmail.styles";
 import { GMAIL_PATH } from "./gmail.url";
-import type { GmailForwardingState, GmailMappingDestination, GmailMappingRow, GmailMappingsViewModel } from "./gmail-mappings.viewmodel";
+import type { GmailAddNewslettersAction, GmailForwardingState, GmailMappingDestination, GmailMappingRow, GmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import type { GmailPageViewModel, GmailPollViewModel } from "./gmail.viewmodel";
 import { toGmailPollViewModel } from "./gmail.viewmodel";
 
@@ -24,6 +24,13 @@ const GMAIL_MAPPING_CHOICE_TEMPLATE = template("gmail-mapping-choice.template.ht
 const GMAIL_MAPPINGS_TEMPLATE = template("gmail-mappings.template.html");
 const GMAIL_MAPPING_ROW_TEMPLATE = template("gmail-mapping-row.template.html");
 const GMAIL_IMPORT_CONSENT_TEMPLATE = template("gmail-import-consent.template.html");
+const GMAIL_DIALOG_TEMPLATE = template("gmail-dialog.template.html");
+const GMAIL_DIALOG_BODY_TEMPLATE = template("gmail-dialog-body.template.html");
+const GMAIL_SENDER_SELECTION_TEMPLATE = template("gmail-sender-selection.template.html");
+const GMAIL_ADD_NEWSLETTERS_TEMPLATE = template("gmail-add-newsletters.template.html");
+
+const DIALOG_AUTO_DISCOVER_TEMPLATE = '<div hidden data-background-request hx-post="{{action}}" hx-trigger="load" hx-target="#gmail-sender-status" hx-select="#gmail-sender-status" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML show:none" hx-include="#gmail-sender-search-form, #gmail-sender-search" hx-indicator=".gmail__load" data-test-gmail-auto-load-senders="dialog"></div>';
+const PAGE_AUTO_DISCOVER_TEMPLATE = '<div hidden data-background-request hx-post="{{action}}" hx-trigger="load" hx-swap="none" hx-select-oob="#gmail-add-newsletters-form:outerHTML" hx-include="#gmail-add-newsletters-form" data-test-gmail-auto-load-senders="page"></div>';
 
 const GMAIL_COPY_SCRIPT = `<script src="/client-dist/integrations.client.js" defer></script>`;
 
@@ -81,6 +88,7 @@ export function renderGmailSenderChecklist(vm: GmailPageViewModel): string {
 
 function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string {
 	return render(GMAIL_MAPPING_CHOICE_TEMPLATE, {
+		dialog: vm.dialog,
 		save: vm.save,
 		readlistPicker: vm.readlistPicker,
 		delivery: vm.delivery,
@@ -106,14 +114,60 @@ function renderMappingRow(row: GmailMappingRow): string {
 	});
 }
 
+function renderAddNewsletters(actions: readonly GmailAddNewslettersAction[]): string {
+	return actions.map((action) => render(GMAIL_ADD_NEWSLETTERS_TEMPLATE, action)).join("");
+}
+
 function renderMappings(mappings: GmailMappingsViewModel, outOfBand: boolean): string {
 	return render(GMAIL_MAPPINGS_TEMPLATE, {
 		...mappings,
 		outOfBand,
+		headerActionsHtml: renderAddNewsletters(mappings.headerActions),
+		emptyActionsHtml: renderAddNewsletters(mappings.emptyActions),
 		rowsHtml: mappings.rows.map(renderMappingRow),
 		filterMessageHtml: mappings.filter.presentation === "alert"
 			? renderAlert({ key: "gmail-filter", content: { variant: "error", message: { text: mappings.filter.message } } })
 			: render('<p class="gmail__step-copy" role="status" data-test-gmail-filter-message>{{message}}</p>', { message: mappings.filter.message }),
+	});
+}
+
+function renderBanners(input: { alerts: GmailPageViewModel["alerts"]; notices: GmailPageViewModel["notices"] }): { alertsHtml: string; noticesHtml: string } {
+	return {
+		alertsHtml: input.alerts.map(({ key, message }) => renderAlert({ key, content: { variant: "error", message: { text: message } } })).join(""),
+		noticesHtml: input.notices.map(({ key, message, variant }) => renderAlert({ key, content: { variant, message: { text: message } } })).join(""),
+	};
+}
+
+function renderAutoDiscover(vm: GmailPageViewModel, placement: "dialog" | "page"): string {
+	if (vm.autoDiscoverAction === undefined || !vm.showSenders) return "";
+	const dialogOpen = vm.dialog.mode !== "none";
+	if (dialogOpen !== (placement === "dialog")) return "";
+	return render(placement === "dialog" ? DIALOG_AUTO_DISCOVER_TEMPLATE : PAGE_AUTO_DISCOVER_TEMPLATE, { action: vm.autoDiscoverAction });
+}
+
+const SENDER_SELECTION_BY_MODE: Record<Exclude<GmailPageViewModel["dialog"]["mode"], "none">, (vm: GmailPageViewModel) => string> = {
+	add: (vm) => render(GMAIL_SENDER_SELECTION_TEMPLATE, {
+		...vm,
+		autoDiscoverHtml: renderAutoDiscover(vm, "dialog"),
+		loadButton: renderGmailLoadButton(vm, false),
+		senderStatus: renderGmailSenderStatus(vm, { outOfBandLoadButton: false }),
+		senderChecklist: renderGmailSenderChecklist(vm),
+		senderResults: renderGmailSenderResults(vm, { outOfBandState: false }),
+	}),
+	edit: () => "",
+};
+
+function renderGmailDialog(vm: GmailPageViewModel): string {
+	const mode = vm.dialog.mode;
+	if (mode === "none") return "";
+	return render(GMAIL_DIALOG_TEMPLATE, {
+		...vm.dialog,
+		bodyHtml: render(GMAIL_DIALOG_BODY_TEMPLATE, {
+			createAction: vm.readlistPicker.createAction,
+			...renderBanners(vm.dialog),
+			senderSelectionHtml: SENDER_SELECTION_BY_MODE[mode](vm),
+			mappingChoiceHtml: renderMappingChoice(vm, false),
+		}),
 	});
 }
 
@@ -133,19 +187,15 @@ export function GmailPage(vm: GmailPageViewModel): PageBody {
 				...vm,
 				accountState,
 				accountClass: ACCOUNT_CLASSES[accountState],
-				alertsHtml: vm.alerts.map(({ key, message }) => renderAlert({ key, content: { variant: "error", message: { text: message } } })).join(""),
-				noticesHtml: vm.notices.map(({ key, message, variant }) => renderAlert({ key, content: { variant, message: { text: message } } })).join(""),
+				...renderBanners(vm),
 				settingsShot: SETTINGS_SHOT,
 				forwardingShot: FORWARDING_SHOT,
 				pollLine:
 					vm.pollState === undefined
 						? ""
 						: renderGmailPoll(toGmailPollViewModel({ pollCount: 0, state: vm.pollState, picker: vm.pickerState })),
-				loadButton: renderGmailLoadButton(vm, false),
-				senderStatus: renderGmailSenderStatus(vm, { outOfBandLoadButton: false }),
-				senderChecklist: renderGmailSenderChecklist(vm),
-				senderResults: renderGmailSenderResults(vm, { outOfBandState: false }),
-				mappingChoiceHtml: renderMappingChoice(vm, false),
+				pageAutoDiscoverHtml: renderAutoDiscover(vm, "page"),
+				dialogHtml: renderGmailDialog(vm),
 				mappingsHtml: renderMappings(vm.mappings, false),
 			}),
 		},

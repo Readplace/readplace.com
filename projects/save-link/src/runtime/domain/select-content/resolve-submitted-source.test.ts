@@ -20,6 +20,15 @@ describe("captured source identity", () => {
 		await expect(create(false)({ url, sourceUrl, sourceOriginalUrl: url })).rejects.toThrow("wrapper source");
 		await expect(create()({ url, sourceUrl, sourceOriginalUrl: url })).resolves.toBe(url);
 	});
+	it("binds a capture taken at an Amazon title link to the bare product article", async () => {
+		const bare = "https://www.amazon.com.au/dp/1492043451";
+		const title = "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451";
+		const resolveSubmittedSource = initResolveSubmittedSource({
+			resolveOriginalUrl: async () => bare,
+			verifyWrapperSource: async () => { throw new Error("the product's own link was sent to wrapper verification"); },
+		});
+		expect(await resolveSubmittedSource({ url: bare, sourceUrl: title, sourceOriginalUrl: bare })).toBe(bare);
+	});
 	it("accepts a capture of the article's own archive link without wrapper verification", async () => {
 		const archive = "https://archive.ph/Ab1cD";
 		const resolveSubmittedSource = initResolveSubmittedSource({

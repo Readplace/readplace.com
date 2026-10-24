@@ -30,7 +30,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import { articleHostFrom, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
+import { articleHostFrom, classifyOsFamily, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
@@ -46,6 +46,7 @@ import {
 	isExtensionInstalled,
 } from "../../onboarding/extension-install";
 import { setLastViewUrl } from "../../last-view";
+import { isNativeSurface } from "../../onboarding/native-client";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen, saveTipState, type SaveTipState } from "../../shared/save-tip/save-tip";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
@@ -66,12 +67,13 @@ import {
 	epubFilename,
 	initBuildArticleEpub,
 } from "../../shared/epub/article-epub";
-import { articleEpubHref } from "../../shared/epub/epub-link";
+import { EPUB_GUIDE_CONTENT, epubDownloadGuideFor, KINDLE_GUIDE_PATH, type EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
 import { initResolveStoredArticle } from "../../shared/resolve-stored-article";
 import { initStartAnonymousCrawl, type ResolveSaveIdentity } from "@packages/save-article";
 import {
 	ViewPage,
 	renderViewDownloadsOob,
+	viewEpubHref,
 	formatViewDocumentTitle,
 	renderViewCtaActionOob,
 	type ViewAction,
@@ -471,6 +473,7 @@ function handleViewArticle(
 		const showExtensionSuggestionBanner =
 			state.readerContentUnavailable && canOfferExtensionInstall(req);
 
+		res.vary("User-Agent");
 		sendComponent(
 			req, res,
 			Base(
@@ -486,10 +489,8 @@ function handleViewArticle(
 					summary: state.summary,
 					summaryPollUrl: state.summaryPollUrl,
 					actions,
-					epubDownloadHref:
-						state.content === undefined
-							? undefined
-							: withClickSurface(articleEpubHref({ articleUrl, utmSource: "view-article", appClient: undefined }), CLICK_SURFACES.readerPublic),
+					epubDownloadHref: state.content === undefined ? undefined : viewEpubHref(articleUrl),
+					epubDownloadGuide: viewEpubGuideFor(req, articleUrl),
 					saveTip,
 					extensionInstallUrl: readerPublicInstallUrl(req),
 					crawlVersions: state.crawlVersions,
@@ -530,8 +531,9 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			saved: undefined,
 			readlistTags: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
-			renderDownloadsOob: renderViewDownloadsOob,
+			renderDownloadsOob: (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) }),
 		});
+		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
 	};
 }
@@ -564,10 +566,23 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			saved: undefined,
 			readlistTags: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
-			renderDownloadsOob: renderViewDownloadsOob,
+			renderDownloadsOob: (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) }),
 		});
+		res.vary("User-Agent");
 		sendComponent(req, res, CacheableComponent(component, req));
 	};
+}
+
+function viewEpubGuideFor(req: Request, articleUrl: string): EpubDownloadGuide | undefined {
+	if (isNativeSurface(req)) return undefined;
+	return epubDownloadGuideFor({
+		osFamily: classifyOsFamily(req.get("user-agent")),
+		downloadHref: viewEpubHref(articleUrl),
+		learnMoreHref: withClickSurface(
+			withInternalTracking(KINDLE_GUIDE_PATH, { source: "view-article", content: EPUB_GUIDE_CONTENT }),
+			CLICK_SURFACES.readerPublic,
+		),
+	});
 }
 
 function redirectMixedCaseMount(req: Request, res: Response, next: NextFunction): void {

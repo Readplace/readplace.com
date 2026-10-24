@@ -40,6 +40,7 @@ function savedArticle(input: {
 			wordCount: input.wordCount ?? 1000,
 			imageUrl: undefined,
 		}),
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(input.minutes ?? 5),
 		status: "unread",
 		savedAt: input.savedAt ?? NOW,

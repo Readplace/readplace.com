@@ -11,7 +11,7 @@ import { GMAIL_HISTORY_IMPORT_MAX_POLLS } from "@packages/domain/gmail";
 import { requireEnv } from "@packages/require-env";
 import { z } from "zod";
 import { fitViewportToPage } from "./fit-viewport-to-page";
-import { blockTimerPolls, mappingRouteGaps, removeVolatileChrome } from "./gmail-newsletters-visual.browser";
+import { blockTimerPolls, mappingRouteGaps, removeVolatileChrome, scrollBoxTo } from "./gmail-newsletters-visual.browser";
 import { pageOverflowsSideways } from "./page-measurements.browser";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -24,7 +24,9 @@ const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
 const GMAIL_PAGE = "body.page-integrations-gmail";
 const MAPPINGS = "#gmail-mappings";
-const MAPPING_FORM = ".gmail__mapping-form";
+const DIALOG = "#gmail-dialog";
+const OPEN_DIALOG = "#gmail-dialog:popover-open";
+const DIALOG_FOOTER = "[data-test-gmail-dialog-footer]";
 const TLDR_ROW = `[data-test-gmail-mapping-row="${TLDR}"]`;
 const IMPORT_STATE = `${TLDR_ROW} [data-test-gmail-import-state]`;
 const IMPORT_CHECKBOX = '[data-test-gmail-save-mapping] input[name="import"]';
@@ -116,6 +118,26 @@ async function settledGmailPage(page: Page): Promise<void> {
 	await page.mouse.move(0, 0);
 }
 
+async function panelFitsViewport(page: Page): Promise<void> {
+	assert.equal(await page.evaluate(pageOverflowsSideways), false, "the Gmail page must never scroll sideways");
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "import checkpoints run with an explicit viewport");
+	const panel = await measuredBox(page, DIALOG);
+	const footer = await measuredBox(page, DIALOG_FOOTER);
+	const importOption = await measuredBox(page, ".gmail__import-option");
+	assert.ok(panel.x >= 0 && panel.x + panel.width <= viewport.width + 0.5, "the panel must fit the viewport sideways");
+	assert.ok(panel.y >= 0 && panel.y + panel.height <= viewport.height + 0.5, "the panel must fit the viewport");
+	assert.ok(
+		await page.locator(DIALOG).evaluate((element) => element.scrollWidth <= element.clientWidth),
+		"the panel must never scroll sideways",
+	);
+	assert.ok(importOption.y + importOption.height <= footer.y + 0.5, "the import option must sit above Cancel and Save");
+	assert.ok(
+		footer.y >= panel.y && footer.y + footer.height <= panel.y + panel.height + 0.5,
+		"Cancel and Save must stay visible at the panel bottom",
+	);
+}
+
 function fitsViewport(target: string): (page: Page) => Promise<void> {
 	return async (page) => {
 		assert.equal(await page.evaluate(pageOverflowsSideways), false, "the Gmail page must never scroll sideways");
@@ -145,6 +167,28 @@ async function captureMatrix(
 				geometry: fitsViewport(input.target),
 				target: input.target,
 				capture: input.capture,
+				pinnedText: [],
+			});
+		}
+	}
+	await page.setViewportSize(WIDTHS[0].viewport);
+}
+
+async function capturePopupScrolledToSave(page: Page, state: string): Promise<void> {
+	for (const width of WIDTHS) {
+		await page.setViewportSize(width.viewport);
+		for (const theme of THEMES) {
+			await page.emulateMedia({ colorScheme: theme });
+			await captureCheckpoint(page, {
+				name: `gmail-imports-${state}-${width.name}-${theme}`,
+				settled: async (settling) => {
+					await expect(settling.locator(OPEN_DIALOG)).toBeVisible();
+					await settledGmailPage(settling);
+					await settling.evaluate(scrollBoxTo, { selector: DIALOG, top: Number.MAX_SAFE_INTEGER });
+				},
+				geometry: panelFitsViewport,
+				target: DIALOG,
+				capture: "element",
 				pinnedText: [],
 			});
 		}
@@ -192,7 +236,9 @@ test.describe("GMail Newsletters import states", () => {
 		await openImports(page, {
 			stamp: stampFor("consent"),
 			seed: { readonly: false, mapped: false, imports: [] },
+			query: "&add=1",
 		});
+		await expect(page.locator(OPEN_DIALOG)).toHaveAttribute("data-test-confirm-popover", "gmail-add");
 
 		const tldrTick = page.locator(`[data-test-gmail-checklist-group="known"] [data-test-gmail-checklist-sender="${TLDR}"]`);
 		await tldrTick.check();
@@ -208,10 +254,12 @@ test.describe("GMail Newsletters import states", () => {
 		await page.locator(IMPORT_CHECKBOX).check();
 		await expect(page.locator("[data-test-gmail-sender-picker]")).not.toHaveAttribute("open", "");
 		await expect(readlistPicker).not.toHaveAttribute("open", "");
-		await captureMatrix(page, { state: "consent-checkbox", target: MAPPING_FORM, capture: "element" });
+		await capturePopupScrolledToSave(page, "consent-checkbox");
 
 		await page.locator("[data-test-gmail-save]").click();
 		await expect(page.locator(alert("import_permission_needed"))).toBeVisible();
+		await expect(page.locator("[data-test-gmail-add-newsletters]")).toBeVisible();
+		await expect(page.locator(DIALOG)).toHaveCount(0);
 		await expect(page.locator(IMPORT_STATE)).toHaveAttribute("data-test-gmail-import-state", "awaiting-permission");
 		await expect(page.locator(`${TLDR_ROW} [data-test-gmail-import-consent]`)).toBeVisible();
 		await captureMatrix(page, { state: "consent-notice", target: alert("import_permission_needed"), capture: "element" });

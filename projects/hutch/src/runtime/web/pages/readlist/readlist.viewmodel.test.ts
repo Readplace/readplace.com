@@ -27,6 +27,7 @@ function makeArticle(overrides?: Partial<SavedArticle>): SavedArticle {
 			excerpt: "An excerpt",
 			wordCount: 500,
 		},
+		servedBody: { kind: "legacy" },
 		estimatedReadTime: 3 as Minutes,
 		status: "unread",
 		savedAt: new Date("2025-06-01T12:00:00Z"),

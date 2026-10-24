@@ -167,7 +167,7 @@ it("builds authentication investigation views scoped to the retained diagnostics
 	const dashboard = JSON.parse(buildAuthDiagnosticsDashboard({ region: "ap-southeast-2", logGroupName: "/readplace/auth-diagnostics" }));
 	expect(dashboard.widgets).toHaveLength(5);
 	expect(dashboard.widgets.map((widget: { properties: { query: string } }) => widget.properties.query)).toEqual([
-		expect.stringContaining("count_distinct(event_id)"), expect.stringContaining("operation_id"), expect.stringContaining("count_distinct(request_id)"),
+		expect.stringContaining("count_distinct(event_id)"), expect.stringContaining("latest(client_version) as last_client_version"), expect.stringContaining("count_distinct(request_id)"),
 		expect.stringContaining("session_deleted"), expect.stringContaining("maximum_dropped"),
 	]);
 });

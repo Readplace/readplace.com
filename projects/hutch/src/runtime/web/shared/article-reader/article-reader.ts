@@ -75,6 +75,7 @@ interface PollResponseBodyInput {
 	downloadsOob: string;
 	appOrigin: string;
 	readerNotice: ReaderFailedVariant | undefined;
+	title: string | undefined;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
@@ -106,6 +107,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		content: input.content,
 		notice: input.readerNotice,
 		appOrigin: input.appOrigin,
+		title: input.title,
 		oob: true,
 	});
 	if (input.primary === "reader") {
@@ -368,6 +370,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				downloadsOob: "",
 				appOrigin: deps.appOrigin,
 				readerNotice: NOT_AN_ARTICLE,
+				title: undefined,
 			}),
 		);
 	}
@@ -448,6 +451,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			}),
 			appOrigin: deps.appOrigin,
 			readerNotice: undefined,
+			title: article?.metadata.title,
 		}));
 	}
 
@@ -495,6 +499,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			}),
 			appOrigin: deps.appOrigin,
 			readerNotice: undefined,
+			title: article?.metadata.title,
 		}));
 	}
 
