@@ -4,7 +4,10 @@ import { toAbsoluteDate, toAbsoluteDateTime } from "@packages/web-shell";
 
 const BIN_FIELD = /^bin\(\d+(ms|s|m|h|d|w|mo|q|y)\)$/;
 const STATS_STAGE = /^\s*stats\s/;
-const GROUP_BY = /\sby\s+(.+)$/s;
+const GROUP_BY = /\sby\s+/;
+const KEY_ALIAS = /\s+as\s+(\S+)$/;
+const QUOTES = new Set(['"', "'", "`"]);
+const REGEX_CAN_START = /(^|[(,=~!]|\blike)\s*$/;
 const SERIES_SEPARATOR = " · ";
 const MISSING_SERIES_VALUE = "—";
 
@@ -56,12 +59,52 @@ function round(value: number): number {
 	return Math.round(value * 10) / 10;
 }
 
-function groupFields(query: string): string[] {
-	const stats = query.split("|").filter((stage) => STATS_STAGE.test(stage)).at(-1);
+function maskNested(text: string): string {
+	let masked = "";
+	let closer: string | undefined;
+	let escaped = false;
+	let depth = 0;
+	for (const [index, char] of [...text].entries()) {
+		if (closer !== undefined) {
+			if (!escaped && char === closer) closer = undefined;
+			escaped = !escaped && char === "\\";
+			masked += "_";
+			continue;
+		}
+		if (QUOTES.has(char) || (char === "/" && REGEX_CAN_START.test(text.slice(0, index)))) closer = char;
+		if (char === "(") depth++;
+		if (char === ")") depth--;
+		masked += depth > 0 ? "_" : char;
+	}
+	return masked;
+}
+
+function splitTopLevel(text: string, separator: "|" | ","): string[] {
+	const masked = maskNested(text);
+	const parts: string[] = [];
+	let from = 0;
+	for (let index = masked.indexOf(separator); index !== -1; index = masked.indexOf(separator, index + 1)) {
+		parts.push(text.slice(from, index));
+		from = index + 1;
+	}
+	parts.push(text.slice(from));
+	return parts;
+}
+
+function groupKeys(query: string): { field: string; isBin: boolean }[] {
+	const stats = splitTopLevel(query, "|").filter((stage) => STATS_STAGE.test(stage)).at(-1);
 	assert(stats, `a time-series widget's query must aggregate with stats (got: ${query})`);
-	const groupBy = GROUP_BY.exec(stats);
+	const groupBy = GROUP_BY.exec(maskNested(stats));
 	assert(groupBy, `a time-series widget's stats must group by bin() (got: ${stats.trim()})`);
-	return groupBy[1].split(",").map((field) => field.trim());
+	return splitTopLevel(stats.slice(groupBy.index + groupBy[0].length), ",").map((key) => {
+		const expression = key.trim();
+		const alias = KEY_ALIAS.exec(maskNested(expression));
+		if (!alias) return { field: expression, isBin: BIN_FIELD.test(expression) };
+		return {
+			field: expression.slice(alias.index + alias[0].length - alias[1].length),
+			isBin: BIN_FIELD.test(expression.slice(0, alias.index)),
+		};
+	});
 }
 
 export function buildSmallMultiples(input: {
@@ -72,11 +115,13 @@ export function buildSmallMultiples(input: {
 }): SmallMultiples {
 	const records = input.rows.map((row) => new Map(row.map((cell) => [cell.field, cell.value])));
 	const fields = [...new Set(input.rows.flatMap((row) => row.map((cell) => cell.field)))];
-	const keys = groupFields(input.query);
-	const xField = keys.find((field) => BIN_FIELD.test(field));
-	assert(xField, `a time-series widget's stats must group by bin() (got: ${keys.join(", ")})`);
-	const seriesFields = keys.filter((field) => field !== xField);
-	const valueFields = fields.filter((field) => !keys.includes(field));
+	const keys = groupKeys(input.query);
+	const xKey = keys.find((key) => key.isBin);
+	assert(xKey, `a time-series widget's stats must group by bin() (got: ${keys.map((key) => key.field).join(", ")})`);
+	const xField = xKey.field;
+	const keyFields = keys.map((key) => key.field);
+	const seriesFields = keyFields.filter((field) => field !== xField);
+	const valueFields = fields.filter((field) => !keyFields.includes(field));
 
 	const series = new Map<string, { title: string; points: { time: number; value: number }[] }>();
 	const binned = records.map((record) => ({ record, time: binTime(record.get(xField)) }));

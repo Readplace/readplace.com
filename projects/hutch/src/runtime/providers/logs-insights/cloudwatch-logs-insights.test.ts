@@ -9,7 +9,11 @@ const LAST_WEEK = {
 	endTime: new Date("2026-10-18T00:00:00.000Z"),
 };
 
-function fakeLogsInsights(responses: unknown[], options: { maxWaitMs: number } = { maxWaitMs: 25_000 }) {
+function fakeLogsInsights(
+	responses: unknown[],
+	options: { maxWaitMs?: number; pollLatencyMs?: number; stopFailure?: Error } = {},
+) {
+	let clock = 0;
 	const started: StartQueryCommand[] = [];
 	const stopped: StopQueryCommand[] = [];
 	const polled: GetQueryResultsCommand[] = [];
@@ -21,19 +25,23 @@ function fakeLogsInsights(responses: unknown[], options: { maxWaitMs: number } =
 		},
 		getQueryResults: async (command) => {
 			polled.push(command);
+			clock += options.pollLatencyMs ?? 0;
 			const next = responses.shift();
 			assert(next, "the test supplied too few GetQueryResults responses");
 			return next;
 		},
 		stopQuery: async (command) => {
 			stopped.push(command);
+			if (options.stopFailure) throw options.stopFailure;
 			return { success: true };
 		},
 		sleep: async (ms) => {
 			slept.push(ms);
+			clock += ms;
 		},
+		now: () => clock,
 		pollIntervalMs: 1000,
-		maxWaitMs: options.maxWaitMs,
+		maxWaitMs: options.maxWaitMs ?? 25_000,
 	});
 	return { runQuery, started, polled, stopped, slept };
 }
@@ -97,6 +105,27 @@ describe("initCloudWatchLogsInsights", () => {
 		);
 		assert.deepEqual(logsInsights.slept, [1000, 1000]);
 		assert.deepEqual(logsInsights.stopped.map((command) => command.input), [{ queryId: "query-7" }]);
+	});
+
+	it("counts the time spent waiting on GetQueryResults towards the deadline, not just the sleeps", async () => {
+		const logsInsights = fakeLogsInsights([{ status: "Running" }, { status: "Running" }], { maxWaitMs: 3000, pollLatencyMs: 1500 });
+
+		await assert.rejects(
+			logsInsights.runQuery(LAST_WEEK, { signal: new AbortController().signal }),
+			/Logs Insights query query-7 stopped: still Running after 3000 ms/,
+		);
+		assert.deepEqual(logsInsights.slept, [1000]);
+	});
+
+	it("keeps the stop reason as the failure when StopQuery itself is rejected, carrying the rejection as its cause", async () => {
+		const alreadyEnded = new Error("Query has already ended");
+		const logsInsights = fakeLogsInsights([{ status: "Running" }], { maxWaitMs: 0, stopFailure: alreadyEnded });
+
+		await assert.rejects(logsInsights.runQuery(LAST_WEEK, { signal: new AbortController().signal }), (error: Error) => {
+			assert.match(error.message, /Logs Insights query query-7 stopped: still Running after 0 ms/);
+			assert.equal(error.cause, alreadyEnded);
+			return true;
+		});
 	});
 
 	it("stops a running query instead of polling again once the request is aborted", async () => {

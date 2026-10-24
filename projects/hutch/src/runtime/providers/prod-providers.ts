@@ -550,6 +550,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 				getQueryResults: (command) => logsClient.send(command),
 				stopQuery: (command) => logsClient.send(command),
 				sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+				now: () => Date.now(),
 				pollIntervalMs: 1000,
 				maxWaitMs: ADMIN_DASHBOARD_QUERY_MAX_WAIT_MS,
 			}),

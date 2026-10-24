@@ -86,6 +86,18 @@ describe("buildSmallMultiples", () => {
 		assert.deepEqual(chart.multiples.map((multiple) => multiple.title), ["401 · refusals", "404 · refusals"]);
 	});
 
+	it("reads an aliased bin() as the x-axis and ignores a | or by inside a regex, string or call", () => {
+		const chart = buildSmallMultiples({
+			...WEEK,
+			query: "filter path like /\\/mcp|\\/oauth/ | stats count(*) as calls, sum(strcontains(note, \"by \\\" a | b\")) as notes by bin(1d) as day, coalesce(client, \"none\") as client",
+			rows: [
+				[{ field: "day", value: "2026-10-14 00:00:00.000" }, { field: "client", value: "claude" }, { field: "calls", value: "3" }, { field: "notes", value: "1" }],
+			],
+		});
+
+		assert.deepEqual(chart.multiples.map((multiple) => multiple.title), ["claude · calls", "claude · notes"]);
+	});
+
 	it.each([
 		{ query: "filter event = \"mcp_tool_called\"", error: /must aggregate with stats/ },
 		{ query: "filter event = \"mcp_tool_called\" | stats count(*) as calls", error: /stats must group by bin\(\) \(got: stats count\(\*\) as calls\)/ },

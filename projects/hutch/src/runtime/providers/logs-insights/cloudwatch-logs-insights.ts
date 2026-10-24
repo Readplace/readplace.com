@@ -27,10 +27,12 @@ export function initCloudWatchLogsInsights(deps: {
 	getQueryResults: GetLogsInsightsQueryResults;
 	stopQuery: StopLogsInsightsQuery;
 	sleep: (ms: number) => Promise<void>;
+	now: () => number;
 	pollIntervalMs: number;
 	maxWaitMs: number;
 }): RunLogsInsightsQuery {
 	return async (query, { signal }) => {
+		const deadline = deps.now() + deps.maxWaitMs;
 		const { queryId } = await deps.startQuery(
 			new StartQueryCommand({
 				logGroupNames: [...query.logGroupNames],
@@ -46,17 +48,18 @@ export function initCloudWatchLogsInsights(deps: {
 			QueryResultsSchema.parse(await deps.getQueryResults(new GetQueryResultsCommand({ queryId })));
 
 		const stop = async (reason: string) => {
-			await deps.stopQuery(new StopQueryCommand({ queryId }));
-			throw new Error(`Logs Insights query ${queryId} stopped: ${reason}`);
+			const stopFailure = await deps.stopQuery(new StopQueryCommand({ queryId })).then(
+				() => undefined,
+				(error: unknown) => error,
+			);
+			throw new Error(`Logs Insights query ${queryId} stopped: ${reason}`, { cause: stopFailure });
 		};
 
-		let waitedMs = 0;
 		let response = await poll();
 		while (STILL_RUNNING.has(response.status)) {
 			if (signal.aborted) await stop("the request was aborted");
-			if (waitedMs >= deps.maxWaitMs) await stop(`still ${response.status} after ${deps.maxWaitMs} ms`);
+			if (deps.now() >= deadline) await stop(`still ${response.status} after ${deps.maxWaitMs} ms`);
 			await deps.sleep(deps.pollIntervalMs);
-			waitedMs += deps.pollIntervalMs;
 			response = await poll();
 		}
 		assert(response.status === "Complete", `Logs Insights query ${queryId} ended ${response.status}`);
