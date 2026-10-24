@@ -86,6 +86,12 @@ export function initSaveAllRuns(deps: {
 	async function reconcileOnce(): Promise<void> {
 		try {
 			await record.load();
+		} catch (error) {
+			reconciling = undefined;
+			logger.error("[save-all-runs] could not load the stored runs", error);
+			return;
+		}
+		try {
 			const pendingJobs = await queue.pendingJobs();
 			for (const stored of record.all().filter((run) => !run.notified)) {
 				const reconciled = reconcileRun({ run: stored, pendingJobs });
@@ -166,7 +172,10 @@ export function initSaveAllRuns(deps: {
 				return "stopped";
 			}
 			logger.error("[save-all-runs] the run's send failed", error);
-			const pendingJobs = await queue.pendingJobs().catch(() => []);
+			const pendingJobs = await queue.pendingJobs().catch((readError: unknown) => {
+				logger.error("[save-all-runs] could not read the pending jobs of a failed send", readError);
+				return [];
+			});
 			await record.apply({ runId, update: (held) => settleOrphanedLinks(held, pendingJobs) });
 			return "stopped";
 		}
