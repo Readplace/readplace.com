@@ -1,4 +1,4 @@
-import { extensionFromContentType, MAX_IMAGE_BYTES } from "@packages/crawl-article";
+import { extensionFromContentType, isValidHttpUrl, MAX_IMAGE_BYTES } from "@packages/crawl-article";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
 import type { CrawlFetch } from "@packages/crawl-article";
@@ -104,8 +104,7 @@ function collectImageRenditions(img: DomElement): string[] {
 }
 
 function pushImageUrls(urls: string[], img: DomElement): void {
-	const src = img.getAttribute("src");
-	if (src && !src.startsWith("data:")) urls.push(src);
+	pushFetchableUrl(urls, img.getAttribute("src"));
 	pushSrcsetUrls(urls, img.getAttribute("srcset"));
 }
 
@@ -113,8 +112,12 @@ function pushSrcsetUrls(urls: string[], srcset: string | null): void {
 	if (!srcset) return;
 	/* c8 ignore next 3 -- V8 block coverage phantom: for-of iterator creates zero-count sub-range inside loop body (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 	for (const entry of parseSrcset(srcset)) {
-		urls.push(entry.url);
+		pushFetchableUrl(urls, entry.url);
 	}
+}
+
+function pushFetchableUrl(urls: string[], url: string | null): void {
+	if (url && isValidHttpUrl(url)) urls.push(url);
 }
 
 async function downloadImage(args: {

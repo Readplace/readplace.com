@@ -12,6 +12,7 @@ export { extensionFromContentType } from "./extension-from-content-type";
 export {
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,
+	isValidHttpUrl,
 	type FetchThumbnailImage,
 } from "./extract-thumbnail";
 export type {

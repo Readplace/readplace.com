@@ -302,6 +302,76 @@ describe("initDownloadMedia", () => {
 		expect(fakeFetch).not.toHaveBeenCalled();
 	});
 
+	it("skips data: renditions in an img srcset and still mirrors the https src", async () => {
+		const { downloadMedia, fakeFetch, logError } = createDownloadMedia();
+
+		const media = await downloadMedia({
+			html: '<img src="https://example.com/a.png" srcset="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4= 1x, data:image/svg+xml;base64,PHN2Zz48L3N2Zz4= 2x">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(fakeFetch).toHaveBeenCalledTimes(1);
+		expect(fakeFetch.mock.calls[0][0]).toBe("https://example.com/a.png");
+		expect(media).toHaveLength(1);
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("skips a data: placeholder in a picture source and mirrors the real renditions", async () => {
+		const { downloadMedia, fakeFetch, logError } = createDownloadMedia();
+
+		await downloadMedia({
+			html: '<picture><source media="(max-width: 700px)" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7 1w"><source srcset="https://example.com/b-700.png 700w"><img src="https://example.com/b.png"></picture>',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(fakeFetch.mock.calls.map((call) => call[0])).toEqual([
+			"https://example.com/b-700.png",
+			"https://example.com/b.png",
+		]);
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("skips a URL-encoded data: SVG placeholder whose srcset contains commas", async () => {
+		const { downloadMedia, fakeFetch } = createDownloadMedia();
+
+		await downloadMedia({
+			html: '<img srcset="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271024%27%20height%3D%271024%27%20viewBox%3D%270%200%201024%201024%27%3E%3Crect%20width%3D%271024%27%20height%3D%271024%27%20fill-opacity%3D%220%22%2F%3E%3C%2Fsvg%3E 1x">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(fakeFetch).not.toHaveBeenCalled();
+	});
+
+	it("skips an img whose src is a chrome-extension:// asset", async () => {
+		const { downloadMedia, fakeFetch, logError } = createDownloadMedia();
+
+		const media = await downloadMedia({
+			html: '<img src="chrome-extension://gmpljdlgcdkljlppaekciacdmdlhfeon/images/beside-link-icon.svg">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(fakeFetch).not.toHaveBeenCalled();
+		expect(media).toHaveLength(0);
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("fetches a src whose scheme is written in upper case", async () => {
+		const { downloadMedia, fakeFetch } = createDownloadMedia();
+
+		await downloadMedia({
+			html: '<img src="HTTPS://example.com/upper.png">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(fakeFetch).toHaveBeenCalledTimes(1);
+		expect(fakeFetch.mock.calls[0][0]).toBe("HTTPS://example.com/upper.png");
+	});
+
 	it("returns empty array when no images present", async () => {
 		const { downloadMedia, fakeFetch } = createDownloadMedia();
 

@@ -1,5 +1,10 @@
 import type { CrawlFetch } from "./crawl-fetch";
-import { extractThumbnailCandidates, initFetchThumbnailImage, MAX_THUMBNAIL_BYTES } from "./extract-thumbnail";
+import {
+	extractThumbnailCandidates,
+	initFetchThumbnailImage,
+	isValidHttpUrl,
+	MAX_THUMBNAIL_BYTES,
+} from "./extract-thumbnail";
 
 describe("extractThumbnailCandidates", () => {
 	it("falls back to twitter:image first when og:image is missing", () => {
@@ -96,6 +101,19 @@ describe("extractThumbnailCandidates", () => {
 		// throws; resolveIfRelative returns the raw relative URL, which then fails
 		// the http(s) validity check and is dropped.
 		expect(extractThumbnailCandidates({ html, baseUrl: "not a url" })).toEqual([]);
+	});
+});
+
+describe("isValidHttpUrl", () => {
+	it.each([
+		["https://example.com/a.png", true],
+		["HTTPS://example.com/a.png", true],
+		["data:image/gif;base64,R0lGOD", false],
+		["chrome-extension://abc/icon.svg", false],
+		["/relative/a.png", false],
+		["", false],
+	])("isValidHttpUrl accepts only an absolute http(s) URL: %j → %s", (input, expected) => {
+		expect(isValidHttpUrl(input)).toBe(expected);
 	});
 });
 
