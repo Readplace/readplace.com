@@ -88,6 +88,18 @@ Only the functions that apply the rule can mint the body and summary brands (gre
 - A new renderer types its body input as the branded body. The generic HTML converters (markdown, EPUB XHTML) take plain strings because they also convert other HTML: hand them a body only from a branded value.
 - A surface's own host check drives behaviour only — no crawl, no polling, the not-an-article notice. It is not what keeps a webmail row private.
 
+### ChatGPT runs the tools OpenAI's scan last published
+
+ChatGPT readers never fetch `tools/list`. They call the tool definitions that OpenAI's plugin directory published from its last successful scan of our MCP server. The scan runs once a day at about 04:47 UTC (User-Agent `openai-mcp/1.0.0`) on a credential of its own: a grant under the one ChatGPT OAuth client every reader shares, bound to whichever Readplace account signed in when someone pressed Connect or Reconnect on the MCPs tab of OpenAI's Plugins portal. That credential died on 2026-09-11. Nobody noticed until OpenAI emailed on 2026-10-22, and by then ChatGPT had missed six weeks of tool changes, including the named-readlist tools.
+
+OpenAI's rule since about 2026-09-21: a scan unpublishes a tool the server stopped listing at once, while a new tool goes live only after automated checks, with no time limit. A rename is a delete plus an add. Reconnecting would have unpublished `list_queue`, ChatGPT's second most-used tool, days before its replacement could go live.
+
+- Keep listing a tool ChatGPT has published until its replacement shows **Live** on the MCPs tab. A changed definition keeps the old one live while OpenAI checks it; a missing tool is gone at the next scan.
+- `list_queue` is listed again for this reason, from a frozen copy of the definition ChatGPT published (grep the server's non-test sources for `reading readlist, optionally filtered`). Any byte change makes it an update OpenAI must check. Delete that copy once `list_readlist_articles` shows Live, but keep dispatching the old name: the delete only takes effect at the next scan.
+- Reconnect only from the Plugins portal. Connecting ChatGPT from chatgpt.com mints a reader grant the scan never adopts.
+- Bind the scan to a dedicated account no person uses. Disconnecting ChatGPT under Connected apps, or a password change or reset on that account, revokes the scan grant and records no revocation.
+- The [MCP scanner runbook](./projects/hutch/docs/mcp-scanner-runbook.md) has the scan's footprint and the events that prove a reconnect worked.
+
 ## Architecture Guidelines
 
 ### Brand & Design Guidelines
@@ -517,6 +529,10 @@ Commit and push directly to `main`. Do not create a feature branch unless a huma
 A small cleanup or refactor that is unrelated to the change being worked on — a stale comment fix, a rename, a drive-by simplification — must not ride the working diff. Send it as its own PR via the GitHub API (`gh pr create`) so the main change stays reviewable and the cleanup lands on its own merits.
 
 ## Agent Workflows and Model Selection
+
+### Learnings go where every instance reads them
+
+Never save a learning to an agent's local memory, the per-machine auto-memory directory. Other sessions, other machines and CI's `@claude` runs never see it, and nobody reviews it. A guideline, a clarification or a correction a human makes goes into CLAUDE.md, a skill, a runbook, or the code itself (a test, a type, a name), so every instance gets it.
 
 ### Workflows are opt-in and sized to the task
 
