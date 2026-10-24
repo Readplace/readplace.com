@@ -578,8 +578,10 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(missing).toEqual([]);
 	});
 
-	it("every event in ANALYTICS_EVENTS / CONVERSION_EVENTS / SUBSCRIPTION_EVENTS / QUEUE_DIGEST_EVENTS is referenced by at least one widget query", () => {
+	it("every event in ANALYTICS_EVENTS / CONVERSION_EVENTS / SUBSCRIPTION_EVENTS / QUEUE_DIGEST_EVENTS is referenced by at least one widget query, except the events kept query-only on purpose", () => {
 		const referenced = collectReferencedEvents();
+		const queryOnly = new Set<string>([ANALYTICS_EVENTS.epubImagesOverBudget]);
+		expect(queryOnly.size).toBe(1);
 		const declared = [
 			...Object.values(ANALYTICS_EVENTS),
 			...Object.values(CONVERSION_EVENTS),
@@ -587,7 +589,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			...Object.values(QUEUE_DIGEST_EVENTS),
 			...Object.values(ENGAGEMENT_EVENTS),
 		];
-		const missing = declared.filter((e) => !referenced.has(e));
+		const missing = declared.filter((e) => !referenced.has(e) && !queryOnly.has(e));
 		expect(missing).toEqual([]);
 	});
 
