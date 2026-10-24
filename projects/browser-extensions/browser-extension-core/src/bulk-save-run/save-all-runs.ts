@@ -86,12 +86,6 @@ export function initSaveAllRuns(deps: {
 	async function reconcileOnce(): Promise<void> {
 		try {
 			await record.load();
-		} catch (error) {
-			reconciling = undefined;
-			logger.error("[save-all-runs] could not load the stored runs", error);
-			return;
-		}
-		try {
 			const pendingJobs = await queue.pendingJobs();
 			for (const stored of record.all().filter((run) => !run.notified)) {
 				const reconciled = reconcileRun({ run: stored, pendingJobs });

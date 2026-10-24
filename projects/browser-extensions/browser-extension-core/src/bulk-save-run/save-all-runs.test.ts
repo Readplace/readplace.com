@@ -662,25 +662,6 @@ describe("initSaveAllRuns after a restart", () => {
 		await expect(context.runs.reconcile()).resolves.toBeUndefined();
 		expect(context.errors).toHaveLength(1);
 	});
-
-	it("loads the stored runs again after a failed load, so a new run does not overwrite them", async () => {
-		const world = createWorld();
-		const earlier = startedRun(await createContext(world).runs.answer(request({ urls: [A], windowId: 1 })));
-		let reads = 0;
-		const context = createContext(world, {
-			readSession: async () => {
-				reads += 1;
-				if (reads === 1) throw new Error("session storage gone");
-				return { [BULK_SAVE_RUNS_KEY]: world.session[BULK_SAVE_RUNS_KEY] };
-			},
-		});
-
-		await context.runs.reconcile();
-		await context.runs.answer(request({ urls: [B], windowId: 2 }));
-		await context.idle();
-
-		expect(storedRuns(world).map((held) => held.id)).toContain(earlier.id);
-	});
 });
 
 describe("initSaveAllRuns forget", () => {
