@@ -65,6 +65,20 @@ export function isValidHttpUrl(url: string): boolean {
 	}
 }
 
+export type ThumbnailNotDeliveredEvent = {
+	message: "[CrawlArticle] thumbnail candidate not delivered";
+	url: string;
+	name: string;
+	reason: string;
+};
+export type LogThumbnailNotDelivered = (event: ThumbnailNotDeliveredEvent) => void;
+
+export function describeRejection(error: unknown): { name: string; reason: string } {
+	return error instanceof Error
+		? { name: error.name, reason: error.message }
+		: { name: "unknown", reason: String(error) };
+}
+
 export type FetchThumbnailImage = (params: {
 	candidates: readonly string[];
 	referer: string;
@@ -81,14 +95,22 @@ export function initFetchThumbnailImage(deps: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 }): FetchThumbnailImage {
-	const { crawlFetch, logError, logInfo } = deps;
+	const { crawlFetch, logError, logInfo, logThumbnailNotDelivered } = deps;
 	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
 	return async ({ candidates, referer }) => {
 		const provenUnusable: string[] = [];
 		let image: ThumbnailImage | undefined;
 		for (const candidateUrl of candidates) {
-			const outcome = await tryFetchImage({ crawlFetch, logError, logFetchFailure, url: candidateUrl, referer });
+			const outcome = await tryFetchImage({
+				crawlFetch,
+				logError,
+				logFetchFailure,
+				logThumbnailNotDelivered,
+				url: candidateUrl,
+				referer,
+			});
 			if (outcome.verdict === "image") {
 				image = outcome.image;
 				break;
@@ -117,10 +139,11 @@ async function tryFetchImage(args: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 	logFetchFailure: LogFetchFailure;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 	url: string;
 	referer: string;
 }): Promise<CandidateOutcome> {
-	const { crawlFetch, logError, logFetchFailure, url, referer } = args;
+	const { crawlFetch, logError, logFetchFailure, logThumbnailNotDelivered, url, referer } = args;
 	try {
 		const response = await crawlFetch(url, {
 			budgetMs: THUMBNAIL_FETCH_TIMEOUT_MS,
@@ -153,7 +176,7 @@ async function tryFetchImage(args: {
 			logError(`[CrawlArticle] Thumbnail too large for ${url}`);
 			return PROVEN_UNUSABLE;
 		}
-		logError(`[CrawlArticle] Thumbnail network error for ${url}`, error instanceof Error ? error : undefined);
+		logThumbnailNotDelivered({ message: "[CrawlArticle] thumbnail candidate not delivered", url, ...describeRejection(error) });
 		return UNPROVEN;
 	}
 }

@@ -32,14 +32,16 @@ function createDownloadMedia(overrides?: { putImageObject?: PutImageObject; fetc
 	const crawlFetch: CrawlFetch = (url, init) => fakeFetch(url, init);
 
 	const logError = jest.fn();
+	const logImageLeftAtOrigin = jest.fn();
 	const downloadMedia = initDownloadMedia({
 		putImageObject,
 		logError,
+		logImageLeftAtOrigin,
 		crawlFetch,
 		imagesCdnBaseUrl: "https://d123.cloudfront.net",
 	});
 
-	return { downloadMedia, putImageObject, fakeFetch, logError };
+	return { downloadMedia, putImageObject, fakeFetch, logError, logImageLeftAtOrigin };
 }
 
 describe("initDownloadMedia", () => {
@@ -185,9 +187,9 @@ describe("initDownloadMedia", () => {
 		expect(putImageObject).not.toHaveBeenCalled();
 	});
 
-	it("names the failing image in the error message so the funnel entry identifies which URL stalled", async () => {
+	it("logs an origin rejection as one image-left-at-origin event naming the URL", async () => {
 		const fakeFetch = jest.fn().mockRejectedValue(new Error("Network error"));
-		const { downloadMedia, logError } = createDownloadMedia({ fetch: fakeFetch });
+		const { downloadMedia, logError, logImageLeftAtOrigin } = createDownloadMedia({ fetch: fakeFetch });
 
 		await downloadMedia({
 			html: '<p><img src="https://example.com/broken.png"></p>',
@@ -195,15 +197,18 @@ describe("initDownloadMedia", () => {
 			articleResourceUniqueId,
 		});
 
-		expect(logError).toHaveBeenCalledWith(
-			"[DownloadMedia] failed to process image https://example.com/broken.png",
-			expect.any(Error),
-		);
+		expect(logImageLeftAtOrigin).toHaveBeenCalledWith({
+			message: "[DownloadMedia] image left at its origin",
+			url: "https://example.com/broken.png",
+			name: "Error",
+			reason: "Network error",
+		});
+		expect(logError).not.toHaveBeenCalled();
 	});
 
-	it("still names the failing image when the rejection is not an Error", async () => {
+	it("records a non-Error origin rejection as its string", async () => {
 		const fakeFetch = jest.fn().mockRejectedValue("socket hang up");
-		const { downloadMedia, logError } = createDownloadMedia({ fetch: fakeFetch });
+		const { downloadMedia, logError, logImageLeftAtOrigin } = createDownloadMedia({ fetch: fakeFetch });
 
 		await downloadMedia({
 			html: '<p><img src="https://example.com/broken.png"></p>',
@@ -211,8 +216,99 @@ describe("initDownloadMedia", () => {
 			articleResourceUniqueId,
 		});
 
+		expect(logImageLeftAtOrigin).toHaveBeenCalledWith({
+			message: "[DownloadMedia] image left at its origin",
+			url: "https://example.com/broken.png",
+			name: "unknown",
+			reason: "socket hang up",
+		});
+		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("logs a TimeoutError from the origin at WARN, not ERROR", async () => {
+		const fakeFetch = jest.fn().mockRejectedValue(
+			Object.assign(new Error("no response headers within 5000ms"), { name: "TimeoutError" }),
+		);
+		const { downloadMedia, logError, logImageLeftAtOrigin, putImageObject } = createDownloadMedia({ fetch: fakeFetch });
+
+		const media = await downloadMedia({
+			html: '<p><img src="https://example.com/slow.png"></p>',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(logImageLeftAtOrigin).toHaveBeenCalledWith({
+			message: "[DownloadMedia] image left at its origin",
+			url: "https://example.com/slow.png",
+			name: "TimeoutError",
+			reason: "no response headers within 5000ms",
+		});
+		expect(logError).not.toHaveBeenCalled();
+		expect(media).toHaveLength(0);
+		expect(putImageObject).not.toHaveBeenCalled();
+	});
+
+	it("treats a body read that fails after the headers as the origin not delivering", async () => {
+		const fakeFetch = jest.fn().mockResolvedValue(
+			new Response(
+				new ReadableStream({
+					start(controller) {
+						controller.error(new TypeError("terminated"));
+					},
+				}),
+				{ status: 200, headers: { "content-type": "image/png" } },
+			),
+		);
+		const { downloadMedia, logError, logImageLeftAtOrigin, putImageObject } = createDownloadMedia({ fetch: fakeFetch });
+
+		await downloadMedia({
+			html: '<p><img src="https://example.com/cut-off.png"></p>',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(logImageLeftAtOrigin).toHaveBeenCalledWith({
+			message: "[DownloadMedia] image left at its origin",
+			url: "https://example.com/cut-off.png",
+			name: "TypeError",
+			reason: "terminated",
+		});
+		expect(logError).not.toHaveBeenCalled();
+		expect(putImageObject).not.toHaveBeenCalled();
+	});
+
+	it("keeps an S3 upload failure at ERROR even when the SDK names it TimeoutError", async () => {
+		const putImageObject: PutImageObject = jest
+			.fn()
+			.mockRejectedValue(Object.assign(new Error("socket hang up"), { name: "TimeoutError" }));
+		const { downloadMedia, logError, logImageLeftAtOrigin } = createDownloadMedia({ putImageObject });
+
+		const media = await downloadMedia({
+			html: '<img src="https://example.com/photo.png">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
 		expect(logError).toHaveBeenCalledWith(
-			"[DownloadMedia] failed to process image https://example.com/broken.png",
+			"[DownloadMedia] failed to process image https://example.com/photo.png",
+			expect.objectContaining({ name: "TimeoutError" }),
+		);
+		expect(logImageLeftAtOrigin).not.toHaveBeenCalled();
+		expect(media).toHaveLength(0);
+	});
+
+	it("still names the failing image when the upload rejection is not an Error", async () => {
+		const putImageObject: PutImageObject = jest.fn().mockRejectedValue("S3 hiccup");
+		const { downloadMedia, logError } = createDownloadMedia({ putImageObject });
+
+		await downloadMedia({
+			html: '<img src="https://example.com/photo.png">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(logError).toHaveBeenCalledWith(
+			"[DownloadMedia] failed to process image https://example.com/photo.png",
 			undefined,
 		);
 	});

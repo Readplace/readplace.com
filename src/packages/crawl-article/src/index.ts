@@ -10,10 +10,12 @@ export {
 export { isBlockClassStatus, type Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
 export {
+	describeRejection,
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,
 	isValidHttpUrl,
 	type FetchThumbnailImage,
+	type ThumbnailNotDeliveredEvent,
 } from "./extract-thumbnail";
 export type {
 	CrawlArticle,

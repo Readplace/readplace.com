@@ -128,6 +128,7 @@ describe("initFetchThumbnailImage", () => {
 				crawlFetch,
 				logError: (message) => errorLogs.push(message),
 				logInfo: (message) => infoLogs.push(message),
+				logThumbnailNotDelivered: () => {},
 			});
 
 			const result = await fetchThumbnail({
@@ -149,6 +150,7 @@ describe("initFetchThumbnailImage", () => {
 			crawlFetch,
 			logError: (message) => errorLogs.push(message),
 			logInfo: (message) => infoLogs.push(message),
+			logThumbnailNotDelivered: () => {},
 		});
 
 		const result = await fetchThumbnail({
@@ -164,7 +166,7 @@ describe("initFetchThumbnailImage", () => {
 		"leaves a candidate that answered %i unproven, because the origin may still serve the image to a reader's own browser",
 		async (status) => {
 			const crawlFetch: CrawlFetch = async () => new Response("refused", { status });
-			const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+			const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 
 			const result = await fetchThumbnail({
 				candidates: ["https://example.com/hotlink-blocked.png"],
@@ -179,7 +181,7 @@ describe("initFetchThumbnailImage", () => {
 		"proves a candidate unusable when the origin answers %i, because the resource is gone for every client",
 		async (status) => {
 			const crawlFetch: CrawlFetch = async () => new Response("<html>not found</html>", { status });
-			const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+			const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 
 			const result = await fetchThumbnail({
 				candidates: ["https://zserge.com/logo.png"],
@@ -194,7 +196,9 @@ describe("initFetchThumbnailImage", () => {
 		const crawlFetch: CrawlFetch = async () => {
 			throw new Error("socket hang up");
 		};
-		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+		const logError = jest.fn();
+		const logThumbnailNotDelivered = jest.fn();
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError, logInfo: () => {}, logThumbnailNotDelivered });
 
 		const result = await fetchThumbnail({
 			candidates: ["https://example.com/unreachable.png"],
@@ -202,6 +206,13 @@ describe("initFetchThumbnailImage", () => {
 		});
 
 		expect(result.provenUnusable).toEqual([]);
+		expect(logThumbnailNotDelivered).toHaveBeenCalledWith({
+			message: "[CrawlArticle] thumbnail candidate not delivered",
+			url: "https://example.com/unreachable.png",
+			name: "Error",
+			reason: "socket hang up",
+		});
+		expect(logError).not.toHaveBeenCalled();
 	});
 
 	it("proves a candidate unusable when the origin answers a non-image Content-Type", async () => {
@@ -210,7 +221,7 @@ describe("initFetchThumbnailImage", () => {
 				status: 200,
 				headers: { "content-type": "text/html" },
 			});
-		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 
 		const result = await fetchThumbnail({
 			candidates: ["https://www.cia.gov/readingroom/docs/Figure%203"],
@@ -226,7 +237,7 @@ describe("initFetchThumbnailImage", () => {
 				status: 200,
 				headers: { "content-type": "image/png", "content-length": String(MAX_THUMBNAIL_BYTES + 1) },
 			});
-		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 
 		const result = await fetchThumbnail({
 			candidates: ["https://qsf.cf2.quoracdn.net/huge.png"],
@@ -241,7 +252,7 @@ describe("initFetchThumbnailImage", () => {
 			url === "https://example.com/not-an-image"
 				? new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } })
 				: new Response(Buffer.from("png-bytes"), { status: 200, headers: { "content-type": "image/png" } });
-		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {} });
+		const fetchThumbnail = initFetchThumbnailImage({ crawlFetch, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 
 		const result = await fetchThumbnail({
 			candidates: ["https://example.com/not-an-image", "https://example.com/real.png"],
