@@ -361,6 +361,19 @@ export interface ViewOpenedEvent {
 	is_authenticated: 0 | 1;
 }
 
+export interface EpubImagesOverBudgetEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.epubImagesOverBudget;
+	timestamp: string;
+	path: string;
+	article_host: string;
+	skipped_count: number;
+	skipped_bytes: number;
+	embedded_bytes: number;
+	visitor_id: string;
+	is_authenticated: 0 | 1;
+}
+
 /**
  * Emitted when a user signals intent to save an article to their queue. Born on
  * the public reader's "Save to My Readlist" click — the warmest funnel moment,
@@ -604,7 +617,8 @@ export type AnalyticsEvent =
 	| McpRequestRefusedEvent
 	| McpSessionInitializedEvent
 	| McpToolsListedEvent
-	| OAuthTokenRevokedEvent;
+	| OAuthTokenRevokedEvent
+	| EpubImagesOverBudgetEvent;
 
 function isRenderedPageStatus(statusCode: number): boolean {
 	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
