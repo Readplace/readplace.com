@@ -1342,3 +1342,32 @@ test.describe("Admin newsletter colour roles hold their WCAG contrast in both th
 		}
 	});
 });
+
+test.describe("Admin dashboard colour roles hold their WCAG contrast in both themes", () => {
+	test.use({ timezoneId: "UTC", viewport: VIEWPORT });
+
+	test("the dashboard index and the HN experiment, MCP and login dashboards clear their contrast minimum", async ({ page }) => {
+		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email: E2E_ADMIN_EMAIL, password: E2E_ADMIN_PASSWORD },
+		});
+		assert.equal(created.status(), 201);
+		await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
+		await page.locator("#email").fill(E2E_ADMIN_EMAIL);
+		await page.locator("#password").fill(E2E_ADMIN_PASSWORD);
+		await page.locator('[data-test-form="login"] button[type="submit"]').click();
+		await page.waitForSelector("body.page-readlist");
+
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.goto(`${BASE_URL}/admin/dashboards`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector("body.page-admin-dashboards");
+			await auditRoot(page, { root: "main.admin-dashboards", theme, view: "admin/dashboards" });
+
+			for (const slug of ["hn-experiment", "mcp", "login"] as const) {
+				await page.goto(`${BASE_URL}/admin/dashboards/${slug}`, { waitUntil: "domcontentloaded" });
+				await page.waitForSelector("body.page-admin-dashboard");
+				await auditRoot(page, { root: "main.admin-dashboard", theme, view: `admin/dashboards/${slug}` });
+			}
+		}
+	});
+});

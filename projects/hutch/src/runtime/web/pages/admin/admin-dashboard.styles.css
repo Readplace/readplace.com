@@ -1,0 +1,322 @@
+.admin-dashboards,
+.admin-dashboard {
+  background: var(--muted);
+  flex: 1 1 auto;
+}
+
+.admin-dashboards__layout {
+  max-width: calc(42rem + 2 * var(--page-gutter));
+  margin: 0 auto;
+  padding: var(--page-top) var(--page-gutter) 64px;
+}
+
+.admin-dashboard__layout {
+  max-width: calc(72rem + 2 * var(--page-gutter));
+  margin: 0 auto;
+  padding: var(--page-top) var(--page-gutter) 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 1024px) {
+  .admin-dashboards__layout,
+  .admin-dashboard__layout {
+    padding-bottom: 80px;
+  }
+}
+
+.admin-dashboards__title,
+.admin-dashboard__title {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 4px;
+  text-wrap: balance;
+}
+
+.admin-dashboards__title {
+  margin-bottom: 16px;
+}
+
+.admin-dashboards__links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.admin-dashboards__item + .admin-dashboards__item {
+  border-top: 1px solid var(--border);
+}
+
+.admin-dashboards__form {
+  display: flex;
+}
+
+.admin-dashboards__link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.admin-dashboards__link:hover {
+  background: var(--muted);
+}
+
+.admin-dashboards__label {
+  font-weight: 600;
+}
+
+.admin-dashboards__description,
+.admin-dashboard__intro,
+.admin-dashboard__window {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.admin-dashboard__window {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard__ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-dashboard__range-form,
+.admin-dashboard__empty-form {
+  margin: 0;
+}
+
+.admin-dashboard__range {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--ink-tab-inactive);
+  cursor: pointer;
+}
+
+.admin-dashboard__range:hover {
+  color: var(--foreground);
+}
+
+.admin-dashboard__range[aria-current="page"] {
+  border-bottom-color: var(--primary);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.admin-dashboard__widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+.admin-dashboard__widget-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.admin-dashboard__empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-dashboard__empty--hidden {
+  display: none;
+}
+
+.admin-dashboard__empty-text {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.admin-dashboard__table-frame {
+  overflow-x: auto;
+}
+
+.admin-dashboard__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--foreground);
+}
+
+.admin-dashboard__column {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.admin-dashboard__cell {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: break-word;
+}
+
+.admin-dashboard__row:last-child .admin-dashboard__cell {
+  border-bottom: 0;
+}
+
+.admin-dashboard__cell--numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard__cell--timestamp {
+  white-space: nowrap;
+}
+
+.admin-dashboard__multiples {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 16px;
+}
+
+.admin-dashboard__multiple {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-dashboard__multiple-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.admin-dashboard__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.admin-dashboard__tick {
+  fill: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard__line {
+  fill: none;
+  stroke: var(--color-secondary-text);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.admin-dashboard__point {
+  fill: var(--color-secondary-text);
+  stroke: var(--card);
+  stroke-width: 2;
+}
+
+.admin-dashboard__data {
+  font-size: var(--text-sm);
+}
+
+.admin-dashboard__data-summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+
+.admin-dashboard__data[open] .admin-dashboard__data-summary {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 767px) {
+  .admin-dashboard__widget {
+    padding: 16px;
+  }
+
+  .admin-dashboard__table-frame {
+    overflow-x: visible;
+  }
+
+  .admin-dashboard__table,
+  .admin-dashboard__table tbody,
+  .admin-dashboard__row,
+  .admin-dashboard__cell {
+    display: block;
+  }
+
+  .admin-dashboard__table thead {
+    display: none;
+  }
+
+  .admin-dashboard__row {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .admin-dashboard__row:last-child {
+    border-bottom: 0;
+  }
+
+  .admin-dashboard__cell,
+  .admin-dashboard__row:last-child .admin-dashboard__cell {
+    border-bottom: 0;
+    padding: 4px 0;
+  }
+
+  .admin-dashboard__cell--numeric {
+    text-align: left;
+  }
+
+  .admin-dashboard__cell::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--muted-foreground);
+    margin-bottom: 2px;
+  }
+}

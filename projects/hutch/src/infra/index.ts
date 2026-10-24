@@ -45,7 +45,7 @@ import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/p
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
-import { assertExcludedUserIds, assertExcludedVisitorIds } from "../runtime/observability/excluded-identities";
+import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
 import type { DynamoTables } from "../runtime/providers/dynamodb-tables";
@@ -63,6 +63,13 @@ const config = new pulumi.Config();
 const stage = config.require("stage");
 const excludedUserIds = config.requireObject<string[]>("excludedUserIds");
 assertExcludedUserIds(excludedUserIds);
+const excludedVisitorIds = config.requireObject<string[]>("excludedVisitorIds");
+assertExcludedVisitorIds(excludedVisitorIds);
+const excludedIdentitiesParameter = new aws.ssm.Parameter("excluded-identities", {
+	name: EXCLUDED_IDENTITIES_PARAMETER_NAME,
+	type: "String",
+	value: JSON.stringify({ excludedVisitorIds, excludedUserIds }),
+});
 const engagementDeploymentSha = config.require("engagementStarterDeploymentSha");
 const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
 const domains = config.getObject<string[]>("domains") ?? [];
@@ -1767,9 +1774,6 @@ new HutchDLQEventHandler("gmail-history-import-dlq", {
 
 const region = aws.config.requireRegion();
 
-const excludedVisitorIds = config.requireObject<string[]>("excludedVisitorIds");
-assertExcludedVisitorIds(excludedVisitorIds);
-
 new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	name: "imports-completed",
 	logGroupName: lambda.logGroupName,
@@ -1906,6 +1910,34 @@ const authDiagnosticsLogGroup = new aws.cloudwatch.LogGroup("auth-diagnostics-lo
 	name: AUTH_DIAGNOSTICS_LOG_GROUP,
 	retentionInDays: 365,
 }, { retainOnDelete: true });
+
+new aws.iam.RolePolicy("hutch-admin-dashboards-read", {
+	role: lambda.role.name,
+	policy: pulumi
+		.all([analyticsLogGroup.arn, authDiagnosticsLogGroup.arn, excludedIdentitiesParameter.arn])
+		.apply(([analyticsArn, authDiagnosticsArn, parameterArn]) =>
+			JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Action: ["logs:StartQuery"],
+						Resource: [analyticsArn, `${analyticsArn}:*`, authDiagnosticsArn, `${authDiagnosticsArn}:*`],
+					},
+					{
+						Effect: "Allow",
+						Action: ["logs:GetQueryResults", "logs:StopQuery"],
+						Resource: ["*"],
+					},
+					{
+						Effect: "Allow",
+						Action: ["ssm:GetParameter"],
+						Resource: [parameterArn],
+					},
+				],
+			}),
+		),
+});
 
 new aws.cloudwatch.Dashboard("auth-diagnostics-dashboard", {
 	dashboardName: "readplace-authentication",

@@ -45,6 +45,10 @@
       "types": "./dist/providers/canary-report/index.d.ts",
       "default": "./dist/providers/canary-report/index.js"
     },
+    "./providers/logs-insights": {
+      "types": "./dist/providers/logs-insights/index.d.ts",
+      "default": "./dist/providers/logs-insights/index.js"
+    },
     "./providers/email": {
       "types": "./dist/providers/email/index.d.ts",
       "default": "./dist/providers/email/index.js"
@@ -226,6 +230,9 @@
       ],
       "providers/canary-report": [
         "./dist/providers/canary-report/index.d.ts"
+      ],
+      "providers/logs-insights": [
+        "./dist/providers/logs-insights/index.d.ts"
       ],
       "providers/email": [
         "./dist/providers/email/index.d.ts"

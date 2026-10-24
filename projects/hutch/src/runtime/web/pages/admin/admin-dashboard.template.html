@@ -1,0 +1,38 @@
+<main class="admin-dashboard" data-test-admin-dashboard="{{slug}}" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+  <div class="admin-dashboard__layout">
+    <header class="admin-dashboard__header">
+      <h1 class="admin-dashboard__title">{{title}}</h1>
+      <p class="admin-dashboard__intro">{{description}}</p>
+      <p class="admin-dashboard__window" data-test-admin-dashboard-window>{{windowLabel}}</p>
+    </header>
+
+    <nav class="admin-dashboard__ranges" aria-label="Time range">
+      {{#each ranges}}
+      <form class="admin-dashboard__range-form" method="{{form.method}}" action="{{form.action}}" hx-boost="true">
+        {{#each form.fields}}
+        <input type="hidden" name="{{name}}" value="{{value}}">
+        {{/each}}
+        <button type="submit" class="admin-dashboard__range" aria-current="{{ariaCurrent}}" data-test-admin-dashboard-range="{{key}}">{{label}}</button>
+      </form>
+      {{/each}}
+    </nav>
+
+    {{#each widgets}}
+    <section class="admin-dashboard__widget" aria-labelledby="admin-dashboard-widget-{{key}}" data-test-admin-dashboard-widget="{{key}}">
+      <h2 class="admin-dashboard__widget-title" id="admin-dashboard-widget-{{key}}" data-test-admin-dashboard-widget-title>{{title}}</h2>
+      <div class="admin-dashboard__empty {{emptyModifier}}" data-test-admin-dashboard-empty="{{emptyFlag}}">
+        <p class="admin-dashboard__empty-text">{{emptyText}}</p>
+        {{#each emptyActions}}
+        <form class="admin-dashboard__empty-form" method="{{form.method}}" action="{{form.action}}" hx-boost="true">
+          {{#each form.fields}}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {{/each}}
+          <button type="submit" class="btn btn--secondary btn--s" data-test-admin-dashboard-empty-action>{{label}}</button>
+        </form>
+        {{/each}}
+      </div>
+      {{{bodyHtml}}}
+    </section>
+    {{/each}}
+  </div>
+</main>

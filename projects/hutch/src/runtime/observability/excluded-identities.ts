@@ -1,14 +1,24 @@
 import assert from "node:assert";
+import type { ExcludedIdentities } from "@packages/provider-contracts/logs-insights";
 import type { DeviceClass } from "@packages/web-analytics";
+import { z } from "zod";
+
+export type { ExcludedIdentities };
+
+export const EXCLUDED_IDENTITIES_PARAMETER_NAME = "/readplace/excluded-identities";
 
 const BOT_DEVICE_CLASS = "bot" satisfies DeviceClass;
 
 const VISITOR_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const USER_ID_SHAPE = /^[0-9a-f]{32}$/;
 
-export interface ExcludedIdentities {
-	excludedVisitorIds: readonly string[];
-	excludedUserIds: readonly string[];
+const ExcludedIdentitiesSchema = z.object({
+	excludedVisitorIds: z.array(z.string().regex(VISITOR_ID_SHAPE)),
+	excludedUserIds: z.array(z.string().regex(USER_ID_SHAPE)),
+});
+
+export function parseExcludedIdentities(json: string): ExcludedIdentities {
+	return ExcludedIdentitiesSchema.parse(JSON.parse(json));
 }
 
 export function assertExcludedVisitorIds(visitorIds: readonly string[]): void {

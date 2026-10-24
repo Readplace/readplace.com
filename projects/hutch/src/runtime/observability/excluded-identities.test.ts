@@ -2,6 +2,7 @@ import {
 	assertExcludedUserIds,
 	assertExcludedVisitorIds,
 	excludeNonAudienceClauses,
+	parseExcludedIdentities,
 } from "./excluded-identities";
 
 const VALID_VISITOR_ID = "293b32c4-898e-485d-8a92-3f2f32f53289";
@@ -107,5 +108,11 @@ describe("excludeNonAudienceClauses", () => {
 		expect(clause).toBe(
 			`| filter (not ispresent(visitor_id)) or (visitor_id not in ["${VALID_VISITOR_ID}", "${other}"])`,
 		);
+	});
+});
+
+describe("parseExcludedIdentities", () => {
+	it("reads both exclusion lists from the parameter's JSON", () => {
+		expect(parseExcludedIdentities(JSON.stringify(BOTH))).toEqual(BOTH);
 	});
 });
