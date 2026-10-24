@@ -899,6 +899,26 @@ describe("Import routes", () => {
 			]);
 		});
 
+		it("imports two spellings of one Amazon product as one bare product article", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from(
+					"https://www.amazon.com.au/dp/1492043451?ref_=mr_direct_us_au_au&showmri https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451",
+				),
+			);
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+
+			const commit = await agent.post(`${create.headers.location}/commit`);
+
+			expect(commit.headers.location).toContain("import_imported=1&");
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const result = await harness.articleStore.findArticlesByUser({ userId });
+			expect(result.articles.map((article) => article.url)).toEqual(["https://www.amazon.com.au/dp/1492043451"]);
+		});
+
 		it("asks to resurface nothing, so a thousands-of-links commit costs no per-link selection", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
