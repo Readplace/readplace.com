@@ -173,23 +173,62 @@ describe("initCaptureHost", () => {
 
 		await tapped.host.tapped(tapOn([{ "data-reader-capture": "" }, OFFERED_NOTICE]));
 		await offered.host.pageChanged();
-		tapped.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1" });
-		offered.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1" });
+		tapped.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "manual" });
+		offered.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
 
 		assert.equal(tapped.failures(), 1);
 		assert.equal(offered.failures(), 1);
 	});
 
 	it("ignores the end of a rescue it never asked for, and messages it cannot read", async () => {
+		const unasked = createHarness(async () => ({ outcome: "started" }));
 		const harness = createHarness(async () => ({ outcome: "started" }));
 		harness.elements.push(OFFERED_NOTICE);
 		await harness.host.pageChanged();
 
-		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-2" });
+		unasked.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-2", trigger: "automatic" });
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1" });
 		harness.host.rescueEnded({ type: "capture-html" });
 		harness.host.rescueEnded(undefined);
 
+		assert.equal(unasked.failures() + harness.failures(), 0);
+	});
+
+	it("awaits no automatic rescue the background did not start", async () => {
+		const harness = createHarness(async () => ({ outcome: "skipped", reason: "already-attempted" }));
+		harness.elements.push(OFFERED_NOTICE);
+		await harness.host.pageChanged();
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+
 		assert.equal(harness.failures(), 0);
+	});
+
+	it("ignores the end of the automatic rescue once the reader tapped for a copy of the same article, and announces the end of the tapped one", async () => {
+		const harness = createHarness(async () => ({ outcome: "started" }));
+		harness.elements.push(OFFERED_NOTICE);
+		await harness.host.pageChanged();
+		await harness.host.tapped(tapOn([{ "data-reader-capture": "" }, OFFERED_NOTICE]));
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+		assert.equal(harness.failures(), 0);
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "manual" });
+		assert.equal(harness.failures(), 1);
+	});
+
+	it("ignores the end of a rescue for an article the page has moved on from, and announces the end of the one now awaited", async () => {
+		const harness = createHarness(async () => ({ outcome: "started" }));
+		harness.elements.push(OFFERED_NOTICE);
+		await harness.host.pageChanged();
+		await harness.host.tapped(tapOn([{ "data-reader-capture": "" }, { ...OFFERED_NOTICE, "data-reader-article-id": "article-2" }]));
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+		assert.equal(harness.failures(), 0);
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-2", trigger: "manual" });
+		assert.equal(harness.failures(), 1);
 	});
 
 	it("asks nothing for a tap outside the capture control", async () => {

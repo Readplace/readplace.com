@@ -1450,15 +1450,15 @@ describe("initArticleReader", () => {
 		it("shows the copy in progress at kick-off, polling with the rendered notice's revision as the baseline and listening for the device to give up", async () => {
 			const doc = await capturePoll({
 				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
-				capture: { kind: "started", noticeRevision: 2 },
+				capture: { kind: "started", noticeRevision: 2, trigger: "manual" },
 				pollCount: 1,
 			});
 
 			expect(regionsOf(doc)).toEqual({
-				slot: { status: "pending", poll: "/test/reader?poll=2&captureSince=2" },
+				slot: { status: "pending", poll: "/test/reader?poll=2&captureSince=2&captureTrigger=manual" },
 				notice: {
 					status: "none",
-					poll: "/test/reader?poll=2&captureSince=2&captureGaveUp=1",
+					poll: "/test/reader?poll=2&captureSince=2&captureGaveUp=1&captureTrigger=manual",
 					trigger: "readplace-capture-failed from:document",
 				},
 			});
@@ -1471,20 +1471,33 @@ describe("initArticleReader", () => {
 			]).toEqual(["#article-body-reader-slot", "outerHTML show:none", true]);
 		});
 
-		it("takes the row's newer revision as the baseline at kick-off, so an outcome written before the tap is not mistaken for the capture's", async () => {
+		it("carries an automatic capture's trigger onto the next poll and onto the device's give-up", async () => {
 			const doc = await capturePoll({
-				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 3 },
-				capture: { kind: "started", noticeRevision: 1 },
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
+				capture: { kind: "started", noticeRevision: 2, trigger: "automatic" },
 				pollCount: 1,
 			});
 
-			expect(regionsOf(doc).slot).toEqual({ status: "pending", poll: "/test/reader?poll=2&captureSince=3" });
+			expect([regionsOf(doc).slot.poll, regionsOf(doc).notice.poll]).toEqual([
+				"/test/reader?poll=2&captureSince=2&captureTrigger=automatic",
+				"/test/reader?poll=2&captureSince=2&captureGaveUp=1&captureTrigger=automatic",
+			]);
+		});
+
+		it("takes the row's newer revision as the baseline at kick-off, so an outcome written before the tap is not mistaken for the capture's", async () => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 3 },
+				capture: { kind: "started", noticeRevision: 1, trigger: "manual" },
+				pollCount: 1,
+			});
+
+			expect(regionsOf(doc).slot).toEqual({ status: "pending", poll: "/test/reader?poll=2&captureSince=3&captureTrigger=manual" });
 		});
 
 		it("renders the row's own notice on the first poll after the outcome revision moves past the baseline, offering a fresh capture from the new baseline", async () => {
 			const doc = await capturePoll({
 				crawl: { status: "failed", reason: JSON.stringify({ kind: "capture-unreadable", detail: "none" }), outcomeRevision: 3 },
-				capture: { kind: "watching", since: 2 },
+				capture: { kind: "watching", since: 2, trigger: "manual" },
 				pollCount: 4,
 			});
 
@@ -1492,7 +1505,7 @@ describe("initArticleReader", () => {
 				slot: { status: "capture-unreadable", poll: null },
 				notice: {
 					status: "capture-unreadable",
-					poll: "/test/reader?poll=1&captureNotice=3",
+					poll: "/test/reader?poll=1&captureNotice=3&captureTrigger=automatic",
 					trigger: "readplace-capture-started from:document",
 				},
 			});
@@ -1501,17 +1514,17 @@ describe("initArticleReader", () => {
 		it("keeps copying when a lagging read shows a revision below the baseline, because only a higher revision is an outcome", async () => {
 			const doc = await capturePoll({
 				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
-				capture: { kind: "watching", since: 3 },
+				capture: { kind: "watching", since: 3, trigger: "manual" },
 				pollCount: 4,
 			});
 
-			expect(regionsOf(doc).slot).toEqual({ status: "pending", poll: "/test/reader?poll=5&captureSince=3" });
+			expect(regionsOf(doc).slot).toEqual({ status: "pending", poll: "/test/reader?poll=5&captureSince=3&captureTrigger=manual" });
 		});
 
 		it.each([
-			{ when: "the device gave up", capture: { kind: "device-gave-up", since: 2 } as const, pollCount: 4 },
-			{ when: "the capture budget is spent", capture: { kind: "watching", since: 2 } as const, pollCount: MAX_CAPTURE_POLLS },
-		])("says the copy never arrived when $when and nothing was judged, offering the capture again and polling no further", async ({ capture, pollCount }) => {
+			{ when: "the device gave up", capture: { kind: "device-gave-up", since: 2, trigger: "manual" } as const, pollCount: 4 },
+			{ when: "the capture budget is spent", capture: { kind: "watching", since: 2, trigger: "manual" } as const, pollCount: MAX_CAPTURE_POLLS },
+		])("says a tapped copy never arrived when $when and nothing was judged, offering the capture again and polling no further", async ({ capture, pollCount }) => {
 			const doc = await capturePoll({
 				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
 				capture,
@@ -1522,7 +1535,7 @@ describe("initArticleReader", () => {
 				slot: { status: "capture-missing", poll: null },
 				notice: {
 					status: "capture-missing",
-					poll: "/test/reader?poll=1&captureNotice=2",
+					poll: "/test/reader?poll=1&captureNotice=2&captureTrigger=automatic",
 					trigger: "readplace-capture-started from:document",
 				},
 			});
@@ -1531,10 +1544,34 @@ describe("initArticleReader", () => {
 			expect(captureControl.classList.contains("article-body__reader-notice-capture--offered")).toBe(true);
 		});
 
+		it.each([
+			{ when: "the device gave up", capture: { kind: "device-gave-up", since: 2, trigger: "automatic" } as const, pollCount: 4 },
+			{ when: "the capture budget is spent", capture: { kind: "watching", since: 2, trigger: "automatic" } as const, pollCount: MAX_CAPTURE_POLLS },
+		])("renders the row's stored notice when $when on an automatic capture, offering the capture again and polling no further", async ({ capture, pollCount }) => {
+			const doc = await capturePoll({
+				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 2 },
+				capture,
+				pollCount,
+			});
+
+			expect(regionsOf(doc)).toEqual({
+				slot: { status: "blocked", poll: null },
+				notice: {
+					status: "blocked",
+					poll: "/test/reader?poll=1&captureNotice=2&captureTrigger=automatic",
+					trigger: "readplace-capture-started from:document",
+				},
+			});
+			const captureControl = doc.querySelector('[data-test-reader-action="capture"]');
+			assert(captureControl, "the stored notice must render its capture control");
+			expect(captureControl.classList.contains("article-body__reader-notice-capture--offered")).toBe(true);
+			expect(captureControl.getAttribute("data-reader-capture-poll")).toBe("/test/reader?poll=1&captureNotice=2&captureTrigger=manual");
+		});
+
 		it("renders the judged outcome rather than the missing copy when the device gives up after the row moved", async () => {
 			const doc = await capturePoll({
 				crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 3 },
-				capture: { kind: "device-gave-up", since: 2 },
+				capture: { kind: "device-gave-up", since: 2, trigger: "manual" },
 				pollCount: 4,
 			});
 
@@ -1542,10 +1579,11 @@ describe("initArticleReader", () => {
 		});
 
 		it.each([
-			{ crawl: { status: "pending" } as const, capture: { kind: "started", noticeRevision: 1 } as const, next: "/test/reader?poll=3&captureSince=1" },
-			{ crawl: undefined, capture: { kind: "watching", since: 4 } as const, next: "/test/reader?poll=3&captureSince=4" },
-			{ crawl: { status: "pending" } as const, capture: { kind: "device-gave-up", since: 4 } as const, next: "/test/reader?poll=3&captureSince=4&captureGaveUp=1" },
-		])("carries a $capture.kind watch over a row with no outcome yet onto the next poll", async ({ crawl, capture, next }) => {
+			{ crawl: { status: "pending" } as const, capture: { kind: "started", noticeRevision: 1, trigger: "manual" } as const, next: "/test/reader?poll=3&captureSince=1&captureTrigger=manual" },
+			{ crawl: { status: "pending" } as const, capture: { kind: "started", noticeRevision: 1, trigger: "automatic" } as const, next: "/test/reader?poll=3&captureSince=1&captureTrigger=automatic" },
+			{ crawl: undefined, capture: { kind: "watching", since: 4, trigger: "manual" } as const, next: "/test/reader?poll=3&captureSince=4&captureTrigger=manual" },
+			{ crawl: { status: "pending" } as const, capture: { kind: "device-gave-up", since: 4, trigger: "automatic" } as const, next: "/test/reader?poll=3&captureSince=4&captureGaveUp=1&captureTrigger=automatic" },
+		])("carries a $capture.trigger $capture.kind watch over a row with no outcome yet onto the next poll", async ({ crawl, capture, next }) => {
 			const doc = await capturePoll({ crawl, capture, pollCount: 2 });
 
 			expect(regionsOf(doc).slot).toEqual({ status: "pending", poll: next });
@@ -1555,7 +1593,7 @@ describe("initArticleReader", () => {
 			{ crawl: { status: "ready" } as const, status: "pending" },
 			{ crawl: { status: "unsupported", reason: "non-html" } as const, status: "unsupported" },
 		])("drops the watch once the row is $crawl.status, which is itself the capture's outcome", async ({ crawl, status }) => {
-			const doc = await capturePoll({ crawl, capture: { kind: "watching", since: 2 }, pollCount: 3 });
+			const doc = await capturePoll({ crawl, capture: { kind: "watching", since: 2, trigger: "manual" }, pollCount: 3 });
 
 			expect(regionsOf(doc).slot).toEqual({ status, poll: status === "pending" ? "/test/reader?poll=4" : null });
 		});
@@ -1570,7 +1608,7 @@ describe("initArticleReader", () => {
 			expect(regionsOf(doc).slot).toEqual({ status: "blocked", poll: null });
 		});
 
-		it("mints the capture kick-off URL from the rendered failure's revision, and none for a row that has not failed", async () => {
+		it("mints one capture kick-off URL per trigger from the rendered failure's revision, and none for a row that has not failed", async () => {
 			const failed = initFakeDeps({ crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 5 }, content: undefined });
 			const pending = initFakeDeps({ crawl: { status: "pending" }, content: undefined });
 
@@ -1580,7 +1618,13 @@ describe("initArticleReader", () => {
 				),
 			);
 
-			expect(states.map((state) => state.capturePollUrl)).toEqual(["/test/reader?poll=1&captureNotice=5", undefined]);
+			expect(states.map((state) => state.capturePollUrls)).toEqual([
+				{
+					manual: "/test/reader?poll=1&captureNotice=5&captureTrigger=manual",
+					automatic: "/test/reader?poll=1&captureNotice=5&captureTrigger=automatic",
+				},
+				undefined,
+			]);
 		});
 	});
 
@@ -1708,30 +1752,24 @@ describe("initArticleReader", () => {
 			expect(headingIds).toEqual(["#section-why-it-matters", "#section-how-to-start"]);
 		});
 
-		it.each([
-			{ poll: "handleReaderPoll", capturing: false },
-			{ poll: "handleSummaryPoll", capturing: true },
-		] as const)(
-			"leaves the article's own title out of the card that $poll lands, while the slot keeps the heading",
-			async ({ poll, capturing }) => {
-				const { deps } = initFakeDeps({
-					crawl: { status: "ready" },
-					summary: { status: "pending" },
-					content: `<h2>Post</h2>${HEADED_CONTENT}`,
-				});
-				const reader = initArticleReader(deps);
+		it("leaves the article's own title out of the card that handleReaderPoll lands, while the slot keeps the heading", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending" },
+				content: `<h2>Post</h2>${HEADED_CONTENT}`,
+			});
+			const reader = initArticleReader(deps);
 
-				const doc = parse(toHtml(await reader[poll]({ ...pollParams(), capturing })));
+			const doc = parse(toHtml(await reader.handleReaderPoll(pollParams())));
 
-				expect([
-					Array.from(tableOfContentsOf(doc).querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href")),
-					Array.from(doc.querySelectorAll("[data-test-reader-content] h2"), (heading) => heading.id),
-				]).toEqual([
-					["#section-why-it-matters", "#section-how-to-start"],
-					["section-post", "section-why-it-matters"],
-				]);
-			},
-		);
+			expect([
+				Array.from(tableOfContentsOf(doc).querySelectorAll("[data-test-toc-section]"), (row) => row.getAttribute("href")),
+				Array.from(doc.querySelectorAll("[data-test-reader-content] h2"), (heading) => heading.id),
+			]).toEqual([
+				["#section-why-it-matters", "#section-how-to-start"],
+				["section-post", "section-why-it-matters"],
+			]);
+		});
 
 		it("lists a heading that repeats nothing when the article row has gone missing", async () => {
 			const { deps } = initFakeDeps({
@@ -2039,7 +2077,7 @@ describe("initArticleReader", () => {
 				summary: undefined,
 				readerPollUrl: undefined,
 				summaryPollUrl: undefined,
-				capturePollUrl: undefined,
+				capturePollUrls: undefined,
 				crawlVersions: [],
 				readerViewFailed: false,
 				readerContentUnavailable: true,

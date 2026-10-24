@@ -354,7 +354,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const capture = notice.querySelector("[data-reader-capture]");
 		assert(capture, "the blocked notice must offer the in-app capture control");
 		expect(capture.getAttribute("data-reader-capture-poll")).toBe(
-			`/queue/${articleId}/reader?poll=1&captureNotice=1&platform=ios`,
+			`/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual&platform=ios`,
 		);
 		const tableOfContents = doc.querySelector("[data-test-reader-rail] > #table-of-contents");
 		assert(tableOfContents, "the rail must always hold the table of contents");
@@ -379,7 +379,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		}).toEqual({
 			status: "failed",
 			offered: true,
-			pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=1&platform=ios`,
+			pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual&platform=ios`,
 		});
 	});
 

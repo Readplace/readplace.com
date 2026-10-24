@@ -308,10 +308,11 @@ async function initCore() {
 			logger,
 		}),
 		enqueueCaptured: uploadQueue.enqueueCaptured,
-		tellOpenerNothingCopied: ({ articleId, openerTabId }) =>
+		tellOpenerNothingCopied: ({ articleId, trigger, openerTabId }) =>
 			browser.tabs.sendMessage(openerTabId, {
 				type: READER_RESCUE_ENDED_MESSAGE_TYPE,
 				articleId,
+				trigger,
 			} satisfies ReaderRescueEnded),
 		logger,
 	});

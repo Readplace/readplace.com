@@ -779,18 +779,22 @@ test.describe("A capture host starting the reader's capture poll", () => {
 		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
 	});
 
-	test("a capture-failed event sent before the copying state lands shows the copy never arrived at once, offers the capture again and the page holds still", async ({
+	test("a capture-failed event sent right after a tap, before the copying state lands, shows the copy never arrived, offers the capture again and the page holds still", async ({
 		page,
 	}, testInfo) => {
 		await openBlockedReader(page, `capture-failed-${testInfo.workerIndex}-${Date.now()}`);
-		const title = await measuredBox(page, TITLE);
-		await scrollToY(page, Math.round(title.y + 4));
+		await page.evaluate(() => document.documentElement.setAttribute("data-reader-capture-host", ""));
+		await expect(page.locator(CAPTURE)).toBeVisible();
+		const viewport = page.viewportSize();
+		assert.ok(viewport, "the tap must run with an explicit viewport");
+		const capture = await measuredBox(page, CAPTURE);
+		await scrollToY(page, Math.round(capture.y + capture.height + 24 - viewport.height));
 		const before = await page.evaluate(readScrollY);
 		expect(before).toBeGreaterThan(0);
 
-		await page.evaluate(recordScrollAfterSwap, READER_NOTICE);
-		await page.evaluate(() => {
-			document.dispatchEvent(new Event("readplace-capture-started"));
+		await page.evaluate(recordScrollAfterSwap, CAPTURE);
+		await page.locator(CAPTURE).evaluate((button) => {
+			button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 			document.dispatchEvent(new Event("readplace-capture-failed"));
 		});
 
@@ -806,11 +810,30 @@ test.describe("A capture host starting the reader's capture poll", () => {
 		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
 	});
 
+	test("an automatic capture the device gives up on returns the reader to the blocked notice it showed before", async ({
+		page,
+	}, testInfo) => {
+		await openBlockedReader(page, `capture-automatic-gave-up-${testInfo.workerIndex}-${Date.now()}`);
+		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-started")));
+		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
+
+		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-failed")));
+
+		await expect(page.locator(BLOCKED_NOTICE)).toHaveCount(1);
+		await expect(page.locator(CAPTURE)).toHaveClass(/article-body__reader-notice-capture--offered/);
+		await expect(page.locator(CAPTURE_MISSING_NOTICE)).toHaveCount(0);
+		await expect(page.locator(PENDING_SLOT)).toHaveCount(0);
+		expect(
+			await page.locator(READER_SLOT).evaluate((slot) => [slot.getAttribute("data-reader-status"), slot.hasAttribute("hx-get")]),
+		).toEqual(["blocked", false]);
+	});
+
 	test("a capture judged while copying ends on the next poll with the notice for the reader's own capture", async ({
 		page,
 	}, testInfo) => {
 		const reader = await openBlockedReader(page, `capture-judged-${testInfo.workerIndex}-${Date.now()}`);
-		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-started")));
+		await page.evaluate(() => document.documentElement.setAttribute("data-reader-capture-host", ""));
+		await page.locator(CAPTURE).click();
 		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
 
 		await seedCrawlStatus(page, { url: reader.url, status: "failed", reason: CAPTURE_UNREADABLE_REASON });

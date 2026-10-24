@@ -258,7 +258,7 @@ test.describe("The reader's failed-crawl notice on a desktop", () => {
 		});
 	}
 
-	test("the owner's reader says the copy never arrived when the device gives up on a capture (light)", async ({
+	test("the owner's reader says the copy never arrived when the device gives up on a tapped capture (light)", async ({
 		page,
 	}, testInfo) => {
 		await page.addInitScript(dismissExtensionSuggestion);
@@ -269,7 +269,7 @@ test.describe("The reader's failed-crawl notice on a desktop", () => {
 			query: "",
 		});
 		await page.waitForSelector(`${NOTICE}[data-reader-status="blocked"]`);
-		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-started")));
+		await page.locator(`${NOTICE}[data-reader-status="blocked"] [data-test-reader-action="capture"]`).dispatchEvent("click");
 		await page.waitForSelector('[data-test-reader-slot][data-reader-status="pending"]');
 		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-failed")));
 

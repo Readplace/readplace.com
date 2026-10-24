@@ -2,6 +2,7 @@ import type {
 	ArticleMetadata,
 	Minutes,
 	ArticleBody,
+	CaptureTrigger,
 } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
@@ -74,6 +75,8 @@ export interface ArticleSnapshot {
 	estimatedReadTime: Minutes;
 }
 
+export type CapturePollUrls = Readonly<Record<CaptureTrigger, string>>;
+
 export interface PollUrlBuilder {
 	summary: (pollCount: number) => string;
 	reader: (pollCount: number, capture: CaptureWatch) => string;
@@ -91,7 +94,7 @@ export interface ReaderState {
 	summary: GeneratedSummary | undefined;
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
-	capturePollUrl: string | undefined;
+	capturePollUrls: CapturePollUrls | undefined;
 	/**
 	 * Dated crawl versions, newest first; the first entry
 	 * is the canonical/current version.

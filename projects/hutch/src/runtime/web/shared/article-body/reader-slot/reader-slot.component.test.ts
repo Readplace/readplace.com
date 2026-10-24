@@ -13,6 +13,10 @@ function parse(regions: { slot: string; notice: string }) {
 const URL = destinationUrl("https://example.com/article");
 const APP_ORIGIN = "https://readplace.com";
 const ARTICLE_ID = "0123456789abcdef0123456789abcdef";
+const CAPTURE_POLL_URLS = {
+	manual: "/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=manual",
+	automatic: "/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=automatic",
+};
 
 function readerProgressTrack(doc: Document): Element {
 	const track = doc.querySelector('[data-test-progress-bar="reader"] [role="progressbar"]');
@@ -346,7 +350,7 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("slow");
 	});
 
-	it("stamps the capture kick-off URL on the blocked notice's capture control, even though a failed crawl has no live poll URL", () => {
+	it("stamps the tapped kick-off URL on the blocked notice's capture control and the automatic one on the notice, even though a failed crawl has no live poll URL", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: {
@@ -356,7 +360,7 @@ describe("renderReaderSlot", () => {
 				},
 				url: URL,
 				articleId: ARTICLE_ID,
-				capturePollUrl: "/queue/abc/reader?poll=1&captureNotice=1",
+				capturePollUrls: CAPTURE_POLL_URLS,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -365,11 +369,10 @@ describe("renderReaderSlot", () => {
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("hx-get")).toBeNull();
-		expect(
-			doc
-				.querySelector("[data-test-reader-notice] [data-reader-capture]")
-				?.getAttribute("data-reader-capture-poll"),
-		).toBe("/queue/abc/reader?poll=1&captureNotice=1");
+		expect({
+			manual: doc.querySelector("[data-test-reader-notice] [data-reader-capture]")?.getAttribute("data-reader-capture-poll"),
+			automatic: doc.querySelector("[data-test-reader-notice]")?.getAttribute("hx-get"),
+		}).toEqual(CAPTURE_POLL_URLS);
 	});
 
 	it("swaps the blocked notice for the capturing pending state while an on-device capture is in flight", () => {
@@ -430,7 +433,7 @@ describe("renderReaderSlot", () => {
 				url: URL,
 				articleId: ARTICLE_ID,
 				capture: { kind: "missing" },
-				capturePollUrl: "/queue/abc/reader?poll=1&captureNotice=1",
+				capturePollUrls: CAPTURE_POLL_URLS,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -444,7 +447,7 @@ describe("renderReaderSlot", () => {
 		expect({
 			offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
 			pollUrl: capture.getAttribute("data-reader-capture-poll"),
-		}).toEqual({ offered: true, pollUrl: "/queue/abc/reader?poll=1&captureNotice=1" });
+		}).toEqual({ offered: true, pollUrl: CAPTURE_POLL_URLS.manual });
 	});
 
 	it("renders the healed article once the capture lands, so the poll fragment stops carrying hx-get", () => {
@@ -473,7 +476,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
 				articleId: ARTICLE_ID,
-				capturePollUrl: "/queue/abc/reader?poll=1&captureNotice=1",
+				capturePollUrls: CAPTURE_POLL_URLS,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
 			}),
@@ -486,7 +489,7 @@ describe("renderReaderSlot", () => {
 		expect({
 			offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
 			pollUrl: capture.getAttribute("data-reader-capture-poll"),
-		}).toEqual({ offered: true, pollUrl: "/queue/abc/reader?poll=1&captureNotice=1" });
+		}).toEqual({ offered: true, pollUrl: CAPTURE_POLL_URLS.manual });
 	});
 
 	it.each<{ state: string; input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob">; status: string }>([

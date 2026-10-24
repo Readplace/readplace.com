@@ -286,10 +286,11 @@ A unit or route test that compares the `hx-swap` string proves none of this: all
 | A poll-count budget is a backstop for work that never reports, never the normal exit | A budget sized for the slowest case makes every fast outcome wait for it |
 | When the finished state looks like the starting state (a retry that fails leaves the row as it was), every outcome write moves a monotonic marker on the row. The view that offers the action mints the marker's current value into the poll URL as a representation parameter, and later polls compare with `>` | Without a baseline the poll can't tell "not yet" from "done, and it failed again". Taking the baseline from the rendering read survives a lagging replica. Never infer done from elapsed time or poll count |
 | Work that runs off the server (a device capture) tells the page when it ends without a result, through a DOM event the pending region listens for | The server can't see a device give up; only the budget would end the wait |
-| A spent budget renders its own outcome saying what happened — never the pending copy, never a silent return to the view the reader acted from | A revert looks as if the action was ignored |
-| The outcome names what happened to the reader's own action, distinct from the copy shown before they acted | The same notice before and after reads as "nothing happened" |
+| For work the reader started, a spent budget renders its own outcome saying what happened — never the pending copy, never a silent return to the view the reader acted from | A revert looks as if the action was ignored |
+| For work the reader started, the outcome names what happened to their own action, distinct from the copy shown before they acted | The same notice before and after reads as "nothing happened" |
+| Work the page started without the reader acting (an automatic capture) ends, on a spent budget or a give-up, on the view for the stored state, with no outcome of its own. Its poll URL says which kind of work it is, and the server decides what renders | An outcome naming an action the reader never took describes something they didn't do |
 
-**This is enforced, not remembered.** Route tests pin three things: the poll after the outcome lands renders it, a spent budget renders the overrun outcome, and the device's give-up event renders at once. To find the worked example, grep the page templates for `readplace-capture-failed`.
+**This is enforced, not remembered.** Route tests pin four things: the poll after the outcome lands renders it, a spent budget renders the overrun outcome, the device's give-up event renders at once, and both end an automatic capture on the stored state's notice. To find the worked example, grep the page templates for `readplace-capture-failed`.
 
 ### Every Popup Opens on Its First Decision
 
@@ -575,6 +576,6 @@ When staged changes include `.css`, `.html`, or `.client.ts` files:
 - [ ] Interactive features work without JavaScript
 - [ ] Every popover carries exactly one `autofocus` — on its commit control, field or first option, never on the panel; tooltip popovers, balloons and menus carry none; the inline or fallback copy of a shared form carries none; a new dialog is in the opening-focus route test's path and key lists
 - [ ] Every boosted swap declares its scroll intent with a `show:` modifier, and a new swap shape has a browser test asserting `scrollY` after a real click
-- [ ] A pending state ends on the first poll that sees its outcome; a spent budget or a device give-up renders its own outcome
+- [ ] A pending state ends on the first poll that sees its outcome; a spent budget or a device give-up renders its own outcome for work the reader started, and the stored state's view for work the page started on its own
 - [ ] Browser JS is bundled and referenced via a same-origin `<script src>`, not inlined via `Function.toString()` or served through the static asset CDN base URL
 - [ ] Web app manifest is served same-origin (not the static-asset CDN); icon `src` values are absolute CDN URLs

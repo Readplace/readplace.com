@@ -28,7 +28,7 @@ import {
 	renderMarkStatusConfirm,
 } from "../readlist/mark-status-confirm.component";
 import type { ArticleHistoryRemoval } from "../../shared/article-body/article-history/article-history.component";
-import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
+import type { ArticleVersion, CapturePollUrls } from "../../shared/article-reader/article-reader.types";
 import { CAPTURE_FAILED_RELAY_SCRIPT } from "../../shared/article-body/reader-slot/reader-slot.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../shared/article-body/summary-slot/summary-slot.component";
 import {
@@ -110,7 +110,7 @@ export function ReaderPage(
 		summaryPollUrl?: string;
 		crawl?: ArticleCrawl;
 		readerPollUrl?: string;
-		capturePollUrl?: string;
+		capturePollUrls?: CapturePollUrls;
 		related?: RelatedArticles;
 		relatedPollUrl?: string;
 		previouslyRead?: PastReads;
@@ -238,7 +238,7 @@ export function ReaderPage(
 		content: options.content,
 		crawl: options.crawl,
 		readerPollUrl: options.readerPollUrl,
-		capturePollUrl: options.capturePollUrl,
+		capturePollUrls: options.capturePollUrls,
 		summary: options.summary,
 		summaryPollUrl: options.summaryPollUrl,
 		summaryOpen: false,

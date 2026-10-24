@@ -63,7 +63,7 @@ describe("refreshArticleIfStale", () => {
 			findArticleFreshness: async () => ({
 				contentFetchedAt: "2026-03-20T09:00:00Z",
 			}),
-			findArticleCrawlStatus: async () => ({ status: "failed" as const, reason: "blocked" }),
+			findArticleCrawlStatus: async () => ({ status: "failed" as const, reason: "blocked", outcomeRevision: 1 }),
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
 

@@ -290,25 +290,34 @@ describe("renderReaderFailed", () => {
 				articleId: "0123456789abcdef0123456789abcdef",
 				variant: "failed",
 				captureRescue: "offered",
-				capturePollUrl: "/queue/abc/reader?poll=1&capturing=1",
+				capturePollUrls: {
+					manual: "/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=manual",
+					automatic: "/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=automatic",
+				},
 				noticeOob: false,
 			}).notice,
 		);
 
 		const capture = doc.querySelector('[data-test-reader-notice] [data-test-reader-action="capture"]');
 		assert(capture, "the failed notice must render a capture control");
-		assert.equal(capture.getAttribute("data-reader-capture-poll"), "/queue/abc/reader?poll=1&capturing=1");
+		assert.equal(
+			capture.getAttribute("data-reader-capture-poll"),
+			"/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=manual",
+		);
 	});
 
-	it("the notice section and the capture button carry the htmx poll affordances", () => {
-		const capturePollUrl = "/queue/abc/reader?poll=1&capturing=1&platform=ios";
+	it("the notice section kicks off an automatic capture and the capture button a tapped one", () => {
+		const capturePollUrls = {
+			manual: "/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=manual&platform=ios",
+			automatic: "/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=automatic&platform=ios",
+		};
 		const doc = parse(
 			renderReaderFailed({
 				url: destinationUrl("https://example.com/some-article"),
 				articleId: "0123456789abcdef0123456789abcdef",
 				variant: "blocked",
 				captureRescue: "offered",
-				capturePollUrl,
+				capturePollUrls,
 				noticeOob: false,
 			}).notice,
 		);
@@ -318,7 +327,7 @@ describe("renderReaderFailed", () => {
 		const capture = notice.querySelector('[data-test-reader-action="capture"]');
 		assert(capture, "the blocked notice must render its capture control");
 		assert.deepEqual(pollAffordanceOf(notice), {
-			hxGet: capturePollUrl,
+			hxGet: capturePollUrls.automatic,
 			hxTrigger: "readplace-capture-started from:document",
 			hxTarget: "#article-body-reader-slot",
 			hxSwap: "outerHTML show:none",
@@ -328,13 +337,13 @@ describe("renderReaderFailed", () => {
 		assert.deepEqual(
 			{ ...pollAffordanceOf(capture), capturePoll: capture.getAttribute("data-reader-capture-poll") },
 			{
-				hxGet: capturePollUrl,
+				hxGet: capturePollUrls.manual,
 				hxTrigger: "click",
 				hxTarget: "#article-body-reader-slot",
 				hxSwap: "outerHTML show:none",
 				hxDisabledElt: "this",
 				backgroundRequest: true,
-				capturePoll: capturePollUrl,
+				capturePoll: capturePollUrls.manual,
 			},
 		);
 	});
@@ -369,45 +378,48 @@ describe("renderReaderFailed", () => {
 		const RESCUE_URL = "data-reader-rescue-url";
 		const RESCUE_ID = "data-reader-article-id";
 		const articleId = "0123456789abcdef0123456789abcdef";
-		const capturePollUrl = "/queue/0123456789abcdef0123456789abcdef/reader?poll=1&capturing=1";
+		const capturePollUrls = {
+			manual: "/queue/0123456789abcdef0123456789abcdef/reader?poll=1&captureNotice=1&captureTrigger=manual",
+			automatic: "/queue/0123456789abcdef0123456789abcdef/reader?poll=1&captureNotice=1&captureTrigger=automatic",
+		};
 		const rows: Array<{
 			captureRescue: "offered" | "withheld";
-			capturePollUrl: string | undefined;
+			capturePollUrls: typeof capturePollUrls | undefined;
 			articleId: string | undefined;
 			url: string;
 			expected: { rescueUrl: string | null; articleId: string | null };
 		}> = [
 			{
 				captureRescue: "offered",
-				capturePollUrl,
+				capturePollUrls,
 				articleId,
 				url: "https://example.com/a",
 				expected: { rescueUrl: "https://example.com/a", articleId },
 			},
 			{
 				captureRescue: "offered",
-				capturePollUrl,
+				capturePollUrls,
 				articleId,
 				url: "https://archive.ph/abc12",
 				expected: { rescueUrl: "https://archive.ph/abc12", articleId },
 			},
 			{
 				captureRescue: "withheld",
-				capturePollUrl,
+				capturePollUrls,
 				articleId,
 				url: "https://example.com/a",
 				expected: { rescueUrl: null, articleId: null },
 			},
 			{
 				captureRescue: "offered",
-				capturePollUrl: undefined,
+				capturePollUrls: undefined,
 				articleId,
 				url: "https://example.com/a",
 				expected: { rescueUrl: null, articleId: null },
 			},
 			{
 				captureRescue: "offered",
-				capturePollUrl,
+				capturePollUrls,
 				articleId: undefined,
 				url: "https://example.com/a",
 				expected: { rescueUrl: null, articleId: null },
@@ -420,11 +432,11 @@ describe("renderReaderFailed", () => {
 					articleId: row.articleId,
 					variant: "blocked",
 					captureRescue: row.captureRescue,
-					capturePollUrl: row.capturePollUrl,
+					capturePollUrls: row.capturePollUrls,
 					noticeOob: false,
 				}).notice,
 			);
-			const label = `captureRescue=${row.captureRescue} capturePollUrl=${row.capturePollUrl} articleId=${row.articleId} url=${row.url}`;
+			const label = `captureRescue=${row.captureRescue} capturePollUrls=${row.capturePollUrls?.manual} articleId=${row.articleId} url=${row.url}`;
 			const notice = doc.querySelector("[data-test-reader-notice]");
 			assert(notice, `the notice must be rendered for ${label}`);
 			assert(notice.querySelector("[data-reader-capture]"), `the capture button must be rendered for ${label}`);

@@ -18,6 +18,7 @@ import {
 } from "./reader-failed.component";
 import { READER_PENDING_DESCRIPTION, renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady } from "./reader-ready.component";
+import type { CapturePollUrls } from "../../article-reader/article-reader.types";
 
 export const CAPTURE_FAILED_RELAY_SCRIPT = `<script src="/client-dist/capture-failed-relay.client.js" defer></script>`;
 
@@ -34,7 +35,7 @@ export interface ReaderSlotInput {
 	readerPollUrl?: string;
 	extensionInstallUrl?: string;
 	appOrigin: string;
-	capturePollUrl?: string;
+	capturePollUrls?: CapturePollUrls;
 	capture?: ReaderSlotCapture;
 	notice?: ReaderFailedVariant;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
@@ -110,7 +111,7 @@ function noticeOrCapture(
 		articleId: input.articleId,
 		variant: shown.variant,
 		extensionInstallUrl: input.extensionInstallUrl,
-		capturePollUrl: input.capturePollUrl,
+		capturePollUrls: input.capturePollUrls,
 		captureRescue: shown.captureRescue,
 		oob,
 		noticeOob: input.noticeOob,

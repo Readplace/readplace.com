@@ -30,6 +30,7 @@ export type ReaderRescueAnswer = z.infer<typeof ReaderRescueAnswerSchema>;
 export const ReaderRescueEndedSchema = z.object({
 	type: z.literal(READER_RESCUE_ENDED_MESSAGE_TYPE),
 	articleId: z.string().min(1),
+	trigger: z.enum(["automatic", "manual"]),
 });
 
 export type ReaderRescueEnded = z.infer<typeof ReaderRescueEndedSchema>;

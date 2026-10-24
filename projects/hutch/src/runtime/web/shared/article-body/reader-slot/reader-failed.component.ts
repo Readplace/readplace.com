@@ -4,6 +4,7 @@ import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ArticleDestinationUrl } from "@packages/domain/article";
 import { render, renderAlert, renderIllustration, withInternalTracking } from "@packages/web-shell";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../client-surface-phrases";
+import type { CapturePollUrls } from "../../article-reader/article-reader.types";
 import type { CaptureRescue } from "./failed-crawl-notice";
 
 const TEMPLATE = readFileSync(
@@ -33,7 +34,7 @@ export interface ReaderFailedInput {
 	variant: ReaderFailedVariant;
 	/** Install URL for the browser extension; omit when the user already has it installed. */
 	extensionInstallUrl?: string;
-	capturePollUrl?: string;
+	capturePollUrls?: CapturePollUrls;
 	captureRescue: CaptureRescue;
 	oob?: boolean;
 	noticeOob: boolean;
@@ -138,7 +139,7 @@ function renderCapturePitch(input: ReaderFailedInput): CapturePitch {
 
 function rescueFor(input: ReaderFailedInput): { url: ArticleDestinationUrl; articleId: string } | undefined {
 	if (input.captureRescue !== "offered") return undefined;
-	if (input.capturePollUrl === undefined) return undefined;
+	if (input.capturePollUrls === undefined) return undefined;
 	if (input.articleId === undefined) return undefined;
 	return { url: input.url, articleId: input.articleId };
 }
@@ -158,7 +159,7 @@ export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 			explanation: EXPLANATIONS[input.variant],
 			ctaLabel: CTA_LABELS[input.variant],
 			captureClass: CAPTURE_RESCUE_CLASS[input.captureRescue],
-			capturePollUrl: input.capturePollUrl,
+			capturePollUrls: input.capturePollUrls,
 			rescue: rescueFor(input),
 			...renderCapturePitch(input),
 		}),

@@ -38,8 +38,8 @@ function createHarness(
 			events.push(`enqueue ${captured.url}`);
 			enqueued.push(captured);
 		},
-		tellOpenerNothingCopied: async ({ articleId, openerTabId }) => {
-			events.push(`tell tab ${openerTabId} nothing was copied for ${articleId}`);
+		tellOpenerNothingCopied: async ({ articleId, trigger, openerTabId }) => {
+			events.push(`tell tab ${openerTabId} nothing was copied for ${articleId} (${trigger})`);
 			return options.tellOpener ? options.tellOpener() : undefined;
 		},
 		logger: HutchLogger.from({
@@ -147,7 +147,7 @@ describe("initReaderRescue", () => {
 
 		assert.deepEqual(harness.events, [
 			`capture ${ARTICLE_URL} beside 7`,
-			"tell tab 7 nothing was copied for article-1",
+			"tell tab 7 nothing was copied for article-1 (manual)",
 		]);
 	});
 
@@ -164,7 +164,21 @@ describe("initReaderRescue", () => {
 
 		assert.deepEqual(harness.events, [
 			`capture ${ARTICLE_URL} beside 7`,
-			"tell tab 7 nothing was copied for article-1",
+			"tell tab 7 nothing was copied for article-1 (manual)",
+		]);
+	});
+
+	it("the opener tab hears which trigger's rescue copied nothing", async () => {
+		const harness = createHarness({ capture: async () => ({ kind: "no-capture", reason: "blocked-status" }) });
+
+		await (
+			await harness.rescue({ url: ARTICLE_URL, articleId: "article-1", trigger: "automatic", openerTabId: 7 })
+		).completion;
+
+		assert.deepEqual(harness.events, [
+			"claim article-1",
+			`capture ${ARTICLE_URL} beside 7`,
+			"tell tab 7 nothing was copied for article-1 (automatic)",
 		]);
 	});
 

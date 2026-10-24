@@ -31,6 +31,7 @@ import { toAbsoluteDate, toAbsoluteTime, type LocalTime } from "@packages/web-sh
 import type {
 	ArticleReaderDeps,
 	ArticleVersion,
+	CapturePollUrls,
 	HandlePollParams,
 	PollUrlBuilder,
 	ReaderState,
@@ -65,7 +66,7 @@ interface PollResponseBodyInput {
 	content: ArticleBody | undefined;
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
-	capturePollUrl: string | undefined;
+	capturePollUrls: CapturePollUrls | undefined;
 	capture: ReaderSlotCapture;
 	summaryOpen: boolean;
 	summaryToggleUrl: string | undefined;
@@ -85,7 +86,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		url: input.url,
 		articleId: input.articleId,
 		readerPollUrl: input.readerPollUrl,
-		capturePollUrl: input.capturePollUrl,
+		capturePollUrls: input.capturePollUrls,
 		capture: input.capture,
 		extensionInstallUrl: input.extensionInstallUrl,
 		notice: input.readerNotice,
@@ -133,28 +134,40 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 	);
 }
 
-function capturePollUrlFor(crawl: ArticleCrawl | undefined, pollUrlBuilder: PollUrlBuilder): string | undefined {
-	return crawl?.status === "failed"
-		? pollUrlBuilder.reader(1, { kind: "started", noticeRevision: crawl.outcomeRevision })
-		: undefined;
+function capturePollUrlsFor(
+	crawl: ArticleCrawl | undefined,
+	pollUrlBuilder: PollUrlBuilder,
+): CapturePollUrls | undefined {
+	if (crawl?.status !== "failed") return undefined;
+	const noticeRevision = crawl.outcomeRevision;
+	return {
+		manual: pollUrlBuilder.reader(1, { kind: "started", noticeRevision, trigger: "manual" }),
+		automatic: pollUrlBuilder.reader(1, { kind: "started", noticeRevision, trigger: "automatic" }),
+	};
 }
 
 function watchCarriedBy(resolution: CaptureResolution): CaptureWatch {
 	if (resolution.kind === "carry") return resolution.watch;
-	if (resolution.kind === "copying") return { kind: "watching", since: resolution.since };
+	if (resolution.kind === "copying") {
+		return { kind: "watching", since: resolution.since, trigger: resolution.trigger };
+	}
 	return NO_CAPTURE_WATCH;
 }
 
 function slotCaptureFor(params: {
 	resolution: CaptureResolution;
 	readerPollUrl: string | undefined;
-	gaveUpUrl: (since: number) => string;
+	gaveUpUrl: (watch: CaptureWatch) => string;
 }): ReaderSlotCapture {
 	const { resolution } = params;
 	if (resolution.kind === "missing") return { kind: "missing" };
 	if (resolution.kind !== "copying") return { kind: "none" };
 	assert(params.readerPollUrl, "a copying capture is inside the poll budget, so the reader keeps polling");
-	return { kind: "copying", pollUrl: params.readerPollUrl, gaveUpUrl: params.gaveUpUrl(resolution.since) };
+	return {
+		kind: "copying",
+		pollUrl: params.readerPollUrl,
+		gaveUpUrl: params.gaveUpUrl({ kind: "device-gave-up", since: resolution.since, trigger: resolution.trigger }),
+	};
 }
 
 /**
@@ -173,7 +186,7 @@ function computePollUrls(args: {
 }): {
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
-	capturePollUrl: string | undefined;
+	capturePollUrls: CapturePollUrls | undefined;
 	capture: ReaderSlotCapture;
 } {
 	const resolution = resolveCaptureWatch({ watch: args.capture, crawl: args.crawl, pollCount: args.pollCount });
@@ -194,11 +207,11 @@ function computePollUrls(args: {
 		summaryPollUrl: summaryStillRunning
 			? args.pollUrlBuilder.summary(args.pollCount + 1)
 			: undefined,
-		capturePollUrl: capturePollUrlFor(args.crawl, args.pollUrlBuilder),
+		capturePollUrls: capturePollUrlsFor(args.crawl, args.pollUrlBuilder),
 		capture: slotCaptureFor({
 			resolution,
 			readerPollUrl,
-			gaveUpUrl: (since) => args.pollUrlBuilder.reader(args.pollCount + 1, { kind: "device-gave-up", since }),
+			gaveUpUrl: (watch) => args.pollUrlBuilder.reader(args.pollCount + 1, watch),
 		}),
 	};
 }
@@ -287,7 +300,7 @@ const GATED_READER_STATE: ReaderState = {
 	summary: undefined,
 	readerPollUrl: undefined,
 	summaryPollUrl: undefined,
-	capturePollUrl: undefined,
+	capturePollUrls: undefined,
 	crawlVersions: [],
 	readerViewFailed: false,
 	readerContentUnavailable: true,
@@ -324,7 +337,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summary,
 			readerPollUrl,
 			summaryPollUrl,
-			capturePollUrl: capturePollUrlFor(crawl, pollUrlBuilder),
+			capturePollUrls: capturePollUrlsFor(crawl, pollUrlBuilder),
 			crawlVersions: resolveCrawlVersions(versions, freshness?.contentFetchedAt),
 			readerViewFailed: isReaderViewFailed({
 				crawlStatus: crawl?.status,
@@ -351,7 +364,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				content: undefined,
 				readerPollUrl: undefined,
 				summaryPollUrl: undefined,
-				capturePollUrl: undefined,
+				capturePollUrls: undefined,
 				capture: { kind: "none" },
 				summaryOpen: deps.summaryOpen,
 				summaryToggleUrl: undefined,
@@ -417,7 +430,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.findArticleByUrl(articleUrl),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
-		const { readerPollUrl, summaryPollUrl, capturePollUrl, capture } = computePollUrls({
+		const { readerPollUrl, summaryPollUrl, capturePollUrls, capture } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder, capture: params.capture,
 		});
 		return HtmlPage(renderPollResponseBody({
@@ -429,7 +442,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			content,
 			readerPollUrl,
 			summaryPollUrl,
-			capturePollUrl,
+			capturePollUrls,
 			capture,
 			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,
@@ -465,7 +478,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.findArticleByUrl(articleUrl),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
-		const { readerPollUrl, summaryPollUrl, capturePollUrl, capture } = computePollUrls({
+		const { readerPollUrl, summaryPollUrl, capturePollUrls, capture } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder, capture: params.capture,
 		});
 		return HtmlPage(renderPollResponseBody({
@@ -477,7 +490,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			content,
 			readerPollUrl,
 			summaryPollUrl,
-			capturePollUrl,
+			capturePollUrls,
 			capture,
 			summaryOpen: deps.summaryOpen,
 			summaryToggleUrl: params.summaryToggleUrl,

@@ -11,7 +11,7 @@ export function initReaderRescue(deps: {
 	attempts: RescueAttempts;
 	capture: RescueCapture;
 	enqueueCaptured: UploadQueue["enqueueCaptured"];
-	tellOpenerNothingCopied: (params: { articleId: string; openerTabId: number }) => Promise<unknown>;
+	tellOpenerNothingCopied: (params: { articleId: string; trigger: CaptureTrigger; openerTabId: number }) => Promise<unknown>;
 	logger: HutchLogger;
 }): (request: RescueRequest) => Promise<{ answer: ReaderRescueAnswer; completion: Promise<void> }> {
 	async function copy(request: RescueRequest): Promise<"copied" | "nothing-copied"> {
@@ -38,7 +38,7 @@ export function initReaderRescue(deps: {
 		const outcome = await copy(request);
 		if (outcome === "copied" || request.openerTabId === undefined) return;
 		await deps
-			.tellOpenerNothingCopied({ articleId: request.articleId, openerTabId: request.openerTabId })
+			.tellOpenerNothingCopied({ articleId: request.articleId, trigger: request.trigger, openerTabId: request.openerTabId })
 			.catch((error: unknown) => {
 				deps.logger.debug(`[reader-rescue] the opener tab of ${request.url} did not hear that nothing was copied`, error);
 			});
