@@ -9,10 +9,9 @@ import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contr
 import { DEEPSEEK_CONTEXT_TOKENS } from "../select-content/deepseek-limits";
 
 const SUMMARY_MAX_OUTPUT_TOKENS = 10240;
-const SUMMARY_PROMPT_RESERVE_CHARS = 8_000;
 export const MAX_SUMMARY_INPUT_CHARS = Math.floor(
-	(DEEPSEEK_CONTEXT_TOKENS - SUMMARY_MAX_OUTPUT_TOKENS) * 2 * 0.85,
-) - SUMMARY_PROMPT_RESERVE_CHARS;
+	(DEEPSEEK_CONTEXT_TOKENS - SUMMARY_MAX_OUTPUT_TOKENS) * 3 * 0.85,
+);
 
 const SUMMARIZE_PROMPT = readFileSync(
 	join(__dirname, "summarize-prompt.md"),
