@@ -165,7 +165,8 @@ build's beta localizations. The note is therefore set afterwards, by the
 It reads `fastlane/metadata/en-US/release_notes.txt`, the same file the App Store
 listing uses, so a tester and a shopper cannot be told two different stories —
 which also means the note that lands is whatever is on the branch the workflow
-runs from. By default it uploads no binary and submits nothing: `distribute_only` skips the
+runs from. Write that file from the git history since the previous build, not
+from memory: the [iOS programming skill → Every release describes everything that changed since the one Apple last saw](../../../.claude/skills/ios-programming/SKILL.md#every-release-describes-everything-that-changed-since-the-one-apple-last-saw) gives the baseline and the two scopes of commits to read. By default it uploads no binary and submits nothing: `distribute_only` skips the
 upload and `skip_submission` stops before pilot adds the build to a tester group
 or files a beta review.
 
@@ -262,6 +263,10 @@ listing and a deliberate human submission. The moving parts:
    review. Pass `build:<n>` (lane) or fill the **build** input (Actions) to
    create the `<major.minor>.<build>` version record when nothing is in
    *Prepare for Submission*; without it the lane edits the open draft.
+   Before pushing, rewrite the review notes' "CHANGES IN" block and the release
+   notes from every commit since the last build App Review saw, including server
+   changes the app shows without a new binary (Guidelines 2.3.1(a) and 2.5.19).
+   The [iOS programming skill → Every release describes everything that changed since the one Apple last saw](../../../.claude/skills/ios-programming/SKILL.md#every-release-describes-everything-that-changed-since-the-one-apple-last-saw) has the procedure.
 2. **Screenshots** live under `fastlane/screenshots/en-US/` (1290×2796, which
    deliver files into the iPhone **6.7″** set — this fastlane has no 6.9″
    display type; the app is iPhone-only so no iPad set). Push them with

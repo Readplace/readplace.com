@@ -56,6 +56,7 @@ export interface ArticleBodyInput {
 	readerNotice?: ReaderFailedVariant;
 	issueLinksHtml?: string;
 	previouslyReadHtml?: string;
+	reportHref?: string;
 }
 
 export interface ArticleRailInput {
@@ -136,5 +137,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		previouslyReadHtml: input.previouslyReadHtml ?? "",
 		issueLinksHtml: input.issueLinksHtml ?? "",
 		bottomActionsHtml: input.bottomActionsHtml,
+		reportHref: input.reportHref,
 	});
 }
