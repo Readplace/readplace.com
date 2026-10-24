@@ -9,6 +9,7 @@ import {
 } from "@packages/test-fixtures";
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
+import { LIST_QUEUE_PUBLISHED_TOOL } from "./list-queue-published-tool";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
 
 const CLIENT_ID = "hutch-firefox-extension";
@@ -313,6 +314,7 @@ describe("MCP server over the real app", () => {
 			"save_link",
 			"list_readlists",
 			"list_readlist_articles",
+			"list_queue",
 			"get_article",
 			"get_article_content",
 			"get_article_summary",
@@ -448,12 +450,14 @@ describe("MCP server over the real app", () => {
 		const ownerList = await callTool(harness, ownerToken, tool("list_readlist_articles"));
 		expect(ownerList.body.result.structuredContent.total).toBe(1);
 	});
-	it("accepts the retired listing name while advertising only the new name", async () => {
+	it("advertises the retired listing name exactly as ChatGPT published it, and serves it like the new name", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await obtainAccessToken(harness);
 		await saveAndGetFirstId(harness, token);
 		const advertised = await callTool(harness, token, { jsonrpc: "2.0", id: 1, method: "tools/list" });
-		expect(advertised.body.result.tools.filter((entry: { name: string }) => entry.name === "list_queue")).toEqual([]);
+		const published = advertised.body.result.tools.find((entry: { name: string }) => entry.name === "list_queue");
+		assert(published, "tools/list must advertise list_queue");
+		expect(JSON.stringify(published)).toBe(JSON.stringify(LIST_QUEUE_PUBLISHED_TOOL));
 		const legacy = await callTool(harness, token, tool("list_queue", { order: "asc" }));
 		const current = await callTool(harness, token, tool("list_readlist_articles", { order: "asc" }));
 		expect(legacy.body.result).toEqual(current.body.result);
