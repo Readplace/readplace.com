@@ -123,3 +123,21 @@ On 2026-10-24 the Plugins portal offered no control that reconnects the scan. Th
 4. In the popup, sign in as the dedicated scan account and press **Allow access**. The callback on `platform.openai.com/apps-manage/oauth/` finishes the exchange and starts a scan at once. The app's `continuous-review` status then reads `connection: "selected"`.
 
 The scan account needs neither email verification nor a subscription, because `tools/list` is never gated, only saving. Its address and password are kept with the team's credentials, outside this public repository. A password reset on it signs the scan out, so reconnect straight after one.
+
+## When a check holds a tool
+
+The scan's verdict on each tool is in `GET /v1/dashapi/apps/{app}/continuous-review`, a method of the same portal API client as [Reconnecting the scan](#reconnecting-the-scan). `POST …/continuous-review/rescan` starts a scan at once. Each entry in its `tools` carries:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `change` | `unchanged`, `changed`, `removed` | The scanned definition against the one ChatGPT runs |
+| `publication` | `live`, `previous_definition`, `removed` | `previous_definition`: ChatGPT still runs what it published before the held change |
+| `findings` | `decision` `fail`, with a `reasoning` | Why the change is held |
+
+Fix a failed check on the server and rescan. **Request manual review** pauses every automatic update and disables Rescan until it is withdrawn, and OpenAI publishes no turnaround. A finding on a tool's name is fixed by a rename, run the way `list_queue` was:
+
+1. List the new name, and keep listing the old one from a frozen copy of the definition the scan holds, pinned by a test.
+2. Wait until the new name shows `publication` `live` with no findings.
+3. Delete the frozen copy. Keep dispatching the old name.
+
+On 2026-10-24 the check failed `delete_article` with "This tool's name appears promotional, exaggerated, or inconsistent with its behavior.", because the tool deletes nothing: it returns the steps for the reader to delete the article in the app. It is now `get_article_deletion_steps`, and `delete_article` is at step 2.

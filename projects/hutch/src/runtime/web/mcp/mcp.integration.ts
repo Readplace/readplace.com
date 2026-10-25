@@ -9,6 +9,7 @@ import {
 } from "@packages/test-fixtures";
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
+import { DELETE_ARTICLE_PUBLISHED_TOOL } from "./delete-article-published-tool";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
 
 const CLIENT_ID = "hutch-firefox-extension";
@@ -321,6 +322,7 @@ describe("MCP server over the real app", () => {
 			"add_to_readlist",
 			"mark_as_read",
 			"mark_as_unread",
+			"get_article_deletion_steps",
 			"delete_article",
 		]);
 	});
@@ -413,7 +415,7 @@ describe("MCP server over the real app", () => {
 		const before = await callTool(harness, accessToken, tool("get_article", { id }));
 		const articleBefore = before.body.result.structuredContent.article;
 
-		const del = await callTool(harness, accessToken, tool("delete_article"));
+		const del = await callTool(harness, accessToken, tool("get_article_deletion_steps"));
 		expect(del.body.result.structuredContent.performed).toBe(false);
 
 		// The whole article — not just status/count — is byte-for-byte unchanged.
@@ -429,7 +431,7 @@ describe("MCP server over the real app", () => {
 		const id = await saveAndGetFirstId(harness, ownerToken);
 
 		const otherToken = await obtainAccessToken(harness, "other@example.com");
-		const del = await callTool(harness, otherToken, tool("delete_article", { id }));
+		const del = await callTool(harness, otherToken, tool("get_article_deletion_steps", { id }));
 		expect(del.body.result.structuredContent.performed).toBe(false);
 		const read = await callTool(harness, otherToken, tool("mark_as_read", { id }));
 		expect(read.body.result.structuredContent).toEqual({ found: false });
@@ -456,6 +458,18 @@ describe("MCP server over the real app", () => {
 		expect(advertised.body.result.tools.filter((entry: { name: string }) => entry.name === "list_queue")).toEqual([]);
 		const legacy = await callTool(harness, token, tool("list_queue", { order: "asc" }));
 		const current = await callTool(harness, token, tool("list_readlist_articles", { order: "asc" }));
+		expect(legacy.body.result).toEqual(current.body.result);
+	});
+
+	it("advertises the retired delete name exactly as ChatGPT's scan holds it, and serves it like the new name", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		const advertised = await callTool(harness, token, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+		const published = advertised.body.result.tools.find((entry: { name: string }) => entry.name === "delete_article");
+		assert(published, "tools/list must advertise delete_article");
+		expect(JSON.stringify(published)).toBe(JSON.stringify(DELETE_ARTICLE_PUBLISHED_TOOL));
+		const legacy = await callTool(harness, token, tool("delete_article"));
+		const current = await callTool(harness, token, tool("get_article_deletion_steps"));
 		expect(legacy.body.result).toEqual(current.body.result);
 	});
 

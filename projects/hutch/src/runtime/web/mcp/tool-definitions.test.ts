@@ -10,8 +10,8 @@ import {
 	LIST_READLISTS_TOOL,
 	LIST_READLIST_ARTICLES_LEGACY_NAME,
 	ArticleIdArgs,
-	DELETE_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
+	GET_ARTICLE_DELETION_STEPS_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,
 	GET_ARTICLE_TOOL,
 	GET_RELATED_ARTICLES_TOOL,
@@ -38,6 +38,7 @@ describe("MCP tool definitions", () => {
 			"add_to_readlist",
 			"mark_as_read",
 			"mark_as_unread",
+			"get_article_deletion_steps",
 			"delete_article",
 		]);
 		expect(
@@ -180,15 +181,15 @@ describe("MCP tool definitions", () => {
 	});
 
 	describe("app-only write tool", () => {
-		it("advertises delete_article as a read-only, non-destructive redirect", () => {
-			expect(DELETE_ARTICLE_TOOL.annotations).toMatchObject({
+		it("advertises get_article_deletion_steps as a read-only, non-destructive redirect", () => {
+			expect(GET_ARTICLE_DELETION_STEPS_TOOL.annotations).toMatchObject({
 				readOnlyHint: true,
 				destructiveHint: false,
 			});
 		});
 
 		it("takes no arguments, because the handler reads none", () => {
-			expect(DELETE_ARTICLE_TOOL.inputSchema).toEqual({
+			expect(GET_ARTICLE_DELETION_STEPS_TOOL.inputSchema).toEqual({
 				type: "object",
 				properties: {},
 				additionalProperties: false,

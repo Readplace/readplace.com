@@ -5,7 +5,7 @@ excerpt: "A connected assistant can now read a saved article and mark it read, b
 tldr: "An assistant connected to Readplace used to do two things: save a page to your readlist and list back what you saved. It can now open a saved article and read it, the cleaned reader text and the AI summary, looked up by the id from your list. It can also mark that article read, or unread again. Marking read shipped as a tool that refused, and I changed my mind: it is an ordinary write you ask for, and one call to `mark_as_unread` puts it back where it was. Deleting is the one tool that still only hands the assistant a note pointing you at the app, and every lookup, read or write, is tied to your account. The per-client setup is the same one page as before, at [readplace.com/mcp](https://readplace.com/mcp)."
 slug: "ai-assistant-reads-your-saved-articles"
 date: "2026-06-22"
-lastModified: "2026-10-01"
+lastModified: "2026-10-25"
 author: "Fayner Brack"
 keywords: "AI assistant read saved articles, Claude read it later, ChatGPT read saved articles, MCP read article content, get_article_content, mark_as_read, mark_as_unread, mark an article read from your assistant, AI summary of saved article, Readplace MCP, read your reading list with AI, MCP read it later"
 tags: ["changelog"]
@@ -30,7 +30,7 @@ The connection carries three more tools, and they do not all act alike.
 
 `mark_as_read` and `mark_as_unread` do what they read like. One flips a saved article to read, the other flips it back and clears the read date with it. Both take a single id from your listing and change the same row the app changes when you tap the button in your readlist, so a mark you make in a conversation shows up in the browser and on your phone.
 
-`delete_article` is the one left standing still. It reads like it removes an article, and it doesn't. Call it and your library stays exactly where it was. The tool answers with a short note saying deleting happens in the Readplace app, and you do it.
+`get_article_deletion_steps` is the one left standing still. Its old name, `delete_article`, read like it removed an article, and it didn't. Call it and your library stays exactly where it was. The tool answers with a short note saying deleting happens in the Readplace app, and you do it.
 
 > **Your assistant can move an article through your list. It cannot take one out of it.**
 
@@ -50,7 +50,7 @@ So marking read is a normal write now. `mark_as_read` sets the mark, `mark_as_un
 
 The simpler move is to leave it out. If the assistant can't delete, why give it a delete tool at all?
 
-Because the missing tool gives a worse answer. Ask an assistant that has no delete tool to remove an article, and it improvises. It might say it deleted the thing, or fail in a way you can't read, or reach for `save_link` because that is the nearest tool it has. A tool that exists and declines hands it a fact to pass on: this happens in the app, and here is the reason. You get a straight answer in place of a confident wrong one. That is why `delete_article` is still on the list while doing nothing at all.
+Because the missing tool gives a worse answer. Ask an assistant that has no delete tool to remove an article, and it improvises. It might say it deleted the thing, or fail in a way you can't read, or reach for `save_link` because that is the nearest tool it has. A tool that exists and declines hands it a fact to pass on: this happens in the app, and here is the reason. You get a straight answer in place of a confident wrong one. That is why `get_article_deletion_steps` is still on the list while doing nothing at all.
 
 The other tools follow the same habit. While Readplace is still fetching the reader copy, `get_article_content` says it is not ready yet instead of failing, so the assistant tells you to wait a moment rather than reporting an empty article.
 
