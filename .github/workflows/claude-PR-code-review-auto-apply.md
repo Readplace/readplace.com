@@ -17,6 +17,17 @@ You have been triggered because a code review identified HIGH PRIORITY or MEDIUM
 - Follow ALL CLAUDE.md guidelines when making fixes relative to the folders being changed
 - Run `pnpm check` to ensure fixes don't break existing functionality
 
+## Fixes That Change Screenshots
+
+When a fix changes what a visual test captures (whether the issue asks for a visual change or a code fix moves pixels as a side effect), the baselines are part of the fix.
+
+- Confirm that the screenshot change is the one the review issue asks for. An unintended change is a defect: fix the code and leave the baseline alone.
+- Regenerate the affected baselines yourself, following the **Regenerating Baselines** section of the e2e-testing skill. This job runs on Linux with the pinned browsers and fonts already in place, so you need no Docker. Regenerate only the affected specs, a few at a time, through the project's `update-visual-baselines` target.
+- Open every regenerated PNG at full size and fix any visual defect it shows in the code.
+- Run `pnpm check` with E2E enabled, then put the source and baseline changes in the same single fix commit. Do not leave the baselines for a later CI-fix run.
+- Never loosen a screenshot tolerance, delete a checkpoint, or weaken an assertion.
+- In your PR comment, list the specs you regenerated, what the images showed, and the verification result. If an environment step failed, quote its exact error.
+
 ## Applicable Skills
 
 When fixing review issues, apply these skills based on the files being changed:
