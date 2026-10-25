@@ -6,7 +6,7 @@ import {
 	type InboxEmailLinkEntry,
 	type InboxEmailLinksMeta,
 	type InboxEmailStatus,
-	type InboxReadlistDecision,
+	type InboxReadlistOutcome,
 	InboxAddressSchema,
 	MessageIdSchema,
 	formatEmailLinkOrdinal,
@@ -119,9 +119,9 @@ async function seedExtractionMeta(
 	});
 }
 
-async function seedReadlistDecision(
+async function seedRoutedSnapshot(
 	fixture: ReturnType<typeof createDefaultTestAppFixture>,
-	decision: InboxReadlistDecision,
+	input: { eligibleArticleCount: number; outcome?: InboxReadlistOutcome },
 ): Promise<void> {
 	const user = await fixture.auth.findUserByEmail("test@example.com");
 	assert(user, "logged-in user must exist before seeding");
@@ -131,11 +131,14 @@ async function seedReadlistDecision(
 		meta: {
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: { readlist: decision.readlist },
+			readlistDecision: undefined,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+			eligibleArticleCount: input.eligibleArticleCount,
+			savesHeld: false,
 		},
 	});
-	if (decision.state !== "deciding") {
-		await fixture.inboxEmail.inboxEmailLinkStore.settleReadlistDecision({ ...email, decision });
+	if (input.outcome !== undefined) {
+		await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({ ...email, outcome: input.outcome });
 	}
 }
 
@@ -1312,47 +1315,46 @@ describe("Inbox email detail for a Gmail newsletter kept as an issue", () => {
 });
 
 describe("Inbox email detail for an inbox routed to a readlist", () => {
-	it("holds both panels on a polling notice while the readlist decides, counts withheld", async () => {
+	const CUSTOM_LINKS: Partial<InboxEmailLinkEntry>[] = [
+		ROUTED_LINKS[0],
+		{ ...ROUTED_LINKS[1], droppedFor: undefined },
+		ROUTED_LINKS[2],
+	];
+	const DECIDED: InboxReadlistOutcome = {
+		readlist: WORK,
+		decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
+		dropped: [{ ordinal: EmailLinkOrdinalSchema.parse("0001"), reason: "A product launch, not engineering" }],
+	};
+
+	function noticeTexts(doc: ReturnType<typeof parseDoc>): (string | null)[] {
+		return Array.from(doc.querySelectorAll("[data-test-panel-notice]"), (notice) => notice.textContent);
+	}
+
+	it("says every article went to All and keeps polling while the readlist chooses", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
-		await seedLinks(fixture, [ROUTED_LINKS[0], { ...ROUTED_LINKS[1], droppedFor: undefined }]);
-		await seedReadlistDecision(fixture, { state: "deciding", readlist: WORK });
+		await seedLinks(fixture, CUSTOM_LINKS);
+		await seedRoutedSnapshot(fixture, { eligibleArticleCount: 2 });
 
-		const articles = parseDoc((await agent.get(articlesTabPath)).text);
-		const excluded = parseDoc((await agent.get(excludedTabPath)).text);
+		const doc = parseDoc((await agent.get(articlesTabPath)).text);
 
-		const articlesPanel = articles.querySelector('[data-test-tab-panel="articles"]');
-		assert(articlesPanel, "the Articles panel must render");
-		expect(articlesPanel.getAttribute("data-articles-status")).toBe("deciding");
-		expect(articlesPanel.getAttribute("hx-get")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/articles?poll=1`,
-		);
-		expect(panelNotices(articles)).toEqual(["deciding"]);
-		expect(articles.querySelector('[data-test-panel-notice="deciding"]')?.textContent).toBe(
-			"Choosing which links fit this custom email's readlist…",
-		);
-		expect(articles.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(0);
-		expect(
-			Array.from(articles.querySelectorAll("[data-test-inbox-tab]")).map((tab) => tab.textContent),
-		).toEqual(["View", "Extracted Articles", "Skipped"]);
-		const excludedPanel = excluded.querySelector('[data-test-tab-panel="excluded"]');
-		assert(excludedPanel, "the Skipped panel must render");
-		expect(excludedPanel.getAttribute("data-excluded-status")).toBe("deciding");
-		expect(excludedPanel.getAttribute("hx-get")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/excluded?poll=1`,
-		);
-		expect(panelNotices(excluded)).toEqual(["deciding"]);
+		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
+		assert(panel, "the Articles panel must render");
+		expect(panel.getAttribute("hx-get")).toBe(`/inbox/${encodeURIComponent(SK)}/articles?poll=1`);
+		expect(noticeTexts(doc)).toEqual(["Saved to All.", "Choosing articles for Work…"]);
+		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(2);
+		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe("Skipped (1)");
 	});
 
-	it("says where the links went once the readlist decided, listing only the ones it kept", async () => {
+	it("ends on the count line once the readlist decided, every article still listed", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
-		await seedLinks(fixture, ROUTED_LINKS);
-		await seedReadlistDecision(fixture, { state: "decided", readlist: WORK, readlistLabel: "Work" });
+		await seedLinks(fixture, CUSTOM_LINKS);
+		await seedRoutedSnapshot(fixture, { eligibleArticleCount: 2, outcome: DECIDED });
 
 		const doc = parseDoc((await agent.get(articlesTabPath)).text);
 
@@ -1360,98 +1362,64 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(panelNotices(doc)).toEqual(["decided"]);
-		expect(doc.querySelector('[data-test-panel-notice="decided"]')?.textContent).toBe(
-			"Saved to All and Work. Links that didn't fit are on the Skipped tab.",
-		);
+		expect(noticeTexts(doc)).toEqual(["Saved to All.", "1 article saved to Work; 1 didn't fit."]);
 		expect(
 			Array.from(doc.querySelectorAll("[data-test-inbox-article-card]")).map((card) =>
 				card.getAttribute("data-test-inbox-article-card"),
 			),
-		).toEqual(["0000"]);
-		expect(panelCount(doc)).toBe("1 Extracted Article");
-		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
-			"Extracted Articles (1)",
-		);
-		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
-			"Skipped (2)",
-		);
+		).toEqual(["0000", "0001"]);
 	});
 
-	it("lists the links the readlist dropped on the Skipped tab with its reason and a Save button", async () => {
+	it("lists only triage rows on the Skipped tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
-		await seedLinks(fixture, ROUTED_LINKS);
-		await seedReadlistDecision(fixture, { state: "decided", readlist: WORK, readlistLabel: "Work" });
+		await seedLinks(fixture, CUSTOM_LINKS);
+		await seedRoutedSnapshot(fixture, { eligibleArticleCount: 2, outcome: DECIDED });
 
 		const doc = parseDoc((await agent.get(excludedTabPath)).text);
 
-		expect(panelCount(doc)).toBe("2 Skipped");
-		expect(panelNotices(doc)).toEqual(["skipped-note", "dropped-note"]);
-		expect(doc.querySelector('[data-test-panel-notice="dropped-note"]')?.textContent).toBe(
-			"Links that didn't fit Work weren't saved. Save any you still want.",
-		);
+		expect(panelNotices(doc)).toEqual(["skipped-note"]);
 		expect(
-			Array.from(doc.querySelectorAll("[data-test-inbox-excluded-link]")).map((row) => [
+			Array.from(doc.querySelectorAll("[data-test-inbox-excluded-link]")).map((row) =>
 				row.getAttribute("data-test-inbox-excluded-link"),
-				row.querySelector("[data-test-inbox-excluded-reason]")?.textContent,
-			]),
-		).toEqual([
-			["0001", "Not for Work — A product launch, not engineering"],
-			["0002", "Unsubscribe link"],
-		]);
-		const droppedRow = doc.querySelector('[data-test-inbox-excluded-link="0001"]');
-		assert(droppedRow, "the dropped row must render");
-		const saveForm = droppedRow.querySelector("[data-test-inbox-excluded-save]")?.closest("form");
-		assert(saveForm, "a dropped row must offer Save as a form");
-		expect(saveForm.getAttribute("method")).toBe("POST");
-		expect(saveForm.getAttribute("action")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0001/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
-		);
+			),
+		).toEqual(["0002"]);
 	});
 
-	it("alerts that the decision failed, keeping every link saveable by hand", async () => {
+	it("says the readlist could not choose in place of an alert, keeping every article in All", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
-		await seedLinks(fixture, [ROUTED_LINKS[0], { ...ROUTED_LINKS[1], droppedFor: undefined }]);
-		await seedReadlistDecision(fixture, { state: "failed", readlist: WORK });
+		await seedLinks(fixture, CUSTOM_LINKS);
+		await seedRoutedSnapshot(fixture, {
+			eligibleArticleCount: 2,
+			outcome: { readlist: WORK, decision: { state: "failed", readlist: WORK }, dropped: [] },
+		});
 
 		const doc = parseDoc((await agent.get(articlesTabPath)).text);
 
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the Articles panel must render");
-		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(panelAlerts(doc)).toEqual(["decision-failed"]);
-		const alert = doc.querySelector('[data-test-alert="decision-failed"]');
-		assert(alert, "the decision-failed alert must render");
-		expect(alert.getAttribute("role")).toBe("alert");
-		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
-			"Couldn't choose which links to save",
-		);
-		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
-			"Nothing from this email was saved. Use Save on any link you want to keep.",
-		);
-		expect(
-			Array.from(doc.querySelectorAll('[data-test-card-action="save"]')).map((button) =>
-				button.getAttribute("data-test-save-state"),
-			),
-		).toEqual(["unsaved", "unsaved"]);
+		expect(panelAlerts(doc)).toEqual([]);
+		expect(noticeTexts(doc)).toEqual([
+			"Saved to All.",
+			"Couldn't choose articles for Work. Articles remain in All.",
+		]);
 	});
 });
 
 describe("Inbox panel poll routes while a readlist decides", () => {
-	it("keeps polling the Articles panel without shipping the tab strip", async () => {
+	it("keeps polling the Articles panel like the Gmail path", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 		await seedLinks(fixture, [ROUTED_LINKS[0]]);
-		await seedReadlistDecision(fixture, { state: "deciding", readlist: WORK });
+		await seedRoutedSnapshot(fixture, { eligibleArticleCount: 1 });
 
 		const response = await agent.get(`${articlesPath}?poll=4`);
 
@@ -1459,82 +1427,26 @@ describe("Inbox panel poll routes while a readlist decides", () => {
 		const doc = parseDoc(response.text);
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the panel fragment must render");
-		expect(panel.getAttribute("data-articles-status")).toBe("deciding");
 		expect(panel.getAttribute("hx-get")).toBe(`${articlesPath}?poll=5`);
-		expect(fragmentRoots(doc)).toEqual(["panel:articles"]);
 	});
 
-	it("keeps polling the Skipped panel on its own fragment", async () => {
+	it("stops polling with a still-choosing notice once the budget is spent", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
 		await seedLinks(fixture, [ROUTED_LINKS[0]]);
-		await seedReadlistDecision(fixture, { state: "deciding", readlist: WORK });
+		await seedRoutedSnapshot(fixture, { eligibleArticleCount: 1 });
 
-		const response = await agent.get(`${excludedPath}?poll=4`);
-
-		const doc = parseDoc(response.text);
-		const panel = doc.querySelector('[data-test-tab-panel="excluded"]');
-		assert(panel, "the panel fragment must render");
-		expect(panel.getAttribute("data-excluded-status")).toBe("deciding");
-		expect(panel.getAttribute("hx-get")).toBe(`${excludedPath}?poll=5`);
-		expect(fragmentRoots(doc)).toEqual(["panel:excluded"]);
-	});
-
-	it("ships the tab strip with its counts once, on the tick the decision settles", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		await seed(fixture, "received");
-		await seedLinks(fixture, ROUTED_LINKS);
-		await seedReadlistDecision(fixture, { state: "decided", readlist: WORK, readlistLabel: "Work" });
-
-		const response = await agent.get(`${articlesPath}?poll=4`);
+		const response = await agent.get(`${articlesPath}?poll=301`);
 
 		const doc = parseDoc(response.text);
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the panel fragment must render");
-		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(fragmentRoots(doc)).toEqual(["panel:articles", "tabs"]);
-		expect(doc.querySelector("[data-test-inbox-tabs]")?.getAttribute("hx-swap-oob")).toBe(
-			"outerHTML",
+		expect(doc.querySelector('[data-test-panel-notice="deciding"]')?.textContent).toBe(
+			"Still choosing articles for Work. Reload later to see the result.",
 		);
-		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
-			"Extracted Articles (1)",
-		);
-		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe(
-			"Skipped (2)",
-		);
-	});
-
-	it("gives up to a still-choosing alert over the listing once the budget is spent mid-decision", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		await seed(fixture, "received");
-		await seedLinks(fixture, [ROUTED_LINKS[0]]);
-		await seedReadlistDecision(fixture, { state: "deciding", readlist: WORK });
-
-		const response = await agent.get(`${articlesPath}?poll=300`);
-
-		const doc = parseDoc(response.text);
-		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
-		assert(panel, "the panel fragment must render");
-		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
-		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(panelAlerts(doc)).toEqual(["decision-stale"]);
-		const alert = doc.querySelector('[data-test-alert="decision-stale"]');
-		assert(alert, "the decision-stale alert must render");
-		expect(alert.querySelector("[data-test-alert-title]")?.textContent).toBe(
-			"Still choosing which links to save",
-		);
-		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
-			"This is taking longer than usual. Reload later to see what was saved.",
-		);
-		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(1);
-		expect(fragmentRoots(doc)).toEqual(["panel:articles", "tabs"]);
 	});
 });
 
