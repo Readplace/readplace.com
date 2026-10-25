@@ -21,6 +21,7 @@ import {
 	SaveLinkCommand,
 	SaveEmailIssueCommand,
 	SubmitLinkCommand,
+	FileArticleIntoReadlistCommand,
 	SaveAnonymousLinkCommand,
 	SaveLinkRawHtmlCommand,
 	SaveLinkRawPdfCommand,
@@ -1588,6 +1589,49 @@ const filterEmailLinksLambdaWithSQS = new HutchSQSBackedLambda("filter-email-lin
 });
 
 eventBus.subscribe(EmailLinksTriagedEvent, filterEmailLinksLambdaWithSQS);
+
+const fileArticleIntoReadlistQueue = new HutchSQS("file-article-into-readlist", {
+	visibilityTimeoutSeconds: 300,
+	dlqMaxReceiveCount: 5,
+});
+
+const fileArticleIntoReadlistArticlesDynamodb = new HutchDynamoDBAccess("file-article-into-readlist-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: true }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+});
+
+const fileArticleIntoReadlistUserArticlesDynamodb = new HutchDynamoDBAccess("file-article-into-readlist-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
+});
+
+const fileArticleIntoReadlistLambda = new HutchLambda("file-article-into-readlist", {
+	entryPoint: "./src/runtime/file-article-into-readlist.main.ts",
+	outputDir: ".lib/file-article-into-readlist",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [
+		...fileArticleIntoReadlistArticlesDynamodb.policies,
+		...fileArticleIntoReadlistUserArticlesDynamodb.policies,
+	],
+});
+
+eventBus.grantPublish(fileArticleIntoReadlistLambda);
+
+const fileArticleIntoReadlistLambdaWithSQS = new HutchSQSBackedLambda("file-article-into-readlist", {
+	lambda: fileArticleIntoReadlistLambda,
+	queue: fileArticleIntoReadlistQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(FileArticleIntoReadlistCommand, fileArticleIntoReadlistLambdaWithSQS);
 
 // --- RecrawlLinkInitiated handler ---
 
