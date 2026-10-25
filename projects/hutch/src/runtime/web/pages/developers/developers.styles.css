@@ -67,3 +67,43 @@
   border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
 }
+
+.developers__subheading {
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 24px 0 8px;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.developers__list {
+  padding-left: 24px;
+  margin-bottom: 16px;
+}
+
+.developers__item {
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--foreground);
+  margin-bottom: 8px;
+  text-wrap: pretty;
+}
+
+.developers__steps {
+  padding-left: 24px;
+  margin-bottom: 16px;
+}
+
+.developers__step {
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--foreground);
+  margin-bottom: 8px;
+  text-wrap: pretty;
+}
+
+.developers__link {
+  color: var(--primary-text);
+}
