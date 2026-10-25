@@ -15,14 +15,17 @@ struct ReadlistMenuItem: Identifiable, Equatable {
 		readlists: [Readlist],
 		selectedHref: String?,
 		mainlineHref: String?,
-		shareTargetHrefs: Set<String>
+		shareTargetHrefs: Set<String>,
+		baseURL: String
 	) -> [ReadlistMenuItem] {
 		readlists.map { readlist in
 			ReadlistMenuItem(
 				label: readlist.label,
 				href: readlist.href,
-				isSelected: readlist.href == selectedHref,
-				isShareTarget: readlist.href == mainlineHref || shareTargetHrefs.contains(readlist.href)
+				isSelected: Href.matches(readlist.href, anyOf: [selectedHref].compactMap { $0 }, baseURL: baseURL),
+				isShareTarget: Href.matches(
+					readlist.href, anyOf: [mainlineHref].compactMap { $0 } + Array(shareTargetHrefs), baseURL: baseURL
+				)
 			)
 		}
 	}

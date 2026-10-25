@@ -183,35 +183,7 @@ describe("promoteTier", () => {
 		assert.deepEqual(article.summary, existingSummary);
 	});
 
-	it("emits publish-canonical-content-changed and publish-crawl-article-completed in that order, plus publish-link-saved when canonicalChanged + userId is supplied", () => {
-		const { effects } = promoteTier(
-			buildArticle({ url: "https://example.com/post" }),
-			buildInput({
-				metadata: canonicalMetadata(buildArticle().metadata),
-				estimatedReadTime: 1,
-				canonicalChanged: true,
-				userId: "user-123",
-			}),
-		);
-
-		assert.deepEqual(effects, [
-			{
-				kind: "publish-canonical-content-changed",
-				url: "https://example.com/post",
-			},
-			{
-				kind: "publish-crawl-article-completed",
-				url: "https://example.com/post",
-			},
-			{
-				kind: "publish-link-saved",
-				url: "https://example.com/post",
-				userId: "user-123",
-			},
-		]);
-	});
-
-	it("emits publish-anonymous-link-saved when canonicalChanged is true and userId is absent", () => {
+	it("emits publish-canonical-content-changed and publish-crawl-article-completed in that order when the canonical tier flipped", () => {
 		const { effects } = promoteTier(
 			buildArticle({ url: "https://example.com/post" }),
 			buildInput({
@@ -228,10 +200,6 @@ describe("promoteTier", () => {
 			},
 			{
 				kind: "publish-crawl-article-completed",
-				url: "https://example.com/post",
-			},
-			{
-				kind: "publish-anonymous-link-saved",
 				url: "https://example.com/post",
 			},
 		]);
@@ -268,22 +236,17 @@ describe("promoteTier", () => {
 				kind: "publish-crawl-article-completed",
 				url: "https://example.com/post",
 			},
-			{
-				kind: "publish-anonymous-link-saved",
-				url: "https://example.com/post",
-			},
 		]);
 		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 	});
 
-	it("emits publish-canonical-content-changed but omits the user-facing event when the content changed while canonicalChanged is false (same-tier re-pick with different text)", () => {
+	it("emits publish-canonical-content-changed when the content changed while canonicalChanged is false (same-tier re-pick with different text)", () => {
 		const { effects } = promoteTier(
 			buildArticle({ url: "https://example.com/post" }),
 			buildInput({
 				metadata: canonicalMetadata(buildArticle().metadata),
 				estimatedReadTime: 1,
 				canonicalChanged: false,
-				userId: "user-123",
 			}),
 		);
 
@@ -317,7 +280,6 @@ describe("promoteTier", () => {
 				estimatedReadTime: 1,
 				canonicalChanged: false,
 				canonicalContentHash: HASH_A,
-				userId: "user-123",
 			}),
 		);
 

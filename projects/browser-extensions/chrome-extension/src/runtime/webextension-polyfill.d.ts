@@ -13,7 +13,7 @@ declare module "webextension-polyfill" {
 		}
 		namespace Session {
 			// biome-ignore lint/suspicious/noExplicitAny: browser API returns dynamic values
-			function get(key: string): Promise<Record<string, any>>;
+			function get(key: string | string[]): Promise<Record<string, any>>;
 			function set(items: Record<string, unknown>): Promise<void>;
 			function remove(key: string): Promise<void>;
 		}
@@ -83,6 +83,7 @@ declare module "webextension-polyfill" {
 			id?: number;
 			url?: string;
 			title?: string;
+			windowId: number;
 		}
 
 		function query(queryInfo: {

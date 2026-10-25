@@ -103,3 +103,37 @@ describe("initResolveStoredArticle", () => {
 		expect(lookedUp).toEqual([xUrl]);
 	});
 });
+
+describe("initResolveStoredArticle for an Amazon product", () => {
+	const titleUrl = "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451";
+	const bareUrl = "https://www.amazon.com.au/dp/1492043451";
+
+	it("finds the bare record for a title link nobody saved", async () => {
+		const canonical = storedAt(bareUrl);
+		const { resolveStoredArticle, lookedUp } = resolverOver({ rows: [canonical] });
+
+		expect(await resolveStoredArticle(titleUrl)).toEqual({ articleUrl: bareUrl, existing: canonical });
+		expect(lookedUp).toEqual([titleUrl, bareUrl]);
+	});
+
+	it("names the bare link for a first visit to a product stored under neither link", async () => {
+		const { resolveStoredArticle } = resolverOver({ rows: [] });
+
+		expect(await resolveStoredArticle(titleUrl)).toEqual({ articleUrl: bareUrl, existing: null });
+	});
+
+	it("serves a legacy title-link record under its own URL", async () => {
+		const legacy = storedAt(titleUrl);
+		const { resolveStoredArticle, lookedUp } = resolverOver({ rows: [legacy, storedAt(bareUrl)] });
+
+		expect(await resolveStoredArticle(titleUrl)).toEqual({ articleUrl: titleUrl, existing: legacy });
+		expect(lookedUp).toEqual([titleUrl]);
+	});
+
+	it("does not fall back from a bare link to a title link", async () => {
+		const { resolveStoredArticle, lookedUp } = resolverOver({ rows: [storedAt(titleUrl)] });
+
+		expect(await resolveStoredArticle(bareUrl)).toEqual({ articleUrl: bareUrl, existing: null });
+		expect(lookedUp).toEqual([bareUrl]);
+	});
+});

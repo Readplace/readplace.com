@@ -12,7 +12,8 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testEachAdvertisedReadlistBecomesAnItemKeyedOnItsHref() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue"]
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue"],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(items.map(\.label), ["All", "Work"], "labels are the server's, in wire order")
@@ -25,7 +26,8 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testOnlyTheReadlistOnScreenIsSelected() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue?queue=work", mainlineHref: nil, shareTargetHrefs: []
+			readlists: advertised(), selectedHref: "/queue?queue=work", mainlineHref: nil, shareTargetHrefs: [],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(items.map(\.isSelected), [false, true], "the menu checkmarks the readlist the list is showing")
@@ -33,7 +35,8 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testNothingIsSelectedBeforeACollectionHasNamedItsReadlist() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: nil, mainlineHref: nil, shareTargetHrefs: []
+			readlists: advertised(), selectedHref: nil, mainlineHref: nil, shareTargetHrefs: [],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(items.map(\.isSelected), [false, false])
@@ -41,7 +44,8 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testATickedReadlistCarriesTheShareGlyphAndTheRestTheListGlyph() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue?queue=work"]
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue?queue=work"],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(items.map(\.isShareTarget), [false, true], "the readlist shares land in is the badged one")
@@ -50,7 +54,8 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testEveryTickedReadlistIsBadged() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue", "/queue?queue=work"]
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue", "/queue?queue=work"],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(
@@ -62,7 +67,8 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testATickedReadlistTheServerNoLongerAdvertisesBadgesNothing() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue?queue=deleted"]
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: nil, shareTargetHrefs: ["/queue?queue=deleted"],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(items.map(\.isShareTarget), [false, false])
@@ -72,7 +78,8 @@ final class ReadlistMenuItemTests: XCTestCase {
 	func testAReaderWithNoReadlistsGetsNoMenu() {
 		XCTAssertEqual(
 			ReadlistMenuItem.items(
-				readlists: [], selectedHref: "/queue", mainlineHref: "/queue", shareTargetHrefs: ["/queue"]
+				readlists: [], selectedHref: "/queue", mainlineHref: "/queue", shareTargetHrefs: ["/queue"],
+			baseURL: AppConfig.serverBaseURL
 			),
 			[],
 			"a collection that advertises no readlists offers nothing to switch between"
@@ -81,7 +88,8 @@ final class ReadlistMenuItemTests: XCTestCase {
 
 	func testTheMainlineReadlistIsBadgedWithoutAnyoneTickingIt() {
 		let items = ReadlistMenuItem.items(
-			readlists: advertised(), selectedHref: "/queue", mainlineHref: "/queue", shareTargetHrefs: []
+			readlists: advertised(), selectedHref: "/queue", mainlineHref: "/queue", shareTargetHrefs: [],
+			baseURL: AppConfig.serverBaseURL
 		)
 
 		XCTAssertEqual(

@@ -71,6 +71,14 @@ final class ReaderBridgeTests: XCTestCase {
 		XCTAssertFalse(ReaderBridge.isCaptureAvailable(message: "someOtherHandler", body: ["type": "captureAvailable"]))
 	}
 
+	func testTheCaptureFailedScriptDispatchesTheEventTheReaderPageListensFor() {
+		XCTAssertEqual(
+			ReaderBridge.captureFailedScript,
+			#"document.dispatchEvent(new Event("readplace-capture-failed"))"#,
+			"the page swaps its copying notice for the failed one only on this exact event name"
+		)
+	}
+
 	func testIsStatusChangedAcceptsStatusChangedPayloadOnBridgeChannel() {
 		XCTAssertTrue(ReaderBridge.isStatusChanged(message: ReaderBridge.messageName, body: ["type": "statusChanged"]))
 	}

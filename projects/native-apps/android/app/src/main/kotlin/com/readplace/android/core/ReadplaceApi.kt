@@ -64,7 +64,7 @@ sealed class ApiError(message: String) : Exception(message) {
  * One page of the reading-list collection plus the collection-level actions
  * and pagination links the server advertised.
  */
-class ReadlistPage(collection: SirenCollection) {
+class ReadlistPage(collection: SirenCollection, val chain: List<String>) {
 	val articles: List<Article>
 	val nextHref: String?
 
@@ -214,7 +214,8 @@ class ReadplaceApi(
 		if (cacheControl != null) request.cacheControl(cacheControl)
 		val answer = send(request.build())
 		if (answer.status != 200) throw apiError(answer)
-		return ReadlistPage(decodeSiren(answer, SirenDecoding::collection))
+		val chain = listOf(path ?: "/") + answer.hops.map { hrefOf(it) }
+		return ReadlistPage(decodeSiren(answer, SirenDecoding::collection), chain = chain)
 	}
 
 	/**
@@ -254,7 +255,7 @@ class ReadplaceApi(
 		if (!isSirenMediaType(answer.contentType)) return null
 		val collection = jsonElementOf(answer.body)?.let { SirenDecoding.collection(it) } ?: return null
 		if (!collection.classes.orEmpty().contains("collection")) return null
-		return ReadlistPage(collection)
+		return ReadlistPage(collection, chain = answer.hops.map { hrefOf(it) })
 	}
 
 	// endregion
@@ -383,17 +384,21 @@ class ReadplaceApi(
 
 	/**
 	 * Saves a URL only (no captured HTML) via the `save-article` action, filing it
-	 * into the extra readlists named by [queues]. The queue hrefs are sent as a
-	 * sorted JSON array of strings (the mainline root is never among them — the
-	 * caller subtracts it, since every save drops there implicitly); an empty set
-	 * omits the `queues` field entirely, so a save with no extra destinations sends
-	 * the same body it always did. The server filters the array to readlists the
-	 * account owns, so a stale href the client still holds is harmless.
+	 * into the extra readlists named by [readlists]. The readlist hrefs are sent as
+	 * a sorted JSON array of strings under the action's declared `readlists` field
+	 * (the mainline root is never among them — the caller subtracts it, since every
+	 * save drops there implicitly); an empty set, or an action that declares no such
+	 * field, omits it entirely, so a save with no extra destinations sends the same
+	 * body it always did. The server filters the array to readlists the account
+	 * owns, so a stale href the client still holds is harmless.
 	 */
-	suspend fun saveArticle(action: SirenAction, url: String, queues: Set<String> = emptySet()): SaveConfirmation {
+	suspend fun saveArticle(action: SirenAction, url: String, readlists: Set<String> = emptySet()): SaveConfirmation {
+		val readlistField = action.fields.orEmpty().firstOrNull { it.name == READLISTS_FIELD }
 		val body = buildMap<String, JsonElement> {
 			put("url", JsonPrimitive(url))
-			if (queues.isNotEmpty()) put("queues", JsonArray(queues.sorted().map { JsonPrimitive(it) }))
+			if (readlistField != null && readlists.isNotEmpty()) {
+				put(readlistField.name, JsonArray(readlists.sorted().map { JsonPrimitive(it) }))
+			}
 		}
 		val request = jsonRequest(
 			absoluteUrl(action.href),
@@ -434,7 +439,7 @@ class ReadplaceApi(
 
 	// region Transport
 
-	private class Answer(val status: Int, val headers: Headers, val body: ByteArray) {
+	private class Answer(val status: Int, val headers: Headers, val body: ByteArray, val hops: List<HttpUrl>) {
 		val contentType: String? get() = headers["Content-Type"]
 	}
 
@@ -476,14 +481,14 @@ class ReadplaceApi(
 	 */
 	private fun followingRedirects(first: Request): Answer {
 		var current = first
-		var hops = 0
+		val hops = mutableListOf<HttpUrl>()
 		while (true) {
 			val response = http.newCall(current).execute()
 			try {
 				val next = redirectOf(response, first)
-					?: return Answer(response.code, response.headers, response.body.bytes())
-				hops += 1
-				if (hops > MAX_REDIRECT_HOPS) throw ProtocolException("Too many redirects: $hops")
+					?: return Answer(response.code, response.headers, response.body.bytes(), hops.toList())
+				hops.add(next.url)
+				if (hops.size > MAX_REDIRECT_HOPS) throw ProtocolException("Too many redirects: ${hops.size}")
 				current = next
 			} finally {
 				response.close()
@@ -512,7 +517,7 @@ class ReadplaceApi(
 	}
 
 	/** Builds a JSON request from a typed object, so a field the server declares as
-	 * an array (e.g. `queues`) is sent as a real JSON array rather than stringified
+	 * an array (e.g. `readlists`) is sent as a real JSON array rather than stringified
 	 * through a `Map<String, String>`. */
 	private fun jsonRequest(
 		url: HttpUrl,
@@ -586,6 +591,8 @@ class ReadplaceApi(
 	private fun entryPoint(path: String): HttpUrl =
 		"$baseUrl$path".toHttpUrlOrNull() ?: throw ApiError.Decoding()
 
+	private fun hrefOf(url: HttpUrl): String = url.toString().let { if (it.startsWith("$baseUrl/")) it.removePrefix(baseUrl) else it }
+
 	/** Resolves a server-declared href to an absolute URL, throwing when the href
 	 * is missing or names a scheme the client doesn't act on — an action the client
 	 * can't follow is a decode-level failure, not a silent no-op. */
@@ -645,6 +652,7 @@ class ReadplaceApi(
 	companion object {
 		const val DEFAULT_MAX_EXTERNAL_CONTENT_BYTES: Long = 25L * 1024 * 1024
 		private const val MAX_REDIRECT_HOPS = 20
+		private const val READLISTS_FIELD = "readlists"
 		private const val READ_CHUNK_BYTES = 8 * 1024
 		private val EMPTY_BODY: RequestBody = ByteArray(0).toRequestBody(null)
 	}

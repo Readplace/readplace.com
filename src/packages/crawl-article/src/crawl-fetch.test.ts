@@ -222,6 +222,92 @@ describe("initCrawlFetch", () => {
 		});
 	});
 
+	describe("on a 419 while the h2 leg stalls", () => {
+		beforeEach(() => {
+			jest.useFakeTimers();
+		});
+
+		afterEach(() => {
+			jest.useRealTimers();
+		});
+
+		it("carries a 419 past an h2 leg that runs out its lease to the curl leg", async () => {
+			const lines: string[] = [];
+			const stalledH2 = (_url: string, init?: { signal?: AbortSignal }): Promise<Response> =>
+				new Promise((_resolve, reject) => {
+					const signal = init?.signal;
+					assert(signal, "every leg receives a deadline");
+					signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+				});
+			const crawlFetch = initCrawlFetch({
+				fetch: async () => new Response("Sorry\n", { status: 419 }),
+				personas: [{ name: "test", headers: { "user-agent": "test" } }],
+				isBlocked: () => false,
+				logInfo: (message) => lines.push(message),
+				proxyUrl: undefined,
+				fetchH2: stalledH2,
+				fetchCurl: async () => new Response("through"),
+			});
+
+			const pending = crawlFetch("https://example.com", { budgetMs: 30_000 });
+			await jest.advanceTimersByTimeAsync(2_000);
+			const response = await pending;
+
+			assert.equal(response.status, 200);
+			assert.equal(await response.text(), "through");
+			const attempts = lines.map((line) => JSON.parse(line));
+			assert.deepEqual(
+				attempts.map((a) => [a.leg, a.outcome, a.status]),
+				[
+					["primary", "escalated", 419],
+					["h2", "escalated", undefined],
+					["curl", "answered", 200],
+				],
+			);
+		});
+	});
+
+	it("runs every direct leg under both personas on a 419, then the proxied pass answers", async () => {
+		const lines: string[] = [];
+		const userAgents: string[] = [];
+		let directH2Calls = 0;
+		let directCurlCalls = 0;
+		const refusedThenProxied: typeof fetch = async (_input, init) => {
+			const userAgent = new Headers(init?.headers).get("user-agent");
+			assert(userAgent, "persona fallback always sends a user-agent");
+			userAgents.push(userAgent);
+			return userAgents.length <= 2 ? new Response("Sorry\n", { status: 419 }) : new Response("via proxy");
+		};
+		const crawlFetch = initCrawlFetch({
+			fetch: refusedThenProxied,
+			personas: [
+				{ name: "first", headers: { "user-agent": "First/1.0" } },
+				{ name: "second", headers: { "user-agent": "Second/1.0" } },
+			],
+			isBlocked: () => false,
+			logInfo: (message) => lines.push(message),
+			fetchH2: async () => {
+				directH2Calls += 1;
+				return new Response("Sorry\n", { status: 419 });
+			},
+			fetchCurl: async () => {
+				directCurlCalls += 1;
+				return new Response("Sorry\n", { status: 419 });
+			},
+			proxyUrl: "http://proxy.example:8080",
+		});
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
+
+		assert.equal(response.status, 200);
+		assert.equal(await response.text(), "via proxy");
+		assert.deepEqual(userAgents, ["First/1.0", "Second/1.0", "First/1.0"]);
+		assert.equal(directH2Calls, 2);
+		assert.equal(directCurlCalls, 2);
+		const proxied = lines.map((line) => JSON.parse(line)).filter((a) => a.via === "proxy");
+		assert.deepEqual(proxied.map((a) => [a.leg, a.outcome, a.status]), [["primary", "answered", 200]]);
+	});
+
 	it("does not run a proxied pass when no proxyUrl is configured", async () => {
 		let curlCalls = 0;
 		const blockedFetch: typeof fetch = async () => new Response("denied", { status: 403 });

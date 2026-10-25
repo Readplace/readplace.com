@@ -42,7 +42,6 @@ type SelectContentRequest = {
 	candidates?: readonly CandidateReference[];
 	liveAttempt?: LiveAttempt;
 	extractedAt?: string;
-	userId?: string;
 } & (
 	| { mode: "save" | "recrawl" }
 	| { mode: "refresh"; refresh: { etag?: string; lastModified?: string; contentFetchedAt: string; bodyHash: string } }
@@ -50,11 +49,13 @@ type SelectContentRequest = {
 
 function noReadableReason(params: { selection: PreparedContentSelection; saveAttemptId: SaveAttemptId; liveAttempt?: LiveAttempt }): CrawlFailureReason {
 	const { selection, saveAttemptId } = params;
+	const detail = `no readable article candidate: ${selection.reason}`;
+	if (selection.sources.some((source) => source.tier === "tier-0" && source.metadata.captureTrigger !== "automatic" && source.metadata.attemptId === saveAttemptId)) return { kind: "capture-unreadable", detail };
 	const httpStatus = selection.sources.find((source) => source.metadata.kind === "live" && source.metadata.attemptId === saveAttemptId)?.metadata.httpStatus;
 	if (httpStatus === 404 || httpStatus === 410) return { kind: "not-found", httpStatus };
 	if (httpStatus !== undefined && (httpStatus === 429 || isBlockClassStatus(httpStatus))) return { kind: "blocked", cause: blockedCauseForStatus(httpStatus) };
 	if (httpStatus === undefined && params.liveAttempt?.failureReason !== undefined) return params.liveAttempt.failureReason;
-	return { kind: "parse-error", detail: `no readable article candidate: ${selection.reason}` };
+	return { kind: "parse-error", detail };
 }
 
 export function initSelectContentWork(deps: SelectContentDependencies) {
@@ -92,7 +93,7 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 		} else {
 			await deps.transitionAndPersist(promoteTier, {
 				url: params.url,
-				input: { tier: source.tier, metadata, estimatedReadTime: source.metadata.estimatedReadTime, contentFetchedAt: crawledAt, now: crawledAt, canonicalChanged: expected?.tier !== source.tier, canonicalContentHash, userId: params.userId },
+				input: { tier: source.tier, metadata, estimatedReadTime: source.metadata.estimatedReadTime, contentFetchedAt: crawledAt, now: crawledAt, canonicalChanged: expected?.tier !== source.tier, canonicalContentHash },
 				canonicalCommit,
 			});
 		}

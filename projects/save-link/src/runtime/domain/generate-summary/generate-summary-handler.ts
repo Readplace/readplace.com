@@ -133,22 +133,37 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				}
 
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-				if (result.kind === "declined" && receiveCount >= GENERATE_SUMMARY_MAX_RECEIVE_COUNT) {
-					await transitionAndPersist(markSummarySkipped, {
-						url: command.url,
-						selectionExpected,
-						input: { reason: "declined", now: now().toISOString() },
-					});
-					logger.info("[GenerateSummary] declined on the final receive — marking summary skipped", {
+				if (result.kind === "declined") {
+					if (receiveCount >= GENERATE_SUMMARY_MAX_RECEIVE_COUNT) {
+						await transitionAndPersist(markSummarySkipped, {
+							url: command.url,
+							selectionExpected,
+							input: { reason: "declined", now: now().toISOString() },
+						});
+						logger.info("[GenerateSummary] declined on the final receive — marking summary skipped", {
+							url: command.url,
+							receiveCount,
+						});
+						continue;
+					}
+					logger.info("[GenerateSummary] declined — leaving the message for redelivery", {
 						url: command.url,
 						receiveCount,
 					});
+					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
 
-				/* Throw so the catch block adds the record to
-				 * batchItemFailures — SQS redelivery re-runs. */
-				throw new Error(`[GenerateSummary] ${result.kind satisfies "no-text-block" | "declined"} for ${command.url}`);
+				if (result.kind === "unusable-answer" && receiveCount < GENERATE_SUMMARY_MAX_RECEIVE_COUNT) {
+					logger.warn("[GenerateSummary] unusable-answer — leaving the message for redelivery", {
+						url: command.url,
+						receiveCount,
+					});
+					batchItemFailures.push({ itemIdentifier: record.messageId });
+					continue;
+				}
+
+				throw new Error(`[GenerateSummary] ${result.kind satisfies "no-text-block" | "unusable-answer"} for ${command.url}`);
 			} catch (error) {
 				logger.error("[GenerateSummary] record failed", {
 					messageId: record.messageId,

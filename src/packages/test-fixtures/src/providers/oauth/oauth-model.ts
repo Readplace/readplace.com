@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { createHash, randomUUID } from "node:crypto";
-import { type AdvanceEpochKeeping, initKeepCurrentGrant, initOAuthRefresh, isCurrentGrant, type OAuthGrantId, type RefreshAccount, type RefreshCredential, type RefreshExemption, type RefreshGrant, type RefreshHistory, type RefreshStore } from "@packages/domain/oauth";
+import { type AdvanceEpochKeeping, initKeepCurrentGrant, initOAuthRefresh, isCurrentGrant, laterSignIn, type OAuthGrantId, type OAuthSignIn, type RefreshAccount, type RefreshCredential, type RefreshExemption, type RefreshGrant, type RefreshHistory, type RefreshStore, signInOf } from "@packages/domain/oauth";
 import type {
 	Client,
 	Token,
@@ -48,6 +48,7 @@ interface StoredAuthorizationCode {
 	expiresAt: Date;
 	scope?: string[];
 	emailVerified?: boolean;
+	signedIn?: OAuthSignIn;
 }
 
 interface StoredToken {
@@ -63,6 +64,7 @@ interface StoredToken {
 	userId: UserId;
 	scope?: string[];
 	emailVerified?: boolean;
+	signedIn?: OAuthSignIn;
 }
 
 interface OAuthModelDeps {
@@ -188,13 +190,13 @@ export function createInMemoryRefreshStore(deps: OAuthModelDeps): { store: Refre
 export function createListUserOAuthClients(deps: OAuthModelDeps): ListUserOAuthClients {
 	return async (userId) => {
 		const now = new Date();
-		const clientIds = new Set<OAuthClientId>();
+		const latest = new Map<OAuthClientId, OAuthSignIn | undefined>();
 		for (const stored of deps.tokens.values()) {
 			if (stored.userId === userId && (stored.accessTokenExpiresAt > now || stored.refreshTokenExpiresAt > now)) {
-				clientIds.add(stored.clientId);
+				latest.set(stored.clientId, laterSignIn(latest.get(stored.clientId), stored.signedIn));
 			}
 		}
-		return [...clientIds];
+		return [...latest].map(([clientId, latestSignIn]) => ({ clientId, latestSignIn }));
 	};
 }
 
@@ -292,6 +294,7 @@ export function createOAuthModel(
 				expiresAt: code.expiresAt,
 				scope: code.scope,
 				emailVerified: user.emailVerified === true,
+				signedIn: signInOf(user),
 			};
 			deps.codes.set(code.authorizationCode, stored);
 			return {
@@ -327,7 +330,7 @@ export function createOAuthModel(
 					grants: client.grants,
 					redirectUris: client.redirectUris,
 				},
-				user: { id: stored.userId, emailVerified: stored.emailVerified, grantId: stored.grantId, epoch: stored.epoch ?? 0 },
+				user: { id: stored.userId, emailVerified: stored.emailVerified, grantId: stored.grantId, epoch: stored.epoch ?? 0, signedIn: stored.signedIn },
 			};
 		},
 
@@ -356,6 +359,7 @@ export function createOAuthModel(
 				userId: UserIdSchema.parse(user.id),
 				scope: token.scope,
 				emailVerified: user.emailVerified === true,
+				signedIn: signInOf(user),
 			};
 
 			deps.tokens.set(token.accessToken, stored);

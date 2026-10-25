@@ -8,6 +8,7 @@ import { readabilityAdditions } from "./readability-additions";
 import { initReadabilityParser } from "./readability-parser";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
+import { METADATA_EXCERPT_MAX_LENGTH } from "@packages/domain/article";
 
 /* A test site specifies only the hooks a case exercises; the rest default to
  * the shared noops, mirroring how a real site opts out of a stage. */
@@ -568,6 +569,46 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
+	it("clips a first-paragraph excerpt longer than the cap at a word boundary with an ellipsis", () => {
+		const { parseHtml } = initParser();
+		const result = parseHtml({
+			url: "https://example.com/page",
+			documentUrl: "https://example.com/page",
+			html: `<!DOCTYPE html><html><head><title>T</title></head><body><article><h1>T</h1><p>${"abcdefghi ".repeat(60)}</p></article></body></html>`,
+			thumbnailUrl: null,
+		});
+
+		assert(result.ok);
+		expect(result.article.excerpt).toBe(`${"abcdefghi ".repeat(24).trim()}…`);
+		expect(result.article.excerpt.length).toBeLessThanOrEqual(METADATA_EXCERPT_MAX_LENGTH + 1);
+	});
+
+	it("clips a meta-description excerpt longer than the cap", () => {
+		const { parseHtml } = initParser();
+		const result = parseHtml({
+			url: "https://example.com/page",
+			documentUrl: "https://example.com/page",
+			html: `<!DOCTYPE html><html><head><title>T</title><meta property="og:description" content="${"meta words ".repeat(400)}"></head><body><article><h1>T</h1><p>${"Body sentence with enough words to be scored. ".repeat(10)}</p></article></body></html>`,
+			thumbnailUrl: null,
+		});
+
+		assert(result.ok);
+		expect(result.article.excerpt).toBe(`${"meta words ".repeat(21)}meta…`);
+	});
+
+	it("keeps a short meta-description excerpt unchanged", () => {
+		const { parseHtml } = initParser();
+		const result = parseHtml({
+			url: "https://example.com/page",
+			documentUrl: "https://example.com/page",
+			html: ARTICLE_HTML.replace("<head>", '<head><meta name="description" content="A short description of the article.">'),
+			thumbnailUrl: null,
+		});
+
+		assert(result.ok);
+		expect(result.article.excerpt).toBe("A short description of the article.");
+	});
+
 	describe("site pre-parser wiring", () => {
 		it("uses the content returned by the first matching pre-parser whose extract returns a result", () => {
 			const calls: string[] = [];
@@ -956,6 +997,29 @@ describe("initReadabilityParser", () => {
 					"Prolog Basics Explained with Pokémon",
 				);
 				expect(result.article.content).toContain("type(bulbasaur, grass)");
+			}
+		});
+
+		it("parses documents whose HTML omits the <html>, <head> and <body> start tags, leaving metadata and flow content as document-level siblings (unfenced.land shape)", () => {
+			const html = readFileSync(
+				join(__dirname, "fixtures", "implicit-html-root.html"),
+				"utf-8",
+			);
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://unfenced.land/",
+				documentUrl: "https://unfenced.land/",
+				html,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.title).toBe(
+					"Unfenced: land for sale that borders public land",
+				);
+				expect(result.article.content).toContain("game lands and wilderness");
 			}
 		});
 

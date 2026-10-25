@@ -1573,6 +1573,147 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
+	private func canonicalReadlists(current href: String) -> String {
+		func rel(_ entry: String) -> String { entry == href ? "current" : "readlist" }
+		return """
+		{ "label": "All", "rel": "\(rel("/queue"))", "href": "/queue" },
+		{ "label": "Work", "rel": "\(rel("/queue?readlist=work"))", "href": "/queue?readlist=work" }
+		"""
+	}
+
+	private func canonicalReadlistHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		return { request, _ in
+			switch (request.url?.path, request.url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "queue=work"):
+				return .redirect(to: "/queue?readlist=work")
+			case ("/queue", "queue=gone"):
+				return .redirect(to: "/queue")
+			case ("/queue", "readlist=work"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [self.workArticle(id: "w1")],
+					readlistsJSON: self.canonicalReadlists(current: "/queue?readlist=work")
+				))
+			case ("/queue", ""):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")],
+					readlistsJSON: self.canonicalReadlists(current: "/queue")
+				))
+			default:
+				return .json(500, "{}")
+			}
+		}
+	}
+
+	func testATickedHrefTheServerRedirectsIsRewrittenToTheHrefItNowAdvertises() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=work"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(
+			requestedHrefs(), ["/", "/queue", "/queue?queue=work", "/queue?readlist=work"],
+			"a ticked href the collection does not advertise is followed once, through the redirect the server answers"
+		)
+		XCTAssertEqual(
+			ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"],
+			"the href the redirect landed on is the one the collection advertises, so the tick is kept in that form"
+		)
+		XCTAssertEqual(viewModel.readlistMenu.map(\.isShareTarget), [true, true], "and the menu badges it again")
+
+		StubURLProtocol.reset()
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue"], "once rewritten, the tick is never followed again")
+	}
+
+	func testATickedHrefTheServerAnswersWithTheMainlineIsDropped() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=gone", "/queue?readlist=work"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(
+			ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"],
+			"a readlist the server no longer knows answers with the mainline, which every save reaches anyway, so its tick is dropped"
+		)
+	}
+
+	func testNothingIsFollowedWhileEveryTickedHrefIsAdvertised() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?readlist=work"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue"], "an advertised tick needs no round trip")
+		XCTAssertEqual(ShareTarget(container: shareContainer).hrefs, ["/queue?readlist=work"])
+	}
+
+	func testAnAbsoluteTickedHrefTheCollectionAdvertisesRelativelyIsNotFollowed() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		let absolute = "\(AppConfig.serverBaseURL)/queue?readlist=work"
+		ShareTarget(container: shareContainer).record(hrefs: [absolute])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue"], "an href that resolves to an advertised one needs no round trip")
+		XCTAssertEqual(ShareTarget(container: shareContainer).hrefs, [absolute])
+	}
+
+	func testATickTheReaderClearsWhileItsFollowIsInFlightStaysCleared() async {
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=work"])
+		let canonical = canonicalReadlistHandler()
+		StubURLProtocol.setHandler { request, body in
+			if request.url?.query == "queue=work" {
+				ShareTarget(container: shareContainer).remove(href: "/queue?queue=work")
+			}
+			return canonical(request, body)
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue", "/queue?queue=work", "/queue?readlist=work"])
+		XCTAssertEqual(
+			ShareTarget(container: shareContainer).hrefs, [],
+			"the follow does not bring back a tick the reader cleared"
+		)
+	}
+
+	func testATickedHrefWhoseFollowFailsIsKeptForTheNextLoad() async {
+		StubURLProtocol.setHandler(canonicalReadlistHandler())
+		let shareContainer = AppGroupContainer(url: TestSupport.temporaryContainer())
+		ShareTarget(container: shareContainer).record(hrefs: ["/queue?queue=broken"])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), shareContainer: shareContainer)
+
+		await viewModel.refresh()
+		await viewModel.shareTargetReconciliation?.value
+
+		XCTAssertEqual(requestedHrefs(), ["/", "/queue", "/queue?queue=broken"])
+		XCTAssertEqual(
+			ShareTarget(container: shareContainer).hrefs, ["/queue?queue=broken"],
+			"a follow the server did not answer says nothing about where the tick belongs"
+		)
+		XCTAssertNil(viewModel.errorText, "and it is no reason to fail the list the reader asked for")
+	}
+
 	func testReadlistSwitchingIsOfferedOnlyWhenMoreThanOneReadlistIsAdvertised() async {
 		let onlyAll = """
 		{ "label": "All", "rel": "current", "href": "/queue" }
@@ -3333,7 +3474,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureBlockedArticle(with: htmlCaptor("<html>captured in the app</html>"))
+		let ending = await viewModel.captureBlockedArticle(with: htmlCaptor("<html>captured in the app</html>"))
+
+		XCTAssertEqual(ending, .copied, "an uploaded capture ends with a copy on its way")
 
 		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
 		let parts = TestSupport.multipartParts(
@@ -3357,7 +3500,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		let captor = htmlCaptor("<html>hi</html>")
 
-		await viewModel.captureBlockedArticle(with: captor)
+		let ending = await viewModel.captureBlockedArticle(with: captor)
+
+		XCTAssertEqual(ending, .notCopied, "with no article open nothing was copied")
 
 		XCTAssertEqual(captor.capturedURLs, [], "nothing is rendered for an article the user is not reading")
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
@@ -3374,7 +3519,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureBlockedArticle(with: htmlCaptor(nil))
+		let ending = await viewModel.captureBlockedArticle(with: htmlCaptor(nil))
+
+		XCTAssertEqual(ending, .notCopied, "an empty capture uploads nothing")
 
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
 		XCTAssertEqual(
@@ -3396,7 +3543,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureBlockedArticle(with: htmlCaptor("<html>hi</html>"))
+		let ending = await viewModel.captureBlockedArticle(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertEqual(ending, .notCopied, "a refused upload leaves no copy on its way")
 
 		XCTAssertTrue(
 			viewModel.messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false,
@@ -3454,7 +3603,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>captured in the app</html>"))
+		let ending = await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>captured in the app</html>"))
+
+		XCTAssertEqual(ending, .copied, "an uploaded rescue ends with a copy on its way")
 
 		let upload = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-content").first)
 		let parts = TestSupport.multipartParts(
@@ -3486,7 +3637,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		let captor = htmlCaptor("<html>hi</html>")
 
-		await viewModel.captureArticleAutomatically(with: captor)
+		let ending = await viewModel.captureArticleAutomatically(with: captor)
+
+		XCTAssertEqual(ending, .notCopied, "with no article open nothing was copied")
 
 		XCTAssertEqual(captor.capturedURLs, [], "a reader closed before the render started leaves no article to render")
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-content").isEmpty)
@@ -3508,7 +3661,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureArticleAutomatically(with: htmlCaptor(nil))
+		let ending = await viewModel.captureArticleAutomatically(with: htmlCaptor(nil))
+
+		XCTAssertEqual(ending, .notCopied, "an empty rescue uploads nothing")
 
 		XCTAssertEqual(
 			reported, ["This device couldn't capture that page either — the site returned nothing to save."],
@@ -3534,9 +3689,11 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureArticleAutomatically(with: FakeHTMLCaptor(
+		let ending = await viewModel.captureArticleAutomatically(with: FakeHTMLCaptor(
 			page: CapturedPage(rawHtml: "<html>captcha</html>", title: "Just a moment", mediaType: "text/html", mainFrameStatus: 403)
 		))
+
+		XCTAssertEqual(ending, .notCopied, "an error page is never uploaded as the article")
 
 		XCTAssertEqual(
 			reported, ["This device couldn't load the article either — the site answered with an error page instead of it."]
@@ -3565,7 +3722,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 		viewModel.openReader(for: try XCTUnwrap(viewModel.articles.first))
 
-		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+		let ending = await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertEqual(ending, .notCopied, "a refused rescue leaves no copy on its way")
 
 		XCTAssertEqual(
 			reported, ["request failed"],
@@ -3591,7 +3750,9 @@ final class ReadingListViewModelTests: XCTestCase {
 			request.url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
 		}
 
-		await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+		let ending = await viewModel.captureArticleAutomatically(with: htmlCaptor("<html>hi</html>"))
+
+		XCTAssertEqual(ending, .notCopied, "a capture cut short by a dead session copied nothing")
 
 		XCTAssertTrue(expired, "a dead session signs the reader out whichever capture discovered it")
 		XCTAssertEqual(reported, [], "a sign-out is acted on, not logged as a failed capture")

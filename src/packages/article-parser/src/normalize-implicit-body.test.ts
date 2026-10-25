@@ -86,4 +86,28 @@ describe("normalizeImplicitBody", () => {
 		expect(result.article.content).toContain('href="https://example.test/thread/2"');
 		expect(result.article.content).toContain('href="https://example.test/reference"');
 	});
+
+	it("gives a page that omits the <html>, <head> and <body> start tags a root, then a head for its metadata and a body for its flow content", () => {
+		const { document } = parseHTML('<!doctype html><meta charset="utf-8"><title>x</title><p>Post body</p>');
+
+		normalizeImplicitBody(document);
+
+		expect(document.documentElement.outerHTML).toBe(
+			'<html><head><meta charset="utf-8"><title>x</title></head><body><p>Post body</p></body></html>',
+		);
+		expect(Array.from(document.childNodes).map((node) => node.nodeName)).toEqual(["#document-type", "HTML"]);
+	});
+
+	it("keeps the real <html> as the root when a stray <script> precedes it, filing the script into its head", () => {
+		const { document } = parseHTML(
+			'<!DOCTYPE html><script>var a=1</script><html><head><title>Real</title></head><body><p>Post body</p></body></html>',
+		);
+
+		normalizeImplicitBody(document);
+
+		expect(document.documentElement.outerHTML).toBe(
+			'<html><head><title>Real</title><script>var a=1</script></head><body><p>Post body</p></body></html>',
+		);
+		expect(Array.from(document.childNodes).map((node) => node.nodeName)).toEqual(["#document-type", "HTML"]);
+	});
 });

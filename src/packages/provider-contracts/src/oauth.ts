@@ -1,5 +1,5 @@
 import type { AuthorizationCodeModel } from "@node-oauth/oauth2-server";
-import type { AccessToken, OAuthClient, OAuthClientId, OAuthGrantId, OAuthRefresh } from "@packages/domain/oauth";
+import type { AccessToken, OAuthClient, OAuthClientId, OAuthGrantId, OAuthRefresh, OAuthSignIn } from "@packages/domain/oauth";
 import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 
 export type OAuthModel = AuthorizationCodeModel & { refresh: OAuthRefresh };
@@ -20,7 +20,7 @@ export type RevokeOtherUserOAuthGrants = (input: {
 	keep: OAuthGrantId | undefined;
 }) => Promise<{ kept: OAuthGrantId | undefined }>;
 
-export type ListUserOAuthClients = (userId: UserId) => Promise<readonly OAuthClientId[]>;
+export type ListUserOAuthClients = (userId: UserId) => Promise<readonly { clientId: OAuthClientId; latestSignIn: OAuthSignIn | undefined }[]>;
 
 export type RevokeUserOAuthClient = (input: { userId: UserId; clientId: OAuthClientId }) => Promise<void>;
 

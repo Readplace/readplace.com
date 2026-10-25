@@ -111,8 +111,8 @@ describe("computeArticleContentVersion", () => {
 	});
 
 	it("changes with a failed crawl reason and an unsupported crawl reason", () => {
-		const failedA = computeArticleContentVersion(baseInput({ crawl: { status: "failed", reason: "a" } }));
-		const failedB = computeArticleContentVersion(baseInput({ crawl: { status: "failed", reason: "b" } }));
+		const failedA = computeArticleContentVersion(baseInput({ crawl: { status: "failed", outcomeRevision: 1, reason: "a" } }));
+		const failedB = computeArticleContentVersion(baseInput({ crawl: { status: "failed", outcomeRevision: 1, reason: "b" } }));
 		const unsupported = computeArticleContentVersion(
 			baseInput({ crawl: { status: "unsupported", reason: "a" } }),
 		);

@@ -4,6 +4,7 @@ import {
 } from "@packages/domain/readlist";
 import { mcpOperationMetadata } from "@packages/domain/mcp";
 import { z } from "zod";
+import { DELETE_ARTICLE_PUBLISHED_TOOL } from "./delete-article-published-tool";
 
 /** MCP tool annotations: advisory hints a client uses to decide how much to
  * trust or how loudly to confirm a tool call. `readOnlyHint` marks a tool that
@@ -23,7 +24,7 @@ interface McpToolAnnotations {
  * a test keeps the two shapes in lock-step so an agent's
  * understanding of a tool's input never diverges from what the server accepts.
  */
-interface McpToolDefinition {
+export interface McpToolDefinition {
 	readonly name: string;
 	readonly title: string;
 	readonly description: string;
@@ -32,6 +33,8 @@ interface McpToolDefinition {
 }
 
 export const LIST_READLIST_ARTICLES_LEGACY_NAME = "list_queue";
+
+export const DELETE_ARTICLE_LEGACY_NAME = "delete_article";
 
 export const SaveLinkArgs = z.object({
 	url: z.string().min(1),
@@ -305,8 +308,8 @@ export const MARK_AS_UNREAD_TOOL: McpToolDefinition = {
 	},
 };
 
-export const DELETE_ARTICLE_TOOL: McpToolDefinition = {
-	...mcpOperationMetadata("delete_article"),
+export const GET_ARTICLE_DELETION_STEPS_TOOL: McpToolDefinition = {
+	...mcpOperationMetadata("get_article_deletion_steps"),
 	inputSchema: {
 		type: "object",
 		properties: {},
@@ -332,5 +335,6 @@ export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	ADD_TO_READLIST_TOOL,
 	MARK_AS_READ_TOOL,
 	MARK_AS_UNREAD_TOOL,
-	DELETE_ARTICLE_TOOL,
+	GET_ARTICLE_DELETION_STEPS_TOOL,
+	DELETE_ARTICLE_PUBLISHED_TOOL,
 ];

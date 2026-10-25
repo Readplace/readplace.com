@@ -48,6 +48,10 @@ const ADMIN_PATHS = [
 	"/admin/recrawl",
 	"/admin/extend-trial",
 	"/admin/canary-reports/failed-articles/run-1-1",
+	"/admin/dashboards",
+	"/admin/dashboards/hn-experiment",
+	"/admin/dashboards/mcp?range=1d",
+	"/admin/dashboards/login?range=90d",
 ];
 
 describe("every same-origin CTA on the admin surfaces carries its own utm_source", () => {

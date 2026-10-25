@@ -1,10 +1,24 @@
 import Foundation
 
+enum CaptureEnding: Equatable {
+	case copied
+	case notCopied
+}
+
 enum HealBlockedOutcome: Equatable {
 	case healed
 	case captureWasEmpty
 	case noSaveContentAction
 	case pageNotServed
+
+	var ending: CaptureEnding {
+		switch self {
+		case .healed:
+			return .copied
+		case .captureWasEmpty, .noSaveContentAction, .pageNotServed:
+			return .notCopied
+		}
+	}
 
 	var failureText: String? {
 		switch self {

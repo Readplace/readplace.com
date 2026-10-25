@@ -131,6 +131,7 @@ class ReadingListViewModelTest {
 			reportAutomaticCaptureFailure = reportAutomaticCaptureFailure,
 			drainUploadJobs = drainUploadJobs,
 			onSessionExpired = onSessionExpired,
+			scope = backgroundScope,
 		)
 
 	/** Waits — off the test scheduler, so the launched operation can run — until the
@@ -1665,7 +1666,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a landed upload ends the capture with a copy", CaptureEnding.Copied, ending)
 
 		assertEquals(
 			"the capture is keyed on the open row's own url, never the reader url hosting it",
@@ -1682,7 +1685,9 @@ class ReadingListViewModelTest {
 		val viewModel = viewModel(healBlockedArticle = { url -> healed += url; HealBlockedOutcome.HEALED })
 		viewModel.refresh()
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("nothing is rendered for an article the user is not reading", emptyList<String>(), healed)
 		assertEquals(listOf("a1"), viewModel.articleIds)
@@ -1696,7 +1701,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(article(readHref = "/queue/gone/view", id = "gone"))
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("a row the list no longer holds has no url to capture", emptyList<String>(), healed)
 	}
@@ -1709,7 +1716,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			"an origin hostile to automated fetches can refuse the on-device render too; the user is told, not left with a silent reload",
@@ -1730,7 +1739,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("The server offered no way to save the captured page.", viewModel.state.value.errorText)
 		assertEquals(listOf("a1"), viewModel.articleIds)
@@ -1744,7 +1755,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			"a refused capture reuses the same server-authored message channel every other refused write does",
@@ -1762,7 +1775,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureBlockedArticle()
+		val ending = viewModel.captureBlockedArticle()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("java.io.IOException", viewModel.state.value.errorText)
 	}
@@ -1996,7 +2011,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a landed upload ends the capture with a copy", CaptureEnding.Copied, ending)
 
 		assertEquals(
 			"the rescue goes through the automatic heal, keyed on the open row's own url, never the reader url hosting it",
@@ -2018,7 +2035,9 @@ class ReadingListViewModelTest {
 		)
 		viewModel.refresh()
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("a reader closed before the render started leaves no article to render", emptyList<String>(), healed)
 		assertEquals(emptyList<String>(), reported)
@@ -2032,7 +2051,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(article(readHref = "/queue/gone/view", id = "gone"))
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("a row the list no longer holds has no url to capture", emptyList<String>(), healed)
 	}
@@ -2049,7 +2070,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			"the failure goes to the log, so a capture the reader never asked for is still diagnosable",
@@ -2073,7 +2096,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			listOf("This device couldn't load the article either — the site answered with an error page instead of it."),
@@ -2096,7 +2121,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(
 			"the log line carries a fixed label, never the server's text or the article's url",
@@ -2121,7 +2148,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals("a dead session signs the reader out whichever capture discovered it", 1, expiries)
 		assertEquals("a sign-out is acted on, not logged as a failed capture", emptyList<String>(), reported)
@@ -2140,7 +2169,9 @@ class ReadingListViewModelTest {
 		viewModel.refresh()
 		viewModel.openReader(viewModel.state.value.articles.first())
 
-		viewModel.captureArticleAutomatically()
+		val ending = viewModel.captureArticleAutomatically()
+
+		assertEquals("a capture that uploaded nothing tells the page no copy is coming", CaptureEnding.NotCopied, ending)
 
 		assertEquals(1, expiries)
 		assertEquals(emptyList<String>(), reported)
@@ -3463,6 +3494,159 @@ class ReadingListViewModelTest {
 
 		assertEquals("the abandoned failing load neither repaints rows nor surfaces its error", listOf("l1"), viewModel.articleIds)
 		assertNull(viewModel.state.value.errorText)
+	}
+
+	private fun canonicalReadlistsHandler(): (Record) -> Stub = { record ->
+		val url = record.request.url
+		val legacySlug = url.queryParameter("queue")
+		when {
+			record.path == "/" -> Stub.redirect(to = "/queue")
+			record.path != "/queue" -> Stub.json(404, "{}")
+			legacySlug != null -> Stub.redirect(to = "/queue?readlist=$legacySlug")
+			url.queryParameter("readlist") == "broken" -> Stub.json(500, "{}")
+			url.queryParameter("readlist") == "work" ->
+				Stub.json(200, canonicalCollection(current = "/queue?readlist=work", articleId = "w1"))
+			url.queryParameter("readlist") == "orphan" ->
+				Stub.json(200, canonicalCollection(current = "/queue?readlist=orphan", articleId = "o1"))
+			else -> Stub.json(200, canonicalCollection(current = "/queue", articleId = "a1"))
+		}
+	}
+
+	private fun canonicalCollection(current: String, articleId: String): String {
+		fun rel(href: String) = if (href == current) "current" else "readlist"
+		return Fixtures.collection(
+			listOf(Fixtures.article(articleId)),
+			tabsJson = Fixtures.tabs(queue = current),
+			readlistsJson = """
+				{ "label": "All", "rel": "${rel("/queue")}", "href": "/queue" },
+				{ "label": "Work", "rel": "${rel("/queue?readlist=work")}", "href": "/queue?readlist=work" }
+			""",
+		)
+	}
+
+	private fun legacyFollows(slug: String): Int =
+		server.records("/queue").count { it.request.url.queryParameter("queue") == slug }
+
+	@Test
+	fun `a persisted share target redirected to an advertised readlist is matched and rewritten`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?queue=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals(
+			"the legacy href is rewritten to the advertised one its redirect chain reached",
+			setOf("/queue?readlist=work"),
+			shareTarget.hrefs,
+		)
+		assertEquals(setOf("/queue?readlist=work"), viewModel.state.value.shareTargetHrefs)
+		assertEquals("Work is badged as a share target", listOf(true, true), viewModel.state.value.readlistMenu.map { it.isShareTarget })
+
+		viewModel.refresh()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals("the rewritten href is advertised, so the follow never repeats", 1, legacyFollows("work"))
+	}
+
+	@Test
+	fun `the list is shown and stops loading before a stale share target is followed`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?queue=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertFalse("the load is over once the page applies", viewModel.state.value.isLoading)
+		assertEquals("the follow has not held the load back", 0, legacyFollows("work"))
+
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals(1, legacyFollows("work"))
+		assertEquals(setOf("/queue?readlist=work"), shareTarget.hrefs)
+	}
+
+	@Test
+	fun `a persisted share target the server answers with the default readlist is dropped`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+			.apply { record(setOf("/queue?queue=gone", "/queue?readlist=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals("the entry for the unknown readlist is dropped", setOf("/queue?readlist=work"), shareTarget.hrefs)
+		assertTrue("the reader's answer stays decided", shareTarget.isDecided)
+		assertEquals(setOf("/queue?readlist=work"), viewModel.state.value.shareTargetHrefs)
+	}
+
+	@Test
+	fun `nothing is followed when every persisted share target is advertised`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?readlist=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals("only the mainline collection is read", listOf<String?>(null), server.records("/queue").map { it.request.url.query })
+		assertEquals(setOf("/queue?readlist=work"), shareTarget.hrefs)
+	}
+
+	@Test
+	fun `a persisted share target that loads but matches no advertised readlist is dropped`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage())
+			.apply { record(setOf("/queue?readlist=orphan", "/queue?readlist=work")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals("the entry no advertised readlist claims is dropped", setOf("/queue?readlist=work"), shareTarget.hrefs)
+
+		viewModel.refresh()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals(
+			"so it is not followed again",
+			1,
+			server.records("/queue").count { it.request.url.queryParameter("readlist") == "orphan" },
+		)
+	}
+
+	@Test
+	fun `a share target the reader removes while its follow is in flight stays removed`() = runTest {
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?queue=work")) }
+		val canonical = canonicalReadlistsHandler()
+		server.handle { record ->
+			if (record.request.url.queryParameter("queue") == "work") shareTarget.remove("/queue?queue=work")
+			canonical(record)
+		}
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals(1, legacyFollows("work"))
+		assertEquals("the follow does not bring back a tick the reader cleared", emptySet<String>(), shareTarget.hrefs)
+	}
+
+	@Test
+	fun `a persisted share target whose follow fails is kept and surfaces no error`() = runTest {
+		server.handle(canonicalReadlistsHandler())
+		val shareTarget = ShareTarget(InMemoryReaderChoiceStorage()).apply { record(setOf("/queue?readlist=broken")) }
+		val viewModel = viewModel(shareTarget = shareTarget)
+
+		viewModel.loadIfNeeded()
+		viewModel.shareTargetReconciliation?.join()
+
+		assertEquals("a failed follow leaves the entry for a later load", setOf("/queue?readlist=broken"), shareTarget.hrefs)
+		assertNull(viewModel.state.value.errorText)
+		assertEquals(listOf("a1"), viewModel.articleIds)
 	}
 
 	// endregion

@@ -1,3 +1,4 @@
+import { OAuthSignInSchema } from "@packages/domain/oauth";
 import { z } from "zod";
 import { CredentialFingerprint, OAuthGrantId } from "../../oauth-refresh/evidence";
 
@@ -16,5 +17,6 @@ export const OAuthTokenRow = z.object({
 	epoch: z.number().optional(),
 	generation: z.number().optional(),
 	keyThumbprint: z.string().optional(),
+	signedIn: OAuthSignInSchema.optional(),
 });
 export type OAuthTokenRow = z.infer<typeof OAuthTokenRow>;

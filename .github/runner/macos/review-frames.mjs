@@ -30,7 +30,21 @@ function reviewPrompt(frameCount) {
 }
 
 function verifyPrompt(finding) {
-  return `Look only at this single UI screenshot. A reviewer claims this defect: "${finding.defect}" at "${finding.location}". Is the claim clearly visible in this image? Answer with ONLY the word true or false.`;
+  return [
+    "Look only at this single UI screenshot.",
+    "Text is clipped when it runs right up to the edge of its container or of the screen and that edge cuts through its letters.",
+    `A reviewer claims this defect: "${finding.defect}" at "${finding.location}".`,
+    "If a modal dialog is open, ignore the blur and dimming of the page behind it: that is intentional, and blurred text there is complete, not clipped. Judge the dialog itself normally, including text its edge cuts through.",
+    "Is the claim visible in this image? Answer with ONLY the word true or false.",
+  ].join("\n");
+}
+
+function verificationVerdict(reply) {
+  const answer = reply.trim().toLowerCase();
+  if (answer === "true" || answer === "false") {
+    return answer === "true";
+  }
+  return undefined;
 }
 
 function extractFindings(body) {
@@ -162,6 +176,7 @@ async function generate({ server, model, prompt, images, maxTokens }) {
 
 async function verifiedFindings({ server, model, flow, findings }) {
   const verified = [];
+  const unanswered = [];
   for (const finding of findings) {
     const frameFile = flow.frames[Number(finding.frame)];
     if (frameFile === undefined) {
@@ -174,11 +189,14 @@ async function verifiedFindings({ server, model, flow, findings }) {
       images: [frameFile],
       maxTokens: VERIFY_MAX_TOKENS,
     });
-    if (/true/i.test(reply)) {
+    const verdict = verificationVerdict(reply);
+    if (verdict === undefined) {
+      unanswered.push({ finding, reply: reply.trim() });
+    } else if (verdict) {
       verified.push(finding);
     }
   }
-  return verified;
+  return { verified, unanswered };
 }
 
 async function reviewFlow({ server, model, flow }) {
@@ -190,11 +208,12 @@ async function reviewFlow({ server, model, flow }) {
     maxTokens: GENERATE_MAX_TOKENS,
   });
   const extracted = extractFindings(reply);
-  const findings = await verifiedFindings({ server, model, flow, findings: extracted.findings });
+  const { verified, unanswered } = await verifiedFindings({ server, model, flow, findings: extracted.findings });
   return {
     flow: flow.flow,
     frameCount: flow.frames.length,
-    findings,
+    findings: verified,
+    unanswered,
     parseFailed: extracted.parseFailed,
     raw: extracted.raw,
   };
@@ -218,8 +237,16 @@ function formatSummary(reviews) {
       lines.push("The model reply was not parseable JSON; raw output:", "", ...fencedBlock(review.raw), "");
       continue;
     }
+    for (const { finding, reply } of review.unanswered) {
+      lines.push(
+        `The verification of frame ${cell(finding.frame)} (${cell(finding.defect)}) did not answer true or false; raw output:`,
+        "",
+        ...fencedBlock(reply),
+        "",
+      );
+    }
     if (review.findings.length === 0) {
-      lines.push("No structural defects reported.", "");
+      lines.push(review.unanswered.length === 0 ? "No structural defects reported." : "No structural defects confirmed.", "");
       continue;
     }
     lines.push("| Frame | Defect | Location |", "|---|---|---|");
@@ -281,23 +308,28 @@ async function main() {
   const summary = formatSummary(reviews);
   await publishSummary(summary);
   const defectCount = reviews.reduce((total, review) => total + review.findings.length, 0);
+  const unparsedFlows = reviews.filter((review) => review.parseFailed).map((review) => review.flow);
+  const unansweredFlows = reviews.filter((review) => review.unanswered.length > 0).map((review) => review.flow);
+  const framesKept = defectCount > 0 || unparsedFlows.length > 0 || unansweredFlows.length > 0;
   if (process.env.GITHUB_OUTPUT) {
-    await appendFile(process.env.GITHUB_OUTPUT, `defect-count=${defectCount}\n`);
+    await appendFile(process.env.GITHUB_OUTPUT, `defect-count=${defectCount}\nframes-kept=${framesKept}\n`);
   }
   // Flagged frames are the evidence for the summary above, so they are copied
   // into the workspace for the upload step to keep; a clean review has nothing
   // worth keeping. The copy is what lets the upload name a relative path —
   // uploading straight from the host directory reads as exfiltration to
   // GitHub's workflow scanner, which holds the whole run for approval.
-  if (defectCount > 0) {
+  if (framesKept) {
     await cp(framesDir, "flagged-frames", { recursive: true });
   }
   const deliveredFrames = await frameVersions(await listFlows(framesDir));
   const everyDeliveredFrameWasReviewed = JSON.stringify(deliveredFrames) === JSON.stringify(reviewedFrames);
   await rm(framesDir, { recursive: true, force: true });
-  const unparsedFlows = reviews.filter((review) => review.parseFailed).map((review) => review.flow);
   if (unparsedFlows.length > 0) {
     throw new Error(`The model reply was not parseable JSON for: ${unparsedFlows.join(", ")}`);
+  }
+  if (unansweredFlows.length > 0) {
+    throw new Error(`A verification reply was neither true nor false for: ${unansweredFlows.join(", ")}`);
   }
   if (defectCount > 0) {
     throw new Error(`The model confirmed ${defectCount} defect(s) in the transition frames`);

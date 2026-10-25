@@ -17,12 +17,16 @@ import com.readplace.android.core.SirenAction
 import com.readplace.android.core.SirenLink
 import com.readplace.android.core.UnseenSave
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Everything the reading list renders, published as one value through
@@ -70,7 +74,7 @@ data class ReadingListState(
 
 	/** The label of the readlist on screen, for the subtitle, or null before one has
 	 * loaded. */
-	val currentReadlistLabel: String? get() = readlists.firstOrNull { it.href == selectedReadlistHref }?.label
+	val currentReadlistLabel: String? get() = readlists.firstOrNull { it.matches(listOfNotNull(selectedReadlistHref)) }?.label
 
 	/** The switcher menu, built only from advertised readlists — a stale stored share
 	 * destination the server no longer lists produces no item. */
@@ -90,7 +94,7 @@ data class ReadingListState(
 		if (!offersReadlistSwitching) return null
 		val landing = tabs.firstOrNull()?.href ?: return null
 		if (landing != selectedTabHref) return null
-		val readlist = readlists.firstOrNull { it.href == selectedReadlistHref } ?: return null
+		val readlist = readlists.firstOrNull { it.matches(listOfNotNull(selectedReadlistHref)) } ?: return null
 		return SharedArticlesDrop.of(readlist, mainlineHref = rootHref, tickedHrefs = shareTargetHrefs)
 	}
 }
@@ -124,6 +128,7 @@ class ReadingListViewModel(
 	private val reportAutomaticCaptureFailure: (String) -> Unit,
 	private val drainUploadJobs: suspend () -> Unit,
 	private val onSessionExpired: () -> Unit,
+	private val scope: CoroutineScope,
 ) {
 	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
 	val state: StateFlow<ReadingListState> = states.asStateFlow()
@@ -186,6 +191,9 @@ class ReadingListViewModel(
 	private var readApplied = 0
 	private var readsInFlight = 0
 
+	var shareTargetReconciliation: Job? = null
+		private set
+
 	/** Whether a collection has ever been applied. Gates the foreground refresh so
 	 * it never races the launch-time load with a second fetch. */
 	private var hasLoadedOnce = false
@@ -233,7 +241,7 @@ class ReadingListViewModel(
 	 * without a fetch. Removing the last extra leaves a chosen-empty answer, not an
 	 * unasked one. */
 	fun toggleSharedArticlesDrop(readlist: Readlist) {
-		if (shareTarget.hrefs.contains(readlist.href)) {
+		if (readlist.matches(shareTarget.hrefs)) {
 			shareTarget.remove(readlist.href)
 		} else {
 			shareTarget.add(readlist.href)
@@ -508,7 +516,42 @@ class ReadingListViewModel(
 		readApplied = read
 		apply(firstPage, replacing = true)
 		for (page in deeperPages) apply(page, replacing = false)
+		reconcileShareTargets(against = firstPage)
 		return true
+	}
+
+	private fun reconcileShareTargets(against: ReadlistPage) {
+		if (shareTargetReconciliation?.isActive == true) return
+		val advertised = against.readlists
+		if (advertised.isEmpty()) return
+		val unadvertised = shareTarget.hrefs.filterNot { href -> advertised.any { it.matches(listOf(href)) } }
+		if (unadvertised.isEmpty()) return
+		val mainline = listOfNotNull(against.rootHref)
+		shareTargetReconciliation = scope.launch { rewriteUnadvertisedShareTargets(advertised, mainline, unadvertised) }
+	}
+
+	private suspend fun rewriteUnadvertisedShareTargets(
+		advertised: List<Readlist>,
+		mainline: List<String>,
+		unadvertised: List<String>,
+	) {
+		for (persisted in unadvertised) {
+			val followed = try {
+				api.loadReadlist(path = persisted)
+			} catch (_: Exception) {
+				currentCoroutineContext().ensureActive()
+				continue
+			}
+			if (persisted !in shareTarget.hrefs) continue
+			val answered = followed.chain + listOfNotNull(followed.currentReadlistHref)
+			val resolved = advertised.firstOrNull { it.matches(answered) }
+			if (resolved == null || resolved.matches(mainline)) {
+				shareTarget.remove(persisted)
+			} else {
+				shareTarget.rewrite(from = persisted, to = resolved.href)
+			}
+		}
+		syncShareTargetHrefs()
 	}
 
 	/**
@@ -561,20 +604,23 @@ class ReadingListViewModel(
 		mutate { it.copy(messages = emptyList()) }
 	}
 
-	suspend fun captureBlockedArticle() {
-		val articleId = states.value.readerPresentation?.articleId ?: return
-		val article = states.value.articles.firstOrNull { it.id == articleId } ?: return
+	suspend fun captureBlockedArticle(): CaptureEnding {
+		val articleId = states.value.readerPresentation?.articleId ?: return CaptureEnding.NotCopied
+		val article = states.value.articles.firstOrNull { it.id == articleId } ?: return CaptureEnding.NotCopied
 		try {
-			val failureText = healBlockedArticle(article.url).failureText
+			val outcome = healBlockedArticle(article.url)
+			val failureText = outcome.failureText
 			if (failureText != null) {
 				mutate { it.copy(errorText = failureText) }
-				return
+			} else {
+				reloadAndAdopt()
 			}
-			reloadAndAdopt()
+			return outcome.ending
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
 			handle(error)
+			return CaptureEnding.NotCopied
 		}
 	}
 
@@ -583,15 +629,17 @@ class ReadingListViewModel(
 		return automaticCaptureAttempts.claim(article.id)
 	}
 
-	suspend fun captureArticleAutomatically() {
-		val article = openArticle() ?: return
+	suspend fun captureArticleAutomatically(): CaptureEnding {
+		val article = openArticle() ?: return CaptureEnding.NotCopied
 		try {
-			val failureText = healArticleAutomatically(article.url).failureText
+			val outcome = healArticleAutomatically(article.url)
+			val failureText = outcome.failureText
 			if (failureText != null) {
 				reportAutomaticCaptureFailure(failureText)
-				return
+			} else {
+				reloadAndAdopt()
 			}
-			reloadAndAdopt()
+			return outcome.ending
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (error: Exception) {
@@ -599,6 +647,7 @@ class ReadingListViewModel(
 				is ApiError.Unauthorized, is ApiError.NoToken -> handle(error)
 				else -> reportAutomaticCaptureFailure("request failed")
 			}
+			return CaptureEnding.NotCopied
 		}
 	}
 

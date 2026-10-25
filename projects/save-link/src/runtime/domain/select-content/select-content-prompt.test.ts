@@ -53,9 +53,10 @@ describe("buildSelectContentUserMessage", () => {
 		expect(message).toContain("<p>small</p>");
 	});
 
-	it("logs an ERROR naming the candidate whenever it has to truncate, so the dashboard widget surfaces lost signal", () => {
+	it("logs at INFO when it truncates: the budget cap is designed behaviour, not a failure", () => {
+		const info = jest.fn();
 		const error = jest.fn();
-		const logger: HutchLogger = { ...noopLogger, error };
+		const logger: HutchLogger = { ...noopLogger, info, error };
 		const cap = perCandidateHtmlCap(2);
 
 		buildSelectContentUserMessage({
@@ -67,16 +68,18 @@ describe("buildSelectContentUserMessage", () => {
 			logger,
 		});
 
-		expect(error).toHaveBeenCalledTimes(1);
-		expect(error).toHaveBeenCalledWith(
-			expect.stringContaining("truncating"),
+		expect(info).toHaveBeenCalledTimes(1);
+		expect(info).toHaveBeenCalledWith(
+			expect.stringContaining("exceeds per-candidate budget"),
 			expect.objectContaining({ url: "https://example.com/a", tier: "tier-0", cleanedChars: cap + 10, cap }),
 		);
+		expect(error).not.toHaveBeenCalled();
 	});
 
-	it("does not log an ERROR when every candidate fits", () => {
+	it("logs nothing when every candidate fits", () => {
+		const info = jest.fn();
 		const error = jest.fn();
-		const logger: HutchLogger = { ...noopLogger, error };
+		const logger: HutchLogger = { ...noopLogger, info, error };
 
 		buildSelectContentUserMessage({
 			url: "https://example.com/a",
@@ -84,6 +87,7 @@ describe("buildSelectContentUserMessage", () => {
 			logger,
 		});
 
+		expect(info).not.toHaveBeenCalled();
 		expect(error).not.toHaveBeenCalled();
 	});
 

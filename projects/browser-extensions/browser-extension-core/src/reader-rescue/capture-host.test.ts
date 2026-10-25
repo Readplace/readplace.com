@@ -36,6 +36,7 @@ function createHarness(answer: () => Promise<unknown>) {
 	const requests: unknown[] = [];
 	const warnings: string[] = [];
 	let announcements = 0;
+	let failures = 0;
 
 	const host = initCaptureHost({
 		document: {
@@ -56,10 +57,13 @@ function createHarness(answer: () => Promise<unknown>) {
 		announceCaptureStarted: () => {
 			announcements += 1;
 		},
+		announceCaptureFailed: () => {
+			failures += 1;
+		},
 		logger: HutchLogger.from({ ...noopLogger, warn: (...args) => warnings.push(String(args[0])) }),
 	});
 
-	return { host, elements, rootAttributes, requests, warnings, announcements: () => announcements };
+	return { host, elements, rootAttributes, requests, warnings, announcements: () => announcements, failures: () => failures };
 }
 
 describe("initCaptureHost", () => {
@@ -141,6 +145,90 @@ describe("initCaptureHost", () => {
 			{ type: "reader-rescue", url: "https://example.com/a", articleId: "article-1", trigger: "manual" },
 		]);
 		assert.equal(harness.announcements(), 0);
+		assert.equal(harness.failures(), 0);
+	});
+
+	it("announces the capture failed when a tap is answered signed out", async () => {
+		const harness = createHarness(async () => ({ outcome: "skipped", reason: "not-logged-in" }));
+
+		await harness.host.tapped(tapOn([{ "data-reader-capture": "" }, OFFERED_NOTICE]));
+
+		assert.equal(harness.failures(), 1);
+	});
+
+	it("announces the capture failed when a tap gets no answer", async () => {
+		const harness = createHarness(async () => {
+			throw new Error("Extension context invalidated.");
+		});
+
+		await harness.host.tapped(tapOn([{ "data-reader-capture": "" }, OFFERED_NOTICE]));
+
+		assert.equal(harness.failures(), 1);
+	});
+
+	it("announces the capture failed when the background ends a rescue it was asked for", async () => {
+		const tapped = createHarness(async () => ({ outcome: "started" }));
+		const offered = createHarness(async () => ({ outcome: "started" }));
+		offered.elements.push(OFFERED_NOTICE);
+
+		await tapped.host.tapped(tapOn([{ "data-reader-capture": "" }, OFFERED_NOTICE]));
+		await offered.host.pageChanged();
+		tapped.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "manual" });
+		offered.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+
+		assert.equal(tapped.failures(), 1);
+		assert.equal(offered.failures(), 1);
+	});
+
+	it("ignores the end of a rescue it never asked for, and messages it cannot read", async () => {
+		const unasked = createHarness(async () => ({ outcome: "started" }));
+		const harness = createHarness(async () => ({ outcome: "started" }));
+		harness.elements.push(OFFERED_NOTICE);
+		await harness.host.pageChanged();
+
+		unasked.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-2", trigger: "automatic" });
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1" });
+		harness.host.rescueEnded({ type: "capture-html" });
+		harness.host.rescueEnded(undefined);
+
+		assert.equal(unasked.failures() + harness.failures(), 0);
+	});
+
+	it("awaits no automatic rescue the background did not start", async () => {
+		const harness = createHarness(async () => ({ outcome: "skipped", reason: "already-attempted" }));
+		harness.elements.push(OFFERED_NOTICE);
+		await harness.host.pageChanged();
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+
+		assert.equal(harness.failures(), 0);
+	});
+
+	it("ignores the end of the automatic rescue once the reader tapped for a copy of the same article, and announces the end of the tapped one", async () => {
+		const harness = createHarness(async () => ({ outcome: "started" }));
+		harness.elements.push(OFFERED_NOTICE);
+		await harness.host.pageChanged();
+		await harness.host.tapped(tapOn([{ "data-reader-capture": "" }, OFFERED_NOTICE]));
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+		assert.equal(harness.failures(), 0);
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "manual" });
+		assert.equal(harness.failures(), 1);
+	});
+
+	it("ignores the end of a rescue for an article the page has moved on from, and announces the end of the one now awaited", async () => {
+		const harness = createHarness(async () => ({ outcome: "started" }));
+		harness.elements.push(OFFERED_NOTICE);
+		await harness.host.pageChanged();
+		await harness.host.tapped(tapOn([{ "data-reader-capture": "" }, { ...OFFERED_NOTICE, "data-reader-article-id": "article-2" }]));
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-1", trigger: "automatic" });
+		assert.equal(harness.failures(), 0);
+
+		harness.host.rescueEnded({ type: "reader-rescue-ended", articleId: "article-2", trigger: "manual" });
+		assert.equal(harness.failures(), 1);
 	});
 
 	it("asks nothing for a tap outside the capture control", async () => {

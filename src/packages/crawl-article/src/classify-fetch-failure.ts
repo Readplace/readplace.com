@@ -1,4 +1,5 @@
 import { TERMINAL_NETWORK_CODES } from "./transport-ladder";
+import { TransportLadderFailure } from "./transport-ladder-failure";
 
 export type FetchFailureClassification =
 	| { kind: "origin-unreachable"; httpStatus?: number; code?: string }
@@ -21,6 +22,14 @@ export function classifyFailedResponse(params: {
 }
 
 export function classifyFetchError(error: unknown): FetchFailureClassification {
+	if (error instanceof TransportLadderFailure) {
+		if (error.retryDisposition === "unclassified") return { kind: "fetch-failed" };
+		for (const attempt of [...error.previousErrors, error.cause]) {
+			const classification = classifyFetchError(attempt);
+			if (classification.kind === "origin-unreachable") return classification;
+		}
+		return { kind: "fetch-failed" };
+	}
 	let link: unknown = error;
 	while (link instanceof Error) {
 		if (

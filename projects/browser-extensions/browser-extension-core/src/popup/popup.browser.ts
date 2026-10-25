@@ -1,9 +1,22 @@
 /// <reference lib="dom" />
 import type { HutchLogger } from "@packages/hutch-logger";
 import { type IconName, iconSvg } from "@packages/ui-icons";
+import type { ZodType } from "zod";
 import { advertisesBulkSave } from "../advertised-capabilities";
 import type { GuardedResult } from "../auth/auth.types";
 import { BULK_SAVE_FAILED_TITLE } from "../bulk-save-notification";
+import {
+	BULK_SAVE_RUNS_KEY,
+	type BulkSaveRun,
+	BulkSaveRunIdSchema,
+	parseBulkSaveRuns,
+} from "../bulk-save-run/bulk-save-run";
+import {
+	AcknowledgeSaveAllReplySchema,
+	FollowSaveAllReplySchema,
+	type SaveAllMessage,
+	SaveAllStartReplySchema,
+} from "../bulk-save-run/save-all-messages";
 import {
 	type ContentShortcuts,
 	DEFAULT_SAVE_ALL_SHORTCUT,
@@ -17,7 +30,6 @@ import type { ReadingListItem } from "../domain/reading-list-item.types";
 import { installShortcuts } from "../keydown-shortcuts";
 import type { PopupMessage } from "../popup-message.types";
 import type {
-	BulkSaveResult,
 	CollectionPage,
 	CollectionTotal,
 	InvokeActionResult,
@@ -28,7 +40,15 @@ import type {
 	SortDescriptor,
 } from "../reading-list/reading-list.types";
 import { ADVERTISED_CAPABILITIES_STORAGE_KEY, parseStoredCapabilities } from "../sync-context-menus";
-import { type ActionVariant, actionLabel, actionVariant, linkLabel, linkPresentation } from "./action-affordance";
+import {
+	type ActionVariant,
+	actionLabel,
+	actionVariant,
+	isUserControl,
+	isUserControlLink,
+	linkLabel,
+	linkPresentation,
+} from "./action-affordance";
 import { filterByQuery } from "./filter-by-query";
 import { isAppUrl } from "./is-app-url";
 import { isMacPlatform } from "./is-mac-platform";
@@ -37,14 +57,9 @@ import { buildMessageView } from "./message-view";
 import { LIST_SKELETON_DELAY_MS, initPaintAfterDelay } from "./paint-after-delay";
 import { type PaginationView, buildPaginationView } from "./pagination-view";
 import { type PendingTarget, parsePendingTarget } from "./pending-target";
-import {
-	SAVE_ALL_RENDERED_MARK,
-	type SaveAllDetailLine,
-	buildSaveAllDetailLines,
-	classifyTabs,
-	saveAllTabsLabel,
-	summarizeBulkSave,
-} from "./save-all-tabs";
+import { LOST, type Lost, initSaveAllFollower } from "./save-all-follower";
+import { SAVE_ALL_RENDERED_MARK, type SaveAllDetailLine, classifyTabs, saveAllTabsLabel, windowIdOf } from "./save-all-tabs";
+import { type SaveAllView, buildSaveAllView, routeToolbarOpen } from "./save-all-view";
 import { type RowFactKind, rowFacts } from "./row-facts";
 import { SAVE_RENDERED_MARK, buildSavedView } from "./saved-view";
 
@@ -52,14 +67,17 @@ interface PopupBrowser {
 	runtime: { sendMessage: (message: unknown) => Promise<unknown> };
 	storage: {
 		session: {
-			get: (key: string) => Promise<Record<string, unknown>>;
+			get: (key: string | string[]) => Promise<Record<string, unknown>>;
 			remove: (key: string) => Promise<void>;
 		};
 		local: { get: (key: string) => Promise<Record<string, unknown>> };
+		onChanged: {
+			addListener: (callback: (changes: Record<string, { newValue?: unknown }>, areaName: string) => void) => void;
+		};
 	};
 	tabs: {
 		query: (queryInfo: { active?: boolean; currentWindow?: boolean }) => Promise<
-			{ id?: number; url?: string; title?: string }[]
+			{ id?: number; url?: string; title?: string; windowId: number }[]
 		>;
 	};
 	commands: { getAll: () => Promise<readonly { name?: string; shortcut?: string }[]> };
@@ -338,7 +356,7 @@ export function initPopup(deps: {
 		// link control, so a future rel (e.g. `summary`) renders with no popup
 		// change. Presentation comes from the one client-side rel map, never a
 		// per-rel `if`.
-		for (const link of item.links) {
+		for (const link of item.links.filter(isUserControlLink)) {
 			if (linkPresentation(link.rel) === "row-anchor") {
 				itemLink.href = link.href;
 				continue;
@@ -356,7 +374,7 @@ export function initPopup(deps: {
 		// descriptors and render a button each. No per-capability boolean and no
 		// hardcoded "does the client know action X" check, so a newly-advertised
 		// server action renders here with no popup change.
-		for (const action of item.actions) {
+		for (const action of item.actions.filter(isUserControl)) {
 			const button = document.createElement("button");
 			button.type = "button";
 			button.className = ACTION_CLASS_BY_VARIANT[actionVariant(action.name)];
@@ -635,7 +653,7 @@ export function initPopup(deps: {
 		const affordances = document.getElementById("saved-affordances");
 		if (!affordances) return;
 		affordances.replaceChildren();
-		for (const link of saved.item.links) {
+		for (const link of saved.item.links.filter(isUserControlLink)) {
 			const presentation = linkPresentation(link.rel);
 			if (presentation === "row-anchor") continue;
 			const control =
@@ -673,7 +691,7 @@ export function initPopup(deps: {
 		await loadThenRevealList();
 	}
 
-	async function getActiveTab(): Promise<PendingTarget | null> {
+	async function readExplicitTarget(): Promise<PendingTarget | null> {
 		const stored = await browser.storage.session.get("pendingTarget");
 		const pending = parsePendingTarget(stored.pendingTarget);
 		if (pending) {
@@ -684,24 +702,29 @@ export function initPopup(deps: {
 		const params = new URLSearchParams(window.location.search);
 		const paramUrl = params.get("url");
 		if (paramUrl) return { url: paramUrl, title: params.get("title") ?? paramUrl };
-
-		const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-		const tab = tabs[0];
-		if (!tab?.url) return null;
-		return { url: tab.url, title: tab.title ?? tab.url, tabId: tab.id };
+		return null;
 	}
 
-	async function saveAndShowList() {
-		const activeTab = await getActiveTab();
-		if (!activeTab) throw new Error("No active tab or URL parameters");
+	async function queryActiveTab(): Promise<{ target: PendingTarget; windowTabs: { windowId: number }[] }> {
+		const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+		const tab = tabs[0];
+		if (!tab?.url) throw new Error("No active tab or URL parameters");
+		return { target: { url: tab.url, title: tab.title ?? tab.url, tabId: tab.id }, windowTabs: tabs };
+	}
 
-		if (isAppUrl({ tabUrl: activeTab.url, appDomains })) {
+	async function saveOrShowList(target: PendingTarget) {
+		if (isAppUrl({ tabUrl: target.url, appDomains })) {
 			showView("list-skeleton-view");
 			await showListView();
 			return;
 		}
 
-		await saveTarget(activeTab);
+		await saveTarget(target);
+	}
+
+	async function saveAndShowList() {
+		const explicit = await readExplicitTarget();
+		await saveOrShowList(explicit ?? (await queryActiveTab()).target);
 	}
 
 	async function saveTarget(target: PendingTarget) {
@@ -782,73 +805,112 @@ export function initPopup(deps: {
 		list.hidden = lines.length === 0;
 	}
 
-	async function saveAllTabsFlow() {
+	let provisionalCount: number | null = null;
+
+	function resetSaveAllView(): void {
+		provisionalCount = null;
+		elementById("save-all-progress").hidden = false;
+		elementById("save-all-summary").textContent = "";
+		elementById("save-all-too-big").hidden = true;
+		elementById("save-all-failed").replaceChildren();
+		elementById("save-all-failed").hidden = true;
+		elementById("save-all-failure").hidden = true;
+		elementById("save-all-view-readlist").hidden = true;
+		paintSaveAllView(buildSaveAllView({ provisionalCount, run: null }));
 		showView("save-all-view");
-		const tabs = await browser.tabs.query({ currentWindow: true });
-		const { saveable, skipReasons } = classifyTabs(tabs, appDomains);
+	}
 
-		const progressEl = elementById("save-all-progress");
-		const titleEl = elementById("save-all-title");
-		const summaryEl = elementById("save-all-summary");
+	function showSaveAllFailure(): void {
+		elementById("save-all-progress").hidden = true;
+		elementById("save-all-progress").setAttribute("aria-busy", "false");
+		elementById("save-all-failure-title").textContent = BULK_SAVE_FAILED_TITLE;
+		elementById("save-all-failure").hidden = false;
+		elementById("save-all-view-readlist").hidden = false;
+		showView("save-all-view");
+	}
+
+	function paintSaveAllView(view: SaveAllView): void {
+		const saving = view.kind === "saving";
+		const count = elementById("save-all-count");
+		const pending = [count, elementById("save-all-hint"), elementById("save-all-continue")];
+		elementById("save-all-progress").setAttribute("aria-busy", String(view.ariaBusy));
+		elementById("save-all-title").textContent = view.title;
+		elementById("save-all-count-text").textContent = view.countLine;
+		for (const element of pending) {
+			element.hidden = !saving;
+			element.classList.toggle("save-all-view__pending", !view.revealPending);
+		}
+		count.classList.toggle("save-all-view__pending", view.countLine === "");
+		paintSaveAllSummary(elementById("save-all-summary"), view.summary);
 		const tooBigEl = elementById("save-all-too-big");
+		tooBigEl.textContent = view.tooBig ?? "";
+		tooBigEl.hidden = view.tooBig === null;
 		const failedListEl = elementById("save-all-failed");
-		const failureEl = elementById("save-all-failure");
-		const hintEl = elementById("save-all-hint");
-		const readlistButton = elementById("save-all-view-readlist");
-
-		progressEl.hidden = false;
-		titleEl.textContent = "Saving tabs…";
-		summaryEl.textContent = "";
-		tooBigEl.textContent = "";
-		tooBigEl.hidden = true;
 		failedListEl.replaceChildren();
-		failedListEl.hidden = true;
-		failureEl.hidden = true;
-		hintEl.hidden = false;
-		readlistButton.hidden = true;
+		renderSaveAllDetailLines(failedListEl, view.detailLines);
+		elementById("save-all-view-readlist").hidden = !view.showReadlist;
+	}
 
-		const result = await send<GuardedResult<BulkSaveResult>>({
-			type: "save-all-tabs",
-			tabs: saveable,
-			tabCount: tabs.length,
-		});
-
-		if (isNotLoggedIn(result)) {
+	function paintSaveAllRun(run: BulkSaveRun): void {
+		const view = buildSaveAllView({ provisionalCount, run });
+		if (view.kind === "login") {
 			showLoginPrompt();
 			return;
 		}
-
-		hintEl.hidden = true;
-
-		if (!result.ok) {
-			progressEl.hidden = true;
-			elementById("save-all-failure-title").textContent = BULK_SAVE_FAILED_TITLE;
-			failureEl.hidden = false;
-			readlistButton.hidden = false;
+		if (view.kind === "failed") {
+			showSaveAllFailure();
 			return;
 		}
+		paintSaveAllView(view);
+		showView("save-all-view");
+	}
 
-		const { title, summary, tooBig } = summarizeBulkSave({
-			result: result.value,
-			tabCount: tabs.length,
-			saveableCount: saveable.length,
-		});
-		titleEl.textContent = title;
-		paintSaveAllSummary(summaryEl, summary);
-		tooBigEl.textContent = tooBig ?? "";
-		tooBigEl.hidden = tooBig === null;
-		renderSaveAllDetailLines(
-			failedListEl,
-			buildSaveAllDetailLines({ ...result.value, clientSkipReasons: skipReasons }),
-		);
+	async function sendSaveAll<T>(
+		message: SaveAllMessage,
+		schema: ZodType<T>,
+	): Promise<T | Lost> {
+		try {
+			const parsed = schema.safeParse(await browser.runtime.sendMessage(message));
+			return parsed.success ? parsed.data : LOST;
+		} catch (error) {
+			logger.error("Lost the save-all reply:", error);
+			return LOST;
+		}
+	}
 
-		if (result.value.unauthorized) {
-			performance.mark(SAVE_ALL_RENDERED_MARK);
+	const follower = initSaveAllFollower({
+		sendFollow: (runId) => sendSaveAll({ type: "follow-save-all", runId }, FollowSaveAllReplySchema),
+		sendAcknowledge: (runId) => sendSaveAll({ type: "acknowledge-save-all", runId }, AcknowledgeSaveAllReplySchema),
+		paint: paintSaveAllRun,
+		showFailure: showSaveAllFailure,
+		showLogin: showLoginPrompt,
+		mark: () => performance.mark(SAVE_ALL_RENDERED_MARK),
+		logger,
+	});
+
+	browser.storage.onChanged.addListener((changes, areaName) => {
+		if (areaName !== "session" || !(BULK_SAVE_RUNS_KEY in changes)) return;
+		follower.recordsChanged(parseBulkSaveRuns(changes[BULK_SAVE_RUNS_KEY]?.newValue));
+	});
+
+	async function startSaveAll(): Promise<void> {
+		const runId = BulkSaveRunIdSchema.parse(crypto.randomUUID());
+		follower.bind(runId);
+		resetSaveAllView();
+		let request: SaveAllMessage;
+		try {
+			const tabs = await browser.tabs.query({ currentWindow: true });
+			const { saveable, skipped } = classifyTabs(tabs, appDomains);
+			provisionalCount = saveable.length;
+			paintSaveAllView(buildSaveAllView({ provisionalCount, run: null }));
+			request = { type: "save-all-tabs", runId, windowId: windowIdOf(tabs), tabs: saveable, skipped };
+		} catch (error) {
+			logger.error("Failed to save all tabs:", error);
+			showSaveAllFailure();
 			return;
 		}
-
-		readlistButton.hidden = false;
-		performance.mark(SAVE_ALL_RENDERED_MARK);
+		const reply = await sendSaveAll(request, SaveAllStartReplySchema);
+		await follower.started({ runId, reply });
 	}
 
 	async function revealSaveAllTabs() {
@@ -870,13 +932,28 @@ export function initPopup(deps: {
 	}
 
 	async function bootstrap() {
-		const stored = await browser.storage.session.get("pendingBulkSave");
+		const stored = await browser.storage.session.get(["pendingBulkSave", BULK_SAVE_RUNS_KEY]);
 		if (stored.pendingBulkSave) {
 			await browser.storage.session.remove("pendingBulkSave").catch(() => {});
-			await saveAllTabsFlow();
+			await startSaveAll();
 			return;
 		}
-		await saveAndShowList();
+		const explicit = await readExplicitTarget();
+		if (explicit) {
+			await saveOrShowList(explicit);
+			return;
+		}
+		const active = await queryActiveTab();
+		const route = routeToolbarOpen({
+			runs: parseBulkSaveRuns(stored[BULK_SAVE_RUNS_KEY]),
+			activeTab: { url: active.target.url, tabId: active.target.tabId, windowId: windowIdOf(active.windowTabs) },
+		});
+		if (route.kind === "follow") {
+			resetSaveAllView();
+			await follower.followRun(route.run);
+			return;
+		}
+		await saveOrShowList(active.target);
 	}
 
 	elementById("save-all-view-readlist").addEventListener("click", async () => {
@@ -908,8 +985,15 @@ export function initPopup(deps: {
 		await saveAndShowList().catch(showListLoadFailure);
 	});
 
-	elementById("save-all-tabs-button").addEventListener("click", async () => {
-		await saveAllTabsFlow();
+	elementById("save-all-tabs-button").addEventListener("click", () => {
+		startSaveAll().catch((error) => {
+			logger.error("Failed to save all tabs:", error);
+			showSaveAllFailure();
+		});
+	});
+
+	elementById("save-all-continue").addEventListener("click", () => {
+		window.close();
 	});
 
 	elementById("logout-button").addEventListener("click", performLogout);

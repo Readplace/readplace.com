@@ -5,6 +5,27 @@ describe("canonicalIdentityOf", () => {
 		expect(canonicalIdentityOf("https://twitter.com/jack/status/20")).toBe("x.com/jack/status/20");
 		expect(canonicalIdentityOf("http://x.com/jack/status/20#m")).toBe("x.com/jack/status/20");
 	});
+
+	it("gives every recognised spelling of one Amazon product on one store the bare product identity", () => {
+		expect(canonicalIdentityOf("https://www.amazon.com.au/dp/1492043451?ref_=mr_direct_us_au_au&showmri")).toBe(
+			"www.amazon.com.au/dp/1492043451",
+		);
+		expect(
+			canonicalIdentityOf("https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451"),
+		).toBe("www.amazon.com.au/dp/1492043451");
+	});
+
+	it("keeps one product on different Amazon stores, and different products on one store, apart", () => {
+		expect(canonicalIdentityOf("https://www.amazon.com/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451")).toBe(
+			"www.amazon.com/dp/1492043451",
+		);
+		expect(
+			canonicalIdentityOf("https://www.amazon.co.uk/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451"),
+		).toBe("www.amazon.co.uk/dp/1492043451");
+		expect(canonicalIdentityOf("https://www.amazon.com.au/RISC-V-Microprocessor-System-Chip-Design/dp/0323994989")).toBe(
+			"www.amazon.com.au/dp/0323994989",
+		);
+	});
 });
 
 describe("ArticleResourceUniqueId.parse", () => {

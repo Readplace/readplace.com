@@ -278,6 +278,26 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(target.article.hasStubMetadata).toBe(true);
 		});
 
+		it.each([
+			{ excerpt: "", expected: true },
+			{ excerpt: "A page named after its site.", expected: false },
+		])("flags a title equal to the site name as stub metadata only when the excerpt is empty: $excerpt", async ({ excerpt, expected }) => {
+			const { store } = build(() => ({
+				Item: {
+					url: "example.com/target",
+					originalUrl: TARGET_URL,
+					title: "example.com",
+					siteName: "example.com",
+					excerpt,
+					crawlStatus: "failed",
+				},
+			}));
+
+			const target = await store.findRelatedTargetArticle(TARGET_URL);
+			assert(target.state === "found", "the row exists so a target must be found");
+			expect(target.article.hasStubMetadata).toBe(expected);
+		});
+
 		it("reports a purged article as purged, distinct from an absent row", async () => {
 			const { store } = build(() => ({
 				Item: {

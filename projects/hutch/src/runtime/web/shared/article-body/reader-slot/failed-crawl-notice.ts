@@ -13,6 +13,7 @@ export interface FailedCrawlNotice {
 
 const NOTICE_BY_FAILURE_KIND = {
 	"parse-error": { variant: "failed", captureRescue: "offered" },
+	"capture-unreadable": { variant: "capture-unreadable", captureRescue: "offered" },
 	"fetch-failed": { variant: "failed", captureRescue: "offered" },
 	"exhausted-retries": { variant: "failed", captureRescue: "offered" },
 	"origin-unreachable": { variant: "origin-down", captureRescue: "withheld" },

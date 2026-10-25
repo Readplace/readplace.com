@@ -2,6 +2,7 @@ import type {
 	ArticleMetadata,
 	Minutes,
 	ArticleBody,
+	CaptureTrigger,
 } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
@@ -21,6 +22,7 @@ import type { ReaderProvenance } from "../article-body/article-header/provenance
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { ReaderReadlistTags } from "../article-body/article-header/article-header.component";
+import type { CaptureWatch } from "./capture-watch";
 
 export type ReaderViewFailure = { readerContentUnavailable: boolean };
 
@@ -73,9 +75,11 @@ export interface ArticleSnapshot {
 	estimatedReadTime: Minutes;
 }
 
+export type CapturePollUrls = Readonly<Record<CaptureTrigger, string>>;
+
 export interface PollUrlBuilder {
 	summary: (pollCount: number) => string;
-	reader: (pollCount: number, capturing: boolean) => string;
+	reader: (pollCount: number, capture: CaptureWatch) => string;
 }
 
 export interface ArticleVersion {
@@ -90,7 +94,7 @@ export interface ReaderState {
 	summary: GeneratedSummary | undefined;
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
-	capturePollUrl: string | undefined;
+	capturePollUrls: CapturePollUrls | undefined;
 	/**
 	 * Dated crawl versions, newest first; the first entry
 	 * is the canonical/current version.
@@ -104,7 +108,6 @@ export interface ReaderState {
 export interface ResolveReaderStateParams {
 	article: ArticleSnapshot;
 	pollUrlBuilder: PollUrlBuilder;
-	capturing: boolean;
 }
 
 /**
@@ -122,7 +125,7 @@ export interface HandlePollParams {
 	articleId: string | undefined;
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;
-	capturing: boolean;
+	capture: CaptureWatch;
 	extensionInstallUrl: string | undefined;
 	/**
 	 * Per-poll tracking URL stamped on the re-rendered TL;DR `<details>` so the

@@ -22,7 +22,7 @@ describe("decideTerminalAction", () => {
 
 	it("skips failed crawl — operator owns recovery via /admin/recrawl", () => {
 		assert.equal(
-			decideTerminalAction({ status: "failed", reason: "parse-error" }),
+			decideTerminalAction({ status: "failed", reason: "parse-error", outcomeRevision: 1 }),
 			"skip",
 		);
 	});

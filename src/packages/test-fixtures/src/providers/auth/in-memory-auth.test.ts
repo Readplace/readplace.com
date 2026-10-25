@@ -413,6 +413,35 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("destroyOAuthGrantSessions", () => {
+		const userId = UserIdSchema.parse("user-grant");
+		const otherUserId = UserIdSchema.parse("user-other");
+		const iosGrant = OAuthGrantIdSchema.parse("grant-ios");
+		const otherPhoneGrant = OAuthGrantIdSchema.parse("grant-other-phone");
+		const extensionGrant = OAuthGrantIdSchema.parse("grant-extension");
+
+		it("destroys only the user's sessions minted with or renewed onto the grant", async () => {
+			const auth = makeAuth();
+			const minted = await auth.createSession({ userId, emailVerified: true, oauthGrantId: iosGrant });
+			const renewedOnto = await auth.createSession({ userId, emailVerified: true });
+			expect(await auth.renewSession({ sessionId: renewedOnto, oauthGrantId: iosGrant })).toBe("renewed");
+			const webLogin = await auth.createSession({ userId, emailVerified: true });
+			const otherPhone = await auth.createSession({ userId, emailVerified: true, oauthGrantId: otherPhoneGrant });
+			const reboundAway = await auth.createSession({ userId, emailVerified: true, oauthGrantId: iosGrant });
+			expect(await auth.renewSession({ sessionId: reboundAway, oauthGrantId: extensionGrant })).toBe("renewed");
+			const otherUser = await auth.createSession({ userId: otherUserId, emailVerified: true, oauthGrantId: iosGrant });
+
+			await auth.destroyOAuthGrantSessions({ userId, oauthGrantId: iosGrant });
+
+			expect(await auth.getSessionUserId(minted)).toBe(null);
+			expect(await auth.getSessionUserId(renewedOnto)).toBe(null);
+			expect(await auth.getSessionUserId(webLogin)).toEqual({ userId, emailVerified: true, expiresAt: expect.any(Number) });
+			expect(await auth.getSessionUserId(otherPhone)).toEqual({ userId, emailVerified: true, expiresAt: expect.any(Number) });
+			expect(await auth.getSessionUserId(reboundAway)).toEqual({ userId, emailVerified: true, expiresAt: expect.any(Number) });
+			expect(await auth.getSessionUserId(otherUser)).toEqual({ userId: otherUserId, emailVerified: true, expiresAt: expect.any(Number) });
+		});
+	});
+
 	describe("findUserByEmail", () => {
 		it("should return null for unknown email", async () => {
 			const auth = makeAuth();

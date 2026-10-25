@@ -205,14 +205,11 @@ test.describe('Readlist management flow (staging)', () => {
 		})
 	})
 
-	test('iOS token revocation destroys every session the user holds', async ({ baseURL }) => {
+	test('iOS sign-out ends only its own grant\'s sessions, keeping the web login and another iPhone signed in', async ({ baseURL }) => {
 		assert(baseURL, "baseURL must be defined — set STAGING_URL env var")
 
 		// Runs against the deployed stack, so it exercises the sessions-table
 		// userId-index and its IAM grant — the parts no in-memory test can reach.
-		// A user of its own: the flow destroys every session of its account, so
-		// sharing the UI flow's user would sign out concurrently running suites
-		// (or a human) logged in as that account.
 		await runOAuthRevokeFlow({
 			baseURL,
 			email: 'oauth-revoke-e2e@example.com',

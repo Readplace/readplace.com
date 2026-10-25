@@ -11,12 +11,17 @@ const ARTICLE_CONTENT: TabContent = {
 };
 
 function createHarness(
-	options: { claim?: "first" | "repeat"; capture?: () => Promise<RescueCaptureResult> } = {},
+	options: {
+		claim?: "first" | "repeat";
+		capture?: () => Promise<RescueCaptureResult>;
+		tellOpener?: () => Promise<unknown>;
+	} = {},
 ) {
 	const events: string[] = [];
 	const enqueued: { url: string; title?: string; content: TabContent; trigger: CaptureTrigger }[] = [];
 	const infos: string[] = [];
 	const errors: string[] = [];
+	const debugs: string[] = [];
 
 	const rescue = initReaderRescue({
 		attempts: {
@@ -33,14 +38,19 @@ function createHarness(
 			events.push(`enqueue ${captured.url}`);
 			enqueued.push(captured);
 		},
+		tellOpenerNothingCopied: async ({ articleId, trigger, openerTabId }) => {
+			events.push(`tell tab ${openerTabId} nothing was copied for ${articleId} (${trigger})`);
+			return options.tellOpener ? options.tellOpener() : undefined;
+		},
 		logger: HutchLogger.from({
 			...noopLogger,
 			info: (...args) => infos.push(String(args[0])),
 			error: (...args) => errors.push(String(args[0])),
+			debug: (...args) => debugs.push(String(args[0])),
 		}),
 	});
 
-	return { rescue, events, enqueued, infos, errors };
+	return { rescue, events, enqueued, infos, errors, debugs };
 }
 
 describe("initReaderRescue", () => {
@@ -126,5 +136,72 @@ describe("initReaderRescue", () => {
 		assert.deepEqual(answer, { outcome: "started" });
 		assert.deepEqual(harness.enqueued, []);
 		assert.ok(harness.errors.some((line) => line.includes(ARTICLE_URL)));
+	});
+
+	it("a refused capture tells the opener tab that nothing was copied", async () => {
+		const harness = createHarness({ capture: async () => ({ kind: "no-capture", reason: "blocked-status" }) });
+
+		await (
+			await harness.rescue({ url: ARTICLE_URL, articleId: "article-1", trigger: "manual", openerTabId: 7 })
+		).completion;
+
+		assert.deepEqual(harness.events, [
+			`capture ${ARTICLE_URL} beside 7`,
+			"tell tab 7 nothing was copied for article-1 (manual)",
+		]);
+	});
+
+	it("a capture that fails tells the opener tab that nothing was copied", async () => {
+		const harness = createHarness({
+			capture: async () => {
+				throw new Error("Tabs cannot be edited right now (user may be dragging a tab).");
+			},
+		});
+
+		await (
+			await harness.rescue({ url: ARTICLE_URL, articleId: "article-1", trigger: "manual", openerTabId: 7 })
+		).completion;
+
+		assert.deepEqual(harness.events, [
+			`capture ${ARTICLE_URL} beside 7`,
+			"tell tab 7 nothing was copied for article-1 (manual)",
+		]);
+	});
+
+	it("the opener tab hears which trigger's rescue copied nothing", async () => {
+		const harness = createHarness({ capture: async () => ({ kind: "no-capture", reason: "blocked-status" }) });
+
+		await (
+			await harness.rescue({ url: ARTICLE_URL, articleId: "article-1", trigger: "automatic", openerTabId: 7 })
+		).completion;
+
+		assert.deepEqual(harness.events, [
+			"claim article-1",
+			`capture ${ARTICLE_URL} beside 7`,
+			"tell tab 7 nothing was copied for article-1 (automatic)",
+		]);
+	});
+
+	it("a refused capture with no opener tab tells no tab", async () => {
+		const harness = createHarness({ capture: async () => ({ kind: "no-capture", reason: "blocked-status" }) });
+
+		await (await harness.rescue({ url: ARTICLE_URL, articleId: "article-1", trigger: "manual" })).completion;
+
+		assert.deepEqual(harness.events, [`capture ${ARTICLE_URL} beside undefined`]);
+	});
+
+	it("an opener tab that cannot be told is logged and still resolves completion", async () => {
+		const harness = createHarness({
+			capture: async () => ({ kind: "no-capture", reason: "blocked-status" }),
+			tellOpener: async () => {
+				throw new Error("Could not establish connection. Receiving end does not exist.");
+			},
+		});
+
+		await (
+			await harness.rescue({ url: ARTICLE_URL, articleId: "article-1", trigger: "manual", openerTabId: 7 })
+		).completion;
+
+		assert.ok(harness.debugs.some((line) => line.includes(ARTICLE_URL)));
 	});
 });

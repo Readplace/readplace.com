@@ -61,7 +61,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	};
 	return { work: initSelectContentWork({ ...deps, selectMostCompleteContent }), deps, commit, events };
 }
-const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const, userId: "saving-user" };
+const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const };
 const laterRequest = { ...request, saveAttemptId: SaveAttemptIdSchema.parse("later-attempt") };
 
 describe("initSelectContentWork", () => {
@@ -80,7 +80,7 @@ describe("initSelectContentWork", () => {
 			url: URL, canonicalCommit: commit,
 			input: {
 				tier: "tier-1", metadata: { ...winner.metadata, imageUrl: imageSource.metadata.imageUrl }, estimatedReadTime: 3,
-				contentFetchedAt: NOW, now: NOW, canonicalChanged: true, canonicalContentHash: computeCanonicalContentHash(winner.html), userId: "saving-user",
+				contentFetchedAt: NOW, now: NOW, canonicalChanged: true, canonicalContentHash: computeCanonicalContentHash(winner.html),
 			},
 		});
 		expect(deps.recordCrawlVersion).toHaveBeenCalledWith({ url: URL, crawledAt: extractedAt, authorUserId: "original-author", canonicalCommit: commit });
@@ -237,6 +237,7 @@ describe("initSelectContentWork", () => {
 
 	it.each([
 		{ httpStatus: 403, reason: { kind: "blocked", cause: "edge-block" } },
+		{ httpStatus: 419, reason: { kind: "blocked", cause: "edge-block" } },
 		{ httpStatus: 429, reason: { kind: "blocked", cause: "rate-limited" } },
 		{ httpStatus: 404, reason: { kind: "not-found", httpStatus: 404 } },
 		{ httpStatus: 500, reason: { kind: "parse-error", detail: "no readable article candidate: Error page" } },
@@ -254,6 +255,35 @@ describe("initSelectContentWork", () => {
 		const { work, deps } = setup({ listAvailableTierSources: async () => [earlier], selectMostCompleteContent: async () => ({ kind: "none", reason: "Error page" }) });
 		await work(laterRequest);
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "parse-error", detail: "no readable article candidate: Error page" } } }));
+	});
+
+	it.each([
+		{ liveStatus: 200, label: "a readable-looking live page" },
+		{ liveStatus: 403, label: "a refused live response" },
+	])("records this save's own unreadable capture as the reason nothing was readable, ahead of $label", async ({ liveStatus }) => {
+		const capture = source("tier-0");
+		capture.metadata.wordCount = 0;
+		const live = source();
+		live.metadata.httpStatus = liveStatus;
+		const { work, deps } = setup({ listAvailableTierSources: async () => [capture, live], selectMostCompleteContent: async () => ({ kind: "none", reason: "Nothing readable" }) });
+		await work(request);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "capture-unreadable", detail: "no readable article candidate: Nothing readable" } } }));
+	});
+
+	it("lets a refused live response explain an automatic capture that nothing could read", async () => {
+		const capture = source("tier-0");
+		capture.metadata.captureTrigger = "automatic";
+		const live = source();
+		live.metadata.httpStatus = 404;
+		const { work, deps } = setup({ listAvailableTierSources: async () => [capture, live], selectMostCompleteContent: async () => ({ kind: "none", reason: "Nothing readable" }) });
+		await work(request);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "not-found", httpStatus: 404 } } }));
+	});
+
+	it("does not call a capture from an earlier attempt this save's capture when nothing is readable", async () => {
+		const { work, deps } = setup({ listAvailableTierSources: async () => [source("tier-0"), source()], selectMostCompleteContent: async () => ({ kind: "none", reason: "Nothing readable" }) });
+		await work(laterRequest);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "parse-error", detail: "no readable article candidate: Nothing readable" } } }));
 	});
 
 	it("records why this save's live crawl failed when it stored no live response and nothing else is readable", async () => {

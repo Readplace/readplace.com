@@ -46,6 +46,21 @@ describe("inboxSavedLinkLookupKeys", () => {
 		},
 	);
 
+	it("looks an Amazon title link up under its own key, then its bare product key", () => {
+		const titleLink = "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451";
+
+		expect(inboxSavedLinkLookupKeys(titleLink)).toEqual([
+			inboxSavedLinkKey(titleLink),
+			inboxSavedLinkKey("https://www.amazon.com.au/dp/1492043451"),
+		]);
+	});
+
+	it("looks a bare Amazon product link up under its own key only", () => {
+		const bareLink = "https://www.amazon.com.au/dp/1492043451";
+
+		expect(inboxSavedLinkLookupKeys(bareLink)).toEqual([inboxSavedLinkKey(bareLink)]);
+	});
+
 	it("throws on a value that is not a url", () => {
 		expect(() => inboxSavedLinkLookupKeys("not a url")).toThrow();
 	});

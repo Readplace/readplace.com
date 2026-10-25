@@ -148,6 +148,10 @@
     "./canary-report": {
       "types": "./dist/canary-report.d.ts",
       "default": "./dist/canary-report.js"
+    },
+    "./logs-insights": {
+      "types": "./dist/logs-insights.d.ts",
+      "default": "./dist/logs-insights.js"
     }
   },
   "typesVersions": {
@@ -186,7 +190,8 @@
       "subscription-providers": ["./dist/subscription-providers.d.ts"],
       "trial-scheduler": ["./dist/trial-scheduler.d.ts"],
       "engagement-starter": ["./dist/engagement-starter.d.ts"],
-      "canary-report": ["./dist/canary-report.d.ts"]
+      "canary-report": ["./dist/canary-report.d.ts"],
+      "logs-insights": ["./dist/logs-insights.d.ts"]
     }
   },
   "private": true,

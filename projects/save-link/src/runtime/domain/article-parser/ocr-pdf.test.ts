@@ -203,7 +203,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(result.html).toContain("&quot;Risky&quot; &amp; &lt;Funky&gt;");
 	});
 
-	it("returns 'unsupported-large-file' when the PDF exceeds maxPages", async () => {
+	it("refuses a PDF over maxPages with the page count in the reason", async () => {
 		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 11 }),
 			maxPages: 10,
@@ -211,7 +211,24 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/huge.pdf" });
 
-		expect(result).toEqual({ kind: "failed", reason: "unsupported-large-file" });
+		expect(result).toEqual({ kind: "failed", reason: "11 pages exceeds the 10-page cap" });
+	});
+
+	it("logs the page-cap refusal at info, not error", async () => {
+		const infos: string[] = [];
+		const errors: string[] = [];
+		const capturingLogger: HutchLogger = {
+			info: (msg) => { infos.push(String(msg)); },
+			error: (msg) => { errors.push(String(msg)); },
+			warn: () => {},
+			debug: () => {},
+		};
+		const ocr = makeOcr({ logger: capturingLogger, extractPdfMetadata: stubMetadata({ numPages: 11 }), maxPages: 10 });
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/huge.pdf" });
+
+		expect(errors).toEqual([]);
+		expect(infos).toContain("[ocr-pdf] pages=11 exceeds maxPages=10 — skipping");
 	});
 
 	it("returns 'unsupported-large-file' when the PDF buffer exceeds maxPdfBytes", async () => {

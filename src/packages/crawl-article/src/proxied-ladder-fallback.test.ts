@@ -2,6 +2,7 @@ import { createCrawlBudget } from "./crawl-budget";
 import type { OnRedirect } from "./follow-redirects";
 import { withProxiedLadderFallback } from "./proxied-ladder-fallback";
 import type { LadderFetch } from "./transport-ladder";
+import { TransportLadderFailure } from "./transport-ladder-failure";
 
 const RESERVE_MILLISECONDS = 45_000;
 const ENTRY_URL = "https://example.com/article";
@@ -93,6 +94,36 @@ function stamped(status: number, url: string): Response {
 	return response;
 }
 
+it("does not proxy a timeout whose actual cause is a blocked address", async () => {
+	const error = Object.assign(new Error("leg timed out", { cause: Object.assign(new Error("blocked address"), { code: "EBLOCKEDADDRESS" }) }), { name: "TimeoutError" });
+	const harness = makeHarness({ direct: async () => { throw error; } });
+	await expect(harness.fetchIt()).rejects.toBe(error);
+	expect(harness.proxyBudgets).toEqual([]);
+});
+
+it.each(["blocked", "unclassified"])("propagates a %s proxy failure instead of returning the retained response", async (kind) => {
+	const error = kind === "blocked"
+		? Object.assign(new Error("blocked address"), { code: "EBLOCKEDADDRESS" })
+		: new TransportLadderFailure({ error: new Error("programming failure"), previousErrors: [], retryDisposition: "unclassified" });
+	const harness = makeHarness({ direct: async () => new Response("slow down", { status: 429 }), proxy: [async () => { throw error; }] });
+	await expect(harness.fetchIt()).rejects.toBe(error);
+	expect(harness.proxyBudgets).toHaveLength(1);
+});
+
+it("retries a proxied transport timeout with its explicit recoverable disposition", async () => {
+	const error = new TransportLadderFailure({ error: timeout(), previousErrors: [], retryDisposition: "recoverable" });
+	const harness = makeHarness({ direct: async () => new Response("slow down", { status: 429 }), proxy: [async () => { throw error; }, async () => new Response("article")] });
+	expect(await (await harness.fetchIt()).text()).toBe("article");
+	expect(harness.proxyBudgets).toHaveLength(2);
+});
+
+it("does not treat an unclassified ladder with an earlier timeout as a proxied timeout", async () => {
+	const error = new TransportLadderFailure({ error: timeout(), previousErrors: [new Error("programming failure")], retryDisposition: "unclassified" });
+	const harness = makeHarness({ direct: async () => { throw error; } });
+	await expect(harness.fetchIt()).rejects.toBe(error);
+	expect(harness.proxyBudgets).toEqual([]);
+});
+
 const HTML = { "content-type": "text/html; charset=utf-8" };
 
 const CLIENT_CHALLENGE_HTML = [
@@ -144,6 +175,17 @@ describe("withProxiedLadderFallback", () => {
 		});
 		const response = await harness.fetchIt();
 		expect(response.status).toBe(200);
+		expect(harness.proxyBudgets).toHaveLength(1);
+	});
+
+	it("treats a direct 419 as a refusal of this client worth overturning", async () => {
+		const harness = makeHarness({
+			direct: async () => new Response("Sorry\n", { status: 419 }),
+			proxy: [async () => new Response("via proxy", { status: 200 })],
+		});
+		const response = await harness.fetchIt();
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("via proxy");
 		expect(harness.proxyBudgets).toHaveLength(1);
 	});
 
@@ -326,7 +368,7 @@ describe("withProxiedLadderFallback", () => {
 		expect(harness.proxyBudgets).toHaveLength(2);
 	});
 
-	it("surfaces the direct block rather than retrying when the outer deadline stalled the pass", async () => {
+	it("propagates the outer deadline instead of returning a retained block response", async () => {
 		const harness = makeHarness({
 			direct: async () => new Response("denied", { status: 403 }),
 			proxy: [
@@ -336,8 +378,7 @@ describe("withProxiedLadderFallback", () => {
 				},
 			],
 		});
-		const response = await harness.fetchIt();
-		expect(response.status).toBe(403);
+		await expect(harness.fetchIt()).rejects.toThrow("leg produced no response within 200ms");
 		expect(harness.proxyBudgets).toHaveLength(1);
 	});
 
@@ -465,7 +506,7 @@ describe("withProxiedLadderFallback", () => {
 		expect(discarded.bodyUsed).toBe(true);
 	});
 
-	it("surfaces the direct block rather than retrying when the caller aborted mid-pass", async () => {
+	it("propagates caller cancellation when a proxied gateway response arrives", async () => {
 		const harness = makeHarness({
 			direct: async () => new Response("denied", { status: 403 }),
 			proxy: [
@@ -475,8 +516,7 @@ describe("withProxiedLadderFallback", () => {
 				},
 			],
 		});
-		const response = await harness.fetchIt();
-		expect(response.status).toBe(403);
+		await expect(harness.fetchIt()).rejects.toThrow("leg produced no response within 200ms");
 		expect(harness.proxyBudgets).toHaveLength(1);
 	});
 

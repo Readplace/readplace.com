@@ -6,6 +6,8 @@ import com.readplace.android.core.HtmlCapturing
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.share.saveContentForm
 
+enum class CaptureEnding { Copied, NotCopied }
+
 enum class HealBlockedOutcome {
 	HEALED,
 	CAPTURE_WAS_EMPTY,
@@ -20,6 +22,9 @@ enum class HealBlockedOutcome {
 			NO_SAVE_CONTENT_ACTION -> "The server offered no way to save the captured page."
 			PAGE_NOT_SERVED -> "This device couldn't load the article either — the site answered with an error page instead of it."
 		}
+
+	val ending: CaptureEnding
+		get() = if (this == HEALED) CaptureEnding.Copied else CaptureEnding.NotCopied
 }
 
 class HealBlockedArticle(

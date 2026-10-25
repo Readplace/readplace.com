@@ -596,7 +596,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 	private static func saveArticleActionJSON(href: String) -> String {
 		"""
-		{ "name": "save-article", "title": "Save a link", "href": "\(href)", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] }
+		{ "name": "save-article", "title": "Save a link", "href": "\(href)", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }, { "name": "readlists", "type": "text", "maxItems": 7 }] }
 		"""
 	}
 
@@ -1067,7 +1067,7 @@ final class SaveSharedPageTests: XCTestCase {
 			"an answer nothing could remember would be asked on every share, so the question is not asked at all"
 		)
 		let body = try XCTUnwrap(saveBodies().first)
-		XCTAssertNil(body["queues"], "the save goes out into the main readlist alone")
+		XCTAssertNil(body["readlists"], "the save goes out into the main readlist alone")
 		XCTAssertEqual(outcome, .saved(reported), "and the share still lands; only the readlist question is gone")
 	}
 
@@ -1103,7 +1103,7 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertEqual(savePaths(), ["/queue"], "and posts the save to that collection's own action")
 		let body = try XCTUnwrap(saveBodies().first)
 		XCTAssertEqual(
-			body["queues"] as? [String], ["/queue?queue=home", "/queue?queue=work"],
+			body["readlists"] as? [String], ["/queue?queue=home", "/queue?queue=work"],
 			"the hrefs the server advertised ride the save verbatim, so it is filed into both readlists"
 		)
 		XCTAssertEqual(
@@ -1142,7 +1142,7 @@ final class SaveSharedPageTests: XCTestCase {
 		let body = try XCTUnwrap(saveBodies().first)
 		XCTAssertEqual(
 			body.keys.sorted(), ["url"],
-			"with nothing ticked the save carries no queues key at all"
+			"with nothing ticked the save carries no readlists key at all"
 		)
 		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'All'"])
 		XCTAssertEqual(outcome, .saved(reported))
@@ -1215,7 +1215,7 @@ final class SaveSharedPageTests: XCTestCase {
 		)
 		let body = try XCTUnwrap(saveBodies().first)
 		XCTAssertEqual(
-			body["queues"] as? [String], ["/queue?queue=home", "/queue?queue=work"],
+			body["readlists"] as? [String], ["/queue?queue=home", "/queue?queue=work"],
 			"and the save names only the readlists the server would actually file it into"
 		)
 	}
@@ -1336,7 +1336,7 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertEqual(chooser.offered, [], "a recorded answer is never re-asked")
 		let body = try XCTUnwrap(saveBodies().first)
 		XCTAssertEqual(
-			body["queues"] as? [String], ["/queue?queue=home", "/queue?queue=work"],
+			body["readlists"] as? [String], ["/queue?queue=home", "/queue?queue=work"],
 			"the ticks the reader left in the app are the ones this share carries"
 		)
 		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'Work' and 'Home'"])
@@ -1366,7 +1366,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let body = try XCTUnwrap(saveBodies().first)
 		XCTAssertEqual(
-			body["queues"] as? [String], ["/queue?queue=gone"],
+			body["readlists"] as? [String], ["/queue?queue=gone"],
 			"the stored href is sent as-is; the client never inspects it, and the server decides where the save lands"
 		)
 		XCTAssertEqual(chooser.offered, [], "a deleted readlist is not a reason to ask again")
@@ -1376,6 +1376,42 @@ final class SaveSharedPageTests: XCTestCase {
 		)
 		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'All'"])
 		XCTAssertEqual(outcome, .saved(reported))
+	}
+
+	func testSendsNoReadlistFieldWhenTheActionDeclaresNone() async throws {
+		let store = TestSupport.loggedInStore()
+		let shareTarget = ShareTarget(container: AppGroupContainer(url: TestSupport.temporaryContainer()))
+		shareTarget.record(hrefs: ["/queue?queue=work"])
+		StubURLProtocol.setHandler { request, _ in
+			switch (request.url?.path, request.httpMethod) {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "POST"):
+				return .json(201, Self.savedArticle(confirmation: "Saved to &#x27;All&#x27;"))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")],
+					readlistsJSON: Self.ownReadlists(current: "/queue")
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = urlOnlySaver(
+			store: store,
+			container: TestSupport.temporaryContainer(),
+			shareTarget: shareTarget,
+			readlistChooser: FakeReadlistChooser { Set($0) }
+		)
+		_ = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil, sharedPdf: nil)
+
+		let body = try XCTUnwrap(saveBodies().first)
+		XCTAssertEqual(
+			body.keys.sorted(), ["url"],
+			"a save action that declares no readlists field is sent none, whatever the reader ticked"
+		)
+		XCTAssertEqual(shareTarget.hrefs, ["/queue?queue=work"], "and the reader's answer is kept for a server that asks for it")
 	}
 
 	func testAsksAgainOnceTheRecordedAnswerIsForgotten() async throws {
@@ -1406,7 +1442,7 @@ final class SaveSharedPageTests: XCTestCase {
 		)
 		XCTAssertEqual(shareTarget.hrefs, ["/queue?queue=work"])
 		let body = try XCTUnwrap(saveBodies().first)
-		XCTAssertEqual(body["queues"] as? [String], ["/queue?queue=work"])
+		XCTAssertEqual(body["readlists"] as? [String], ["/queue?queue=work"])
 		XCTAssertEqual(reported.map(\.plainText), ["Article saved", "Saved to 'Work'"])
 		XCTAssertEqual(outcome, .saved(reported))
 	}
@@ -1452,7 +1488,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		XCTAssertEqual(savePaths(), ["/queue/save-v1", "/queue"], "the save is retried against the freshly discovered action")
 		XCTAssertEqual(
-			saveBodies().map { $0["queues"] as? [String] },
+			saveBodies().map { $0["readlists"] as? [String] },
 			[["/queue?queue=work"], ["/queue?queue=work"]],
 			"and the retry files the link into the same readlists the reader ticked"
 		)

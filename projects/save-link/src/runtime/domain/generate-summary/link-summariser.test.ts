@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import { noopLogger } from "@packages/hutch-logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import { initLinkSummariser } from "./link-summariser";
@@ -113,6 +114,64 @@ describe("initLinkSummariser", () => {
 			url: "https://example.com/registry",
 			raw,
 			usage,
+		});
+	});
+
+	it("returns kind 'unusable-answer' and logs the raw answer, usage and error at WARN when the model's JSON does not parse, so the defect can be read from the logs and the worker retries instead of crashing", async () => {
+		const raw = '{"summary": "He said "hi" and left.", "excerpt": "A teaser."}';
+		const usage = { input_tokens: 50, output_tokens: 10, cache_hit_input_tokens: 32, cache_miss_input_tokens: 18 };
+		const createMessage: CreateAiMessage = async () => ({
+			content: [{ type: "text", text: raw }],
+			usage,
+		});
+		const warn = jest.fn();
+		const url = "https://example.com/malformed";
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: { ...noopLogger, warn },
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({ url, textContent: "Some article content." });
+
+		expect(result).toEqual({ kind: "unusable-answer" });
+		expect(warn).toHaveBeenCalledWith("[summarize] model answer is not the JSON shape asked for", {
+			url,
+			raw,
+			usage,
+			error: expect.any(SyntaxError),
+		});
+	});
+
+	it("returns kind 'unusable-answer' when the answer parses as JSON but is missing the summary field, instead of throwing out of the summariser", async () => {
+		const raw = '{"excerpt": "Only a teaser."}';
+		const usage = { input_tokens: 50, output_tokens: 10, cache_hit_input_tokens: 32, cache_miss_input_tokens: 18 };
+		const createMessage: CreateAiMessage = async () => ({
+			content: [{ type: "text", text: raw }],
+			usage,
+		});
+		const warn = jest.fn();
+		const url = "https://example.com/missing-summary";
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: { ...noopLogger, warn },
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		const result = await summarizeArticle({ url, textContent: "Some article content." });
+
+		expect(result).toEqual({ kind: "unusable-answer" });
+		expect(warn).toHaveBeenCalledWith("[summarize] model answer is not the JSON shape asked for", {
+			url,
+			raw,
+			usage,
+			error: expect.any(ZodError),
 		});
 	});
 

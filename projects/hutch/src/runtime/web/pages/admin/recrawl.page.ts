@@ -18,6 +18,7 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
+import { NO_CAPTURE_WATCH } from "../../shared/article-reader/capture-watch";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
 import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-view-failed-oob";
 import { initResolveStoredArticle, type ResolveStoredArticle } from "../../shared/resolve-stored-article";
@@ -180,7 +181,6 @@ async function renderRecrawlPage(
 			estimatedReadTime: existing.estimatedReadTime,
 		},
 		pollUrlBuilder: pollUrlBuilderFor(articleUrl),
-		capturing: false,
 	});
 
 	// `?started=1` is set by the POST-Redirect-GET landing after the recrawl
@@ -273,7 +273,7 @@ function handleSummaryPoll(
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
-			capturing: false,
+			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
@@ -304,7 +304,7 @@ function handleReaderPoll(
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
-			capturing: false,
+			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,

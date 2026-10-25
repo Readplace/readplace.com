@@ -1,5 +1,5 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 import {
 	markCrawlExhausted,
 	type TransitionAndPersist,
@@ -9,13 +9,14 @@ import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 interface SelectMostCompleteContentDlqHandlerDeps {
 	transitionAndPersist: TransitionAndPersist;
 	logger: HutchLogger;
+	now: () => Date;
 }
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSelectMostCompleteContentDlqHandler(
 	deps: SelectMostCompleteContentDlqHandlerDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	const { transitionAndPersist, logger } = deps;
+	const { transitionAndPersist, logger, now } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -26,11 +27,6 @@ export function initSelectMostCompleteContentDlqHandler(
 				const detail = TierContentExtractedEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-				logger.info("[SelectMostCompleteContentDlq] marking crawl exhausted", {
-					url: detail.url,
-					receiveCount,
-				});
-
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,
 					input: {
@@ -38,6 +34,11 @@ export function initSelectMostCompleteContentDlqHandler(
 						receiveCount,
 					},
 				});
+				logger.error(formatErrorLogLine({
+					message: `[SelectMostCompleteContentDlq] dead-lettered after ${receiveCount} receives (messageId ${record.messageId}); marking crawl exhausted`,
+					url: detail.url,
+					now,
+				}));
 			} catch (error) {
 				logger.error("[SelectMostCompleteContentDlq] record failed", {
 					messageId: record.messageId,

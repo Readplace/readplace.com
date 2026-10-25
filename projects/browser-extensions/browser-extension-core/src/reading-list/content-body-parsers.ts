@@ -1,8 +1,6 @@
-export type ContentBodyBuilder = (input: Record<string, string>) => { blob: Blob; filename: string };
+import { assert } from "../invariant";
 
-function assert(value: unknown, message: string): asserts value {
-	if (!value) throw new Error(message);
-}
+export type ContentBodyBuilder = (input: Record<string, string>) => { blob: Blob; filename: string };
 
 export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
 	const binaryString = atob(base64);

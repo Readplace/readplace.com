@@ -108,6 +108,7 @@ import type {
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
+import { captureWatchQuery, parseCaptureWatch } from "../../shared/article-reader/capture-watch";
 import { renderReaderDownloadsOob, type RenderReaderActions } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { PollUrlBuilder, ReaderViewFailedOob } from "../../shared/article-reader/article-reader.types";
 import { EPUB_GUIDE_CONTENT, epubDownloadGuideFor, KINDLE_GUIDE_PATH, type EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
@@ -391,7 +392,7 @@ const CrawlVersionMinuteIdSchema = z
 	.string()
 	.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/);
 
-const SaveArticleQueuesSchema = z.array(z.string()).optional().catch(undefined);
+const SaveArticleReadlistsSchema = z.array(z.string()).optional().catch(undefined);
 
 interface ReadlistDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -967,8 +968,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const surface = joinedSurfaceQuery(nativeSurfaceQuery(req));
 		return {
 			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${surface}`,
-			reader: (n, capturing) =>
-				`${READLIST_PATH}/${articleId}/reader?poll=${n}${capturing ? "&capturing=1" : ""}${surface}`,
+			reader: (n, capture) =>
+				`${READLIST_PATH}/${articleId}/reader?poll=${n}${captureWatchQuery(capture)}${surface}`,
 		};
 	}
 
@@ -1061,9 +1062,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			? (articleUrl) =>
 					renderReaderDownloadsOob({ articleUrl, appClient: appClientOf(req), guide: epubGuideFor(req, article) })
 			: undefined;
-
-	const parseCapturingFlag = (raw: unknown): boolean =>
-		z.literal("1").safeParse(raw).success;
 
 	const parseCaptureTrigger = (raw: string | undefined) =>
 		CaptureTriggerSchema.default("manual").safeParse(raw);
@@ -1170,7 +1168,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					estimatedReadTime: ownedArticle.estimatedReadTime,
 				},
 				pollUrlBuilder: pollUrlBuilderFor(req, ownedArticle.id.value),
-				capturing: false,
 			}),
 			readerReadlistFilingFor({
 				userId: ownedArticle.userId,
@@ -1277,10 +1274,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const pastReadsOptions = {
 			previouslyRead,
 			previouslyReadPollUrl,
-			previouslyReadComputeUrl: pastReadsComputeUrlFor({
-				articleId: ownedArticle.id.value,
-				surfaceQuery: nativeSurfaceQuery(req),
-			}),
+			previouslyReadComputeUrl:
+				isAppPlatform(req) && isPrefetchRequest(req)
+					? undefined
+					: pastReadsComputeUrlFor({
+							articleId: ownedArticle.id.value,
+							surfaceQuery: nativeSurfaceQuery(req),
+						}),
 			readerPathForReadlist: readerPathForReadlist(req),
 		};
 
@@ -1308,7 +1308,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				summaryPollUrl: state.summaryPollUrl,
 				crawl: state.crawl,
 				readerPollUrl: state.readerPollUrl,
-				capturePollUrl: state.capturePollUrl,
+				capturePollUrls: state.capturePollUrls,
 				related,
 				relatedPollUrl,
 				...pastReadsOptions,
@@ -1387,7 +1387,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					summaryPollUrl: state.summaryPollUrl,
 					crawl: state.crawl,
 					readerPollUrl: state.readerPollUrl,
-					capturePollUrl: state.capturePollUrl,
+					capturePollUrls: state.capturePollUrls,
 					related,
 					relatedPollUrl,
 					...pastReadsOptions,
@@ -2035,7 +2035,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		try {
 			const addressedFiling = readlistToFileInto(context);
 			const ticked = readlistsAtHrefs({
-				hrefs: SaveArticleQueuesSchema.parse(req.body?.queues) ?? [],
+				hrefs: [
+					...(SaveArticleReadlistsSchema.parse(req.body?.readlists) ?? []),
+					...(SaveArticleReadlistsSchema.parse(req.body?.queues) ?? []),
+				],
 				readlists: context.readlists,
 			});
 			const destinations = [
@@ -2790,7 +2793,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
-			capturing: parseCapturingFlag(req.query.capturing),
+			capture: parseCaptureWatch(req.query),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
@@ -2830,7 +2833,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
-			capturing: parseCapturingFlag(req.query.capturing),
+			capture: parseCaptureWatch(req.query),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),

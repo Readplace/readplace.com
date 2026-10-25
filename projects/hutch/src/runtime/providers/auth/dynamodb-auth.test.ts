@@ -35,6 +35,7 @@ interface CapturedCommand {
  * single-page fakes serve any number of independent queries. */
 function createPaginatedQueryFakeClient(
 	pages: { rows: Record<string, unknown>[]; lastEvaluatedKey?: Record<string, unknown> }[],
+	opts: { onDelete?: (input: Record<string, unknown>) => Promise<unknown> } = {},
 ): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
 	const commands: CapturedCommand[] = [];
 	let queryCount = 0;
@@ -47,6 +48,7 @@ function createPaginatedQueryFakeClient(
 				queryCount += 1;
 				return { Items: page.rows, Count: page.rows.length, LastEvaluatedKey: page.lastEvaluatedKey };
 			}
+			if (name === "DeleteCommand" && opts.onDelete) return opts.onDelete(command.input);
 			return {};
 		}) as DynamoDBDocumentClient["send"],
 	};
@@ -808,6 +810,89 @@ describe("initDynamoDbAuth", () => {
 			expect(queries[1]?.input.ExclusiveStartKey).toEqual({ sessionId: "sess-1" });
 			const deleted = commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input.Key);
 			expect(deleted).toEqual([{ sessionId: "sess-1" }, { sessionId: "sess-2" }]);
+		});
+	});
+
+	describe("destroyOAuthGrantSessions", () => {
+		const GRANT = OAuthGrantIdSchema.parse("grant-a");
+		const sessionRow = (sessionId: string) => ({ sessionId, userId: "abc123", expiresAt: 9999999999, emailVerified: true, oauthGrantId: "grant-a" });
+		const conditionFailed = () => new ConditionalCheckFailedException({ $metadata: {}, message: "condition failed" });
+
+		it("queries the sessions userId-index the same way destroyUserSessions does", async () => {
+			const grantScoped = createQueryFakeClient({ row: sessionRow("sess-1") });
+			const userWide = createQueryFakeClient({ row: sessionRow("sess-1") });
+
+			await initAuth(grantScoped.client).destroyOAuthGrantSessions({ userId: USER, oauthGrantId: GRANT });
+			await initAuth(userWide.client).destroyUserSessions(USER);
+
+			const grantScopedQuery = grantScoped.commands.find((c) => c.name === "QueryCommand");
+			const userWideQuery = userWide.commands.find((c) => c.name === "QueryCommand");
+			assert(grantScopedQuery, "the grant-scoped delete must query the index");
+			expect(grantScopedQuery.input).toEqual(userWideQuery?.input);
+		});
+
+		it("deletes each session only on the condition that it carries the grant, returning the deleted row", async () => {
+			const { client, commands } = createPaginatedQueryFakeClient([{ rows: [sessionRow("sess-1"), sessionRow("sess-2")] }]);
+
+			await initAuth(client).destroyOAuthGrantSessions({ userId: USER, oauthGrantId: GRANT });
+
+			const deletes = commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input);
+			expect(deletes).toEqual([
+				{ TableName: "sessions", Key: { sessionId: "sess-1" }, ConditionExpression: "oauthGrantId = :grant", ExpressionAttributeValues: { ":grant": "grant-a" }, ReturnValues: "ALL_OLD" },
+				{ TableName: "sessions", Key: { sessionId: "sess-2" }, ConditionExpression: "oauthGrantId = :grant", ExpressionAttributeValues: { ":grant": "grant-a" }, ReturnValues: "ALL_OLD" },
+			]);
+		});
+
+		it("keeps a session the condition refuses, still deletes the others, and observes only the deleted ones", async () => {
+			const { client, commands } = createPaginatedQueryFakeClient(
+				[{ rows: [sessionRow("sess-web"), sessionRow("sess-app")] }],
+				{
+					onDelete: async (input) => {
+						const key = z.object({ Key: z.object({ sessionId: z.string() }) }).parse(input).Key;
+						if (key.sessionId === "sess-web") throw conditionFailed();
+						return { Attributes: sessionRow(key.sessionId) };
+					},
+				},
+			);
+			const observations: unknown[] = [];
+			const auth = initDynamoDbAuth({ client, usersTableName: "users", sessionsTableName: "sessions", observeSession: (event) => { observations.push(event); } });
+
+			await auth.destroyOAuthGrantSessions({ userId: USER, oauthGrantId: GRANT });
+
+			expect(commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input.Key)).toEqual([{ sessionId: "sess-web" }, { sessionId: "sess-app" }]);
+			expect(observations).toEqual([{ event: "session_deleted", sessionId: "sess-app", userId: "abc123", expiresAt: 9999999999 }]);
+		});
+
+		it("rejects when a delete fails for any reason other than the grant condition", async () => {
+			const { client } = createPaginatedQueryFakeClient(
+				[{ rows: [sessionRow("sess-1")] }],
+				{ onDelete: async () => { throw new Error("throughput exceeded"); } },
+			);
+
+			await expect(initAuth(client).destroyOAuthGrantSessions({ userId: USER, oauthGrantId: GRANT })).rejects.toThrow("throughput exceeded");
+		});
+
+		it("paginates the userId-index, feeding each page's key back as ExclusiveStartKey", async () => {
+			const { client, commands } = createPaginatedQueryFakeClient([
+				{ rows: [sessionRow("sess-1")], lastEvaluatedKey: { sessionId: "sess-1" } },
+				{ rows: [sessionRow("sess-2")] },
+			]);
+
+			await initAuth(client).destroyOAuthGrantSessions({ userId: USER, oauthGrantId: GRANT });
+
+			const queries = commands.filter((c) => c.name === "QueryCommand");
+			expect(queries).toHaveLength(2);
+			expect(queries[0]?.input.ExclusiveStartKey).toBeUndefined();
+			expect(queries[1]?.input.ExclusiveStartKey).toEqual({ sessionId: "sess-1" });
+			expect(commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input.Key)).toEqual([{ sessionId: "sess-1" }, { sessionId: "sess-2" }]);
+		});
+
+		it("deletes nothing when the user has no sessions", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).destroyOAuthGrantSessions({ userId: USER, oauthGrantId: GRANT });
+
+			expect(commands.filter((c) => c.name === "DeleteCommand")).toEqual([]);
 		});
 	});
 

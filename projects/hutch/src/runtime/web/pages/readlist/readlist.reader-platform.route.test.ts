@@ -354,7 +354,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const capture = notice.querySelector("[data-reader-capture]");
 		assert(capture, "the blocked notice must offer the in-app capture control");
 		expect(capture.getAttribute("data-reader-capture-poll")).toBe(
-			`/queue/${articleId}/reader?poll=1&capturing=1&platform=ios`,
+			`/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual&platform=ios`,
 		);
 		const tableOfContents = doc.querySelector("[data-test-reader-rail] > #table-of-contents");
 		assert(tableOfContents, "the rail must always hold the table of contents");
@@ -379,7 +379,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		}).toEqual({
 			status: "failed",
 			offered: true,
-			pollUrl: `/queue/${articleId}/reader?poll=1&capturing=1&platform=ios`,
+			pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual&platform=ios`,
 		});
 	});
 
@@ -465,7 +465,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const readerDocument = reader.dom.window.document;
 		const postedWhilePending = [...reader.posted];
 
-		crawl = { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) };
+		crawl = { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) };
 		const poll = new JSDOM((await agent.get(`/queue/${articleId}/reader?poll=2&platform=ios`)).text).window.document;
 		const arrivingNotice = poll.querySelector("#article-body-reader-notice");
 		assert(arrivingNotice, "the poll must carry the blocked notice");
@@ -648,6 +648,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const findArticleCrawlStatus = async () => ({
 			status: "failed" as const,
 			reason: "blocked",
+			outcomeRevision: 1,
 		});
 		const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: { status: "skipped" as const } });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -704,6 +705,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		const findArticleCrawlStatus = async () => ({
 			status: "failed" as const,
 			reason: "blocked",
+			outcomeRevision: 1,
 		});
 		const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: { status: "skipped" as const } });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

@@ -27,8 +27,8 @@ data class ReadlistMenuItem(
 				ReadlistMenuItem(
 					label = readlist.label,
 					href = readlist.href,
-					isSelected = readlist.href == selectedHref,
-					isShareTarget = readlist.href == mainlineHref || shareTargetHrefs.contains(readlist.href),
+					isSelected = readlist.matches(listOfNotNull(selectedHref)),
+					isShareTarget = readlist.matches(listOfNotNull(mainlineHref) + shareTargetHrefs),
 				)
 			}
 	}

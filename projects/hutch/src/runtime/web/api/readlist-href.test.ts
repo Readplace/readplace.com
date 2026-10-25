@@ -45,6 +45,51 @@ describe("readlistsAtHrefs", () => {
 		).toEqual([WORK]);
 	});
 
+	it("resolves a readlist named by either query key, so hrefs shipped clients persisted keep filing", () => {
+		expect(
+			readlistsAtHrefs({
+				hrefs: ["/queue?queue=work", "/queue?readlist=recipes"],
+				readlists: [ALL, WORK, RECIPES],
+			}),
+		).toEqual([WORK, RECIPES]);
+	});
+
+	it("prefers the readlist key when an href carries both", () => {
+		expect(
+			readlistsAtHrefs({
+				hrefs: ["/queue?queue=work&readlist=recipes"],
+				readlists: [ALL, WORK, RECIPES],
+			}),
+		).toEqual([RECIPES]);
+	});
+
+	it("resolves an absolute href by its path and query, whatever its origin", () => {
+		expect(
+			readlistsAtHrefs({
+				hrefs: ["https://readplace.com/queue?readlist=work"],
+				readlists: [ALL, WORK],
+			}),
+		).toEqual([WORK]);
+	});
+
+	it("ignores an href naming a readlist on another path", () => {
+		expect(
+			readlistsAtHrefs({
+				hrefs: ["/queues?readlist=work", "/queue/abc?readlist=recipes"],
+				readlists: [ALL, WORK, RECIPES],
+			}),
+		).toEqual([]);
+	});
+
+	it("ignores an href whose slug is malformed or that is not a URL at all", () => {
+		expect(
+			readlistsAtHrefs({
+				hrefs: ["/queue?readlist=%25%25%25", `/queue?readlist=${"a".repeat(500)}`, "http://["],
+				readlists: [ALL, WORK],
+			}),
+		).toEqual([]);
+	});
+
 	it("resolves a duplicated href to a single readlist", () => {
 		expect(
 			readlistsAtHrefs({

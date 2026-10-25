@@ -1,8 +1,12 @@
 import "../zod-config";
 import { z } from "zod";
 
+export const BulkSaveJobIdSchema = z.string().brand<"BulkSaveJobId">();
+
+export type BulkSaveJobId = z.infer<typeof BulkSaveJobIdSchema>;
+
 const BulkSaveJobSchema = z.object({
-	id: z.string(),
+	id: BulkSaveJobIdSchema,
 	url: z.string(),
 	title: z.string().optional(),
 	mediaType: z.string().optional(),

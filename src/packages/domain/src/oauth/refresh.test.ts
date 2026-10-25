@@ -89,6 +89,16 @@ it("narrows scope and admits an already-authorized subset", async () => {
 	expect(await other.refresh.rotate({ ...other.input, scope: ["read"] })).toMatchObject({ reason: "invalid_scope" });
 });
 
+it("carries the sign-in the reader approved onto the rotated credential", async () => {
+	const s = setup();
+	s.original.signedIn = { at: 50, location: { city: "Sydney", country: "AU" }, device: { browser: "chrome", os: "macos" } };
+
+	expect(await s.refresh.rotate(s.input)).toMatchObject({
+		ok: true,
+		credential: { signedIn: { at: 50, location: { city: "Sydney", country: "AU" }, device: { browser: "chrome", os: "macos" } } },
+	});
+});
+
 it("fences a previously issued parent after logout-all", async () => {
 	const s = setup(); s.controls.epoch = 1;
 	expect(await s.refresh.rotate(s.input)).toMatchObject({ reason: "revoked" });

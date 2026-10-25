@@ -50,6 +50,7 @@ import { isNativeSurface } from "../../onboarding/native-client";
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen, saveTipState, type SaveTipState } from "../../shared/save-tip/save-tip";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
+import { NO_CAPTURE_WATCH } from "../../shared/article-reader/capture-watch";
 import type {
 	ArticleReaderDeps,
 	PollUrlBuilder,
@@ -334,7 +335,7 @@ function handleViewArticle(
 		// to spend budget. Bots are deliberately NOT excluded — a third-party
 		// importer fetching a /view link must be able to materialise the article
 		// it came for.
-		if (!isPrefetchRequest(req) && !gated) {
+		if (req.method !== "HEAD" && !isPrefetchRequest(req) && !gated) {
 			let wrapperCandidatesQueued = false;
 			const locallyUnwrapped = unwrapWrapperUrl(validation.url);
 			const unwrapsToPlainOriginal =
@@ -421,7 +422,6 @@ function handleViewArticle(
 		const state = await reader.resolveReaderState({
 			article: { url: articleUrl, metadata, estimatedReadTime },
 			pollUrlBuilder,
-			capturing: false,
 		});
 
 		if (wantsMarkdown(req)) {
@@ -524,7 +524,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
-			capturing: false,
+			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: readerPublicInstallUrl(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,
@@ -559,7 +559,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
-			capturing: false,
+			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: readerPublicInstallUrl(req),
 			summaryToggleUrl: undefined,
 			provenance: undefined,

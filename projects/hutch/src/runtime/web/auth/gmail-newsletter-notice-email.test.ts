@@ -72,6 +72,8 @@ describe("GmailNewsletterNoticeEmail", () => {
 	it.each([
 		[1, "1 more newsletter is waiting and will be in your next email in about 7 days."],
 		[3, "3 more newsletters are waiting and will be in your next email in about 7 days."],
+		[10, "10 more newsletters are waiting and will be in your next email in about 7 days."],
+		[11, "11 more newsletters are waiting; up to 10 of them will be in your next email in about 7 days."],
 	])("says %i more newsletters wait for the next email, between the list and the paragraph", (waiting, sentence) => {
 		const email = notice([
 			newsletter(),

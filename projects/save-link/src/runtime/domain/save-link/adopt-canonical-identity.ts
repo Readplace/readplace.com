@@ -1,4 +1,4 @@
-import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
+import { canonicalIdentityOf, toCanonicalArticleUrl } from "@packages/article-resource-unique-id";
 import type {
 	AdoptArticleDestination,
 	ReconcileStubMetadata,
@@ -73,7 +73,7 @@ export function adoptableTerminal(params: {
 	if (isSiteRuleUrl(finalUrl)) return undefined;
 	if (isWrapperUrl(finalUrl)) return undefined;
 	if (carriesReturnUrl(finalUrl)) return undefined;
-	return finalUrl;
+	return toCanonicalArticleUrl(finalUrl);
 }
 
 export function initAdoptCanonicalIdentity(deps: {

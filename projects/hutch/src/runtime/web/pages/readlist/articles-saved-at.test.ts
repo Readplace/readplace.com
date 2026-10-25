@@ -25,3 +25,20 @@ describe("articlesSavedAt", () => {
 		expect(articlesSavedAt({ articles: [other], url: "https://example.com/b" })).toEqual([]);
 	});
 });
+
+describe("articlesSavedAt for an Amazon product", () => {
+	const legacyTitle = { id: "legacy-title", url: "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451" };
+	const bare = { id: "bare", url: "https://www.amazon.com.au/dp/1492043451" };
+
+	it("finds the bare save for a title-link tab", () => {
+		expect(articlesSavedAt({ articles: [other, bare], url: legacyTitle.url })).toEqual([bare]);
+	});
+
+	it("prefers a legacy title-link save over the bare save", () => {
+		expect(articlesSavedAt({ articles: [bare, legacyTitle], url: legacyTitle.url })).toEqual([legacyTitle]);
+	});
+
+	it("does not look past the bare link for a bare tab that was never saved", () => {
+		expect(articlesSavedAt({ articles: [other, legacyTitle], url: bare.url })).toEqual([]);
+	});
+});

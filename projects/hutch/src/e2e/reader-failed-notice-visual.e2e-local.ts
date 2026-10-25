@@ -46,6 +46,10 @@ const CRAWL_OUTCOMES = {
 	"origin-down": { status: "failed", reason: JSON.stringify({ kind: "origin-unreachable" }) },
 	"not-found": { status: "failed", reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) },
 	unsupported: { status: "unsupported", reason: JSON.stringify({ kind: "javascript-required" }) },
+	"capture-unreadable": {
+		status: "failed",
+		reason: JSON.stringify({ kind: "capture-unreadable", detail: "no readable article candidate: a game" }),
+	},
 } as const satisfies Record<string, { status: "failed" | "unsupported"; reason: string }>;
 
 type NoticeVariant = keyof typeof CRAWL_OUTCOMES;
@@ -183,7 +187,7 @@ async function noticeAnatomy(page: Page): Promise<void> {
 
 function noticeCheckpoint(input: {
 	name: string;
-	variant: NoticeVariant;
+	variant: NoticeVariant | "capture-missing";
 	checks: readonly NoticeCheck[];
 }): VisualCheckpoint {
 	return {
@@ -222,6 +226,12 @@ const DESKTOP_OWNER_NOTICES = [
 		theme: "light",
 		checks: [actionsInset(DESKTOP_ACTIONS_INSET), cardHeight(303), bodyLines(1), pitchWithheld],
 	},
+	{
+		name: "reader-notice-capture-unreadable-light",
+		variant: "capture-unreadable",
+		theme: "light",
+		checks: [actionsInset(DESKTOP_ACTIONS_INSET), cardHeight(325), bodyLines(2), pitchWithheld],
+	},
 ] as const satisfies readonly {
 	name: string;
 	variant: NoticeVariant;
@@ -247,6 +257,31 @@ test.describe("The reader's failed-crawl notice on a desktop", () => {
 			await captureCheckpoint(page, noticeCheckpoint(notice));
 		});
 	}
+
+	test("the owner's reader says the copy never arrived when the device gives up on a tapped capture (light)", async ({
+		page,
+	}, testInfo) => {
+		await page.addInitScript(dismissExtensionSuggestion);
+		await page.emulateMedia({ colorScheme: "light" });
+		await openOwnerReader(page, {
+			stamp: `capture-missing-${testInfo.workerIndex}-${Date.now()}`,
+			variant: "blocked",
+			query: "",
+		});
+		await page.waitForSelector(`${NOTICE}[data-reader-status="blocked"]`);
+		await page.locator(`${NOTICE}[data-reader-status="blocked"] [data-test-reader-action="capture"]`).dispatchEvent("click");
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="pending"]');
+		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-failed")));
+
+		await captureCheckpoint(
+			page,
+			noticeCheckpoint({
+				name: "reader-notice-capture-missing-light",
+				variant: "capture-missing",
+				checks: [actionsInset(DESKTOP_ACTIONS_INSET), cardHeight(325), bodyLines(2), pitchWithheld],
+			}),
+		);
+	});
 
 	test("the public reader shows the same failed notice to a reader who is not signed in", async ({
 		page,

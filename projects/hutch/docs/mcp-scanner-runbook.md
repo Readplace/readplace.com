@@ -105,10 +105,39 @@ fields @timestamp, event, client_id, coalesce(grant_id, `refresh_refusal.grantId
 
 ## What it means and what to do
 
-- **A daily `missing_bearer` from `ua_client` `openai` at about 04:47Z** means the scanner's credential is dead on OpenAI's side. Press **Reconnect** for Readplace on the OpenAI Plugins page. Nothing on the server needs fixing unless other grants on the same client are failing too.
-- **Verify the reconnect:** an `authorization_code` grant for the ChatGPT client at the time of the click; at the next 04:47Z a `refresh_token` grant with the same `grant_id`; then `mcp_session_initialized` instead of `mcp_request_refused`.
+- **A daily `missing_bearer` from `ua_client` `openai` at about 04:47Z** means the scanner's credential is dead on OpenAI's side. Reconnect it as [Reconnecting the scan](#reconnecting-the-scan) describes. Nothing on the server needs fixing unless other grants on the same client are failing too.
+- **Verify the reconnect:** an `authorization_code` grant for the ChatGPT client when **Allow access** is pressed, and within seconds a scan: one `unsupported_protocol_version` refusal, then `mcp_session_initialized` and an `mcp_tools_listed` for the ChatGPT client (readers never list tools, so only a scan produces one). At the next 04:47Z, a `refresh_token` grant with the same `grant_id`. On the MCPs tab, every tool ChatGPT already had should still show Published.
 - **Token endpoint `invalid` vs `expired`:** `invalid` means the presented refresh token no longer exists (it was rotated away, or revoked — check `oauth_token_revoked`); `expired` means it outlived its 180-day lifetime.
 - **`refresh_refusal.reason` `disconnect`:** the reader disconnected that client under Connected apps on the account page. The refresh evaluator counts it expected, `oauth-refresh-refused-alarm` does not count it, and no `oauth_token_revoked` accompanies it, because the account page revokes without the client's token.
 - **`refresh_refusal.reason` `logout-all`:** the reader changed or reset their password. A reset signs every app out. A change does too, except for the app or extension it was made from. The refresh evaluator counts it expected, `oauth-refresh-refused-alarm` does not count it, and no `oauth_token_revoked` accompanies it, because a password change or reset revokes without the client's token.
 - **`refresh_refusal.reason` `nonce_required`:** not a failure. The first request of every DPoP-bound refresh (the Chrome extension from 1.0.682 and the Firefox extension from 1.0.674, which share one refresh client, and the iOS and Android apps, whose native refresh clients handle the challenge the same way) arrives without a nonce; the token endpoint answers 400 `use_dpop_nonce` with a `DPoP-Nonce` header before it looks the credential up, and the client re-signs and succeeds, so an `oauth_token_issued` from the same `visitor_hash` follows within a second. The refresh evaluator counts it `challenged`, `oauth-refresh-refused-alarm` does not count it, and the line carries no `grantId`, so the grant-chain query above does not show it. `nonce_expired` is different and is counted: the retry arrived 300 s or more after its challenge, or carried a nonce the server did not mint for that key or dated ahead of its clock.
 - **Rotation posture:** a replayed refresh token is refused and its successor is **not** revoked. That is deliberate: every replay observed so far came from OpenAI's own platform presenting a token it had already rotated, and revoking the successor would sign out the working half of the client.
+
+## Reconnecting the scan
+
+On 2026-10-24 the Plugins portal offered no control that reconnects the scan. The Reconnect menu on the MCPs tab appears only when the published app version records an OAuth client, and ChatGPT registers itself dynamically, so the version records none. The scan-account button exists in the portal's code, but the MCPs tab does not render it. The portal's own endpoints still work from a portal tab signed in to the Readplace organization:
+
+1. Open Readplace's MCPs tab on platform.openai.com.
+2. In that tab's console, import the loaded script that contains `continuous-review/connection`. It exports the portal's API client, whose method for that endpoint takes the app id (`asdk_app_…`, the plugin id without its `plugin_` prefix), the organization id (the `OpenAI-Organization` header on the portal's own requests) and `"/plugins" + location.search`. It returns an `auth_url` on `https://readplace.com/oauth/authorize` whose `state` decodes to `"purpose":"continuous_scan"`.
+3. Open that URL through the portal's popup helper, from the loaded script that contains `apps_oauth_popup`, so the callback can report back to the tab.
+4. In the popup, sign in as the dedicated scan account and press **Allow access**. The callback on `platform.openai.com/apps-manage/oauth/` finishes the exchange and starts a scan at once. The app's `continuous-review` status then reads `connection: "selected"`.
+
+The scan account needs neither email verification nor a subscription, because `tools/list` is never gated, only saving. Its address and password are kept with the team's credentials, outside this public repository. A password reset on it signs the scan out, so reconnect straight after one.
+
+## When a check holds a tool
+
+The scan's verdict on each tool is in `GET /v1/dashapi/apps/{app}/continuous-review`, a method of the same portal API client as [Reconnecting the scan](#reconnecting-the-scan). `POST …/continuous-review/rescan` starts a scan at once. Each entry in its `tools` carries:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `change` | `unchanged`, `changed`, `removed` | The scanned definition against the one ChatGPT runs |
+| `publication` | `live`, `previous_definition`, `removed` | `previous_definition`: ChatGPT still runs what it published before the held change |
+| `findings` | `decision` `fail`, with a `reasoning` | Why the change is held |
+
+Fix a failed check on the server and rescan. **Request manual review** pauses every automatic update and disables Rescan until it is withdrawn, and OpenAI publishes no turnaround. A finding on a tool's name is fixed by a rename, run the way `list_queue` was:
+
+1. List the new name, and keep listing the old one from a frozen copy of the definition the scan holds, pinned by a test.
+2. Wait until the new name shows `publication` `live` with no findings.
+3. Delete the frozen copy. Keep dispatching the old name.
+
+On 2026-10-24 the check failed `delete_article` with "This tool's name appears promotional, exaggerated, or inconsistent with its behavior.", because the tool deletes nothing: it returns the steps for the reader to delete the article in the app. It is now `get_article_deletion_steps`, and `delete_article` is at step 2.

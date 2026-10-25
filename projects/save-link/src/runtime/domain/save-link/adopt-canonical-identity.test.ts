@@ -138,6 +138,40 @@ describe("adoptableTerminal", () => {
 			adoptableTerminal({ ...base, url: "https://twitter.com/jack/status/20", finalUrl: "https://x.com/jack/status/21" }),
 		).toBe("https://x.com/jack/status/21");
 	});
+
+	it.each([
+		[
+			"a bare Amazon product link fetched from its title link",
+			"https://www.amazon.com.au/dp/1492043451",
+			"https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451",
+		],
+		[
+			"an Amazon title link fetched from its bare product link",
+			"https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451",
+			"https://www.amazon.com.au/dp/1492043451",
+		],
+	])("finds no redirect in %s", (_label, url, finalUrl) => {
+		expect(adoptableTerminal({ ...base, url, finalUrl })).toBeUndefined();
+		expect(adoptableTerminal({ ...crawlFailed, url, finalUrl })).toBeUndefined();
+	});
+
+	it.each([
+		[
+			"a click tracker",
+			"https://tracker.example/c/7f3a",
+			"https://www.amazon.com/dp/B0G4PVR3XJ?lv=shuf&channelId=500&plpRedirect=mhFallback",
+			"https://www.amazon.com/dp/B0G4PVR3XJ",
+		],
+		[
+			"Amazon's own store redirect",
+			"https://www.amazon.com/dp/0231162847",
+			"https://www.amazon.com.au/dp/0231162847?ref_=mr_direct_us_au_au&showmri",
+			"https://www.amazon.com.au/dp/0231162847",
+		],
+	])("adopts a redirect from %s onto an Amazon product link as the bare product link", (_label, url, finalUrl, bare) => {
+		expect(adoptableTerminal({ ...base, url, finalUrl })).toBe(bare);
+		expect(adoptableTerminal({ ...crawlFailed, url, finalUrl })).toBe(bare);
+	});
 });
 
 describe("initAdoptCanonicalIdentity", () => {
@@ -156,6 +190,17 @@ describe("initAdoptCanonicalIdentity", () => {
 		await harness.adopt(input);
 		expect(harness.adoptDestination).toHaveBeenCalledWith({ articleUrl: input.url, destinationUrl: input.finalUrl, now: new Date("2026-07-15T10:00:00.000Z") });
 		expect(harness.reconcileStubMetadata).toHaveBeenCalledWith({ articleUrl: input.url, displayUrl: input.finalUrl });
+	});
+
+	it("adopts and reconciles a redirect onto an Amazon product link under the bare product link", async () => {
+		const harness = build();
+		await harness.adopt({
+			url: "https://tracker.example/c/7f3a",
+			finalUrl: "https://www.amazon.com/dp/B0G4PVR3XJ?lv=shuf&channelId=500&plpRedirect=mhFallback",
+			outcome: { kind: "finalized", wordCount: 19 },
+		});
+		expect(harness.adoptDestination).toHaveBeenCalledWith({ articleUrl: "https://tracker.example/c/7f3a", destinationUrl: "https://www.amazon.com/dp/B0G4PVR3XJ", now: new Date("2026-07-15T10:00:00.000Z") });
+		expect(harness.reconcileStubMetadata).toHaveBeenCalledWith({ articleUrl: "https://tracker.example/c/7f3a", displayUrl: "https://www.amazon.com/dp/B0G4PVR3XJ" });
 	});
 
 	it("does not reconcile a destination rejected by the source pin transaction", async () => {

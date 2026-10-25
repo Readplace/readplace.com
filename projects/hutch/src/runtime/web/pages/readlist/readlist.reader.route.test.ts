@@ -2041,7 +2041,7 @@ describe("Readlist routes", () => {
 				?.getAttribute("data-test-article");
 			assert(articleId, "the saved article must render with an id");
 
-			const capturing = await agent.get(`/queue/${articleId}/reader?poll=1&capturing=1`);
+			const capturing = await agent.get(`/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual`);
 			expect(capturing.status).toBe(200);
 			const capturingSlot = new JSDOM(capturing.text).window.document.querySelector(
 				"[data-test-reader-slot]",
@@ -2052,13 +2052,13 @@ describe("Readlist routes", () => {
 				capturingSlot.querySelector("[data-test-reader-pending-title]")?.textContent,
 			).toBe("Copying the page from your device");
 			expect(capturingSlot.getAttribute("hx-get")).toBe(
-				`/queue/${articleId}/reader?poll=2&capturing=1`,
+				`/queue/${articleId}/reader?poll=2&captureSince=1&captureTrigger=manual`,
 			);
 
 			await fixture.articleStore.writeContent({ url, content: "<p>Captured body</p>" });
 			await fixture.articleCrawl.markCrawlReady({ url });
 
-			const healed = await agent.get(`/queue/${articleId}/reader?poll=2&capturing=1`);
+			const healed = await agent.get(`/queue/${articleId}/reader?poll=2&captureSince=1&captureTrigger=manual`);
 			const healedSlot = new JSDOM(healed.text).window.document.querySelector(
 				"[data-test-reader-slot]",
 			);
@@ -2123,65 +2123,140 @@ describe("Readlist routes", () => {
 				explanation: notice.querySelector(".article-body__reader-notice-text")?.textContent?.trim(),
 				offered: capture.classList.contains("article-body__reader-notice-capture--offered"),
 				pollUrl: capture.getAttribute("data-reader-capture-poll"),
+				automaticPollUrl: notice.getAttribute("hx-get"),
 				primaryHref: notice.querySelector("[data-test-reader-failed-primary]")?.getAttribute("href"),
 			}).toEqual({
 				status: "failed",
 				explanation:
 					"Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using the browser extension or the iPhone app.",
 				offered: true,
-				pollUrl: `/queue/${articleId}/reader?poll=1&capturing=1`,
+				pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual`,
+				automaticPollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=automatic`,
 				primaryHref: url,
 			});
 		});
 
-		it("keeps the reader poll loop armed through an in-app capture of a failed crawl, then lets the healed row stop it", async () => {
+		async function savedFailedArticle(url: string) {
 			const { fixture, harness } = failedCrawlHarness();
 			const agent = await loginAgent(harness.server, harness.auth);
-			const url = "https://example.com/unparseable-capture";
 			await agent.post("/queue/save").type("form").send({ url });
 			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
 				.querySelector("[data-test-article-list] .readlist-article")
 				?.getAttribute("data-test-article");
 			assert(articleId, "the saved article must render with an id");
+			const poll = async (query: string) => new JSDOM((await agent.get(`/queue/${articleId}/reader?${query}`)).text).window.document;
+			return { fixture, articleId, poll };
+		}
 
-			const capturing = await agent.get(`/queue/${articleId}/reader?poll=1&capturing=1`);
-			const capturingSlot = new JSDOM(capturing.text).window.document.querySelector(
-				"[data-test-reader-slot]",
-			);
-			assert(capturingSlot, "reader slot must be rendered while the capture is in flight");
-			expect({
-				status: capturingSlot.getAttribute("data-reader-status"),
-				title: capturingSlot.querySelector("[data-test-reader-pending-title]")?.textContent,
-				hxGet: capturingSlot.getAttribute("hx-get"),
-			}).toEqual({
-				status: "pending",
-				title: "Copying the page from your device",
-				hxGet: `/queue/${articleId}/reader?poll=2&capturing=1`,
+		function readerRegions(doc: Document) {
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			const notice = doc.querySelector("#article-body-reader-notice");
+			assert(notice, "the notice region must ride the poll");
+			const capture = notice.querySelector('[data-test-reader-action="capture"]');
+			return {
+				slot: slot.getAttribute("data-reader-status"),
+				slotPoll: slot.getAttribute("hx-get"),
+				notice: notice.getAttribute("data-reader-status"),
+				noticePoll: notice.getAttribute("hx-get"),
+				noticeTrigger: notice.getAttribute("hx-trigger"),
+				captureOffered: capture?.classList.contains("article-body__reader-notice-capture--offered") ?? null,
+			};
+		}
+
+		it.each(["manual", "automatic"])("shows the %s copy in progress from the kick-off, listening for the device to say it gave up", async (trigger) => {
+			const { articleId, poll } = await savedFailedArticle("https://example.com/unparseable-capture");
+
+			const doc = await poll(`poll=1&captureNotice=1&captureTrigger=${trigger}`);
+
+			expect(readerRegions(doc)).toEqual({
+				slot: "pending",
+				slotPoll: `/queue/${articleId}/reader?poll=2&captureSince=1&captureTrigger=${trigger}`,
+				notice: "none",
+				noticePoll: `/queue/${articleId}/reader?poll=2&captureSince=1&captureGaveUp=1&captureTrigger=${trigger}`,
+				noticeTrigger: "readplace-capture-failed from:document",
+				captureOffered: null,
+			});
+			expect(doc.querySelector("[data-test-reader-pending-title]")?.textContent).toBe("Copying the page from your device");
+		});
+
+		it("renders the judged capture's own notice on the first poll after the row records it, still offering a capture", async () => {
+			const { fixture, articleId, poll } = await savedFailedArticle("https://example.com/unparseable-judged");
+			await poll("poll=1&captureNotice=1&captureTrigger=manual");
+			await fixture.articleCrawl.markCrawlFailed({
+				url: "https://example.com/unparseable-judged",
+				reason: JSON.stringify({ kind: "capture-unreadable", detail: "no readable article candidate: a game" }),
 			});
 
-			const spent = new JSDOM(
-				(await agent.get(`/queue/${articleId}/reader?poll=${MAX_CAPTURE_POLLS}&capturing=1`)).text,
-			).window.document;
-			const spentNotice = spent.querySelector("#article-body-reader-notice");
-			assert(spentNotice, "the notice must return once the capture budget is spent");
-			const spentCapture = spentNotice.querySelector('[data-test-reader-action="capture"]');
-			assert(spentCapture, "the returned notice must render its capture control");
-			expect({
-				noticeSwap: spentNotice.getAttribute("hx-swap-oob"),
-				status: spentNotice.getAttribute("data-reader-status"),
-				offered: spentCapture.classList.contains("article-body__reader-notice-capture--offered"),
-			}).toEqual({ noticeSwap: "outerHTML", status: "failed", offered: true });
+			const doc = await poll("poll=2&captureSince=1&captureTrigger=manual");
 
+			expect(readerRegions(doc)).toEqual({
+				slot: "capture-unreadable",
+				slotPoll: null,
+				notice: "capture-unreadable",
+				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=automatic`,
+				noticeTrigger: "readplace-capture-started from:document",
+				captureOffered: true,
+			});
+			expect(doc.querySelector(".article-body__reader-notice-title")?.textContent).toBe("Readplace copied the page, but it isn't an article");
+		});
+
+		it.each([
+			{ when: "the capture budget is spent", query: `poll=${MAX_CAPTURE_POLLS}&captureSince=1&captureTrigger=manual` },
+			{ when: "the device says it gave up", query: "poll=2&captureSince=1&captureGaveUp=1&captureTrigger=manual" },
+		])("says a tapped copy never arrived when $when, offering the capture again and polling no further", async ({ query }) => {
+			const { articleId, poll } = await savedFailedArticle("https://example.com/unparseable-missing");
+
+			const doc = await poll(query);
+
+			expect(readerRegions(doc)).toEqual({
+				slot: "capture-missing",
+				slotPoll: null,
+				notice: "capture-missing",
+				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=automatic`,
+				noticeTrigger: "readplace-capture-started from:document",
+				captureOffered: true,
+			});
+			expect(doc.querySelector(".article-body__reader-notice-title")?.textContent).toBe("The copy from your device didn't arrive");
+		});
+
+		it.each([
+			{ when: "the capture budget is spent", query: `poll=${MAX_CAPTURE_POLLS}&captureSince=1&captureTrigger=automatic` },
+			{ when: "the device says it gave up", query: "poll=2&captureSince=1&captureGaveUp=1&captureTrigger=automatic" },
+		])("renders the row's stored notice when $when on an automatic capture, offering the capture again and polling no further", async ({ query }) => {
+			const { articleId, poll } = await savedFailedArticle("https://example.com/unparseable-automatic");
+
+			const doc = await poll(query);
+
+			expect(readerRegions(doc)).toEqual({
+				slot: "failed",
+				slotPoll: null,
+				notice: "failed",
+				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=automatic`,
+				noticeTrigger: "readplace-capture-started from:document",
+				captureOffered: true,
+			});
+			expect(doc.querySelector(".article-body__reader-notice-title")?.textContent).toBe("Your link is saved");
+		});
+
+		it("answers a tab still carrying the legacy capturing flag with the row's own notice", async () => {
+			const { poll } = await savedFailedArticle("https://example.com/unparseable-legacy-tab");
+
+			const doc = await poll("poll=3&capturing=1");
+
+			expect([readerRegions(doc).slot, readerRegions(doc).slotPoll]).toEqual(["failed", null]);
+		});
+
+		it("lets a capture that healed the row stop the poll loop", async () => {
+			const url = "https://example.com/unparseable-healed";
+			const { fixture, poll } = await savedFailedArticle(url);
 			await fixture.articleStore.writeContent({ url, content: "<p>Captured body</p>" });
 			await fixture.articleCrawl.markCrawlReady({ url });
 
-			const healed = await agent.get(`/queue/${articleId}/reader?poll=2&capturing=1`);
-			const healedSlot = new JSDOM(healed.text).window.document.querySelector(
-				"[data-test-reader-slot]",
-			);
+			const healedSlot = (await poll("poll=2&captureSince=1")).querySelector("[data-test-reader-slot]");
+
 			assert(healedSlot, "reader slot must be rendered once the row heals");
-			expect(healedSlot.getAttribute("data-reader-status")).toBe("ready");
-			expect(healedSlot.hasAttribute("hx-get")).toBe(false);
+			expect([healedSlot.getAttribute("data-reader-status"), healedSlot.hasAttribute("hx-get")]).toEqual(["ready", false]);
 		});
 	});
 

@@ -118,18 +118,18 @@ class SaveSharedPage(
 		// Snapshot the destination choice once — asking the reader if they have never
 		// answered and there is somewhere other than mainline to drop — before the save
 		// so the save carries the same array the reader confirmed.
-		val queues = tickedReadlists(page)
+		val readlists = tickedReadlists(page)
 		onNotice(page.noticeMessages)
 		val action = page.action(named = "save-article") ?: return SaveSharedOutcome.NoSaveAction
 		val confirmation = try {
-			api.saveArticle(action, url, queues)
+			api.saveArticle(action, url, readlists)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (error: Exception) {
 			if (ApiError.isRefusalOrAuthFailure(error)) throw error
 			page = api.rediscoverReadlist()
 			val moved = page.action(named = "save-article") ?: return SaveSharedOutcome.NoSaveAction
-			api.saveArticle(moved, url, queues)
+			api.saveArticle(moved, url, readlists)
 		}
 		unseenSave?.record()
 		val admitted = admit(page = page, url = url, title = fallbackTitle)

@@ -2,6 +2,7 @@ import express, { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import ExpressOAuthServer from "@node-oauth/express-oauth-server";
+import { oauthSignIn } from "@packages/domain/oauth";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import type {
 	FindOAuthClient,
@@ -12,11 +13,12 @@ import type {
 } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type {
+	DestroyOAuthGrantSessions,
 	DestroySession,
-	DestroyUserSessions,
 	FindEmailByUserId,
 } from "@packages/provider-contracts/auth";
 import assert from "node:assert";
+import { viewerOf } from "@packages/viewer-identity";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
@@ -28,6 +30,7 @@ import { initObserveTokenOutcome } from "./token-refusal";
 import { initTokenExchange } from "./token-exchange";
 import { captureOAuthBody } from "../../oauth-refresh/request-body";
 import { initTokenRevocation } from "./token-revocation";
+import { describeSignInDevice } from "./sign-in-device";
 
 const authorizeQuerySchema = z.object({
 	client_id: z.string(),
@@ -145,7 +148,7 @@ interface OAuthRouteDeps {
 	validateRedirectUri: ValidateOAuthRedirectUri;
 	registerClient: RegisterOAuthClient;
 	destroySession: DestroySession;
-	destroyUserSessions: DestroyUserSessions;
+	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	findEmailByUserId: FindEmailByUserId;
 	consumeRateLimit: ConsumeRateLimit;
 	registerRateLimitRule: RateLimitRule;
@@ -349,7 +352,15 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		oauthServer.authorize({
 			authenticateHandler: {
 				handle: (req: Request) => {
-					return { id: req.userId, emailVerified: req.emailVerified === true };
+					return {
+						id: req.userId,
+						emailVerified: req.emailVerified === true,
+						signedIn: oauthSignIn({
+							at: deps.now().getTime(),
+							location: viewerOf(req).location,
+							device: describeSignInDevice(req.headers["user-agent"]),
+						}),
+					};
 				},
 			},
 		}),
@@ -372,7 +383,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		initTokenRevocation({
 			baseUrl: deps.baseUrl,
 			model: deps.model,
-			destroyUserSessions: deps.destroyUserSessions,
+			destroyOAuthGrantSessions: deps.destroyOAuthGrantSessions,
 			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
 			now: deps.now,
 			salt: deps.salt,

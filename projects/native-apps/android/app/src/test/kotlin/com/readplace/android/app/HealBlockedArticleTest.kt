@@ -76,6 +76,7 @@ class HealBlockedArticleTest {
 		val outcome = makeHealer(store = loggedInStore(access = "access-1"), captor = captor).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.HEALED, outcome)
+		assertEquals(CaptureEnding.Copied, outcome.ending)
 		assertNull("a landed heal leaves nothing to tell the user about", outcome.failureText)
 		assertEquals(
 			"the heal renders the blocked origin itself, on the user's own connection",
@@ -116,6 +117,7 @@ class HealBlockedArticleTest {
 		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor(title = null)).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.HEALED, outcome)
+		assertEquals(CaptureEnding.Copied, outcome.ending)
 		val upload = server.records("/queue/save-content").first()
 		assertEquals(
 			"an untitled render sends no title part rather than an empty one",
@@ -131,6 +133,7 @@ class HealBlockedArticleTest {
 		val outcome = makeHealer(store = loggedInStore(), captor = captor).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.CAPTURE_WAS_EMPTY, outcome)
+		assertEquals(CaptureEnding.NotCopied, outcome.ending)
 		assertEquals(
 			"This device couldn't capture that page either — the site returned nothing to save.",
 			outcome.failureText,
@@ -143,6 +146,7 @@ class HealBlockedArticleTest {
 		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor(html = "", title = "Blank")).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.CAPTURE_WAS_EMPTY, outcome)
+		assertEquals(CaptureEnding.NotCopied, outcome.ending)
 		assertTrue("an empty document is nothing to save, so no round trip is spent on it", server.records.isEmpty())
 	}
 
@@ -153,6 +157,7 @@ class HealBlockedArticleTest {
 		val outcome = makeHealer(store = loggedInStore(), captor = htmlCaptor()).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.NO_SAVE_CONTENT_ACTION, outcome)
+		assertEquals(CaptureEnding.NotCopied, outcome.ending)
 		assertEquals(
 			"a heal the server offers no home for is reported, not swallowed",
 			"The server offered no way to save the captured page.",
@@ -201,6 +206,7 @@ class HealBlockedArticleTest {
 		val outcome = makeHealer(store = loggedInStore(), captor = captor).run(url = blockedUrl, trigger = CaptureTrigger.MANUAL)
 
 		assertEquals(HealBlockedOutcome.PAGE_NOT_SERVED, outcome)
+		assertEquals(CaptureEnding.NotCopied, outcome.ending)
 		assertEquals(
 			"This device couldn't load the article either — the site answered with an error page instead of it.",
 			outcome.failureText,
@@ -216,6 +222,7 @@ class HealBlockedArticleTest {
 			.run(url = blockedUrl, trigger = CaptureTrigger.AUTOMATIC)
 
 		assertEquals(HealBlockedOutcome.HEALED, outcome)
+		assertEquals(CaptureEnding.Copied, outcome.ending)
 		val parts = parts(server.records("/queue/save-content").first())
 		assertEquals(listOf("url", "mediaType", "title", "captureTrigger", "content"), parts.mapNotNull { it.name })
 		assertEquals("automatic", parts.first { it.name == "captureTrigger" }.text)

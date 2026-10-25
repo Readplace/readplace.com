@@ -36,6 +36,7 @@ const ArticleCrawlRow = z.object({
 	),
 	crawlPartCurrent: dynamoField(z.number()),
 	crawlPartTotal: dynamoField(z.number()),
+	crawlOutcomeRevision: dynamoField(z.number()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
@@ -49,7 +50,11 @@ function rowToArticleCrawl(
 			row.crawlFailureReason,
 			"crawlStatus=failed row must carry a crawlFailureReason",
 		);
-		return { status: "failed", reason: row.crawlFailureReason };
+		return {
+			status: "failed",
+			reason: row.crawlFailureReason,
+			outcomeRevision: row.crawlOutcomeRevision ?? 0,
+		};
 	}
 	if (row.crawlStatus === "unsupported") {
 		assert(

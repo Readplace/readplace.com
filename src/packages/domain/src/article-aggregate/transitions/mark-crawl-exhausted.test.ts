@@ -118,6 +118,17 @@ describe("markCrawlExhausted", () => {
 		assert.equal(failed.reason, "parse-error: missing <article>");
 	});
 
+	it("stringifies capture-unreadable reasons for the publish-crawl-article-failed effect", () => {
+		const { effects } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "capture-unreadable", detail: "no readable article candidate: none" },
+			receiveCount: 1,
+		});
+
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-crawl-article-failed");
+		assert.equal(failed.reason, "capture-unreadable: no readable article candidate: none");
+	});
+
 	it("stringifies fetch-failed reasons with and without httpStatus", () => {
 		const { effects: withStatus } = markCrawlExhausted(buildArticle(), {
 			reason: { kind: "fetch-failed", httpStatus: 503 },

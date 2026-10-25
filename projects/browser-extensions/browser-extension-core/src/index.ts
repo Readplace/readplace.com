@@ -57,7 +57,12 @@ export {
 } from "./upload-queue/indexed-db-payload-store.browser";
 export type { UploadJob } from "./upload-queue/upload-job";
 export { initBulkSaveQueue, type BulkSaveJobStore, type BulkSaveQueue } from "./bulk-save-queue/bulk-save-queue";
-export type { BulkSaveJob } from "./bulk-save-queue/bulk-save-job";
+export { BulkSaveJobIdSchema, type BulkSaveJob, type BulkSaveJobId } from "./bulk-save-queue/bulk-save-job";
+export { BULK_SAVE_RUNS_KEY, type BulkSaveRun, type BulkSaveRunId } from "./bulk-save-run/bulk-save-run";
+export { initBulkSaveRunRecord, type BulkSaveRunArea, type BulkSaveRunRecord } from "./bulk-save-run/bulk-save-run-record";
+export { initSaveAllRuns, type SaveAllRuns } from "./bulk-save-run/save-all-runs";
+export { SaveAllMessageSchema, type SaveAllMessage, type SaveAllReply } from "./bulk-save-run/save-all-messages";
+export { WindowIdSchema, type WindowId } from "./domain/window-id";
 export type {
 	CaptureForJob,
 	PayloadStore,
@@ -75,7 +80,6 @@ export {
 	MENU_ITEM_SAVE_LINK,
 	MENU_ITEM_SAVE_ALL_TABS,
 } from "./get-context-menu-target";
-export { bulkSaveNotification } from "./bulk-save-notification";
 export type { ContextMenuItem, ContextMenuItemId } from "./advertised-capabilities";
 export {
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
@@ -99,10 +103,12 @@ export type { CapturedContent } from "./capture-active-tab-bytes";
 export { isHtmlDocument } from "./is-html-document";
 export type { TabContent } from "./reading-list/reading-list.types";
 export {
+	CAPTURE_FAILED_EVENT,
 	CAPTURE_STARTED_EVENT,
+	READER_RESCUE_ENDED_MESSAGE_TYPE,
 	ReaderRescueRequestSchema,
 } from "./reader-rescue/reader-rescue-message.types";
-export type { ReaderRescueAnswer } from "./reader-rescue/reader-rescue-message.types";
+export type { ReaderRescueAnswer, ReaderRescueEnded } from "./reader-rescue/reader-rescue-message.types";
 export { initAnnounceCaptureStarted } from "./reader-rescue/announce-capture-started";
 export { initCaptureHost } from "./reader-rescue/capture-host";
 export { navigationResponseStatus } from "./reader-rescue/navigation-response-status";

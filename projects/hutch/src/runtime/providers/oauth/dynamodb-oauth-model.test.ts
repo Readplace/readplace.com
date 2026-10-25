@@ -305,14 +305,41 @@ it("lists each connected client once across every query page", async () => {
 	await model.saveToken(token({ access: "b", refresh: "s" }), client, user);
 	await model.saveToken(token({ access: "c", refresh: "t" }), chrome, user);
 	controls.queryPageSize = 1;
-	expect([...await model.listUserOAuthClients(reader)].sort()).toEqual(["hutch-chrome-extension", "ios-app"]);
+	expect([...await model.listUserOAuthClients(reader)].map(listed => listed.clientId).sort()).toEqual(["hutch-chrome-extension", "ios-app"]);
 });
 
 it("lists a client by its live refresh credential and skips one whose credentials have both expired", async () => {
 	const { model } = setup();
 	await model.saveToken({ ...token({ access: "a", refresh: "r" }), accessTokenExpiresAt: new Date(1000) }, client, user);
 	await model.saveToken({ ...token({ access: "c", refresh: "s" }), accessTokenExpiresAt: new Date(1000), refreshTokenExpiresAt: new Date(1000) }, chrome, user);
-	expect(await model.listUserOAuthClients(reader)).toEqual(["ios-app"]);
+	expect(await model.listUserOAuthClients(reader)).toEqual([{ clientId: "ios-app", latestSignIn: undefined }]);
+});
+
+it("reports each client's latest sign-in across its live tokens", async () => {
+	const { model } = setup();
+	const fromSydney = { at: 2_000, location: { city: "Sydney", country: "AU" }, device: { browser: "safari", os: "ios" } };
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, { ...user, signedIn: { at: 1_000 } });
+	await model.saveToken(token({ access: "b", refresh: "s" }), client, { ...user, signedIn: fromSydney });
+	await model.saveToken(token({ access: "c", refresh: "t" }), client, user);
+	await model.saveToken(token({ access: "d", refresh: "u" }), chrome, user);
+	expect(await model.listUserOAuthClients(reader)).toEqual([
+		{ clientId: "ios-app", latestSignIn: fromSydney },
+		{ clientId: "hutch-chrome-extension", latestSignIn: undefined },
+	]);
+});
+
+it("carries the sign-in from the authorization code row to the token row and on to the rotated child's row", async () => {
+	const { model, rows } = setup();
+	const signedIn = { at: 1_000, location: { country: "AU" }, device: { browser: "chrome", os: "android" } };
+	await model.saveAuthorizationCode({ authorizationCode: "code", expiresAt: expiry, redirectUri: "readplace://oauth-callback", codeChallenge: "challenge" }, client, { ...user, signedIn });
+	const code = await model.getAuthorizationCode("code");
+	assert(code);
+	await model.saveToken(token({ access: "a", refresh: "r" }), client, code.user);
+	const parentRow = rows.get("token#a");
+	const child = await model.refresh.rotate({ clientId: client.id, refreshToken: "r", now: Date.now() });
+	assert(child.ok);
+	expect([rows.get("code#code")?.signedIn, code.user.signedIn, parentRow?.signedIn, rows.get(`token#${child.credential.accessToken}`)?.signedIn]).toEqual([signedIn, signedIn, signedIn, signedIn]);
+	expect(await model.listUserOAuthClients(reader)).toEqual([{ clientId: "ios-app", latestSignIn: signedIn }]);
 });
 
 it("lists no client for a pending authorization code", async () => {

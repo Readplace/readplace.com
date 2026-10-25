@@ -2,6 +2,9 @@ import assert from "node:assert";
 import { isAwsWafChallenge } from "./aws-waf-challenge";
 import { callerHasGivenUp, type CrawlBudget, type LegDeadline } from "./crawl-budget";
 import { type OnRedirect, withResolvedUrl } from "./follow-redirects";
+import { CurlFetchFailure } from "./curl-fetch";
+import { isBlockClassError } from "./persona-fallback";
+import { isHardCrawlFailure, TransportLadderFailure } from "./transport-ladder-failure";
 
 /**
  * Edge vendors spell the same bot-deny verdict: Cloudflare as a 403 managed
@@ -9,7 +12,7 @@ import { type OnRedirect, withResolvedUrl } from "./follow-redirects";
  * linkedin.com from Lambda egress, hours apart, so not a real rate limit).
  * Neither is reliably what its status says.
  */
-const ESCALATE_STATUS_CODES = new Set([402, 403, 429]);
+const ESCALATE_STATUS_CODES = new Set([402, 403, 419, 429]);
 
 export const TERMINAL_NETWORK_CODES = new Set([
 	"ENOTFOUND",
@@ -52,6 +55,18 @@ function isTerminalNetworkError(error: unknown): boolean {
 	return "code" in error && typeof error.code === "string" && TERMINAL_NETWORK_CODES.has(error.code);
 }
 
+function isRecoverableTransportError(error: unknown): boolean {
+	if (isBlockClassError(error)) return true;
+	let current = error;
+	while (current instanceof Error) {
+		if (current.name === "TimeoutError") return true;
+		if (current instanceof CurlFetchFailure && current.exitCode === 7) return true;
+		if ("code" in current && typeof current.code === "string" && (TERMINAL_NETWORK_CODES.has(current.code) || current.code === "UND_ERR_CONNECT_TIMEOUT")) return true;
+		current = current.cause;
+	}
+	return false;
+}
+
 function unlockerErrorOf(headers: Headers): Record<string, string> | undefined {
 	const captured: Record<string, string> = {};
 	for (const name of UNLOCKER_ERROR_HEADERS) {
@@ -83,16 +98,22 @@ export function runTransportLadder(deps: {
 	);
 	return async (url, init) => {
 		const { headers, budget, onRedirect } = init;
-		let lastError: unknown;
+		const errors: unknown[] = [];
+		let allFailuresRecoverable = true;
 		let lastResponse: Response | undefined;
+		const failure = () => new TransportLadderFailure({
+			error: errors.at(-1), previousErrors: errors.slice(0, -1),
+			retryDisposition: allFailuresRecoverable ? "recoverable" : "unclassified",
+		});
 		for (const [index, leg] of legs.entries()) {
-			if (callerHasGivenUp(budget.deadline)) break;
+			budget.deadline.signal.throwIfAborted();
 			const shareOfWeight = legs.slice(index).reduce((total, remaining) => total + remaining.maxRunMs, 0);
 			const shareMs = Math.floor((budget.remainingMs() * leg.maxRunMs) / shareOfWeight);
 			const lease = budget.leaseLeg(Math.min(leg.maxRunMs, shareMs));
 			const startedAt = now();
 			try {
 				const response = await leg.fetch(url, { headers, deadline: lease.deadline, onRedirect });
+				budget.deadline.signal.throwIfAborted();
 				const unlockerError = unlockerErrorOf(response.headers);
 				if (!ESCALATE_STATUS_CODES.has(response.status) && !isAwsWafChallenge(response)) {
 					logAttempt({
@@ -114,21 +135,27 @@ export function runTransportLadder(deps: {
 				});
 				lastResponse = buffered;
 			} catch (error) {
-				if (error instanceof Error && lastError !== undefined) error.cause = lastError;
 				const elapsedMs = now() - startedAt;
 				const message = error instanceof Error ? error.message : String(error);
-				if (callerHasGivenUp(budget.deadline) || isTerminalNetworkError(error)) {
+				if (callerHasGivenUp(budget.deadline) || isHardCrawlFailure(error)) {
 					logAttempt({ leg: leg.name, outcome: "abandoned", elapsedMs, error: message });
+					budget.deadline.signal.throwIfAborted();
 					throw error;
 				}
+				allFailuresRecoverable = isRecoverableTransportError(error) && allFailuresRecoverable;
+				errors.push(error);
+				if (isTerminalNetworkError(error) && !(lastResponse?.status === 429 && allFailuresRecoverable)) {
+					logAttempt({ leg: leg.name, outcome: "abandoned", elapsedMs, error: message });
+					throw failure();
+				}
 				logAttempt({ leg: leg.name, outcome: "escalated", elapsedMs, error: message });
-				lastError = error;
 			} finally {
 				lease.release();
 			}
 		}
+		budget.deadline.signal.throwIfAborted();
+		if (!allFailuresRecoverable) throw failure();
 		if (lastResponse !== undefined) return lastResponse;
-		if (lastError !== undefined) throw lastError;
-		throw budget.deadline.signal.reason;
+		throw failure();
 	};
 }

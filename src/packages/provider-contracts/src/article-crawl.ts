@@ -8,7 +8,7 @@ export interface CrawlParts {
 export type ArticleCrawl =
 	| { status: "pending"; stage?: CrawlStage; parts?: CrawlParts }
 	| { status: "ready" }
-	| { status: "failed"; reason: string }
+	| { status: "failed"; reason: string; outcomeRevision: number }
 	| { status: "unsupported"; reason: string };
 
 export type FindArticleCrawlStatus = (

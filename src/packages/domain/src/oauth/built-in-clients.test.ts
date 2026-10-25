@@ -4,7 +4,7 @@ import {
 	IOS_NATIVE_OAUTH_CALLBACK_URI,
 	getBuiltInClient,
 	isBuiltInRedirectUri,
-	revokeDestroysUserSessions,
+	revokeDestroysGrantSessions,
 } from "./built-in-clients";
 
 describe("getBuiltInClient", () => {
@@ -153,18 +153,18 @@ describe("isBuiltInRedirectUri", () => {
 	});
 });
 
-describe("revokeDestroysUserSessions", () => {
+describe("revokeDestroysGrantSessions", () => {
 	it("destroys the user's sessions for either phone app client", () => {
-		assert.equal(revokeDestroysUserSessions("ios-app"), true);
-		assert.equal(revokeDestroysUserSessions("android-app"), true);
+		assert.equal(revokeDestroysGrantSessions("ios-app"), true);
+		assert.equal(revokeDestroysGrantSessions("android-app"), true);
 	});
 
 	it("keeps extension revocation scoped to the presented token", () => {
-		assert.equal(revokeDestroysUserSessions("hutch-firefox-extension"), false);
-		assert.equal(revokeDestroysUserSessions("hutch-chrome-extension"), false);
+		assert.equal(revokeDestroysGrantSessions("hutch-firefox-extension"), false);
+		assert.equal(revokeDestroysGrantSessions("hutch-chrome-extension"), false);
 	});
 
 	it("keeps dynamically registered client revocation scoped to the presented token", () => {
-		assert.equal(revokeDestroysUserSessions("dyn-client-b6cbd6"), false);
+		assert.equal(revokeDestroysGrantSessions("dyn-client-b6cbd6"), false);
 	});
 });

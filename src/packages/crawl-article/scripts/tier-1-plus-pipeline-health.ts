@@ -98,6 +98,8 @@ async function pollUntilDone(url: string): Promise<{ status: TerminalReaderStatu
 				case "origin-down":
 				case "not-found":
 				case "not-an-article":
+				case "capture-unreadable":
+				case "capture-missing":
 					return { status, html: lastHtml };
 				default: {
 					const _exhaustive: never = status;

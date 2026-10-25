@@ -37,7 +37,7 @@ describe("GET /mcp (browser connection guide)", () => {
 		expect(response.text).toContain("your assistant can mark an article read or unread");
 	});
 
-	it("points the setup note at Connected apps in the account, where the reader disconnects an assistant", async () => {
+	it("points the setup note at Connected apps in the account, where the reader signs an assistant out", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/mcp").set("Accept", "text/html");
 
@@ -63,7 +63,7 @@ describe("GET /mcp (browser connection guide)", () => {
 		expect(operationsIn("capabilities")).toEqual(
 			expect.arrayContaining(["mark_as_read", "mark_as_unread"]),
 		);
-		expect(operationsIn("app-only-operations")).toEqual(["delete_article"]);
+		expect(operationsIn("app-only-operations")).toEqual(["get_article_deletion_steps"]);
 	});
 
 	it.each([

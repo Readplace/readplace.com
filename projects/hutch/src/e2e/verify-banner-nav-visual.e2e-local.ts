@@ -8,7 +8,9 @@ import {
 	type VisualCheckpoint,
 	waitForBrandFonts,
 } from "@packages/e2e-harness";
+import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { E2E_CHANGELOG_BANNER_HEADER } from "./changelog-banner-fixture";
+import { openAddLink } from "./page-interactions";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
@@ -112,6 +114,150 @@ async function narrowSoTheBannerGrows(page: Page): Promise<void> {
 	await page.setViewportSize(NARROW);
 	await waitForBrandFonts(page, ["Inter"]);
 	await bannerAreaHeightSettled(page);
+}
+
+type ColourScheme = "light" | "dark";
+
+const TEXT_FIT_VIEWPORTS = [
+	{ label: "desktop", size: WIDE },
+	{ label: "mobile", size: NARROW },
+] as const;
+
+interface ViewportPlacement {
+	name: string;
+	left: number;
+	right: number;
+	top: number;
+}
+
+interface VerifyBannerElementBox extends ViewportPlacement {
+	scrollWidth: number;
+	clientWidth: number;
+}
+
+interface VerifyBannerTextRun extends ViewportPlacement {
+	contentLeft: number;
+	contentRight: number;
+}
+
+interface VerifyBannerTextMeasurement {
+	viewportWidth: number;
+	elements: VerifyBannerElementBox[];
+	textRun: VerifyBannerTextRun;
+}
+
+async function measureVerifyBannerText(page: Page): Promise<VerifyBannerTextMeasurement> {
+	return page.evaluate(() => {
+		const banner = document.querySelector<HTMLElement>("[data-test-verify-banner]");
+		if (banner === null) {
+			throw new Error("the verify banner must be rendered");
+		}
+		const elements = [banner, ...Array.from(banner.querySelectorAll<HTMLElement>("*"))].map(
+			(element) => {
+				const rect = element.getBoundingClientRect();
+				return {
+					name: `<${element.tagName.toLowerCase()} class="${element.className}">`,
+					scrollWidth: element.scrollWidth,
+					clientWidth: element.clientWidth,
+					left: rect.left,
+					right: rect.right,
+					top: rect.top,
+				};
+			},
+		);
+		const range = document.createRange();
+		range.selectNodeContents(banner);
+		const textRect = range.getBoundingClientRect();
+		const bannerRect = banner.getBoundingClientRect();
+		const style = getComputedStyle(banner);
+		return {
+			viewportWidth: document.documentElement.clientWidth,
+			elements,
+			textRun: {
+				name: "banner text run",
+				left: textRect.left,
+				right: textRect.right,
+				top: textRect.top,
+				contentLeft: bannerRect.left + Number.parseFloat(style.paddingLeft),
+				contentRight: bannerRect.right - Number.parseFloat(style.paddingRight),
+			},
+		};
+	});
+}
+
+function assertInsideViewport(
+	placement: ViewportPlacement,
+	viewportWidth: number,
+	combination: string,
+): void {
+	assert.ok(
+		placement.left >= -1,
+		`[${combination}] ${placement.name} starts left of the viewport: left ${placement.left} < -1`,
+	);
+	assert.ok(
+		placement.right <= viewportWidth + 1,
+		`[${combination}] ${placement.name} runs past the viewport: right ${placement.right} > viewport width ${viewportWidth} + 1`,
+	);
+	assert.ok(
+		placement.top >= -1,
+		`[${combination}] ${placement.name} starts above the viewport: top ${placement.top} < -1`,
+	);
+}
+
+function assertVerifyBannerTextFits(
+	measurement: VerifyBannerTextMeasurement,
+	combination: string,
+): void {
+	for (const element of measurement.elements) {
+		assert.ok(
+			element.scrollWidth <= element.clientWidth + 1,
+			`[${combination}] ${element.name} overflows horizontally: scrollWidth ${element.scrollWidth} > clientWidth ${element.clientWidth} + 1`,
+		);
+		assertInsideViewport(element, measurement.viewportWidth, combination);
+	}
+	const { textRun } = measurement;
+	assert.ok(
+		textRun.left >= textRun.contentLeft - 1 && textRun.right <= textRun.contentRight + 1,
+		`[${combination}] ${textRun.name} spills out of the banner: text ${textRun.left}..${textRun.right}, content box ${textRun.contentLeft}..${textRun.contentRight}`,
+	);
+	assertInsideViewport(textRun, measurement.viewportWidth, combination);
+}
+
+async function resizeAndSettleBanner(page: Page, size: { width: number; height: number }) {
+	await page.setViewportSize(size);
+	await waitForBrandFonts(page, ["Inter"]);
+	await bannerAreaHeightSettled(page);
+}
+
+async function addLinkDialogFullyOpen(page: Page): Promise<void> {
+	await openAddLink(page);
+	await page.waitForFunction(
+		() =>
+			document
+				.getAnimations()
+				.filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+				.length === 0,
+	);
+}
+
+async function closeAddLinkDialog(page: Page): Promise<void> {
+	await page.keyboard.press("Escape");
+	await expect(page.locator("#add-link:popover-open")).toHaveCount(0);
+	await bannerAreaHeightSettled(page);
+}
+
+async function expectVerifyBannerTextFitsEveryLayout(
+	page: Page,
+	colourScheme: ColourScheme,
+): Promise<void> {
+	for (const viewport of TEXT_FIT_VIEWPORTS) {
+		await resizeAndSettleBanner(page, viewport.size);
+		const at = `${viewport.label} ${viewport.size.width}x${viewport.size.height}, ${colourScheme}`;
+		assertVerifyBannerTextFits(await measureVerifyBannerText(page), `${at}, dialog closed`);
+		await addLinkDialogFullyOpen(page);
+		assertVerifyBannerTextFits(await measureVerifyBannerText(page), `${at}, dialog open`);
+		await closeAddLinkDialog(page);
+	}
 }
 
 const VOLATILE_CHROME = [".offline-banner", ".newer-version-banner"];
@@ -259,4 +405,20 @@ test.describe("Verify banner never overlaps the nav", () => {
 		await page.setViewportSize(NARROW);
 		await captureCheckpoint(page, VERIFY_BANNER_NAV_DARK);
 	});
+
+	for (const colourScheme of ["light", "dark"] as const) {
+		test(`the banner text fits the viewport on desktop and mobile, with and without the add-link dialog (${colourScheme})`, async ({
+			page,
+		}, testInfo) => {
+			await page.emulateMedia({ colorScheme: colourScheme });
+			await page
+				.context()
+				.addCookies([{ name: SAVE_TIP_COOKIE_NAME, value: SAVE_TIP_SEEN, url: BASE_URL }]);
+			await openQueueAsUnverified(
+				page,
+				`verify-text-fit-${colourScheme}-${testInfo.workerIndex}-${Date.now()}@example.com`,
+			);
+			await expectVerifyBannerTextFitsEveryLayout(page, colourScheme);
+		});
+	}
 });

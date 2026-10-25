@@ -1,6 +1,6 @@
 import type { ReadingListItemId } from "./domain/reading-list-item.types";
 import type { Auth, GuardedResult } from "./auth/auth.types";
-import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, LoadSort, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
+import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, LoadSort } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { createEventBus } from "./event-bus";
@@ -17,7 +17,6 @@ export interface ReadingList {
 	getItems: GetItems;
 	loadPage: LoadPage;
 	loadSort: LoadSort;
-	savePages: SavePages;
 }
 
 
@@ -38,7 +37,6 @@ export interface Core {
 	save(resource: "current-tab", data: { url: string; title: string; tabId?: number }): void;
 	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): void;
 	fetch(resource: "reading-list", data?: { page: number } | { sort: number }): void;
-	saveAll(resource: "tabs", data: { pages: BulkSavePage[] }): void;
 
 	on(event: "pre-init", handler: () => void): void;
 	on(event: "post-init", handler: () => void): void;
@@ -47,13 +45,11 @@ export interface Core {
 	on(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
 	on(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	on(event: "fetched-reading-list", handler: ResultCallbacks<LoadPageResult>): void;
-	on(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 
 	once(event: "logged-in", handler: ResultCallbacks<void>): void;
 	once(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
 	once(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	once(event: "fetched-reading-list", handler: ResultCallbacks<LoadPageResult>): void;
-	once(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 }
 
 export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; logger: HutchLogger; readingList: ReadingList }): Core {
@@ -232,11 +228,6 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			});
 			emitResult("fetched-reading-list", guarded);
 			if (guarded.ok) establishWebSession();
-		},
-
-		saveAll(_resource, data) {
-			const guarded = auth.whenLoggedIn(() => readingList.savePages({ pages: data.pages }));
-			emitResult("saved-all-tabs", guarded);
 		},
 
 		// biome-ignore lint/suspicious/noExplicitAny: implementation signature must accept all overloaded handler shapes

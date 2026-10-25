@@ -1,3 +1,4 @@
+import { type WindowId, WindowIdSchema } from "../domain/window-id";
 import { isAppUrl } from "./is-app-url";
 import type { BulkSaveResult } from "../reading-list/reading-list.types";
 
@@ -12,8 +13,7 @@ const SKIP_REASON_NOT_A_WEB_PAGE = "Only http and https URLs can be saved";
 const SKIP_REASON_APP_PAGE = "Readplace's own pages aren't saved";
 const SKIP_REASON_DUPLICATE = "Already open in another tab";
 
-/** The saveable subset of a window's tabs, with a deduplicated first-seen list
- * of why the rest were left behind. Tabs with no URL, non-http(s) schemes
+/** The saveable subset of a window's tabs. Tabs with no URL, non-http(s) schemes
  * (chrome://, about:, file:, moz-extension://) and the app's own pages are
  * dropped here — they are client-side skips the bulk route never sees. Duplicate
  * URLs collapse to the first tab seen (the save is idempotent on userId:url
@@ -21,28 +21,38 @@ const SKIP_REASON_DUPLICATE = "Already open in another tab";
 export function classifyTabs(
 	tabs: readonly { id?: number; url?: string; title?: string; pendingUrl?: string }[],
 	appDomains: readonly string[],
-): { saveable: SaveableTab[]; skipReasons: string[] } {
+): { saveable: SaveableTab[]; skipped: { tabId: number | null; reason: string }[] } {
 	const seen = new Set<string>();
 	const saveable: SaveableTab[] = [];
-	const skipReasons = new Set<string>();
+	const skipped: { tabId: number | null; reason: string }[] = [];
 	for (const tab of tabs) {
+		const tabId = tab.id ?? null;
 		const url = tab.url || tab.pendingUrl;
 		if (typeof url !== "string" || !/^https?:/i.test(url)) {
-			skipReasons.add(SKIP_REASON_NOT_A_WEB_PAGE);
+			skipped.push({ tabId, reason: SKIP_REASON_NOT_A_WEB_PAGE });
 			continue;
 		}
 		if (isAppUrl({ tabUrl: url, appDomains })) {
-			skipReasons.add(SKIP_REASON_APP_PAGE);
+			skipped.push({ tabId, reason: SKIP_REASON_APP_PAGE });
 			continue;
 		}
 		if (seen.has(url)) {
-			skipReasons.add(SKIP_REASON_DUPLICATE);
+			skipped.push({ tabId, reason: SKIP_REASON_DUPLICATE });
 			continue;
 		}
 		seen.add(url);
 		saveable.push({ url, title: tab.title ?? url, tabId: tab.id });
 	}
-	return { saveable, skipReasons: [...skipReasons] };
+	return { saveable, skipped };
+}
+
+export function windowIdOf(tabs: readonly { windowId: number }[]): WindowId {
+	return WindowIdSchema.parse(tabs[0]?.windowId);
+}
+
+export function savingTabsTitle(count: number): string {
+	if (count === 0) return "Saving tabs…";
+	return `Saving ${count} ${count === 1 ? "tab" : "tabs"}…`;
 }
 
 export function saveAllTabsLabel(tabCount: number): string {
@@ -112,6 +122,5 @@ export function buildSaveAllDetailLines(result: {
  * against the popup document's own navigation start, so one sample spans the
  * whole bulk critical path — enumerating the window, capturing every tab, and
  * every chunked request — and none of the WebDriver round trips spent watching
- * it. A bulk save paints exactly one outcome, so a second mark on a document
- * means the sample was taken against a popup that had already run. */
+ * it. */
 export const SAVE_ALL_RENDERED_MARK = "save-all-rendered";

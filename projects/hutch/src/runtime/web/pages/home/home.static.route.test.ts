@@ -347,7 +347,7 @@ describe("GET /.well-known/oauth-protected-resource", () => {
 			resource: "http://localhost:3000",
 			resource_name: "Readplace",
 			authorization_servers: ["http://localhost:3000"],
-			scopes_supported: ["queue"],
+			scopes_supported: ["account"],
 			bearer_methods_supported: ["header"],
 			resource_documentation: "http://localhost:3000/auth.md",
 		});
@@ -366,7 +366,7 @@ describe("GET /.well-known/oauth-protected-resource/mcp", () => {
 			resource: "http://localhost:3000/mcp",
 			resource_name: "Readplace",
 			authorization_servers: ["http://localhost:3000"],
-			scopes_supported: ["queue"],
+			scopes_supported: ["account"],
 			bearer_methods_supported: ["header"],
 			resource_documentation: "http://localhost:3000/auth.md",
 		});

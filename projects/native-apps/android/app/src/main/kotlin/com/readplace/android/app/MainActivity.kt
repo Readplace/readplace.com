@@ -133,6 +133,7 @@ class MainActivity : ComponentActivity() {
 				reportAutomaticCaptureFailure = { failure -> Log.i("Capture", "automatic capture failed: $failure") },
 				drainUploadJobs = { drain.run() },
 				onSessionExpired = { session.forceLogout() },
+				scope = lifecycleScope,
 			)
 		}
 

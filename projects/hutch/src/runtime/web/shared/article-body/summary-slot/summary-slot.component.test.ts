@@ -320,7 +320,7 @@ describe("renderSummarySlot", () => {
 	it("hides the slot when the crawl has failed (reader-failed card carries the message)", () => {
 		const doc = parse(
 			renderSummarySlot({
-				crawl: { status: "failed", reason: "blocked" },
+				crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" },
 				summary: { status: "pending" },
 			}),
 		);

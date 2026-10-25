@@ -677,7 +677,7 @@ describe("initFinalizeArticle plain-text resources", () => {
 		expect(result.article.metadata.title).toBe("Article from example.com");
 		expect(result.article.metadata.wordCount).toBe(239);
 		expect(result.article.metadata.estimatedReadTime).toBe(2);
-		expect(result.article.metadata.excerpt).toHaveLength(200);
+		expect(result.article.metadata.excerpt).toBe(`${"word ".repeat(48).trim()}…`);
 	});
 
 	it.each(["", "\n\t  \r\n"])("rejects empty plain-text content %j", async (plainText) => {

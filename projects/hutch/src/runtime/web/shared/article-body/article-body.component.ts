@@ -11,7 +11,7 @@ import {
 	renderArticleHistory,
 	renderOfflineCopyTemplate,
 } from "./article-history/article-history.component";
-import type { ArticleVersion } from "../article-reader/article-reader.types";
+import type { ArticleVersion, CapturePollUrls } from "../article-reader/article-reader.types";
 import type { ReaderProvenance } from "./article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
@@ -37,7 +37,7 @@ export interface ArticleBodyInput {
 	content?: ArticleBody;
 	crawl?: ArticleCrawl;
 	readerPollUrl?: string;
-	capturePollUrl?: string;
+	capturePollUrls?: CapturePollUrls;
 	summary?: GeneratedSummary;
 	summaryPollUrl?: string;
 	summaryOpen?: boolean;
@@ -102,7 +102,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		url: input.url,
 		articleId: input.articleId,
 		readerPollUrl: input.readerPollUrl,
-		capturePollUrl: input.capturePollUrl,
+		capturePollUrls: input.capturePollUrls,
 		extensionInstallUrl: input.extensionInstallUrl,
 		notice: input.readerNotice,
 		appOrigin: input.appOrigin,

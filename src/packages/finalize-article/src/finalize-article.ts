@@ -7,7 +7,7 @@ import {
 	type ThumbnailImage,
 } from "@packages/crawl-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { articleFromHostTitle, imageSavedFromHostExcerpt } from "@packages/domain/article";
+import { articleFromHostTitle, clipMetadataExcerpt, imageSavedFromHostExcerpt } from "@packages/domain/article";
 import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
 import { mediaFilename } from "./media-filename";
 import type { PutImageObject, MediaWriteContext } from "./put-image-object.types";
@@ -202,7 +202,7 @@ function finalizePlainTextArticle(input: {
 			metadata: {
 				title: imageTitleFromPathname(documentUrl.pathname) || articleFromHostTitle(hostname),
 				siteName: hostname,
-				excerpt: text.trim().replace(/\s+/g, " ").slice(0, 200),
+				excerpt: clipMetadataExcerpt(text.trim().replace(/\s+/g, " ")),
 				wordCount,
 				estimatedReadTime: estimatedReadTimeFromWordCount(wordCount),
 				directResourceKind: "plain-text",

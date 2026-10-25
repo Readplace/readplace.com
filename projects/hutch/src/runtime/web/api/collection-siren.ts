@@ -134,7 +134,7 @@ export function toArticleCollectionEntity(
 				type: "application/json",
 				fields: [
 					{ name: "url", type: "url" },
-					{ name: "queues", type: "text", maxItems: READLIST_MAX_PER_USER },
+					{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER },
 				],
 			},
 			{

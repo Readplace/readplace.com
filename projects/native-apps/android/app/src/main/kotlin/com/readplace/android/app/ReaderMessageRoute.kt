@@ -21,6 +21,14 @@ enum class ReaderMessageRoute {
 
 		const val CAPTURE_STARTED_SCRIPT = "document.dispatchEvent(new Event(\"readplace-capture-started\"))"
 
+		const val CAPTURE_FAILED_SCRIPT = "document.dispatchEvent(new Event(\"readplace-capture-failed\"))"
+
+		fun scriptAfterCapture(ending: CaptureEnding): String? =
+			when (ending) {
+				CaptureEnding.Copied -> null
+				CaptureEnding.NotCopied -> CAPTURE_FAILED_SCRIPT
+			}
+
 		fun of(
 			channelName: String,
 			messageType: String?,

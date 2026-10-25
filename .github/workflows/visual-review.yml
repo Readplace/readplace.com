@@ -50,11 +50,11 @@ jobs:
           VLM_PYTHON: /Users/fagnerbrack/.readplace-ci/vlm-venv/bin/python
         run: node .github/runner/macos/review-frames.mjs
 
-      - name: Upload the frames the model reported defects in
-        if: steps.review.outputs.defect-count != '0' && steps.review.outputs.defect-count != ''
+      - name: Upload the frames behind a failed review
+        if: always() && steps.review.outputs.frames-kept == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: visual-review-found-${{ steps.review.outputs.defect-count }}-defects-in-transition-frames-${{ github.event.workflow_run.head_sha }}
+          name: visual-review-failed-with-${{ steps.review.outputs.defect-count }}-confirmed-defects-in-transition-frames-${{ github.event.workflow_run.head_sha }}
           path: flagged-frames
           retention-days: 30
           if-no-files-found: ignore

@@ -939,7 +939,7 @@ describe("View routes", () => {
 				...fixture,
 				articleCrawl: {
 					...fixture.articleCrawl,
-					findArticleCrawlStatus: async () => ({ status: "failed", reason: "blocked" }),
+					findArticleCrawlStatus: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 				},
 				summary: { ...fixture.summary, findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "skipped" } }) },
 			});
@@ -1215,6 +1215,33 @@ describe("View routes", () => {
 			expect(response.status).toBe(200);
 			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
 			assert(saved, "a bot open must save and crawl the article like any reader");
+		});
+
+		it("skips the crawl cascade for a HEAD request", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).head(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
+			assert(!saved, "a HEAD must not save or crawl the article");
+		});
+
+		it("publishes a stale check for a GET of a stored article but not for a HEAD", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: ARTICLE_URL, metadata: { title: "Seeded title", siteName: "example.com", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const headResponse = await request(harness.server).head(`/view/${CANONICAL_PATH}`);
+
+			expect(headResponse.status).toBe(200);
+			expect(staleChecks).toEqual([]);
+
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
 		});
 	});
 
@@ -1640,6 +1667,7 @@ describe("View routes", () => {
 		it("hides the summary slot on poll when the crawl has failed (no further polling)", async () => {
 			const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 				status: "failed",
+				outcomeRevision: 1,
 				reason: "blocked",
 			});
 			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: { status: "pending" } });
@@ -1849,7 +1877,7 @@ describe("View routes", () => {
 
 		it("appends the banner and gated Save CTA to a settled failed reader poll, carrying the page's utm", async () => {
 			const { fixture, harness } = pollHarness({
-				crawl: async () => ({ status: "failed", reason: "blocked" }),
+				crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 				summary: async (url) => shownSummary({ url, summary: { status: "skipped" } }),
 			});
 			await seedRow(fixture);
@@ -1905,7 +1933,7 @@ describe("View routes", () => {
 
 		it("marks the swapped-in Save CTA as already seen for a warned session", async () => {
 			const { fixture, harness } = pollHarness({
-				crawl: async () => ({ status: "failed", reason: "blocked" }),
+				crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 				summary: async (url) => shownSummary({ url, summary: { status: "skipped" } }),
 			});
 			await seedRow(fixture);

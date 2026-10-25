@@ -4,6 +4,7 @@ import { render, withInternalTracking } from "@packages/web-shell";
 import type { CspNonce } from "@packages/web-shell";
 import { ARTICLE_FRAME_STYLES } from "../../../shared/article-body/article-frame.styles";
 import { READLIST_PICKER_SCRIPT } from "../../../shared/article-body/reader-actions/reader-actions.component";
+import { CAPTURE_FAILED_RELAY_SCRIPT } from "../../../shared/article-body/reader-slot/reader-slot.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../../shared/article-body/summary-slot/summary-slot.component";
 import { TABLE_OF_CONTENTS_SCRIPT } from "../../../shared/article-body/table-of-contents/table-of-contents.component";
 import { READING_LAYOUT_STYLES } from "../../../shared/reading-layout/reading-layout.styles";
@@ -27,6 +28,7 @@ export const VIEW_BACK_LINK = {
 export const READER_PAGE_SCRIPTS =
 	SHARE_DIALOG_SCRIPT +
 	SUMMARY_TOGGLE_SCRIPT +
+	CAPTURE_FAILED_RELAY_SCRIPT +
 	READLIST_PICKER_SCRIPT +
 	READER_EXIT_CONFIRM_SCRIPT +
 	READER_OPEN_SCRIPT +

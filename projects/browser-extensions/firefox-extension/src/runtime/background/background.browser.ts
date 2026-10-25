@@ -10,6 +10,9 @@ import {
 	initRefreshProof,
 	initSirenReadingList,
 	initBulkSaveQueue,
+	initBulkSaveRunRecord,
+	initSaveAllRuns,
+	SaveAllMessageSchema,
 	initSyncContextMenus,
 	initUploadQueue,
 	initOpenHiddenTab,
@@ -18,11 +21,11 @@ import {
 	initRescueCapture,
 	ADVERTISED_CAPABILITIES_STORAGE_KEY,
 	COMMAND_BINDINGS_STORAGE_KEY,
+	READER_RESCUE_ENDED_MESSAGE_TYPE,
 	READER_RESCUES_STORAGE_KEY,
 	ReaderRescueRequestSchema,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
 	SAVE_ALL_TABS_COMMAND,
-	bulkSaveNotification,
 	commandBindingsFromGetAll,
 	type AdvertisedCapabilityStore,
 	type BrowserShell,
@@ -31,12 +34,9 @@ import {
 	type LoadPageResult,
 	type SaveUrlResult,
 	type InvokeActionResult,
-	type BulkSaveResult,
-	type GuardedResult,
-	type BulkSavePage,
 	type ReaderRescueAnswer,
+	type ReaderRescueEnded,
 	type RescueAttemptStore,
-	type SaveableTab,
 	type Timers,
 	type UploadJobStore,
 	type UploadQueue,
@@ -124,7 +124,7 @@ const bulkSaveWakeScheduler: WakeScheduler = {
 		bulkSaveWake = setTimeout(() => {
 			bulkSaveWake = undefined;
 			appPromise
-				.then(({ bulkSaveQueue }) => bulkSaveQueue.resume())
+				.then(({ runs }) => runs.resumeAll())
 				.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
 		}, Math.max(0, timestamp - Date.now()));
 	},
@@ -277,9 +277,9 @@ async function initCore() {
 		fetchFn: (...args) => fetch(...args),
 		refreshTokens: auth.refreshTokens,
 		onUnauthorized: async (accessToken) => {
+			void runs.forget();
 			await auth.resourceRejected(accessToken);
 			void uploadQueue.purge();
-			void bulkSaveQueue.purge();
 		},
 		logger,
 		onAdvertisedActions: (names) => {
@@ -298,12 +298,24 @@ async function initCore() {
 		logger,
 	});
 
+	const bulkSaveRunRecord = initBulkSaveRunRecord({ area: browser.storage.session, logger });
+
 	const bulkSaveQueue = initBulkSaveQueue({
 		jobs: initIndexedDbBulkSaveJobStore({ databaseName: BULK_SAVE_JOBS_DB }),
 		payloads: initIndexedDbBulkPayloadStore({ databaseName: BULK_SAVE_PAYLOAD_DB }),
 		scheduler: bulkSaveWakeScheduler,
 		openSession: readingList.openBulkSaveSession,
+		progress: (events) => bulkSaveRunRecord.applyEvents(events),
+		logger,
+	});
+
+	const runs = initSaveAllRuns({
+		record: bulkSaveRunRecord,
+		queue: bulkSaveQueue,
+		whenLoggedIn: auth.whenLoggedIn,
+		capture: (tab) => captureTabContent(tab).catch(() => undefined),
 		notify: showBulkSaveNotification,
+		keepAlive: (work) => work,
 		logger,
 	});
 
@@ -316,13 +328,19 @@ async function initCore() {
 			logger,
 		}),
 		enqueueCaptured: uploadQueue.enqueueCaptured,
+		tellOpenerNothingCopied: ({ articleId, trigger, openerTabId }) =>
+			browser.tabs.sendMessage(openerTabId, {
+				type: READER_RESCUE_ENDED_MESSAGE_TYPE,
+				articleId,
+				trigger,
+			} satisfies ReaderRescueEnded),
 		logger,
 	});
 
 	const core = BrowserExtensionCore(shell, {
 		auth,
 		logger,
-		readingList: { ...readingList, savePages: bulkSaveQueue.savePages },
+		readingList: { ...readingList, saveUrl: runs.saveUrlSettlingRun(readingList.saveUrl) },
 	});
 
 	core.on("pre-init", () => {
@@ -333,7 +351,7 @@ async function initCore() {
 
 	core.init();
 
-	return { core, uploadQueue, bulkSaveQueue, auth, readerRescue };
+	return { core, uploadQueue, runs, auth, readerRescue };
 }
 
 const appPromise = initCore();
@@ -343,7 +361,7 @@ appPromise
 	.catch((err) => logger.error("Failed to resume deferred uploads", err));
 
 appPromise
-	.then(({ bulkSaveQueue }) => bulkSaveQueue.resume())
+	.then(({ runs }) => runs.resumeAll())
 	.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
 
 function refreshCommandBindings(): void {
@@ -404,23 +422,9 @@ async function captureTabContent(tab: { url: string; tabId?: number }): Promise<
 	return captureActiveTabBytes({ tabUrl: tab.url, fetchFn: fetch, logger });
 }
 
-/** Captures every saveable tab into a bulk page; a tab that can't be captured
- * (unscriptable, discarded, fetch refused) becomes a URL-only page. */
-async function capturePages(tabs: SaveableTab[]): Promise<BulkSavePage[]> {
-	return Promise.all(
-		tabs.map(async (tab) => {
-			const content = await captureTabContent(tab).catch(() => undefined);
-			const page: BulkSavePage = { url: tab.url, title: tab.title };
-			if (content) page.content = content;
-			return page;
-		}),
-	);
-}
-
 const POPUP_MESSAGE_TYPES = new Set([
 	"save-current-tab",
 	"invoke-action",
-	"save-all-tabs",
 	"get-all-items",
 	"load-page",
 	"load-sort",
@@ -441,8 +445,6 @@ function hasStringType(value: unknown): value is { type: string } {
 function isPopupMessage(value: unknown): value is PopupMessage {
 	return hasStringType(value) && POPUP_MESSAGE_TYPES.has(value.type);
 }
-
-let bulkSavesInFlight: Promise<void> = Promise.resolve();
 
 function showBulkSaveNotification(notification: {
 	title: string;
@@ -488,11 +490,23 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 		return true;
 	}
 
+	const saveAll = SaveAllMessageSchema.safeParse(raw);
+	if (saveAll.success) {
+		appPromise
+			.then(({ runs }) => runs.handle(saveAll.data))
+			.catch((err) => {
+				logger.error("Failed to handle a save-all message", err);
+				return { ok: false, reason: "error" };
+			})
+			.then(sendResponse);
+		return true;
+	}
+
 	if (!isPopupMessage(raw)) return;
 	const message = raw;
 
 	appPromise
-		.then(({ core, uploadQueue, bulkSaveQueue, auth }) => {
+		.then(({ core, uploadQueue, runs, auth }) => {
 			switch (message.type) {
 				case "login-prompt-shown": {
 					auth.reportLoginPrompt().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
@@ -512,7 +526,7 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 				case "logout": {
 					/** Page bytes captured for a signed-in reader must not outlive the
 					 * session that authorised capturing them. */
-					const purged = Promise.all([uploadQueue.purge(), bulkSaveQueue.purge()]);
+					const purged = Promise.all([uploadQueue.purge(), runs.forget()]);
 					core.logout();
 					purged.then(() => sendResponse({ ok: true }));
 					break;
@@ -566,37 +580,6 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 						core.fetch("reading-list");
 					}
 					pending.then(sendResponse);
-					break;
-				}
-				case "save-all-tabs": {
-					const { tabs, tabCount } = message;
-					const runBulkSave = () => {
-						const pending = new Promise<GuardedResult<BulkSaveResult>>(
-							(resolve) => {
-								core.once("saved-all-tabs", {
-									success: (value: BulkSaveResult) =>
-										resolve({ ok: true, value }),
-									failure: (err) => resolve({ ok: false, ...err }),
-								});
-							},
-						);
-						capturePages(tabs)
-							.then((pages) => core.saveAll("tabs", { pages }))
-							.catch(() =>
-								core.saveAll("tabs", { pages: tabs.map((tab) => ({ url: tab.url, title: tab.title })) }),
-							);
-						return pending.then((outcome) => {
-							sendResponse(outcome);
-							showBulkSaveNotification(
-								bulkSaveNotification({
-									outcome,
-									tabCount,
-									saveableCount: tabs.length,
-								}),
-							);
-						});
-					};
-					bulkSavesInFlight = bulkSavesInFlight.then(runBulkSave, runBulkSave);
 					break;
 				}
 			}

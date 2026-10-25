@@ -101,6 +101,17 @@ describe("initFetchPinnedCrawl — twitter.com identities", () => {
 	});
 });
 
+describe("initFetchPinnedCrawl — Amazon product identities", () => {
+	it("fetches a stored Amazon title link as stored", async () => {
+		const { crawlArticle, urls } = captureCrawl();
+		const pinned = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined });
+
+		await pinned({ url: "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451" });
+
+		expect(urls).toEqual(["https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451"]);
+	});
+});
+
 it("fetches an explicitly verified wrapper candidate even when its legacy row now displays the original", async () => {
 	const capture = "https://web.archive.org/web/20081203/https://example.com/post";
 	const crawlArticle = jest.fn<ReturnType<CrawlArticle>, Parameters<CrawlArticle>>().mockResolvedValue({ status: "fetched", html: "<html>archive</html>", bodyHash: "hash" });

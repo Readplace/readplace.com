@@ -210,7 +210,7 @@ describe("toArticleSubEntity", () => {
 
 	it("asks for a browser capture when the crawl failed because an origin edge refused our servers", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
-			crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
+			crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
 		});
 
 		expect(subEntity.properties?.needsBrowserCapture).toBe(true);
@@ -218,7 +218,7 @@ describe("toArticleSubEntity", () => {
 
 	it("asks for a browser capture on a rate-limited row too — the user's own connection is not the one the origin throttled", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
-			crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "rate-limited" }) },
+			crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "rate-limited" }) },
 		});
 
 		expect(subEntity.properties?.needsBrowserCapture).toBe(true);
@@ -226,7 +226,7 @@ describe("toArticleSubEntity", () => {
 
 	it("asks for no browser capture when robots.txt is the blocker — the site asked us not to crawl it, and a capture would route around that", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
-			crawl: { status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "robots" }) },
+			crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "robots" }) },
 		});
 
 		expect(subEntity.properties?.needsBrowserCapture).toBe(false);
@@ -239,19 +239,19 @@ describe("toArticleSubEntity", () => {
 			["crawl pending", { status: "pending" }],
 			[
 				"failed on our own parser, which a second fetch would not fix",
-				{ status: "failed", reason: JSON.stringify({ kind: "parse-error", detail: "Readability null" }) },
+				{ status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "Readability null" }) },
 			],
 			[
 				"failed on robots.txt, which the user's browser does not exempt us from",
-				{ status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "robots" }) },
+				{ status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "robots" }) },
 			],
 			[
 				"failed with a legacy bare-string reason",
-				{ status: "failed", reason: "crawl-failed" },
+				{ status: "failed", outcomeRevision: 1, reason: "crawl-failed" },
 			],
 			[
 				"failed with the retired cloudflare cause",
-				{ status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "cloudflare" }) },
+				{ status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "cloudflare" }) },
 			],
 			[
 				"unsupported",

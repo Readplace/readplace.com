@@ -41,6 +41,7 @@ describe("initInMemoryArticleCrawl", () => {
 			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
 				status: "failed",
 				reason: "blocked",
+				outcomeRevision: 1,
 			});
 		});
 
@@ -92,6 +93,37 @@ describe("initInMemoryArticleCrawl", () => {
 			await crawl.markCrawlUnsupported({ url: URL, reason: "anything" });
 
 			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "ready" });
+		});
+	});
+
+	describe("outcomeRevision", () => {
+		it("moves on every terminal write and survives a return to pending, so a failure after a retry reads as a new outcome", async () => {
+			const crawl = initInMemoryArticleCrawl();
+			await crawl.markCrawlUnsupported({ url: URL, reason: "non-html" });
+			await crawl.forceMarkCrawlPending({ url: URL });
+			await crawl.markCrawlFailed({ url: URL, reason: "first" });
+			await crawl.forceMarkCrawlPending({ url: URL });
+			await crawl.markCrawlFailed({ url: URL, reason: "second" });
+
+			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
+				status: "failed",
+				reason: "second",
+				outcomeRevision: 3,
+			});
+		});
+
+		it("counts a ready write, and does not move when a failure is refused on a ready row", async () => {
+			const crawl = initInMemoryArticleCrawl();
+			await crawl.markCrawlReady({ url: URL });
+			await crawl.markCrawlFailed({ url: URL, reason: "ignored" });
+			await crawl.forceMarkCrawlPending({ url: URL });
+			await crawl.markCrawlFailed({ url: URL, reason: "after ready" });
+
+			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
+				status: "failed",
+				reason: "after ready",
+				outcomeRevision: 2,
+			});
 		});
 	});
 

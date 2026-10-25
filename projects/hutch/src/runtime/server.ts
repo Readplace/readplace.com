@@ -22,6 +22,7 @@ import type {
 	CreateSession,
 	CreateUser,
 	CreateUserWithPasswordHash,
+	DestroyOAuthGrantSessions,
 	DestroySession,
 	DestroyUserSessions,
 	FindEmailByUserId,
@@ -292,6 +293,7 @@ import { readLastViewUrl } from "./web/last-view";
 import {
 	buildAgentAuthMetadata,
 	buildProtectedResourceMetadata,
+	PROTECTED_RESOURCE_METADATA_PATH,
 	renderAuthMarkdown,
 } from "./web/agent-auth";
 import { buildHomepageArmBody } from "./web/pages/home";
@@ -321,6 +323,12 @@ import type { GmailIntegrationProviders } from "./web/pages/integrations/gmail-i
 import { initAdminIndexHandlers } from "./web/pages/admin/admin-index.page";
 import { initAdminNewslettersRoutes } from "./web/pages/admin/admin-newsletters.page";
 import { initAdminCanaryReportRoutes } from "./web/pages/admin/canary-report.page";
+import { initAdminDashboardsRoutes } from "./web/pages/admin/admin-dashboards.page";
+import { ADMIN_DASHBOARDS_PATH } from "./web/pages/admin/admin-dashboards.url";
+import { buildAdminDashboards } from "./observability/admin-dashboards";
+import { ANALYTICS_LOG_GROUP } from "./observability/events";
+import { AUTH_DIAGNOSTICS_LOG_GROUP } from "./auth-diagnostics/dashboard";
+import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import { initMoveGmailMappingsOnReadlistDelete } from "./domain/gmail/move-gmail-mappings-on-readlist-delete";
 import { initUpdateNewsletterCatalog } from "./domain/newsletter-catalog/update-newsletter-catalog";
 import {
@@ -363,6 +371,7 @@ interface AppDependencies {
 	renewSession: RenewSession;
 	destroySession: DestroySession;
 	destroyUserSessions: DestroyUserSessions;
+	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
@@ -389,6 +398,11 @@ interface AppDependencies {
 	writeNewsletterCatalog: WriteNewsletterCatalog;
 	newsletterCatalogSeed: NewsletterCatalogSeed;
 	findCanaryReport: FindCanaryReport;
+	adminDashboards: {
+		runLogsInsightsQuery: RunLogsInsightsQuery;
+		readExcludedIdentities: ReadExcludedIdentities;
+		now: () => Date;
+	};
 	appleAuth: {
 		exchangeAppleCode: ExchangeAppleCode;
 		clientId: string;
@@ -960,7 +974,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		});
 	});
 
-	app.get("/.well-known/oauth-protected-resource", (_req: Request, res: Response) => {
+	app.get(PROTECTED_RESOURCE_METADATA_PATH, (_req: Request, res: Response) => {
 		res.json(
 			buildProtectedResourceMetadata({
 				baseUrl: dependencies.baseUrl,
@@ -990,7 +1004,7 @@ export function createApp(dependencies: AppDependencies): Express {
 								"service-doc": [{ href: `${dependencies.baseUrl}/llms-full.txt`, type: "text/plain" }],
 								"service-meta": [
 									{
-										href: `${dependencies.baseUrl}/.well-known/oauth-protected-resource`,
+										href: `${dependencies.baseUrl}${PROTECTED_RESOURCE_METADATA_PATH}`,
 										type: "application/json",
 									},
 								],
@@ -1409,6 +1423,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const dualAuthMiddleware = initDualAuth({
 		validateAccessToken: deps.validateAccessToken,
+		baseUrl: deps.baseUrl,
 	});
 	const markdownBearerAuth = initMarkdownBearerAuth({
 		validateAccessToken: deps.validateAccessToken,
@@ -1656,6 +1671,19 @@ export function createApp(dependencies: AppDependencies): Express {
 			buildBannerState,
 		}),
 	);
+	app.use(
+		ADMIN_DASHBOARDS_PATH,
+		initAdminDashboardsRoutes({
+			findUserByEmail: deps.findUserByEmail,
+			adminEmails: deps.adminEmails,
+			buildBannerState,
+			dashboards: buildAdminDashboards({
+				analyticsLogGroupName: ANALYTICS_LOG_GROUP,
+				authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
+			}),
+			...deps.adminDashboards,
+		}),
+	);
 	app.get(
 		"/admin",
 		...initAdminIndexHandlers({
@@ -1798,7 +1826,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateRedirectUri: deps.validateOAuthRedirectUri,
 		registerClient: deps.registerOAuthClient,
 		destroySession: deps.destroySession,
-		destroyUserSessions: deps.destroyUserSessions,
+		destroyOAuthGrantSessions: deps.destroyOAuthGrantSessions,
 		findEmailByUserId: deps.findEmailByUserId,
 		consumeRateLimit: deps.consumeRateLimit,
 		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
