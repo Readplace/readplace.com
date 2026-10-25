@@ -356,6 +356,10 @@ export function initExtractEmailLinksHandler(deps: {
 					else kept += 1;
 				};
 				for (const { url, ordinal, classification } of links) {
+					const anchorText = (anchors.get(url) ?? "").slice(
+						0,
+						TRIAGED_ANCHOR_TEXT_MAX_CHARS,
+					);
 					const link = {
 						userId,
 						receivedAtMessageId,
@@ -368,7 +372,7 @@ export function initExtractEmailLinksHandler(deps: {
 						imageUrl: undefined,
 						failureReason: undefined,
 						droppedFor: undefined,
-						anchorText: undefined,
+						anchorText,
 					};
 					if (classification.action === "skip") {
 						// Terminal at birth: a skipped link is never crawled, so no
@@ -410,14 +414,7 @@ export function initExtractEmailLinksHandler(deps: {
 					const saveable =
 						canSubmit && fanOut.links && validateSaveableUrl(url).status === "SUCCESS";
 					if ((routing.kind === "gmail" || customReadlists.size > 0) && saveable && status !== "skipped") {
-						triagedLinks.push({
-							ordinal,
-							url,
-							anchorText: (anchors.get(url) ?? "").slice(
-								0,
-								TRIAGED_ANCHOR_TEXT_MAX_CHARS,
-							),
-						});
+						triagedLinks.push({ ordinal, url, anchorText });
 					}
 					// Triage verdicts are not deterministic across re-deliveries: a row a
 					// previous delivery terminally skipped must never be crawled by a
@@ -428,7 +425,7 @@ export function initExtractEmailLinksHandler(deps: {
 					// retry's pending-gate skip a submit that never happened. A crash
 					// after the submit leaves the row pending and the retry re-publishes
 					// both; the duplicate submit converges in the subscriber.
-					if (saveable && routedReadlist === undefined) {
+					if (saveable) {
 						eligibleForAll += 1;
 						if (writeAccess === "full") {
 							await publishSubmitLink({
@@ -477,9 +474,9 @@ export function initExtractEmailLinksHandler(deps: {
 					);
 				}
 
-				const decidingReadlists = writeAccess === "full" && fanOut.links && (routing.kind === "gmail" || triagedLinks.length > 0) ? [...customReadlists] : [];
+				const decidingReadlists = writeAccess === "full" && fanOut.links ? [...customReadlists] : [];
 				const definitions =
-					routing.kind === "gmail" && customReadlists.size > 0
+					customReadlists.size > 0
 						? await listReadlistDefinitions(userId)
 						: [];
 				const selectedReadlists = [...customReadlists].map((readlist) => ({
@@ -499,15 +496,7 @@ export function initExtractEmailLinksHandler(deps: {
 							links: triagedLinks,
 						});
 					}
-					if (routing.kind === "inbox" && triagedLinks.length > 0 && decidingReadlists.length > 0 && !firstInboxNoticePublished) {
-						await publishFirstInboxEmailNotice({
-							userId,
-							receivedAtMessageId,
-							inboxAddress: recipientAddress,
-						});
-					}
 				};
-				if (routing.kind === "inbox") await publishReadlistSelections();
 
 				await setEmailLinkCounts({
 					userId,
@@ -524,21 +513,18 @@ export function initExtractEmailLinksHandler(deps: {
 					meta: {
 						truncated,
 						extractionFailed: false,
-						readlistDecision:
-							routedReadlist === undefined || triagedLinks.length === 0
-								? undefined
-								: { readlist: routedReadlist },
+						readlistDecision: undefined,
 						...(routing.kind === "gmail" && canSubmit && fanOut.links
 							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
-							: routing.kind === "inbox" && canSubmit && routedReadlist === undefined
-								? { selectedReadlists: [], eligibleArticleCount: eligibleForAll, savesHeld: writeAccess !== "full" }
+							: routing.kind === "inbox" && canSubmit
+								? { selectedReadlists, eligibleArticleCount: customReadlists.size > 0 ? triagedLinks.length : eligibleForAll, savesHeld: writeAccess !== "full" }
 								: {}),
 						...(canSubmit && fanOut.issue
 							? { issueSave: { readlists: selectedReadlists, held: writeAccess !== "full" } }
 							: {}),
 					},
 				});
-				if (routing.kind === "gmail") await publishReadlistSelections();
+				await publishReadlistSelections();
 
 				if (truncated) {
 					await alertTruncated({
