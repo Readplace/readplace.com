@@ -309,6 +309,7 @@ import { buildSaveTip } from "./web/shared/save-tip/save-tip.component";
 import { initSaveTipEventRoute } from "./web/shared/save-tip/save-tip.route";
 import { initPageDepthRoute } from "./web/shared/page-depth/page-depth.route";
 import { McpConnectPage } from "./web/pages/mcp";
+import { DevelopersPage } from "./web/pages/developers";
 import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
@@ -1063,6 +1064,10 @@ export function createApp(dependencies: AppDependencies): Express {
 			salt: deps.salt,
 		}),
 	);
+
+	app.get("/developers", async (req: Request, res: Response) => {
+		sendComponent(req, res, Base(DevelopersPage(), await buildBannerState(req)));
+	});
 
 	const EXTENSION_ORIGIN_PATTERNS = {
 		firefox: /^moz-extension:\/\//,

@@ -1,0 +1,15 @@
+  <main class="developers" data-test-developers>
+    <div class="developers__container">
+      <h1 class="developers__title">Build on the Readplace API</h1>
+      <p class="developers__lead">The Readplace API lets an integration save links, list and read articles, and file them into readlists, for a reader who approves it.</p>
+
+      <section class="developers__section" data-test-section="discovery">
+        <h2 class="developers__heading">Start from one URL</h2>
+        <p class="developers__text">Every request carries the reader's access token and the Siren media type. Start at <code>/</code>.</p>
+        <pre class="developers__code" data-test-sample="discovery"><code class="language-http">GET / HTTP/1.1
+Host: readplace.com
+Authorization: Bearer ACCESS_TOKEN
+Accept: {{sirenMediaType}}</code></pre>
+      </section>
+    </div>
+  </main>
