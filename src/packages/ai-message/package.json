@@ -11,7 +11,10 @@
     "test": "jest --testMatch='**/dist/**/*.test.js'",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "check": "nx run @packages/ai-message:check",
-    "check-infra": "echo 'No infrastructure — shared library'"
+    "check-infra": "echo 'No infrastructure \u2014 shared library'"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

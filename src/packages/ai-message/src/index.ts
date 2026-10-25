@@ -5,3 +5,9 @@ export {
 } from "./create-deepseek-message";
 export { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "./deepseek-model";
 export { estimateOutputTokens } from "./estimate-output-tokens";
+export type {
+	AiProviderError,
+	DeepseekCallFailedLogLine,
+	DeepseekFeature,
+} from "./deepseek-call-failed-log-line";
+export { deepseekCallFailedLogLine, describeAiProviderError } from "./deepseek-call-failed-log-line";
