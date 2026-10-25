@@ -51,6 +51,7 @@ import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/ti
 import { OWN_CAPTURE_FAILED_METRIC } from "../runtime/domain/select-content/comparison-log";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "../runtime/domain/generate-summary/max-receive-count";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "../runtime/domain/submit-link/max-receive-count";
+import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "../runtime/domain/related-articles/max-receive-count";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "../runtime/domain/filter-email-links/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
@@ -1442,6 +1443,7 @@ eventBus.subscribe(CanonicalContentChangedEvent, canonicalContentChangedLambdaWi
 
 const computeRelatedArticlesQueue = new HutchSQS("compute-related-articles", {
 	visibilityTimeoutSeconds: RELATED_ARTICLES_TIMEOUTS.sqsVisibilitySeconds,
+	dlqMaxReceiveCount: COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT,
 });
 
 const computeRelatedArticlesArticlesDynamodb = new HutchDynamoDBAccess("compute-related-articles-articles-dynamodb", {

@@ -158,7 +158,7 @@ export function initDynamoDbRelatedArticles(deps: {
 				description: descriptionOf(article),
 				hasSummary: article.summary !== undefined,
 				// Recognised off the stored siteName so the url never has to be re-parsed.
-				hasStubMetadata: article.title === stubMetadataFor(article.siteName).title,
+				hasStubMetadata: article.title === stubMetadataFor(article.siteName).title || (article.title === article.siteName && article.excerpt === ""),
 			},
 		};
 	};

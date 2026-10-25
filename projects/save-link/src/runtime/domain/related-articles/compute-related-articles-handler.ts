@@ -13,8 +13,10 @@ import type {
 	FindRelatedTargetArticle,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
+	RelatedTargetArticle,
 } from "@packages/provider-contracts/related-articles";
 import { QueueEntryCreatedEvent, RelatedArticlesComputedEvent } from "./index";
+import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
 import type { SelectRelatedArticles } from "./related-articles-selector";
 
@@ -32,9 +34,11 @@ interface ComputeRelatedArticlesHandlerDeps {
 
 class MetadataNotReadyError extends Error {
 	readonly url: string;
-	constructor(url: string) {
-		super(`[ComputeRelatedArticles] article metadata not ready for ${url}`);
-		this.url = url;
+	readonly crawlStatus: RelatedTargetArticle["crawlStatus"];
+	constructor(params: { url: string; crawlStatus: RelatedTargetArticle["crawlStatus"] }) {
+		super(`[ComputeRelatedArticles] article metadata not ready for ${params.url}`);
+		this.url = params.url;
+		this.crawlStatus = params.crawlStatus;
 	}
 }
 
@@ -58,6 +62,7 @@ export function initComputeRelatedArticlesHandler(
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
 		for (const record of event.Records) {
+			const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 			try {
 				const envelope = JSON.parse(record.body);
 				const entry = QueueEntryCreatedEvent.detailSchema.parse(envelope.detail);
@@ -73,9 +78,10 @@ export function initComputeRelatedArticlesHandler(
 				}
 
 				const skip = async (reason: string, details?: {
-					bestScore: number;
-					candidateCount: number;
-					hasSummary: boolean;
+					crawlStatus: RelatedTargetArticle["crawlStatus"];
+					bestScore?: number;
+					candidateCount?: number;
+					hasSummary?: boolean;
 				}): Promise<void> => {
 					const outcome = await markRelatedArticlesSkipped({
 						userId,
@@ -97,6 +103,7 @@ export function initComputeRelatedArticlesHandler(
 					logger.info("[ComputeRelatedArticles] skipped", {
 						url: entry.url,
 						reason,
+						receiveCount,
 						...details,
 					});
 				};
@@ -110,12 +117,19 @@ export function initComputeRelatedArticlesHandler(
 					await skip("not an article host");
 					continue;
 				}
-				if (lookup.state === "absent" || lookup.article.crawlStatus === "pending") {
-					throw new MetadataNotReadyError(entry.url);
+				if (lookup.state === "absent") {
+					throw new MetadataNotReadyError({ url: entry.url, crawlStatus: undefined });
 				}
 				const target = lookup.article;
+				if (target.crawlStatus === "pending") {
+					throw new MetadataNotReadyError({ url: entry.url, crawlStatus: "pending" });
+				}
+				const { crawlStatus } = target;
 				if (target.hasStubMetadata) {
-					await skip("crawl produced no metadata to compare");
+					if (crawlStatus === "failed" && receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
+						throw new MetadataNotReadyError({ url: entry.url, crawlStatus });
+					}
+					await skip("crawl produced no metadata to compare", { crawlStatus });
 					continue;
 				}
 
@@ -126,8 +140,8 @@ export function initComputeRelatedArticlesHandler(
 				const candidateCount =
 					pools.unreadCandidates.length + pools.readCandidates.length;
 				if (!hasEnoughSavesForNextRead(candidateCount)) {
-					if (pools.awaitingCrawl > 0) throw new MetadataNotReadyError(entry.url);
-					await skip("not enough saves to compare against");
+					if (pools.awaitingCrawl > 0) throw new MetadataNotReadyError({ url: entry.url, crawlStatus });
+					await skip("not enough saves to compare against", { crawlStatus });
 					continue;
 				}
 
@@ -137,11 +151,12 @@ export function initComputeRelatedArticlesHandler(
 					readCandidates: pools.readCandidates,
 				});
 				if (result.kind === "shared-boilerplate") {
-					await skip("the saved text is a block page shared across sites");
+					await skip("the saved text is a block page shared across sites", { crawlStatus });
 					continue;
 				}
 				if (result.kind === "no-shared-words") {
 					await skip("no earlier save shares the saved article's words", {
+						crawlStatus,
 						bestScore: result.bestScore,
 						candidateCount: result.candidateCount,
 						hasSummary: target.hasSummary,
@@ -191,7 +206,12 @@ export function initComputeRelatedArticlesHandler(
 				if (error instanceof MetadataNotReadyError) {
 					logger.info(
 						"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
-						{ url: error.url, messageId: record.messageId },
+						{
+							url: error.url,
+							messageId: record.messageId,
+							receiveCount,
+							crawlStatus: error.crawlStatus,
+						},
 					);
 				} else {
 					logger.error("[ComputeRelatedArticles] record failed", {
