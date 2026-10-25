@@ -98,6 +98,16 @@ describe("buildSmallMultiples", () => {
 		assert.deepEqual(chart.multiples.map((multiple) => multiple.title), ["claude · calls", "claude · notes"]);
 	});
 
+	it("splits a query at the right position after a character outside the Basic Multilingual Plane", () => {
+		const chart = buildSmallMultiples({
+			...WEEK,
+			query: "filter x = \"😀|\" | stats count(*) as calls by bin(1d)",
+			rows: [[{ field: "bin(1d)", value: "2026-10-14 00:00:00.000" }, { field: "calls", value: "3" }]],
+		});
+
+		assert.deepEqual(chart.multiples.map((multiple) => multiple.title), ["calls"]);
+	});
+
 	it.each([
 		{ query: "filter event = \"mcp_tool_called\"", error: /must aggregate with stats/ },
 		{ query: "filter event = \"mcp_tool_called\" | stats count(*) as calls", error: /stats must group by bin\(\) \(got: stats count\(\*\) as calls\)/ },

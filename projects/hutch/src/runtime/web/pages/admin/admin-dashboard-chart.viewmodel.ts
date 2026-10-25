@@ -64,7 +64,8 @@ function maskNested(text: string): string {
 	let closer: string | undefined;
 	let escaped = false;
 	let depth = 0;
-	for (const [index, char] of [...text].entries()) {
+	for (let index = 0; index < text.length; index++) {
+		const char = text.charAt(index);
 		if (closer !== undefined) {
 			if (!escaped && char === closer) closer = undefined;
 			escaped = !escaped && char === "\\";
