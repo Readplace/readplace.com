@@ -6,10 +6,12 @@ import { buildEpub } from "./epub-package";
 
 const MAX_EPUB_IMAGE_BYTES = 3_500_000;
 
+type SkippedImage = { filename: string; bytes: number };
+
 export type ArticleEpubBuild = {
 	bytes: Uint8Array;
 	embeddedBytes: number;
-	skippedOverBudget: readonly { filename: string; bytes: number }[];
+	skippedOverBudget: readonly SkippedImage[];
 };
 
 export type BuildArticleEpub = (
@@ -46,7 +48,7 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 		});
 
 		const images: { filename: string; body: Uint8Array }[] = [];
-		const skippedOverBudget: { filename: string; bytes: number }[] = [];
+		const skippedOverBudget: SkippedImage[] = [];
 		let usedBytes = 0;
 		for (const candidate of candidates) {
 			const bytes = await readArticleImage({ url: params.articleUrl, filename: candidate.filename });
