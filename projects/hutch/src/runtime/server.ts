@@ -323,6 +323,12 @@ import type { GmailIntegrationProviders } from "./web/pages/integrations/gmail-i
 import { initAdminIndexHandlers } from "./web/pages/admin/admin-index.page";
 import { initAdminNewslettersRoutes } from "./web/pages/admin/admin-newsletters.page";
 import { initAdminCanaryReportRoutes } from "./web/pages/admin/canary-report.page";
+import { initAdminDashboardsRoutes } from "./web/pages/admin/admin-dashboards.page";
+import { ADMIN_DASHBOARDS_PATH } from "./web/pages/admin/admin-dashboards.url";
+import { buildAdminDashboards } from "./observability/admin-dashboards";
+import { ANALYTICS_LOG_GROUP } from "./observability/events";
+import { AUTH_DIAGNOSTICS_LOG_GROUP } from "./auth-diagnostics/dashboard";
+import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import { initMoveGmailMappingsOnReadlistDelete } from "./domain/gmail/move-gmail-mappings-on-readlist-delete";
 import { initUpdateNewsletterCatalog } from "./domain/newsletter-catalog/update-newsletter-catalog";
 import {
@@ -392,6 +398,11 @@ interface AppDependencies {
 	writeNewsletterCatalog: WriteNewsletterCatalog;
 	newsletterCatalogSeed: NewsletterCatalogSeed;
 	findCanaryReport: FindCanaryReport;
+	adminDashboards: {
+		runLogsInsightsQuery: RunLogsInsightsQuery;
+		readExcludedIdentities: ReadExcludedIdentities;
+		now: () => Date;
+	};
 	appleAuth: {
 		exchangeAppleCode: ExchangeAppleCode;
 		clientId: string;
@@ -1658,6 +1669,19 @@ export function createApp(dependencies: AppDependencies): Express {
 			adminEmails: deps.adminEmails,
 			findCanaryReport: deps.findCanaryReport,
 			buildBannerState,
+		}),
+	);
+	app.use(
+		ADMIN_DASHBOARDS_PATH,
+		initAdminDashboardsRoutes({
+			findUserByEmail: deps.findUserByEmail,
+			adminEmails: deps.adminEmails,
+			buildBannerState,
+			dashboards: buildAdminDashboards({
+				analyticsLogGroupName: ANALYTICS_LOG_GROUP,
+				authDiagnosticsLogGroupName: AUTH_DIAGNOSTICS_LOG_GROUP,
+			}),
+			...deps.adminDashboards,
 		}),
 	);
 	app.get(

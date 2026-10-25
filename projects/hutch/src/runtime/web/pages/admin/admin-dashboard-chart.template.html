@@ -1,0 +1,26 @@
+<div class="admin-dashboard__multiples" data-test-admin-dashboard-chart>
+  {{#each multiples}}
+  <figure class="admin-dashboard__multiple" data-test-admin-dashboard-multiple="{{title}}">
+    <figcaption class="admin-dashboard__multiple-title">{{title}}</figcaption>
+    <svg class="admin-dashboard__svg" viewBox="{{frame.viewBox}}" role="img" aria-label="{{title}}">
+      {{#each frame.gridLines}}
+      <line class="admin-dashboard__grid" x1="{{x1}}" x2="{{x2}}" y1="{{y}}" y2="{{y}}"></line>
+      {{/each}}
+      {{#each frame.yLabels}}
+      <text class="admin-dashboard__tick" x="{{x}}" y="{{y}}" text-anchor="end" dominant-baseline="middle">{{label}}</text>
+      {{/each}}
+      {{#each frame.xLabels}}
+      <text class="admin-dashboard__tick" x="{{x}}" y="{{y}}" text-anchor="{{anchor}}">{{label}}</text>
+      {{/each}}
+      <polyline class="admin-dashboard__line" points="{{line}}"></polyline>
+      {{#each points}}
+      <circle class="admin-dashboard__point" cx="{{cx}}" cy="{{cy}}" r="4" data-test-admin-dashboard-point><title>{{title}}</title></circle>
+      {{/each}}
+    </svg>
+  </figure>
+  {{/each}}
+</div>
+<details class="admin-dashboard__data">
+  <summary class="admin-dashboard__data-summary" data-test-admin-dashboard-data>Data table</summary>
+  {{{tableHtml}}}
+</details>

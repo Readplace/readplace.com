@@ -33,7 +33,6 @@ import {
 	type SaveOutcome,
 	type SaveSurface,
 	type SignupOutcome,
-	type FirstArticleSeededOutcome,
 	STREAMS,
 } from "./events";
 import {
@@ -423,18 +422,6 @@ export interface FirstArticleAutosavedEvent {
 	visitor_id?: string;
 }
 
-export interface FirstArticleSeededEvent {
-	stream: typeof STREAMS.analytics;
-	event: typeof ANALYTICS_EVENTS.firstArticleSeeded;
-	timestamp: string;
-	outcome: FirstArticleSeededOutcome;
-	oauth_client_id: string;
-	user_id: UserId;
-	article_host: string | null;
-	visitor_hash: string | null;
-	visitor_id: string;
-}
-
 export interface McpToolCalledEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.mcpToolCalled;
@@ -593,7 +580,6 @@ export type AnalyticsEvent =
 	| ViewSaveIntentEvent
 	| SignupAttemptedEvent
 	| FirstArticleAutosavedEvent
-	| FirstArticleSeededEvent
 	| McpToolCalledEvent
 	| OAuthTokenIssuedEvent
 	| OAuthTokenRefusedEvent
@@ -1105,30 +1091,6 @@ export function buildSignupAttemptedEvent(
 		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
 		visitor_id: params.req.visitorId,
 		is_authenticated: 0,
-	};
-}
-
-export function buildFirstArticleSeededEvent(
-	deps: { now: () => Date; salt: string },
-	params: {
-		req: Request;
-		outcome: FirstArticleSeededOutcome;
-		oauthClientId: string;
-		userId: UserId;
-		url: string;
-	},
-): FirstArticleSeededEvent {
-	assert(params.req.visitorId, "visitor-id middleware must run before the consent seed emits first_article_seeded");
-	return {
-		stream: STREAMS.analytics,
-		event: ANALYTICS_EVENTS.firstArticleSeeded,
-		timestamp: deps.now().toISOString(),
-		outcome: params.outcome,
-		oauth_client_id: params.oauthClientId,
-		user_id: params.userId,
-		article_host: articleHostFromSubmitted(params.url),
-		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
-		visitor_id: params.req.visitorId,
 	};
 }
 
