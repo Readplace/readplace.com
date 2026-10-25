@@ -9,8 +9,8 @@ export {
 } from "./crawl-article";
 export { isBlockClassStatus, type Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
+export { describeRejection } from "./describe-rejection";
 export {
-	describeRejection,
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,
 	isValidHttpUrl,

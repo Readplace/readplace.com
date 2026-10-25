@@ -4,6 +4,7 @@ import { extensionFromContentType } from "./extension-from-content-type";
 import type { ThumbnailCascade, ThumbnailImage } from "./crawl-article.types";
 import { initLogFetchFailure, type LogFetchFailure } from "./log-fetch-failure";
 import { BodyTooLargeError, readBodyWithCap } from "./read-capped-body";
+import { describeRejection } from "./describe-rejection";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
 export const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
@@ -72,12 +73,6 @@ export type ThumbnailNotDeliveredEvent = {
 	reason: string;
 };
 export type LogThumbnailNotDelivered = (event: ThumbnailNotDeliveredEvent) => void;
-
-export function describeRejection(error: unknown): { name: string; reason: string } {
-	return error instanceof Error
-		? { name: error.name, reason: error.message }
-		: { name: "unknown", reason: String(error) };
-}
 
 export type FetchThumbnailImage = (params: {
 	candidates: readonly string[];

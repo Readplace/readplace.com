@@ -455,6 +455,21 @@ describe("initDownloadMedia", () => {
 		expect(logError).not.toHaveBeenCalled();
 	});
 
+	it("skips a relative src and srcset rendition without logging", async () => {
+		const { downloadMedia, fakeFetch, logError, logImageLeftAtOrigin } = createDownloadMedia();
+
+		const media = await downloadMedia({
+			html: '<img src="/relative/a.png" srcset="relative/a-2x.png 2x">',
+			referer: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+
+		expect(fakeFetch).not.toHaveBeenCalled();
+		expect(media).toHaveLength(0);
+		expect(logError).not.toHaveBeenCalled();
+		expect(logImageLeftAtOrigin).not.toHaveBeenCalled();
+	});
+
 	it("fetches a src whose scheme is written in upper case", async () => {
 		const { downloadMedia, fakeFetch } = createDownloadMedia();
 
