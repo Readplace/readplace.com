@@ -100,9 +100,11 @@ A screenshot mismatch that the change under work intends is fixed by regeneratin
 
 | Host | Renderer the updater uses | What it needs |
 |------|---------------------------|---------------|
-| Prepared Linux CI job (the Claude listener, the web-test jobs) | Native, against the pinned browsers from the browser image: the self-hosted runner's own image carries them, and a hosted runner materialises them along with the image's fonts. Either way `PLAYWRIGHT_BROWSERS_PATH` is set, and the web-test job that verifies the baseline is routed to the same kind of runner — grep the workflows for `fromJSON('["self-hosted", "orbstack"]')`: the listener's and the web-test job's `runs-on` are the two hits. They pick that label by different tests — the listener by the PR author's `author_association` (OWNER, MEMBER or COLLABORATOR), the web-test job by the head repo (`head.repo.fork == false`) — so the renderer matches only for a same-repo PR by an OWNER, MEMBER or COLLABORATOR author | Nothing more. The updater skips its own browser download when browsers are supplied, so the baseline is rendered by the same bytes the gate compares with |
+| Prepared Linux CI job (the Claude listener, the web-test jobs) | Native, against the pinned browsers from the browser image (`PLAYWRIGHT_BROWSERS_PATH` set) | Nothing more. The updater skips its own browser download when browsers are supplied, so the baseline is rendered by the same bytes the gate compares with |
 | Linux without supplied browsers (a fresh developer clone) | Native, after the updater installs Chromium | Nothing more |
 | Not Linux (a Mac) | The pinned Playwright container | Docker running, because a host renderer would drift from the one the gate uses |
+
+The self-hosted runner's own image carries the pinned browsers, and a hosted runner materialises them along with the image's fonts. The web-test job that verifies a baseline runs on the same kind of runner as the listener that regenerated it only for a same-repo PR by an OWNER, MEMBER or COLLABORATOR author: grep the workflows for `fromJSON('["self-hosted", "orbstack"]')` — the two hits are the listener's `runs-on`, which tests the PR author's `author_association`, and the web-test job's, which tests the head repo (`head.repo.fork == false`).
 
 An authoring session that has no Docker (a remote sandbox, for example) shows nothing about CI: the prepared Linux job never uses the container. Report an environment failure only when the updater itself fails, and quote its error.
 
