@@ -40,7 +40,7 @@ Why 303 over the entry point: the server decides where the collection lives; ren
 
 A client that wants an article as a document needs no URL of its own and no Siren affordance: the article's `read` link is the URL the browser already opens, so the client follows it with `Accept: text/markdown` and the OAuth bearer token it already sends for the collection. The server still owns the URL, and the client learns one more media type (last row of [What a Client Must Know vs Discover](#what-a-client-must-know-vs-discover)).
 
-- **No Siren vocabulary was added for it.** The rules below have a client skip a title-less affordance it does not recognise, but the shipped browser extensions do not: they render a control for every semantic item link other than `read` and for every item action, labelling a title-less one with a humanised `rel` or name (the walker module anchored under [Browser extension](#browser-extension-the-walker-pattern) keeps a semantic item link whether or not it has a title). A new link or action on the article entity would therefore appear as a control on every row of every installed popup, and extension builds wait on store review. Until those builds skip such affordances, add no item-level link or action for machine use.
+- **No Siren vocabulary was added for it.** The `read` link already is the document's URL, so a client needs no affordance of its own to fetch it. The article entity's title-less actions are machine capabilities (the readlist ones in [Readlists Are Server-Owned](#readlists-are-server-owned--propertiesreadlists)), and a client that follows the **Label** rule in [Rendering & Invoking Affordances](#rendering--invoking-affordances) shows no control for one it does not handle. Extension and native builds that predate that rule can show a control for every item action, labelled with a humanised name, and extension builds wait on store review, so before adding another item-level link or action for machine use, check that such builds are no longer in use. In the extension, the walker module anchored under [Browser extension](#browser-extension-the-walker-pattern) hands every item affordance to the popup, titled or not; the popup is what skips them.
 - **Every `read` href returns the same document.** An article held by several readlists has a `read` href in each readlist's collection. The server builds the document from one canonical copy of the article and puts nothing per-request in it, so the same stored state always gives the same bytes, and a client may follow whichever href it saw first.
 
 Only the account that holds the article gets the document, so the answer depends on who asks:
@@ -259,6 +259,10 @@ This is a **published interface**: `readlists`, `label`, `rel`, and `href` are t
 | `create-readlist` | every collection | `label` | the new readlist's collection; the server mints the readlist's address, so the `Location` is where a client learns it | `invalid-name`, `reserved-name`, `name-taken`, `limit-reached` (`422`) |
 | `rename-readlist` | the collection of a readlist the reader created | `label` | the renamed readlist's collection | `unknown-readlist` (`404`); `invalid-name`, `name-taken` (`422`). A label another readlist carries is numbered instead, and refused only when the numbered label would be too long |
 | `delete-readlist` | the collection of a readlist the reader created | none | the default readlist's collection | `unknown-readlist` (`404`) |
+| `add-to-readlist` | every article entity, including the one a save answers with | `readlists` | the collection its href was built for | `unknown-readlist` when `readlists` names none of the reader's own readlists, `unknown-article` when the readlist its href addresses no longer holds the article (`404`) |
+| `remove-from-readlist` | an article entity listed in a readlist the reader created | none | the same readlist and tab, on its first page | `unknown-readlist`, and `unknown-article`, which a second removal of the same article also gets (`404`) |
+
+The `add-to-readlist` and `remove-from-readlist` hrefs carry the addressed readlist, tab and order the way the `update-status` href does, so a client acting inside a readlist lands back where it acted without knowing how a readlist is encoded. `add-to-readlist` fills its `readlists` field the way `save-article` fills its own, with entry hrefs echoed from `properties.readlists`, and filing an article where it already is succeeds. Removing an article takes it out of that one readlist and leaves the reader's whole queue as it was.
 
 ## Count and Sort Are Server-Owned — `properties.total` and `properties.sort`
 
@@ -289,9 +293,9 @@ This is a **published interface**: `total`, `sort`, `label`, `rel`, `order` and 
 | Action scope | Where it lives | Example |
 |---|---|---|
 | Collection-level | `entity.actions` on the collection | `save-article`, `search`, `create-readlist`, `rename-readlist`, `delete-readlist` |
-| Entity-level | `entities[].actions` | `update-status` |
+| Entity-level | `entities[].actions` | `update-status`, `add-to-readlist`, `remove-from-readlist` |
 
-A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `update-status`). Put an action at the level where it makes sense — "mark this article read" belongs on the article entity, not the collection.
+A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `update-status`). Put an action at the level where it makes sense — "mark this article read" belongs on the article entity, not the collection. Readlist actions split the same way: a readlist's own create, rename and delete ride its collection, and filing or removing one article rides that article.
 
 ## Rendering & Invoking Affordances
 

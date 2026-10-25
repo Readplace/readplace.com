@@ -1,11 +1,18 @@
 import type { Response } from "express";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
-import { READLIST_RENAME_REJECTIONS } from "./readlist.error";
+import { READLIST_RENAME_REJECTIONS, READLIST_UNKNOWN_ARTICLE_MESSAGE } from "./readlist.error";
 
-type ReadlistRefusalCode = "unknown-readlist" | "invalid-name" | "reserved-name" | "name-taken" | "limit-reached";
+type ReadlistRefusalCode =
+	| "unknown-readlist"
+	| "unknown-article"
+	| "invalid-name"
+	| "reserved-name"
+	| "name-taken"
+	| "limit-reached";
 
 const REFUSAL_STATUS: Record<ReadlistRefusalCode, 404 | 422> = {
 	"unknown-readlist": 404,
+	"unknown-article": 404,
 	"invalid-name": 422,
 	"reserved-name": 422,
 	"name-taken": 422,
@@ -20,6 +27,11 @@ export interface ReadlistRefusal {
 export const UNKNOWN_READLIST_REFUSAL: ReadlistRefusal = {
 	code: "unknown-readlist",
 	message: READLIST_RENAME_REJECTIONS["unknown-readlist"].message,
+};
+
+export const UNKNOWN_ARTICLE_REFUSAL: ReadlistRefusal = {
+	code: "unknown-article",
+	message: READLIST_UNKNOWN_ARTICLE_MESSAGE,
 };
 
 export function refuseOverSiren(res: Response, refusal: ReadlistRefusal): void {
