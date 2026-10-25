@@ -99,11 +99,6 @@ export {
 	type EmailLinkStatus,
 	EmailLinkSkipReasonSchema,
 	type EmailLinkSkipReason,
-	InboxEmailLinkDropSchema,
-	type InboxEmailLinkDrop,
-	InboxReadlistDecisionSchema,
-	type InboxReadlistDecision,
-	type SettledInboxReadlistDecision,
 	InboxReadlistOutcomeSchema,
 	type InboxReadlistOutcome,
 } from "./inbox-email-link.schema";

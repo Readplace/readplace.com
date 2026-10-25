@@ -31,7 +31,6 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
 		anchorText: undefined,
 		...overrides,
 	};
@@ -342,30 +341,6 @@ describe("Inbox link save route", () => {
 		expect(harness.submittedLinks).toEqual([]);
 	});
 
-	it("files a link the readlist dropped into that readlist, back on the Skipped tab, reporting nothing", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const errors: string[] = [];
-		fixture.shared.logError = (message) => {
-			errors.push(message);
-		};
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, {
-			url: "https://example.com/launch?utm_source=nl",
-			droppedFor: { readlist: WORK, readlistLabel: "Work", reason: "A product launch" },
-		});
-
-		const response = await agent.post(savePath);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(
-			`/inbox/${encodeURIComponent(SK)}?tab=excluded&saved=1`,
-		);
-		expect(harness.submittedLinks).toEqual([
-			{ userId, url: "https://example.com/launch", provenance: EMAIL_PROVENANCE, readlist: WORK },
-		]);
-		expect(errors).toHaveLength(0);
-	});
 });
 
 describe("Inbox link save route answering htmx in place", () => {
@@ -439,31 +414,6 @@ describe("Inbox link save route answering htmx in place", () => {
 		expect(harness.submittedLinks).toEqual([{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: DEFAULT_READLIST_SLUG }]);
 		expect(errors).toHaveLength(1);
 		assert(errors[0].startsWith("[inbox-link-feedback] "));
-	});
-
-	it("answers an in-place save of a link the readlist dropped with its skipped row, saving and polling", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		const userId = await seed(fixture, {
-			droppedFor: { readlist: WORK, readlistLabel: "Work", reason: "A product launch" },
-		});
-
-		const response = await agent.post(savePath).set("HX-Request", "true");
-
-		expect(response.status).toBe(200);
-		const row = excludedRow(response.text);
-		expect(row.getAttribute("id")).toBe("inbox-skipped-0000");
-		expect(row.getAttribute("hx-get")).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0000/excluded?poll=1`,
-		);
-		expect(row.querySelector("[data-test-inbox-excluded-reason]")?.textContent).toBe(
-			"Not for Work — A product launch",
-		);
-		expect(saveButton(row).getAttribute("data-test-save-state")).toBe("saving");
-		expect(harness.submittedLinks).toEqual([
-			{ userId, url: "https://example.com/post", provenance: EMAIL_PROVENANCE, readlist: WORK },
-		]);
 	});
 
 	it("posts the row form to itself rather than boosting the whole page", async () => {
@@ -779,7 +729,7 @@ describe("Inbox link save route with a relayed publisher", () => {
 		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 			userId,
 			receivedAtMessageId: SK,
-			meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			meta: { truncated: false, extractionFailed: false },
 		});
 
 		const beforeSave = new JSDOM(

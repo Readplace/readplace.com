@@ -59,7 +59,6 @@ function linkEntry(input: {
 		siteName: undefined,
 		imageUrl: undefined,
 		failureReason: undefined,
-		droppedFor: undefined,
 		anchorText: undefined,
 		...input.link,
 	};
@@ -129,7 +128,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 			userId: user.userId,
 			receivedAtMessageId: newest.receivedAtMessageId,
-			meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			meta: { truncated: false, extractionFailed: false },
 		});
 
 		const firstPage = (await agent.get("/inbox")).text;

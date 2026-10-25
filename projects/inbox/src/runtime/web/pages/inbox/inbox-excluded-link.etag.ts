@@ -10,9 +10,6 @@ export function computeInboxExcludedRowEtag(input: {
 	for (const part of [
 		link.status,
 		link.skipReason ?? "",
-		link.droppedFor?.readlist ?? "",
-		link.droppedFor?.readlistLabel ?? "",
-		link.droppedFor?.reason ?? "",
 		saveState ?? "none",
 	]) {
 		hash.update(part);

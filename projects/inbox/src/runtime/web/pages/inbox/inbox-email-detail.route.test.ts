@@ -65,7 +65,6 @@ function linkEntry(userId: UserId, overrides: Partial<InboxEmailLinkEntry>): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
 		anchorText: undefined,
 		...overrides,
 	};
@@ -98,7 +97,7 @@ async function seedLinks(
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
-		meta: { truncated, extractionFailed: false, readlistDecision: undefined },
+		meta: { truncated, extractionFailed: false },
 	});
 }
 
@@ -115,7 +114,7 @@ async function seedExtractionMeta(
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
-		meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+		meta: { truncated: false, extractionFailed: false },
 	});
 }
 
@@ -131,7 +130,6 @@ async function seedRoutedSnapshot(
 		meta: {
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			selectedReadlists: [{ readlist: WORK, label: "Work" }],
 			eligibleArticleCount: input.eligibleArticleCount,
 			savesHeld: false,
@@ -151,7 +149,7 @@ async function seedIssueSave(
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
-		meta: { truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave },
+		meta: { truncated: false, extractionFailed: false, issueSave },
 	});
 }
 
@@ -169,7 +167,6 @@ const ROUTED_LINKS: Partial<InboxEmailLinkEntry>[] = [
 		url: "https://example.com/launch",
 		status: "crawled",
 		title: "Our spring launch",
-		droppedFor: { readlist: WORK, readlistLabel: "Work", reason: "A product launch, not engineering" },
 	},
 	{
 		ordinal: EmailLinkOrdinalSchema.parse("0002"),
@@ -1270,7 +1267,7 @@ describe("Inbox Skipped panel poll route", () => {
 });
 
 describe("Inbox email detail for a Gmail newsletter kept as an issue", () => {
-	const ISSUE_LINKS: Partial<InboxEmailLinkEntry>[] = [ROUTED_LINKS[0], { ...ROUTED_LINKS[1], droppedFor: undefined }];
+	const ISSUE_LINKS: Partial<InboxEmailLinkEntry>[] = [ROUTED_LINKS[0], ROUTED_LINKS[1]];
 
 	it("says where the issue was saved and keeps its articles saveable by hand", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -1315,11 +1312,6 @@ describe("Inbox email detail for a Gmail newsletter kept as an issue", () => {
 });
 
 describe("Inbox email detail for an inbox routed to a readlist", () => {
-	const CUSTOM_LINKS: Partial<InboxEmailLinkEntry>[] = [
-		ROUTED_LINKS[0],
-		{ ...ROUTED_LINKS[1], droppedFor: undefined },
-		ROUTED_LINKS[2],
-	];
 	const DECIDED: InboxReadlistOutcome = {
 		readlist: WORK,
 		decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
@@ -1335,7 +1327,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
-		await seedLinks(fixture, CUSTOM_LINKS);
+		await seedLinks(fixture, ROUTED_LINKS);
 		await seedRoutedSnapshot(fixture, { eligibleArticleCount: 2 });
 
 		const doc = parseDoc((await agent.get(articlesTabPath)).text);
@@ -1353,7 +1345,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
-		await seedLinks(fixture, CUSTOM_LINKS);
+		await seedLinks(fixture, ROUTED_LINKS);
 		await seedRoutedSnapshot(fixture, { eligibleArticleCount: 2, outcome: DECIDED });
 
 		const doc = parseDoc((await agent.get(articlesTabPath)).text);
@@ -1375,7 +1367,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
-		await seedLinks(fixture, CUSTOM_LINKS);
+		await seedLinks(fixture, ROUTED_LINKS);
 		await seedRoutedSnapshot(fixture, { eligibleArticleCount: 2, outcome: DECIDED });
 
 		const doc = parseDoc((await agent.get(excludedTabPath)).text);
@@ -1393,7 +1385,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seed(fixture, "received");
-		await seedLinks(fixture, CUSTOM_LINKS);
+		await seedLinks(fixture, ROUTED_LINKS);
 		await seedRoutedSnapshot(fixture, {
 			eligibleArticleCount: 2,
 			outcome: { readlist: WORK, decision: { state: "failed", readlist: WORK }, dropped: [] },

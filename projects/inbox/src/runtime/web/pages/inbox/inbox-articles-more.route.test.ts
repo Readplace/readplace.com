@@ -45,7 +45,6 @@ function linkEntry(userId: UserId, overrides: Partial<InboxEmailLinkEntry>): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
 		anchorText: undefined,
 		...overrides,
 	};
@@ -64,7 +63,7 @@ async function seed(
 	await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 		userId: user.userId,
 		receivedAtMessageId: SK,
-		meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+		meta: { truncated: false, extractionFailed: false },
 	});
 }
 

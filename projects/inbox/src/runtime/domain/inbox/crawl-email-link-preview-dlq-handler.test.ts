@@ -39,7 +39,6 @@ async function seed(
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
 		anchorText: undefined,
 	});
 }

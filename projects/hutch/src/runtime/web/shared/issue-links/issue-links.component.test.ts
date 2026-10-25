@@ -22,7 +22,6 @@ function link(overrides: Omit<Partial<InboxEmailLinkEntry>, "ordinal"> & { ordin
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
 		anchorText: undefined,
 		...overrides,
 		ordinal: EmailLinkOrdinalSchema.parse(overrides.ordinal),

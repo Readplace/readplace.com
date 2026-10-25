@@ -24,7 +24,6 @@ interface SeedLink {
 	url: string;
 	status: "crawled" | "skipped";
 	title?: string;
-	droppedFor?: { readlist: string; readlistLabel: string; reason: string };
 }
 
 interface SeedReadlistOutcome {
@@ -40,28 +39,12 @@ const TWO_CRAWLED_LINKS: readonly SeedLink[] = [
 	{ url: "https://example.com/second", status: "crawled", title: "Another article" },
 ];
 
-const DECIDED_LINKS: readonly SeedLink[] = [
+const ROUTED_LINKS: readonly SeedLink[] = [
 	{ url: "https://example.com/first", status: "crawled", title: "An example article" },
-	{
-		url: "https://example.com/spring-launch",
-		status: "crawled",
-		title: "Our spring launch",
-		droppedFor: {
-			readlist: WORK_READLIST,
-			readlistLabel: "Work",
-			reason: "A product announcement, not engineering practice",
-		},
-	},
-	{
-		url: "https://example.com/careers",
-		status: "crawled",
-		title: "We're hiring",
-		droppedFor: { readlist: WORK_READLIST, readlistLabel: "Work", reason: "" },
-	},
+	{ url: "https://example.com/spring-launch", status: "crawled", title: "Our spring launch" },
+	{ url: "https://example.com/careers", status: "crawled", title: "We're hiring" },
 	{ url: "https://example.com/unsubscribe", status: "skipped" },
 ];
-
-const ROUTED_LINKS: readonly SeedLink[] = DECIDED_LINKS.map(({ droppedFor: _droppedFor, ...link }) => link);
 
 async function copyButtonSeatedInField(page: Page): Promise<void> {
 	const fields = await page.locator(".inbox-copyable").all();
@@ -302,22 +285,6 @@ const articlesDecisionFailed: VisualCheckpoint = {
 		status: "terminal",
 		region: '[data-test-panel-notice="decided"]:has-text("Couldn\'t choose articles for")',
 	}),
-	geometry: NO_GEOMETRY,
-	target: "main",
-	capture: "element",
-	pinnedText: PINNED_DETAIL_RECIPIENT,
-};
-
-const skippedWithDropped: VisualCheckpoint = {
-	name: "inbox-skipped-dropped",
-	settled: async (page) => {
-		await expect(page.locator('[data-test-tab-panel="excluded"]')).toHaveAttribute(
-			"data-excluded-status",
-			"terminal",
-		);
-		await expect(page.locator('[data-test-panel-notice="dropped-note"]')).toBeVisible();
-		await expect(page.locator("[data-test-inbox-excluded-link]")).toHaveCount(3);
-	},
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
@@ -567,14 +534,6 @@ test.describe("Inbox visual checkpoints", () => {
 				});
 			}
 		}
-	});
-
-	test("captures the Skipped tab listing the links its readlist dropped", async ({ page }) => {
-		const emailId = await seedEmail(page, {
-			links: DECIDED_LINKS,
-		});
-		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=excluded`);
-		await captureCheckpoint(page, skippedWithDropped);
 	});
 
 	test("captures an open article menu inside its card", async ({ page }) => {

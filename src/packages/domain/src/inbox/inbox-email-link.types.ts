@@ -4,10 +4,7 @@ import type {
 	EmailLinkOrdinal,
 	EmailLinkSkipReason,
 	EmailLinkStatus,
-	InboxEmailLinkDrop,
-	InboxReadlistDecision,
 	InboxReadlistOutcome,
-	SettledInboxReadlistDecision,
 } from "./inbox-email-link.schema";
 
 /** One extracted link from a received email, with its crawled preview. Lives in
@@ -30,7 +27,6 @@ export interface InboxEmailLinkEntry {
 	imageUrl: string | undefined;
 	failureReason: string | undefined;
 	skipReason: EmailLinkSkipReason | undefined;
-	droppedFor: InboxEmailLinkDrop | undefined;
 	anchorText: string | undefined;
 }
 
@@ -45,7 +41,6 @@ export interface InboxEmailLinksMeta {
 	 * barrier, so the panel stops polling, but the reader is told the scan failed
 	 * instead of being told the email contained no links. */
 	extractionFailed: boolean;
-	readlistDecision: InboxReadlistDecision | undefined;
 	selectedReadlists?: { readlist: ReadlistSlug; label: string }[];
 	eligibleArticleCount?: number;
 	savesHeld?: boolean;
@@ -94,7 +89,6 @@ export interface InboxEmailLinkStore {
 		meta: {
 			truncated: boolean;
 			extractionFailed: boolean;
-			readlistDecision: { readlist: ReadlistSlug } | undefined;
 			selectedReadlists?: { readlist: ReadlistSlug; label: string }[];
 			eligibleArticleCount?: number;
 			savesHeld?: boolean;
@@ -110,17 +104,6 @@ export interface InboxEmailLinkStore {
 		userId: UserId;
 		receivedAtMessageId: string;
 	}) => Promise<"stored" | "superseded">;
-	markLinkDropped: (input: {
-		userId: UserId;
-		receivedAtMessageId: string;
-		ordinal: EmailLinkOrdinal;
-		droppedFor: InboxEmailLinkDrop;
-	}) => Promise<"marked" | "not-a-candidate">;
-	settleReadlistDecision: (input: {
-		userId: UserId;
-		receivedAtMessageId: string;
-		decision: SettledInboxReadlistDecision;
-	}) => Promise<"settled" | "already-settled">;
 	putReadlistOutcome: (input: {
 		userId: UserId;
 		receivedAtMessageId: string;

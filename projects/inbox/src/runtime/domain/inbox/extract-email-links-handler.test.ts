@@ -1458,7 +1458,6 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 		expect(meta).toEqual({
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: false },
 		});
 	});
@@ -1490,7 +1489,6 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 		expect(meta).toEqual({
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			selectedReadlists: [{ readlist: WORK, label: "Work" }],
 			eligibleArticleCount: 1,
 			savesHeld: false,
@@ -1513,7 +1511,6 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 		expect(meta).toEqual({
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: true },
 		});
 	});
@@ -1552,7 +1549,7 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 
 		expect([harness.issues, harness.heldNotices, harness.firstInboxNotices]).toEqual([[], [], []]);
 		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
-		expect(meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined });
+		expect(meta).toEqual({ truncated: false, extractionFailed: false });
 	});
 });
 
@@ -1568,7 +1565,7 @@ describe("Gmail destination snapshots", () => {
 		expect(harness.triaged).toEqual([]);
 		expect(harness.submitted).toHaveLength(3);
 		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
-		expect(links.map(({ status, droppedFor }) => ({ status, droppedFor }))).toEqual([{ status: "pending", droppedFor: undefined }]);
+		expect(links.map(({ status }) => status)).toEqual(["pending"]);
 		expect(meta?.extractionFailed).toBe(true);
 	});
 
@@ -1582,7 +1579,7 @@ describe("Gmail destination snapshots", () => {
 		const rejection = { userId: USER, receivedAtMessageId: RAM, readlist: WORK, savedTo: WORK, readlistLabel: "Work", dropped: [{ ordinal: "0000", reason: "Outside the list topic" }] };
 		expect(await recorder(buildSqsEvent([{ messageId: "late-rejection", body: JSON.stringify({ "detail-type": EmailLinksFilteredEvent.detailType, detail: rejection }) }]), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
-		expect(links.map(({ status, droppedFor }) => ({ status, droppedFor }))).toEqual([{ status: "pending", droppedFor: undefined }]);
+		expect(links.map(({ status }) => status)).toEqual(["pending"]);
 		expect(meta?.selectedReadlists).toEqual([{ readlist: WORK, label: "Work" }]);
 		expect(meta?.readlistOutcomes?.[0]?.dropped).toEqual(rejection.dropped);
 		expect(meta?.extractionFailed).toBe(false);
@@ -1694,7 +1691,7 @@ it("snapshots every Gmail selection and settles empty custom inputs without send
 	expect(harness.triaged.map(({ readlist, links }) => ({ readlist, links }))).toEqual([{ readlist: WORK, links: [] }]);
 	expect(harness.firstInboxNotices).toEqual([]);
 	const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
-	expect(meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [] });
+	expect(meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [] });
 	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } }));
 	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual(meta);
 });
@@ -1704,7 +1701,7 @@ it("captures Gmail custom selections for a read-only reader while holding both A
 	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["work-abc123@read.place"], deliveryMode: "links" } }));
 	expect(harness.triaged).toEqual([]);
 	expect(harness.submitted).toEqual([]);
-	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true, readlistOutcomes: [] });
+	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true, readlistOutcomes: [] });
 });
 
 it("counts eligible articles for Gmail All-only mappings without custom filtering", async () => {
@@ -1712,7 +1709,7 @@ it("counts eligible articles for Gmail All-only mappings without custom filterin
 	await harness.run(eventBody({ routing: { kind: "gmail", destinationAddresses: ["all-abc123@read.place"], deliveryMode: "links" } }));
 	expect(harness.submitted.map(({ readlist }) => readlist)).toEqual([DEFAULT_READLIST_SLUG]);
 	expect(harness.triaged).toEqual([]);
-	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] });
+	expect((await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM })).meta).toEqual({ truncated: false, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] });
 });
 
 it("never announces a first inbox save for mail forwarded from Gmail", async () => {

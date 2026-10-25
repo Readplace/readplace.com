@@ -6,7 +6,6 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import {
 	EmailLinkOrdinalSchema,
 	EmailLinkStatusSchema,
-	InboxEmailLinkDropSchema,
 	InboxEmailStatusSchema,
 	InboxReadlistOutcomeSchema,
 	isExcludedLink,
@@ -50,7 +49,6 @@ const seedEmailSchema = z.object({
 				url: z.string().min(1),
 				status: EmailLinkStatusSchema,
 				title: z.string().optional(),
-				droppedFor: InboxEmailLinkDropSchema.optional(),
 			}),
 		)
 		.default([]),
@@ -129,7 +127,6 @@ server.post("/e2e/seed-email", async (req, res) => {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: link.status === "skipped" ? "list-unsubscribe" : undefined,
-		droppedFor: link.droppedFor,
 		anchorText: undefined,
 	}));
 	const skipped = rows.filter(isExcludedLink).length;
@@ -167,7 +164,6 @@ server.post("/e2e/seed-email", async (req, res) => {
 			meta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 				selectedReadlists: input.selectedReadlists,
 				eligibleArticleCount: input.eligibleArticleCount,
 				savesHeld: input.savesHeld,

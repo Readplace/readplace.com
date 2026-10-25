@@ -69,7 +69,6 @@ async function seedLinks(
 			imageUrl: undefined,
 			failureReason: undefined,
 			skipReason: row.status === "skipped" ? "llm-ad" : undefined,
-			droppedFor: undefined,
 			anchorText: undefined,
 		});
 	}
@@ -87,7 +86,6 @@ async function snapshotDestinations(
 		meta: {
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			selectedReadlists,
 		},
 	});
@@ -158,7 +156,7 @@ describe("recordEmailLinksFilteredHandler", () => {
 		await store.putLinksMeta({
 			userId,
 			receivedAtMessageId: RAM,
-			meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			meta: { truncated: false, extractionFailed: false },
 		});
 
 		expect(await run([filteredBody({ dropped: [] })])).toEqual({

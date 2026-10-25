@@ -1,7 +1,6 @@
 import type {
 	InboxEmailEntry,
 	InboxEmailLinkCounts,
-	InboxEmailLinkDrop,
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 	InboxLinkSaveState,
@@ -53,8 +52,7 @@ export interface PanelNotice {
 		| "deciding"
 		| "truncated"
 		| "decided"
-		| "skipped-note"
-		| "dropped-note";
+		| "skipped-note";
 	text: string;
 	iconName: "loader" | undefined;
 }
@@ -100,14 +98,6 @@ const SKIPPED_NOTE_NOTICE: PanelNotice = {
 	text: "These looked like unsubscribe, ad, or menu links — not articles — so they weren't fetched or added.",
 	iconName: undefined,
 };
-
-function droppedNote(drop: InboxEmailLinkDrop): PanelNotice {
-	return {
-		key: "dropped-note",
-		text: `Links that didn't fit ${drop.readlistLabel} weren't saved. Save any you still want.`,
-		iconName: undefined,
-	};
-}
 
 function readlistSaveNotices(input: {
 	selectedReadlists: NonNullable<InboxEmailLinksMeta["selectedReadlists"]>;
@@ -403,9 +393,6 @@ export function toInboxEmailDetailViewModel(input: {
 			pollContext: { mode: "static" },
 		}),
 	);
-	const firstDrop = excludedEntries.find(
-		(link) => link.droppedFor !== undefined,
-	)?.droppedFor;
 	const truncated = linksMeta?.truncated === true;
 	// No meta row yet means the async extractor has not finished for this received
 	// email — keep polling rather than asserting it has zero links. Non-received
@@ -484,8 +471,6 @@ export function toInboxEmailDetailViewModel(input: {
 	)
 		? [SKIPPED_NOTE_NOTICE]
 		: [];
-	const droppedNotices =
-		firstDrop === undefined ? [] : [droppedNote(firstDrop)];
 	const shared = {
 		isExtracting,
 		isStalePending,
@@ -557,7 +542,6 @@ export function toInboxEmailDetailViewModel(input: {
 				terminalNotices: [
 					...truncatedNotices,
 					...skippedNotices,
-					...droppedNotices,
 				],
 				countLabel: `${excludedLinks.length} Skipped`,
 				emptyStates:

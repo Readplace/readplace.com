@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkEntry } from "@packages/domain/inbox";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -24,7 +23,6 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: "llm-ad",
-		droppedFor: undefined,
 		anchorText: undefined,
 		...overrides,
 	};
@@ -80,32 +78,6 @@ describe("Inbox skipped row fragment route", () => {
 		const response = await agent.get(rowPath);
 
 		expect(response.status).toBe(404);
-	});
-
-	it("serves the row of a link the readlist dropped, labelled with the readlist's reason", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const agent = await loginAgent(harness.server, harness.auth);
-		await seed(fixture, {
-			status: "crawled",
-			title: "A product launch",
-			skipReason: undefined,
-			droppedFor: {
-				readlist: ReadlistSlugSchema.parse("work"),
-				readlistLabel: "Work",
-				reason: "Not engineering",
-			},
-		});
-
-		const response = await agent.get(`${rowPath}?poll=3`);
-
-		expect(response.status).toBe(200);
-		const row = onlyRow(response.text);
-		expect(row.getAttribute("id")).toBe("inbox-skipped-0000");
-		expect(row.querySelector("[data-test-inbox-excluded-reason]")?.textContent).toBe(
-			"Not for Work — Not engineering",
-		);
-		expect(saveButton(row).getAttribute("data-test-save-state")).toBe("saving");
 	});
 
 	it("returns 404 for a malformed ordinal without touching the store", async () => {

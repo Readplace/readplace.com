@@ -94,7 +94,6 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
 		anchorText: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
@@ -110,7 +109,6 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
 		anchorText: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
@@ -126,7 +124,6 @@ async function main(): Promise<void> {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: "list-unsubscribe",
-		droppedFor: undefined,
 		anchorText: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
@@ -140,7 +137,6 @@ async function main(): Promise<void> {
 		meta: {
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			eligibleArticleCount: 2,
 			savesHeld: false,
 			selectedReadlists: [

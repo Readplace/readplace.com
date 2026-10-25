@@ -733,7 +733,7 @@ for (const delivery of ["forward", "import"] as const) {
 			userId: READER,
 			receivedAtMessageId: row.receivedAtMessageId,
 		});
-		assert.equal(links[0].droppedFor, undefined);
+		assert.equal(links.length, 1);
 		assert.deepEqual(
 			meta?.readlistOutcomes?.map(({ readlist, decision, dropped }) => ({
 				readlist,

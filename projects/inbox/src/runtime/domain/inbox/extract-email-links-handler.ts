@@ -371,7 +371,6 @@ export function initExtractEmailLinksHandler(deps: {
 						siteName: undefined,
 						imageUrl: undefined,
 						failureReason: undefined,
-						droppedFor: undefined,
 						anchorText,
 					};
 					if (classification.action === "skip") {
@@ -513,7 +512,6 @@ export function initExtractEmailLinksHandler(deps: {
 					meta: {
 						truncated,
 						extractionFailed: false,
-						readlistDecision: undefined,
 						...(routing.kind === "gmail" && canSubmit && fanOut.links
 							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
 							: routing.kind === "inbox" && canSubmit
