@@ -8,6 +8,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 const GENERATE_TIMEOUT_MS = 3 * 60 * 1000;
 const SERVER_LOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const SERVER_POLL_INTERVAL_MS = 2000;
+const SERVER_EXIT_GRACE_MS = 10 * 1000;
 const GENERATE_MAX_TOKENS = 800;
 const VERIFY_MAX_TOKENS = 10;
 
@@ -115,25 +116,36 @@ async function startServer({ python, model }) {
     server.exit = { code, signal };
   });
   const startedAt = performance.now();
-  for (;;) {
-    assert(server.exit === undefined, `mlx_vlm.server exited before loading ${model}: ${JSON.stringify(server.exit)}`);
-    assert(performance.now() - startedAt < SERVER_LOAD_TIMEOUT_MS, `mlx_vlm.server did not load ${model} in time`);
-    const health = await fetch(`${server.baseUrl}/health`)
-      .then((response) => (response.ok ? response.json() : undefined))
-      .catch(() => undefined);
-    if (health?.loaded_model === model) {
-      return server;
+  try {
+    for (;;) {
+      assert(server.exit === undefined, `mlx_vlm.server exited before loading ${model}: ${JSON.stringify(server.exit)}`);
+      assert(performance.now() - startedAt < SERVER_LOAD_TIMEOUT_MS, `mlx_vlm.server did not load ${model} in time`);
+      const health = await fetch(`${server.baseUrl}/health`)
+        .then((response) => (response.ok ? response.json() : undefined))
+        .catch(() => undefined);
+      if (health?.loaded_model === model) {
+        return server;
+      }
+      await sleep(SERVER_POLL_INTERVAL_MS);
     }
-    await sleep(SERVER_POLL_INTERVAL_MS);
+  } catch (error) {
+    await stopServer(server, { killAfterMs: SERVER_EXIT_GRACE_MS });
+    throw Object.assign(error, { elapsedMs: Math.round(performance.now() - startedAt), serverExit: server.exit });
   }
 }
 
-async function stopServer(server) {
+async function stopServer(server, { killAfterMs } = {}) {
   if (server.exit !== undefined) {
     return;
   }
   const exited = new Promise((resolve) => server.child.once("exit", resolve));
   server.child.kill();
+  if (killAfterMs !== undefined) {
+    await Promise.race([exited, sleep(killAfterMs, undefined, { ref: false })]);
+    if (server.exit === undefined) {
+      server.child.kill("SIGKILL");
+    }
+  }
   await exited;
 }
 
