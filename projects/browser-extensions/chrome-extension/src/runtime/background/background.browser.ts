@@ -11,6 +11,9 @@ import {
 	initRefreshProof,
 	initSirenReadingList,
 	initBulkSaveQueue,
+	initBulkSaveRunRecord,
+	initSaveAllRuns,
+	SaveAllMessageSchema,
 	initSyncContextMenus,
 	initUploadQueue,
 	initOpenHiddenTab,
@@ -24,7 +27,6 @@ import {
 	ReaderRescueRequestSchema,
 	SAVE_ALL_SHORTCUT_MESSAGE_TYPE,
 	SAVE_ALL_TABS_COMMAND,
-	bulkSaveNotification,
 	commandBindingsFromGetAll,
 	type AdvertisedCapabilityStore,
 	type BrowserShell,
@@ -33,13 +35,9 @@ import {
 	captureActiveTabBytes,
 	type SaveUrlResult,
 	type InvokeActionResult,
-	type BulkSaveResult,
-	type GuardedResult,
-	type BulkSavePage,
 	type ReaderRescueAnswer,
 	type ReaderRescueEnded,
 	type RescueAttemptStore,
-	type SaveableTab,
 	type Timers,
 	type UploadJobStore,
 	type UploadQueue,
@@ -269,9 +267,9 @@ async function initCore() {
 		fetchFn: (...args) => fetch(...args),
 		refreshTokens: auth.refreshTokens,
 		onUnauthorized: async (accessToken) => {
+			void runs.forget();
 			await auth.resourceRejected(accessToken);
 			void uploadQueue.purge();
-			void bulkSaveQueue.purge();
 		},
 		logger,
 		onAdvertisedActions: (names) => {
@@ -290,12 +288,24 @@ async function initCore() {
 		logger,
 	});
 
+	const bulkSaveRunRecord = initBulkSaveRunRecord({ area: browser.storage.session, logger });
+
 	const bulkSaveQueue = initBulkSaveQueue({
 		jobs: initIndexedDbBulkSaveJobStore({ databaseName: BULK_SAVE_JOBS_DB }),
 		payloads: initIndexedDbBulkPayloadStore({ databaseName: BULK_SAVE_PAYLOAD_DB }),
 		scheduler: bulkSaveWakeScheduler,
 		openSession: readingList.openBulkSaveSession,
+		progress: (events) => bulkSaveRunRecord.applyEvents(events),
+		logger,
+	});
+
+	const runs = initSaveAllRuns({
+		record: bulkSaveRunRecord,
+		queue: bulkSaveQueue,
+		whenLoggedIn: auth.whenLoggedIn,
+		capture: (tab) => captureTabContent(tab).catch(() => undefined),
 		notify: showBulkSaveNotification,
+		keepAlive: withServiceWorkerKeepalive,
 		logger,
 	});
 
@@ -320,7 +330,7 @@ async function initCore() {
 	const core = BrowserExtensionCore(shell, {
 		auth,
 		logger,
-		readingList: { ...readingList, savePages: bulkSaveQueue.savePages },
+		readingList: { ...readingList, saveUrl: runs.saveUrlSettlingRun(readingList.saveUrl) },
 	});
 
 	core.on("pre-init", () => {
@@ -331,7 +341,7 @@ async function initCore() {
 
 	core.init();
 
-	return { core, uploadQueue, bulkSaveQueue, auth, readerRescue };
+	return { core, uploadQueue, runs, auth, readerRescue };
 }
 
 const appPromise = initCore();
@@ -344,7 +354,7 @@ function resumeUploads(): void {
 
 function resumeBulkSaves(): void {
 	appPromise
-		.then(({ bulkSaveQueue }) => withServiceWorkerKeepalive(bulkSaveQueue.resume()))
+		.then(({ runs }) => withServiceWorkerKeepalive(runs.resumeAll()))
 		.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
 }
 
@@ -421,19 +431,6 @@ async function captureTabContent(tab: { url: string; tabId?: number }): Promise<
 	return captureActiveTabBytes({ tabUrl: tab.url, fetchFn: fetch, logger });
 }
 
-/** Captures every saveable tab into a bulk page; a tab that can't be captured
- * (unscriptable, discarded, fetch refused) becomes a URL-only page. */
-async function capturePages(tabs: SaveableTab[]): Promise<BulkSavePage[]> {
-	return Promise.all(
-		tabs.map(async (tab) => {
-			const content = await captureTabContent(tab).catch(() => undefined);
-			const page: BulkSavePage = { url: tab.url, title: tab.title };
-			if (content) page.content = content;
-			return page;
-		}),
-	);
-}
-
 function hasStringType(value: unknown): value is { type: string } {
 	return (
 		typeof value === "object" &&
@@ -442,8 +439,6 @@ function hasStringType(value: unknown): value is { type: string } {
 		typeof value.type === "string"
 	);
 }
-
-let bulkSavesInFlight: Promise<void> = Promise.resolve();
 
 function showBulkSaveNotification(notification: {
 	title: string;
@@ -489,10 +484,22 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 		return true;
 	}
 
+	const saveAll = SaveAllMessageSchema.safeParse(raw);
+	if (saveAll.success) {
+		appPromise
+			.then(({ runs }) => runs.handle(saveAll.data))
+			.catch((err) => {
+				logger.error("Failed to handle a save-all message", err);
+				return { ok: false, reason: "error" };
+			})
+			.then(sendResponse);
+		return true;
+	}
+
 	const message = raw as PopupMessage;
 
 	appPromise
-		.then(({ core, uploadQueue, bulkSaveQueue, auth }) => {
+		.then(({ core, uploadQueue, runs, auth }) => {
 			switch (message.type) {
 				case "login-prompt-shown": {
 					auth.reportLoginPrompt().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
@@ -514,7 +521,7 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 					 * session that authorised capturing them, so the worker is held open
 					 * until the purge lands and the popup is answered only then. */
 					const purged = withServiceWorkerKeepalive(
-						Promise.all([uploadQueue.purge(), bulkSaveQueue.purge()]),
+						Promise.all([uploadQueue.purge(), runs.forget()]),
 					);
 					core.logout();
 					purged.then(() => sendResponse({ ok: true }));
@@ -569,37 +576,6 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 						core.fetch("reading-list");
 					}
 					pending.then(sendResponse);
-					break;
-				}
-				case "save-all-tabs": {
-					const { tabs, tabCount } = message;
-					const runBulkSave = () => {
-						const pending = new Promise<GuardedResult<BulkSaveResult>>(
-							(resolve) => {
-								core.once("saved-all-tabs", {
-									success: (value: BulkSaveResult) =>
-										resolve({ ok: true, value }),
-									failure: (err) => resolve({ ok: false, ...err }),
-								});
-							},
-						);
-						capturePages(tabs)
-							.then((pages) => core.saveAll("tabs", { pages }))
-							.catch(() =>
-								core.saveAll("tabs", { pages: tabs.map((tab) => ({ url: tab.url, title: tab.title })) }),
-							);
-						return withServiceWorkerKeepalive(pending).then((outcome) => {
-							sendResponse(outcome);
-							showBulkSaveNotification(
-								bulkSaveNotification({
-									outcome,
-									tabCount,
-									saveableCount: tabs.length,
-								}),
-							);
-						});
-					};
-					bulkSavesInFlight = bulkSavesInFlight.then(runBulkSave, runBulkSave);
 					break;
 				}
 			}

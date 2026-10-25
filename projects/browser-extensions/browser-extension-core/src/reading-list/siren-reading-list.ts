@@ -8,6 +8,7 @@ import type {
 } from "../domain/reading-list-item.types";
 import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { UnauthorizedError } from "../auth/unauthorized-error";
+import { assert } from "../invariant";
 import type { RefreshTokens } from "../auth/auth.types";
 import type {
 	BulkSavePage,
@@ -34,12 +35,6 @@ import type {
 import { capturedContentBody, base64ToBytes } from "./content-body-parsers";
 
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
-
-// Cannot use node:assert in browser bundles — this minimal assert
-// narrows the asserts-value for runtime invariants.
-function assert(value: unknown, message: string): asserts value {
-	if (!value) throw new Error(message);
-}
 
 /** Thrown when a response carries a media type the client can't parse as Siren.
  * A browser negotiating with Accept would render an "I don't understand this
