@@ -24,7 +24,7 @@ export function initReadabilityParser(deps: {
 		const extracted = tryExtractFromSiteRules({
 			siteRules: deps.siteRules,
 			html: params.html,
-			url: params.url,
+			url: params.documentUrl,
 			logError: deps.logError,
 		});
 
@@ -143,8 +143,9 @@ function tryExtractFromSiteRules(params: {
 }): SiteArticleContent | undefined {
 	for (const site of params.siteRules) {
 		try {
-			if (matchingSiteRuleUrl({ site, url: params.url }) === undefined) continue;
-			const extracted = site.extract({ html: params.html });
+			const url = matchingSiteRuleUrl({ site, url: params.url });
+			if (url === undefined) continue;
+			const extracted = site.extract({ html: params.html, url });
 			if (extracted) return extracted;
 		} catch (error) {
 			params.logError(
@@ -191,7 +192,7 @@ function toError(error: unknown): Error {
  * strings with HTML-significant characters don't break the document. */
 function buildSyntheticHtml(extracted: SiteArticleContent): string {
 	const escapedTitle = escapeHtmlText(extracted.title ?? "");
-	const titleTag = extracted.title ? `<title>${escapedTitle}</title>` : "";
+	const titleTag = extracted.title ? `<title>${escapedTitle}</title><meta property="og:title" content="${escapedTitle}">` : "";
 	const h1 = extracted.title ? `<h1>${escapedTitle}</h1>` : "";
 	return `<!DOCTYPE html><html><head>${titleTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
 }

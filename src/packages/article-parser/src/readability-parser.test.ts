@@ -1124,6 +1124,56 @@ describe("initReadabilityParser", () => {
 				expect(result.article.title).toBe('Weird <Title> with "quotes" & ampersand');
 			}
 		});
+
+		it("uses the extracted title verbatim when it carries a | separator that Readability would truncate", () => {
+			const site: TestSite = {
+				matches: () => true,
+				extract: () => ({
+					title: "Alpha Bravo: Charlie Delta | Echo Foxtrot",
+					bodyHtml:
+						"<p>Body content with enough words to satisfy the readability extractor when this pre-parser runs.</p>",
+				}),
+			};
+
+			const { parseHtml } = initParser({ siteRules: [site] });
+			const result = parseHtml({
+				url: "https://example.com/article",
+				documentUrl: "https://example.com/article",
+				html: "<html><body></body></html>",
+				thumbnailUrl: null,
+			});
+
+			assert(result.ok);
+			expect(result.article.title).toBe("Alpha Bravo: Charlie Delta | Echo Foxtrot");
+			const { document } = parseHTML(`<!DOCTYPE html><html><body>${result.article.content}</body></html>`);
+			expect(document.querySelectorAll("h1, h2")).toHaveLength(0);
+		});
+
+		it("dispatches extract on the url the save landed on", () => {
+			const calls: string[] = [];
+			const site: TestSite = {
+				matches: ({ hostname }) => hostname === "dest.example",
+				extract: () => {
+					calls.push("dest.extract");
+					return {
+						bodyHtml:
+							"<p>Destination body injected by the rule, long enough for readability to score it as the article body.</p>",
+					};
+				},
+			};
+
+			const { parseHtml } = initParser({ siteRules: [site] });
+			const result = parseHtml({
+				url: "https://wrapper.example/links/1/abc",
+				documentUrl: "https://dest.example/story",
+				html: "<html><body><p>Wrapper body.</p></body></html>",
+				thumbnailUrl: null,
+			});
+
+			expect(calls).toEqual(["dest.extract"]);
+			assert(result.ok);
+			expect(result.article.content).toContain("Destination body injected by the rule");
+		});
 	});
 });
 
