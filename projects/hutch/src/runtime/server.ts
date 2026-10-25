@@ -331,6 +331,7 @@ import { AUTH_DIAGNOSTICS_LOG_GROUP } from "./auth-diagnostics/dashboard";
 import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import { initMoveGmailMappingsOnReadlistDelete } from "./domain/gmail/move-gmail-mappings-on-readlist-delete";
 import { initUpdateNewsletterCatalog } from "./domain/newsletter-catalog/update-newsletter-catalog";
+import { initListConnectedOAuthClients } from "./domain/oauth/connected-oauth-clients";
 import {
 	type NewsletterCatalogSeed,
 	initCatalogNewsletterDetector,
@@ -1723,6 +1724,11 @@ export function createApp(dependencies: AppDependencies): Express {
 		}),
 	);
 
+	const listConnectedOAuthClients = initListConnectedOAuthClients({
+		listUserOAuthClients: deps.listUserOAuthClients,
+		findOAuthClient: deps.findOAuthClient,
+	});
+
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
@@ -1736,9 +1742,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		setUserDisplayName: deps.setUserDisplayName,
 		destroyUserSessions: deps.destroyUserSessions,
 		revokeAllUserOAuthTokens: deps.revokeAllUserOAuthTokens,
-		listUserOAuthClients: deps.listUserOAuthClients,
+		listConnectedOAuthClients,
 		revokeUserOAuthClient: deps.revokeUserOAuthClient,
-		findOAuthClient: deps.findOAuthClient,
 		markAccountDeleted: deps.markAccountDeleted,
 		publishDeleteAccountCommand: deps.publishDeleteAccountCommand,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
@@ -1814,6 +1819,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		gmail: gmailIntegration,
 		listInboxAddresses: deps.listInboxAddresses,
+		listConnectedOAuthClients,
 	});
 	app.use("/newsletters", integrationsRoutes.newsletters);
 	app.use(integrationsRoutes.gmailCallback);

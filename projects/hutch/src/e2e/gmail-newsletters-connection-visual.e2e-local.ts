@@ -404,6 +404,17 @@ test("opens the Gmail page from anywhere on its Newsletters row", async ({ page 
 	await expect(page.locator(GMAIL_MAIN)).toHaveCount(1);
 });
 
+test("opens the AI assistant guide with working copy buttons from anywhere on its Connectors row", async ({ page }, testInfo) => {
+	await signInWithGmail(page, { stamp: `ai-assistant-row-${testInfo.workerIndex}-${Date.now()}`, seed: undefined });
+	await openIntegrations(page);
+
+	await clickAndWaitForPageReload(page, page.locator('[data-test-integration="ai-assistant"]'));
+
+	await expect(page.locator("main.mcp-connect")).toHaveCount(1);
+	expect(new URL(page.url()).searchParams.get("utm_content")).toBe("ai-assistant-setup");
+	await expect(page.locator("[data-test-server-url] [data-mcp-copy]")).toBeVisible();
+});
+
 test("warns that Gmail is experimental before a first connect hands the reader to Google", async ({ page }, testInfo) => {
 	const consentLocations: string[] = [];
 	await page.route("**/newsletters/gmail/connect?**", async (route) => {
