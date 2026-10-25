@@ -1,9 +1,10 @@
 import assert from "node:assert";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { access, appendFile, cp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { promisify } from "node:util";
 
 const GENERATE_TIMEOUT_MS = 3 * 60 * 1000;
 const SERVER_LOAD_TIMEOUT_MS = 5 * 60 * 1000;
@@ -102,6 +103,20 @@ function freePort() {
       probe.close(() => resolve(port));
     });
   });
+}
+
+async function assertNoOtherModelServer() {
+  const { stdout } = await promisify(execFile)("/usr/bin/pgrep", ["-fl", "mlx_vlm.server"]).catch((error) => {
+    if (error.code === 1) {
+      return { stdout: "" };
+    }
+    throw error;
+  });
+  const running = stdout.trim().replaceAll("\n", "; ");
+  assert(
+    running === "",
+    `Another mlx_vlm.server is running on this host, so this review did not start its own; wait for it to finish or stop it, then re-run this review (its frames are kept): ${running}`,
+  );
 }
 
 async function startServer({ python, model }) {
@@ -308,6 +323,7 @@ async function main() {
     throw new Error(`No transition frames reached ${framesDir}`);
   }
   const reviewedFrames = await frameVersions(flows);
+  await assertNoOtherModelServer();
   const server = await startServer({ python, model });
   const reviews = [];
   try {
