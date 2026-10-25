@@ -1274,10 +1274,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const pastReadsOptions = {
 			previouslyRead,
 			previouslyReadPollUrl,
-			previouslyReadComputeUrl: pastReadsComputeUrlFor({
-				articleId: ownedArticle.id.value,
-				surfaceQuery: nativeSurfaceQuery(req),
-			}),
+			previouslyReadComputeUrl:
+				isAppPlatform(req) && isPrefetchRequest(req)
+					? undefined
+					: pastReadsComputeUrlFor({
+							articleId: ownedArticle.id.value,
+							surfaceQuery: nativeSurfaceQuery(req),
+						}),
 			readerPathForReadlist: readerPathForReadlist(req),
 		};
 
