@@ -61,7 +61,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	};
 	return { work: initSelectContentWork({ ...deps, selectMostCompleteContent }), deps, commit, events };
 }
-const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const, userId: "saving-user" };
+const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const };
 const laterRequest = { ...request, saveAttemptId: SaveAttemptIdSchema.parse("later-attempt") };
 
 describe("initSelectContentWork", () => {

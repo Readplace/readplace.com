@@ -27,7 +27,6 @@ export function initSelectMostCompleteContentDlqHandler(
 				const detail = TierContentExtractedEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,
 					input: {

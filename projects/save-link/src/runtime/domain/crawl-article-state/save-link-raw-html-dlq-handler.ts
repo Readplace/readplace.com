@@ -30,7 +30,6 @@ export function initSaveLinkRawHtmlDlqHandler(
 				const command = SaveLinkRawHtmlCommand.detailSchema.pick({ url: true }).parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-
 				await transitionAndPersist(markCrawlExhausted, {
 					url: command.url,
 					input: {

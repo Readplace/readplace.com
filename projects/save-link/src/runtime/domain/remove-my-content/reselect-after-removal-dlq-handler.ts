@@ -23,7 +23,6 @@ export function initReselectAfterRemovalDlqHandler(deps: {
 				const detail = ReselectAfterRemovalEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,
 					input: {

@@ -27,7 +27,6 @@ export function initRecrawlContentExtractedDlqHandler(
 				const detail = RecrawlContentExtractedEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,
 					input: {

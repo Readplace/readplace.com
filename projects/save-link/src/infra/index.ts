@@ -1095,9 +1095,7 @@ eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
 // Subscribes to TierContentExtractedEvent emitted by the three save-link
 // workers. Reads available per-tier sources from S3, runs the Deepseek
 // selector when there is competition, short-circuits when only one tier is
-// present. Emits LinkSavedEvent /
-// AnonymousLinkSavedEvent (only on canonical change) and
-// CrawlArticleCompletedEvent (every successful selection).
+// present. Emits CrawlArticleCompletedEvent (every successful selection).
 
 const selectMostCompleteContentQueue = new HutchSQS(
 	SAVE_LINK_DLQ_SOURCES.selectMostCompleteContent,

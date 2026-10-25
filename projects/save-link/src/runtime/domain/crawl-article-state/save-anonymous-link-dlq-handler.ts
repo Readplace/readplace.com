@@ -30,7 +30,6 @@ export function initSaveAnonymousLinkDlqHandler(
 				const command = SaveAnonymousLinkCommand.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-
 				await transitionAndPersist(markCrawlExhausted, {
 					url: command.url,
 					input: {

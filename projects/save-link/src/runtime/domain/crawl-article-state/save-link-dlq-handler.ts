@@ -30,7 +30,6 @@ export function initSaveLinkDlqHandler(
 				const command = SaveLinkCommand.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
-
 				await transitionAndPersist(markCrawlExhausted, {
 					url: command.url,
 					input: {

@@ -42,7 +42,6 @@ type SelectContentRequest = {
 	candidates?: readonly CandidateReference[];
 	liveAttempt?: LiveAttempt;
 	extractedAt?: string;
-	userId?: string;
 } & (
 	| { mode: "save" | "recrawl" }
 	| { mode: "refresh"; refresh: { etag?: string; lastModified?: string; contentFetchedAt: string; bodyHash: string } }
