@@ -169,7 +169,7 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toSavedArticleEntity } from "../../api/article-siren";
-import { readlistsAtHrefs } from "../../api/readlist-href";
+import { readlistHref, readlistsAtHrefs } from "../../api/readlist-href";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
 import { saveQueuedSirenNotice } from "../../api/save-queued-siren";
 import {
@@ -236,6 +236,7 @@ import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-re
 import { moveCreatePopoverId, renderMoveCreateForm } from "./readlist-card/move-dialog.component";
 import { type HxLocationScroll, hxLocationToMain } from "../../hx-location";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
+import { UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -2637,12 +2638,17 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					error: READLIST_CREATE_REJECTIONS[reason].message,
 					hiddenFields: [],
 				}),
+			siren: { code: reason, message: READLIST_CREATE_REJECTIONS[reason].message },
 		});
 		const naming = ((): ReadlistNaming => {
 			switch (outcome.status) {
 				case "ok":
 					if (!outcome.created) return refused("name-taken");
-					return { landing: buildReadlistUrl({ readlist: outcome.readlist.slug }), scroll: "top" };
+					return {
+						landing: buildReadlistUrl({ readlist: outcome.readlist.slug }),
+						scroll: "top",
+						siren: { location: readlistHref(outcome.readlist.slug) },
+					};
 				case "invalid-name":
 				case "reserved-name":
 					return refused(outcome.status);
@@ -2650,6 +2656,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					return {
 						landing: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]),
 						scroll: "top",
+						siren: { code: "limit-reached", message: READLIST_LIMIT_MESSAGE },
 					};
 			}
 		})();
@@ -2667,6 +2674,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const gone = buildReadlistUrl({}, [["queue_error", "rename_unknown-readlist"]]);
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
 			if (!requested.success) {
+				if (wantsSiren(req)) {
+					refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+					return;
+				}
 				res.redirect(303, gone);
 				return;
 			}
@@ -2679,7 +2690,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			if (!decision.ok) {
 				const { reason } = decision;
 				if (reason === "unknown-readlist") {
-					answer({ landing: gone, scroll: "top" });
+					answer({ landing: gone, scroll: "top", siren: UNKNOWN_READLIST_REFUSAL });
 					return;
 				}
 				answer({
@@ -2691,6 +2702,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 							value: label,
 							error: READLIST_RENAME_REJECTIONS[reason].message,
 						}),
+					siren: { code: reason, message: READLIST_RENAME_REJECTIONS[reason].message },
 				});
 				return;
 			}
@@ -2700,13 +2712,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				label: decision.label,
 			});
 			if (!renamed) {
-				answer({ landing: gone, scroll: "top" });
+				answer({ landing: gone, scroll: "top", siren: UNKNOWN_READLIST_REFUSAL });
 				return;
 			}
 			answer({
 				landing: buildReadlistUrl({ readlist: decision.slug }),
 				scroll: "top",
 				announcement: `Readlist renamed to ${decision.label}.`,
+				siren: { location: readlistHref(decision.slug) },
 			});
 		},
 	);
@@ -2720,6 +2733,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const userId = req.userId;
 			const context = await resolveReadlistContext(req, userId);
 			const unknownReadlist = () => {
+				if (wantsSiren(req)) {
+					refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+					return;
+				}
 				res.redirect(
 					303,
 					buildReadlistUrl({}, [["queue_error", READLIST_ERROR_UNKNOWN_READLIST]]),
@@ -2757,12 +2774,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				unknownReadlist();
 				return;
 			}
-			res.redirect(
-				303,
-				buildReadlistUrl({
-					readlist: readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug }),
-				}),
-			);
+			const after = readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug });
+			res.redirect(303, wantsSiren(req) ? readlistHref(after) : buildReadlistUrl({ readlist: after }));
 		},
 	);
 

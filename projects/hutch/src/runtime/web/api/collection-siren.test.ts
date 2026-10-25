@@ -529,6 +529,86 @@ describe("toArticleCollectionEntity", () => {
 		expect(handoffAction?.title).toBeUndefined();
 	});
 
+	describe("readlist management actions", () => {
+		const empty: FindArticlesResult = { articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 };
+
+		it.each([
+			{ where: "a collection that names no readlist", queryParams: {}, owned: readlists },
+			{
+				where: "the default readlist",
+				queryParams: { readlist: DEFAULT_READLIST_SLUG, status: "unread" },
+				owned: readlists,
+			},
+			{ where: "one of the reader's own readlists", queryParams: { readlist: WORK, status: "unread" }, owned: twoReadlists },
+		] as const)("advertises a title-less create-readlist on $where", ({ queryParams, owned }) => {
+			const entity = toArticleCollectionEntity(empty, queryParams, { tabs, readlists: owned });
+
+			expect(entity.actions?.find((action) => action.name === "create-readlist")).toEqual({
+				name: "create-readlist",
+				href: "/queue/queues",
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+				fields: [{ name: "label", type: "text" }],
+			});
+		});
+
+		const everyCollectionAction = [
+			"save-article",
+			"save-articles",
+			"save-content",
+			"search",
+			"create-session",
+			"create-browser-handoff",
+			"create-readlist",
+		];
+
+		it.each([
+			{ where: "unnamed collection", queryParams: {}, owned: readlists, names: everyCollectionAction },
+			{
+				where: "default readlist",
+				queryParams: { readlist: DEFAULT_READLIST_SLUG, status: "unread" },
+				owned: readlists,
+				names: everyCollectionAction,
+			},
+			{
+				where: "named readlist",
+				queryParams: { readlist: WORK, status: "unread" },
+				owned: twoReadlists,
+				names: [...everyCollectionAction, "rename-readlist", "delete-readlist"],
+			},
+		] as const)("advertises exactly the $where actions", ({ queryParams, owned, names }) => {
+			const entity = toArticleCollectionEntity(empty, queryParams, { tabs, readlists: owned });
+
+			expect(entity.actions?.map((action) => action.name)).toEqual(names);
+		});
+
+		it("points rename-readlist and delete-readlist at the addressed readlist", () => {
+			const entity = toArticleCollectionEntity(
+				empty,
+				{ readlist: WORK, status: "unread" },
+				{ tabs, readlists: twoReadlists },
+			);
+
+			expect(
+				entity.actions?.filter((action) => action.name === "rename-readlist" || action.name === "delete-readlist"),
+			).toEqual([
+				{
+					name: "rename-readlist",
+					href: "/queue/queues/work/rename",
+					method: "POST",
+					type: "application/x-www-form-urlencoded",
+					fields: [{ name: "label", type: "text" }],
+				},
+				{
+					name: "delete-readlist",
+					href: "/queue/queues/work/delete",
+					method: "POST",
+					type: "application/x-www-form-urlencoded",
+				},
+			]);
+		});
+	});
+
 	it("includes search action with filter fields", () => {
 		const result: FindArticlesResult = {
 			articles: [],

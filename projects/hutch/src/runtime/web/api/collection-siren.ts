@@ -13,6 +13,7 @@ import { buildTabList, type StatusTab } from "./tab-list";
 import { buildSortList, type SortOption } from "./sort-list";
 import { buildReadlistList, type ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
+import { READLIST_CREATE_PATH, readlistDeletePath, readlistRenamePath } from "../pages/readlist/readlist.url";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
@@ -114,6 +115,7 @@ export function toArticleCollectionEntity(
 	// receives it.
 	if (options.showSaveInProgressNotice) properties.messages = saveInProgressNotice();
 
+	const namedReadlist = queryParams.readlist === DEFAULT_READLIST_SLUG ? undefined : queryParams.readlist;
 	return {
 		class: ["collection", "articles"],
 		properties,
@@ -195,6 +197,30 @@ export function toArticleCollectionEntity(
 				href: "/auth/handoff",
 				method: "POST",
 			},
+			{
+				name: "create-readlist",
+				href: READLIST_CREATE_PATH,
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+				fields: [{ name: "label", type: "text" }],
+			},
+			...(namedReadlist === undefined
+				? []
+				: [
+						{
+							name: "rename-readlist",
+							href: readlistRenamePath(namedReadlist),
+							method: "POST",
+							type: "application/x-www-form-urlencoded",
+							fields: [{ name: "label", type: "text" }],
+						},
+						{
+							name: "delete-readlist",
+							href: readlistDeletePath(namedReadlist),
+							method: "POST",
+							type: "application/x-www-form-urlencoded",
+						},
+					]),
 		],
 	};
 }
