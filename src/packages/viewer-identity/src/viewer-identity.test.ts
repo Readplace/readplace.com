@@ -1,6 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
 import {
 	EDGE_SECRET_HEADER,
+	VIEWER_CITY_HEADER,
+	VIEWER_COUNTRY_HEADER,
 	VIEWER_HOST_HEADER,
 	VIEWER_IP_HEADER,
 	viewerOf,
@@ -75,6 +77,49 @@ describe("viewer identity when the edge proves itself", () => {
 			headers: { host: "origin.example", [EDGE_SECRET_HEADER]: EDGE_SECRET },
 		});
 		expect(identity).toEqual({ ip: "198.51.100.1", host: "origin.example" });
+	});
+});
+
+describe("viewer location", () => {
+	function locationFrom(headers: Record<string, string>) {
+		return resolve({ ip: "198.51.100.1", headers: { [EDGE_SECRET_HEADER]: EDGE_SECRET, ...headers } }).identity.location;
+	}
+
+	it("takes the city and country the edge states", () => {
+		expect(locationFrom({ [VIEWER_CITY_HEADER]: "Sydney", [VIEWER_COUNTRY_HEADER]: "AU" })).toStrictEqual({ city: "Sydney", country: "AU" });
+	});
+
+	it("keeps the country alone when the edge could not resolve a city", () => {
+		expect(locationFrom({ [VIEWER_COUNTRY_HEADER]: "AU" })).toStrictEqual({ country: "AU" });
+	});
+
+	it("keeps the city alone, with no country key at all, when the edge states no country", () => {
+		const location = locationFrom({ [VIEWER_CITY_HEADER]: "Sydney" });
+		expect(location && Object.keys(location)).toEqual(["city"]);
+	});
+
+	it("decodes a city the edge percent-encoded", () => {
+		expect(locationFrom({ [VIEWER_CITY_HEADER]: "S%C3%A3o%20Paulo", [VIEWER_COUNTRY_HEADER]: "BR" })).toStrictEqual({ city: "São Paulo", country: "BR" });
+	});
+
+	it("drops a city whose percent-encoding cannot be decoded", () => {
+		expect(locationFrom({ [VIEWER_CITY_HEADER]: "S%E3o", [VIEWER_COUNTRY_HEADER]: "BR" })).toStrictEqual({ country: "BR" });
+	});
+
+	it("drops a country that is not a two-letter region code", () => {
+		expect(locationFrom({ [VIEWER_CITY_HEADER]: "Sydney", [VIEWER_COUNTRY_HEADER]: "Australia" })).toStrictEqual({ city: "Sydney" });
+	});
+
+	it("has no location when the edge states neither", () => {
+		expect(locationFrom({})).toBe(undefined);
+	});
+
+	it("trusts no stated location without the edge's secret", () => {
+		const { identity } = resolve({
+			ip: "198.51.100.1",
+			headers: { [VIEWER_CITY_HEADER]: "Sydney", [VIEWER_COUNTRY_HEADER]: "AU" },
+		});
+		expect(identity.location).toBe(undefined);
 	});
 });
 

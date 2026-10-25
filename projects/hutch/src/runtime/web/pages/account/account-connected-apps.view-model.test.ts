@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type OAuthClient, OAuthClientIdSchema, getBuiltInClient } from "@packages/domain/oauth";
+import { type OAuthClient, OAuthClientIdSchema, type OAuthSignIn, getBuiltInClient } from "@packages/domain/oauth";
 import { buildConnectedAppsSection } from "./account-connected-apps.view-model";
 
 function builtIn(id: string): OAuthClient {
@@ -19,8 +19,17 @@ function registered(input: { id: string; name: string; redirectUri: string }): O
 
 const CLAUDE = registered({ id: "dyn-claude", name: "Claude", redirectUri: "https://claude.ai/api/mcp/auth_callback" });
 
+const NOW = new Date("2026-10-19T09:00:00.000Z");
+const THREE_DAYS_AGO = NOW.getTime() - 3 * 86_400_000;
+
 function webSection(clients: readonly OAuthClient[]) {
-	return buildConnectedAppsSection({ clients, appShell: false, platform: undefined });
+	return buildConnectedAppsSection({ apps: clients.map((client) => ({ client, latestSignIn: undefined })), now: NOW, appShell: false, platform: undefined });
+}
+
+function signInFor(latestSignIn: OAuthSignIn) {
+	const [row] = buildConnectedAppsSection({ apps: [{ client: builtIn("hutch-chrome-extension"), latestSignIn }], now: NOW, appShell: false, platform: undefined }).rows;
+	assert(row, "the signed-in app must have a row");
+	return row.signIn;
 }
 
 describe("buildConnectedAppsSection", () => {
@@ -107,7 +116,7 @@ describe("buildConnectedAppsSection", () => {
 		]);
 	});
 
-	it("posts a web Disconnect to the client's own route, tagged as an account click", () => {
+	it("posts a web sign-out to the client's own route, tagged as an account click", () => {
 		const section = webSection([builtIn("hutch-chrome-extension")]);
 
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.href))).toEqual([
@@ -116,15 +125,15 @@ describe("buildConnectedAppsSection", () => {
 		expect(section.rows.map((row) => row.links)).toEqual([[]]);
 	});
 
-	it("keeps the app sheet's markers on a Disconnect posted from inside it", () => {
-		const section = buildConnectedAppsSection({ clients: [builtIn("hutch-chrome-extension")], appShell: true, platform: "ios" });
+	it("keeps the app sheet's markers on a sign-out posted from inside it", () => {
+		const section = buildConnectedAppsSection({ apps: [{ client: builtIn("hutch-chrome-extension"), latestSignIn: undefined }], now: NOW, appShell: true, platform: "ios" });
 
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.href))).toEqual([
 			["/account/connected-apps/hutch-chrome-extension/disconnect?platform=ios&shell=app&utm_source=account&utm_medium=internal&utm_content=disconnect-app"],
 		]);
 	});
 
-	it("asks before disconnecting a built-in app, naming it and saying it signs out", () => {
+	it("asks before signing a built-in app out, naming it and saying it signs out on every device", () => {
 		const section = webSection([builtIn("hutch-chrome-extension")]);
 
 		expect(section.dialogs).toEqual([
@@ -132,26 +141,65 @@ describe("buildConnectedAppsSection", () => {
 				id: "disconnect-app-1",
 				clientId: "hutch-chrome-extension",
 				href: "/account/connected-apps/hutch-chrome-extension/disconnect?utm_source=account&utm_medium=internal&utm_content=disconnect-app",
-				title: "Disconnect Chrome extension?",
+				title: "Sign out Chrome extension from all devices?",
 				lead: "Save any page to Readplace with one click.",
-				body: "It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
+				body: "It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
 			},
 		]);
 		expect(section.rows.map((row) => row.disconnects.map((disconnect) => disconnect.body))).toEqual([
-			["It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist."],
+			["It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist."],
 		]);
 	});
 
-	it("asks before disconnecting an assistant, leading with where it connects from", () => {
+	it("asks before signing an assistant out everywhere, leading with where it connects from", () => {
 		const section = webSection([
 			CLAUDE,
 			registered({ id: "dyn-unknown", name: "Mystery", redirectUri: "https://example.com/callback" }),
 		]);
 
 		expect(section.dialogs.map((dialog) => [dialog.title, dialog.lead, dialog.body])).toEqual([
-			["Disconnect Claude?", "Connected from claude.ai.", "It can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
-			["Disconnect AI assistant?", "Connected from example.com.", "It can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
+			["Sign out Claude from all devices?", "Connected from claude.ai.", "It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
+			["Sign out AI assistant from all devices?", "Connected from example.com.", "It's signed out everywhere and can't reach your readlist until you connect it again. Your saved articles stay in your readlist."],
 		]);
+	});
+
+	it("describes the latest sign-in by device, place and time", () => {
+		expect(signInFor({ at: THREE_DAYS_AGO, location: { city: "Sydney", country: "AU" }, device: { browser: "chrome", os: "macos" } })).toEqual({
+			device: "Chrome on macOS",
+			location: "Sydney, Australia",
+			at: { iso: "2026-10-16T09:00:00.000Z", label: "3 days ago", mode: "relative" },
+		});
+	});
+
+	it("names the country alone when the sign-in recorded no city", () => {
+		expect(signInFor({ at: THREE_DAYS_AGO, location: { country: "AU" } })).toEqual({
+			location: "Australia",
+			at: { iso: "2026-10-16T09:00:00.000Z", label: "3 days ago", mode: "relative" },
+		});
+	});
+
+	it("names the device alone when the sign-in recorded no place", () => {
+		expect(signInFor({ at: THREE_DAYS_AGO, device: { browser: "samsung_internet", os: "android" } })).toEqual({
+			device: "Samsung Internet on Android",
+			at: { iso: "2026-10-16T09:00:00.000Z", label: "3 days ago", mode: "relative" },
+		});
+	});
+
+	it.each([
+		[{ browser: "other", os: "windows" }, "Windows"],
+		[{ browser: "firefox", os: "other" }, "Firefox"],
+	] as const)("names the part of the device it knows: %o", (device, label) => {
+		expect(signInFor({ at: THREE_DAYS_AGO, device })?.device).toBe(label);
+	});
+
+	it("keeps only the time when the recorded device and place name nothing it can show", () => {
+		const signIn = signInFor({ at: THREE_DAYS_AGO, location: {}, device: { browser: "other", os: "other" } });
+
+		expect(signIn && Object.keys(signIn)).toEqual(["at"]);
+	});
+
+	it("draws no sign-in line for an app with no recorded sign-in", () => {
+		expect(webSection([builtIn("hutch-chrome-extension")]).rows.map((row) => row.signIn)).toEqual([undefined]);
 	});
 
 	it("keeps one row pointing at the ways to save when nothing is connected", () => {

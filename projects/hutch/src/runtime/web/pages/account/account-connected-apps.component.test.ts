@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type OAuthClient, OAuthClientIdSchema, getBuiltInClient } from "@packages/domain/oauth";
+import { type OAuthClient, OAuthClientIdSchema, type OAuthSignIn, getBuiltInClient } from "@packages/domain/oauth";
 import { JSDOM } from "jsdom";
 import { renderConnectedApps } from "./account-connected-apps.component";
 import { buildConnectedAppsSection } from "./account-connected-apps.view-model";
@@ -19,8 +19,15 @@ function claudeAt(input: { id: string; redirectUri: string }): OAuthClient {
 	};
 }
 
+const NOW = new Date("2026-10-19T09:00:00.000Z");
+const THREE_DAYS_AGO = NOW.getTime() - 3 * 86_400_000;
+
 function sectionFor(clients: readonly OAuthClient[]): Element {
-	const html = renderConnectedApps(buildConnectedAppsSection({ clients, appShell: false, platform: undefined }));
+	return signedInSectionFor(clients.map((client) => ({ client, latestSignIn: undefined })));
+}
+
+function signedInSectionFor(apps: readonly { client: OAuthClient; latestSignIn: OAuthSignIn | undefined }[]): Element {
+	const html = renderConnectedApps(buildConnectedAppsSection({ apps, now: NOW, appShell: false, platform: undefined }));
 	const section = new JSDOM(`<main class="account">${html}</main>`).window.document.querySelector("[data-test-connected-apps]");
 	assert(section, "the connected apps section must render");
 	return section;
@@ -34,13 +41,13 @@ function rowFor(section: Element, clientId: string): Element {
 
 function panelFor({ section, trigger }: { section: Element; trigger: Element }): Element {
 	const panel = section.querySelector(`[data-test-confirm-popover="disconnect-app"][id="${trigger.getAttribute("popovertarget")}"]`);
-	assert(panel, "every Disconnect trigger must open a rendered panel");
+	assert(panel, "every sign-out trigger must open a rendered panel");
 	return panel;
 }
 
 function triggerIn(row: Element): Element {
 	const trigger = row.querySelector('[data-test-action="disconnect-app-open"]');
-	assert(trigger, "a client row must carry a Disconnect trigger");
+	assert(trigger, "a client row must carry a sign-out trigger");
 	return trigger;
 }
 
@@ -65,7 +72,7 @@ describe("renderConnectedApps", () => {
 		expect([...well.querySelectorAll("svg path")].map((path) => path.getAttribute("fill"))).toEqual(["#DB4437", "#FFCD40", "#0F9D58"]);
 	});
 
-	it("opens a plain Disconnect panel from each row's trigger, Cancel before Disconnect and no close control", () => {
+	it("opens a plain sign-out panel from each row's trigger, Cancel before Sign out from all devices and no close control", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		for (const clientId of ["hutch-chrome-extension", "dyn-claude"]) {
@@ -84,18 +91,18 @@ describe("renderConnectedApps", () => {
 		}
 	});
 
-	it("titles the panel with the app and states what Disconnect does", () => {
+	it("titles the panel with the app and states that it signs the app out on every device", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		const panel = panelFor({ section, trigger: triggerIn(rowFor(section, "hutch-chrome-extension")) });
-		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe("Disconnect Chrome extension?");
+		expect(panel.querySelector(".confirm-popover__title")?.textContent).toBe("Sign out Chrome extension from all devices?");
 		expect(panel.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
+			"It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
 		);
 		expect(panel.querySelector(".sr-only")?.textContent).toBe("Save any page to Readplace with one click.");
 	});
 
-	it("names the app and where it connects from on every Disconnect control", () => {
+	it("names the app and where it connects from on every sign-out control", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		const row = rowFor(section, "dyn-claude");
@@ -105,9 +112,9 @@ describe("renderConnectedApps", () => {
 			return control;
 		});
 		expect(controls.map((control) => control.textContent)).toEqual([
-			"Disconnect Claude, Connected from claude.ai.",
-			"Disconnect Claude, Connected from claude.ai.",
-			"Disconnect Claude, Connected from claude.ai.",
+			"Sign out from all devices Claude, Connected from claude.ai.",
+			"Sign out from all devices Claude, Connected from claude.ai.",
+			"Sign out from all devices Claude, Connected from claude.ai.",
 		]);
 		expect(controls.map((control) => control.querySelector(".sr-only")?.textContent)).toEqual([
 			" Claude, Connected from claude.ai.",
@@ -123,8 +130,8 @@ describe("renderConnectedApps", () => {
 		]);
 
 		expect([...section.querySelectorAll('[data-test-action="disconnect-app-open"]')].map((trigger) => trigger.textContent)).toEqual([
-			"Disconnect Claude, Connected from claude.ai.",
-			"Disconnect Claude, Connected from example.com.",
+			"Sign out from all devices Claude, Connected from claude.ai.",
+			"Sign out from all devices Claude, Connected from example.com.",
 		]);
 	});
 
@@ -140,11 +147,11 @@ describe("renderConnectedApps", () => {
 			"form.connected-apps__fallback-form",
 		]);
 		expect(fallback.querySelector(".connected-apps__fallback-body")?.textContent).toBe(
-			"It's signed out and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
+			"It's signed out on every device and can't save to Readplace until you sign in to it again. Your saved articles stay in your readlist.",
 		);
 	});
 
-	it("posts the fallback to the same Disconnect as the panel, through one red submit that shows its round trip", () => {
+	it("posts the fallback to the same sign-out as the panel, through one red submit that shows its round trip", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		const row = rowFor(section, "hutch-chrome-extension");
@@ -168,7 +175,7 @@ describe("renderConnectedApps", () => {
 		expect([...row.querySelectorAll("form")].map((form) => form.className)).toEqual(["connected-apps__fallback-form"]);
 	});
 
-	it("swaps the page's main on either Disconnect without moving the reader", () => {
+	it("swaps the page's main on either sign-out without moving the reader", () => {
 		const section = sectionFor(CHROME_AND_CLAUDE);
 
 		const forms = [...section.querySelectorAll('form[data-test-connected-app-action]')];
@@ -186,6 +193,61 @@ describe("renderConnectedApps", () => {
 				"outerHTML show:none",
 			]);
 		}
+	});
+
+	it("shows the app's latest sign-in under its description, the time a local-time element", () => {
+		const section = signedInSectionFor([
+			{
+				client: builtIn("hutch-chrome-extension"),
+				latestSignIn: { at: THREE_DAYS_AGO, location: { city: "Sydney", country: "AU" }, device: { browser: "chrome", os: "macos" } },
+			},
+		]);
+
+		const row = rowFor(section, "hutch-chrome-extension");
+		expect([...row.querySelectorAll(".account-row__text > *")].map((child) => child.tagName.toLowerCase())).toEqual(["h3", "p", "p"]);
+		const line = row.querySelector("[data-test-connected-app-sign-in]");
+		assert(line, "a signed-in app must render its sign-in line");
+		expect(line.className).toBe("account-row__description");
+		expect(line.textContent).toBe("Chrome on macOS · Sydney, Australia · Signed in 3 days ago");
+		const time = line.querySelector("time");
+		assert(time, "the sign-in time must be a time element");
+		expect([time.getAttribute("datetime"), time.getAttribute("data-local-time")]).toEqual(["2026-10-16T09:00:00.000Z", "relative"]);
+	});
+
+	it.each([
+		[{ at: THREE_DAYS_AGO, location: { country: "AU" } }, "Australia · Signed in 3 days ago"],
+		[{ at: THREE_DAYS_AGO, device: { browser: "safari", os: "ios" } }, "Safari on iOS · Signed in 3 days ago"],
+		[{ at: THREE_DAYS_AGO }, "Signed in 3 days ago"],
+	] as const)("leaves off the parts the sign-in did not record: %o", (latestSignIn, text) => {
+		const section = signedInSectionFor([{ client: builtIn("hutch-chrome-extension"), latestSignIn }]);
+
+		expect(rowFor(section, "hutch-chrome-extension").querySelector("[data-test-connected-app-sign-in]")?.textContent).toBe(text);
+	});
+
+	it("draws no sign-in line for an app with no recorded sign-in", () => {
+		const row = rowFor(sectionFor(CHROME_AND_CLAUDE), "hutch-chrome-extension");
+
+		expect([...row.querySelectorAll(".account-row__text > *")].map((child) => child.className)).toEqual(["account-row__title", "account-row__description"]);
+	});
+
+	it("escapes a city the edge reported with markup in it", () => {
+		const section = signedInSectionFor([
+			{ client: builtIn("hutch-chrome-extension"), latestSignIn: { at: THREE_DAYS_AGO, location: { city: "<b>Sydney</b>" } } },
+		]);
+
+		const line = rowFor(section, "hutch-chrome-extension").querySelector("[data-test-connected-app-sign-in]");
+		assert(line, "the sign-in line must render");
+		expect([line.querySelectorAll("b").length, line.textContent]).toEqual([0, "<b>Sydney</b> · Signed in 3 days ago"]);
+	});
+
+	it("keeps the sign-out controls naming the app and what it does, not its sign-in", () => {
+		const section = signedInSectionFor([
+			{ client: builtIn("hutch-chrome-extension"), latestSignIn: { at: THREE_DAYS_AGO, location: { country: "AU" } } },
+		]);
+
+		expect(triggerIn(rowFor(section, "hutch-chrome-extension")).querySelector(".sr-only")?.textContent).toBe(
+			" Chrome extension, Save any page to Readplace with one click.",
+		);
 	});
 
 	it("keeps one row pointing at the ways to save when nothing is connected", () => {
