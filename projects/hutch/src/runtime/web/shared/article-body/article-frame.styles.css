@@ -496,6 +496,10 @@
   color: var(--fact-site);
 }
 
+.article-body__published svg {
+  color: var(--fact-published);
+}
+
 .article-body__saved svg {
   color: var(--fact-saved);
 }

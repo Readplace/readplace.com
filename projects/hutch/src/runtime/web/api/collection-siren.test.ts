@@ -245,6 +245,7 @@ describe("toArticleCollectionEntity", () => {
 			"readTime",
 			"status",
 			"savedAt",
+			"publishedOn",
 			"readAt",
 			"isRead",
 			"needsBrowserCapture",

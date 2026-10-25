@@ -40,6 +40,7 @@ export const CONTENT_BEARING_COLUMNS = [
 	"lastModified",
 	"contentFetchedAt",
 	"imageUrl",
+	"publishedOn",
 	"contentSourceUrl",
 	"sourceOriginalUrl",
 	"directContentBeforePin",

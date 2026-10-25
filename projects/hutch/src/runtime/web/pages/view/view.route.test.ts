@@ -1686,6 +1686,33 @@ describe("View routes", () => {
 			]).toEqual(["outerHTML", ["site", "read-time", "original"]]);
 		});
 
+		it("swaps in the stored publish date with the public facts", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "Hello World", siteName: "example.com", excerpt: "", wordCount: LONG_ARTICLE_WORD_COUNT, publishedOn: "2025-10-08" },
+				estimatedReadTime: calculateReadTime(LONG_ARTICLE_WORD_COUNT),
+				savedAt: new Date("2026-05-03T13:00:00.000Z"),
+			});
+			const harness = useApp(fixture);
+
+			const response = await request(harness.server).get(`/view/summary?url=${ENCODED}&poll=1`);
+
+			const header = new JSDOM(response.text).window.document.querySelector("#article-header");
+			assert(header, "the summary poll must swap the header in");
+			expect(
+				Array.from(header.querySelectorAll("[data-test-reader-fact]"), (fact) => [
+					fact.getAttribute("data-test-reader-fact"),
+					fact.textContent?.trim(),
+				]),
+			).toEqual([
+				["site", "example.com"],
+				["published", "Published Oct 8, 2025"],
+				["read-time", `${calculateReadTime(LONG_ARTICLE_WORD_COUNT)} min read`],
+				["original", "Original article"],
+			]);
+		});
+
 		it("returns 400 for an invalid url", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

@@ -409,6 +409,27 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
+	it("carries the publish date the parser read", async () => {
+		const finalize = createFinalize({
+			parseHtml: () => ({
+				ok: true,
+				article: {
+					title: "T",
+					siteName: "s",
+					excerpt: "e",
+					wordCount: 500,
+					content: "<p>x</p>",
+					publishedOn: "2025-10-08",
+				},
+			}),
+		});
+
+		const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<html></html>" });
+
+		assert(result.ok, "the dated article finalizes");
+		assert.equal(result.article.metadata.publishedOn, "2025-10-08");
+	});
+
 	const throwingParseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(() => {
 		throw new Error("Readability must not run for an image article");
 	});
@@ -529,6 +550,7 @@ describe("initFinalizeArticle", () => {
 			);
 			expect(result.article.metadata.imageUrl).toBe("https://example.com/photo.jpg");
 			expect(result.article.metadata).not.toHaveProperty("directResourceKind");
+			expect(result.article.metadata).not.toHaveProperty("publishedOn");
 		}
 	});
 

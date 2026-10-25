@@ -160,6 +160,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		url: input.destinationUrl,
 		articleId: undefined,
 		saved: undefined,
+		publishedOn: input.metadata.publishedOn,
 		content: input.content,
 		crawl: input.crawl,
 		readerPollUrl: input.readerPollUrl,

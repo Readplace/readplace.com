@@ -198,6 +198,7 @@ export function createFakeApplyParseResult(deps: {
 				excerpt: result.article.excerpt,
 				wordCount: result.article.wordCount,
 				...(result.article.imageUrl ? { imageUrl: result.article.imageUrl } : {}),
+				...(result.article.publishedOn ? { publishedOn: result.article.publishedOn } : {}),
 			},
 			estimatedReadTime,
 		});

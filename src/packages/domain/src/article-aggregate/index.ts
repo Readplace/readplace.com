@@ -13,6 +13,10 @@ export {
 	type CanonicalImageUrl,
 } from "./canonical-image-url";
 export {
+	CanonicalPublishedOnSchema,
+	type CanonicalPublishedOn,
+} from "./canonical-published-on";
+export {
 	SUMMARY_AUTO_HEAL_MAX_ATTEMPTS,
 	SUMMARY_AUTO_HEAL_TTL_MS,
 } from "./auto-heal-constants";

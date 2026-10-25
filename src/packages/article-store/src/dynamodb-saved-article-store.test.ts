@@ -435,7 +435,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		const { client, commands } = createFakeClient();
 		const result = await initStore(client).saveArticleGlobally({
 			url: URL,
-			metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 1, imageUrl: "https://x/i.jpg" },
+			metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 1, imageUrl: "https://x/i.jpg", publishedOn: "2025-10-08" },
 			estimatedReadTime: TWO_MINUTES,
 			savedAt: new Date("2026-05-30T09:00:00.000Z"),
 		});
@@ -443,6 +443,10 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.ConditionExpression).toBe("attribute_not_exists(#url) OR attribute_exists(purgedAt)");
 		expect(update?.input.ExpressionAttributeValues?.[":imageUrl"]).toBe("https://x/i.jpg");
+		expect(update?.input.ExpressionAttributeValues?.[":publishedOn"]).toBe("2025-10-08");
+		const removeClause = update?.input.UpdateExpression?.slice(update.input.UpdateExpression.indexOf("REMOVE")) ?? "";
+		expect(update?.input.UpdateExpression).toContain("publishedOn = :publishedOn");
+		expect(removeClause.split(/[ ,]+/)).not.toContain("publishedOn");
 		expect(result).toEqual({ created: true });
 	});
 
@@ -511,8 +515,8 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 
 		expect(await initStore(fake.client).saveArticleGlobally({ url: URL, metadata: { title: "New save", siteName: "Example", excerpt: "", wordCount: 0 }, estimatedReadTime: TWO_MINUTES, savedAt: OPERATION_SAVED_AT })).toEqual({ created: true });
 
-		expect(row).toMatchObject({ ...durable, contentSelectionRevision: 10, title: "New save", imageUrl: null });
-		expect(Object.keys(row).sort()).toEqual(["contentSelectionRevision", "estimatedReadTime", "excerpt", "imageUrl", "originalUrl", "revokedCandidateIds", "routeId", "savedAt", "siteName", "title", "url", "wordCount"]);
+		expect(row).toMatchObject({ ...durable, contentSelectionRevision: 10, title: "New save", imageUrl: null, publishedOn: null });
+		expect(Object.keys(row).sort()).toEqual(["contentSelectionRevision", "estimatedReadTime", "excerpt", "imageUrl", "originalUrl", "publishedOn", "revokedCandidateIds", "routeId", "savedAt", "siteName", "title", "url", "wordCount"]);
 	});
 
 	it("bumpArticleSavedAt writes savedAt guarded by attribute_exists", async () => {
@@ -1091,6 +1095,7 @@ const WEBMAIL_ROW = {
 	siteName: "Gmail",
 	excerpt: "A private message",
 	imageUrl: "https://cdn.readplace.test/media/private-avatar.png",
+	publishedOn: "2025-10-08",
 	wordCount: 9,
 	content: undefined,
 };
@@ -1106,6 +1111,17 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 
 		expect(article?.url).toBe(URL);
 		expect(article?.status).toBe("unread");
+	});
+
+	it("findArticleById carries the global row's publish date", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem({ publishedOn: "2025-10-08" })], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.metadata.publishedOn).toBe("2025-10-08");
 	});
 
 	it.each([
@@ -1366,7 +1382,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt",
 		);
 	});
 
@@ -1769,7 +1785,7 @@ describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt",
 		);
 		expect(
 			page.candidates.map((candidate) => ({
@@ -2227,6 +2243,19 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		expect(data?.url).toBe(URL);
 		expect(data?.savedAt).toEqual(new Date("2026-05-30T09:00:00.000Z"));
 		expect(data?.contentSourceTier).toBe("tier-1");
+	});
+
+	it("findArticleByUrl projects the publish date and maps a dated row to it", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: articleItem({ publishedOn: "2025-10-08", content: undefined }) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl(URL);
+
+		const get = commands.find((c) => c.name === "GetCommand");
+		const projected = Object.values(get?.input.ExpressionAttributeNames ?? {});
+		expect(projected).toContain("publishedOn");
+		expect(data?.metadata.publishedOn).toBe("2025-10-08");
 	});
 
 	it("findArticleByUrl hydrates readerAvailableAt, the instant the digest gate measures presence against", async () => {

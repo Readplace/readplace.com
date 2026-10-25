@@ -993,6 +993,38 @@ describe("initArticleReader", () => {
 			});
 		});
 
+		it("carries the stored publish date into the header it swaps in", async () => {
+			const { state, deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				content: "<p>body</p>",
+				summary: { status: "ready", summary: "TL;DR" },
+			});
+			const article = defaultFakeArticle();
+			state.article = { ...article, metadata: { ...article.metadata, publishedOn: "2025-10-08" } };
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				articleId: undefined,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capture: NO_CAPTURE_WATCH,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: { kind: "web" },
+				saved: SIX_HOURS_AGO,
+				readlistTags: undefined,
+				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			expect(headerOf(doc).facts).toEqual(["site", "published", "saved", "read-time", "provenance", "original"]);
+			expect(doc.querySelector('#article-header [data-test-reader-fact="published"]')?.textContent).toBe(
+				"Published Oct 8, 2025",
+			);
+		});
+
 		it("keeps the header's Original link on the saved URL when no redirect was ever resolved", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
@@ -2232,11 +2264,13 @@ describe("initArticleReader", () => {
 		});
 
 		it("swaps in a stub header with only the site, read time and Original, whatever the reader's save carries", async () => {
-			const { deps } = initFakeDeps({
+			const { state, deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				content: "<p>body</p>",
 				summary: { status: "ready", summary: "TL;DR" },
 			});
+			const article = defaultFakeArticle();
+			state.article = { ...article, metadata: { ...article.metadata, publishedOn: "2025-10-08" } };
 			const reader = initArticleReader(deps);
 
 			const doc = parse(

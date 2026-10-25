@@ -8,7 +8,7 @@ import type {
 } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { render } from "@packages/web-shell";
-import type { LocalTime } from "@packages/web-shell/local-time.format";
+import { type LocalTime, toCalendarDate } from "@packages/web-shell/local-time.format";
 import { type ReaderProvenance, provenanceLabel, provenanceTitle } from "./provenance-label";
 
 const TEMPLATE = readFileSync(join(__dirname, "article-header.template.html"), "utf-8");
@@ -32,6 +32,7 @@ export interface ArticleHeaderInput {
 	provenance: ReaderProvenance | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
 	saved: LocalTime | undefined;
+	publishedOn: string | undefined;
 }
 
 function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
@@ -50,6 +51,7 @@ function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
 		provenancePopoverId: PROVENANCE_SENDER_POPOVER_ID,
 		readlistTags: input.readlistTags,
 		saved: input.saved,
+		published: input.publishedOn === undefined ? undefined : toCalendarDate({ date: input.publishedOn }),
 		hasTags: input.readlistTags !== undefined,
 		oob,
 	});

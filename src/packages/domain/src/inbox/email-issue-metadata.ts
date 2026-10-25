@@ -2,6 +2,7 @@ import sanitizeHtml from "sanitize-html";
 import type { Minutes } from "../article/article.types";
 import { calculateReadTime } from "../article/estimated-read-time";
 import { clipMetadataExcerpt } from "../article/metadata-excerpt";
+import { publishedOnFrom } from "../article/published-on";
 
 const UNTITLED_EMAIL_ISSUE = "(no subject)";
 
@@ -16,6 +17,7 @@ interface EmailIssueMetadata {
 	excerpt: string;
 	wordCount: number;
 	estimatedReadTime: Minutes;
+	publishedOn: string | undefined;
 }
 
 function readableText(html: string): string {
@@ -31,6 +33,7 @@ export function deriveEmailIssueMetadata(email: {
 	senderEmail: string;
 	senderName: string;
 	html: string;
+	receivedAt: string;
 }): EmailIssueMetadata {
 	const text = readableText(email.html);
 	const wordCount = text === "" ? 0 : text.split(" ").length;
@@ -42,5 +45,6 @@ export function deriveEmailIssueMetadata(email: {
 		excerpt: clipMetadataExcerpt(text),
 		wordCount,
 		estimatedReadTime: calculateReadTime(wordCount),
+		publishedOn: publishedOnFrom(email.receivedAt),
 	};
 }

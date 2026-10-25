@@ -7,6 +7,7 @@ interface ParsedArticle {
 	wordCount: number;
 	content: string;
 	imageUrl?: string;
+	publishedOn?: string;
 }
 
 export type ParseArticleResult =
@@ -44,4 +45,5 @@ export type ReadabilityAdditions = {
 	promoteBrParagraphHosts: (document: Document) => void;
 	restoreRetaggedTables: (html: string) => string;
 	resolveRelativeUrls: (params: { html: string; baseUrl: string }) => string;
+	publishedOnFrom: (raw: string | null | undefined) => string | undefined;
 };

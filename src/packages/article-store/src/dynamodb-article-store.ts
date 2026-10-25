@@ -40,6 +40,7 @@ const ArticleAggregateRow = z.object({
 	wordCount: dynamoField(z.number()),
 	estimatedReadTime: dynamoField(z.number()),
 	imageUrl: dynamoField(z.string()),
+	publishedOn: dynamoField(z.string()),
 	etag: dynamoField(z.string()),
 	lastModified: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
@@ -175,6 +176,7 @@ function rowToArticle(url: string, row: RowShape): Article {
 			excerpt: row.excerpt ?? "",
 			wordCount: row.wordCount ?? 0,
 			imageUrl: row.imageUrl,
+			publishedOn: row.publishedOn,
 		},
 		freshness: {
 			contentFetchedAt: row.contentFetchedAt ?? "",
@@ -218,6 +220,7 @@ function appendMetadataClauses(
 		"wordCount = :wordCount",
 		"estimatedReadTime = :ert",
 		"imageUrl = :img",
+		"publishedOn = :publishedOn",
 	);
 	values[":title"] = article.metadata.title;
 	values[":siteName"] = article.metadata.siteName;
@@ -225,6 +228,7 @@ function appendMetadataClauses(
 	values[":wordCount"] = article.metadata.wordCount;
 	values[":ert"] = article.estimatedReadTime;
 	values[":img"] = article.metadata.imageUrl ?? null;
+	values[":publishedOn"] = article.metadata.publishedOn ?? null;
 }
 
 function appendFreshnessClauses(

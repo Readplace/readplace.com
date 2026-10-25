@@ -203,6 +203,7 @@ export function initStaleCheckHandler(deps: {
 				excerpt: result.article.metadata.excerpt,
 				wordCount: result.article.metadata.wordCount,
 				imageUrl: result.article.metadata.imageUrl,
+				publishedOn: result.article.metadata.publishedOn,
 				directResourceKind: result.article.metadata.directResourceKind,
 			},
 			estimatedReadTime: result.article.metadata.estimatedReadTime,

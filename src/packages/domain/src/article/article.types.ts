@@ -15,6 +15,7 @@ export interface ArticleMetadata {
 	excerpt: string;
 	wordCount: number;
 	imageUrl?: string;
+	publishedOn?: string;
 }
 
 export type ServedBody = { kind: "legacy" } | { kind: "withheld" } | { kind: "committed"; location: string };

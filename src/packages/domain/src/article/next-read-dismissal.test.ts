@@ -23,7 +23,7 @@ function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		userId: UserIdSchema.parse("user-1"),
 		url,
 		destinationUrl,
-		metadata: articleDisplayMetadata({ url, destinationUrl, title: "t", siteName: "s", excerpt: "e", wordCount: 1, imageUrl: undefined }),
+		metadata: articleDisplayMetadata({ url, destinationUrl, title: "t", siteName: "s", excerpt: "e", wordCount: 1, imageUrl: undefined, publishedOn: undefined }),
 		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(1),
 		status: "unread",

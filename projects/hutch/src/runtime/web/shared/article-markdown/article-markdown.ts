@@ -29,7 +29,7 @@ interface ArticleMarkdownInput {
 
 interface DocumentParts {
 	contentStatus: ContentStatus;
-	metadata: { title: string; siteName: string; excerpt: string; wordCount: number };
+	metadata: { title: string; siteName: string; excerpt: string; wordCount: number; publishedOn?: string };
 	summary: GeneratedSummary | undefined;
 	body: string;
 }
@@ -74,6 +74,7 @@ export function articleMarkdown(input: ArticleMarkdownInput): string {
 		site: metadata.siteName,
 		...(description === "" ? {} : { description }),
 		created: article.savedAt.toISOString(),
+		...(metadata.publishedOn === undefined ? {} : { published: metadata.publishedOn }),
 		...(metadata.wordCount > 0 ? { words: metadata.wordCount } : {}),
 		readplace_id: article.id.value,
 		readplace_url: `${appOrigin}/queue/${article.id.value}/view${buildQueryString({ readlist })}`,

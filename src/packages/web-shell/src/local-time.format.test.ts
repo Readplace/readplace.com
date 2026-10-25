@@ -3,6 +3,7 @@ import {
 	toAbsoluteDate,
 	toAbsoluteDateTime,
 	toAbsoluteTime,
+	toCalendarDate,
 	toRelativeOrDate,
 	toRelativePhrase,
 } from "./local-time.format";
@@ -191,5 +192,15 @@ describe("toRelativePhrase", () => {
 			label: "2 months ago",
 			mode: "relative",
 		});
+	});
+});
+
+describe("toCalendarDate", () => {
+	it("labels a calendar date as the day it names, keeping the date itself", () => {
+		expect(toCalendarDate({ date: "2025-10-08" })).toEqual({ date: "2025-10-08", label: "Oct 8, 2025" });
+	});
+
+	it("keeps the first day of a year in that year", () => {
+		expect(toCalendarDate({ date: "2025-01-01" }).label).toBe("Jan 1, 2025");
 	});
 });

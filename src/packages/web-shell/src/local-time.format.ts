@@ -100,6 +100,22 @@ export function toAbsoluteTime(input: { iso: string }): LocalTime {
 	};
 }
 
+export interface CalendarDate {
+	date: string;
+	label: string;
+}
+
+export function toCalendarDate(input: { date: string }): CalendarDate {
+	return {
+		date: input.date,
+		label: formatLocalInstant({
+			iso: `${input.date}T00:00:00Z`,
+			style: "date",
+			timeZone: SERVER_TIME_ZONE,
+		}),
+	};
+}
+
 const ONE_MINUTE_MS = 60_000;
 const ONE_HOUR_MS = 3_600_000;
 const ONE_DAY_MS = 86_400_000;

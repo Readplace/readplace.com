@@ -61,6 +61,20 @@ describe("ViewPage", () => {
 		]);
 	});
 
+	it("shows the article's publish date, still with no saved time or provenance", () => {
+		const facts = Array.from(
+			render({ ...baseInput, metadata: { ...baseInput.metadata, publishedOn: "2025-10-08" } }).querySelectorAll("[data-test-reader-fact]"),
+			(fact) => [fact.getAttribute("data-test-reader-fact"), fact.textContent?.trim()],
+		);
+
+		expect(facts).toEqual([
+			["site", "example.com"],
+			["published", "Published Oct 8, 2025"],
+			["read-time", "3 min read"],
+			["original", "Original article"],
+		]);
+	});
+
 	it("renders the article body via the shared renderer", () => {
 		const doc = render();
 

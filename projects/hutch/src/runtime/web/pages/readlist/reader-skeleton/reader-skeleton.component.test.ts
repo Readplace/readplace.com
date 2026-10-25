@@ -120,6 +120,12 @@ describe("renderReaderSkeleton", () => {
 		]);
 	});
 
+	it("labels the saved fact the way the header does, so the copied time does not flash unlabelled", () => {
+		const saved = templateContent().querySelector(".article-body__saved");
+		assert(saved, "the skeleton must carry a saved fact");
+		expect(saved.textContent?.trim()).toBe("Saved");
+	});
+
 	it("renders the loading reader slot with static placeholder lines and no live progress bar", () => {
 		const content = templateContent();
 		const slot = content.querySelector("[data-test-reader-skeleton]");

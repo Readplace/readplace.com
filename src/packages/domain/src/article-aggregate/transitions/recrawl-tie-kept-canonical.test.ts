@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { Article } from "../article.types";
+import { CanonicalPublishedOnSchema } from "../canonical-published-on";
 import {
 	recrawlTieKeptCanonical,
 	type RecrawlTieKeptCanonicalInput,
@@ -26,7 +27,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 }
 
 function buildInput(overrides: Partial<RecrawlTieKeptCanonicalInput> = {}): RecrawlTieKeptCanonicalInput {
-	return { now: NOW, ...overrides };
+	return { now: NOW, publishedOn: undefined, ...overrides };
 }
 
 describe("recrawlTieKeptCanonical", () => {
@@ -139,6 +140,35 @@ describe("recrawlTieKeptCanonical", () => {
 		const { article } = recrawlTieKeptCanonical(before, buildInput());
 
 		assert.deepEqual(article.summary, existingSummary);
+	});
+
+	it("writes a publish date the row lacks, changing only that metadata field, with no tier flip or summary effect", () => {
+		const before = buildArticle({ url: "https://example.com/post" });
+
+		const { article, effects, writes } = recrawlTieKeptCanonical(
+			before,
+			buildInput({ publishedOn: CanonicalPublishedOnSchema.parse("2025-10-08") }),
+		);
+
+		assert.deepEqual(article.metadata, { ...before.metadata, publishedOn: "2025-10-08" });
+		assert.deepEqual([...writes].sort(), ["crawl", "metadata", "readerAvailability"]);
+		assert.deepEqual(effects, [{ kind: "publish-recrawl-completed", url: "https://example.com/post" }]);
+		assert.deepEqual(article.contentSelection, before.contentSelection);
+		assert.deepEqual(article.summary, before.summary);
+	});
+
+	it("writes no metadata when the resolved publish date is the row's own", () => {
+		const before = buildArticle({
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 100, publishedOn: "2025-10-08" },
+		});
+
+		const { article, writes } = recrawlTieKeptCanonical(
+			before,
+			buildInput({ publishedOn: CanonicalPublishedOnSchema.parse("2025-10-08") }),
+		);
+
+		assert.deepEqual(article.metadata, before.metadata);
+		assert.deepEqual([...writes].sort(), ["crawl", "readerAvailability"]);
 	});
 
 	it("does not mutate the input article (pure function)", () => {

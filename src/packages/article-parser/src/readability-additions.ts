@@ -1,3 +1,4 @@
+import { publishedOnFrom } from "@packages/domain/article";
 import type { ReadabilityAdditions } from "./article-parser.types";
 import { demoteBodyHeadings } from "./demote-body-headings";
 import { normalizeImplicitBody } from "./normalize-implicit-body";
@@ -15,4 +16,5 @@ export const readabilityAdditions: ReadabilityAdditions = {
 	promoteBrParagraphHosts,
 	restoreRetaggedTables,
 	resolveRelativeUrls,
+	publishedOnFrom,
 };

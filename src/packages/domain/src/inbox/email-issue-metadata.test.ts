@@ -5,6 +5,7 @@ const ISSUE = {
 	subject: "  Employee #1: Yahoo  ",
 	senderEmail: "dan@tldr.tech",
 	senderName: " TLDR ",
+	receivedAt: "2026-06-24T09:00:00.000Z",
 };
 
 describe("deriveEmailIssueMetadata", () => {
@@ -15,9 +16,15 @@ describe("deriveEmailIssueMetadata", () => {
 	});
 
 	it("falls back to a placeholder title and the sender address when the email names neither", () => {
-		const metadata = deriveEmailIssueMetadata({ subject: " ", senderEmail: "dan@tldr.tech", senderName: "", html: "<p>Hello</p>" });
+		const metadata = deriveEmailIssueMetadata({ subject: " ", senderEmail: "dan@tldr.tech", senderName: "", html: "<p>Hello</p>", receivedAt: "2026-06-24T09:00:00.000Z" });
 
 		assert.deepEqual([metadata.title, metadata.siteName], ["(no subject)", "dan@tldr.tech"]);
+	});
+
+	it("dates the issue on the UTC day the inbox received it", () => {
+		const metadata = deriveEmailIssueMetadata({ ...ISSUE, receivedAt: "2025-10-08T23:59:59.000Z", html: "<p>Hello</p>" });
+
+		assert.equal(metadata.publishedOn, "2025-10-08");
 	});
 
 	it("reads the body as text, keeping words in separate blocks apart and dropping styles", () => {
