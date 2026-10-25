@@ -16,7 +16,7 @@ export type AdoptionOutcome =
 
 /**
  * After a tier-1 crawl of the originally-saved `url` resolved a different
- * terminal URL through HTTP redirects, claim `id(terminal) → url` so a later
+ * terminal URL through HTTP redirects, a later
  * save of the terminal collapses onto this article. Snapshot-at-crawl: the
  * alias is a first-writer-wins claim and is never merged or overwritten here.
  *
@@ -41,7 +41,7 @@ function carriesReturnUrl(url: string): boolean {
 }
 
 /**
- * The redirect terminal to adopt, or `undefined` when a gate rejects it. Pure so
+ * Pure so
  * every gate is unit-testable in isolation. Gates:
  *   - never on an admin recrawl (first-crawl-of-a-new-article only);
  *   - for a finalized crawl, only when it produced real content
@@ -52,11 +52,6 @@ function carriesReturnUrl(url: string): boolean {
  *   - only when a redirect actually moved identity;
  *   - never when the terminal is itself a site-rule URL (those get bespoke
  *     oembed treatment and must mint their own article on a direct save).
- *
- * Cross-host redirects are adopted: the fetch pin re-crawls the terminal (never
- * the origin that redirected here) and the display pin shows the terminal, so an
- * attacker who redirects their origin to a victim article and later flips it to
- * malware can neither poison the shared article nor launder their URL behind it.
  */
 export function adoptableTerminal(params: {
 	url: string;
