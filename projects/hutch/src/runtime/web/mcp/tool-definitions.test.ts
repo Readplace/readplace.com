@@ -7,6 +7,7 @@ import {
 	ADD_TO_READLIST_TOOL,
 	CreateReadlistArgs,
 	CREATE_READLIST_TOOL,
+	DELETE_ARTICLE_LEGACY_NAME,
 	LIST_READLISTS_TOOL,
 	LIST_READLIST_ARTICLES_LEGACY_NAME,
 	ArticleIdArgs,
@@ -39,12 +40,14 @@ describe("MCP tool definitions", () => {
 			"mark_as_read",
 			"mark_as_unread",
 			"get_article_deletion_steps",
-			"delete_article",
 		]);
 		expect(
 			TOOL_DEFINITIONS.filter(
 				(tool) => tool.name === LIST_READLIST_ARTICLES_LEGACY_NAME,
 			),
+		).toEqual([]);
+		expect(
+			TOOL_DEFINITIONS.filter((tool) => tool.name === DELETE_ARTICLE_LEGACY_NAME),
 		).toEqual([]);
 	});
 

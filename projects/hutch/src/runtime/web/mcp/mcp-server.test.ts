@@ -146,7 +146,6 @@ describe("initMcpServer", () => {
 					{ name: "mark_as_read", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_unread", annotations: { readOnlyHint: false } },
 					{ name: "get_article_deletion_steps", annotations: { readOnlyHint: true } },
-					{ name: "delete_article", annotations: { readOnlyHint: true } },
 				],
 			},
 		});

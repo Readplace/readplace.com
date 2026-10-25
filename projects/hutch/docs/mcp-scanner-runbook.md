@@ -130,7 +130,7 @@ The scan's verdict on each tool is in `GET /v1/dashapi/apps/{app}/continuous-rev
 
 | Field | Values | Meaning |
 |---|---|---|
-| `change` | `unchanged`, `changed`, `removed` | The scanned definition against the one ChatGPT runs |
+| `change` | `unchanged`, `changed`, `added`, `removed` | The scanned definition against the one ChatGPT runs |
 | `publication` | `live`, `previous_definition`, `removed` | `previous_definition`: ChatGPT still runs what it published before the held change |
 | `findings` | `decision` `fail`, with a `reasoning` | Why the change is held |
 
@@ -140,4 +140,4 @@ Fix a failed check on the server and rescan. **Request manual review** pauses ev
 2. Wait until the new name shows `publication` `live` with no findings.
 3. Delete the frozen copy. Keep dispatching the old name.
 
-On 2026-10-24 the check failed `delete_article` with "This tool's name appears promotional, exaggerated, or inconsistent with its behavior.", because the tool deletes nothing: it returns the steps for the reader to delete the article in the app. It is now `get_article_deletion_steps`, and `delete_article` is at step 2.
+On 2026-10-24 the check failed `delete_article` with "This tool's name appears promotional, exaggerated, or inconsistent with its behavior.", because the tool deletes nothing: it returns the steps for the reader to delete the article in the app. It became `get_article_deletion_steps`, deployed on 2026-10-25. The rescan started right after that deploy published the new name with no findings. The first scan after the reconnect had done the same for `list_readlist_articles`, so step 2 can take a single rescan. `delete_article` went through step 3 the same day.

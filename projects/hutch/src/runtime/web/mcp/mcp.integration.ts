@@ -9,7 +9,6 @@ import {
 } from "@packages/test-fixtures";
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
-import { DELETE_ARTICLE_PUBLISHED_TOOL } from "./delete-article-published-tool";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
 
 const CLIENT_ID = "hutch-firefox-extension";
@@ -323,7 +322,6 @@ describe("MCP server over the real app", () => {
 			"mark_as_read",
 			"mark_as_unread",
 			"get_article_deletion_steps",
-			"delete_article",
 		]);
 	});
 
@@ -461,13 +459,11 @@ describe("MCP server over the real app", () => {
 		expect(legacy.body.result).toEqual(current.body.result);
 	});
 
-	it("advertises the retired delete name exactly as ChatGPT's scan holds it, and serves it like the new name", async () => {
+	it("accepts the retired delete name while advertising only the new name", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await obtainAccessToken(harness);
 		const advertised = await callTool(harness, token, { jsonrpc: "2.0", id: 1, method: "tools/list" });
-		const published = advertised.body.result.tools.find((entry: { name: string }) => entry.name === "delete_article");
-		assert(published, "tools/list must advertise delete_article");
-		expect(JSON.stringify(published)).toBe(JSON.stringify(DELETE_ARTICLE_PUBLISHED_TOOL));
+		expect(advertised.body.result.tools.filter((entry: { name: string }) => entry.name === "delete_article")).toEqual([]);
 		const legacy = await callTool(harness, token, tool("delete_article"));
 		const current = await callTool(harness, token, tool("get_article_deletion_steps"));
 		expect(legacy.body.result).toEqual(current.body.result);
