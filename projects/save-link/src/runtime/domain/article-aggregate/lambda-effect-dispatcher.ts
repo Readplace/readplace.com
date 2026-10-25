@@ -2,12 +2,10 @@ import { newSaveAttemptId } from "@packages/domain/article";
 import type { DispatchEffect } from "@packages/domain/article-aggregate";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import {
-	AnonymousLinkSavedEvent,
 	CanonicalContentChangedEvent,
 	CrawlArticleCompletedEvent,
 	CrawlArticleFailedEvent,
 	type GenerateSummaryCommand,
-	LinkSavedEvent,
 	ReaderViewLoadingSucceeded,
 	RecrawlCompletedEvent,
 	SubmitLinkCommand,
@@ -74,15 +72,6 @@ export function initLambdaEffectDispatcher(deps: {
 				return;
 			case "publish-canonical-content-changed":
 				await publishEvent(CanonicalContentChangedEvent, { url: effect.url });
-				return;
-			case "publish-link-saved":
-				await publishEvent(LinkSavedEvent, {
-					url: effect.url,
-					userId: effect.userId,
-				});
-				return;
-			case "publish-anonymous-link-saved":
-				await publishEvent(AnonymousLinkSavedEvent, { url: effect.url });
 				return;
 			case "publish-summary-generated":
 				await publishEvent(SummaryGeneratedEvent, {

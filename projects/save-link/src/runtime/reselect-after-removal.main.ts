@@ -1,6 +1,7 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import OpenAI from "openai";
+import { initDeepseekChatCompletion } from "./providers/deepseek/deepseek-chat-completion";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
@@ -26,10 +27,11 @@ const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
-const deepseekClient = new OpenAI({
+const { createChatCompletion } = initDeepseekChatCompletion({
 	apiKey: deepseekApiKey,
-	baseURL: "https://api.deepseek.com",
-	timeout: SELECT_CONTENT_TIMEOUTS.deepseekMs,
+	timeoutMs: SELECT_CONTENT_TIMEOUTS.deepseekMs,
+	logger: consoleLogger,
+	newClient: (options) => new OpenAI(options),
 });
 
 const selectContent = initSelectContentDepBundle({
@@ -37,7 +39,7 @@ const selectContent = initSelectContentDepBundle({
 	dynamoClient,
 	contentBucketName,
 	articlesTable,
-	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
+	createChatCompletion,
 	logger: consoleLogger,
 });
 

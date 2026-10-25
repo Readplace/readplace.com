@@ -231,8 +231,7 @@ describe("summary recovery on canonical content change", () => {
 
 		const recovered = await store.load(URL);
 		expect(recovered?.summary.kind).toBe("ready");
-		/* Exactly one regeneration — the link-saved path is not wired here, so the
-		 * only generate-summary dispatch is the one the subscriber triggered. */
+		/* Exactly one regeneration — the only generate-summary dispatch is the one the subscriber triggered. */
 		expect(summarizeArticle).toHaveBeenCalledTimes(1);
 	});
 });

@@ -42,7 +42,6 @@ type SelectContentRequest = {
 	candidates?: readonly CandidateReference[];
 	liveAttempt?: LiveAttempt;
 	extractedAt?: string;
-	userId?: string;
 } & (
 	| { mode: "save" | "recrawl" }
 	| { mode: "refresh"; refresh: { etag?: string; lastModified?: string; contentFetchedAt: string; bodyHash: string } }
@@ -94,7 +93,7 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 		} else {
 			await deps.transitionAndPersist(promoteTier, {
 				url: params.url,
-				input: { tier: source.tier, metadata, estimatedReadTime: source.metadata.estimatedReadTime, contentFetchedAt: crawledAt, now: crawledAt, canonicalChanged: expected?.tier !== source.tier, canonicalContentHash, userId: params.userId },
+				input: { tier: source.tier, metadata, estimatedReadTime: source.metadata.estimatedReadTime, contentFetchedAt: crawledAt, now: crawledAt, canonicalChanged: expected?.tier !== source.tier, canonicalContentHash },
 				canonicalCommit,
 			});
 		}

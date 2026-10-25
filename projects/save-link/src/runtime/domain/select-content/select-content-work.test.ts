@@ -61,7 +61,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	};
 	return { work: initSelectContentWork({ ...deps, selectMostCompleteContent }), deps, commit, events };
 }
-const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const, userId: "saving-user" };
+const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const };
 const laterRequest = { ...request, saveAttemptId: SaveAttemptIdSchema.parse("later-attempt") };
 
 describe("initSelectContentWork", () => {
@@ -80,7 +80,7 @@ describe("initSelectContentWork", () => {
 			url: URL, canonicalCommit: commit,
 			input: {
 				tier: "tier-1", metadata: { ...winner.metadata, imageUrl: imageSource.metadata.imageUrl }, estimatedReadTime: 3,
-				contentFetchedAt: NOW, now: NOW, canonicalChanged: true, canonicalContentHash: computeCanonicalContentHash(winner.html), userId: "saving-user",
+				contentFetchedAt: NOW, now: NOW, canonicalChanged: true, canonicalContentHash: computeCanonicalContentHash(winner.html),
 			},
 		});
 		expect(deps.recordCrawlVersion).toHaveBeenCalledWith({ url: URL, crawledAt: extractedAt, authorUserId: "original-author", canonicalCommit: commit });
