@@ -60,4 +60,6 @@ Sort every commit into user-visible feature, behaviour change, fix, or internal.
 
 Then re-read the review notes' standing claims (which servers the app talks to, where purchases happen, tracking, account deletion) against the diff, and fix any the diff has made false.
 
+App Store Connect caps the review notes at 4,000 bytes, and the lanes upload the file whole. Check the file with `wc --bytes` and cut older wording until it fits. The notes went over the cap once already.
+
 The lanes read these files from the branch they run on. Commit and push the notes before dispatching `whats_new`, `release` or `resubmit`.
