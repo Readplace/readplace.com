@@ -10,6 +10,8 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { computeArticleContentVersion } from "../shared/article-content-version";
 import { toArticleSubEntity, toArticleEntity, toSavedArticleEntity } from "./article-siren";
+import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
+import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 
 const ARTICLE_URL = "https://example.com/article";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL).value;
@@ -89,6 +91,13 @@ describe("toArticleSubEntity", () => {
 					method: "POST",
 					type: "application/x-www-form-urlencoded",
 					fields: [{ name: "status", type: "text", value: "read" }],
+				},
+				{
+					name: "add-to-readlist",
+					href: `/queue/${ARTICLE_ID}/assign`,
+					method: "POST",
+					type: "application/json",
+					fields: [{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER }],
 				},
 			],
 		});
@@ -197,6 +206,62 @@ describe("toArticleSubEntity", () => {
 		const subEntity = toArticleSubEntity(makeArticle());
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
 		expect(updateStatus?.href).toBe(`/queue/${ARTICLE_ID}/status`);
+	});
+
+	describe("readlist actions", () => {
+		const NAMED_READLIST = ReadlistSlugSchema.parse("work");
+
+		it("bakes the collection query into the add-to-readlist href the way update-status carries it", () => {
+			const collectionQuery: CollectionQueryParams = { readlist: NAMED_READLIST, status: "unread", order: "asc" };
+
+			const addToReadlist = toArticleSubEntity(makeArticle(), { collectionQuery }).actions?.find(
+				(action) => action.name === "add-to-readlist",
+			);
+
+			expect(addToReadlist).toEqual({
+				name: "add-to-readlist",
+				href: `/queue/${ARTICLE_ID}/assign${buildQueryString(collectionQuery)}`,
+				method: "POST",
+				type: "application/json",
+				fields: [{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER }],
+			});
+		});
+
+		it("offers remove-from-readlist inside one of the reader's own readlists, with the collection query baked in", () => {
+			const collectionQuery: CollectionQueryParams = { readlist: NAMED_READLIST, status: "read" };
+
+			const removeFromReadlist = toArticleSubEntity(makeArticle(), { collectionQuery }).actions?.find(
+				(action) => action.name === "remove-from-readlist",
+			);
+
+			expect(removeFromReadlist).toEqual({
+				name: "remove-from-readlist",
+				href: `/queue/${ARTICLE_ID}/unassign${buildQueryString(collectionQuery)}`,
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+			});
+		});
+
+		it.each([
+			{ where: "outside any collection", options: {}, names: ["update-status", "add-to-readlist"] },
+			{
+				where: "in a collection that names no readlist",
+				options: { collectionQuery: { status: "unread" } },
+				names: ["update-status", "add-to-readlist"],
+			},
+			{
+				where: "in the default readlist",
+				options: { collectionQuery: { readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
+				names: ["update-status", "add-to-readlist"],
+			},
+			{
+				where: "in one of the reader's own readlists",
+				options: { collectionQuery: { readlist: NAMED_READLIST, status: "unread" } },
+				names: ["update-status", "add-to-readlist", "remove-from-readlist"],
+			},
+		] as const)("advertises exactly these item actions $where", ({ options, names }) => {
+			expect(toArticleSubEntity(makeArticle(), options).actions?.map((action) => action.name)).toEqual(names);
+		});
 	});
 
 	it("includes read link when article has no content", () => {
@@ -317,6 +382,21 @@ function messageBodies(entity: ReturnType<typeof toSavedArticleEntity>): unknown
 }
 
 describe("toSavedArticleEntity", () => {
+	it("offers the bare add-to-readlist and no remove-from-readlist on a save response, which no collection addresses", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			resurfacedFromRead: false,
+			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
+		});
+
+		expect(entity.actions?.map(({ name, href }) => ({ name, href }))).toEqual([
+			{ name: "update-status", href: `/queue/${ARTICLE_ID}/status` },
+			{ name: "add-to-readlist", href: `/queue/${ARTICLE_ID}/assign` },
+		]);
+	});
+
 	it("tells a reader who keeps one readlist that the article went to their reading list, naming no readlist", () => {
 		const entity = toSavedArticleEntity({
 			article: makeArticle(),

@@ -2,6 +2,7 @@ import assert from "node:assert";
 import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
 import { displayableReadTime, type SavedArticle } from "@packages/domain/article";
+import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { computeArticleContentVersion } from "../shared/article-content-version";
@@ -29,6 +30,9 @@ export function toArticleSubEntity(
 	const isRead = article.status === "read";
 	const targetStatus = isRead ? "unread" : "read";
 	const readTime = displayableReadTime(article);
+	const collectionQuery = options.collectionQuery ?? {};
+	const hrefQuery = buildQueryString(collectionQuery);
+	const ownReadlist = collectionQuery.readlist === DEFAULT_READLIST_SLUG ? undefined : collectionQuery.readlist;
 
 	return {
 		class: ["article"],
@@ -63,11 +67,28 @@ export function toArticleSubEntity(
 			{
 				name: "update-status",
 				title: isRead ? "Mark as unread" : "Mark as read",
-				href: `/queue/${id}/status${buildQueryString(options.collectionQuery ?? {})}`,
+				href: `/queue/${id}/status${hrefQuery}`,
 				method: "POST",
 				type: "application/x-www-form-urlencoded",
 				fields: [{ name: "status", type: "text", value: targetStatus }],
 			},
+			{
+				name: "add-to-readlist",
+				href: `/queue/${id}/assign${hrefQuery}`,
+				method: "POST",
+				type: "application/json",
+				fields: [{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER }],
+			},
+			...(ownReadlist === undefined
+				? []
+				: [
+						{
+							name: "remove-from-readlist",
+							href: `/queue/${id}/unassign${hrefQuery}`,
+							method: "POST",
+							type: "application/x-www-form-urlencoded",
+						},
+					]),
 		],
 	};
 }

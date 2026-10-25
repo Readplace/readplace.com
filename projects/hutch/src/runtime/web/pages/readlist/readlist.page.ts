@@ -167,6 +167,7 @@ import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
+import { buildQueryString } from "../../api/collection-query";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toSavedArticleEntity } from "../../api/article-siren";
 import { readlistHref, readlistsAtHrefs } from "../../api/readlist-href";
@@ -236,7 +237,7 @@ import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-re
 import { moveCreatePopoverId, renderMoveCreateForm } from "./readlist-card/move-dialog.component";
 import { type HxLocationScroll, hxLocationToMain } from "../../hx-location";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
-import { UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
+import { UNKNOWN_ARTICLE_REFUSAL, UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -3258,10 +3259,37 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		"/:id/assign",
 		requireNotLocked,
 		deps.requireWriteAccess,
+		express.json(),
 		async (req: Request<{ id: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
 			const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+			if (wantsSiren(req)) {
+				const context = await resolveReadlistContext(req, userId);
+				const targets = readlistsAtHrefs({
+					hrefs: SaveArticleReadlistsSchema.parse(req.body?.readlists) ?? [],
+					readlists: context.readlists,
+				}).filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
+				if (targets.length === 0) {
+					refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+					return;
+				}
+				const article = parsedId.success
+					? await storeFor(context.state.readlist).findArticleById(parsedId.data, userId)
+					: null;
+				if (!article) {
+					refuseOverSiren(res, UNKNOWN_ARTICLE_REFUSAL);
+					return;
+				}
+				for (const target of targets) {
+					await deps.addArticleToReadlist({ userId, readlist: target.slug, from: context.state.readlist, url: article.url });
+				}
+				res.redirect(
+					303,
+					`${READLIST_PATH}${buildQueryString({ readlist: context.state.readlist, status: tabQuery(context.state.tab).status, order: context.state.order })}`,
+				);
+				return;
+			}
 			const parsedReadlist = ReadlistSlugSchema.safeParse(req.body?.queue);
 			if (!parsedId.success || !parsedReadlist.success || parsedReadlist.data === DEFAULT_READLIST_SLUG) {
 				res.status(404).type("html").send("");
@@ -3357,6 +3385,26 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		if (wantsSiren(req)) {
+			const context = await resolveReadlistContext(req, userId);
+			const addressed = readlistToFileInto(context);
+			if (addressed === undefined) {
+				refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+				return;
+			}
+			const removed = parsedId.success
+				? await deleteArticleFromReadlistFor(addressed)({ articleId: parsedId.data, userId })
+				: false;
+			if (!removed) {
+				refuseOverSiren(res, UNKNOWN_ARTICLE_REFUSAL);
+				return;
+			}
+			res.redirect(
+				303,
+				`${READLIST_PATH}${buildQueryString({ readlist: addressed, status: tabQuery(context.state.tab).status, order: context.state.order })}`,
+			);
+			return;
+		}
 		const parsedReadlist = ReadlistSlugSchema.safeParse(req.body?.queue);
 		if (parsedId.success && parsedReadlist.success && parsedReadlist.data !== DEFAULT_READLIST_SLUG) {
 			await deleteArticleFromReadlistFor(parsedReadlist.data)({ articleId: parsedId.data, userId });
