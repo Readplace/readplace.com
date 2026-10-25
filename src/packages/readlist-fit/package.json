@@ -1,0 +1,28 @@
+{
+  "name": "@packages/readlist-fit",
+  "version": "1.0.0",
+  "description": "Decide whether links fit a readlist's purpose",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "test": "jest --testMatch='**/dist/**/*.test.js'",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "check": "nx run @packages/readlist-fit:check",
+    "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "dependencies": {
+    "@packages/ai-message": "workspace:*",
+    "@packages/domain": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "c8": "11.0.0",
+    "concurrently": "10.0.0",
+    "jest": "30.4.2",
+    "typescript": "6.0.3"
+  }
+}

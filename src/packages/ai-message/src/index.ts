@@ -3,7 +3,7 @@ export {
 	initCreateDeepseekMessage,
 	initCreateDeepseekThinkingMessage,
 } from "./create-deepseek-message";
-export { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "./deepseek-model";
+export { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING, DEEPSEEK_THINKING_MODEL } from "./deepseek-model";
 export { estimateOutputTokens } from "./estimate-output-tokens";
 export type {
 	AiProviderError,
