@@ -92,6 +92,7 @@ const onboardingTableArn = config.require("onboardingTableArn");
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
 const renderCrawlBudget = config.require("renderCrawlBudget");
+const readlistFitEngine = config.require("readlistFitEngine");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
@@ -1575,6 +1576,7 @@ const filterEmailLinksLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.filterEmai
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		READLIST_FIT_ENGINE: readlistFitEngine,
 	},
 	policies: [...filterEmailLinksUserArticlesDynamodb.policies],
 });
