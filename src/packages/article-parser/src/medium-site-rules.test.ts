@@ -1,7 +1,5 @@
 import { mediumSiteRules } from "./medium-site-rules";
 
-const ARTICLE_URL = "https://medium.com/@writer/a-story-123";
-
 /** Filler body that survives MIN_BODY_CHARS so individual rule tests can
  * still assert on whatever the rule under test left behind. */
 const FILLER_PARAGRAPH =
@@ -55,13 +53,13 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 	it("returns undefined when og:site_name is missing", () => {
 		const html = buildHtml({ articleInner: "<p>Body.</p>" });
 
-		expect(mediumSiteRules.extract({ html, url: ARTICLE_URL })).toBeUndefined();
+		expect(mediumSiteRules.extract({ html })).toBeUndefined();
 	});
 
 	it("returns undefined when og:site_name is not 'Medium'", () => {
 		const html = buildHtml({ ogSiteName: "Substack", articleInner: "<p>Body.</p>" });
 
-		expect(mediumSiteRules.extract({ html, url: ARTICLE_URL })).toBeUndefined();
+		expect(mediumSiteRules.extract({ html })).toBeUndefined();
 	});
 
 	it("accepts application-name=Medium as a fallback fingerprint", () => {
@@ -70,7 +68,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 			articleInner: "<h1>Headline</h1>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
@@ -81,7 +79,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 				'<h1>Headline</h1><div><img data-testid="authorPhoto" alt="Author"></div>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<h1>Headline</h1><div></div>${FILLER_PARAGRAPH}`);
 	});
@@ -92,7 +90,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 				'<h1>Headline</h1><div data-testid="authorPhoto"><a href="/author"><img src="avatar.jpg"></a></div>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<h1>Headline</h1>${FILLER_PARAGRAPH}`);
 	});
@@ -103,7 +101,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 			articleInner: "<h1>Headline</h1>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
@@ -114,7 +112,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 			articleInner: "<h1>Headline</h1>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
@@ -127,7 +125,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 			articleInner: "<h1>Headline</h1><p>Body.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("Body.");
 		expect(result?.title).toBe("Headline");
@@ -140,7 +138,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 				'<h1>Headline</h1><span data-testid="storyReadTime">5 min read</span>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<h1>Headline</h1>${FILLER_PARAGRAPH}`);
 	});
@@ -153,7 +151,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 			includeContainer: false,
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<div></div><p>Loose body</p>${FILLER_PARAGRAPH}`);
 	});
@@ -166,7 +164,7 @@ describe("mediumSiteRules.extract — fingerprint gate", () => {
 				'<a href="/byline"><img data-testid="authorPhoto"></a><span data-testid="storyReadTime">5 min read</span>',
 		});
 
-		expect(mediumSiteRules.extract({ html, url: ARTICLE_URL })).toBeUndefined();
+		expect(mediumSiteRules.extract({ html })).toBeUndefined();
 	});
 });
 
@@ -178,7 +176,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 				'<div><a href="/author"><img data-testid="authorPhoto" alt="Author"></a><span data-testid="storyReadTime">5 min read</span><span data-testid="storyPublishDate">Jun 21, 2018</span></div>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<div></div>${FILLER_PARAGRAPH}`);
 	});
@@ -190,7 +188,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 				'<div><a href="/author"><img data-testid="authorPhoto" alt="Author"></a></div>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
@@ -202,7 +200,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 				'<p><span data-testid="storyReadTime">Not a duration phrase</span></p>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("Not a duration phrase");
 	});
@@ -213,7 +211,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 			articleInner: "<p>The presentation will be 5 min read on the agenda.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("The presentation will be 5 min read on the agenda.");
 	});
@@ -225,7 +223,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 				'<p><span data-testid="storyPublishDate">Jun 21, 2018</span></p>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -236,7 +234,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 			articleInner: '<p><span data-testid="storyPublishDate">Jun 21</span></p>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -247,7 +245,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 			articleInner: "<p>I visited Jun 21, 2018 to remember the date.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("I visited Jun 21, 2018 to remember the date.");
 	});
@@ -258,7 +256,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 			articleInner: '<img data-testid="authorPhoto" alt="Author">',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -270,7 +268,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 				'<div data-testid="authorPhoto"><a href="/author"><img src="avatar.jpg" alt="Author"></a></div>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -282,7 +280,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 				'<div data-testid="authorPhoto-v2"><a href="/author"><img src="avatar.jpg"></a></div>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -293,7 +291,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 			articleInner: '<img data-testid="author-photo" alt="Author">',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -304,7 +302,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 			articleInner: "<p><span>5 min read</span></p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -315,7 +313,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 			articleInner: "<p><span>Jun 21, 2018</span></p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -327,7 +325,7 @@ describe("mediumSiteRules.extract — author photo / read time / publish date", 
 				'<div><a href="/author"><img data-testid="authorPhoto" alt="A"></a></div><p>Body.</p><div><img data-testid="authorPhoto" alt="B"></div>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<div></div><p>Body.</p><div></div>${FILLER_PARAGRAPH}`);
 	});
@@ -341,7 +339,7 @@ describe("mediumSiteRules.extract — picture tooltip", () => {
 				'<figure><div role="button"><span>Press enter or click to view image in full size</span><div><picture><img src="x.jpg"></picture></div></div></figure>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`<figure><div role="button"><div><picture><img src="x.jpg"></picture></div></div></figure>${FILLER_PARAGRAPH}`,
@@ -355,7 +353,7 @@ describe("mediumSiteRules.extract — picture tooltip", () => {
 				"<p>Press enter or click to view image in full size — this article is about accessibility.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("this article is about accessibility");
 		expect(result?.bodyHtml).toContain("Press enter or click to view image in full size");
@@ -370,7 +368,7 @@ describe("mediumSiteRules.extract — claps separator '--'", () => {
 				'<div><img data-testid="authorPhoto" alt="A"></div><p><span>--</span></p>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<div></div>${FILLER_PARAGRAPH}`);
 	});
@@ -381,7 +379,7 @@ describe("mediumSiteRules.extract — claps separator '--'", () => {
 			articleInner: "<p><span>--</span></p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("<span>--</span>");
 	});
@@ -393,7 +391,7 @@ describe("mediumSiteRules.extract — claps separator '--'", () => {
 				'<div><img data-testid="authorPhoto" alt="A"></div><p>The point — really — is preserved.</p>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("The point — really — is preserved.");
 	});
@@ -407,7 +405,7 @@ describe("mediumSiteRules.extract — footer subscribe CTA", () => {
 				"<p>Body paragraph.</p><section><h2>Get Mary's stories in your inbox</h2><p>Join Medium for free to get updates from this writer.</p><p>Remember me for faster sign in</p></section>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`<p>Body paragraph.</p><section></section>${FILLER_PARAGRAPH}`,
@@ -420,7 +418,7 @@ describe("mediumSiteRules.extract — footer subscribe CTA", () => {
 			articleInner: "<p>Get Mary's stories in your inbox if you want them in your email.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("Get Mary's stories in your inbox");
 	});
@@ -432,7 +430,7 @@ describe("mediumSiteRules.extract — footer subscribe CTA", () => {
 				"<p>You should join Medium for free to get updates if you can — it's worth trying.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("You should join Medium for free");
 	});
@@ -444,7 +442,7 @@ describe("mediumSiteRules.extract — footer subscribe CTA", () => {
 				"<section><h2>Get Fayner Brack’s stories in your inbox</h2></section><p>Body.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<section></section><p>Body.</p>${FILLER_PARAGRAPH}`);
 	});
@@ -455,7 +453,7 @@ describe("mediumSiteRules.extract — footer subscribe CTA", () => {
 			articleInner: "<p>Body.</p><h2>Get Mary's stories in your inbox</h2>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<p>Body.</p>${FILLER_PARAGRAPH}`);
 	});
@@ -467,7 +465,7 @@ describe("mediumSiteRules.extract — footer subscribe CTA", () => {
 				"<section><h2>Get Mary's stories in your inbox</h2></section><p>Join Medium for free to get updates from this writer.</p><p>Remember me for faster sign in</p><p>Body.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`<section></section><p>Body.</p>${FILLER_PARAGRAPH}`,
@@ -482,7 +480,7 @@ describe("mediumSiteRules.extract — narrow container body fallback", () => {
 			<div><h1>Headline</h1>${FILLER_PARAGRAPH}</div>
 		</body></html>`;
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`\n\t\t\t<article></article>\n\t\t\t<div><h1>Headline</h1>${FILLER_PARAGRAPH}</div>\n\t\t`,
@@ -496,7 +494,7 @@ describe("mediumSiteRules.extract — narrow container body fallback", () => {
 			<div><span data-testid="storyPublishDate">Jun 21, 2018</span>${FILLER_PARAGRAPH}</div>
 		</body></html>`;
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`\n\t\t\t<article></article>\n\t\t\t<div>${FILLER_PARAGRAPH}</div>\n\t\t`,
@@ -509,7 +507,7 @@ describe("mediumSiteRules.extract — narrow container body fallback", () => {
 			<p>Short.</p>
 		</body></html>`;
 
-		expect(mediumSiteRules.extract({ html, url: ARTICLE_URL })).toBeUndefined();
+		expect(mediumSiteRules.extract({ html })).toBeUndefined();
 	});
 });
 
@@ -520,7 +518,7 @@ describe("mediumSiteRules.extract — title and body preservation", () => {
 			articleInner: "<h1>Article Headline</h1><p>Body.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.title).toBe("Article Headline");
 	});
@@ -532,7 +530,7 @@ describe("mediumSiteRules.extract — title and body preservation", () => {
 			articleInner: "<p>Body.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.title).toBe("Title From Tag");
 	});
@@ -544,7 +542,7 @@ describe("mediumSiteRules.extract — title and body preservation", () => {
 			articleInner: "<p>Body.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.title).toBeUndefined();
 	});
@@ -556,7 +554,7 @@ describe("mediumSiteRules.extract — title and body preservation", () => {
 				'<h1>Headline</h1><h2>The subtitle dek that triggered the chrome leak.</h2><div><img data-testid="authorPhoto"><span data-testid="storyReadTime">5 min read</span></div><p>Body.</p>',
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`<h1>Headline</h1><h2>The subtitle dek that triggered the chrome leak.</h2><div></div><p>Body.</p>${FILLER_PARAGRAPH}`,
@@ -570,7 +568,7 @@ describe("mediumSiteRules.extract — title and body preservation", () => {
 				"<p>First paragraph.</p><h2>A non-footer subheading</h2><p>Second paragraph.</p><p>Third paragraph.</p>",
 		});
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("First paragraph.");
 		expect(result?.bodyHtml).toContain("A non-footer subheading");
@@ -583,7 +581,7 @@ describe("mediumSiteRules.extract — title and body preservation", () => {
 			"<h1>Headline</h1><p>First paragraph straight after the title.</p><p>Second paragraph.</p>";
 		const html = buildHtml({ ogSiteName: "Medium", articleInner: inner });
 
-		const result = mediumSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("First paragraph straight after the title.");
 		expect(result?.bodyHtml).toContain("Second paragraph.");

@@ -1,7 +1,5 @@
 import { theInformationSiteRules } from "./the-information-site-rules";
 
-const ARTICLE_URL = "https://www.theinformation.com/articles/x";
-
 function buildHtml(scriptContent: string | null, extraBody = "") {
 	const scriptTag =
 		scriptContent === null
@@ -40,7 +38,7 @@ describe("theInformationSiteRules.extract", () => {
 			}),
 		);
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result?.title).toBe("Test Headline");
 		expect(result?.bodyHtml).toContain("Photo by Test Photographer.");
@@ -59,7 +57,7 @@ describe("theInformationSiteRules.extract", () => {
 			JSON.stringify({ article: { freeBlurb: "<p>Just the lead paragraph here.</p>" } }),
 		);
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result?.title).toBeUndefined();
 		expect(result?.bodyHtml).toContain("Just the lead paragraph here.");
@@ -70,7 +68,7 @@ describe("theInformationSiteRules.extract", () => {
 			JSON.stringify({ article: { title: "Has title", freeBlurb: "<p>Lead.</p>" } }),
 		);
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result?.bodyHtml?.startsWith("<p>Lead.</p>")).toBe(true);
 		expect(result?.bodyHtml).toContain("Lead.");
@@ -86,7 +84,7 @@ describe("theInformationSiteRules.extract", () => {
 			}),
 		);
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("<p>Caption with &lt;tag&gt; and &amp; ampersand inside.</p>");
 	});
@@ -94,7 +92,7 @@ describe("theInformationSiteRules.extract", () => {
 	it("returns undefined when the Article script tag is absent", () => {
 		const html = buildHtml(null);
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -102,7 +100,7 @@ describe("theInformationSiteRules.extract", () => {
 	it("returns undefined when the script tag is empty", () => {
 		const html = buildHtml("");
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -110,7 +108,7 @@ describe("theInformationSiteRules.extract", () => {
 	it("returns undefined when the JSON is malformed", () => {
 		const html = buildHtml("{not-valid-json}");
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -118,7 +116,7 @@ describe("theInformationSiteRules.extract", () => {
 	it("returns undefined when JSON shape does not match the schema", () => {
 		const html = buildHtml(JSON.stringify({ article: { freeBlurb: 12345 } }));
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -126,7 +124,7 @@ describe("theInformationSiteRules.extract", () => {
 	it("returns undefined when the article object is absent from the JSON", () => {
 		const html = buildHtml(JSON.stringify({ unrelated: "data" }));
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -134,7 +132,7 @@ describe("theInformationSiteRules.extract", () => {
 	it("returns undefined when the article object lacks freeBlurb", () => {
 		const html = buildHtml(JSON.stringify({ article: { title: "Has title but no blurb" } }));
 
-		const result = theInformationSiteRules.extract({ html, url: ARTICLE_URL });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});

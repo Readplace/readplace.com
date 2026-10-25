@@ -6,7 +6,6 @@ import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
-import { youTubeWatchSiteRules } from "./youtube-watch-site-rules";
 
 function recordingCrawlFetch(requested: string[]): CrawlFetch {
 	return async (url) => {
@@ -27,7 +26,6 @@ describe("initArticleSiteRules", () => {
 
 		expect(siteRules).toEqual([
 			theInformationSiteRules,
-			youTubeWatchSiteRules,
 			mediumSiteRules,
 			linkedinSiteRules,
 			mediaWikiSiteRules,

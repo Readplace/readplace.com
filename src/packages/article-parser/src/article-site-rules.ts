@@ -11,7 +11,6 @@ import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
-import { youTubeWatchSiteRules } from "./youtube-watch-site-rules";
 
 export type ArticleSiteRules = {
 	siteRules: readonly SiteRules[];
@@ -29,7 +28,7 @@ export function initArticleSiteRules(deps: {
 		initHnSearchSiteRules(deps),
 	];
 	return {
-		siteRules: [theInformationSiteRules, youTubeWatchSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, substackSiteRules, ...crawlClaimingSiteRules],
+		siteRules: [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, substackSiteRules, ...crawlClaimingSiteRules],
 		crawlClaimingSiteRules,
 	};
 }
