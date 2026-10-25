@@ -853,7 +853,7 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		await mintInbox(fixture, { userId: await readerId(harness), name: "news", readlist: slug });
 		await savePurpose(agent, slug, PURPOSE);
 		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
-			"Send a custom email here and the articles each issue links to are saved to All and New Readlist, keeping only the links that fit its purpose.",
+			"Send a custom email here and every article each issue links to is saved to All. The ones that fit are also saved to New Readlist.",
 		);
 
 		await deletePurpose(agent, slug);
@@ -926,7 +926,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and the articles each issue links to are saved to All and New Readlist, keeping only the links that fit its purpose.",
+			"Send a custom email here and every article each issue links to is saved to All. The ones that fit are also saved to New Readlist.",
 		);
 	});
 
