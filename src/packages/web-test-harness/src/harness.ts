@@ -1,4 +1,5 @@
-import type { Server } from "node:http";
+import assert from "node:assert";
+import { createServer, type Server } from "node:http";
 import type { Express } from "express";
 import type { CreateUser } from "@packages/provider-contracts/auth";
 import request from "supertest";
@@ -6,6 +7,15 @@ import request from "supertest";
 export interface RunningServer {
 	server: Server;
 	close: () => Promise<void>;
+}
+
+const SERVERS_BOUND_PER_TEST = 9;
+
+function listenOnLoopback(): Promise<Server> {
+	const server = createServer();
+	return new Promise((resolve) => {
+		server.listen(0, "127.0.0.1", () => resolve(server));
+	});
 }
 
 /** server.close only invokes the callback with an error when the socket was
@@ -17,18 +27,22 @@ export interface RunningServer {
  * sockets. Without it, server.close() waits for sockets to drain naturally,
  * which can outlast jest's worker shutdown timeout and cause force-exits that
  * truncate V8 coverage shards below the 99% threshold. */
-export function buildHarness<Result extends { app: Express }>(
+function closeServer(server: Server): Promise<void> {
+	return new Promise<void>((resolve) => {
+		server.closeAllConnections();
+		server.close(() => resolve());
+	});
+}
+
+function serveOn<Result extends { app: Express }>(server: Server, result: Result): Result & RunningServer {
+	server.on("request", result.app);
+	return { ...result, server, close: () => closeServer(server) };
+}
+
+export async function buildHarness<Result extends { app: Express }>(
 	result: Result,
-): Result & RunningServer {
-	const server = result.app.listen(0);
-	return {
-		...result,
-		server,
-		close: () => new Promise<void>((resolve) => {
-			server.closeAllConnections();
-			server.close(() => resolve());
-		}),
-	};
+): Promise<Result & RunningServer> {
+	return serveOn(await listenOnLoopback(), result);
 }
 
 /** Per-suite factory that registers an `afterEach` to close every harness it
@@ -39,13 +53,21 @@ export function buildHarness<Result extends { app: Express }>(
 export function useTestServer<Fixture, Result extends { app: Express }>(
 	createResult: (fixture: Fixture) => Result,
 ): (fixture: Fixture) => Result & RunningServer {
+	const bound: Server[] = [];
 	const harnesses: RunningServer[] = [];
+	beforeEach(async () => {
+		bound.push(...(await Promise.all(Array.from({ length: SERVERS_BOUND_PER_TEST }, listenOnLoopback))));
+	});
 	afterEach(async () => {
-		const toClose = harnesses.splice(0);
-		await Promise.all(toClose.map((h) => h.close()));
+		await Promise.all([...harnesses.splice(0).map((h) => h.close()), ...bound.splice(0).map(closeServer)]);
 	});
 	return (fixture) => {
-		const harness = buildHarness(createResult(fixture));
+		const server = bound.shift();
+		assert(
+			server,
+			`useTestServer binds ${SERVERS_BOUND_PER_TEST} servers in its beforeEach; this test asked for more, or called the builder outside that hook's scope`,
+		);
+		const harness = serveOn(server, createResult(fixture));
 		harnesses.push(harness);
 		return harness;
 	};
