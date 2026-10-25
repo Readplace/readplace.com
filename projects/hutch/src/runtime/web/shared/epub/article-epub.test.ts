@@ -129,7 +129,7 @@ describe("initBuildArticleEpub", () => {
 		expect(files[`OEBPS/images/${over}`]).toBeUndefined();
 		expect(result.skippedOverBudget).toEqual([{ filename: over, bytes: 1_000_000 }]);
 		expect(result.embeddedBytes).toBe(3_000_000);
-		expect(logError).not.toHaveBeenCalled();
+		expect(logError.mock.calls).toEqual([]);
 	});
 
 	it("drops an image that overflows while a later smaller one still fits", async () => {
@@ -162,7 +162,7 @@ describe("initBuildArticleEpub", () => {
 		expect(files[`OEBPS/images/${over}`]).toBeUndefined();
 		expect(result.skippedOverBudget).toEqual([{ filename: over, bytes: 1_000_000 }]);
 		expect(result.embeddedBytes).toBe(3_400_000);
-		expect(logError).not.toHaveBeenCalled();
+		expect(logError.mock.calls).toEqual([]);
 	});
 
 	it("skips an image missing from the store and logs it", async () => {

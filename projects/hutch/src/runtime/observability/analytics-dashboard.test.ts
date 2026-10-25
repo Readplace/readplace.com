@@ -580,7 +580,14 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 
 	it("every event in ANALYTICS_EVENTS / CONVERSION_EVENTS / SUBSCRIPTION_EVENTS / QUEUE_DIGEST_EVENTS is referenced by at least one widget query, except the events kept query-only on purpose", () => {
 		const referenced = collectReferencedEvents();
-		const queryOnly = new Set<string>([ANALYTICS_EVENTS.epubImagesOverBudget]);
+		const queryOnlyEvents: readonly { event: string; reason: string }[] = [
+			{
+				event: ANALYTICS_EVENTS.epubImagesOverBudget,
+				reason:
+					"Counts EPUB downloads whose images the embed budget dropped, read with an ad-hoc Logs Insights query. The reader still gets a complete 200 download, so no widget watches it; these used to be logError rows in /readplace/errors.",
+			},
+		];
+		const queryOnly = new Set(queryOnlyEvents.map((e) => e.event));
 		expect(queryOnly.size).toBe(1);
 		const declared = [
 			...Object.values(ANALYTICS_EVENTS),
