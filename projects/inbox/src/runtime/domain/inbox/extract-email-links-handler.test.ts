@@ -1578,7 +1578,7 @@ describe("Gmail destination snapshots", () => {
 		expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 		const dlq = initExtractEmailLinksDlqHandler({ markLinksExtractionFailed: harness.linkStore.markLinksExtractionFailed, logger: noopLogger });
 		await dlq(buildSqsEvent([{ messageId: "extraction-dlq", body }]), buildLambdaContext(), () => {});
-		const recorder = initRecordEmailLinksFilteredHandler({ markLinkDropped: harness.linkStore.markLinkDropped, settleReadlistDecision: harness.linkStore.settleReadlistDecision, putReadlistOutcome: harness.linkStore.putReadlistOutcome, listLinksByEmail: harness.linkStore.listLinksByEmail, setEmailLinkCounts: async () => { throw new Error("Gmail rejection must preserve All counts"); }, logger: noopLogger });
+		const recorder = initRecordEmailLinksFilteredHandler({ putReadlistOutcome: harness.linkStore.putReadlistOutcome, listLinksByEmail: harness.linkStore.listLinksByEmail, logger: noopLogger });
 		const rejection = { userId: USER, receivedAtMessageId: RAM, readlist: WORK, savedTo: WORK, readlistLabel: "Work", dropped: [{ ordinal: "0000", reason: "Outside the list topic" }] };
 		expect(await recorder(buildSqsEvent([{ messageId: "late-rejection", body: JSON.stringify({ "detail-type": EmailLinksFilteredEvent.detailType, detail: rejection }) }]), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });

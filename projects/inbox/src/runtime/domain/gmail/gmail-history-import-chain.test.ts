@@ -682,11 +682,8 @@ for (const delivery of ["forward", "import"] as const) {
 		);
 		const row = (await pipeline.rows())[0];
 		const recordOutcome = initRecordEmailLinksFilteredHandler({
-			markLinkDropped: pipeline.links.markLinkDropped,
-			settleReadlistDecision: pipeline.links.settleReadlistDecision,
 			putReadlistOutcome: pipeline.links.putReadlistOutcome,
 			listLinksByEmail: pipeline.links.listLinksByEmail,
-			setEmailLinkCounts: pipeline.emails.setEmailLinkCounts,
 			logger: HutchLogger.from(noopLogger),
 		});
 		const details = [
