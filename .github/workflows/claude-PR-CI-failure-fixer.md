@@ -20,6 +20,15 @@ You have been triggered because CI has failed on a pull request.
 - Focus only on fixing the CI failure - do not refactor or improve unrelated code
 - **Never reverse intentional changes.** If the commit history shows something was deliberately removed, renamed, or refactored, fix the failure by updating the code that still depends on the old state — do not restore what was intentionally removed. The commit history is the source of truth for what the PR intended.
 
+## Screenshot Mismatches
+
+A failing `toHaveScreenshot` is either a change the PR intends or a defect. Decide which from the commit history in step 1 before touching anything.
+
+- **Intended change:** regenerate the affected baselines yourself, following the **Regenerating Baselines** section of the e2e-testing skill. This job runs on Linux with the pinned browsers and fonts already in place, so you need no Docker and you are not blocked from rendering. Regenerate only the failing specs, a few at a time, through the project's `update-visual-baselines` target. Open every regenerated PNG at full size and fix any visual defect it shows in the code. Run `pnpm check` with E2E enabled, then commit the source and baseline changes together.
+- **Unintended change:** fix the code that moved the pixels. Leave the baseline untouched.
+- Never loosen a screenshot tolerance, delete a checkpoint, or weaken an assertion to get green, and never undo the PR's intended visual change to match an old baseline.
+- In your PR comment, list the specs you regenerated, what the images showed, and the verification result. If an environment step failed, quote its exact error rather than assuming one.
+
 ## Applicable Skills
 
 When fixing CI failures, apply these skills based on the type of failure:

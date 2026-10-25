@@ -1538,10 +1538,6 @@ describe("consent seed save on approve", () => {
 		});
 	}
 
-	function seedEvents(harness: ReturnType<typeof useApp>) {
-		return harness.analytics.events.filter((e) => e.event === "first_article_seeded");
-	}
-
 	it("authorises an MCP client without automatically saving a founder article", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const clientId = await registerMcpClient(harness);
@@ -1553,7 +1549,6 @@ describe("consent seed save on approve", () => {
 		expect(location.searchParams.get("code")).toBeTruthy();
 		expect(location.searchParams.get("state")).toBe("seed-state");
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toEqual([]);
-		expect(seedEvents(harness)).toEqual([]);
 	});
 
 	it("does not seed for a built-in client — an extension or native app authorising keeps the empty-list behaviour", async () => {
@@ -1565,7 +1560,6 @@ describe("consent seed save on approve", () => {
 		expect(response.status).toBe(302);
 		expect(new URL(response.headers.location).searchParams.get("code")).toBeTruthy();
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
-		expect(seedEvents(harness)).toHaveLength(0);
 	});
 
 	it("does not seed when the account already has a saved article", async () => {
@@ -1584,7 +1578,6 @@ describe("consent seed save on approve", () => {
 		await approve(agent, clientId, CLAUDE_CALLBACK);
 
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(1);
-		expect(seedEvents(harness)).toHaveLength(0);
 	});
 
 	it("does not seed a locked account (email unverified past the window)", async () => {
@@ -1597,7 +1590,6 @@ describe("consent seed save on approve", () => {
 		await approve(agent, clientId, CLAUDE_CALLBACK);
 
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
-		expect(seedEvents(harness)).toHaveLength(0);
 	});
 
 	it("does not seed a read-only account (cancelled subscription)", async () => {
@@ -1610,7 +1602,6 @@ describe("consent seed save on approve", () => {
 		await approve(agent, clientId, CLAUDE_CALLBACK);
 
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
-		expect(seedEvents(harness)).toHaveLength(0);
 	});
 
 	it("does not seed on deny", async () => {
@@ -1626,7 +1617,6 @@ describe("consent seed save on approve", () => {
 		});
 
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
-		expect(seedEvents(harness)).toHaveLength(0);
 	});
 
 	it("does not seed and does not throw when the approve carries no client_id", async () => {
@@ -1643,7 +1633,6 @@ describe("consent seed save on approve", () => {
 		});
 
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toHaveLength(0);
-		expect(seedEvents(harness)).toHaveLength(0);
 	});
 
 	it("authorisation leaves the save pipeline idle", async () => {
@@ -1662,6 +1651,5 @@ describe("consent seed save on approve", () => {
 		expect(response.status).toBe(302);
 		expect(new URL(response.headers.location).searchParams.get("code")).toBeTruthy();
 		expect((await harness.articleStore.findArticlesByUser({ userId })).articles).toEqual([]);
-		expect(seedEvents(harness)).toEqual([]);
 	});
 });

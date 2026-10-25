@@ -28,7 +28,6 @@ export const ANALYTICS_EVENTS = {
 	viewSaveIntent: "view_save_intent",
 	signupAttempted: "signup_attempted",
 	firstArticleAutosaved: "first_article_autosaved",
-	firstArticleSeeded: "first_article_seeded",
 	mcpToolCalled: "mcp_tool_called",
 	oauthTokenIssued: "oauth_token_issued",
 	oauthTokenRefused: "oauth_token_refused",
@@ -189,14 +188,6 @@ export const SAVE_OUTCOMES = {
 	promptedToSignUp: "prompted_to_sign_up",
 	error: "error",
 } as const;
-
-export const FIRST_ARTICLE_SEEDED_OUTCOMES = {
-	saved: "saved",
-	error: "error",
-} as const;
-
-export type FirstArticleSeededOutcome =
-	(typeof FIRST_ARTICLE_SEEDED_OUTCOMES)[keyof typeof FIRST_ARTICLE_SEEDED_OUTCOMES];
 
 export const SAVE_REFUSAL_CODES = {
 	unauthenticated: "unauthenticated",

@@ -32,6 +32,12 @@ const ADMIN_LINKS = [
 		description: "Re-open a trial window for a reader.",
 		path: "/admin/extend-trial",
 	},
+	{
+		key: "dashboards",
+		label: "Dashboards",
+		description: "Read the analytics dashboards for the experiment, MCP and login.",
+		path: "/admin/dashboards",
+	},
 ];
 
 export interface AdminIndexDependencies {

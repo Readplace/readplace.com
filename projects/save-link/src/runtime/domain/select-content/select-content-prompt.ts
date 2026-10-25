@@ -66,8 +66,8 @@ export function buildSelectContentUserMessage(params: {
 		const cleaned = condenseCandidateHtml(candidate.html, MAX_CONDENSE_INPUT_CHARS);
 		let body = cleaned;
 		if (cleaned.length > cap) {
-			params.logger.error(
-				"[SelectContent] condensed candidate exceeds per-candidate budget; truncating, article signal lost",
+			params.logger.info(
+				"[SelectContent] condensed candidate exceeds per-candidate budget; truncating the judge prompt",
 				{ url: params.url, tier: candidate.tier, id: candidate.id, cleanedChars: cleaned.length, cap },
 			);
 			body = `${cleaned.slice(0, cap)}\n[truncated: showing the first ${cap} of ${cleaned.length} characters]`;

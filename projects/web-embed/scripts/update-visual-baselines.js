@@ -63,7 +63,9 @@ async function captureBaselines(specs, image) {
   const env = { ...process.env, HEADLESS: 'true', E2E_PORT: String(port) };
 
   if (defaultDeps.rendersNatively()) {
-    run('node_modules/.bin/playwright', ['install', 'chromium'], { env });
+    if (defaultDeps.shouldInstallBrowsers()) {
+      run('node_modules/.bin/playwright', ['install', 'chromium'], { env });
+    }
     run('bash', ['-c', playwrightCommand(specs)], { env });
     return;
   }

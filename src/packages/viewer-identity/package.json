@@ -1,7 +1,7 @@
 {
   "name": "@packages/viewer-identity",
   "version": "1.0.0",
-  "description": "Resolves the viewer's own IP address and Host from a request, trusting a CDN edge's stated values only when the request carries the shared secret the edge injects",
+  "description": "Resolves the viewer's own IP address, Host and city and country from a request, trusting a CDN edge's stated values only when the request carries the shared secret the edge injects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

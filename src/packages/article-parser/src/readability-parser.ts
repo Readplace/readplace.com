@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
-import { articleFromHostTitle, contentSavedFromHostExcerpt } from "@packages/domain/article";
+import { articleFromHostTitle, clipMetadataExcerpt, contentSavedFromHostExcerpt } from "@packages/domain/article";
 import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
 import { matchingSiteRuleUrl, type SiteArticleContent, type SiteRules } from "@packages/site-rules";
@@ -104,7 +104,7 @@ export function initReadabilityParser(deps: {
 			article: {
 				title: parsed.title || articleFromHostTitle(hostname),
 				siteName: parsed.siteName || hostname,
-				excerpt: parsed.excerpt || contentSavedFromHostExcerpt(hostname),
+				excerpt: clipMetadataExcerpt(parsed.excerpt || contentSavedFromHostExcerpt(hostname)),
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,

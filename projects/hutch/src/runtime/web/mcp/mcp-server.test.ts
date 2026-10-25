@@ -106,7 +106,7 @@ describe("initMcpServer", () => {
 			"mark_as_read and mark_as_unread really change the readlist",
 			"a summary you produced is not the same as the user reading it",
 			"Each article's url opens its private Readplace reader view",
-			"delete_article changes nothing",
+			"get_article_deletion_steps changes nothing",
 			"Readplace app",
 		]) {
 			expect(response).toMatchObject({
@@ -145,7 +145,7 @@ describe("initMcpServer", () => {
 					{ name: "add_to_readlist", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_read", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_unread", annotations: { readOnlyHint: false } },
-					{ name: "delete_article", annotations: { readOnlyHint: true } },
+					{ name: "get_article_deletion_steps", annotations: { readOnlyHint: true } },
 				],
 			},
 		});
@@ -1161,17 +1161,20 @@ describe("initMcpServer", () => {
 	});
 
 	describe("tools/call the app-only write tool", () => {
-		it("redirects delete_article to the app without deleting", async () => {
-			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 61, "delete_article");
-			expect(response).toMatchObject({
-				id: 61,
-				result: {
-					content: [{ text: expect.stringContaining("Readplace app") }],
-					structuredContent: { action: "delete_article", performed: false },
-				},
-			});
-		});
+		it.each(["get_article_deletion_steps", "delete_article"])(
+			"redirects %s to the app without deleting",
+			async (name) => {
+				const server = initMcpServer(fakeDeps());
+				const response = await call(server, 61, name);
+				expect(response).toMatchObject({
+					id: 61,
+					result: {
+						content: [{ text: expect.stringContaining("Readplace app") }],
+						structuredContent: { action: "get_article_deletion_steps", performed: false },
+					},
+				});
+			},
+		);
 	});
 
 	describe("subscription gating", () => {
@@ -1201,7 +1204,7 @@ describe("initMcpServer", () => {
 			expect(saveLink).not.toHaveBeenCalled();
 		});
 
-		it("leaves the read tools, the status writes, and delete_article open when inactive (the Terms keep view and export available, and the web lets a lapsed reader mark read)", async () => {
+		it("leaves the read tools, the status writes, and the deletion steps open when inactive (the Terms keep view and export available, and the web lets a lapsed reader mark read)", async () => {
 			const listReadlist = jest.fn(async () => ({
 				total: 1,
 				page: 1,
@@ -1226,6 +1229,7 @@ describe("initMcpServer", () => {
 				"get_related_articles",
 				"mark_as_read",
 				"mark_as_unread",
+				"get_article_deletion_steps",
 				"delete_article",
 			]) {
 				const response = await call(server, 71, tool, { id: "x".repeat(32) });

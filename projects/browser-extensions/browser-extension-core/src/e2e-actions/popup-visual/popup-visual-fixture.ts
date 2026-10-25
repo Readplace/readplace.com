@@ -1,6 +1,12 @@
 declare global {
 	interface Window {
 		__popupSaveMessages: { url: string; title: string }[];
+		__popupSaveAllMessages: { type: string; runId?: string; windowId?: number }[];
+		__popupAcknowledgements: number;
+		__popupClosed: number;
+		__popupEmitRecord?: (kind: EmittedRecord) => void;
+		__popupReleaseFollow?: () => void;
+		__popupReleaseStart?: () => void;
 		__popupReleaseItems?: () => void;
 		__popupReleaseSave?: () => void;
 		__popupReleaseLoadPage?: () => void;
@@ -59,12 +65,13 @@ function openTabs(): unknown[] {
 		id: index + 2,
 		url: `https://example.com/open-tab-${index}`,
 		title: `Open tab ${index}`,
+		windowId: 1,
 	}));
 	return [
-		{ id: 1, url: "https://example.com/pinned", title: "Pinned reading", pinned: true },
+		{ id: 1, url: "https://example.com/pinned", title: "Pinned reading", pinned: true, windowId: 1 },
 		...ordinary,
-		{ id: 9, url: "chrome://settings", title: "Settings" },
-		{ id: 10, url: "https://readplace.com/queue", title: "Readplace" },
+		{ id: 9, url: "chrome://settings", title: "Settings", windowId: 1 },
+		{ id: 10, url: "https://readplace.com/queue", title: "Readplace", windowId: 1 },
 	];
 }
 
@@ -131,23 +138,13 @@ export type SaveReply = "hold" | "error" | "saved" | "messages" | "not-saveable"
 
 export type ListReply = "items" | "empty" | "error" | "logged-out";
 
-function bulkSaveReply(): unknown {
-	return {
-		ok: true,
-		value: {
-			queued: 0,
-			saved: 7,
-			alreadySaved: 1,
-			skipped: 0,
-			failed: 1,
-			pendingRetry: 0,
-			tooBig: [],
-			unauthorized: false,
-			failedUrls: [{ url: "https://example.com/open-tab-6" }],
-			skippedUrls: [],
-		},
-	};
-}
+export type SaveAllStart = "acknowledge" | "progress" | "covered" | "held" | "lost" | "rejected";
+
+export type SaveAllFollow = "finished" | "held" | "null" | "lost";
+
+type EmittedRecord = "capturing" | "progress" | "sent" | "finished" | "retried" | "other-window" | "empty";
+
+export type SeededRun = { windowId: number; phase: "running" | "finished"; url: string };
 
 function listReplyScript(listReply: ListReply, itemsReply: string): string {
 	if (listReply === "empty") {
@@ -169,6 +166,9 @@ export function popupRuntimeStub(options?: {
 	listReply?: ListReply;
 	pendingBulkSave?: boolean;
 	rowCount?: number;
+	saveAllStart?: SaveAllStart;
+	saveAllFollows?: SaveAllFollow[];
+	seededRuns?: SeededRun[];
 }): string {
 	const holdItems = options?.holdItems === true;
 	const holdLoadPage = options?.holdLoadPage === true;
@@ -179,8 +179,100 @@ export function popupRuntimeStub(options?: {
 		JSON.stringify({ ok: true, value: { items: items(rowCount), pages: pages(), total: TOTAL, sort: SORT } }),
 	);
 	const pendingBulkSave = options?.pendingBulkSave === true;
+	const saveAllStart = JSON.stringify(options?.saveAllStart ?? "acknowledge");
+	const saveAllFollows = JSON.stringify(options?.saveAllFollows ?? ["finished"]);
+	const seededRuns = JSON.stringify(options?.seededRuns ?? []);
 	return `
 		globalThis.__popupSaveMessages = [];
+		globalThis.__popupSaveAllMessages = [];
+		globalThis.__popupAcknowledgements = 0;
+		globalThis.__popupClosed = 0;
+		globalThis.close = function () { globalThis.__popupClosed += 1; };
+		const __saveAllStart = ${saveAllStart};
+		const __saveAllFollows = ${saveAllFollows};
+		let __followCall = 0;
+		let __lastStart = null;
+		let __revision = 1;
+		const __changeListeners = [];
+		function __linkOf(url, state) {
+			const base = { url: url, jobId: null, tooBigMb: null };
+			if (state === "failed") return Object.assign(base, { state: state, unauthorized: false });
+			return Object.assign(base, { state: state });
+		}
+		const __statesByKind = {
+			capturing: function () { return "capturing"; },
+			progress: function (index) { return index < 3 ? "saved" : "sending"; },
+			sent: function () { return "saved"; },
+			finished: function (index, count) { return index === 0 ? "already-saved" : index === count - 1 ? "failed" : "saved"; },
+			retried: function (index) { return index === 0 ? "already-saved" : "saved"; },
+		};
+		function __runOf(input) {
+			__revision += 1;
+			const message = __lastStart;
+			const finished = input.kind === "finished" || input.kind === "retried";
+			return {
+				id: input.runId || message.runId,
+				windowId: input.windowId || 1,
+				joinedIds: [],
+				epoch: 0,
+				revision: __revision,
+				phase: finished ? "finished" : "running",
+				links: message.tabs.map(function (tab, index) {
+					return __linkOf(tab.url, __statesByKind[input.kind](index, message.tabs.length));
+				}),
+				clientSkips: message.skipped,
+				notified: finished,
+				outcomeSeen: false,
+			};
+		}
+		const __seededRuns = ${seededRuns}.map(function (seed, index) {
+			return {
+				id: "00000000-0000-4000-8000-00000000000" + (index + 1),
+				windowId: seed.windowId,
+				joinedIds: [],
+				epoch: 0,
+				revision: 1,
+				phase: seed.phase,
+				links: [__linkOf(seed.url, seed.phase === "finished" ? "saved" : "sending")],
+				clientSkips: [],
+				notified: seed.phase === "finished",
+				outcomeSeen: false,
+			};
+		});
+		if (__seededRuns.length > 0) {
+			__lastStart = { runId: __seededRuns[0].id, tabs: [{ url: __seededRuns[0].links[0].url }], skipped: [] };
+		}
+		globalThis.__popupEmitRecord = function (kind) {
+			let runs;
+			if (kind === "empty") runs = [];
+			else if (kind === "other-window") runs = [__runOf({ kind: "progress", runId: "33333333-3333-4333-8333-333333333333", windowId: 2 })];
+			else runs = [__runOf({ kind: kind })];
+			for (const listener of __changeListeners) listener({ hutch_bulk_save_runs: { newValue: runs } }, "session");
+		};
+		function __answerStart(message) {
+			__lastStart = message;
+			if (__saveAllStart === "lost") return Promise.resolve(undefined);
+			if (__saveAllStart === "rejected") return Promise.reject(new Error("Could not establish connection. Receiving end does not exist."));
+			if (__saveAllStart === "held") {
+				return new Promise(function (resolve) {
+					globalThis.__popupReleaseStart = function () { resolve({ ok: true, run: __runOf({ kind: "capturing" }) }); };
+				});
+			}
+			const kind = __saveAllStart === "progress" ? "progress" : __saveAllStart === "covered" ? "finished" : "capturing";
+			return Promise.resolve({ ok: true, run: __runOf({ kind: kind }) });
+		}
+		function __answerFollow() {
+			const mode = __saveAllFollows[Math.min(__followCall, __saveAllFollows.length - 1)];
+			__followCall += 1;
+			if (mode === "lost") return Promise.resolve(undefined);
+			if (mode === "null") return Promise.resolve({ ok: true, run: null });
+			if (mode === "held") {
+				return new Promise(function (resolve) {
+					globalThis.__popupReleaseFollow = function () { resolve({ ok: true, run: __runOf({ kind: "finished" }) }); };
+				});
+			}
+			return Promise.resolve({ ok: true, run: __runOf({ kind: "finished" }) });
+		}
 		const __saveReplies = ${saveReplies};
 		const __savedReply = { ok: true, value: ${JSON.stringify(savedReply())} };
 		const __messagesReply = { ok: true, value: ${JSON.stringify(messagesReply())} };
@@ -226,16 +318,34 @@ export function popupRuntimeStub(options?: {
 						if (reply === "messages") { return Promise.resolve(__messagesReply); }
 						if (reply === "not-saveable") { return Promise.resolve(__notSaveableReply); }
 					}
-					if (message && message.type === "save-all-tabs") { return Promise.resolve(${JSON.stringify(bulkSaveReply())}); }
+					if (message && message.type === "save-all-tabs") {
+						globalThis.__popupSaveAllMessages.push(message);
+						return __answerStart(message);
+					}
+					if (message && message.type === "follow-save-all") {
+						globalThis.__popupSaveAllMessages.push(message);
+						return __answerFollow();
+					}
+					if (message && message.type === "acknowledge-save-all") {
+						globalThis.__popupAcknowledgements += 1;
+						return Promise.resolve({ ok: true });
+					}
 					if (message && message.type === "logout") { return Promise.resolve({ ok: true }); }
 					return Promise.resolve({ ok: true, value: null });
 				},
 			},
 			storage: {
 				session: {
-					get: function (key) { return Promise.resolve(${pendingBulkSave} && key === "pendingBulkSave" ? { pendingBulkSave: true } : {}); },
+					get: function (key) {
+						const keys = Array.isArray(key) ? key : [key];
+						const stored = {};
+						if (${pendingBulkSave} && keys.includes("pendingBulkSave")) stored.pendingBulkSave = true;
+						if (keys.includes("hutch_bulk_save_runs") && __seededRuns.length > 0) stored.hutch_bulk_save_runs = __seededRuns;
+						return Promise.resolve(stored);
+					},
 					remove: function () { return Promise.resolve(); },
 				},
+				onChanged: { addListener: function (listener) { __changeListeners.push(listener); } },
 				local: {
 					get: function () { return Promise.resolve({ hutch_advertised_capabilities: ["save-article", "save-articles"] }); },
 				},
@@ -255,6 +365,10 @@ export function popupRuntimeStub(options?: {
  * is what sends it straight to the list instead of saving anything. */
 export function popupListUrl(packagedPopupPath: string): string {
 	return `file://${packagedPopupPath}?url=${encodeURIComponent("http://localhost/")}`;
+}
+
+export function popupToolbarUrl(packagedPopupPath: string): string {
+	return `file://${packagedPopupPath}`;
 }
 
 export function popupSaveUrl(packagedPopupPath: string): string {

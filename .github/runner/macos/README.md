@@ -33,6 +33,38 @@ The review starts one resident `mlx_vlm.server` per job and sends every call to 
 
 That verification confirms whatever the claim names that is literally visible, so the defect list may only name states a screenshot can tell apart from a correct page. "Overlays covering interactive controls" could not: an open modal dialog over its scrim is exactly that, so once the readlist's save flow opened an "Add link" dialog (commit 386d973b8) the class confirmed the dialog on every capture that held it: review 38713178625, and 12 of 12 local runs over frames captured at that commit and at the one before, whose own two reviews had passed on frames nobody kept. Without the class the same frames reviewed clean on every run, as did the extension popup flows, and a leaked `undefined` was still confirmed on every frame it appeared in. Do not bring an overlay class back.
 
+## The verification prompt
+
+The verification prompt defines clipping as an edge cutting through the letters of text, and it says the blur and dimming of the page behind an open modal dialog are intentional while the dialog itself is still judged. Without that, the verifier confirmed blurred text as clipped. Review 40077996187 failed commit c4f5227 on the readlist-save flow: with the "Add link" dialog open, the reviewer claimed the blurred verify banner was "cut off on the right side". The old prompt confirmed that claim on every local run, and it confirms it again on new captures of the same flow, so it would have kept turning reviews red.
+
+The wording is fragile, so measure any change before shipping it. The 4-bit model only just confirmed genuine clipping under the old prompt. A first stricter definition ("visible glyphs cut off … complete text that is blurred is not clipped") rejected the false positive, but it also rejected both genuine clipping claims as the reviewer words them, in 20 of 20 replays. The shipped wording came from measuring about 250 variants. Its sentence order (definition, claim, dialog rule, question) and its plain "visible" rather than "clearly visible" are what keep genuine clipping confirmed.
+
+Known gaps:
+- These need a precisely worded claim to be confirmed: a vaguely worded clip inside the dialog, and template text such as `undefined` on the page behind an open dialog. The old prompt missed the first too, but it caught the second.
+- Overlapping elements, and text clipped at a container's bottom edge, are rejected under both prompts.
+
+None of these changes a review outcome today, because the reviewer never reports those defects. The verify reply must be exactly `true` or `false`. Any other reply fails the review, because the old `/true/i` match also counted "not true" as a confirmation.
+
+### Replaying the fixtures
+
+[fixtures/](fixtures) holds the frames of the CI run behind review 40077996187 (`valid-frames-from-false-positive-run-40076890263`, which must review clean) and four flows rendered from the real app with a planted defect (`genuine-defects`, each of which must fail). To replay a set, copy it to a scratch `frames/` directory, because the reviewer deletes what it reads. Then run `review-frames.mjs` with `FRAMES_DIR`, `VLM_MODEL`, `VLM_PYTHON` and `REVIEW_RUN_URL` set as in the workflow. Measured with the shipped prompt, 20 runs per set:
+
+| Set | Expected | Result |
+|---|---|---|
+| valid frames from run 40076890263 | clean | 20/20 clean |
+| clipped banner, no dialog | fails | 20/20 failed |
+| clipped text inside the open dialog | fails | 20/20 failed |
+| `undefined` in the banner, no dialog | fails | 20/20 failed |
+| `undefined` in the open dialog's title | fails | 20/20 failed |
+
+Under the first stricter definition, both clipping sets reviewed clean 20/20.
+
+The valid set needed 21 runs to get 20 verdicts. One run hung: the model server produced no token for 600 s and timed out, because a CI-triggered review loaded a second copy of the model at the same time. Replay only while both self-hosted runners are idle (`gh api repos/{owner}/{repo}/actions/runners`). Two resident servers on one machine can starve each other.
+
+The model remains a heuristic: these numbers measure repeatability on known frames, not a guarantee. The text-fit assertions in hutch's `verify-banner-nav-visual.e2e-local.ts` cover deterministically that the banner's text fits its box and the viewport, on desktop and mobile, light and dark, and with the dialog open and closed.
+
+A review that fails keeps its frames as evidence: confirmed defects, an unparseable review, or a verification that answered neither true nor false. Before this, the upload step was skipped whenever the review step failed, so review 40077996187 kept no evidence.
+
 ## Rollout
 
 The runner stack boots from a separate deploy checkout (`~/Git/hutch-app`). Pull there and restart with `docker compose up -d` from `.github/runner/gha-runner/` — but only while the runner is idle: `EPHEMERAL=true` means a restart mid-job fails that job.

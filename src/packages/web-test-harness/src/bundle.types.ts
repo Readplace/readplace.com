@@ -23,6 +23,7 @@ import type {
 import type { NewsletterCatalogSeed } from "@packages/domain/newsletter-catalog";
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import type { FindCanaryReport, SaveCanaryReport } from "@packages/provider-contracts/canary-report";
+import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	ArticleMetadata,
@@ -637,6 +638,12 @@ export interface AdminBundle {
 	recrawlServiceToken: string;
 }
 
+interface AdminDashboardsBundle {
+	runLogsInsightsQuery: RunLogsInsightsQuery;
+	readExcludedIdentities: ReadExcludedIdentities;
+	now: () => Date;
+}
+
 export interface SharedBundle {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -714,6 +721,7 @@ export interface TestAppFixture {
 	apple: AppleAuthBundle;
 	admin: AdminBundle;
 	canaryReports: { saveCanaryReport: SaveCanaryReport; findCanaryReport: FindCanaryReport };
+	adminDashboards: AdminDashboardsBundle;
 	importSession: ImportSessionBundle;
 	inboxAddress: InboxAddressBundle;
 	inboxEmail: InboxEmailBundle;

@@ -1,4 +1,5 @@
 import { isCurrentGrant, isExemptGrant, type RefreshAccount } from "./current-grant";
+import type { OAuthSignIn } from "./sign-in";
 
 export interface RefreshCredential {
 	accessToken: string;
@@ -14,6 +15,7 @@ export interface RefreshCredential {
 	keyThumbprint?: string;
 	parentFingerprint?: string;
 	scope?: string[];
+	signedIn?: OAuthSignIn;
 }
 
 export interface RefreshGrant {

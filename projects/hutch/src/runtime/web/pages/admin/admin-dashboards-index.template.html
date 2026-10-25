@@ -1,0 +1,20 @@
+<main class="admin-dashboards" data-test-admin-dashboards>
+  <div class="admin-dashboards__layout">
+    <h1 class="admin-dashboards__title">Dashboards</h1>
+    <ul class="admin-dashboards__links">
+      {{#each dashboards}}
+      <li class="admin-dashboards__item">
+        <form class="admin-dashboards__form" method="{{form.method}}" action="{{form.action}}">
+          {{#each form.fields}}
+          <input type="hidden" name="{{name}}" value="{{value}}">
+          {{/each}}
+          <button type="submit" class="admin-dashboards__link" data-test-admin-dashboard-link="{{slug}}">
+            <span class="admin-dashboards__label">{{title}}</span>
+            <span class="admin-dashboards__description">{{description}}</span>
+          </button>
+        </form>
+      </li>
+      {{/each}}
+    </ul>
+  </div>
+</main>

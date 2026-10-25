@@ -350,7 +350,7 @@ function handleViewArticle(
 		// to spend budget. Bots are deliberately NOT excluded — a third-party
 		// importer fetching a /view link must be able to materialise the article
 		// it came for.
-		if (!isPrefetchRequest(req) && !gated) {
+		if (req.method !== "HEAD" && !isPrefetchRequest(req) && !gated) {
 			let wrapperCandidatesQueued = false;
 			const locallyUnwrapped = unwrapWrapperUrl(validation.url);
 			const unwrapsToPlainOriginal =

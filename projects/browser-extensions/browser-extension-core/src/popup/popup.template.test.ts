@@ -65,7 +65,7 @@ describe("sign in", () => {
 describe("save all tabs progress", () => {
 	it("save-all view tells the reader the save survives closing the popup", () => {
 		expect(template).toContain(
-			'<p id="save-all-hint" class="saved-view__subtitle" data-test-save-all-hint>Saving continues if you close this popup. You&rsquo;ll get a notification when it&rsquo;s done.</p>',
+			'<p id="save-all-hint" class="saved-view__subtitle save-all-view__pending" data-test-save-all-hint>Saving continues if you close this popup. You&rsquo;ll get a notification when it&rsquo;s done.</p>',
 		);
 	});
 
@@ -79,6 +79,26 @@ describe("save all tabs progress", () => {
 				'        <p class="alert__message">Some tabs may have saved. Check your readlist before trying again.</p>',
 				"      </div>",
 				"    </div>",
+			].join("\n"),
+		);
+	});
+
+	it("save-all view reserves the count line at its widest form, so a moving count never shifts the view", () => {
+		expect(template).toContain(
+			[
+				'      <p id="save-all-count" class="saved-view__subtitle save-all-view__count save-all-view__pending" data-test-save-all-progress-count>',
+				'        <span class="save-all-view__count-line"><span class="saving-view__pulse" aria-hidden="true"></span><span id="save-all-count-text"></span></span>',
+				'        <span class="save-all-view__count-line save-all-view__count-twin" aria-hidden="true"><span class="saving-view__pulse"></span>Sent 999 of 999 &middot; Sending 999</span>',
+				"      </p>",
+			].join("\n"),
+		);
+	});
+
+	it("save-all view offers to continue in the background just above the readlist control", () => {
+		expect(template).toContain(
+			[
+				'    <button id="save-all-continue" class="btn btn--neutral save-all-view__pending" type="button" data-test-save-all-continue>Continue in background</button>',
+				'    <button id="save-all-view-readlist" class="btn btn--neutral" type="button" hidden>View readlist</button>',
 			].join("\n"),
 		);
 	});

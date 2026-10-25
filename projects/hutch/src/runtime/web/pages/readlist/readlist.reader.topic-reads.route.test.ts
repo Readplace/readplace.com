@@ -394,4 +394,46 @@ describe("Reader previously-read-on-this-topic slot", () => {
 
 		expect(slotOf(response.text).getAttribute("data-topic-reads-status")).toBe("pending");
 	});
+
+	it("leaves the compute trigger out of an app prefetch but keeps the section and its poll", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent
+			.get(`/queue/${articleId}/view?platform=ios`)
+			.set("Sec-Purpose", "prefetch");
+
+		const slot = slotOf(response.text);
+		expect(slot.getAttribute("data-topic-reads-status")).toBe("pending");
+		expect(slot.getAttribute("hx-get")).toBe(`/queue/${articleId}/topic-reads?poll=1&platform=ios`);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelectorAll("form.past-reads__request")).toHaveLength(0);
+		const fallback = Array.from(doc.querySelectorAll("noscript")).find((noscript) =>
+			noscript.innerHTML.includes("past-reads__fallback"),
+		);
+		expect(fallback).toBeUndefined();
+	});
+
+	it("asks for a computation when the app opens the article", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/view?platform=ios`);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelectorAll("form.past-reads__request")).toHaveLength(1);
+		expect(doc.querySelector("form.past-reads__request")?.getAttribute("hx-post")).toBe(
+			`/queue/${articleId}/topic-reads?platform=ios`,
+		);
+	});
+
+	it("asks for a computation on a web prefetch", async () => {
+		const { agent, articleId } = await buildHarness();
+
+		const response = await agent.get(`/queue/${articleId}/view`).set("Sec-Purpose", "prefetch");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelectorAll("form.past-reads__request")).toHaveLength(1);
+		expect(doc.querySelector("form.past-reads__request")?.getAttribute("hx-post")).toBe(
+			`/queue/${articleId}/topic-reads`,
+		);
+	});
 });

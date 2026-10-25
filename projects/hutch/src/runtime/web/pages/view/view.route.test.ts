@@ -1202,6 +1202,33 @@ describe("View routes", () => {
 			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
 			assert(saved, "a bot open must save and crawl the article like any reader");
 		});
+
+		it("skips the crawl cascade for a HEAD request", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).head(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
+			assert(!saved, "a HEAD must not save or crawl the article");
+		});
+
+		it("publishes a stale check for a GET of a stored article but not for a HEAD", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: ARTICLE_URL, metadata: { title: "Seeded title", siteName: "example.com", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const headResponse = await request(harness.server).head(`/view/${CANONICAL_PATH}`);
+
+			expect(headResponse.status).toBe(200);
+			expect(staleChecks).toEqual([]);
+
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
+		});
 	});
 
 	describe("Share dialog", () => {

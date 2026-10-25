@@ -69,6 +69,8 @@ import { initInMemoryLinkSaved } from '@packages/test-fixtures/providers/events'
 import { initInMemoryHostedCheckout } from '@packages/test-fixtures/providers/hosted-checkout'
 import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/hosted-checkout'
 import { E2E_ADMIN_EMAIL } from './admin-extend-trial/admin-e2e-user'
+import { E2E_DASHBOARDS_NOW, e2eDashboardAnswers } from './admin-dashboards/admin-dashboards-fixture'
+import { initInMemoryLogsInsights } from '@packages/test-fixtures/providers/logs-insights'
 import { renderChangelogBannerShell } from '@packages/web-shell'
 import { E2E_CHANGELOG_BANNER, E2E_CHANGELOG_BANNER_HEADER } from './changelog-banner-fixture'
 
@@ -354,6 +356,9 @@ const { refreshArticleIfStale, publishLinkSaved } =
 // instead of hitting the unreachable https://checkout.stripe.test domain.
 const e2eStripe = initInMemoryHostedCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
 
+const e2eLogsInsights = initInMemoryLogsInsights()
+for (const answer of e2eDashboardAnswers()) e2eLogsInsights.answerQuery(answer)
+
 const { app: readplaceApp, auth, email } = createTestApp({
 	...fixture,
 	// The default fixture allowlist is empty (fail-closed); the admin
@@ -361,6 +366,11 @@ const { app: readplaceApp, auth, email } = createTestApp({
 	admin: {
 		adminEmails: [E2E_ADMIN_EMAIL],
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
+	},
+	adminDashboards: {
+		runLogsInsightsQuery: e2eLogsInsights.runLogsInsightsQuery,
+		readExcludedIdentities: fixture.adminDashboards.readExcludedIdentities,
+		now: () => E2E_DASHBOARDS_NOW,
 	},
 	hostedCheckout: e2eStripe,
 	gmailIntegration: gmailIntegration.bundle,

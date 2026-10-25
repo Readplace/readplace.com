@@ -135,8 +135,8 @@ export function initOcrPdf(deps: {
 		}
 
 		if (metadata.numPages > maxPages) {
-			logger.error(`[ocr-pdf] pages=${metadata.numPages} exceeds maxPages=${maxPages} — skipping`);
-			return { kind: "failed", reason: "unsupported-large-file" };
+			logger.info(`[ocr-pdf] pages=${metadata.numPages} exceeds maxPages=${maxPages} — skipping`);
+			return { kind: "failed", reason: `${metadata.numPages} pages exceeds the ${maxPages}-page cap` };
 		}
 
 		const chunks = chunkPages({ numPages: metadata.numPages, batchSize });

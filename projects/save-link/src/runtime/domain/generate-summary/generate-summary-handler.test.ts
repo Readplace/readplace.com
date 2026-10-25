@@ -295,24 +295,32 @@ describe("initGenerateSummaryHandler", () => {
 		});
 	});
 
-	it("reports batchItemFailures without writing the row when the summariser declines before the final receive, so SQS redelivers", async () => {
+	it("hands a declined summary back for redelivery without writing the row, logging the retry at INFO and no ERROR", async () => {
 		const URL = "https://example.com/declined";
+		const info = jest.fn();
+		const error = jest.fn();
 		const { handler, deps } = createHandler({
 			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "declined" }),
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, info, error },
 		});
 
 		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		expect(info).toHaveBeenCalledWith("[GenerateSummary] declined — leaving the message for redelivery", { url: URL, receiveCount: 1 });
+		expect(error).not.toHaveBeenCalled();
 	});
 
 	it("reports batchItemFailures without writing the row when the summariser declines on the receive before the final one, so the last retry still runs", async () => {
 		const URL = "https://example.com/declined-penultimate";
+		const info = jest.fn();
+		const error = jest.fn();
 		const { handler, deps } = createHandler({
 			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "declined" }),
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, info, error },
 		});
 
 		const result = await handler(
@@ -323,13 +331,20 @@ describe("initGenerateSummaryHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		expect(info).toHaveBeenCalledWith("[GenerateSummary] declined — leaving the message for redelivery", {
+			url: URL,
+			receiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT - 1,
+		});
+		expect(error).not.toHaveBeenCalled();
 	});
 
 	it("marks the summary skipped (reason='declined') when the summariser declines on the final receive, instead of DLQing it as failed", async () => {
 		const URL = "https://example.com/declined-final";
+		const error = jest.fn();
 		const { handler, deps } = createHandler({
 			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "declined" }),
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, error },
 		});
 
 		const result = await handler(
@@ -344,6 +359,79 @@ describe("initGenerateSummaryHandler", () => {
 			selectionExpected: { scope: "canonical-content", snapshot: undefined },
 			input: { reason: "declined", now: NOW.toISOString() },
 		});
+		expect(error).not.toHaveBeenCalled();
+	});
+
+	it("hands an unusable answer back for redelivery without writing the row, logging the retry at WARN and no ERROR", async () => {
+		const URL = "https://example.com/unusable";
+		const warn = jest.fn();
+		const error = jest.fn();
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "unusable-answer" }),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, warn, error },
+		});
+
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		expect(error).not.toHaveBeenCalled();
+		expect(warn).toHaveBeenCalledWith("[GenerateSummary] unusable-answer — leaving the message for redelivery", { url: URL, receiveCount: 1 });
+	});
+
+	it("still hands an unusable answer back on the receive before the final one, so the last retry runs", async () => {
+		const URL = "https://example.com/unusable-penultimate";
+		const warn = jest.fn();
+		const error = jest.fn();
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "unusable-answer" }),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, warn, error },
+		});
+
+		const result = await handler(
+			createSqsEventOnReceive({ url: URL }, GENERATE_SUMMARY_MAX_RECEIVE_COUNT - 1),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		expect(error).not.toHaveBeenCalled();
+		expect(warn).toHaveBeenCalledWith("[GenerateSummary] unusable-answer — leaving the message for redelivery", {
+			url: URL,
+			receiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT - 1,
+		});
+	});
+
+	it("reports an unusable answer on the final receive as a failed record at ERROR, so it DLQs as failed for auto-heal", async () => {
+		const URL = "https://example.com/unusable-final";
+		const warn = jest.fn();
+		const error = jest.fn();
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "unusable-answer" }),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, warn, error },
+		});
+
+		const result = await handler(
+			createSqsEventOnReceive({ url: URL }, GENERATE_SUMMARY_MAX_RECEIVE_COUNT),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		expect(warn).not.toHaveBeenCalled();
+		expect(error).toHaveBeenCalledWith(
+			"[GenerateSummary] record failed",
+			expect.objectContaining({
+				messageId: "msg-1",
+				url: URL,
+				error: expect.objectContaining({ message: expect.stringContaining("unusable-answer") }),
+			}),
+		);
 	});
 
 	it("still reports batchItemFailures for no-text-block on the final receive, so it DLQs as failed for auto-heal", async () => {

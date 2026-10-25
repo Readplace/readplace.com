@@ -8,7 +8,6 @@ export {
 	SAVE_OUTCOMES,
 	SAVE_REFUSAL_CODES,
 	SIGNUP_OUTCOMES,
-	FIRST_ARTICLE_SEEDED_OUTCOMES,
 	CONTENT_CLASSES,
 	INTERNAL_CLICK_MEDIUM,
 	EMAIL_CLICK_MEDIUM,
@@ -41,7 +40,6 @@ export {
 	type SaveOutcome,
 	type SaveRefusalCode,
 	type SignupOutcome,
-	type FirstArticleSeededOutcome,
 	type McpToolOutcome,
 } from "./events";
 export {
@@ -83,7 +81,6 @@ export {
 	deriveSaveSurface,
 	buildSaveIntentEvent,
 	buildSignupAttemptedEvent,
-	buildFirstArticleSeededEvent,
 	buildMcpToolCalledEvent,
 	buildMcpSaveIntentEvent,
 	buildSaveRefusedEvent,
@@ -120,7 +117,6 @@ export {
 	type EpubImagesOverBudgetEvent,
 	type ViewSaveIntentEvent,
 	type FirstArticleAutosavedEvent,
-	type FirstArticleSeededEvent,
 	type DeviceClass,
 	type BrowserFamily,
 	type OsFamily,
