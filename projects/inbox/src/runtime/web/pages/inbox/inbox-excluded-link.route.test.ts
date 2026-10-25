@@ -25,6 +25,7 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		failureReason: undefined,
 		skipReason: "llm-ad",
 		droppedFor: undefined,
+		anchorText: undefined,
 		...overrides,
 	};
 }

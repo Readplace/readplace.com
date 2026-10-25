@@ -95,6 +95,7 @@ async function main(): Promise<void> {
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
 		userId,
@@ -110,6 +111,7 @@ async function main(): Promise<void> {
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putLink({
 		userId,
@@ -125,6 +127,7 @@ async function main(): Promise<void> {
 		failureReason: undefined,
 		skipReason: "list-unsubscribe",
 		droppedFor: undefined,
+		anchorText: undefined,
 	});
 	await fixture.inboxEmail.inboxEmailStore.setEmailLinkCounts({
 		userId,

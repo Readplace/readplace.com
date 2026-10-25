@@ -73,6 +73,7 @@ const InboxEmailLinkRow = z.object({
 	truncated: dynamoField(z.boolean()),
 	extractionFailed: dynamoField(z.boolean()),
 	droppedFor: dynamoField(InboxEmailLinkDropSchema),
+	anchorText: dynamoField(z.string()),
 	readlistDecision: dynamoField(InboxReadlistDecisionSchema),
 	selectedReadlists: dynamoField(
 		z.array(
@@ -111,6 +112,7 @@ function toEntry(row: InboxEmailLinkRowType): InboxEmailLinkEntry {
 		failureReason: row.failureReason,
 		skipReason: row.skipReason,
 		droppedFor: row.droppedFor,
+		anchorText: row.anchorText,
 	};
 }
 
@@ -160,6 +162,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 				status: link.status,
 			};
 			if (link.skipReason !== undefined) Item.skipReason = link.skipReason;
+			if (link.anchorText !== undefined) Item.anchorText = link.anchorText;
 			try {
 				await table.put({
 					Item,

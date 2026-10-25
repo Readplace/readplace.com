@@ -32,6 +32,7 @@ function link(userId: UserId, overrides: Partial<InboxEmailLinkEntry> = {}): Inb
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 		...overrides,
 	};
 }

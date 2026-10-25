@@ -34,6 +34,7 @@ function makeLink(
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 		...overrides,
 	};
 }
@@ -52,6 +53,19 @@ describe("initInMemoryInboxEmailLink", () => {
 		assert(found, "expected the stored link to resolve");
 		expect(found.url).toBe("https://example.com/post");
 		expect(found.status).toBe("pending");
+	});
+
+	it("returns a link's anchor text as stored", async () => {
+		const store = initInMemoryInboxEmailLink();
+		await store.putLink(makeLink({ anchorText: "Ship small PRs" }));
+
+		const found = await store.getLink({
+			userId: owner,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+		});
+
+		expect(found?.anchorText).toBe("Ship small PRs");
 	});
 
 	it("reports a re-inserted ordinal as a duplicate without overwriting", async () => {

@@ -76,6 +76,7 @@ function link(
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 		...overrides,
 	};
 }

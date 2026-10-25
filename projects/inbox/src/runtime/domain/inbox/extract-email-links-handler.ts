@@ -368,6 +368,7 @@ export function initExtractEmailLinksHandler(deps: {
 						imageUrl: undefined,
 						failureReason: undefined,
 						droppedFor: undefined,
+						anchorText: undefined,
 					};
 					if (classification.action === "skip") {
 						// Terminal at birth: a skipped link is never crawled, so no

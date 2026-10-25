@@ -132,6 +132,7 @@ server.post("/e2e/seed-email", async (req, res) => {
 		failureReason: undefined,
 		skipReason: link.status === "skipped" ? "list-unsubscribe" : undefined,
 		droppedFor: link.droppedFor,
+		anchorText: undefined,
 	}));
 	const skipped = rows.filter(isExcludedLink).length;
 	const kept = rows.length - skipped;

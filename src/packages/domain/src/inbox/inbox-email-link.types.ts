@@ -31,6 +31,7 @@ export interface InboxEmailLinkEntry {
 	failureReason: string | undefined;
 	skipReason: EmailLinkSkipReason | undefined;
 	droppedFor: InboxEmailLinkDrop | undefined;
+	anchorText: string | undefined;
 }
 
 /** A small per-email summary co-located in the links partition under a reserved

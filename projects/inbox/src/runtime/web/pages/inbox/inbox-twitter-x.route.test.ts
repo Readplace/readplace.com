@@ -26,6 +26,7 @@ function tweetLink(userId: UserId): InboxEmailLinkEntry {
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 	};
 }
 

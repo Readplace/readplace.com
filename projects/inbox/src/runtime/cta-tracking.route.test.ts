@@ -60,6 +60,7 @@ function linkEntry(input: {
 		imageUrl: undefined,
 		failureReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 		...input.link,
 	};
 }

@@ -78,6 +78,7 @@ async function seedLinks(
 			failureReason: undefined,
 			skipReason: row.status === "skipped" ? "llm-ad" : undefined,
 			droppedFor: undefined,
+			anchorText: undefined,
 		});
 	}
 }

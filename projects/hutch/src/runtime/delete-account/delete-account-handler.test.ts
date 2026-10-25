@@ -453,6 +453,7 @@ async function seedAccount(
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 	});
 	await s.inboxLink.putLinksMeta({
 		userId,

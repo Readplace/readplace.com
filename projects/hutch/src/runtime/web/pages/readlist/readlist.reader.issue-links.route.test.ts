@@ -58,6 +58,7 @@ async function buildHarness(options: { extraction?: "finished" | "failed" | "pen
 			failureReason: undefined,
 			skipReason: undefined,
 			droppedFor: undefined,
+			anchorText: undefined,
 			...entry,
 			ordinal: EmailLinkOrdinalSchema.parse(entry.ordinal),
 		});

@@ -131,6 +131,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				failureReason: undefined,
 				skipReason: undefined,
 				droppedFor: undefined,
+				anchorText: undefined,
 			});
 
 			expect(result).toBe("stored");
@@ -163,11 +164,62 @@ describe("initDynamoDbInboxEmailLink", () => {
 				failureReason: undefined,
 				skipReason: "list-unsubscribe",
 				droppedFor: undefined,
+				anchorText: undefined,
 			});
 
 			expect(result).toBe("stored");
 			expect(captured?.input.Item?.status).toBe("skipped");
 			expect(captured?.input.Item?.skipReason).toBe("list-unsubscribe");
+		});
+
+		it("writes the link's anchor text when it has one", async () => {
+			let captured: CapturedCommand | undefined;
+			await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).putLink({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				url: "https://example.com/post",
+				resolvedUrl: undefined,
+				status: "pending",
+				title: undefined,
+				excerpt: undefined,
+				siteName: undefined,
+				imageUrl: undefined,
+				failureReason: undefined,
+				skipReason: undefined,
+				droppedFor: undefined,
+				anchorText: "Ship small PRs",
+			});
+
+			expect(captured?.input.Item?.anchorText).toBe("Ship small PRs");
+		});
+
+		it("writes no anchor text column when the link has none", async () => {
+			let captured: CapturedCommand | undefined;
+			await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {};
+			}).putLink({
+				userId: USER,
+				receivedAtMessageId: RAM,
+				ordinal: ORDINAL,
+				url: "https://example.com/post",
+				resolvedUrl: undefined,
+				status: "pending",
+				title: undefined,
+				excerpt: undefined,
+				siteName: undefined,
+				imageUrl: undefined,
+				failureReason: undefined,
+				skipReason: undefined,
+				droppedFor: undefined,
+				anchorText: undefined,
+			});
+
+			expect(captured?.input.Item).not.toHaveProperty("anchorText");
 		});
 
 		it("returns duplicate when the conditional put fails on an existing row", async () => {
@@ -187,6 +239,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				failureReason: undefined,
 				skipReason: undefined,
 				droppedFor: undefined,
+				anchorText: undefined,
 			});
 
 			expect(result).toBe("duplicate");
@@ -210,6 +263,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 					failureReason: undefined,
 					skipReason: undefined,
 					droppedFor: undefined,
+					anchorText: undefined,
 				}),
 			).rejects.toThrow("throttled");
 		});
@@ -677,6 +731,14 @@ describe("initDynamoDbInboxEmailLink", () => {
 	});
 
 	describe("listLinksByEmail", () => {
+		it("reads back a link's anchor text", async () => {
+			const { links } = await store(() => ({
+				Items: [linkRow({ anchorText: "Ship small PRs" })],
+			})).listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(links[0]?.anchorText).toBe("Ship small PRs");
+		});
+
 		it("reads the current Gmail selection barrier after a successful extraction replaces a failed attempt", async () => {
 			const current = { userLinkGroup: GROUP, ordinal: "meta", userId: USER, receivedAtMessageId: RAM, truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: false };
 			const stale = { userLinkGroup: GROUP, ordinal: "meta", userId: USER, receivedAtMessageId: RAM, truncated: false, extractionFailed: true };

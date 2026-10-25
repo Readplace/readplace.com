@@ -29,6 +29,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		failureReason: undefined,
 		skipReason: "llm-ad",
 		droppedFor: undefined,
+		anchorText: undefined,
 		...overrides,
 	};
 }

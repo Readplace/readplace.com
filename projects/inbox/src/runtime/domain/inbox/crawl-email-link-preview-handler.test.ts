@@ -65,6 +65,7 @@ async function seedPending(
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 	});
 }
 

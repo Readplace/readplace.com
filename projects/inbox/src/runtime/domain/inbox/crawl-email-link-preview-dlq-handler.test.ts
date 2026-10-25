@@ -40,6 +40,7 @@ async function seed(
 		failureReason: undefined,
 		skipReason: undefined,
 		droppedFor: undefined,
+		anchorText: undefined,
 	});
 }
 
