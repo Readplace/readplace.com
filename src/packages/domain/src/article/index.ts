@@ -109,6 +109,7 @@ export {
 	isSameArticle,
 	type ComparableArticle,
 } from "./article-site";
+export { METADATA_EXCERPT_MAX_LENGTH, clipMetadataExcerpt } from "./metadata-excerpt";
 export {
 	ReaderArticleHashId,
 	ReaderArticleHashIdSchema,
