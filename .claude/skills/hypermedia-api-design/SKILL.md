@@ -60,7 +60,7 @@ A token belongs to a client acting for one account, so a valid token for someone
 
 ### The Frontmatter Keys Are a Published Interface
 
-The document opens with YAML frontmatter. This is a **published interface**: the key names, their types and when each is present are the contract, and renaming, retyping or removing a key is a breaking change for every client and for every reader's own vault queries — the same rule [Evolvability Rules](#evolvability-rules) applies to Siren `properties`. The server module that assembles the document (frontmatter, summary callout and body) is the only non-test server hit for `readplace_content_status`; grep for it and read the key set there rather than restating it here.
+The document opens with YAML frontmatter. This is a **published interface**: the key names, their types and when each is present are the contract, and renaming, retyping or removing a key is a breaking change for every client and for every reader's own vault queries — the same rule [Evolvability Rules](#evolvability-rules) applies to Siren `properties`. The server module that assembles the document (frontmatter, summary callout and body) is the only non-test server hit for `matter.stringify`, the frontmatter library's serialiser call; grep for it and read the key set there rather than restating it here.
 
 | Rule | Why |
 |---|---|
