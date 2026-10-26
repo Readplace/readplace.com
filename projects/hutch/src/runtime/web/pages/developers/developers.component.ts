@@ -15,7 +15,7 @@ import { ACTIVE_TTL_SECONDS, IDLE_TTL_SECONDS } from "../../../providers/oauth/d
 import { AGENT_SCOPES_SUPPORTED } from "../../agent-auth";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { REFRESH_TOKEN_LIFETIME_SECONDS } from "../../oauth/oauth.routes";
-import { bytesToMb } from "../readlist/readlist.page";
+import { bytesToMb } from "../../shared/bytes-to-mb";
 
 import { DEVELOPERS_STYLES } from "./developers.styles";
 

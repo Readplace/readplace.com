@@ -171,6 +171,7 @@ import { buildQueryString } from "../../api/collection-query";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toSavedArticleEntity } from "../../api/article-siren";
 import { readlistHref, readlistsAtHrefs } from "../../api/readlist-href";
+import { bytesToMb } from "../../shared/bytes-to-mb";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
 import { saveQueuedSirenNotice } from "../../api/save-queued-siren";
 import {
@@ -382,10 +383,6 @@ function safeJsonParse(text: string): unknown {
 	} catch {
 		return undefined;
 	}
-}
-
-export function bytesToMb(bytes: number): number {
-	return Math.round((bytes / (1024 * 1024)) * 10) / 10;
 }
 
 /** Minute-precision UTC id as recorded in the crawl-version log, e.g.
