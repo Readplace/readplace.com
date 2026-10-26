@@ -6,6 +6,7 @@ import { strFromU8, unzipSync } from "fflate";
 import type { ParseArticle } from "@packages/article-parser";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { calculateReadTime, type Minutes } from "@packages/domain/article";
+import type { EpubImagesOverBudgetEvent } from "@packages/web-analytics";
 import { useTestServer, BROWSER_REQUEST_HEADERS } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -78,6 +79,42 @@ async function seedReadyArticle(fixture: ReturnType<typeof createDefaultTestAppF
 	});
 }
 
+const FITS_FILENAME = "1111111111111111.jpg";
+const OVER_FILENAME = "2222222222222222.jpg";
+
+function imageSrc(filename: string): string {
+	return ArticleResourceUniqueId.parse(ARTICLE_URL).toImageCdnUrl({ baseUrl: "https://cdn.readplace.test", filename });
+}
+
+async function seedCappedArticle(fixture: ReturnType<typeof createDefaultTestAppFixture>) {
+	await fixture.articleStore.saveArticleGlobally({
+		url: ARTICLE_URL,
+		metadata: { title: "Hello World", siteName: "example.com", excerpt: "x", wordCount: 3 },
+		estimatedReadTime: calculateReadTime(3) as Minutes,
+		savedAt: new Date("2026-09-02T00:00:00.000Z"),
+	});
+	await fixture.articleStore.writeContent({
+		url: ARTICLE_URL,
+		content: `<p>Body copy.</p><p><img src="${imageSrc(FITS_FILENAME)}"></p><p><img src="${imageSrc(OVER_FILENAME)}"></p>`,
+	});
+	await fixture.articleStore.writeImage({
+		url: ARTICLE_URL,
+		filename: FITS_FILENAME,
+		body: Buffer.alloc(3_000_000),
+		contentType: "image/jpeg",
+	});
+	await fixture.articleStore.writeImage({
+		url: ARTICLE_URL,
+		filename: OVER_FILENAME,
+		body: Buffer.alloc(1_000_000),
+		contentType: "image/jpeg",
+	});
+}
+
+function overBudgetEvents(events: { event: string }[]): EpubImagesOverBudgetEvent[] {
+	return events.filter((e): e is EpubImagesOverBudgetEvent => e.event === "epub_images_over_budget");
+}
+
 function lastViewCookie(response: request.Response): string | undefined {
 	const setCookie = response.headers["set-cookie"];
 	return (Array.isArray(setCookie) ? setCookie : []).find((c) => c.startsWith("hutch_lastview="));
@@ -128,7 +165,68 @@ describe("GET /view/<url>?format=<download>", () => {
 
 		expect(staleChecks).toEqual([]);
 		expect(harness.analytics.events.filter((e) => e.event === "view_opened")).toEqual([]);
+		expect(harness.analytics.events.filter((e) => e.event === "epub_images_over_budget")).toEqual([]);
 		expect(lastViewCookie(response)).toBeUndefined();
+	});
+
+	it("records one epub_images_over_budget event when a browser's download leaves an image out", async () => {
+		const { harness, fixture } = buildDownloadHarness();
+		await seedCappedArticle(fixture);
+
+		const response = await request(harness.server)
+			.get(EPUB_PATH)
+			.set(BROWSER_REQUEST_HEADERS)
+			.buffer()
+			.parse(binaryParser);
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("application/epub+zip");
+		const files = unzipSync(new Uint8Array(response.body));
+		expect(files[`OEBPS/images/${FITS_FILENAME}`]).toBeDefined();
+		expect(files[`OEBPS/images/${OVER_FILENAME}`]).toBeUndefined();
+		const events = overBudgetEvents(harness.analytics.events);
+		assert.equal(events.length, 1, "exactly one epub_images_over_budget");
+		expect(events[0]).toMatchObject({
+			stream: "analytics",
+			event: "epub_images_over_budget",
+			path: "/view/example.com/post",
+			article_host: "example.com",
+			skipped_count: 1,
+			skipped_bytes: 1_000_000,
+			embedded_bytes: 3_000_000,
+			is_authenticated: 0,
+		});
+		expect(typeof events[0].visitor_id).toBe("string");
+		expect(harness.analytics.events.filter((e) => e.event === "view_opened")).toEqual([]);
+	});
+
+	it("records no epub_images_over_budget event for a bot user agent's capped download", async () => {
+		const { harness, fixture } = buildDownloadHarness();
+		await seedCappedArticle(fixture);
+
+		const response = await request(harness.server)
+			.get(EPUB_PATH)
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" })
+			.buffer()
+			.parse(binaryParser);
+
+		expect(response.status).toBe(200);
+		expect(overBudgetEvents(harness.analytics.events)).toEqual([]);
+	});
+
+	it("counts a signed-in reader's capped download as authenticated", async () => {
+		const { harness, fixture } = buildDownloadHarness();
+		await seedCappedArticle(fixture);
+		await harness.auth.createUser({ email: "reader@example.com", password: "password123" });
+		const agent = request.agent(harness.server);
+		await agent.post("/login").type("form").send({ email: "reader@example.com", password: "password123" });
+
+		const response = await agent.get(EPUB_PATH).set(BROWSER_REQUEST_HEADERS).buffer().parse(binaryParser);
+
+		expect(response.status).toBe(200);
+		const events = overBudgetEvents(harness.analytics.events);
+		assert.equal(events.length, 1, "exactly one epub_images_over_budget");
+		expect(events[0].is_authenticated).toBe(1);
 	});
 
 	it("opens the EPUB with the title, site name and parsed excerpt while the summary is pending", async () => {

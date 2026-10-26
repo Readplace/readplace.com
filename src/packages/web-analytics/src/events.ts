@@ -39,6 +39,7 @@ export const ANALYTICS_EVENTS = {
 	mcpSessionInitialized: "mcp_session_initialized",
 	mcpToolsListed: "mcp_tools_listed",
 	oauthTokenRevoked: "oauth_token_revoked",
+	epubImagesOverBudget: "epub_images_over_budget",
 } as const;
 
 export const PLANS_PAGE_TERMS = {
