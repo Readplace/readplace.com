@@ -146,6 +146,20 @@ describe("View routes", () => {
 			expect(doc.body.className).toBe("page-view page-distraction-free");
 		});
 
+		it("offers an anonymous visitor a report link naming the article's public view", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const report = new JSDOM(response.text).window.document.querySelector('[data-test-action="report-article"]');
+			assert(report, "the public reader must offer a report link");
+			const reportHref = report.getAttribute("href");
+			assert(reportHref, "the report link must carry an href");
+			const href = new URL(reportHref);
+			assert.equal(href.pathname, "readplace+report@readplace.com");
+			expect(href.searchParams.get("body")).toContain(`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`);
+		});
+
 		it("lists the article's sections in the table of contents for a logged-out visitor, each row linking to its heading", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async () => {} } });
@@ -1970,6 +1984,34 @@ describe("View routes", () => {
 			const hxGet = slot.getAttribute("hx-get");
 			assert(hxGet, "a pending reader slot must poll");
 			expect(hxGet.endsWith("&utm_source=medium")).toBe(true);
+		});
+
+		it("reveals the report link once the reader poll swaps a pending slot for the article body", async () => {
+			let crawlStatus: "pending" | "ready" = "pending";
+			const { fixture, harness } = pollHarness({
+				crawl: async () => ({ status: crawlStatus }),
+			});
+			await seedRow(fixture);
+			const page = new JSDOM(
+				(await request(harness.server).get(`/view/${CANONICAL_PATH}`)).text,
+			).window.document;
+			const report = page.querySelector("[data-test-report-article]");
+			assert(report, "the public reader must render its report slot");
+			const shown = ".article-body__reader-slot--ready + .article-body__report--offered";
+			expect(report.matches(shown)).toBe(false);
+
+			crawlStatus = "ready";
+			await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>Body copy.</p>" });
+			const poll = new JSDOM(
+				(await request(harness.server).get(`/view/reader?url=${ENCODED}&poll=1`)).text,
+			).window.document;
+			const readySlot = poll.querySelector("#article-body-reader-slot");
+			assert(readySlot, "the reader poll must carry the reader slot");
+			const pendingSlot = page.querySelector("#article-body-reader-slot");
+			assert(pendingSlot, "the pending page must render the reader slot");
+			pendingSlot.replaceWith(page.importNode(readySlot, true));
+
+			expect(report.matches(shown)).toBe(true);
 		});
 	});
 

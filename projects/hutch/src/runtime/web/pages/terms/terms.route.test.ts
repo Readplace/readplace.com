@@ -30,7 +30,7 @@ describe("GET /terms", () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/terms");
 
-		expect(response.text).toContain("Last updated: 22 September 2026");
+		expect(response.text).toContain("Last updated: 22 October 2026");
 		for (const heading of [
 			"Subscriptions, billing and renewals",
 			"Using Readplace with AI assistants",
@@ -38,5 +38,13 @@ describe("GET /terms", () => {
 		]) {
 			expect(response.text).toContain(heading);
 		}
+	});
+
+	it("says uploaded and captured pages may be removed, and where to report one", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/terms");
+
+		expect(response.text).toContain("any page you upload or capture");
+		expect(response.text).toContain('href="mailto:readplace+report@readplace.com"');
 	});
 });

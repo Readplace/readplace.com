@@ -24,11 +24,77 @@ function parse(html: string) {
 		.document;
 }
 
+const STYLESHEET_SHOWN_REPORT = ".article-body__reader-slot--ready + .article-body__report--offered";
+
+function reportSlot(doc: Document): Element {
+	const report = doc.querySelector("[data-test-report-article]");
+	assert(report, "the article card must render its report slot");
+	return report;
+}
+
 function versionAt(iso: string): ArticleVersion {
 	return { minuteId: iso, date: toAbsoluteDate({ iso }), time: toAbsoluteTime({ iso }) };
 }
 
 describe("renderArticleBody", () => {
+	it("shows a report link after a readable article when given its href", () => {
+		const doc = parse(
+			renderArticleBody({
+				...baseInput,
+				crawl: { status: "ready" },
+				content: articleBody("<p>Body</p>"),
+				reportHref: "mailto:report@example.com?subject=Report",
+			}),
+		);
+
+		const report = reportSlot(doc);
+		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), true);
+		const link = report.querySelector('[data-test-action="report-article"]');
+		assert(link, "an offered report slot must hold the link");
+		assert.equal(link.getAttribute("href"), "mailto:report@example.com?subject=Report");
+		assert.equal(link.textContent, "Report this article");
+	});
+
+	it("withholds the report link without an href", () => {
+		const doc = parse(renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") }));
+
+		const report = reportSlot(doc);
+		assert.equal(report.classList.contains("article-body__report--withheld"), true);
+		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), false);
+	});
+
+	it("hides the report link when a failed-crawl notice stands in for a stored body", () => {
+		const doc = parse(
+			renderArticleBody({
+				...baseInput,
+				crawl: { status: "ready" },
+				content: articleBody("<p>Body</p>"),
+				readerNotice: "failed",
+				reportHref: "mailto:report@example.com?subject=Report",
+			}),
+		);
+
+		const report = reportSlot(doc);
+		assert.equal(report.classList.contains("article-body__report--offered"), true);
+		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), false);
+	});
+
+	it("hides the report link while the article has no content, and shows it once a ready slot is swapped in", () => {
+		const doc = parse(renderArticleBody({ ...baseInput, reportHref: "mailto:report@example.com?subject=Report" }));
+		const report = reportSlot(doc);
+		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), false);
+
+		const readySlot = parse(
+			renderArticleBody({ ...baseInput, crawl: { status: "ready" }, content: articleBody("<p>Body</p>") }),
+		).querySelector("[data-test-reader-slot]");
+		assert(readySlot, "a ready article must render its reader slot");
+		const pendingSlot = doc.querySelector("[data-test-reader-slot]");
+		assert(pendingSlot, "a pending article must render its reader slot");
+		pendingSlot.replaceWith(doc.importNode(readySlot, true));
+
+		assert.equal(report.matches(STYLESHEET_SHOWN_REPORT), true);
+	});
+
 	it("renders a finalized plain-text resource with its original whitespace and escaped markup", async () => {
 		const plainText = '\n\t  x < y && café\n<script>"saved text"</script>\n  ';
 		const finalizeArticle = initFinalizeArticle({
@@ -255,6 +321,7 @@ describe("renderArticleBody", () => {
 			"article-header",
 			"article-body-summary-slot",
 			"article-body-reader-slot",
+			"article-body-report",
 		]);
 	});
 
@@ -274,6 +341,7 @@ describe("renderArticleBody", () => {
 			"article-body-summary-slot",
 			"article-body-topic-reads-inline-slot",
 			"article-body-reader-slot",
+			"article-body-report",
 		]);
 	});
 
