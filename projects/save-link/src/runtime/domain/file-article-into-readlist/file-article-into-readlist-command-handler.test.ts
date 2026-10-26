@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { initFindSavedArticleForLink } from "@packages/article-store";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, readlistPurposeVersion } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	ArticleFiledIntoReadlistEvent,
@@ -226,6 +226,12 @@ describe("FileArticleIntoReadlistCommand", () => {
 		["a no-purpose filing from email", { kind: "no-purpose", source: EMAIL_SOURCE }],
 		["a no-purpose filing by the reader", { kind: "no-purpose", source: { kind: "reader" } }],
 	])("parses %s", (_name, fit) => {
+		expect(FileArticleIntoReadlistCommand.detailSchema.safeParse({ ...command(), fit }).success).toBe(true);
+	});
+
+	it("parses the purpose version the domain computes for a readlist purpose", () => {
+		const fit = { ...command().fit, purposeVersion: readlistPurposeVersion("Keep: code review\nSkip: hiring") };
+
 		expect(FileArticleIntoReadlistCommand.detailSchema.safeParse({ ...command(), fit }).success).toBe(true);
 	});
 
