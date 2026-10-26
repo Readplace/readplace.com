@@ -386,7 +386,7 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		expectsThumbnail: false,
 	},
 	{
-		// curl-impersonate with Chrome fingerprint returns 200 directly.
+		// curl-impersonate with Chrome fingerprint.
 		// Exercises --globoff + WHATWG URL re-encoding via the bracketed
 		// path segment `[16505689]`.
 		// Pages 22–25 of this 31-page scan are image-heavy and individually

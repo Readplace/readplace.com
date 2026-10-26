@@ -8,6 +8,7 @@ function makeBundle() {
 	const parser = initParserDepBundle({
 		logError: () => {},
 		logInfo: () => {},
+		logThumbnailNotDelivered: () => {},
 		findAdoptedFetchUrl: async () => undefined,
 		proxyUrl: "http://proxy.test:8080",
 	});
@@ -22,6 +23,7 @@ function makeBundle() {
 		parser,
 		articleStore,
 		logError: () => {},
+		logImageLeftAtOrigin: () => {},
 		imagesCdnBaseUrl: "https://cdn.example",
 	});
 }

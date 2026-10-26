@@ -1,12 +1,11 @@
-import { initFetchThumbnailImage, type ThumbnailNotDeliveredEvent } from "@packages/crawl-article";
-import { HutchLogger } from "@packages/hutch-logger";
+import { initFetchThumbnailImage } from "@packages/crawl-article";
 import {
 	type CrawlAndFinalizeArticle,
 	type FinalizeArticle,
 	initCrawlAndFinalizeArticle,
 	initFinalizeArticle,
 } from "@packages/finalize-article";
-import type { LogError, LogInfo } from "./observability";
+import type { LogError, LogInfo, LogThumbnailNotDelivered } from "./observability";
 import type { ArticleStoreDepBundle } from "./article-store";
 import type { MediaDepBundle } from "./media";
 import type { ParserDepBundle } from "./parser";
@@ -29,12 +28,13 @@ export function initCrawlAndFinalizeDepBundle(deps: {
 	imagesCdnBaseUrl: string;
 	logError: LogError;
 	logInfo: LogInfo;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 }): CrawlAndFinalizeDepBundle {
 	const fetchThumbnailImage = initFetchThumbnailImage({
 		crawlFetch: deps.parser.crawlFetch,
 		logError: deps.logError,
 		logInfo: deps.logInfo,
-		logThumbnailNotDelivered: HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn,
+		logThumbnailNotDelivered: deps.logThumbnailNotDelivered,
 	});
 	const finalizeArticle = initFinalizeArticle({
 		parseHtml: deps.parser.parseHtml,

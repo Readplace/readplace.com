@@ -2,9 +2,7 @@ import type {
 	CrawlArticle,
 	CrawlFetch,
 	ExtractPdf,
-	ThumbnailNotDeliveredEvent,
 } from "@packages/crawl-article";
-import { HutchLogger } from "@packages/hutch-logger";
 import {
 	initCrawlArticle,
 	initCrawlFetch,
@@ -20,7 +18,7 @@ import {
 } from "@packages/article-parser";
 import type { ParseHtml } from "@packages/article-parser";
 import { initIsSiteRuleUrl } from "../domain/save-link/adopt-canonical-identity";
-import type { LogError, LogInfo } from "./observability";
+import type { LogError, LogInfo, LogThumbnailNotDelivered } from "./observability";
 
 export type ParserDepBundle = {
 	crawlFetch: CrawlFetch;
@@ -46,6 +44,7 @@ export type ParserDepBundle = {
 export function initParserDepBundle(deps: {
 	logError: LogError;
 	logInfo: LogInfo;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 	proxyUrl: string;
 }): ParserDepBundle {
@@ -63,7 +62,7 @@ export function initParserDepBundle(deps: {
 			siteRules,
 			logError: deps.logError,
 			logInfo: deps.logInfo,
-			logThumbnailNotDelivered: HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn,
+			logThumbnailNotDelivered: deps.logThumbnailNotDelivered,
 			fetchTimeouts: PROXIED_FETCH_TIMEOUTS,
 		}),
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
@@ -94,6 +93,7 @@ export type ComprehensiveParserDepBundle = {
 export function initComprehensiveParserDepBundle(deps: {
 	logError: LogError;
 	logInfo: LogInfo;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 	extractPdf: ExtractPdf;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 	proxyUrl: string;
@@ -113,7 +113,7 @@ export function initComprehensiveParserDepBundle(deps: {
 			extractPdf: deps.extractPdf,
 			logError: deps.logError,
 			logInfo: deps.logInfo,
-			logThumbnailNotDelivered: HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn,
+			logThumbnailNotDelivered: deps.logThumbnailNotDelivered,
 			fetchTimeouts: PROXIED_FETCH_TIMEOUTS,
 		}),
 		findAdoptedFetchUrl: deps.findAdoptedFetchUrl,
