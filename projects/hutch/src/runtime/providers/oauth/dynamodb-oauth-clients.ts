@@ -41,13 +41,13 @@ const PointerRow = z.object({
  * and walks away) clears itself without a global cap that an attacker could fill
  * to deny everyone else.
  */
-const IDLE_TTL_SECONDS = 48 * 60 * 60;
+export const IDLE_TTL_SECONDS = 48 * 60 * 60;
 /**
  * On first — and every subsequent — token issuance the row extends to a year,
  * comfortably past the 180-day refresh-token lifetime so a live refresh token
  * can never outlive the client row it resolves through.
  */
-const ACTIVE_TTL_SECONDS = 365 * 24 * 60 * 60;
+export const ACTIVE_TTL_SECONDS = 365 * 24 * 60 * 60;
 
 function toEpochSeconds(date: Date): number {
 	return Math.floor(date.getTime() / 1000);

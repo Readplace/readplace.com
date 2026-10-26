@@ -302,7 +302,7 @@ describe("/developers copy", () => {
 			"app-listing":
 				"Connected apps lists your app as AI assistant, connected from the host of your first redirect URI, or from an app on your computer when that URI is on 127.0.0.1 or [::1]. A client_name that matches a supported assistant's name, in any letter case, lists your app as that assistant instead.",
 			"create-session":
-				"create-session, on every collection, answers 204 with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader disconnecting your app, doesn't end a session it made.",
+				"create-session, on every collection, answers 204 with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader signing your app out from all devices, doesn't end a session it made.",
 			redirects:
 				"Follow every redirect yourself, sending the token and the Accept header again. Some HTTP clients drop Authorization when they follow a redirect, and the API then answers 401.",
 			conflict:

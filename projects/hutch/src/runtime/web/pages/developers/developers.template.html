@@ -33,7 +33,7 @@ Content-Type: application/json
           <li class="developers__item" data-test-copy="client-name"><code>client_name</code> is optional and up to 120 characters, and the reader sees it when approving your app. Without it, Readplace names your app after the host of the first redirect URI, without its port.</li>
           <li class="developers__item">There's no client secret. If you send <code>token_endpoint_auth_method</code>, it must be <code>none</code>.</li>
           <li class="developers__item">The <code>201</code> answer carries your <code>client_id</code>. Sending the same registration again returns the same <code>client_id</code>.</li>
-          <li class="developers__item" data-test-copy="registration-lifetime">A registration that never gets a token expires after 48 hours. Once it has one, it stays registered until 365 days after its latest token, refreshes included.</li>
+          <li class="developers__item" data-test-copy="registration-lifetime">A registration that never gets a token expires after {{idleRegistrationHours}} hours. Once it has one, it stays registered until {{activeRegistrationDays}} days after its latest token, refreshes included.</li>
           <li class="developers__item"><code>/oauth/register</code> and <code>/oauth/token</code> limit how often one IP address can call them. Over the limit, they answer <code>429</code> with a <code>Retry-After</code> header.</li>
         </ul>
 
@@ -59,10 +59,10 @@ Host: readplace.com
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=refresh_token&amp;refresh_token=REFRESH_TOKEN&amp;client_id=CLIENT_ID</code></pre>
-        <p class="developers__text" data-test-copy="refresh-token">Refresh tokens last 180 days and rotate: every refresh returns a new pair and retires the refresh token you sent. Store the new pair before you use it.</p>
+        <p class="developers__text" data-test-copy="refresh-token">Refresh tokens last {{refreshTokenDays}} days and rotate: every refresh returns a new pair and retires the refresh token you sent. Store the new pair before you use it.</p>
         <ul class="developers__list">
           <li class="developers__item">A refused refresh answers JSON with <code>error</code> and <code>readplace_reason</code>, with status <code>400</code>. A refused code exchange answers JSON with <code>error</code> and <code>error_description</code>.</li>
-          <li class="developers__item"><code>invalid_grant</code> means the grant is gone: the refresh token was already used, has expired or was revoked, or the reader disconnected your app or changed or reset their password. Send the reader through authorize again.</li>
+          <li class="developers__item"><code>invalid_grant</code> means the grant is gone: the refresh token was already used, has expired or was revoked, or the reader signed your app out from all devices or changed or reset their password. Send the reader through authorize again.</li>
           <li class="developers__item"><code>invalid_client</code> means no registration that allows refresh exists for your <code>client_id</code>: it expired, or it was registered without the <code>refresh_token</code> grant. Register again, leaving <code>grant_types</code> out.</li>
           <li class="developers__item" data-test-copy="refresh-retry"><code>503</code> with <code>temporarily_unavailable</code> means try again later with the same refresh token.</li>
         </ul>
@@ -73,9 +73,9 @@ Host: readplace.com
 Content-Type: application/json
 
 {"token": "REFRESH_TOKEN"}</code></pre>
-        <p class="developers__text"><code>/oauth/revoke</code> takes an access token or a refresh token, and revoking either drops the other too. Readers can also disconnect your app under <a class="developers__link" href="{{track '/account#connected-apps' source='developers' content='connected-apps'}}">Connected apps</a> in their account.</p>
+        <p class="developers__text"><code>/oauth/revoke</code> takes an access token or a refresh token, and revoking either drops the other too. Readers can also sign your app out from all devices under <a class="developers__link" href="{{track '/account#connected-apps' source='developers' content='connected-apps'}}">Connected apps</a> in their account.</p>
         <p class="developers__text" data-test-copy="app-listing">Connected apps lists your app as AI assistant, connected from the host of your first redirect URI, or from an app on your computer when that URI is on <code>127.0.0.1</code> or <code>[::1]</code>. A <code>client_name</code> that matches a supported assistant's name, in any letter case, lists your app as that assistant instead.</p>
-        <p class="developers__text" data-test-copy="create-session"><code data-test-action>create-session</code>, on every collection, answers <code>204</code> with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader disconnecting your app, doesn't end a session it made.</p>
+        <p class="developers__text" data-test-copy="create-session"><code data-test-action>create-session</code>, on every collection, answers <code>204</code> with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader signing your app out from all devices, doesn't end a session it made.</p>
       </section>
 
       <section class="developers__section" data-test-section="discovery">
