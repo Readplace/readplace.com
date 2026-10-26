@@ -5,6 +5,7 @@ import type {
 	SQSRecord,
 } from "aws-lambda";
 import {
+	CanonicalContentChangedEvent,
 	ComputeRelatedPastReadsCommand,
 	QueueEntryCreatedEvent,
 } from "@packages/hutch-infra-components";
@@ -15,6 +16,7 @@ const detailTypeOf = (record: SQSRecord): unknown =>
 export function initComputeRelatedPasses(deps: {
 	nextReadHandler: Handler<SQSEvent, SQSBatchResponse>;
 	pastReadsHandler: Handler<SQSEvent, SQSBatchResponse>;
+	recomputeNextReadHandler: Handler<SQSEvent, SQSBatchResponse>;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	// One queue feeds both computations. A new save (QueueEntryCreated) precomputes
 	// Next read AND, independently, the past-reads topic section; the explicit
@@ -37,9 +39,12 @@ export function initComputeRelatedPasses(deps: {
 				detailType === ComputeRelatedPastReadsCommand.detailType
 			);
 		});
+		const contentChangedRecords = event.Records.filter(
+			(record) => detailTypeOf(record) === CanonicalContentChangedEvent.detailType,
+		);
 
 		const failed = new Set<string>();
-		const [nextRead, pastReads] = await Promise.all([
+		const [nextRead, pastReads, recomputeNextRead] = await Promise.all([
 			deps.nextReadHandler(
 				{ ...event, Records: nextReadRecords },
 				context,
@@ -50,8 +55,13 @@ export function initComputeRelatedPasses(deps: {
 				context,
 				callback,
 			),
+			deps.recomputeNextReadHandler(
+				{ ...event, Records: contentChangedRecords },
+				context,
+				callback,
+			),
 		]);
-		for (const pass of [nextRead, pastReads]) {
+		for (const pass of [nextRead, pastReads, recomputeNextRead]) {
 			for (const failure of pass?.batchItemFailures ?? [])
 				failed.add(failure.itemIdentifier);
 		}

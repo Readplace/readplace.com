@@ -16,6 +16,7 @@ import { initRelatedArticlesDepBundle } from "./dep-bundles/related-articles";
 import { initComputeRelatedPasses } from "./domain/related-articles/compute-related-passes";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
 import { initComputeRelatedPastReadsHandler } from "./domain/related-articles/compute-related-past-reads-handler";
+import { initRecomputeSkippedNextReadHandler } from "./domain/related-articles/recompute-skipped-next-read-handler";
 import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
 import { RELATED_ARTICLES_TIMEOUTS } from "./domain/related-articles/timeouts";
 
@@ -47,8 +48,11 @@ const {
 	findRelatedCandidateArticles,
 	findRelatedReadCandidateArticles,
 	findRelatedTargetArticle,
+	findSkippedNextReadSaves,
 	markRelatedArticlesReady,
 	markRelatedArticlesSkipped,
+	replaceSkippedRelatedArticlesWithReady,
+	replaceSkippedRelatedArticlesWithSkip,
 } = initDynamoDbRelatedArticles({
 	client: dynamoClient,
 	tableName: articlesTable,
@@ -95,4 +99,20 @@ const pastReadsHandler = initComputeRelatedPastReadsHandler({
 	logger: consoleLogger,
 });
 
-export const handler = initComputeRelatedPasses({ nextReadHandler, pastReadsHandler });
+const recomputeNextReadHandler = initRecomputeSkippedNextReadHandler({
+	findRelatedTargetArticle,
+	findSkippedNextReadSaves,
+	gatherRelatedCandidatePools,
+	selectRelatedArticles,
+	replaceSkippedRelatedArticlesWithReady,
+	replaceSkippedRelatedArticlesWithSkip,
+	publishEvent,
+	now: () => new Date(),
+	logger: consoleLogger,
+});
+
+export const handler = initComputeRelatedPasses({
+	nextReadHandler,
+	pastReadsHandler,
+	recomputeNextReadHandler,
+});

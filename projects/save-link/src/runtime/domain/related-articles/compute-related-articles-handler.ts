@@ -4,7 +4,6 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import { hasEnoughSavesForNextRead } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -13,10 +12,10 @@ import type {
 	FindRelatedTargetArticle,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
-	RelatedTargetArticle,
 } from "@packages/provider-contracts/related-articles";
-import { QueueEntryCreatedEvent, RelatedArticlesComputedEvent } from "./index";
+import { QueueEntryCreatedEvent } from "./index";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
+import { MetadataNotReadyError, initNextReadComputation } from "./next-read-computation";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
 import type { SelectRelatedArticles } from "./related-articles-selector";
 
@@ -30,16 +29,6 @@ interface ComputeRelatedArticlesHandlerDeps {
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
-}
-
-class MetadataNotReadyError extends Error {
-	readonly url: string;
-	readonly crawlStatus: RelatedTargetArticle["crawlStatus"];
-	constructor(params: { url: string; crawlStatus: RelatedTargetArticle["crawlStatus"] }) {
-		super(`[ComputeRelatedArticles] article metadata not ready for ${params.url}`);
-		this.url = params.url;
-		this.crawlStatus = params.crawlStatus;
-	}
 }
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
@@ -57,6 +46,15 @@ export function initComputeRelatedArticlesHandler(
 		now,
 		logger,
 	} = deps;
+	const { skipNextRead, computeNextRead } = initNextReadComputation({
+		gatherRelatedCandidatePools,
+		selectRelatedArticles,
+		markRelatedArticlesReady,
+		markRelatedArticlesSkipped,
+		publishEvent,
+		now,
+		logger,
+	});
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -77,44 +75,15 @@ export function initComputeRelatedArticlesHandler(
 					continue;
 				}
 
-				const skip = async (reason: string, details?: {
-					crawlStatus: RelatedTargetArticle["crawlStatus"];
-					bestScore?: number;
-					candidateCount?: number;
-					hasSummary?: boolean;
-				}): Promise<void> => {
-					const outcome = await markRelatedArticlesSkipped({
-						userId,
-						url: entry.url,
-						at: now(),
-					});
-					if (outcome === "superseded") {
-						logger.info("[ComputeRelatedArticles] superseded", { url: entry.url });
-						return;
-					}
-					await publishEvent(RelatedArticlesComputedEvent, {
-						url: entry.url,
-						userId,
-						outcome: "skipped",
-						relatedCount: 0,
-						inputTokens: 0,
-						outputTokens: 0,
-					});
-					logger.info("[ComputeRelatedArticles] skipped", {
-						url: entry.url,
-						reason,
-						receiveCount,
-						...details,
-					});
-				};
+				const save = { userId, url: entry.url, receiveCount };
 
 				const lookup = await findRelatedTargetArticle(entry.url);
 				if (lookup.state === "purged") {
-					await skip("the article was purged before its related links were computed");
+					await skipNextRead({ save, reason: "the article was purged before its related links were computed" });
 					continue;
 				}
 				if (lookup.state === "not-an-article") {
-					await skip("not an article host");
+					await skipNextRead({ save, reason: "not an article host" });
 					continue;
 				}
 				if (lookup.state === "absent") {
@@ -129,79 +98,11 @@ export function initComputeRelatedArticlesHandler(
 					if (crawlStatus === "failed" && receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
 						throw new MetadataNotReadyError({ url: entry.url, crawlStatus });
 					}
-					await skip("crawl produced no metadata to compare", { crawlStatus });
+					await skipNextRead({ save, reason: "crawl produced no metadata to compare", details: { crawlStatus } });
 					continue;
 				}
 
-				const pools = await gatherRelatedCandidatePools({
-					userId,
-					excludeUrl: entry.url,
-				});
-				const candidateCount =
-					pools.unreadCandidates.length + pools.readCandidates.length;
-				if (!hasEnoughSavesForNextRead(candidateCount)) {
-					if (pools.awaitingCrawl > 0) throw new MetadataNotReadyError({ url: entry.url, crawlStatus });
-					await skip("not enough saves to compare against", { crawlStatus });
-					continue;
-				}
-
-				const result = await selectRelatedArticles({
-					target,
-					unreadCandidates: pools.unreadCandidates,
-					readCandidates: pools.readCandidates,
-				});
-				if (result.kind === "shared-boilerplate") {
-					await skip("the saved text is a block page shared across sites", { crawlStatus });
-					continue;
-				}
-				if (result.kind === "no-shared-words") {
-					await skip("no earlier save shares the saved article's words", {
-						crawlStatus,
-						bestScore: result.bestScore,
-						candidateCount: result.candidateCount,
-						hasSummary: target.hasSummary,
-					});
-					continue;
-				}
-				if (result.kind !== "ready") {
-					throw new Error(
-						`[ComputeRelatedArticles] ${result.kind satisfies "no-text-block"} for ${entry.url}`,
-					);
-				}
-
-				const outcome = await markRelatedArticlesReady({
-					userId,
-					url: entry.url,
-					relatedArticles: result.related,
-					inputTokens: result.inputTokens,
-					outputTokens: result.outputTokens,
-					at: now(),
-				});
-				if (outcome === "superseded") {
-					logger.info("[ComputeRelatedArticles] superseded", { url: entry.url });
-					continue;
-				}
-				await publishEvent(RelatedArticlesComputedEvent, {
-					url: entry.url,
-					userId,
-					outcome: "ready",
-					relatedCount: result.related.length,
-					inputTokens: result.inputTokens,
-					outputTokens: result.outputTokens,
-				});
-				logger.info("[ComputeRelatedArticles] completed", {
-					sampleCount: result.samples.length,
-					samples: result.samples,
-					agreement: result.agreement,
-					url: entry.url,
-					relatedCount: result.related.length,
-					droppedNoSharedWord: result.droppedNoSharedWord,
-					droppedReasonNotAboutPick: result.droppedReasonNotAboutPick,
-					inputTokens: result.inputTokens,
-					outputTokens: result.outputTokens,
-					cacheHitInputTokens: result.cacheHitInputTokens ?? "unknown",
-					cacheMissInputTokens: result.cacheMissInputTokens ?? "unknown",
-				});
+				await computeNextRead({ save, target });
 			} catch (error) {
 				if (error instanceof MetadataNotReadyError) {
 					logger.info(
