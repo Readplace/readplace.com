@@ -240,4 +240,11 @@ describe("FileArticleIntoReadlistCommand", () => {
 
 		expect(FileArticleIntoReadlistCommand.detailSchema.safeParse({ ...command(), fit }).success).toBe(false);
 	});
+
+	it.each([
+		["an email keep", { verdict: "keep", reason: "Code review.", purposeVersion: "v1", source: EMAIL_SOURCE }],
+		["a reader keep", { verdict: "keep", purposeVersion: "0123456789AB", source: { kind: "reader" } }],
+	])("rejects %s whose purpose version is not 12 hex characters", (_name, fit) => {
+		expect(FileArticleIntoReadlistCommand.detailSchema.safeParse({ ...command(), fit }).success).toBe(false);
+	});
 });

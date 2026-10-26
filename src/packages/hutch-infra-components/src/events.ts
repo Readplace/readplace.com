@@ -139,6 +139,8 @@ export const SubmitLinkCommand = defineEvent({
 });
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
 
+const PurposeVersionSchema = z.string().regex(/^[0-9a-f]{12}$/);
+
 const ReadlistFitSourceSchema = z.union([
 	z.object({ kind: z.literal("email"), receivedAtMessageId: z.string(), ordinal: z.string() }),
 	z.object({ kind: z.literal("reader") }),
@@ -157,12 +159,12 @@ export const FileArticleIntoReadlistCommand = defineEvent({
 			z.object({
 				verdict: z.literal("keep"),
 				reason: z.string(),
-				purposeVersion: z.string(),
+				purposeVersion: PurposeVersionSchema,
 				source: z.object({ kind: z.literal("email"), receivedAtMessageId: z.string(), ordinal: z.string() }),
 			}),
 			z.strictObject({
 				verdict: z.literal("keep"),
-				purposeVersion: z.string().optional(),
+				purposeVersion: PurposeVersionSchema.optional(),
 				source: z.strictObject({ kind: z.literal("reader") }),
 			}),
 			z.object({ kind: z.literal("no-purpose"), source: ReadlistFitSourceSchema }),
