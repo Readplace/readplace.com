@@ -64,7 +64,7 @@ async function obtainAccessToken(harness: TestAppHarness, clientId: string): Pro
 		code_challenge_method: "S256",
 		state: "automator",
 	};
-	const consent = await agent.get("/oauth/authorize").query({ ...grant, scope: "queue" });
+	const consent = await agent.get("/oauth/authorize").query(grant);
 	assert.equal(consent.status, 200);
 
 	const approval = await agent.post("/oauth/authorize").type("form").send({ ...grant, action: "approve" });
@@ -127,7 +127,7 @@ function currentHref(entries: { rel: string; href: string }[]): string {
 	return current.href;
 }
 
-function invoke(harness: TestAppHarness, params: { token: string; action: Action; authored?: Record<string, string> }) {
+function invoke(harness: TestAppHarness, params: { token: string; action: Action; authored?: Record<string, string | string[]> }) {
 	assert.equal(params.action.method, "POST");
 	const serverValued = (params.action.fields ?? []).filter((field) => field.value !== undefined);
 	const body = { ...Object.fromEntries(serverValued.map((field) => [field.name, field.value])), ...params.authored };
@@ -168,18 +168,29 @@ describe("Process a readlist via a self-registered OAuth client", () => {
 			[READLIST_LABEL],
 		);
 
-		const save = async (url: string): Promise<string> => {
+		const save = async (params: { from: { actions?: Action[] }; url: string }): Promise<string> => {
 			const saved = await invoke(harness, {
 				token,
-				action: actionNamed(readlist.body, "save-article"),
-				authored: { url },
+				action: actionNamed(params.from, "save-article"),
+				authored: { url: params.url },
 			});
 			assert.equal(saved.status, 201);
 			return saved.body.properties.id;
 		};
-		const summarisedId = await save(SUMMARISED_URL);
-		const readId = await save(READ_URL);
-		const plainId = await save(PLAIN_URL);
+		const summarisedId = await save({ from: readlist.body, url: SUMMARISED_URL });
+		const readId = await save({ from: readlist.body, url: READ_URL });
+		const plainId = await save({ from: all.body, url: PLAIN_URL });
+
+		const allWithPlain = await readCollection(harness, { token, path: linkHref(all.body, "self") });
+		const toFile = allWithPlain.body.entities.find((article: ArticleEntity) => article.properties.id === plainId);
+		assert(toFile, "All lists the article saved from it");
+		const filed = await invoke(harness, {
+			token,
+			action: actionNamed(toFile, "add-to-readlist"),
+			authored: { readlists: [currentHref(readlist.body.properties.readlists)] },
+		});
+		assert.equal(filed.status, 303);
+		assert.equal((await followRedirects(harness, { token, response: filed })).status, 200);
 		await harness.articleStore.writeContent({ url: SUMMARISED_URL, content: "<p>Automator body.</p>" });
 		await harness.articleCrawl.markCrawlReady({ url: SUMMARISED_URL });
 		summary.markSummaryReady({ url: SUMMARISED_URL, summary: SUMMARY, excerpt: "Automator excerpt." });
