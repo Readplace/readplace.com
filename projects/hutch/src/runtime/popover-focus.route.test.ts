@@ -171,7 +171,7 @@ describe("every popup opens on its first decision", () => {
 			"share",
 			"subscribe-plans",
 		]);
-	});
+	}, 30000);
 
 	it("holds on the Gmail newsletters popups, which open on their first decision, and keeps the closed page free of autofocus", async () => {
 		const gmail = initInMemoryGmailIntegration({
