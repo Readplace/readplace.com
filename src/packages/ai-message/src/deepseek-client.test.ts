@@ -1,4 +1,4 @@
-import { initCreateDeepseekThinkingMessage } from "./create-deepseek-message";
+import { initCreateDeepseekMessage, initCreateDeepseekThinkingMessage } from "./create-deepseek-message";
 import { initCreateDeepseekChatCompletion } from "./deepseek-chat-completion";
 import { type DeepseekClientOptions, initDeepseekClient } from "./deepseek-client";
 import { DEEPSEEK_FEATURES } from "./deepseek-feature";
@@ -152,6 +152,55 @@ describe("initDeepseekClient", () => {
 		);
 	});
 
+	it("prices an answered call at the rate of the instant it was sent", async () => {
+		const { fetch } = fakeFetch([
+			{ status: 200, body: flashAnswer({ prompt_tokens: 1200, completion_tokens: 300, prompt_cache_hit_tokens: 200, prompt_cache_miss_tokens: 1000 }) },
+		]);
+		const { client, lines } = door({ fetch });
+
+		await initCreateDeepseekMessage({ client })({
+			feature: DEEPSEEK_FEATURES.summary,
+			max_tokens: 1024,
+			system: "You are a summarizer.",
+			messages: [{ role: "user", content: "Summarize this article" }],
+		});
+
+		expect(lines.map((line) => JSON.stringify(line))).toEqual([
+			'{"stream":"analytics","event":"deepseek_usage","timestamp":"2026-10-26T02:15:00.000Z","feature":"summary","model":"deepseek-flash","served_model":"deepseek-flash","rate":"peak","input_tokens":1200,"cache_hit_input_tokens":200,"cache_miss_input_tokens":1000,"output_tokens":300,"price_table":"2026-09-10","usd":0.0006612}',
+		]);
+	});
+
+	it("prices deepseek-v4-pro at its off-peak row and carries reasoning tokens without adding them", async () => {
+		const { fetch } = fakeFetch([
+			{
+				status: 200,
+				body: {
+					model: "deepseek-v4-pro",
+					choices: [{ message: { content: '{"links":[]}' } }],
+					usage: {
+						prompt_tokens: 5000,
+						completion_tokens: 2000,
+						prompt_cache_hit_tokens: 0,
+						prompt_cache_miss_tokens: 5000,
+						completion_tokens_details: { reasoning_tokens: 1500 },
+					},
+				},
+			},
+		]);
+		const { client, lines } = door({ fetch, now: () => new Date("2026-10-31T02:00:00.000Z") });
+
+		await initCreateDeepseekThinkingMessage({ client })({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
+			max_tokens: 32768,
+			system: "You are a filter.",
+			messages: [{ role: "user", content: "Filter these links" }],
+		});
+
+		expect(lines.map((line) => JSON.stringify(line))).toEqual([
+			'{"stream":"analytics","event":"deepseek_usage","timestamp":"2026-10-31T02:00:00.000Z","feature":"readlist_purpose_filter","model":"deepseek-v4-pro","served_model":"deepseek-v4-pro","rate":"off_peak","input_tokens":5000,"cache_hit_input_tokens":0,"cache_miss_input_tokens":5000,"output_tokens":2000,"reasoning_tokens":1500,"price_table":"2026-09-10","usd":0.00726}',
+		]);
+	});
+
 	it("logs an unpriced line when the answer carries no usage", async () => {
 		const { fetch } = fakeFetch([{ status: 200, body: flashAnswer() }]);
 		const { client, lines } = door({ fetch });
@@ -164,7 +213,7 @@ describe("initDeepseekClient", () => {
 		});
 
 		expect(lines.map((line) => JSON.stringify(line))).toEqual([
-			'{"stream":"analytics","event":"deepseek_usage","timestamp":"2026-10-26T02:15:00.000Z","feature":"content_selection","model":"deepseek-flash","served_model":"deepseek-flash"}',
+			'{"stream":"analytics","event":"deepseek_usage","timestamp":"2026-10-26T02:15:00.000Z","feature":"content_selection","model":"deepseek-flash","served_model":"deepseek-flash","rate":"peak"}',
 		]);
 	});
 
@@ -180,7 +229,7 @@ describe("initDeepseekClient", () => {
 		});
 
 		expect(lines.map((line) => JSON.stringify(line))).toEqual([
-			'{"stream":"analytics","event":"deepseek_usage","timestamp":"2026-10-26T02:15:00.000Z","feature":"content_selection","model":"deepseek-flash","served_model":"deepseek-flash","input_tokens":10,"output_tokens":5}',
+			'{"stream":"analytics","event":"deepseek_usage","timestamp":"2026-10-26T02:15:00.000Z","feature":"content_selection","model":"deepseek-flash","served_model":"deepseek-flash","rate":"peak","input_tokens":10,"output_tokens":5}',
 		]);
 	});
 
@@ -196,7 +245,7 @@ describe("initDeepseekClient", () => {
 		});
 
 		expect(lines.map((line) => JSON.stringify(line))).toEqual([
-			'{"stream":"analytics","event":"deepseek_usage","timestamp":"2026-10-26T02:15:00.000Z","feature":"content_selection","model":"deepseek-flash","served_model":"deepseek-flash"}',
+			'{"stream":"analytics","event":"deepseek_usage","timestamp":"2026-10-26T02:15:00.000Z","feature":"content_selection","model":"deepseek-flash","served_model":"deepseek-flash","rate":"peak"}',
 		]);
 	});
 

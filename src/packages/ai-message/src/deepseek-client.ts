@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { DeepseekChatResponse, DeepseekClient, DeepseekMessage, DeepseekWireRequest } from "./deepseek-chat.types";
 import type { DeepseekFeature } from "./deepseek-feature";
 import type { DeepseekModel } from "./deepseek-model";
+import { DEEPSEEK_PRICE_TABLE, deepseekCostUsd, deepseekRate } from "./deepseek-pricing";
 import type { DeepseekUsageLine, LogDeepseekUsage } from "./deepseek-usage-line.types";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
@@ -76,6 +77,7 @@ function usageLine(input: {
 }): DeepseekUsageLine {
 	const parsed = DeepseekUsageSchema.safeParse(input.response.usage);
 	const usage = parsed.success ? parsed.data : undefined;
+	const rate = deepseekRate(input.sentAt);
 	const line: DeepseekUsageLine = {
 		stream: "analytics",
 		event: "deepseek_usage",
@@ -83,11 +85,23 @@ function usageLine(input: {
 		feature: input.feature,
 		model: input.model,
 		served_model: input.response.model,
+		rate,
 		input_tokens: usage?.prompt_tokens,
 		cache_hit_input_tokens: usage?.prompt_cache_hit_tokens,
 		cache_miss_input_tokens: usage?.prompt_cache_miss_tokens,
 		output_tokens: usage?.completion_tokens,
 		reasoning_tokens: usage?.completion_tokens_details?.reasoning_tokens,
 	};
-	return line;
+	if (!usage || usage.prompt_cache_hit_tokens === undefined || usage.prompt_cache_miss_tokens === undefined) return line;
+	return {
+		...line,
+		price_table: DEEPSEEK_PRICE_TABLE.effectiveDate,
+		usd: deepseekCostUsd({
+			model: input.model,
+			rate,
+			cacheHitInputTokens: usage.prompt_cache_hit_tokens,
+			cacheMissInputTokens: usage.prompt_cache_miss_tokens,
+			outputTokens: usage.completion_tokens,
+		}),
+	};
 }
