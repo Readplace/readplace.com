@@ -67,7 +67,7 @@ export type ComprehensiveCrawlProgress = (params: {
 }) => void;
 
 /**
- * The single crawl entry point. Issues one conditional GET, materialises the
+ * The single crawl entry point. Materialises the
  * body once, and dispatches to a content-type-specific parser. `fetchThumbnail`
  * opts the HTML path into prefetching the article thumbnail; `onProgress` is
  * forwarded to the PDF extractor (the expensive path that can hold a Lambda

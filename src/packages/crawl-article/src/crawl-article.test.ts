@@ -2160,3 +2160,291 @@ describe("AWS WAF recovery", () => {
 		expect(curl).toHaveBeenCalledTimes(2);
 	});
 });
+
+describe("initCrawlArticle — a page that only refreshes to another URL", () => {
+	const ALIAS_URL = "https://blog.example/posts/a-post.";
+	const ARTICLE_URL = "https://blog.example/posts/a-post/";
+	const ALIAS_HTML = `<!doctype html><html lang=en-gb><head><title>${ARTICLE_URL}</title><link rel=canonical href=${ARTICLE_URL}><meta charset=utf-8><meta http-equiv=refresh content="0; url=${ARTICLE_URL}"></head></html>`;
+	const ARTICLE_HTML =
+		'<html><head><title>A post</title><meta property="og:image" content="images/hero.png"></head><body><article><p>The article body.</p></article></body></html>';
+
+	function html(body: string, status = 200): Response {
+		return new Response(body, { status, headers: { "content-type": "text/html" } });
+	}
+
+	function stall(signal: AbortSignal | null | undefined): Promise<Response> {
+		assert(signal, "Expected the crawl fetch to pass an AbortSignal");
+		return new Promise((_resolve, reject) => {
+			signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+		});
+	}
+
+	it("crawls the target of a zero-delay refresh on a page with no body", async () => {
+		const requested: string[] = [];
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				const url = String(input);
+				requested.push(url);
+				if (url === ALIAS_URL) return html(ALIAS_HTML);
+				if (url === ARTICLE_URL) return html(ARTICLE_HTML);
+				return new Response(null, { status: 404 });
+			},
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: ALIAS_URL });
+
+		assertFetched(result);
+		expect(result.html).toBe(ARTICLE_HTML);
+		expect(result.finalUrl).toBe(ARTICLE_URL);
+		expect(result.thumbnailUrl).toBe("https://blog.example/posts/a-post/images/hero.png");
+		expect(requested).toEqual([ALIAS_URL, ARTICLE_URL]);
+		expect(logInfo).toHaveBeenCalledWith(`[CrawlArticle] Following meta refresh from ${ALIAS_URL} to ${ARTICLE_URL}`);
+	});
+
+	it("resolves the refresh from the page an HTTP redirect landed on", async () => {
+		const SAVED_URL = "https://essays.example/a-essay";
+		const STUB_URL = "https://essays.example/a-essay/";
+		const TARGET_URL = "https://essays.example/2020/a-essay/";
+		const stub = `<!doctype html><html lang=en-GB><head><title>${TARGET_URL}</title><link rel=canonical href=${TARGET_URL}><meta name=robots content="noindex"><meta charset=utf-8><meta http-equiv=refresh content="0; url=${TARGET_URL}"></head></html><script type="module" src="https://beacon.example/b.js" crossorigin="anonymous"></script>`;
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				const url = String(input);
+				if (url === SAVED_URL) return new Response(null, { status: 307, headers: { location: STUB_URL } });
+				if (url === STUB_URL) return html(stub);
+				if (url === TARGET_URL) return html(ARTICLE_HTML);
+				return new Response(null, { status: 404 });
+			},
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: SAVED_URL });
+
+		assertFetched(result);
+		expect(result.html).toBe(ARTICLE_HTML);
+		expect(result.finalUrl).toBe(TARGET_URL);
+		expect(logInfo).toHaveBeenCalledWith(`[CrawlArticle] Following meta refresh from ${STUB_URL} to ${TARGET_URL}`);
+	});
+
+	it("follows a delayed, quoted, relative refresh through to a publisher that answers only the proxied pass", async () => {
+		const DOI_URL = "https://resolver.example/10.1000/abc";
+		const HUB_STUB_URL = "https://hub.example/retrieve/item/0001";
+		const HUB_SELECT_URL = "https://hub.example/retrieve/select?next=https%3A%2F%2Fpublisher.example%2Farticle&key=k1";
+		const PUBLISHER_URL = "https://publisher.example/article";
+		const hubStub = `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta charset="utf-8">
+<META http-equiv=Content-Type content="text/html">
+<meta HTTP-EQUIV="REFRESH" content="2; url='/retrieve/select?next=https%3A%2F%2Fpublisher.example%2Farticle&amp;key=k1'"/>
+<title>Redirecting</title>
+<script type="text/javascript">function go() { window.location = "/retrieve/elsewhere"; }</script>
+</head>
+<body onload="go();">
+<tr style="display:none;"><td colspan="2"><input type="hidden" name="key" value="k1"/></td></tr>
+</body>
+<script>analytics.track("redirect");</script>
+</html>`;
+		let publisherCalls = 0;
+		const logInfo = jest.fn();
+		const blocked = async (): Promise<Response> => new Response(null, { status: 403 });
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				const url = String(input);
+				if (url === DOI_URL) return new Response(null, { status: 302, headers: { location: HUB_STUB_URL } });
+				if (url === HUB_STUB_URL) {
+					return new Response(hubStub, { status: 200, headers: { "content-type": "text/html;charset=UTF-8" } });
+				}
+				if (url === HUB_SELECT_URL) return new Response(null, { status: 301, headers: { location: PUBLISHER_URL } });
+				if (url === PUBLISHER_URL) {
+					publisherCalls += 1;
+					return publisherCalls === 1 ? new Response(null, { status: 403 }) : html(ARTICLE_HTML);
+				}
+				return new Response(null, { status: 404 });
+			},
+			fetchH2: blocked,
+			fetchCurl: blocked,
+			proxyUrl: "http://proxy.example:8080",
+			logInfo,
+		});
+
+		const result = await crawlArticle({ url: DOI_URL });
+
+		assertFetched(result);
+		expect(result.html).toBe(ARTICLE_HTML);
+		expect(result.finalUrl).toBe(PUBLISHER_URL);
+		expect(publisherCalls).toBe(2);
+		expect(logInfo).toHaveBeenCalledWith(`[CrawlArticle] Following meta refresh from ${HUB_STUB_URL} to ${HUB_SELECT_URL}`);
+	});
+
+	it("follows one refresh and keeps the page it lands on even when that page refreshes again", async () => {
+		const ONE_URL = "https://chain.example/one";
+		const TWO_URL = "https://chain.example/two";
+		const THREE_URL = "https://chain.example/three";
+		const stubTo = (target: string) => `<html><head><meta http-equiv=refresh content="0; url=${target}"></head></html>`;
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				const url = String(input);
+				requested.push(url);
+				if (url === ONE_URL) return html(stubTo(TWO_URL));
+				if (url === TWO_URL) return html(stubTo(THREE_URL));
+				return html(ARTICLE_HTML);
+			},
+		});
+
+		const result = await crawlArticle({ url: ONE_URL });
+
+		assertFetched(result);
+		expect(result.html).toBe(stubTo(THREE_URL));
+		expect(result.finalUrl).toBe(TWO_URL);
+		expect(requested).toEqual([ONE_URL, TWO_URL]);
+	});
+
+	it("fetches a page that refreshes to itself once more and stops", async () => {
+		const SELF_URL = "https://loop.example/self";
+		const self = `<html><head><meta http-equiv=refresh content="0; url=${SELF_URL}"></head></html>`;
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				requested.push(String(input));
+				return html(self);
+			},
+		});
+
+		const result = await crawlArticle({ url: SELF_URL });
+
+		assertFetched(result);
+		expect(result.html).toBe(self);
+		expect(result.finalUrl).toBe(SELF_URL);
+		expect(requested).toEqual([SELF_URL, SELF_URL]);
+	});
+
+	it("keeps a readable page that reloads itself on a timer", async () => {
+		const PAGE_URL = "https://news.example/live";
+		const page = `<html><head><meta http-equiv="refresh" content="300; url=${PAGE_URL}"></head><body><p>Breaking news body text.</p></body></html>`;
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				requested.push(String(input));
+				return html(page);
+			},
+		});
+
+		const result = await crawlArticle({ url: PAGE_URL });
+
+		assertFetched(result);
+		expect(result.html).toBe(page);
+		expect(requested).toEqual([PAGE_URL]);
+	});
+
+	it("reports a gone refresh target under the URL its own redirect reached", async () => {
+		const GONE_URL = "https://blog.example/gone";
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				const url = String(input);
+				if (url === ALIAS_URL) return html(ALIAS_HTML);
+				if (url === ARTICLE_URL) return new Response(null, { status: 301, headers: { location: GONE_URL } });
+				return new Response(null, { status: 404 });
+			},
+		});
+
+		expect(await crawlArticle({ url: ALIAS_URL })).toEqual({ status: "not-found", httpStatus: 404, finalUrl: GONE_URL });
+	});
+
+	it("reports a refresh target that never answers under the target URL", async () => {
+		const crawlArticle = initCrawl({
+			fetch: async (input, init) => (String(input) === ALIAS_URL ? html(ALIAS_HTML) : stall(init?.signal)),
+			fetchH2: async (_url, init) => stall(init?.signal),
+			fetchCurl: async (_url, init) => stall(init.signal),
+			fetchTimeouts: { headersMs: 15, bodyMs: 5000 },
+		});
+
+		expect(await crawlArticle({ url: ALIAS_URL })).toEqual({
+			status: "failed",
+			finalUrl: ARTICLE_URL,
+			failure: { kind: "fetch-failed" },
+		});
+	});
+
+	it("sends the caller's validators to the refresh target and reports its 304 as not modified", async () => {
+		const seen: Array<{ url: string; ifNoneMatch: string }> = [];
+		const crawlArticle = initCrawl({
+			fetch: async (input, init) => {
+				const url = String(input);
+				const ifNoneMatch = plainHeaders(init)["if-none-match"];
+				seen.push({ url, ifNoneMatch });
+				if (url === ALIAS_URL) return html(ALIAS_HTML);
+				return ifNoneMatch === '"v1"' ? new Response(null, { status: 304 }) : html(ARTICLE_HTML);
+			},
+		});
+
+		expect(await crawlArticle({ url: ALIAS_URL, etag: '"v1"' })).toEqual({ status: "not-modified" });
+		expect(seen).toEqual([
+			{ url: ALIAS_URL, ifNoneMatch: '"v1"' },
+			{ url: ARTICLE_URL, ifNoneMatch: '"v1"' },
+		]);
+	});
+
+	it("compares the previous body hash with the refresh target's body", async () => {
+		const crawlArticle = initCrawl({
+			fetch: async (input) => (String(input) === ALIAS_URL ? html(ALIAS_HTML) : html(ARTICLE_HTML)),
+		});
+		const previousBodyHash = createHash("sha256").update(ARTICLE_HTML).digest("hex");
+
+		expect(await crawlArticle({ url: ALIAS_URL, previousBodyHash })).toEqual({ status: "not-modified" });
+	});
+
+	it("hands a refresh that lands on a PDF to the PDF path", async () => {
+		const PDF_URL = "https://blog.example/paper.pdf";
+		const stub = `<html><head><meta http-equiv=refresh content="0; url=${PDF_URL}"></head></html>`;
+		const logInfo = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: async (input) =>
+				String(input) === ALIAS_URL
+					? html(stub)
+					: new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/pdf" } }),
+			logInfo,
+		});
+
+		expect(await crawlArticle({ url: ALIAS_URL })).toEqual({
+			status: "unsupported",
+			reason: "unsupported content type: application/pdf",
+		});
+		expect(logInfo).toHaveBeenCalledWith(
+			`[CrawlArticle] PDF deferred to comprehensive crawl (no extractPdf in this runtime) for ${ALIAS_URL} → ${PDF_URL}`,
+		);
+	});
+
+	it("retains the refresh target's body and status when the caller retains response bodies", async () => {
+		const crawlArticle = initCrawl({
+			fetch: async (input) => (String(input) === ALIAS_URL ? html(ALIAS_HTML) : html(ARTICLE_HTML)),
+		});
+
+		const result = await crawlArticle({ url: ALIAS_URL, retainResponseBody: true });
+
+		assertFetched(result);
+		expect(result.html).toBe(ARTICLE_HTML);
+		expect(result.httpStatus).toBe(200);
+		expect(result.finalUrl).toBe(ARTICLE_URL);
+	});
+
+	it("keeps a retained refresh page that answered with a server error", async () => {
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				requested.push(String(input));
+				return html(ALIAS_HTML, 503);
+			},
+		});
+
+		const result = await crawlArticle({ url: ALIAS_URL, retainResponseBody: true });
+
+		assertFetched(result);
+		expect(result.html).toBe(ALIAS_HTML);
+		expect(result.httpStatus).toBe(503);
+		expect(requested).toEqual([ALIAS_URL]);
+	});
+});

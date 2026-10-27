@@ -16,6 +16,7 @@ import { headerOrUndefined } from "./header-utils";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { initLogFetchFailure } from "./log-fetch-failure";
 import { classifyMediaType, type SupportedMediaType } from "./media-type";
+import { metaRefreshTarget } from "./meta-refresh";
 import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
@@ -281,6 +282,27 @@ function initConditionalGet(deps: {
 	};
 }
 
+type ConditionalGet = ReturnType<typeof initConditionalGet>;
+
+function withMetaRefreshHop(deps: {
+	conditionalGet: ConditionalGet;
+	logInfo: (message: string) => void;
+}): ConditionalGet {
+	const { conditionalGet, logInfo } = deps;
+	return async (params) => {
+		const fetched = await conditionalGet(params);
+		if (fetched.status !== "ok") return fetched;
+		const documentUrl = resolveDocumentUrl({ requestedUrl: params.url, finalUrl: terminalUrl(fetched.response) });
+		const target = metaRefreshTarget({ response: fetched.response, buffer: fetched.buffer, documentUrl });
+		if (target === undefined) return fetched;
+		logInfo(`[CrawlArticle] Following meta refresh from ${documentUrl} to ${target}`);
+		const followed = await conditionalGet({ ...params, url: target });
+		if (followed.status === "ok") return followed;
+		if (followed.status === "not-modified") return followed;
+		return { ...followed, finalUrl: followed.finalUrl ?? target };
+	};
+}
+
 /**
  * HTML body → article result. Decodes the materialised buffer (UTF-8, matching
  * `Response.text()`), extracts thumbnail candidates, and — when `fetchThumbnail`
@@ -366,7 +388,7 @@ export async function parsePdfFromBuffer(input: {
 }
 
 /**
- * The single crawl orchestrator. One conditional GET per invocation; the body
+ * The single crawl orchestrator. The body
  * is materialised once, `classifyMediaType` (the single source of truth for
  * supported media types) maps it to a `SupportedMediaType`, and the exhaustive
  * switch below dispatches to a parser:
@@ -400,7 +422,10 @@ export function initCrawlArticle(deps: {
 }): CrawlArticle {
 	const { crawlFetch, siteRules, extractPdf, logError, logInfo } = deps;
 	const fetchTimeouts = deps.fetchTimeouts ?? DEFAULT_FETCH_TIMEOUTS;
-	const conditionalGet = initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts });
+	const conditionalGet = withMetaRefreshHop({
+		conditionalGet: initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts }),
+		logInfo,
+	});
 	return async (params) => {
 		let currentUrl = params.url;
 		let redirectingSite: { site: SiteRules; url: string } | undefined;
