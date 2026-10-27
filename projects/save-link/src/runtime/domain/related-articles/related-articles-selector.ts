@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { CreateAiMessage } from "@packages/ai-message";
+import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { ArticleDestinationUrl } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
@@ -14,6 +14,7 @@ import {
 	RELATED_REASON_MAX_CHARS,
 	RELATED_RESULTS_MAX,
 } from "./related-articles-limits";
+import { PAST_READS_PROMPT } from "./related-past-reads-prompt";
 import { contentWords } from "./shared-subject-words";
 
 const RELATED_ARTICLES_PROMPT = readFileSync(
@@ -22,6 +23,11 @@ const RELATED_ARTICLES_PROMPT = readFileSync(
 )
 	.replace("{{RELATED_RESULTS_MAX}}", String(RELATED_RESULTS_MAX))
 	.replace("{{RELATED_REASON_MAX_CHARS}}", String(RELATED_REASON_MAX_CHARS));
+
+const RELATED_SELECTIONS = {
+	nextRead: { feature: DEEPSEEK_FEATURES.nextRead, system: RELATED_ARTICLES_PROMPT },
+	pastReads: { feature: DEEPSEEK_FEATURES.pastReads, system: PAST_READS_PROMPT },
+} as const;
 
 const RelatedPayload = z.object({
 	related: z.array(
@@ -166,15 +172,13 @@ export function initSelectRelatedArticles(deps: {
 	createMessage: CreateAiMessage;
 	nowMs: () => number;
 	logger: HutchLogger;
-	/** Overrides the Next-read prompt so an independent selection (e.g. the
-	 * stricter past-reads-on-this-topic pass) can reuse this exact message shape,
-	 * structured-output schema, and validation with its own instructions. */
-	system?: string;
+	selection: keyof typeof RELATED_SELECTIONS;
 }): { selectRelatedArticles: SelectRelatedArticles } {
-	const system = deps.system ?? RELATED_ARTICLES_PROMPT;
+	const { feature, system } = RELATED_SELECTIONS[deps.selection];
 	const selectRelatedArticles: SelectRelatedArticles = async (params) => {
 		const startedAt = deps.nowMs();
 		const response = await deps.createMessage({
+			feature,
 			max_tokens: RELATED_MAX_OUTPUT_TOKENS,
 			system,
 			messages: [

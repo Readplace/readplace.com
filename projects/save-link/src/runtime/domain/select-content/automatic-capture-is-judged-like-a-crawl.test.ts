@@ -3,7 +3,8 @@ import { noopLogger } from "@packages/hutch-logger";
 import { type Article, type TransitionAndPersist, promoteTier } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { SQSEvent } from "aws-lambda";
-import { type CreateSelectorChatCompletion, initSelectMostCompleteContent } from "./select-content";
+import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
+import { initSelectMostCompleteContent } from "./select-content";
 import { initSelectMostCompleteContentHandler } from "./select-most-complete-content-handler";
 import { candidateProvenance } from "./candidate-provenance";
 import { labelForIndex } from "./select-content-prompt";
@@ -58,11 +59,11 @@ function event(detail: unknown): SQSEvent {
 	return { Records: [{ messageId: "message-0", receiptHandle: "receipt", body: JSON.stringify({ detail }), attributes: { ApproximateReceiveCount: "1", SentTimestamp: "1", SenderId: "sender", ApproximateFirstReceiveTimestamp: "1" }, messageAttributes: {}, md5OfBody: "", eventSource: "aws:sqs", eventSourceARN: "arn:aws:sqs:ap-southeast-2:123:test", awsRegion: "ap-southeast-2" }] };
 }
 
-function reply(decision: object): CreateSelectorChatCompletion {
+function reply(decision: object): CreateDeepseekChatCompletion {
 	return async () => ({ choices: [{ message: { content: JSON.stringify(decision) } }] });
 }
 
-async function selectContent(params: { article: Article; capture: VerifiedTierSource; others: readonly VerifiedTierSource[]; createChatCompletion: CreateSelectorChatCompletion }) {
+async function selectContent(params: { article: Article; capture: VerifiedTierSource; others: readonly VerifiedTierSource[]; createChatCompletion: CreateDeepseekChatCompletion }) {
 	const persisted: { transition: unknown; input: unknown }[] = [];
 	const transitionAndPersist: TransitionAndPersist = async (transition, { input }) => { persisted.push({ transition, input }); };
 	const info = jest.fn();
@@ -90,7 +91,7 @@ const COMPANIONS = [
 	{ companions: "with committed content present", holdsContent: true, article: () => articleHolding(committedCanonical()), others: () => [committedCanonical()] },
 ];
 
-const JUDGES: readonly { verdict: string; rule?: PreparedContentSelection["selectionRule"]; withoutContent: Outcome; withContent: Outcome; createChatCompletion: (labels: readonly string[]) => CreateSelectorChatCompletion }[] = [
+const JUDGES: readonly { verdict: string; rule?: PreparedContentSelection["selectionRule"]; withoutContent: Outcome; withContent: Outcome; createChatCompletion: (labels: readonly string[]) => CreateDeepseekChatCompletion }[] = [
 	{ verdict: "finds nothing readable", rule: "judge", withoutContent: "marked unreadable", withContent: "passed over for the canonical", createChatCompletion: (labels) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((label) => ({ candidate: label, readable: false })) }) },
 	{ verdict: "picks the capture", rule: "judge", withoutContent: "promoted", withContent: "promoted", createChatCompletion: (labels) => reply({ kind: "winner", candidate: labels[0], reason: "The capture is the article", readability: labels.map((label, index) => ({ candidate: label, readable: index === 0 })) }) },
 	{ verdict: "is refused by its provider", rule: "provider-rejected-fallback", withoutContent: "promoted", withContent: "passed over for the canonical", createChatCompletion: () => async () => { throw Object.assign(new Error("bad request"), { status: 400 }); } },
@@ -124,7 +125,7 @@ it.each([
 	const prose = "<p>The article as an earlier save committed it.</p>";
 	const canonical = candidate({ tier: "tier-1", attemptId: EARLIER_SAVE, wordCount: 9, html: `<article>${prose}<img src="https://example.com/figure.jpg"></article>` });
 	const capture = candidate({ tier: "tier-0", attemptId: RESCUE, captureTrigger: "automatic", wordCount: 9, html: `<article>${prose}<img src="${image}"></article>` });
-	const createChatCompletion = jest.fn<ReturnType<CreateSelectorChatCompletion>, Parameters<CreateSelectorChatCompletion>>();
+	const createChatCompletion = jest.fn<ReturnType<CreateDeepseekChatCompletion>, Parameters<CreateDeepseekChatCompletion>>();
 
 	const selection = await selectContent({ article: articleHolding(canonical), capture, others: [canonical], createChatCompletion });
 

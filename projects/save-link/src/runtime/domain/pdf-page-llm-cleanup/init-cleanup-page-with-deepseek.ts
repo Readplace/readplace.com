@@ -1,24 +1,6 @@
 import assert from "node:assert";
-import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
+import { type CreateDeepseekChatCompletion, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { CleanupPageWithLlm } from "./pdf-page-llm-cleanup-handler.types";
-
-type ChatCompletionResponse = {
-	choices: Array<{ message?: { content?: string | null } }>;
-	usage?: {
-		prompt_tokens: number;
-		completion_tokens: number;
-		prompt_cache_hit_tokens?: number;
-		prompt_cache_miss_tokens?: number;
-	} | null;
-};
-
-type CreateChatCompletion = (params: {
-	model: string;
-	max_tokens: number;
-	thinking: { type: "disabled" };
-	temperature: number;
-	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-}) => Promise<ChatCompletionResponse>;
 
 /* A self-imposed budget cap, not the model ceiling. The cleanup handler
  * estimates a per-page budget proportional to the input size; this constant
@@ -34,12 +16,11 @@ const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
  * preservation rule cannot survive that round-trip.
  */
 export function initCleanupPageWithDeepseek(deps: {
-	createChatCompletion: CreateChatCompletion;
+	createChatCompletion: CreateDeepseekChatCompletion;
 }): CleanupPageWithLlm {
 	return async ({ systemPrompt, userText, maxTokens }) => {
 		const response = await deps.createChatCompletion({
-			model: DEEPSEEK_MODEL,
-			thinking: DEEPSEEK_NON_THINKING,
+			feature: DEEPSEEK_FEATURES.pdfExtraction,
 			max_tokens: Math.min(maxTokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
 			/* Deterministic by design: the cleanup prompt requires conservative
 			 * single-pass corrections, and any sampling temperature reintroduces

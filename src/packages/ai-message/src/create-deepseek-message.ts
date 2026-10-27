@@ -1,31 +1,14 @@
 import assert from "node:assert";
 import type { CreateAiMessage, DocumentBlock } from "./create-ai-message.types";
+import type { DeepseekClient, DeepseekMessage, DeepseekWireRequest } from "./deepseek-chat.types";
 import {
 	DEEPSEEK_MODEL,
 	DEEPSEEK_NON_THINKING,
 	DEEPSEEK_THINKING,
 	DEEPSEEK_THINKING_MAX_OUTPUT_TOKENS,
 	DEEPSEEK_THINKING_MODEL,
+	type DeepseekModel,
 } from "./deepseek-model";
-
-type ChatCompletionResponse = {
-	choices: Array<{ message?: { content?: string | null; reasoning_content?: string | null } }>;
-	usage?: {
-		prompt_tokens: number;
-		completion_tokens: number;
-		prompt_cache_hit_tokens?: number;
-		prompt_cache_miss_tokens?: number;
-		completion_tokens_details?: { reasoning_tokens?: number };
-	} | null;
-};
-
-type CreateChatCompletion = (params: {
-	model: string;
-	max_tokens: number;
-	thinking: { type: "enabled" } | { type: "disabled" };
-	response_format?: { type: "json_object" };
-	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-}) => Promise<ChatCompletionResponse>;
 
 // A self-imposed budget cap, not the model ceiling (v4-flash allows far more):
 // summaries never need more, and clamping keeps output cost bounded.
@@ -41,17 +24,18 @@ function extractTextContent(content: string | Array<DocumentBlock>): string {
 // asks DeepSeek to emit a JSON object via response_format. The raw JSON string
 // is passed through to the caller, which validates it against its own schema.
 function initCreateDeepseekChatMessage(deps: {
-	createChatCompletion: CreateChatCompletion;
-	model: string;
-	thinking: { type: "enabled" } | { type: "disabled" };
+	client: DeepseekClient;
+	model: DeepseekModel;
+	thinking: DeepseekWireRequest["thinking"];
 	maxOutputTokens: number;
 }): CreateAiMessage {
 	return async (params) => {
-		const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+		const messages: DeepseekMessage[] = [
 			{ role: "system", content: params.system },
 			...params.messages.map((msg) => ({ ...msg, content: extractTextContent(msg.content) })),
 		];
-		const response = await deps.createChatCompletion({
+		const response = await deps.client.createChatCompletion({
+			feature: params.feature,
 			model: deps.model,
 			thinking: deps.thinking,
 			max_tokens: Math.min(params.max_tokens, deps.maxOutputTokens),
@@ -74,22 +58,18 @@ function initCreateDeepseekChatMessage(deps: {
 	};
 }
 
-export function initCreateDeepseekMessage(deps: {
-	createChatCompletion: CreateChatCompletion;
-}): CreateAiMessage {
+export function initCreateDeepseekMessage(deps: { client: DeepseekClient }): CreateAiMessage {
 	return initCreateDeepseekChatMessage({
-		createChatCompletion: deps.createChatCompletion,
+		client: deps.client,
 		model: DEEPSEEK_MODEL,
 		thinking: DEEPSEEK_NON_THINKING,
 		maxOutputTokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
 	});
 }
 
-export function initCreateDeepseekThinkingMessage(deps: {
-	createChatCompletion: CreateChatCompletion;
-}): CreateAiMessage {
+export function initCreateDeepseekThinkingMessage(deps: { client: DeepseekClient }): CreateAiMessage {
 	return initCreateDeepseekChatMessage({
-		createChatCompletion: deps.createChatCompletion,
+		client: deps.client,
 		model: DEEPSEEK_THINKING_MODEL,
 		thinking: DEEPSEEK_THINKING,
 		maxOutputTokens: DEEPSEEK_THINKING_MAX_OUTPUT_TOKENS,

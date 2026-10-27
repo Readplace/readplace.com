@@ -1,9 +1,8 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import OpenAI from "openai";
-import { initDeepseekChatCompletion } from "./providers/deepseek/deepseek-chat-completion";
+import { type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
-import { consoleLogger } from "@packages/hutch-logger";
+import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
 import {
@@ -27,11 +26,16 @@ const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
-const { createChatCompletion } = initDeepseekChatCompletion({
+const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
 	timeoutMs: SELECT_CONTENT_TIMEOUTS.deepseekMs,
+	maxRetries: 0,
 	logger: consoleLogger,
-	newClient: (options) => new OpenAI(options),
+	logLevel: "info",
+	callTimeoutMs: SELECT_CONTENT_TIMEOUTS.deepseekMs,
+	fetch: globalThis.fetch,
+	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	now: () => new Date(),
 });
 
 const selectContent = initSelectContentDepBundle({
@@ -39,7 +43,7 @@ const selectContent = initSelectContentDepBundle({
 	dynamoClient,
 	contentBucketName,
 	articlesTable,
-	createChatCompletion,
+	createChatCompletion: initCreateDeepseekChatCompletion({ client: deepseekClient }),
 	logger: consoleLogger,
 });
 

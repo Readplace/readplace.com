@@ -1,24 +1,6 @@
 import assert from "node:assert";
-import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
+import { type CreateDeepseekChatCompletion, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { ConvertPageToHtmlWithLlm } from "./pdf-page-html-convert-handler.types";
-
-type ChatCompletionResponse = {
-	choices: Array<{ message?: { content?: string | null } }>;
-	usage?: {
-		prompt_tokens: number;
-		completion_tokens: number;
-		prompt_cache_hit_tokens?: number;
-		prompt_cache_miss_tokens?: number;
-	} | null;
-};
-
-type CreateChatCompletion = (params: {
-	model: string;
-	max_tokens: number;
-	thinking: { type: "disabled" };
-	temperature: number;
-	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-}) => Promise<ChatCompletionResponse>;
 
 /* A self-imposed budget cap, not the model ceiling. The handler estimates a
  * per-page budget proportional to input length; this constant clamps the SDK
@@ -33,12 +15,11 @@ const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
  * anything (the sanitiser already enforces structural safety).
  */
 export function initConvertPageToHtmlWithDeepseek(deps: {
-	createChatCompletion: CreateChatCompletion;
+	createChatCompletion: CreateDeepseekChatCompletion;
 }): ConvertPageToHtmlWithLlm {
 	return async ({ systemPrompt, userText, maxTokens }) => {
 		const response = await deps.createChatCompletion({
-			model: DEEPSEEK_MODEL,
-			thinking: DEEPSEEK_NON_THINKING,
+			feature: DEEPSEEK_FEATURES.pdfExtraction,
 			max_tokens: Math.min(maxTokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
 			/* Deterministic. Structural inference under sampling reintroduces
 			 * the layout drift that the multi-page stitching can't repair. */

@@ -12,3 +12,5 @@ export const DEEPSEEK_THINKING_MODEL = "deepseek-v4-pro";
 export const DEEPSEEK_THINKING: { type: "enabled" } = { type: "enabled" };
 
 export const DEEPSEEK_THINKING_MAX_OUTPUT_TOKENS = 65_536;
+
+export type DeepseekModel = typeof DEEPSEEK_MODEL | typeof DEEPSEEK_THINKING_MODEL;

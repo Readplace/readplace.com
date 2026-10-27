@@ -13,9 +13,9 @@ import {
 	initListAvailableTierSources,
 	type ListAvailableTierSources,
 } from "../domain/select-content/list-available-tier-sources";
+import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
 import {
 	initSelectMostCompleteContent,
-	type CreateSelectorChatCompletion,
 	type SelectMostCompleteContent,
 } from "../domain/select-content/select-content";
 import {
@@ -43,7 +43,7 @@ export function initSelectContentDepBundle(deps: {
 	dynamoClient: DynamoDBDocumentClient;
 	contentBucketName: string;
 	articlesTable: string;
-	createChatCompletion: CreateSelectorChatCompletion;
+	createChatCompletion: CreateDeepseekChatCompletion;
 	logger: HutchLogger;
 }): SelectContentDepBundle {
 	const { readTierSource } = initReadTierSource({
