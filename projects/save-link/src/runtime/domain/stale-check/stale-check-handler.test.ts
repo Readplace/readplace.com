@@ -833,7 +833,7 @@ it.each([
 	const raw = "<html><body><main>The real original article with navigation</main></body></html>";
 	const html = "<p>The real original article</p>";
 	const fetched: string[] = [];
-	const crawlArticle = initCrawlArticle({ crawlFetch: async (url) => { fetched.push(url); return new Response(raw, { headers: { "content-type": "text/html" } }); }, siteRules: [], logError: () => {}, logInfo: () => {} });
+	const crawlArticle = initCrawlArticle({ crawlFetch: async (url) => { fetched.push(url); return new Response(raw, { headers: { "content-type": "text/html" } }); }, siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 	const pinnedCrawl = initFetchPinnedCrawl({ crawlArticle, findAdoptedFetchUrl: async () => undefined });
 	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({ crawlArticle: pinnedCrawl, finalizeArticle: async ({ url }) => {
 		expect(url).toBe(URL_UNDER_TEST);
@@ -878,7 +878,7 @@ it.each<{ kind: "image" | "plain-text"; contentType: string; body: string }>([
 	});
 	const crawlArticle = initCrawlArticle({
 		crawlFetch: async () => new Response(body, { headers: { "content-type": contentType } }),
-		siteRules: [], logError: jest.fn(), logInfo: jest.fn(),
+		siteRules: [], logError: jest.fn(), logInfo: jest.fn(), logThumbnailNotDelivered: () => {},
 	});
 	let staged: { html: string; evaluationHtml: string } | undefined;
 	const putTierSource = jest.fn();

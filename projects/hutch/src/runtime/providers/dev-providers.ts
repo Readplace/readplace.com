@@ -45,6 +45,7 @@ import {
 	initFetchRedirectHop,
 	initFetchThumbnailImage,
 	initResolveAppleNewsStoryUrl,
+	type ThumbnailNotDeliveredEvent,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle, type PutImageObject } from "@packages/finalize-article";
@@ -360,8 +361,9 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
+	const logThumbnailNotDelivered = HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
 	const crawlArticle = initFetchPinnedCrawl({
-		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo }),
+		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered }),
 		findAdoptedFetchUrl: articleStore.findAdoptedFetchUrl,
 	});
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
@@ -371,7 +373,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		readabilityAdditions,
 		logError,
 	});
-	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
+	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo, logThumbnailNotDelivered });
 	const finalizeArticle = initFinalizeArticle({
 		parseHtml,
 		downloadMedia: async () => [],

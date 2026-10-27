@@ -96,6 +96,36 @@ function buildReaderHarness(mountApp: typeof useApp = useApp, prepare: (fixture:
 }
 
 describe("View routes", () => {
+	it("serves the original saved GitHub PDF viewer after adopting its raw document destination", async () => {
+		const blobUrl = "https://github.com/sample/docs/blob/main/guides/paper.pdf";
+		const rawUrl = "https://github.com/sample/docs/raw/refs/heads/main/guides/paper.pdf";
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		await fixture.articleStore.saveArticleGlobally({
+			url: blobUrl,
+			metadata: { title: "Research handbook", siteName: "GitHub", excerpt: "A complete handbook.", wordCount: 500 },
+			estimatedReadTime: calculateReadTime(500),
+			savedAt: new Date(),
+		});
+		await fixture.articleStore.writeContent({ url: blobUrl, content: "<p>The complete handbook body.</p>" });
+		await fixture.articleCrawl.markCrawlReady({ url: blobUrl });
+		await fixture.articleStore.setDisplayUrl({ url: blobUrl, displayUrl: rawUrl });
+		await fixture.articleStore.claimAlias({ aliasUrl: rawUrl, targetOriginalUrl: blobUrl, now: new Date() });
+		const harness = useApp(fixture);
+
+		const response = await request(harness.server).get("/view/github.com/sample/docs/blob/main/guides/paper.pdf");
+
+		expect(response.status).toBe(200);
+		const document = new JSDOM(response.text).window.document;
+		const title = document.querySelector("[data-test-reader-title]");
+		const content = document.querySelector("[data-test-reader-content]");
+		assert(title);
+		assert(content);
+		expect(title.textContent).toBe("Research handbook");
+		expect(content.innerHTML.trim()).toBe("<p>The complete handbook body.</p>");
+		expect(await fixture.articleStore.resolveAlias(rawUrl)).toBe(blobUrl);
+		expect(await fixture.articleStore.findAdoptedFetchUrl(blobUrl)).toBe(rawUrl);
+	});
+
 	describe("GET /view/<canonical-url>", () => {
 		it("renders the article body for an anonymous visitor (200)", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();

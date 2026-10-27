@@ -308,7 +308,7 @@ function handleViewArticle(
 			}
 			const title = existing.metadata.title;
 			const summary = await deps.findGeneratedSummary(articleUrl);
-			const bytes = await buildArticleEpub({
+			const build = await buildArticleEpub({
 				articleUrl,
 				title,
 				siteName: existing.metadata.siteName,
@@ -316,6 +316,21 @@ function handleViewArticle(
 				summary,
 				contentHtml: stored.body,
 			});
+			if (build.skippedOverBudget.length > 0 && isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
+				assert(req.visitorId, "visitor-id middleware must run before the /view router");
+				deps.recordAnalyticsEvent(req, {
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.epubImagesOverBudget,
+					timestamp: deps.now().toISOString(),
+					path: originalPath,
+					article_host: articleHostFrom(articleUrl),
+					skipped_count: build.skippedOverBudget.length,
+					skipped_bytes: build.skippedOverBudget.reduce((total, image) => total + image.bytes, 0),
+					embedded_bytes: build.embeddedBytes,
+					visitor_id: req.visitorId,
+					is_authenticated: req.userId ? 1 : 0,
+				});
+			}
 			res
 				.status(200)
 				.set({
@@ -325,7 +340,7 @@ function handleViewArticle(
 					"X-Robots-Tag": "noindex",
 					"Content-Signal": "search=no, ai-input=no, ai-train=no",
 				})
-				.send(Buffer.from(bytes));
+				.send(Buffer.from(build.bytes));
 			return;
 		}
 		const stubReadTime = calculateReadTime(0);

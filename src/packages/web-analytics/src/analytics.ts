@@ -360,6 +360,19 @@ export interface ViewOpenedEvent {
 	is_authenticated: 0 | 1;
 }
 
+export interface EpubImagesOverBudgetEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.epubImagesOverBudget;
+	timestamp: string;
+	path: string;
+	article_host: string;
+	skipped_count: number;
+	skipped_bytes: number;
+	embedded_bytes: number;
+	visitor_id: string;
+	is_authenticated: 0 | 1;
+}
+
 /**
  * Emitted when a user signals intent to save an article to their queue. Born on
  * the public reader's "Save to My Readlist" click — the warmest funnel moment,
@@ -553,6 +566,7 @@ export interface McpToolsListedEvent {
 	oauth_client_id: string;
 	user_id: UserId;
 	tool_count: number;
+	ua_client: McpUaClient;
 }
 
 export interface OAuthTokenRevokedEvent {
@@ -590,7 +604,8 @@ export type AnalyticsEvent =
 	| McpRequestRefusedEvent
 	| McpSessionInitializedEvent
 	| McpToolsListedEvent
-	| OAuthTokenRevokedEvent;
+	| OAuthTokenRevokedEvent
+	| EpubImagesOverBudgetEvent;
 
 function isRenderedPageStatus(statusCode: number): boolean {
 	return (statusCode >= 200 && statusCode < 300) || statusCode === 304;
@@ -948,7 +963,7 @@ export function buildMcpSessionInitializedEvent(
 
 export function buildMcpToolsListedEvent(
 	deps: { now: () => Date },
-	params: { oauthClientId: string; userId: UserId; toolCount: number },
+	params: { oauthClientId: string; userId: UserId; toolCount: number; uaClient: McpUaClient },
 ): McpToolsListedEvent {
 	return {
 		stream: STREAMS.analytics,
@@ -957,6 +972,7 @@ export function buildMcpToolsListedEvent(
 		oauth_client_id: params.oauthClientId,
 		user_id: params.userId,
 		tool_count: params.toolCount,
+		ua_client: params.uaClient,
 	};
 }
 

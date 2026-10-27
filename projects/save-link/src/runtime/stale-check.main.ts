@@ -50,10 +50,17 @@ const parser = initParserDepBundle({
 	proxyUrl: requireEnv("CRAWL_EGRESS_PROXY_URL"),
 	logError: observability.logError,
 	logInfo: observability.logInfo,
+	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
-const media = initMediaDepBundle({ parser, articleStore, logError: observability.logError, imagesCdnBaseUrl });
+const media = initMediaDepBundle({
+	parser,
+	articleStore,
+	logError: observability.logError,
+	logImageLeftAtOrigin: observability.logImageLeftAtOrigin,
+	imagesCdnBaseUrl,
+});
 const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
 	parser,
 	media,
@@ -61,6 +68,7 @@ const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
 	imagesCdnBaseUrl,
 	logError: observability.logError,
 	logInfo: observability.logInfo,
+	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });

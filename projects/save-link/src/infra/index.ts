@@ -1489,7 +1489,11 @@ const computeRelatedArticlesLambdaWithSQS = new HutchSQSBackedLambda("compute-re
 });
 
 eventBus.subscribeAll(
-	[{ ...QueueEntryCreatedEvent, name: "compute-related-articles" }, ComputeRelatedPastReadsCommand],
+	[
+		{ ...QueueEntryCreatedEvent, name: "compute-related-articles" },
+		ComputeRelatedPastReadsCommand,
+		{ ...CanonicalContentChangedEvent, name: "compute-related-articles-content-changed" },
+	],
 	computeRelatedArticlesLambdaWithSQS,
 	{ name: "compute-related-articles" },
 );

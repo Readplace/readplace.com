@@ -988,3 +988,26 @@ describe("EXCLUDE_PATTERNS — X/Twitter profile pages (issue #1173)", () => {
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — YouTube, every host and path shape", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://www.youtube.com/watch?v=abcdefghijk", excluded: true, label: "watch page" },
+		{ url: "https://m.youtube.com/watch?v=abcdefghijk&t=42s", excluded: true, label: "mobile watch page with a timestamp" },
+		{ url: "https://youtube.com/shorts/abcdefghijk", excluded: true, label: "apex short" },
+		{ url: "https://music.youtube.com/watch?v=abcdefghijk", excluded: true, label: "YouTube Music" },
+		{ url: "https://www.youtube.com/@somechannel", excluded: true, label: "channel page" },
+		{ url: "https://youtu.be/abcdefghijk?si=xyz", excluded: true, label: "youtu.be share link" },
+		{ url: "http://www.youtube.com/watch?v=abcdefghijk", excluded: true, label: "http scheme" },
+		{ url: "www.youtube.com/watch?v=abcdefghijk", excluded: true, label: "schemeless legacy row" },
+		{ url: "https://www.youtube.com", excluded: true, label: "bare host" },
+		{ url: "https://notyoutube.com/watch?v=abcdefghijk", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://youtube.com.evil.com/watch", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://blog.test/post?ref=https://www.youtube.com/watch?v=abcdefghijk", excluded: false, label: "a page that only links to a video — must still surface" },
+		{ url: "https://click.newsletter.test/c/abc123", excluded: false, label: "a click-tracking link that redirects to YouTube — the canary cannot see the destination" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});

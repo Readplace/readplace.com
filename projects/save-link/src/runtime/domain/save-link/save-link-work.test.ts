@@ -1,6 +1,7 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { markCrawlBlockedKeepingCommittedContent } from "./mark-crawl-blocked-keeping-committed-content";
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { ClassifiedCrawlError, initSaveLinkWork } from "./save-link-work";
 import { type CrawlAndFinalizeArticle, type FinalizeArticle, initCrawlAndFinalizeArticle } from "@packages/finalize-article";
 import { type CrawlArticle, initFetchPinnedCrawl } from "@packages/crawl-article";
@@ -288,9 +289,9 @@ describe("initSaveLinkWork", () => {
 			});
 
 			await expect(saveLinkWork("https://example.com/walled", { saveAttemptId })).resolves.toBe("tier-1-terminal");
-			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlockedKeepingCommittedContent, {
 				url: "https://example.com/walled",
-				input: { reason: { kind: "blocked", cause: "edge-block" } },
+				input: { reason: { kind: "blocked", cause: "edge-block" }, now: fixedNow().toISOString() },
 			});
 		},
 	);
@@ -301,9 +302,9 @@ describe("initSaveLinkWork", () => {
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedCrawl(429), transitionAndPersist });
 
 		await expect(saveLinkWork("https://example.com/throttled", { saveAttemptId })).resolves.toBe("tier-1-terminal");
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlockedKeepingCommittedContent, {
 			url: "https://example.com/throttled",
-			input: { reason: { kind: "blocked", cause: "rate-limited" } },
+			input: { reason: { kind: "blocked", cause: "rate-limited" }, now: fixedNow().toISOString() },
 		});
 	});
 

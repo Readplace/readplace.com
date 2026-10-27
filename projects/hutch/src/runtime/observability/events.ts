@@ -71,6 +71,10 @@ export const METRICS = {
 		namespace: "Readplace/OAuth",
 		name: "OAuthRefreshRefusedFirstPartyExceptDisconnect",
 	},
+	mcpToolsListedByOpenAiScan: {
+		namespace: "Readplace/OAuth",
+		name: "McpToolsListedByOpenAiScan",
+	},
 	readlistCapApproached: {
 		namespace: "Readplace/Readlists",
 		name: "ReadlistCapApproached",

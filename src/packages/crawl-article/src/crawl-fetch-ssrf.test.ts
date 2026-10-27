@@ -9,6 +9,7 @@ import {
 	type IsBlockedAddress,
 	type ResolveAll,
 } from "./blocked-address-lookup";
+import { initCrawlArticle } from "./crawl-article";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { ExecCurl } from "./curl-fetch";
 import { createCurlFetch } from "./curl-fetch";
@@ -77,6 +78,21 @@ async function startRedirectServer(location: string): Promise<{ origin: string; 
 	const server = http.createServer((_req, res) => {
 		res.writeHead(302, { location });
 		res.end();
+	});
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+	const address = server.address();
+	assert(address && typeof address === "object", "expected an AddressInfo from a listening TCP server");
+	const { port } = address;
+	return {
+		origin: `http://127.0.0.1:${port}`,
+		close: () => new Promise((resolve) => server.close(() => resolve())),
+	};
+}
+
+async function startHtmlServer(body: string): Promise<{ origin: string; close: () => Promise<void> }> {
+	const server = http.createServer((_req, res) => {
+		res.writeHead(200, { "content-type": "text/html" });
+		res.end(body);
 	});
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 	const address = server.address();
@@ -253,5 +269,59 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 		});
 		const error = await rejectionOf(crawlFetch("http://169.254.169.254/latest/meta-data/", { budgetMs: 30_000 }));
 		expect(causeChainMessages(error)).toMatch(/blocked address 169\.254\.169\.254/);
+	});
+});
+
+describe("SSRF guard — meta refresh hop", () => {
+	it("re-checks the host a refresh page sends the crawl to, refusing a target that resolves to a private IP", async () => {
+		const server = await startHtmlServer(
+			'<!doctype html><html><head><title>moved</title><meta http-equiv=refresh content="0; url=http://internal.attacker.test/secret"></head></html>',
+		);
+		const checkedAddresses: string[] = [];
+		const fetchH2 = jest.fn(async () => {
+			throw new Error("h2 leg not under test");
+		});
+		const fetchCurl = jest.fn(async () => {
+			throw new Error("curl leg not under test");
+		});
+		const logError = jest.fn();
+		const crawlFetch = initCrawlFetch({
+			fetch: globalThis.fetch,
+			personas: PERSONAS,
+			logInfo: () => {},
+			proxyUrl: undefined,
+			isBlocked: (address) => {
+				checkedAddresses.push(address);
+				return blocksPrivateExceptLoopback(address);
+			},
+			resolve: resolverFor({ "internal.attacker.test": "10.0.0.1" }),
+			fetchH2,
+			fetchCurl,
+		});
+		const crawlArticle = initCrawlArticle({
+			crawlFetch,
+			siteRules: [],
+			logError,
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+
+		try {
+			const result = await crawlArticle({ url: `${server.origin}/old-path` });
+
+			expect(result).toEqual({
+				status: "failed",
+				finalUrl: "http://internal.attacker.test/secret",
+				failure: { kind: "fetch-failed" },
+			});
+			expect(checkedAddresses).toContain("10.0.0.1");
+			expect(fetchH2).toHaveBeenCalledTimes(0);
+			expect(fetchCurl).toHaveBeenCalledTimes(0);
+			expect(logError.mock.calls.map(([message]) => message)).toEqual([
+				"[CrawlArticle] Network error for http://internal.attacker.test/secret",
+			]);
+		} finally {
+			await server.close();
+		}
 	});
 });

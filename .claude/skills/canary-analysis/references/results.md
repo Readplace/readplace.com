@@ -15,3 +15,21 @@ Snapshot #1244, 91 unresolved articles. This run verified no recoveries, so shar
 | Category | Fix retained | Commit(s) | Verified outcome | Recovery share |
 |---|---|---|---|---|
 | YouTube watch page | No | Attempt [f337234](https://github.com/Readplace/readplace.com/commit/f337234bdc7312357a51de038cbf7b408be8e7e6); reverted by [daa2272](https://github.com/Readplace/readplace.com/commit/daa2272d9be628557b12bf424631310a2d7e13d3) | A parse-time rule built the reader body from the watch page's inline player data, which every local fetch receives. A production recrawl of all eight affected articles ended failed again: each fetch succeeded, but the body was empty and no thumbnail was found, so production fetches receive neither the player data nor `og:image`. Revisit with evidence that production fetches receive the player data, or with a separately evidenced route to the video metadata. | n/a |
+
+## 26 October 2026
+
+Snapshot #1258, 87 unresolved articles. At the operator's request, [fb282b7](https://github.com/Readplace/readplace.com/commit/fb282b75e89b7adffa88042c6f577fc36d221666) stopped reporting YouTube saves; the YouTube row above still holds its revisit condition. This run verified 3 recovered articles, 3.4% of the snapshot.
+
+| Category | Fix retained | Commit(s) | Verified outcome | Recovery share |
+|---|---|---|---|---|
+| Meta-refresh redirect stub | Yes | [24affdd](https://github.com/Readplace/readplace.com/commit/24affdd180548f9d8260706bc5130f14e5fe7afb), not reverted | The origin answered 200 with a textless page whose only way on was a meta refresh, so each save stored an empty page and failed. The crawler now follows one such refresh. Production recrawls on 27 October 2026 brought all three articles to ready on the saved link, with the target's full text: word counts matched the expected parses exactly and the reader showed the body. Two summaries became ready; the third is skipped as too short, like the article's other ready copy. One publisher blocks direct fetches, so that article was compared with production's earlier copy, not the publisher's page. Verification also found two reader gaps that predate the fix: inline videos vanish without a placeholder, and in-page links are dead. Revisit on a stub that needs more than one refresh or a script redirect. | 3 of 3 (100%) |
+
+## 27 October 2026
+
+Snapshot #1271 contains 88 unresolved articles; a local scan with the current source rules found one additional failure, for 89 articles in this run. One unique article has verified partial content recovery; zero articles meet full-recovery acceptance. Recovery share below uses that one partial recovery, counted once.
+
+| Category | Fix retained | Commit(s) | Verified outcome | Recovery share |
+|---|---|---|---|---|
+| GitHub PDF viewer | Yes, partial benefit | [f8c8375](https://github.com/Readplace/readplace.com/commit/f8c837557829c465846fd83738cc0c456bf7a1b8), not reverted | Exact-commit CI, production deployment and Visual Review passed. One production recrawl retrieved the identical 67-page PDF and brought the original saved row to ready; the reader matches fresh canonical text and contains substantive passages from every page in order. Full PDF fidelity remains unproven: source recall is 88.38%, page boundaries are missing and mathematical discrepancies remain. The fresh summary's core claims are supported, but an editorial authenticity caveat is unsupported. Retain the scoped resolver; carry these content-quality gaps forward for a separate bounded investigation. The 15% weekly-allowance stop rule ended hypothesis selection. | 1 of 1 partial (100%); 0 full |
+
+[Refresh run 40493424793](https://github.com/Readplace/readplace.com/actions/runs/40493424793) executed a real scan and replaced #1271 with [#1273](https://github.com/Readplace/readplace.com/issues/1273): the same 88 baseline failures, with no new or regressed rows. All 89 original identities were reconciled. The ready partial article is omitted by the failure report; its PDF-fidelity and summary-quality gaps remain carried forward in the private checkpoint.
