@@ -517,6 +517,13 @@ describe("GMail Newsletters labelling permission", () => {
 		expect(model.labelPermission).toBeUndefined();
 	});
 
+	it("asks nothing while the reader must reconnect to grant sender access", () => {
+		const model = toGmailPageViewModel(input({ modifyScopeGranted: false, metadataScopeGranted: false }));
+
+		expect(model.showMetadataReconnect).toBe(true);
+		expect(model.labelPermission).toBeUndefined();
+	});
+
 	it("offers an upgrade instead of the grant to a reader whose plan cannot use Gmail", () => {
 		const model = toGmailPageViewModel(input({ modifyScopeGranted: false, canConnectGmail: false }));
 

@@ -571,6 +571,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const pending = choiceFor !== undefined && ticked.some((email) => email === choiceFor) && entryFor(choiceFor)?.mappedAddresses === undefined && input.readlists.some((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	const invalid = gmailSelectedReadlists(input.state).some((slug) => !input.readlists.some((readlist) => readlist.slug === slug));
 	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
+	const showMetadataReconnect = !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true);
 	const mode = dialogMode({ page: input, showSenders, ticked });
 	const focus = openingFocus({ mode, focusOnOpen: input.focusOnOpen, checklist });
 	const banners = bannerKeys({ error: input.error, notice: input.notice, mode });
@@ -616,7 +617,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			message: "Reconnect Gmail to choose senders from your mailbox. The newsletters you set up stay in place.",
 			content: "grant-sender-access", label: "Reconnect Gmail", variant: commitVariant, fields: [],
 		}),
-		labelPermission: revoked || input.modifyScopeGranted ? undefined : gmailConnectionPrompt({
+		labelPermission: revoked || showMetadataReconnect || input.modifyScopeGranted ? undefined : gmailConnectionPrompt({
 			canConnectGmail: input.canConnectGmail,
 			message: "Let Readplace tidy Gmail: once a newsletter is saved, it adds the label imported-to-readplace to the original email and marks it read. Your other labels and your inbox stay as they are.",
 			content: "grant-label-permission", label: "Allow labelling", variant: "neutral", fields: [{ name: "intent", value: "label" }],
@@ -624,7 +625,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		showStep,
 		showSenders,
 		showReconnect: revoked,
-		showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
+		showMetadataReconnect,
 		autoDiscoverAction: input.discoveryStarted ? undefined : GMAIL_DISCOVERY_START_PATH,
 		dialog: dialogFor({ mode, state: pickerState, ticked, banners, saved: input.saved, awaitingConfirmation: pollState !== undefined, candidates }),
 		senderPicker: { open: focus === "search", searchAutofocus: focus === "search" },

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { expect, pinCdnFixtures, test } from "@packages/e2e-harness";
-import { GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { requireEnv } from "@packages/require-env";
 import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { z } from "zod";
@@ -292,7 +292,7 @@ test.describe("GMail Newsletters with the keyboard alone", () => {
 });
 
 test.describe("GMail Newsletters without JavaScript", () => {
-	test("searches, chooses, saves a mapping with its import and asks Google only for read access", async ({ browser }, testInfo) => {
+	test("searches, chooses, saves a mapping with its import and asks Google for permission to read and label its mail", async ({ browser }, testInfo) => {
 		await withoutJavaScript(browser, async (page) => {
 			const consentLocations: string[] = [];
 			await page.route("**/newsletters/gmail/connect?**", async (route) => {
@@ -340,7 +340,7 @@ test.describe("GMail Newsletters without JavaScript", () => {
 			assert.equal(consentLocations.length, 1, "granting permission must send the reader to Google once");
 			const consent = new URL(consentLocations[0]);
 			assert.equal(`${consent.origin}${consent.pathname}`, "https://accounts.google.com/o/oauth2/v2/auth");
-			assert.equal(consent.searchParams.get("scope"), GMAIL_READONLY_SCOPE);
+			assert.equal(consent.searchParams.get("scope"), GMAIL_MODIFY_SCOPE);
 			assert.equal(consent.searchParams.get("include_granted_scopes"), "true");
 			assert.equal(consent.searchParams.get("login_hint"), "reader@gmail.com");
 		});
