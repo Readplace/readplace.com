@@ -49,7 +49,7 @@ export function recrawlTieKeptCanonical(
 	}
 
 	let nextMetadata = article.metadata;
-	if (input.publishedOn !== article.metadata.publishedOn) {
+	if (input.publishedOn !== undefined && input.publishedOn !== article.metadata.publishedOn) {
 		nextMetadata = { ...article.metadata, publishedOn: input.publishedOn };
 		writes.push("metadata");
 	}

@@ -171,6 +171,17 @@ describe("recrawlTieKeptCanonical", () => {
 		assert.deepEqual([...writes].sort(), ["crawl", "readerAvailability"]);
 	});
 
+	it("keeps a stored publish date when no date is resolved, so keeping the canonical never clears it", () => {
+		const before = buildArticle({
+			metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 100, publishedOn: "2025-10-08" },
+		});
+
+		const { article, writes } = recrawlTieKeptCanonical(before, buildInput({ publishedOn: undefined }));
+
+		assert.deepEqual(article.metadata, before.metadata);
+		assert.deepEqual([...writes].sort(), ["crawl", "readerAvailability"]);
+	});
+
 	it("does not mutate the input article (pure function)", () => {
 		const before = buildArticle();
 		const snapshot = JSON.parse(JSON.stringify(before));
