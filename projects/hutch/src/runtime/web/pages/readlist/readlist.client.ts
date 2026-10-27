@@ -10,6 +10,7 @@ const SAVE_LINK_FORM = { errorAttr: "data-save-link-error", failureAttr: "data-s
 const LANDING_SWAP = "outerHTML show:none scroll:html:top";
 const LIVE_REGION_SELECTOR = "#toast-live-region";
 const REFUSED_STATUS = 422;
+const OPENER_SELECTOR = '[popovertarget]:not([popovertargetaction="hide"])';
 
 function assert(condition: unknown, message: string): asserts condition {
 	if (!condition) throw new Error(message);
@@ -71,10 +72,17 @@ function announce(document: Document, message: string): void {
 }
 
 export function initReadlist(deps: ReadlistDeps): void {
+	const openers = new Map<string, HTMLElement>();
+
 	deps.document.addEventListener("click", (event) => {
 		const target = event.target;
 		const within = isElement(target) ? target.closest(MENU_SELECTOR) : null;
 		closeOpenMenus(deps.document, within);
+		const opener = isElement(target) ? target.closest<HTMLElement>(OPENER_SELECTOR) : null;
+		if (opener === null) return;
+		const openedId = opener.getAttribute("popovertarget");
+		assert(openedId !== null, "an opener names the popover it opens");
+		openers.set(openedId, opener);
 	});
 
 	deps.document.addEventListener("keydown", (event) => {
@@ -101,7 +109,10 @@ export function initReadlist(deps: ReadlistDeps): void {
 				summary.focus({ preventScroll: true });
 				return;
 			}
-			const invoker = deps.document.querySelector<HTMLElement>(`[popovertarget="${dialog.id}"]`);
+			const opener = openers.get(dialog.id);
+			const invoker = opener?.isConnected
+				? opener
+				: deps.document.querySelector<HTMLElement>(`[popovertarget="${dialog.id}"]`);
 			if (invoker !== null) invoker.focus({ preventScroll: true });
 		},
 		true,

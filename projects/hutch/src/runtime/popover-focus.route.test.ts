@@ -3,7 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
-import { AliasNameSchema } from "@packages/domain/inbox";
+import { MinutesSchema } from "@packages/domain/article";
+import { AliasNameSchema, emailIssueArticleUrl } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
@@ -120,6 +121,22 @@ describe("every popup opens on its first decision", () => {
 		const queue = parse((await agent.get("/queue").set(BROWSER_REQUEST_HEADERS)).text);
 		const readerHref = queue.querySelector("[data-test-article-title]")?.getAttribute("href");
 		assert(readerHref, "the saved article must link to its reader");
+		const issueUrl = emailIssueArticleUrl({
+			userId: reader.userId,
+			receivedAtMessageId: "2026-06-24T09:00:00.000Z#<issue-42@tldr.tech>",
+		});
+		await fixture.articleStore.saveArticle({
+			userId: reader.userId,
+			url: issueUrl,
+			metadata: { title: "TLDR 2026-06-24", siteName: "TLDR", excerpt: "Today's links", wordCount: 480 },
+			estimatedReadTime: MinutesSchema.parse(2),
+			provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+			savedAt: new Date("2026-06-24T09:01:00.000Z"),
+		});
+		await fixture.articleStore.writeContent({ url: issueUrl, content: "<p>Today's links, with commentary.</p>" });
+		await fixture.articleCrawl.markCrawlReady({ url: issueUrl });
+		const issue = await fixture.articleStore.findArticleByUrl(issueUrl);
+		assert(issue, "the seeded issue is saved");
 		const madeReadlist = createdSlug(
 			(await agent.post("/queue/queues").type("form").send({ label: "New Readlist" })).headers.location,
 		);
@@ -141,6 +158,7 @@ describe("every popup opens on its first decision", () => {
 			`/queue/queues/${madeReadlist}/preferences?feature=pref`,
 			`/queue/queues/${describedReadlist}/preferences?feature=pref`,
 			readerHref,
+			`/queue/${issue.id.value}/view`,
 		]) {
 			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
 			expect({ path, status: response.status }).toEqual({ path, status: 200 });
@@ -172,6 +190,7 @@ describe("every popup opens on its first decision", () => {
 			"readlist-rename",
 			"save-tip",
 			"share",
+			"sharing-off",
 			"subscribe-plans",
 		]);
 	}, 30000);

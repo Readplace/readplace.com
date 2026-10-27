@@ -347,6 +347,11 @@ describe("BUTTON_STYLES", () => {
 		expect(declaredValue({ body: pressed, property: "color" })).toBe("var(--error-foreground)");
 	});
 
+	it("brings a dimmed button back to full opacity while it shows its focus ring", () => {
+		const rule = ruleBody({ css: BUTTON_STYLES, selector: '.btn[aria-disabled="true"]:focus-visible' });
+		expect(declaredValue({ body: rule, property: "opacity" })).toBe("1");
+	});
+
 	it("sizes the XL tier at 56px with 24px inline padding and the 12px corner", () => {
 		const rule = ruleBody({ css: BUTTON_STYLES, selector: ".btn--xl" });
 		expect([

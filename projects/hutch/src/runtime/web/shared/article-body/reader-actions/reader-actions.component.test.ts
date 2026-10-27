@@ -18,7 +18,7 @@ const BACK = {
 	label: "Back to readlist",
 };
 
-const ACTION_BTNS: ActionButtons = {
+const ACTION_BTNS = {
 	readlistPicker: undefined,
 	backLink: BACK,
 	markReadActions: [
@@ -39,7 +39,7 @@ const ACTION_BTNS: ActionButtons = {
 			fields: [{ name: "status", value: "read" }],
 		},
 	],
-};
+} satisfies ActionButtons;
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
@@ -297,6 +297,10 @@ describe("downloads on a platform with no EPUB reader", () => {
 			opener.querySelector(".sr-only")?.textContent,
 		]).toEqual(["btn btn--neutral btn--icon article-body__download-open", "reader-download-guide", "dialog", "Download EPUB"]);
 		expect(drawingOf(opener.querySelector(":scope > svg"))).toBe(iconDrawing("download"));
+		expect([opener, slot.querySelector("summary")].map((control) => control?.hasAttribute("aria-disabled"))).toEqual([
+			false,
+			false,
+		]);
 	});
 
 	it("holds the reader app, the Kindle and Kobo guide and one download in the no-popover fallback", () => {
@@ -342,7 +346,7 @@ describe("downloads on a platform with no EPUB reader", () => {
 });
 
 describe("toolbar order", () => {
-	const FULL_ACTION_BTNS: ActionButtons = {
+	const FULL_ACTION_BTNS = {
 		...ACTION_BTNS,
 		readlistPicker: {
 			assignUrl: "/queue/abc/assign",
@@ -352,7 +356,7 @@ describe("toolbar order", () => {
 		},
 		share: { popoverId: "reader-share", fallbackHtml: '<p class="share-fixture">The share panel</p>' },
 		epubDownloadHref: "/view/example.com/a?format=epub",
-	};
+	} satisfies ActionButtons;
 
 	function topBarOf(actionBtns: ActionButtons): Document {
 		return parse(WebReader({ actionBtns }).top.to("text/html").body);
@@ -381,6 +385,13 @@ describe("toolbar order", () => {
 		]);
 	});
 
+	it("keeps Share and Download in their places when sharing is withheld", () => {
+		const { share: _share, epubDownloadHref: _epubDownloadHref, ...rest } = FULL_ACTION_BTNS;
+		expect(
+			slotsOf(topBarOf({ ...rest, withheld: { popoverId: "reader-sharing-off", fallbackHtml: "<p>Off</p>" } })),
+		).toEqual(["back", "readlists", "mark-read", "share", "downloads"]);
+	});
+
 	it("opens Share from a square icon button, beside a disclosure holding the same panel", () => {
 		const doc = topBarOf(FULL_ACTION_BTNS);
 
@@ -392,12 +403,14 @@ describe("toolbar order", () => {
 		expect(opener.getAttribute("aria-haspopup")).toBe("dialog");
 		expect(opener.querySelector(".sr-only")?.textContent).toBe("Share");
 		expect(drawingOf(opener.querySelector(":scope > svg"))).toBe(iconDrawing("share"));
+		expect(opener.hasAttribute("aria-disabled")).toBe(false);
 
 		const fallback = doc.querySelector("[data-test-share-fallback]");
 		assert(fallback, "the share slot must keep a disclosure for engines without popover");
 		expect(fallback.tagName).toBe("DETAILS");
 		expect(fallback.querySelector("summary")?.className).toBe("btn btn--neutral btn--icon");
 		expect(fallback.querySelector("summary .sr-only")?.textContent).toBe("Share");
+		expect(fallback.querySelector("summary")?.hasAttribute("aria-disabled")).toBe(false);
 		expect(fallback.querySelector(".article-body__share-fallback-panel")?.innerHTML).toBe(
 			'<p class="share-fixture">The share panel</p>',
 		);
@@ -439,6 +452,111 @@ describe("toolbar order", () => {
 				(selector) => doc.querySelector(`${selector} .sr-only`)?.textContent,
 			),
 		).toEqual(["Share", "Download EPUB"]);
+	});
+});
+
+describe("withheld sharing", () => {
+	const WITHHELD_BTNS = {
+		readlistPicker: undefined,
+		backLink: BACK,
+		withheld: { popoverId: "reader-sharing-off", fallbackHtml: '<p class="sharing-off-fixture">Sharing is off</p>' },
+	} satisfies ActionButtons;
+
+	it.each([
+		["RegularReader", RegularReader],
+		["WebReader", WebReader],
+		["ChromelessReader", ChromelessReader],
+	])("dims Share and Download in the %s, both opening the dialog that says why", (_name, renderActions) => {
+		const doc = parse(renderActions({ actionBtns: WITHHELD_BTNS }).top.to("text/html").body);
+
+		const triggers = Array.from(
+			doc.querySelectorAll('[data-test-action="share-withheld"], [data-test-action="download-withheld"]'),
+		);
+		expect(
+			triggers.map((trigger) => [
+				trigger.tagName,
+				trigger.className,
+				trigger.getAttribute("type"),
+				trigger.getAttribute("popovertarget"),
+				trigger.getAttribute("aria-haspopup"),
+				trigger.getAttribute("aria-disabled"),
+				trigger.hasAttribute("disabled"),
+				trigger.querySelector(".sr-only")?.textContent,
+			]),
+		).toEqual([
+			["BUTTON", "btn btn--neutral btn--icon article-body__share", "button", "reader-sharing-off", "dialog", "true", false, "Share"],
+			[
+				"BUTTON",
+				"btn btn--neutral btn--icon article-body__download-open",
+				"button",
+				"reader-sharing-off",
+				"dialog",
+				"true",
+				false,
+				"Download EPUB",
+			],
+		]);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-share-fallback], [data-test-download-fallback]"), (fallback) => [
+				fallback.querySelector("summary")?.getAttribute("aria-disabled"),
+				fallback.querySelector(".sharing-off-fixture")?.textContent,
+			]),
+		).toEqual([
+			["true", "Sharing is off"],
+			["true", "Sharing is off"],
+		]);
+	});
+
+	it("dims Share and Download in the menu too, ahead of Delete, both opening the dialog that says why", () => {
+		const doc = parse(
+			WebReader({
+				actionBtns: { ...WITHHELD_BTNS, menu: { deleteItemsHtml: '<button class="menu__item">Delete</button>' } },
+			}).top.to("text/html").body,
+		);
+
+		const panel = doc.querySelector("[data-test-reader-menu-panel]");
+		assert(panel, "the menu panel must render");
+		expect(
+			Array.from(panel.querySelectorAll(":scope > *"), (item) => [
+				item.className,
+				item.querySelector(".article-body__menu-popover-item")?.getAttribute("data-test-action"),
+				item.querySelector(".article-body__menu-popover-item")?.getAttribute("popovertarget"),
+				item.querySelector(".article-body__menu-popover-item")?.getAttribute("aria-disabled"),
+				item.querySelector("summary")?.getAttribute("aria-disabled"),
+				item.querySelector(".sharing-off-fixture")?.textContent,
+			]),
+		).toEqual([
+			[
+				"article-body__menu-slot article-body__menu-slot--visible",
+				"menu-share-withheld",
+				"reader-sharing-off",
+				"true",
+				"true",
+				"Sharing is off",
+			],
+			[
+				"article-body__menu-slot article-body__menu-slot--visible",
+				"menu-download-withheld",
+				"reader-sharing-off",
+				"true",
+				"true",
+				"Sharing is off",
+			],
+			["menu__item", undefined, undefined, undefined, undefined, undefined],
+		]);
+		expect(panel.querySelectorAll("a, #reader-menu-download-epub").length).toBe(0);
+	});
+
+	it("shows the downloads slot with no EPUB link in it", () => {
+		const doc = parse(WebReader({ actionBtns: WITHHELD_BTNS }).top.to("text/html").body);
+
+		const slot = doc.querySelector("[data-test-downloads-slot]");
+		assert(slot, "the downloads slot must render");
+		expect([
+			slot.classList.contains("article-body__downloads-slot--visible"),
+			slot.querySelectorAll("a").length,
+			doc.querySelectorAll("#reader-download-epub").length,
+		]).toEqual([true, 0, 0]);
 	});
 });
 
