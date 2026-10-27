@@ -1615,24 +1615,16 @@ export const CHANGELOG_BANNER_STYLES = `
 
 	.changelog-banner__link {
 		flex: 0 0 auto;
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
 		color: var(--announcement-link);
-		text-decoration: none;
+		text-decoration: underline;
+		text-decoration-thickness: 1px;
+		text-underline-offset: 3px;
 		white-space: nowrap;
-	}
-
-	.changelog-banner__link svg {
-		width: 1.25rem;
-		height: 1.25rem;
 	}
 
 	.changelog-banner__link:hover,
 	.changelog-banner__link:focus-visible {
-		text-decoration: underline;
-		text-decoration-thickness: 1px;
-		text-underline-offset: 3px;
+		text-decoration-thickness: 2px;
 	}
 
 	@media (max-width: 480px) {
