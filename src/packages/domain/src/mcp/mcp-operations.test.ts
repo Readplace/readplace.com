@@ -47,7 +47,7 @@ describe("MCP operations", () => {
 			"mark_as_read",
 			"mark_as_unread",
 		]);
-		assert.deepEqual(appOnly, ["delete_article"]);
+		assert.deepEqual(appOnly, ["get_article_deletion_steps"]);
 		assert.equal(performed.length + appOnly.length, MCP_OPERATIONS.length);
 	});
 

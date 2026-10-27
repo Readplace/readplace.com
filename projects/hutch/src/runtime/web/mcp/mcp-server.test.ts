@@ -1,5 +1,6 @@
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
+import { MCP_UA_CLIENTS } from "@packages/web-analytics";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
 import {
@@ -15,7 +16,7 @@ import { TOOL_DEFINITIONS } from "./tool-definitions";
 import { articleBody } from "@packages/test-fixtures";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
-const context = { userId, oauthClientId: "dyn-registered-mcp-client" };
+const context = { userId, oauthClientId: "dyn-registered-mcp-client", uaClient: MCP_UA_CLIENTS.other };
 
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {
@@ -106,7 +107,7 @@ describe("initMcpServer", () => {
 			"mark_as_read and mark_as_unread really change the readlist",
 			"a summary you produced is not the same as the user reading it",
 			"Each article's url opens its private Readplace reader view",
-			"delete_article changes nothing",
+			"get_article_deletion_steps changes nothing",
 			"Readplace app",
 		]) {
 			expect(response).toMatchObject({
@@ -145,7 +146,7 @@ describe("initMcpServer", () => {
 					{ name: "add_to_readlist", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_read", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_unread", annotations: { readOnlyHint: false } },
-					{ name: "delete_article", annotations: { readOnlyHint: true } },
+					{ name: "get_article_deletion_steps", annotations: { readOnlyHint: true } },
 				],
 			},
 		});
@@ -1161,17 +1162,20 @@ describe("initMcpServer", () => {
 	});
 
 	describe("tools/call the app-only write tool", () => {
-		it("redirects delete_article to the app without deleting", async () => {
-			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 61, "delete_article");
-			expect(response).toMatchObject({
-				id: 61,
-				result: {
-					content: [{ text: expect.stringContaining("Readplace app") }],
-					structuredContent: { action: "delete_article", performed: false },
-				},
-			});
-		});
+		it.each(["get_article_deletion_steps", "delete_article"])(
+			"redirects %s to the app without deleting",
+			async (name) => {
+				const server = initMcpServer(fakeDeps());
+				const response = await call(server, 61, name);
+				expect(response).toMatchObject({
+					id: 61,
+					result: {
+						content: [{ text: expect.stringContaining("Readplace app") }],
+						structuredContent: { action: "get_article_deletion_steps", performed: false },
+					},
+				});
+			},
+		);
 	});
 
 	describe("subscription gating", () => {
@@ -1201,7 +1205,7 @@ describe("initMcpServer", () => {
 			expect(saveLink).not.toHaveBeenCalled();
 		});
 
-		it("leaves the read tools, the status writes, and delete_article open when inactive (the Terms keep view and export available, and the web lets a lapsed reader mark read)", async () => {
+		it("leaves the read tools, the status writes, and the deletion steps open when inactive (the Terms keep view and export available, and the web lets a lapsed reader mark read)", async () => {
 			const listReadlist = jest.fn(async () => ({
 				total: 1,
 				page: 1,
@@ -1226,6 +1230,7 @@ describe("initMcpServer", () => {
 				"get_related_articles",
 				"mark_as_read",
 				"mark_as_unread",
+				"get_article_deletion_steps",
 				"delete_article",
 			]) {
 				const response = await call(server, 71, tool, { id: "x".repeat(32) });
@@ -1323,6 +1328,28 @@ describe("initMcpServer", () => {
 				result: { structuredContent: { total: 1 } },
 			});
 			expect(listReadlist).toHaveBeenCalled();
+		});
+
+		it("lists every tool to a caller whose subscription is inactive", async () => {
+			const server = initMcpServer(fakeDeps({ resolveToolAccess: inactive }));
+			const response = await server.handle({ jsonrpc: "2.0", id: 76, method: "tools/list" }, context);
+			expect(response).toMatchObject({
+				id: 76,
+				result: { tools: TOOL_DEFINITIONS.map(({ name }) => ({ name })) },
+			});
+		});
+
+		it("lists every tool without running the subscription check, even when that check throws", async () => {
+			const resolveToolAccess = jest.fn(async () => {
+				throw new Error("subscription store unavailable");
+			});
+			const server = initMcpServer(fakeDeps({ resolveToolAccess }));
+			const response = await server.handle({ jsonrpc: "2.0", id: 77, method: "tools/list" }, context);
+			expect(response).toMatchObject({
+				id: 77,
+				result: { tools: TOOL_DEFINITIONS.map(({ name }) => ({ name })) },
+			});
+			expect(resolveToolAccess).toHaveBeenCalledTimes(0);
 		});
 	});
 
@@ -2255,6 +2282,7 @@ describe("recordHandshake", () => {
 				userId,
 				oauthClientId: "dyn-registered-mcp-client",
 				toolCount: TOOL_DEFINITIONS.length,
+				uaClient: "other",
 			},
 		]);
 	});

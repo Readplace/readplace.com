@@ -1,19 +1,5 @@
 export function normalizeImplicitBody(document: Document): void {
-	const topLevelHead = document.querySelector("head");
-	const topLevelBody = document.querySelector("body");
-	const roots = Array.from(document.childNodes);
-	if (
-		document.documentElement?.tagName !== "HTML" &&
-		topLevelHead?.parentNode === document &&
-		topLevelBody?.parentNode === document &&
-		roots.indexOf(topLevelHead) < roots.indexOf(topLevelBody)
-	) {
-		const html = document.createElement("html");
-		document.insertBefore(html, topLevelHead);
-		for (const node of roots) {
-			if (node !== document.doctype) html.appendChild(node);
-		}
-	}
+	wrapInHtmlRoot(document);
 	const head = document.head;
 	const body = document.body;
 	const METADATA_TAGS = new Set([
@@ -31,5 +17,16 @@ export function normalizeImplicitBody(document: Document): void {
 		if (child === head || child === body) continue;
 		if (METADATA_TAGS.has(child.tagName)) head.appendChild(child);
 		else body.appendChild(child);
+	}
+}
+
+function wrapInHtmlRoot(document: Document): void {
+	if (document.documentElement.tagName === "HTML") return;
+	const html =
+		Array.from(document.children).find((child) => child.tagName === "HTML") ??
+		document.createElement("html");
+	document.insertBefore(html, document.documentElement);
+	for (const node of Array.from(document.childNodes)) {
+		if (node !== html && node.nodeType !== node.DOCUMENT_TYPE_NODE) html.appendChild(node);
 	}
 }

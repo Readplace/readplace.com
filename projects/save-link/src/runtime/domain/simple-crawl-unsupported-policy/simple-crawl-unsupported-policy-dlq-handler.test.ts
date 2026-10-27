@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { initSimpleCrawlUnsupportedPolicyDlqHandler } from "./simple-crawl-unsupported-policy-dlq-handler";
@@ -42,6 +42,7 @@ describe("initSimpleCrawlUnsupportedPolicyDlqHandler", () => {
 		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
+			now: () => new Date(),
 		});
 
 		await handler(
@@ -66,6 +67,7 @@ describe("initSimpleCrawlUnsupportedPolicyDlqHandler", () => {
 		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
+			now: () => new Date(),
 		});
 
 		const invalidEvent: SQSEvent = {
@@ -85,5 +87,58 @@ describe("initSimpleCrawlUnsupportedPolicyDlqHandler", () => {
 		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("logs one structured ERROR line with the URL, receive count and messageId after the exhausted transition", async () => {
+		const calls: unknown[][] = [];
+		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
+			calls.push(["transition"]);
+		});
+		const logger: HutchLogger = {
+			...noopLogger,
+			error: (...args) => {
+				calls.push(args);
+			},
+		};
+		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
+			transitionAndPersist,
+			logger,
+			now: () => new Date("2026-10-15T04:43:01.000Z"),
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});
+
+		expect(calls).toHaveLength(2);
+		expect(calls[0]).toEqual(["transition"]);
+		expect(calls[1]).toHaveLength(1);
+		expect(JSON.parse(String(calls[1]?.[0]))).toEqual({
+			level: "ERROR",
+			timestamp: "2026-10-15T04:43:01.000Z",
+			message: "[SimpleCrawlUnsupportedPolicyDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
+			url: "https://example.com/failed",
+		});
+	});
+
+	it("a throwing transition logs only the record-failed line", async () => {
+		const calls: unknown[][] = [];
+		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
+			throw new Error("ddb down");
+		});
+		const logger: HutchLogger = {
+			...noopLogger,
+			error: (...args) => {
+				calls.push(args);
+			},
+		};
+		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
+			transitionAndPersist,
+			logger,
+			now: () => new Date("2026-10-15T04:43:01.000Z"),
+		});
+
+		const result = await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});
+
+		expect(calls.map((c) => c[0])).toEqual(["[SimpleCrawlUnsupportedPolicyDlq] record failed"]);
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

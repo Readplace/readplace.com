@@ -278,6 +278,26 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(target.article.hasStubMetadata).toBe(true);
 		});
 
+		it.each([
+			{ excerpt: "", expected: true },
+			{ excerpt: "A page named after its site.", expected: false },
+		])("flags a title equal to the site name as stub metadata only when the excerpt is empty: $excerpt", async ({ excerpt, expected }) => {
+			const { store } = build(() => ({
+				Item: {
+					url: "example.com/target",
+					originalUrl: TARGET_URL,
+					title: "example.com",
+					siteName: "example.com",
+					excerpt,
+					crawlStatus: "failed",
+				},
+			}));
+
+			const target = await store.findRelatedTargetArticle(TARGET_URL);
+			assert(target.state === "found", "the row exists so a target must be found");
+			expect(target.article.hasStubMetadata).toBe(expected);
+		});
+
 		it("reports a purged article as purged, distinct from an absent row", async () => {
 			const { store } = build(() => ({
 				Item: {
@@ -328,6 +348,248 @@ describe("initDynamoDbRelatedArticles", () => {
 			}));
 
 			expect(await store.findRelatedTargetArticle(TARGET_URL)).toEqual({ state: "absent" });
+		});
+
+		it.each([
+			{ options: undefined, expected: undefined },
+			{ options: { consistentRead: false }, expected: undefined },
+			{ options: { consistentRead: true }, expected: true },
+		])("sends ConsistentRead only when asked: $options", async ({ options, expected }) => {
+			const { sent, store } = build(() => ({ Item: undefined }));
+
+			await store.findRelatedTargetArticle(TARGET_URL, options);
+
+			const get = sent[0];
+			assert(get, "a get must have been issued");
+			expect(get.input.ConsistentRead).toBe(expected);
+		});
+
+		it("returns when the article became readable as a Date", async () => {
+			const { store } = build(() => ({
+				Item: {
+					url: "example.com/target",
+					originalUrl: TARGET_URL,
+					title: "A real title",
+					siteName: "Example",
+					excerpt: "An excerpt",
+					crawlStatus: "ready",
+					readerAvailableAt: AT.toISOString(),
+				},
+			}));
+
+			const lookup = await store.findRelatedTargetArticle(TARGET_URL);
+			assert(lookup.state === "found", "a crawled row resolves to a found target");
+			expect(lookup.article.readerAvailableAt).toEqual(AT);
+		});
+
+		it("leaves readerAvailableAt undefined when the row has none", async () => {
+			const { store } = build(() => ({
+				Item: {
+					url: "example.com/target",
+					originalUrl: TARGET_URL,
+					title: "A real title",
+					siteName: "Example",
+					excerpt: "An excerpt",
+					crawlStatus: "failed",
+				},
+			}));
+
+			const lookup = await store.findRelatedTargetArticle(TARGET_URL);
+			assert(lookup.state === "found", "a crawled row resolves to a found target");
+			expect(lookup.article.readerAvailableAt).toBeUndefined();
+		});
+	});
+
+	describe("findSkippedNextReadSaves", () => {
+		const OTHER_USER_ID = UserIdSchema.parse("00000000000000000000000000000002");
+		const SKIPPED_AT = new Date("2026-08-03T09:00:00.000Z");
+
+		it("queries the url index for skipped rows of the article", async () => {
+			const { sent, store } = build(() => ({ Items: [] }));
+
+			await store.findSkippedNextReadSaves(TARGET_URL);
+
+			expect(sent).toEqual([
+				{
+					constructorName: "QueryCommand",
+					input: {
+						TableName: USER_ARTICLES_TABLE,
+						IndexName: "url-index",
+						KeyConditionExpression: "#url = :url",
+						FilterExpression: "relatedStatus = :skipped",
+						ExpressionAttributeNames: { "#url": "url" },
+						ExpressionAttributeValues: {
+							":url": "example.com/target",
+							":skipped": "skipped",
+						},
+						ExclusiveStartKey: undefined,
+					},
+				},
+			]);
+		});
+
+		it("follows LastEvaluatedKey across pages and returns each saver with when it was skipped", async () => {
+			const pages = [
+				{
+					Items: [{ userId: USER_ID, url: "example.com/target", relatedStatus: "skipped", relatedComputedAt: SKIPPED_AT.toISOString() }],
+					LastEvaluatedKey: { userId: USER_ID, url: "example.com/target" },
+				},
+				{
+					Items: [{ userId: OTHER_USER_ID, url: "example.com/target", relatedStatus: "skipped", relatedComputedAt: AT.toISOString() }],
+				},
+			];
+			let page = 0;
+			const { sent, store } = build(() => {
+				const current = pages[page];
+				page += 1;
+				assert(current, "the query asked for more pages than the test supplies");
+				return current;
+			});
+
+			const saves = await store.findSkippedNextReadSaves(TARGET_URL);
+
+			expect(saves).toEqual([
+				{ userId: USER_ID, skippedAt: SKIPPED_AT },
+				{ userId: OTHER_USER_ID, skippedAt: AT },
+			]);
+			expect(sent.map((command) => command.input.ExclusiveStartKey)).toEqual([
+				undefined,
+				{ userId: USER_ID, url: "example.com/target" },
+			]);
+		});
+
+		it("throws on a skipped row without relatedComputedAt", async () => {
+			const { store } = build(() => ({
+				Items: [{ userId: USER_ID, url: "example.com/target", relatedStatus: "skipped" }],
+			}));
+
+			await expect(store.findSkippedNextReadSaves(TARGET_URL)).rejects.toThrow(
+				"every Next-read skip write stamps relatedComputedAt",
+			);
+		});
+
+		it("throws on a skipped row in a reading-list partition", async () => {
+			const { store } = build(() => ({
+				Items: [{
+					userId: `${USER_ID}#queue/later`,
+					url: "example.com/target",
+					relatedStatus: "skipped",
+					relatedComputedAt: SKIPPED_AT.toISOString(),
+				}],
+			}));
+
+			await expect(store.findSkippedNextReadSaves(TARGET_URL)).rejects.toThrow(
+				"Next read is written only on the default partition",
+			);
+		});
+	});
+
+	describe("replaceSkippedRelatedArticlesWithReady", () => {
+		const params = {
+			userId: USER_ID,
+			url: TARGET_URL,
+			relatedArticles: [{ url: "example.com/earlier", reason: "Same argument" }],
+			inputTokens: 120,
+			outputTokens: 30,
+			at: AT,
+		};
+
+		it("replaces only a skipped row with the relations, the timestamp and the token counts", async () => {
+			const { sent, store } = build(() => ({}));
+
+			await store.replaceSkippedRelatedArticlesWithReady(params);
+
+			expect(sent).toEqual([
+				{
+					constructorName: "UpdateCommand",
+					input: {
+						TableName: USER_ARTICLES_TABLE,
+						Key: { userId: USER_ID, url: "example.com/target" },
+						UpdateExpression:
+							"SET relatedStatus = :status, relatedArticles = :articles, relatedComputedAt = :at, relatedInputTokens = :inputTokens, relatedOutputTokens = :outputTokens",
+						ConditionExpression: "attribute_exists(savedAt) AND relatedStatus = :skipped",
+						ExpressionAttributeValues: {
+							":status": "ready",
+							":articles": [{ url: "example.com/earlier", reason: "Same argument" }],
+							":at": AT.toISOString(),
+							":inputTokens": 120,
+							":outputTokens": 30,
+							":skipped": "skipped",
+						},
+					},
+				},
+			]);
+		});
+
+		it("reports a stored write when the guarded update lands", async () => {
+			const { store } = build(() => ({}));
+
+			await expect(store.replaceSkippedRelatedArticlesWithReady(params)).resolves.toBe("stored");
+		});
+
+		it("reports a row that is no longer skipped as superseded", async () => {
+			const { store } = build(() => {
+				throw new ConditionalCheckFailedException({ $metadata: {}, message: "not skipped" });
+			});
+
+			await expect(store.replaceSkippedRelatedArticlesWithReady(params)).resolves.toBe("superseded");
+		});
+
+		it("propagates any other write failure", async () => {
+			const { store } = build(() => {
+				throw new Error("throttled");
+			});
+
+			await expect(store.replaceSkippedRelatedArticlesWithReady(params)).rejects.toThrow("throttled");
+		});
+	});
+
+	describe("replaceSkippedRelatedArticlesWithSkip", () => {
+		const params = { userId: USER_ID, url: TARGET_URL, at: AT };
+
+		it("replaces only a skipped row with a fresh skip timestamp and drops any relations", async () => {
+			const { sent, store } = build(() => ({}));
+
+			await store.replaceSkippedRelatedArticlesWithSkip(params);
+
+			expect(sent).toEqual([
+				{
+					constructorName: "UpdateCommand",
+					input: {
+						TableName: USER_ARTICLES_TABLE,
+						Key: { userId: USER_ID, url: "example.com/target" },
+						UpdateExpression: "SET relatedStatus = :status, relatedComputedAt = :at REMOVE relatedArticles",
+						ConditionExpression: "attribute_exists(savedAt) AND relatedStatus = :skipped",
+						ExpressionAttributeValues: {
+							":status": "skipped",
+							":at": AT.toISOString(),
+							":skipped": "skipped",
+						},
+					},
+				},
+			]);
+		});
+
+		it("reports a stored write when the guarded update lands", async () => {
+			const { store } = build(() => ({}));
+
+			await expect(store.replaceSkippedRelatedArticlesWithSkip(params)).resolves.toBe("stored");
+		});
+
+		it("reports a row that is no longer skipped as superseded", async () => {
+			const { store } = build(() => {
+				throw new ConditionalCheckFailedException({ $metadata: {}, message: "not skipped" });
+			});
+
+			await expect(store.replaceSkippedRelatedArticlesWithSkip(params)).resolves.toBe("superseded");
+		});
+
+		it("propagates any other write failure", async () => {
+			const { store } = build(() => {
+				throw new Error("throttled");
+			});
+
+			await expect(store.replaceSkippedRelatedArticlesWithSkip(params)).rejects.toThrow("throttled");
 		});
 	});
 

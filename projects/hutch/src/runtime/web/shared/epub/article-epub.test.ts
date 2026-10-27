@@ -39,7 +39,7 @@ describe("initBuildArticleEpub", () => {
 		const logError = jest.fn();
 		const build = initBuildArticleEpub({ readArticleImage, logError, now: NOW });
 
-		const files = unzipSync(await build({ articleUrl, title: "Article", siteName: "Example", excerpt: "", summary: undefined, contentHtml: articleBody(`<p><img src="${imageUrl}" alt="Photo"></p>`) }));
+		const files = unzipSync((await build({ articleUrl, title: "Article", siteName: "Example", excerpt: "", summary: undefined, contentHtml: articleBody(`<p><img src="${imageUrl}" alt="Photo"></p>`) })).bytes);
 
 		expect(readArticleImage).toHaveBeenCalledWith({ url: articleUrl, filename });
 		expect(files[`OEBPS/images/${filename}`]).toEqual(new Uint8Array(body));
@@ -57,7 +57,7 @@ describe("initBuildArticleEpub", () => {
 			now: NOW,
 		});
 
-		const bytes = await build({
+		const { bytes } = await build({
 			articleUrl: ARTICLE_URL,
 			title: "The Article",
 			siteName: "example.com",
@@ -86,7 +86,7 @@ describe("initBuildArticleEpub", () => {
 			now: NOW,
 		});
 
-		const bytes = await build({
+		const { bytes } = await build({
 			articleUrl: ARTICLE_URL,
 			title: "The Article",
 			siteName: "example.com",
@@ -102,7 +102,7 @@ describe("initBuildArticleEpub", () => {
 		).toEqual([`OEBPS/images/${webp}`, `OEBPS/images/${avif}`, `OEBPS/images/${svg}`].sort());
 	});
 
-	it("skips an image over the embed budget and logs it", async () => {
+	it("skips an image over the embed budget and reports it in the build", async () => {
 		const fits = "1111111111111111.jpg";
 		const over = "2222222222222222.jpg";
 		const logError = jest.fn();
@@ -115,7 +115,7 @@ describe("initBuildArticleEpub", () => {
 			now: NOW,
 		});
 
-		const bytes = await build({
+		const result = await build({
 			articleUrl: ARTICLE_URL,
 			title: "t",
 			siteName: "example.com",
@@ -124,10 +124,45 @@ describe("initBuildArticleEpub", () => {
 			contentHtml: articleBody(`<p><img src="${embeddedSrc(fits)}"></p><p><img src="${embeddedSrc(over)}"></p>`),
 		});
 
-		const files = unzipSync(bytes);
+		const files = unzipSync(result.bytes);
 		expect(files[`OEBPS/images/${fits}`]).toBeDefined();
 		expect(files[`OEBPS/images/${over}`]).toBeUndefined();
-		expect(logError).toHaveBeenCalledWith(expect.stringContaining(over));
+		expect(result.skippedOverBudget).toEqual([{ filename: over, bytes: 1_000_000 }]);
+		expect(result.embeddedBytes).toBe(3_000_000);
+		expect(logError.mock.calls).toEqual([]);
+	});
+
+	it("drops an image that overflows while a later smaller one still fits", async () => {
+		const fits = "1111111111111111.jpg";
+		const over = "2222222222222222.jpg";
+		const small = "3333333333333333.jpg";
+		const logError = jest.fn();
+		const build = initBuildArticleEpub({
+			readArticleImage: readerFor({
+				[fits]: new Uint8Array(3_000_000),
+				[over]: new Uint8Array(1_000_000),
+				[small]: new Uint8Array(400_000),
+			}),
+			logError,
+			now: NOW,
+		});
+
+		const result = await build({
+			articleUrl: ARTICLE_URL,
+			title: "t",
+			siteName: "example.com",
+			excerpt: "",
+			summary: undefined,
+			contentHtml: articleBody(`<p><img src="${embeddedSrc(fits)}"></p><p><img src="${embeddedSrc(over)}"></p><p><img src="${embeddedSrc(small)}"></p>`),
+		});
+
+		const files = unzipSync(result.bytes);
+		expect(files[`OEBPS/images/${fits}`]).toBeDefined();
+		expect(files[`OEBPS/images/${small}`]).toBeDefined();
+		expect(files[`OEBPS/images/${over}`]).toBeUndefined();
+		expect(result.skippedOverBudget).toEqual([{ filename: over, bytes: 1_000_000 }]);
+		expect(result.embeddedBytes).toBe(3_400_000);
+		expect(logError.mock.calls).toEqual([]);
 	});
 
 	it("skips an image missing from the store and logs it", async () => {
@@ -139,7 +174,7 @@ describe("initBuildArticleEpub", () => {
 			now: NOW,
 		});
 
-		const bytes = await build({
+		const result = await build({
 			articleUrl: ARTICLE_URL,
 			title: "t",
 			siteName: "example.com",
@@ -148,8 +183,9 @@ describe("initBuildArticleEpub", () => {
 			contentHtml: articleBody(`<p><img src="${embeddedSrc(filename)}"></p>`),
 		});
 
-		expect(unzipSync(bytes)[`OEBPS/images/${filename}`]).toBeUndefined();
+		expect(unzipSync(result.bytes)[`OEBPS/images/${filename}`]).toBeUndefined();
 		expect(logError).toHaveBeenCalledWith(expect.stringContaining(filename));
+		expect(result.skippedOverBudget).toEqual([]);
 	});
 
 	it("propagates a provider error", async () => {
@@ -180,7 +216,7 @@ describe("initBuildArticleEpub", () => {
 			now: NOW,
 		});
 
-		const bytes = await build({
+		const { bytes } = await build({
 			articleUrl: ARTICLE_URL,
 			title: "The Article",
 			siteName: "example.com",

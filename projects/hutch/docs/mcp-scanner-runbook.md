@@ -5,9 +5,9 @@ OpenAI's plugin directory scans Readplace's MCP server once a day with its own O
 ## The scanner's footprint
 
 - User-Agent `openai-mcp/1.0.0` (no `(Codex)` suffix — that one is Codex, a different client), classified as `ua_client` `openai`.
-- One `POST /mcp` a day, at about 04:47:0xZ.
-- When healthy, the same second carries a `refresh_token` grant from `openai-connectors-oauth/1.0` under ChatGPT's dynamically registered client. Find that client by its `clientName` `ChatGPT` in the OAuth clients table, not by a remembered id: registration is deduplicated and a re-registration mints a new id.
-- `isbot()` is true for `openai-mcp/1.0.0`, `openai-connectors-oauth/1.0` and `Claude-User`, which is why every MCP emitter records through the ungated recorder. A gated recorder would drop the scanner.
+- One `POST /mcp` a day, at about 04:47:0xZ, plus one for each rescan.
+- When healthy, the same second carries a `refresh_token` grant from `openai-connectors-oauth/1.0` under ChatGPT's dynamically registered client. Access tokens last an hour, so a scan within an hour of a rescan reuses the rescan's token and refreshes nothing. Find that client by its `clientName` `ChatGPT` in the OAuth clients table, not by a remembered id: registration is deduplicated and a re-registration mints a new id.
+- `isbot()` is true for `openai-mcp/1.0.0`, `openai-connectors-oauth/1.0` and `Claude-User`.
 
 ## Where to look
 
@@ -38,13 +38,11 @@ env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
 |---|---|---|
 | Why did `/mcp` refuse a request? | `mcp_request_refused` | `status`, `reason` (`missing_bearer`, `invalid_token`, `unsupported_protocol_version`, `parse_error`), `ua_client`, `offered_protocol_version`, `oauth_client_id`/`user_id` after authentication, `request_id` |
 | What does a client send when it connects? | `mcp_session_initialized` | `oauth_client_id`, `client_name` (≤64), `client_version` (≤32), `client_protocol_version` |
-| Did a client ever fetch the tool list? | `mcp_tools_listed` | `oauth_client_id`, `tool_count` |
+| Did a client ever fetch the tool list? | `mcp_tools_listed` | `oauth_client_id`, `tool_count`, `ua_client` |
 | Did the client revoke its own token? | `oauth_token_revoked` | `client_id`, `grant_id`, `outcome` (`revoked`, `not_found`), `token_kind` (`refresh`, `access`, `unknown`) |
 | Did the refresh chain continue? | `oauth_token_issued`, `oauth_token_refused` | `client_id`, `grant_type`, `grant_id`, `refresh_refusal.*` |
 
 A field whose value is `undefined` is omitted from the line, not written as `null`; test absence with `not ispresent(field)`. A protocol version that is not a `YYYY-MM-DD` string is recorded as `malformed`. `request_id` joins a line to the access log while that log still exists.
-
-**Never recorded:** the bearer token or any prefix or hash of it, refresh tokens, request bodies, the raw User-Agent. Only the User-Agent's class and the clipped `clientInfo` name and version.
 
 ## Decoding the access log for dates before these events
 
@@ -68,6 +66,16 @@ fields @timestamp, status, reason, ua_client, request_id
 | filter stream = "analytics" and event = "mcp_request_refused" and ua_client = "openai"
 | sort @timestamp desc
 ```
+
+Whether the scan reached `tools/list`, over the last 26 hours (no row means it did not):
+
+```
+fields @timestamp, tool_count
+| filter stream = "analytics" and event = "mcp_tools_listed" and ua_client = "openai"
+| stats count(*) as listings, max(@timestamp) as last_listing, latest(tool_count) as tools
+```
+
+Listings recorded before `ua_client` was added to `mcp_tools_listed` carry none; for those dates filter `oauth_client_id = "<ChatGPT client id>"` instead. Only the scan lists tools on the ChatGPT client: every listing for it from 2026-09-26 to 2026-10-26 came from the scan account.
 
 Refusals by client and reason:
 
@@ -108,10 +116,29 @@ fields @timestamp, event, client_id, coalesce(grant_id, `refresh_refusal.grantId
 - **A daily `missing_bearer` from `ua_client` `openai` at about 04:47Z** means the scanner's credential is dead on OpenAI's side. Reconnect it as [Reconnecting the scan](#reconnecting-the-scan) describes. Nothing on the server needs fixing unless other grants on the same client are failing too.
 - **Verify the reconnect:** an `authorization_code` grant for the ChatGPT client when **Allow access** is pressed, and within seconds a scan: one `unsupported_protocol_version` refusal, then `mcp_session_initialized` and an `mcp_tools_listed` for the ChatGPT client (readers never list tools, so only a scan produces one). At the next 04:47Z, a `refresh_token` grant with the same `grant_id`. On the MCPs tab, every tool ChatGPT already had should still show Published.
 - **Token endpoint `invalid` vs `expired`:** `invalid` means the presented refresh token no longer exists (it was rotated away, or revoked — check `oauth_token_revoked`); `expired` means it outlived its 180-day lifetime.
-- **`refresh_refusal.reason` `disconnect`:** the reader disconnected that client under Connected apps on the account page. The refresh evaluator counts it expected, `oauth-refresh-refused-alarm` does not count it, and no `oauth_token_revoked` accompanies it, because the account page revokes without the client's token.
+- **`refresh_refusal.reason` `disconnect`:** the reader pressed **Sign out from all devices** on that client's row under Connected apps on the account page. The refresh evaluator counts it expected, `oauth-refresh-refused-alarm` does not count it, and no `oauth_token_revoked` accompanies it, because the account page revokes without the client's token.
 - **`refresh_refusal.reason` `logout-all`:** the reader changed or reset their password. A reset signs every app out. A change does too, except for the app or extension it was made from. The refresh evaluator counts it expected, `oauth-refresh-refused-alarm` does not count it, and no `oauth_token_revoked` accompanies it, because a password change or reset revokes without the client's token.
+- **`refresh_refusal.reason` `account-deletion`:** the account was deleted, and every grant it held ended with it. No `oauth_token_revoked` accompanies it.
+- **`refresh_refusal.reason` `logout`:** someone called `/oauth/revoke` with a token of that grant, and `oauth_token_revoked` carries its `grant_id`. Any token of the chain revokes the live grant, even one already rotated away, and the endpoint needs no client authentication. OpenAI's connector calls it: it revoked a ChatGPT reader's grant on 2026-10-24.
+- **`refresh_refusal.reason` `rotation`:** the client presented a refresh token that had already been rotated, so it never stored the response that replaced it. The grant stays active on the server, but that client can no longer use it. See the rotation posture in the [MCP skill](../../../.claude/skills/mcp/SKILL.md#the-scans-credential).
+- **`refresh_refusal.reason` `unknown`:** the server cannot trace the token. It was retired before credential history began on 2026-09-12, was never issued here, or was presented under a different client. A client that keeps presenting one holds a stale credential of its own. On 2026-10-25 ChatGPT told a reader their connection had expired after presenting a token that had already been refused as `unknown` twice on 2026-09-17, 0.3 s after the same reader's live grant had refreshed. Nothing had expired on the server, and reconnecting in ChatGPT is the fix.
 - **`refresh_refusal.reason` `nonce_required`:** not a failure. The first request of every DPoP-bound refresh (the Chrome extension from 1.0.682 and the Firefox extension from 1.0.674, which share one refresh client, and the iOS and Android apps, whose native refresh clients handle the challenge the same way) arrives without a nonce; the token endpoint answers 400 `use_dpop_nonce` with a `DPoP-Nonce` header before it looks the credential up, and the client re-signs and succeeds, so an `oauth_token_issued` from the same `visitor_hash` follows within a second. The refresh evaluator counts it `challenged`, `oauth-refresh-refused-alarm` does not count it, and the line carries no `grantId`, so the grant-chain query above does not show it. `nonce_expired` is different and is counted: the retry arrived 300 s or more after its challenge, or carried a nonce the server did not mint for that key or dated ahead of its clock.
-- **Rotation posture:** a replayed refresh token is refused and its successor is **not** revoked. That is deliberate: every replay observed so far came from OpenAI's own platform presenting a token it had already rotated, and revoking the successor would sign out the working half of the client.
+
+## What ends the scan's credential
+
+The scan's grant never expires while OpenAI keeps scanning: every refresh restarts the refresh token's 180-day lifetime, with no absolute cap. These end it:
+
+| Cause | `refresh_refusal.reason` |
+|---|---|
+| **Sign out from all devices** on the ChatGPT row under Connected apps, signed in as the scan account | `disconnect` |
+| A password change, or a completed password reset, on the scan account | `logout-all` |
+| Deleting the scan account | `account-deletion` |
+| `/oauth/revoke` with any token of the scan's chain | `logout` |
+| OpenAI presenting a refresh token it already rotated | `rotation` |
+| Rotating `ANALYTICS_SALT`, which keys the HMAC that fingerprints refresh tokens: every rotated refresh token stops matching its grant, which signs out the scan and every app at once. A preview or deploy refuses a changed salt unless `hutch:analyticsSaltGeneration` is bumped past the deployed one | `superseded` |
+| Replacing or deleting the OAuth table. The table is `protect`ed, so a preview or deploy that plans either fails | `unknown` |
+
+`oauth-refresh-refused-alarm` counts only first-party clients, and `oauth-refresh-unexpected-comparison` has no alarm action. After its first refusals a dead scan logs no OAuth event at all, only the daily `missing_bearer` knock. `mcp-scan-listing-alarm` emails the alert address when prod has recorded no `mcp_tools_listed` with `ua_client` `openai` for 26 hours; the listing query in [Queries](#queries) is the manual check.
 
 ## Reconnecting the scan
 
@@ -122,4 +149,18 @@ On 2026-10-24 the Plugins portal offered no control that reconnects the scan. Th
 3. Open that URL through the portal's popup helper, from the loaded script that contains `apps_oauth_popup`, so the callback can report back to the tab.
 4. In the popup, sign in as the dedicated scan account and press **Allow access**. The callback on `platform.openai.com/apps-manage/oauth/` finishes the exchange and starts a scan at once. The app's `continuous-review` status then reads `connection: "selected"`.
 
-The scan account needs neither email verification nor a subscription, because `tools/list` is never gated, only saving. Its address and password are kept with the team's credentials, outside this public repository. A password reset on it signs the scan out, so reconnect straight after one.
+The scan account's address and password are kept with the team's credentials, outside this public repository.
+
+## When a check holds a tool
+
+The scan's verdict on each tool is in `GET /v1/dashapi/apps/{app}/continuous-review`, a method of the same portal API client as [Reconnecting the scan](#reconnecting-the-scan). `POST …/continuous-review/rescan` starts a scan at once. Each entry in its `tools` carries:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `change` | `unchanged`, `changed`, `added`, `removed` | The scanned definition against the one ChatGPT runs |
+| `publication` | `live`, `previous_definition`, `removed` | `previous_definition`: ChatGPT still runs what it published before the held change |
+| `findings` | `decision` `fail`, with a `reasoning` | Why the change is held |
+
+[What to do about a finding](../../../.claude/skills/mcp/SKILL.md#chatgpt-runs-the-tools-openais-scan-last-published) and [the rename procedure](../../../.claude/skills/mcp/SKILL.md#renaming-a-tool) are in the MCP skill.
+
+On 2026-10-24 the check failed `delete_article` with "This tool's name appears promotional, exaggerated, or inconsistent with its behavior.", because the tool deletes nothing: it returns the steps for the reader to delete the article in the app. It became `get_article_deletion_steps`, deployed on 2026-10-25. The rescan started right after that deploy published the new name with no findings. The first scan after the reconnect had done the same for `list_readlist_articles`, so waiting for `live` can take a single rescan. `delete_article`'s frozen copy was deleted the same day.

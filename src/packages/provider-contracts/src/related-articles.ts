@@ -77,6 +77,7 @@ export interface RelatedTargetArticle {
 	description: string;
 	hasStubMetadata: boolean;
 	hasSummary: boolean;
+	readerAvailableAt?: Date;
 }
 
 export type RelatedTargetLookup =
@@ -87,7 +88,17 @@ export type RelatedTargetLookup =
 
 export type FindRelatedTargetArticle = (
 	url: string,
+	options?: { consistentRead: boolean },
 ) => Promise<RelatedTargetLookup>;
+
+export interface SkippedNextReadSave {
+	userId: UserId;
+	skippedAt: Date;
+}
+
+export type FindSkippedNextReadSaves = (
+	url: string,
+) => Promise<readonly SkippedNextReadSave[]>;
 
 // ---------------------------------------------------------------------------
 // Previously-read-on-this-topic: an independent selection over the reader's

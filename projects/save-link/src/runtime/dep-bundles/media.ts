@@ -5,7 +5,7 @@ import { initDownloadMedia } from "../domain/save-link/download-media";
 import { initProcessContentWithLocalMedia } from "../domain/save-link/process-content-with-local-media";
 import type { ParserDepBundle } from "./parser";
 import type { ArticleStoreDepBundle } from "./article-store";
-import type { LogError } from "./observability";
+import type { LogError, LogImageLeftAtOrigin } from "./observability";
 
 export type MediaDepBundle = {
 	downloadMedia: DownloadMedia;
@@ -16,11 +16,13 @@ export function initMediaDepBundle(deps: {
 	parser: ParserDepBundle;
 	articleStore: ArticleStoreDepBundle;
 	logError: LogError;
+	logImageLeftAtOrigin: LogImageLeftAtOrigin;
 	imagesCdnBaseUrl: string;
 }): MediaDepBundle {
 	const downloadMedia = initDownloadMedia({
 		putImageObject: deps.articleStore.putImageObject,
 		logError: deps.logError,
+		logImageLeftAtOrigin: deps.logImageLeftAtOrigin,
 		crawlFetch: deps.parser.crawlFetch,
 		imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 	});

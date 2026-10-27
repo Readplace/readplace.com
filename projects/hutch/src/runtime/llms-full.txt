@@ -120,7 +120,7 @@ each URL.
 - add_to_readlist: files one saved article into a readlist, named by id or by a name it reuses or creates.
 - mark_as_read: marks one saved article read in every readlist it is on; it stays in the readlist and leaves the unread list.
 - mark_as_unread: marks one saved article unread again in every readlist it is on; the undo for mark_as_read.
-- delete_article: answers with a note pointing the user to the app; deleting stays in Readplace.
+- get_article_deletion_steps: answers with a note pointing the user to the app; deleting stays in Readplace.
 
 Call list_readlists to discover readlist names and ids. Pass its ids unchanged:
 use readlist to list one readlist, or readlists to save_link to file a new save

@@ -17,12 +17,13 @@ import {
 	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
+	forEachQueryPage,
 } from "@packages/hutch-storage-client";
 import type {
 	FindRelatedArticles,
 	FindRelatedCandidateArticles,
 	FindRelatedReadCandidateArticles,
-	FindRelatedTargetArticle,
+	FindRelatedTargetArticle, FindSkippedNextReadSaves,
 	MarkRelatedArticlesOutcome,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
@@ -38,6 +39,7 @@ import {
 	initArticleReads,
 	usable,
 } from "./related-articles-rows";
+import { decodeUserArticlePartition } from "./user-readlist-partition";
 
 const RelatedArticleLinkRow = z.object({
 	url: z.string(),
@@ -55,6 +57,11 @@ const UserArticleRelatedRow = z.object({
 	relatedOutputTokens: dynamoField(z.number()),
 });
 
+const READY_UPDATE_EXPRESSION =
+	"SET relatedStatus = :status, relatedArticles = :articles, relatedComputedAt = :at, relatedInputTokens = :inputTokens, relatedOutputTokens = :outputTokens";
+const SKIPPED_UPDATE_EXPRESSION =
+	"SET relatedStatus = :status, relatedComputedAt = :at REMOVE relatedArticles";
+
 export function initDynamoDbRelatedArticles(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -64,8 +71,11 @@ export function initDynamoDbRelatedArticles(deps: {
 	findRelatedCandidateArticles: FindRelatedCandidateArticles;
 	findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles;
 	findRelatedTargetArticle: FindRelatedTargetArticle;
+	findSkippedNextReadSaves: FindSkippedNextReadSaves;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
 	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
+	replaceSkippedRelatedArticlesWithReady: MarkRelatedArticlesReady;
+	replaceSkippedRelatedArticlesWithSkip: MarkRelatedArticlesSkipped;
 } {
 	const { client, tableName, userArticlesTableName } = deps;
 
@@ -111,8 +121,7 @@ export function initDynamoDbRelatedArticles(deps: {
 		writeRelated({
 			userId: params.userId,
 			url: params.url,
-			updateExpression:
-				"SET relatedStatus = :status, relatedArticles = :articles, relatedComputedAt = :at, relatedInputTokens = :inputTokens, relatedOutputTokens = :outputTokens",
+			updateExpression: READY_UPDATE_EXPRESSION,
 			expressionAttributeValues: {
 				":status": "ready",
 				":articles": params.relatedArticles.map((link) => ({
@@ -129,20 +138,19 @@ export function initDynamoDbRelatedArticles(deps: {
 		writeRelated({
 			userId: params.userId,
 			url: params.url,
-			updateExpression:
-				"SET relatedStatus = :status, relatedComputedAt = :at REMOVE relatedArticles",
+			updateExpression: SKIPPED_UPDATE_EXPRESSION,
 			expressionAttributeValues: {
 				":status": "skipped",
 				":at": params.at.toISOString(),
 			},
 		});
 
-	const findRelatedTargetArticle: FindRelatedTargetArticle = async (url) => {
+	const findRelatedTargetArticle: FindRelatedTargetArticle = async (url, options) => {
 		if (isNonArticleHost(url)) return { state: "not-an-article" };
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await articles.get(
 			{ url: articleResourceUniqueId.value },
-			{ projection: ARTICLE_FIELDS },
+			{ projection: ARTICLE_FIELDS, consistentRead: options?.consistentRead },
 		);
 		if (!row) return { state: "absent" };
 		if (row.purgedAt) return { state: "purged" };
@@ -158,7 +166,10 @@ export function initDynamoDbRelatedArticles(deps: {
 				description: descriptionOf(article),
 				hasSummary: article.summary !== undefined,
 				// Recognised off the stored siteName so the url never has to be re-parsed.
-				hasStubMetadata: article.title === stubMetadataFor(article.siteName).title,
+				hasStubMetadata: article.title === stubMetadataFor(article.siteName).title || (article.title === article.siteName && article.excerpt === ""),
+				...(article.readerAvailableAt !== undefined
+					? { readerAvailableAt: new Date(article.readerAvailableAt) }
+					: {}),
 			},
 		};
 	};
@@ -295,12 +306,98 @@ export function initDynamoDbRelatedArticles(deps: {
 		return { status: "ready", items };
 	};
 
+	async function replaceSkippedRelated(params: {
+		userId: UserId;
+		url: string;
+		updateExpression: string;
+		expressionAttributeValues: Record<string, unknown>;
+	}): Promise<MarkRelatedArticlesOutcome> {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		try {
+			await userArticles.update({
+				Key: { userId: params.userId, url: articleResourceUniqueId.value },
+				UpdateExpression: params.updateExpression,
+				ConditionExpression: "attribute_exists(savedAt) AND relatedStatus = :skipped",
+				ExpressionAttributeValues: {
+					...params.expressionAttributeValues,
+					":skipped": "skipped",
+				},
+			});
+			return "stored";
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return "superseded";
+			throw error;
+		}
+	}
+
+	const readyValues = (params: Parameters<MarkRelatedArticlesReady>[0]): Record<string, unknown> => ({
+		":status": "ready",
+		":articles": params.relatedArticles.map((link) => ({
+			url: link.url,
+			reason: link.reason,
+		})),
+		":at": params.at.toISOString(),
+		":inputTokens": params.inputTokens,
+		":outputTokens": params.outputTokens,
+	});
+
+	const skippedValues = (params: Parameters<MarkRelatedArticlesSkipped>[0]): Record<string, unknown> => ({
+		":status": "skipped",
+		":at": params.at.toISOString(),
+	});
+
+	const replaceSkippedRelatedArticlesWithReady: MarkRelatedArticlesReady = async (params) =>
+		replaceSkippedRelated({
+			userId: params.userId,
+			url: params.url,
+			updateExpression: READY_UPDATE_EXPRESSION,
+			expressionAttributeValues: readyValues(params),
+		});
+
+	const replaceSkippedRelatedArticlesWithSkip: MarkRelatedArticlesSkipped = async (params) =>
+		replaceSkippedRelated({
+			userId: params.userId,
+			url: params.url,
+			updateExpression: SKIPPED_UPDATE_EXPRESSION,
+			expressionAttributeValues: skippedValues(params),
+		});
+
+	const findSkippedNextReadSaves: FindSkippedNextReadSaves = async (url) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const saves: { userId: UserId; skippedAt: Date }[] = [];
+		await forEachQueryPage(
+			userArticles,
+			{
+				IndexName: "url-index",
+				KeyConditionExpression: "#url = :url",
+				FilterExpression: "relatedStatus = :skipped",
+				ExpressionAttributeNames: { "#url": "url" },
+				ExpressionAttributeValues: {
+					":url": articleResourceUniqueId.value,
+					":skipped": "skipped",
+				},
+			},
+			async (items) => {
+				for (const item of items) {
+					const { userId, readlist } = decodeUserArticlePartition(item.userId);
+					assert(readlist === undefined, "Next read is written only on the default partition");
+					assert(item.relatedComputedAt, "every Next-read skip write stamps relatedComputedAt");
+					saves.push({ userId, skippedAt: new Date(item.relatedComputedAt) });
+				}
+			},
+		);
+		return saves;
+	};
+
 	return {
 		findRelatedArticles,
 		findRelatedCandidateArticles,
 		findRelatedReadCandidateArticles,
 		findRelatedTargetArticle,
+		findSkippedNextReadSaves,
 		markRelatedArticlesReady,
 		markRelatedArticlesSkipped,
+		replaceSkippedRelatedArticlesWithReady,
+		replaceSkippedRelatedArticlesWithSkip,
 	};
 }

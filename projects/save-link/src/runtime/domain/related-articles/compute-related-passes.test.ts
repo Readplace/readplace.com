@@ -1,5 +1,6 @@
 import type { SQSEvent, SQSRecord } from "aws-lambda";
 import {
+	CanonicalContentChangedEvent,
 	ComputeRelatedPastReadsCommand,
 	QueueEntryCreatedEvent,
 } from "@packages/hutch-infra-components";
@@ -24,10 +25,11 @@ const record = ({ messageId, detailType }: { messageId: string; detailType: stri
 });
 const saved = record({ messageId: "saved", detailType: QueueEntryCreatedEvent.detailType });
 const refresh = record({ messageId: "refresh", detailType: ComputeRelatedPastReadsCommand.detailType });
-const event: SQSEvent = { Records: [saved, refresh, record({ messageId: "other", detailType: "other" })] };
+const contentChanged = record({ messageId: "content-changed", detailType: CanonicalContentChangedEvent.detailType });
+const event: SQSEvent = { Records: [saved, refresh, contentChanged, record({ messageId: "other", detailType: "other" })] };
 
 describe("related computation passes", () => {
-	it("starts both passes before either finishes and unions failures", async () => {
+	it("starts every pass before any finishes and unions failures across the three passes", async () => {
 		let release = () => {};
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
@@ -49,22 +51,48 @@ describe("related computation passes", () => {
 					],
 				};
 			},
+			recomputeNextReadHandler: async (e) => {
+				calls.push(e);
+				return { batchItemFailures: [{ itemIdentifier: "content-changed" }] };
+			},
 		});
 		expect(await handler(event, buildLambdaContext(), () => {})).toEqual({
 			batchItemFailures: [
 				{ itemIdentifier: "saved" },
 				{ itemIdentifier: "refresh" },
+				{ itemIdentifier: "content-changed" },
 			],
 		});
 		expect(calls).toEqual([
 			{ Records: [saved] },
 			{ Records: [saved, refresh] },
+			{ Records: [contentChanged] },
 		]);
+	});
+	it("sends a CanonicalContentChanged record only to the recompute pass", async () => {
+		const received: Record<string, SQSRecord[]> = {};
+		const handler = initComputeRelatedPasses({
+			nextReadHandler: async (e) => {
+				received.nextRead = e.Records;
+				return { batchItemFailures: [] };
+			},
+			pastReadsHandler: async (e) => {
+				received.pastReads = e.Records;
+				return { batchItemFailures: [] };
+			},
+			recomputeNextReadHandler: async (e) => {
+				received.recompute = e.Records;
+				return { batchItemFailures: [] };
+			},
+		});
+		await handler({ Records: [contentChanged] }, buildLambdaContext(), () => {});
+		expect(received).toEqual({ nextRead: [], pastReads: [], recompute: [contentChanged] });
 	});
 	it("accepts successful passes including callback-style handlers", async () => {
 		const handler = initComputeRelatedPasses({
 			nextReadHandler: () => {},
 			pastReadsHandler: async () => ({ batchItemFailures: [] }),
+			recomputeNextReadHandler: async () => ({ batchItemFailures: [] }),
 		});
 		expect(
 			await handler({ Records: [] }, buildLambdaContext(), () => {}),
@@ -76,6 +104,7 @@ describe("related computation passes", () => {
 				throw new Error("failed");
 			},
 			pastReadsHandler: async () => ({ batchItemFailures: [] }),
+			recomputeNextReadHandler: async () => ({ batchItemFailures: [] }),
 		});
 		await expect(
 			handler(event, buildLambdaContext(), () => {}),

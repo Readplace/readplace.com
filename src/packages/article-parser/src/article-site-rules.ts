@@ -1,6 +1,7 @@
 import {
 	type CrawlFetch,
 	initAppleNewsSiteRules,
+	initGitHubPdfSiteRules,
 	initHnSearchSiteRules,
 	initStackOverflowSiteRules,
 	initXTwitterSiteRules,
@@ -24,6 +25,7 @@ export function initArticleSiteRules(deps: {
 	const crawlClaimingSiteRules = [
 		initXTwitterSiteRules(deps),
 		initAppleNewsSiteRules(deps),
+		initGitHubPdfSiteRules(deps),
 		initStackOverflowSiteRules(deps),
 		initHnSearchSiteRules(deps),
 	];

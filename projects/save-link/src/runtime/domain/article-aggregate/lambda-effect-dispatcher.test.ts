@@ -1,10 +1,8 @@
 import type { Effect } from "@packages/domain/article-aggregate";
 import {
-	AnonymousLinkSavedEvent,
 	CanonicalContentChangedEvent,
 	CrawlArticleCompletedEvent,
 	CrawlArticleFailedEvent,
-	LinkSavedEvent,
 	ReaderViewLoadingSucceeded,
 	RecrawlCompletedEvent,
 	SubmitLinkCommand,
@@ -174,48 +172,6 @@ describe("initLambdaEffectDispatcher", () => {
 		});
 
 		expect(publishEvent).toHaveBeenCalledWith(CanonicalContentChangedEvent, {
-			url: "https://example.com/article",
-		});
-		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
-	});
-
-	it("publishes a LinkSavedEvent for a publish-link-saved effect, carrying url and userId in detail", async () => {
-		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
-
-		const { dispatchEffect } = initLambdaEffectDispatcher({
-			dispatchGenerateSummary,
-			publishEvent,
-		});
-
-		await dispatchEffect({
-			kind: "publish-link-saved",
-			url: "https://example.com/article",
-			userId: "user-123",
-		});
-
-		expect(publishEvent).toHaveBeenCalledWith(LinkSavedEvent, {
-			url: "https://example.com/article",
-			userId: "user-123",
-		});
-		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
-	});
-
-	it("publishes an AnonymousLinkSavedEvent for a publish-anonymous-link-saved effect, carrying only the url in detail", async () => {
-		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
-
-		const { dispatchEffect } = initLambdaEffectDispatcher({
-			dispatchGenerateSummary,
-			publishEvent,
-		});
-
-		await dispatchEffect({
-			kind: "publish-anonymous-link-saved",
-			url: "https://example.com/article",
-		});
-
-		expect(publishEvent).toHaveBeenCalledWith(AnonymousLinkSavedEvent, {
 			url: "https://example.com/article",
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();

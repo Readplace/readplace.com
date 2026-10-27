@@ -63,7 +63,7 @@ describe("GET /mcp (browser connection guide)", () => {
 		expect(operationsIn("capabilities")).toEqual(
 			expect.arrayContaining(["mark_as_read", "mark_as_unread"]),
 		);
-		expect(operationsIn("app-only-operations")).toEqual(["delete_article"]);
+		expect(operationsIn("app-only-operations")).toEqual(["get_article_deletion_steps"]);
 	});
 
 	it.each([

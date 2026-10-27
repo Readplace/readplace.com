@@ -2,7 +2,12 @@ import { initVisualBaselines, packagingPath } from "./visual-baselines";
 
 type Invocation = { command: string; args: string[]; env?: NodeJS.ProcessEnv };
 
-function harness(overrides: { platform?: string; status?: string; failDockerPull?: boolean } = {}) {
+function harness(overrides: {
+	platform?: string;
+	status?: string;
+	failDockerPull?: boolean;
+	browsersSupplied?: boolean;
+} = {}) {
 	const invocations: Invocation[] = [];
 	const logs: string[] = [];
 	const deps = {
@@ -19,6 +24,7 @@ function harness(overrides: { platform?: string; status?: string; failDockerPull
 		globSync: (pattern: string) =>
 			pattern.includes("*-visual") ? ["src/e2e/popup-visual.e2e-local.ts"] : [],
 		platform: overrides.platform ?? "darwin",
+		shouldInstallBrowsers: () => !overrides.browsersSupplied,
 		log: (message: string) => logs.push(message),
 	};
 	return { deps, invocations, logs };
@@ -103,6 +109,15 @@ describe("plan execution", () => {
 
 		expect(invocations.map((call) => [call.command, ...call.args].join(" "))).toEqual([
 			"node_modules/.bin/playwright install firefox",
+			"node_modules/.bin/playwright test --config playwright.config.local-dev.ts --update-snapshots=all src/e2e/popup-visual.e2e-local.ts",
+		]);
+	});
+
+	it("captures with the browsers CI supplies instead of downloading its own", () => {
+		const { deps, invocations } = harness({ browsersSupplied: true });
+		initVisualBaselines(deps).createBaselinePlan(planInput).captureNatively();
+
+		expect(invocations.map((call) => [call.command, ...call.args].join(" "))).toEqual([
 			"node_modules/.bin/playwright test --config playwright.config.local-dev.ts --update-snapshots=all src/e2e/popup-visual.e2e-local.ts",
 		]);
 	});

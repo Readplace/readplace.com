@@ -33,6 +33,8 @@ interface McpToolDefinition {
 
 export const LIST_READLIST_ARTICLES_LEGACY_NAME = "list_queue";
 
+export const DELETE_ARTICLE_LEGACY_NAME = "delete_article";
+
 export const SaveLinkArgs = z.object({
 	url: z.string().min(1),
 	readlists: z.array(z.string().min(1)).max(READLIST_MAX_PER_USER).optional(),
@@ -305,8 +307,8 @@ export const MARK_AS_UNREAD_TOOL: McpToolDefinition = {
 	},
 };
 
-export const DELETE_ARTICLE_TOOL: McpToolDefinition = {
-	...mcpOperationMetadata("delete_article"),
+export const GET_ARTICLE_DELETION_STEPS_TOOL: McpToolDefinition = {
+	...mcpOperationMetadata("get_article_deletion_steps"),
 	inputSchema: {
 		type: "object",
 		properties: {},
@@ -332,5 +334,5 @@ export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	ADD_TO_READLIST_TOOL,
 	MARK_AS_READ_TOOL,
 	MARK_AS_UNREAD_TOOL,
-	DELETE_ARTICLE_TOOL,
+	GET_ARTICLE_DELETION_STEPS_TOOL,
 ];

@@ -10,6 +10,7 @@ import {
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
+import { TOOL_DEFINITIONS } from "./tool-definitions";
 
 const CLIENT_ID = "hutch-firefox-extension";
 const REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
@@ -134,7 +135,7 @@ describe("MCP server over the real app", () => {
 		]);
 	});
 
-	it("records the client's declared identity on initialize and the tool count on tools/list", async () => {
+	it("records the client's declared identity on initialize and the tool count and client class on tools/list", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await obtainAccessToken(harness);
 
@@ -148,7 +149,10 @@ describe("MCP server over the real app", () => {
 				clientInfo: { name: "integration-client", version: "1.2.3" },
 			},
 		});
-		const listed = await callTool(harness, accessToken, { jsonrpc: "2.0", id: 2, method: "tools/list" });
+		const listed = await callTool(harness, accessToken, { jsonrpc: "2.0", id: 2, method: "tools/list" }).set(
+			"User-Agent",
+			"openai-mcp/1.0.0",
+		);
 
 		expect(harness.analytics.events.filter((event) => event.event === "mcp_session_initialized")).toEqual([
 			expect.objectContaining({
@@ -159,7 +163,11 @@ describe("MCP server over the real app", () => {
 			}),
 		]);
 		expect(harness.analytics.events.filter((event) => event.event === "mcp_tools_listed")).toEqual([
-			expect.objectContaining({ oauth_client_id: CLIENT_ID, tool_count: listed.body.result.tools.length }),
+			expect.objectContaining({
+				oauth_client_id: CLIENT_ID,
+				tool_count: listed.body.result.tools.length,
+				ua_client: "openai",
+			}),
 		]);
 	});
 
@@ -321,7 +329,7 @@ describe("MCP server over the real app", () => {
 			"add_to_readlist",
 			"mark_as_read",
 			"mark_as_unread",
-			"delete_article",
+			"get_article_deletion_steps",
 		]);
 	});
 
@@ -413,7 +421,7 @@ describe("MCP server over the real app", () => {
 		const before = await callTool(harness, accessToken, tool("get_article", { id }));
 		const articleBefore = before.body.result.structuredContent.article;
 
-		const del = await callTool(harness, accessToken, tool("delete_article"));
+		const del = await callTool(harness, accessToken, tool("get_article_deletion_steps"));
 		expect(del.body.result.structuredContent.performed).toBe(false);
 
 		// The whole article — not just status/count — is byte-for-byte unchanged.
@@ -429,7 +437,7 @@ describe("MCP server over the real app", () => {
 		const id = await saveAndGetFirstId(harness, ownerToken);
 
 		const otherToken = await obtainAccessToken(harness, "other@example.com");
-		const del = await callTool(harness, otherToken, tool("delete_article", { id }));
+		const del = await callTool(harness, otherToken, tool("get_article_deletion_steps", { id }));
 		expect(del.body.result.structuredContent.performed).toBe(false);
 		const read = await callTool(harness, otherToken, tool("mark_as_read", { id }));
 		expect(read.body.result.structuredContent).toEqual({ found: false });
@@ -456,6 +464,16 @@ describe("MCP server over the real app", () => {
 		expect(advertised.body.result.tools.filter((entry: { name: string }) => entry.name === "list_queue")).toEqual([]);
 		const legacy = await callTool(harness, token, tool("list_queue", { order: "asc" }));
 		const current = await callTool(harness, token, tool("list_readlist_articles", { order: "asc" }));
+		expect(legacy.body.result).toEqual(current.body.result);
+	});
+
+	it("accepts the retired delete name while advertising only the new name", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await obtainAccessToken(harness);
+		const advertised = await callTool(harness, token, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+		expect(advertised.body.result.tools.filter((entry: { name: string }) => entry.name === "delete_article")).toEqual([]);
+		const legacy = await callTool(harness, token, tool("delete_article"));
+		const current = await callTool(harness, token, tool("get_article_deletion_steps"));
 		expect(legacy.body.result).toEqual(current.body.result);
 	});
 
@@ -609,7 +627,7 @@ describe("MCP server over the real app", () => {
 		expect(otherArticles.body.result.structuredContent.total).toBe(0);
 	});
 
-	it("gates new readlist writes when an account is locked but leaves discovery open", async () => {
+	it("gates new readlist writes when an account is locked but leaves discovery and the tool list open", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		let locked = false;
 		const harness = useApp({
@@ -636,9 +654,11 @@ describe("MCP server over the real app", () => {
 		}
 		const discovered = await callTool(harness, token, tool("list_readlists"));
 		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		const listed = await callTool(harness, token, { jsonrpc: "2.0", id: nextId++, method: "tools/list" });
+		expect(listed.body.result.tools).toHaveLength(TOOL_DEFINITIONS.length);
 	});
 
-	it("refuses new readlist writes for a lapsed subscription without creating anything", async () => {
+	it("refuses new readlist writes for a lapsed subscription without creating anything, and still lists every tool", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await obtainAccessToken(harness);
 		const id = await saveAndGetFirstId(harness, token);
@@ -655,6 +675,8 @@ describe("MCP server over the real app", () => {
 		}
 		const discovered = await callTool(harness, token, tool("list_readlists"));
 		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		const listed = await callTool(harness, token, { jsonrpc: "2.0", id: nextId++, method: "tools/list" });
+		expect(listed.body.result.tools).toHaveLength(TOOL_DEFINITIONS.length);
 	});
 
 });

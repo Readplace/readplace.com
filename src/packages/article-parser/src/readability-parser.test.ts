@@ -1000,6 +1000,29 @@ describe("initReadabilityParser", () => {
 			}
 		});
 
+		it("parses documents whose HTML omits the <html>, <head> and <body> start tags, leaving metadata and flow content as document-level siblings (unfenced.land shape)", () => {
+			const html = readFileSync(
+				join(__dirname, "fixtures", "implicit-html-root.html"),
+				"utf-8",
+			);
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://unfenced.land/",
+				documentUrl: "https://unfenced.land/",
+				html,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.title).toBe(
+					"Unfenced: land for sale that borders public land",
+				);
+				expect(result.article.content).toContain("game lands and wilderness");
+			}
+		});
+
 		it("replaces a native <video> in the article body with a brand-styled placeholder linking to the original", () => {
 			const htmlWithVideo = `
 			<html><head><title>Performance Post</title></head>

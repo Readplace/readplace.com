@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
 	MCP_TOOL_OUTCOMES,
 	type McpToolOutcome,
+	type McpUaClient,
 	UNKNOWN_MCP_TOOL,
 } from "@packages/web-analytics";
 import type { AuthenticatedUserId } from "@packages/domain/user";
@@ -29,10 +30,11 @@ import {
 	CreateReadlistArgs,
 	CREATE_READLIST_TOOL,
 	ADD_TO_READLIST_TOOL,
-	DELETE_ARTICLE_TOOL,
+	DELETE_ARTICLE_LEGACY_NAME,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,
 	GET_RELATED_ARTICLES_TOOL,
+	GET_ARTICLE_DELETION_STEPS_TOOL,
 	GET_ARTICLE_TOOL,
 	LIST_READLISTS_TOOL,
 	LIST_READLIST_ARTICLES_LEGACY_NAME,
@@ -45,8 +47,7 @@ import {
 	TOOL_DEFINITIONS,
 } from "./tool-definitions";
 
-/** The user's readlist in the Readplace app. Deletion happens here, not over MCP —
- * delete_article points the user at this URL. */
+/** The user's readlist in the Readplace app. Deletion happens here, not over MCP. */
 const APP_READLIST_URL = "https://readplace.com/queue";
 
 const PAYWALLED_TOOLS: ReadonlySet<string> = new Set([
@@ -271,17 +272,18 @@ interface McpToolsListRecord {
 	readonly userId: AuthenticatedUserId;
 	readonly oauthClientId: string;
 	readonly toolCount: number;
+	readonly uaClient: McpUaClient;
 }
 
 export type McpHandshakeRecord = McpInitializeRecord | McpToolsListRecord;
 
 export type RecordMcpHandshake = (record: McpHandshakeRecord) => void;
 
-/** The authenticated caller a request runs as. Resolved from the OAuth bearer
- * token by the transport before a message reaches the server. */
+/** The authenticated caller a request runs as. */
 interface McpRequestContext {
 	readonly userId: AuthenticatedUserId;
 	readonly oauthClientId: string;
+	readonly uaClient: McpUaClient;
 }
 
 type JsonRpcId = string | number | null;
@@ -476,7 +478,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves that relate to it, each tagged unread or read). Each article's url opens its private Readplace reader view. A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: delete_article changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
+				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves that relate to it, each tagged unread or read). Each article's url opens its private Readplace reader view. A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: get_article_deletion_steps changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
 		};
 	}
 
@@ -1065,11 +1067,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		);
 	}
 
-	function runDeleteArticle(): ToolResult {
+	function runGetArticleDeletionSteps(): ToolResult {
 		return data(
 			`Deleting a saved article is done in the Readplace app, not by your assistant, so nothing is removed by mistake. Open your readlist at ${APP_READLIST_URL} to delete an article.`,
 			{
-				action: DELETE_ARTICLE_TOOL.name,
+				action: GET_ARTICLE_DELETION_STEPS_TOOL.name,
 				performed: false,
 				completeInApp: APP_READLIST_URL,
 			},
@@ -1096,7 +1098,8 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		[ADD_TO_READLIST_TOOL.name, runAddToReadlist],
 		[MARK_AS_READ_TOOL.name, runMarkAsRead],
 		[MARK_AS_UNREAD_TOOL.name, runMarkAsUnread],
-		[DELETE_ARTICLE_TOOL.name, () => runDeleteArticle()],
+		[GET_ARTICLE_DELETION_STEPS_TOOL.name, () => runGetArticleDeletionSteps()],
+		[DELETE_ARTICLE_LEGACY_NAME, () => runGetArticleDeletionSteps()],
 	]);
 
 	function dispatchTool(
@@ -1243,6 +1246,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 						userId: context.userId,
 						oauthClientId: context.oauthClientId,
 						toolCount: TOOL_DEFINITIONS.length,
+						uaClient: context.uaClient,
 					});
 					return success(id, toolsList());
 				case "tools/call":

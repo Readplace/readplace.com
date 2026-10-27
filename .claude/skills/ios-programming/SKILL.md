@@ -1,6 +1,6 @@
 ---
 name: ios-programming
-description: Swift, UIKit and SwiftUI conventions for the iOS app and its share extension. Use when writing or changing a .swift file, when choosing between UIKit and SwiftUI for a screen, when a view test cannot reach the iOS coverage floor, or when a captured snapshot of a view does not show what the simulator shows.
+description: Swift, UIKit and SwiftUI conventions for the iOS app and its share extension. Use when writing or changing a .swift file, when choosing between UIKit and SwiftUI for a screen, when a view test cannot reach the iOS coverage floor, when a captured snapshot of a view does not show what the simulator shows, or when preparing a TestFlight build or an App Store version — writing its "What to Test" note, its App Store release notes or its App Review notes, or dispatching the `whats_new`, `release` or `resubmit` fastlane lanes.
 ---
 
 # iOS Programming
@@ -38,3 +38,28 @@ The last row is the load-bearing one. A preferred width held below required prio
 A capture that walks the layer tree draws whatever sits in each layer's backing store, which is not what SwiftUI has most recently been told to show. A leaf whose state changed since the last display cycle captures at its **previous** appearance. Draw the hierarchy through the render server instead, with the view in a visible window, and give the run loop a turn first so the pending update commits.
 
 The danger is in the recording direction, not the verifying one. A stale capture verifies against itself on every later run, so the gate stays green while the committed picture shows something the app never renders — a silent false pass, which is the one failure a visual gate must not have.
+
+## Every release describes everything that changed since the one Apple last saw
+
+App Review Guideline 2.3.1(a) requires every new feature to be described with specificity in the Notes for Review, and 2.5.19 rejects features hidden from the reviewer. Notes written from memory miss features, including the ones the server shipped without a new binary. Write them from the git history.
+
+| Note | Baseline to diff from |
+|---|---|
+| TestFlight "What to Test" | The previous build's `ios-readplace@v*` tag (`git tag --list 'ios-readplace@v*' --sort=-v:refname`) |
+| App Store release notes and App Review notes | The last build submitted for App Review, which is the build the last "prepare build N for store review" commit on the review notes names. The `whats_new` lane's `status:true` lists the App Store versions to confirm it. Most TestFlight builds never reach review, so the previous tag is the wrong baseline here |
+
+Read two scopes of history from the baseline to the build's tag:
+
+- **The app**: commits under the iOS project's directory (`pnpm nx show project ios` gives its root).
+- **Server surfaces the app shows or obeys.** These ship without a new binary, so a reviewer sees them only if the notes name them. They are the Siren responses (the `save-article`, `save-content`, `update-status` actions and the `account` link), the reader page and its `readplaceReader` message bridge to the app, the pages rendered for the app (the app config names the query items it appends, `platform` and `shell`; the server branches on the same names), the OAuth sign-in and consent pages behind `/oauth/authorize`, and the shared nav and banners. Grep the main app for those wire values to find the files, then `git log` them.
+
+Sort every commit into user-visible feature, behaviour change, fix, or internal. Internal commits are left out. Every feature and behaviour change goes into:
+
+- **The release notes**: the fastlane metadata file both the `whats_new` and `release` lanes read, written for readers in the [brand voice](../../../BRAND_GUIDELINES.md).
+- **The review notes' "CHANGES IN <version>" block**: say what each change is and how a reviewer can exercise it. Name anything that runs without a tap, such as an automatic capture, and anything the server added since the last reviewed build.
+
+Then re-read the review notes' standing claims (which servers the app talks to, where purchases happen, tracking, account deletion) against the diff, and fix any the diff has made false.
+
+App Store Connect caps the review notes at 4,000 bytes, and the lanes upload the file whole. Check the file with `wc --bytes` and cut older wording until it fits.
+
+The lanes read these files from the branch they run on. Commit and push the notes before dispatching `whats_new`, `release` or `resubmit`.

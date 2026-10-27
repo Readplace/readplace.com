@@ -1013,7 +1013,7 @@ describe("deferred archive attempt completion", () => {
 	it("completes real PDF dispatch with the original wrapper references and fresh extracted live candidate", async () => {
 		const pdf = Buffer.from(`%PDF-1.4\n${" ".repeat(64)}`);
 		const extractPdf = jest.fn(async () => ({ kind: "fetched" as const, title: "PDF report", html: "<html><body><p>Complete PDF article</p></body></html>" }));
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(pdf, { status: 200, headers: { "content-type": "application/pdf" } }), siteRules: [], extractPdf, logError: () => {}, logInfo: () => {} });
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(pdf, { status: 200, headers: { "content-type": "application/pdf" } }), siteRules: [], extractPdf, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 		const putTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({ crawlArticle, putTierSource, publishEvent });
@@ -1145,7 +1145,7 @@ it.each<{ contentType: string; kind: "image" | "plain-text" }>([
 	});
 	const crawlArticle = initCrawlArticle({
 		crawlFetch: async () => new Response("resource bytes", { headers: { "content-type": contentType } }),
-		siteRules: [], logError: jest.fn(), logInfo: jest.fn(),
+		siteRules: [], logError: jest.fn(), logInfo: jest.fn(), logThumbnailNotDelivered: () => {},
 	});
 	const handler = createHandler({ crawlArticle, finalizeArticle, putTierSource, publishEvent });
 	await expect(handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [] });

@@ -50,7 +50,7 @@ function setupHandler(init: typeof initSelectMostCompleteContentHandler, overrid
 }
 
 describe.each([
-	{ name: "save", init: initSelectMostCompleteContentHandler, detail: { ...candidateDetail, userId: "user-1" }, transition: promoteTier, input: { userId: "user-1" } },
+	{ name: "save", init: initSelectMostCompleteContentHandler, detail: { ...candidateDetail, userId: "user-1" }, transition: promoteTier, input: { tier: "tier-1", canonicalChanged: true } },
 	{ name: "recrawl", init: initRecrawlContentExtractedHandler, detail: candidateDetail, transition: recrawlPromoteTier, input: { winnerTier: "tier-1" } },
 	{ name: "refresh", init: initRefreshContentExtractedHandler, detail: { ...candidateDetail, contentFetchedAt: "2026-10-05T00:00:00.000Z", bodyHash: "raw-hash", etag: "current-etag", lastModified: "current-date" }, transition: refreshContent, input: { freshness: { bodyHash: "raw-hash", etag: "current-etag", lastModified: "current-date" } } },
 ])("$name selection queue handler", ({ init, detail, transition, input }) => {

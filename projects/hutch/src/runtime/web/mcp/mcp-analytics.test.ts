@@ -1,5 +1,5 @@
 import { authenticatedUserIdFrom } from "@packages/domain/user";
-import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics";
+import { type AnalyticsEvent, MCP_UA_CLIENTS, type RecordUngatedEvent } from "@packages/web-analytics";
 import { initRecordMcpHandshake, initRecordMcpToolCall } from "./mcp-analytics";
 import type { McpToolCallRecord } from "./mcp-server";
 
@@ -146,6 +146,7 @@ describe("initRecordMcpHandshake", () => {
 			userId,
 			oauthClientId: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
 			toolCount: 12,
+			uaClient: MCP_UA_CLIENTS.openai,
 		});
 		expect(captured).toEqual([
 			{
@@ -155,6 +156,7 @@ describe("initRecordMcpHandshake", () => {
 				oauth_client_id: "ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm",
 				user_id: userId,
 				tool_count: 12,
+				ua_client: "openai",
 			},
 		]);
 	});

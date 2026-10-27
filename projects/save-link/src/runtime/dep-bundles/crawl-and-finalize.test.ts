@@ -7,7 +7,7 @@ import { initParserDepBundle } from "./parser";
 
 describe("initCrawlAndFinalizeDepBundle", () => {
 	it("returns a bundle with finalizeArticle and crawlAndFinalizeArticle fields", () => {
-		const parser = initParserDepBundle({ logError: () => {}, logInfo: () => {}, findAdoptedFetchUrl: async () => undefined, proxyUrl: "http://proxy.test:8080" });
+		const parser = initParserDepBundle({ logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {}, findAdoptedFetchUrl: async () => undefined, proxyUrl: "http://proxy.test:8080" });
 		const articleStore = initArticleStoreDepBundle({
 			s3Client: new S3Client({ region: "us-east-1" }),
 			dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),
@@ -18,6 +18,7 @@ describe("initCrawlAndFinalizeDepBundle", () => {
 			parser,
 			articleStore,
 			logError: () => {},
+			logImageLeftAtOrigin: () => {},
 			imagesCdnBaseUrl: "https://cdn.example",
 		});
 
@@ -28,6 +29,7 @@ describe("initCrawlAndFinalizeDepBundle", () => {
 			imagesCdnBaseUrl: "https://cdn.example",
 			logError: () => {},
 			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
 		});
 
 		expect(typeof bundle.finalizeArticle).toBe("function");

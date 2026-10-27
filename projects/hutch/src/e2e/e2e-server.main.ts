@@ -59,7 +59,7 @@ import { getEnv, requireEnv } from "@packages/require-env"
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe"
 import { initFinalizeArticle, initRefreshArticleIfStale } from '@packages/finalize-article'
 import { initResolveSaveIdentity, initSubmitFreshness, neverResolveWrapperTarget } from '@packages/save-article'
-import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
+import type { ExtractPdf, IsBlockedAddress, ThumbnailNotDeliveredEvent } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch, initFetchThumbnailImage } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initArticleSiteRules, initReadabilityParser, readabilityAdditions } from '@packages/article-parser'
@@ -125,14 +125,15 @@ const extractPdf: ExtractPdf = async () => ({
 	html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError })
-const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo })
+const logThumbnailNotDelivered = HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn
+const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, readabilityAdditions, logError })
 const images = initInMemoryArticleImages()
 const finalizeArticle = initFinalizeArticle({
 	parseHtml,
 	downloadMedia: async () => [],
 	processContent: async ({ html }) => html,
-	fetchThumbnailImage: initFetchThumbnailImage({ crawlFetch, logError, logInfo }),
+	fetchThumbnailImage: initFetchThumbnailImage({ crawlFetch, logError, logInfo, logThumbnailNotDelivered }),
 	putImageObject: images.putImageObject,
 	imagesCdnBaseUrl: origin,
 })

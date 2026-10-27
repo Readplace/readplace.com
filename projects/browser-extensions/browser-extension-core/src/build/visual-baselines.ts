@@ -8,6 +8,7 @@ interface VisualBaselinesDeps {
 	capture: (command: string, args: string[]) => string;
 	globSync: (pattern: string, options: { cwd: string }) => string[];
 	platform: string;
+	shouldInstallBrowsers: () => boolean;
 	log: (message: string) => void;
 }
 
@@ -115,7 +116,9 @@ export function initVisualBaselines(deps: VisualBaselinesDeps) {
 				},
 
 				captureNatively(): void {
-					deps.run(PLAYWRIGHT_BIN, ["install", input.browser]);
+					if (deps.shouldInstallBrowsers()) {
+						deps.run(PLAYWRIGHT_BIN, ["install", input.browser]);
+					}
 					const [bin, ...args] = command;
 					deps.run(bin, args, { env: input.captureEnv });
 				},
