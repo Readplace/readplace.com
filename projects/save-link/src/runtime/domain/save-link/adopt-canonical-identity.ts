@@ -16,9 +16,9 @@ export type AdoptionOutcome =
 
 /**
  * After a tier-1 crawl of the originally-saved `url` resolved a different
- * terminal URL through HTTP redirects, a later
- * save of the terminal collapses onto this article. Snapshot-at-crawl: the
- * alias is a first-writer-wins claim and is never merged or overwritten here.
+ * terminal URL through HTTP redirects, a later save of the terminal collapses
+ * onto this article. Snapshot-at-crawl: the alias is a first-writer-wins claim
+ * and is never merged or overwritten here.
  *
  * Best-effort by contract — it NEVER throws. The crawl queues are
  * `maxReceiveCount=1`, so a throw between the tier-1 write and the terminal
@@ -41,8 +41,7 @@ function carriesReturnUrl(url: string): boolean {
 }
 
 /**
- * Pure so
- * every gate is unit-testable in isolation. Gates:
+ * Pure so every gate is unit-testable in isolation. Gates:
  *   - never on an admin recrawl (first-crawl-of-a-new-article only);
  *   - for a finalized crawl, only when it produced real content
  *     (`wordCount > 0`) — a zero-word 200 is a bot-wall or JS shell and must not
