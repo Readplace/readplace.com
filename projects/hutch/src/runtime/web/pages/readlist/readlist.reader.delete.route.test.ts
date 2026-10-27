@@ -424,8 +424,11 @@ describe("Deleting an article from the owner reader", () => {
 
 			const response = await request(harness.server).post(`/queue/${articleId}/delete?platform=ios`);
 
-			expect(response.headers.location).not.toBe("readplace://reader/close");
-			expect(response.headers["hx-redirect"]).toBeUndefined();
+			expect([response.status, response.headers["hx-redirect"], response.headers.location]).toEqual([
+				303,
+				undefined,
+				"/login",
+			]);
 			expect(await defaultUrls(harness)).toEqual([ARTICLE_URL]);
 		});
 	});
