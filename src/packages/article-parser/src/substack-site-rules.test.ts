@@ -216,7 +216,7 @@ describe("substackSiteRules on captured articles", () => {
 
 		expect(
 			Array.from(document.querySelectorAll("h2.header-anchor-post, h3.header-anchor-post"), (heading) =>
-				`${heading.tagName} ${heading.textContent}`.trim(),
+				`${heading.tagName} ${heading.textContent}`,
 			),
 		).toEqual(["H2 The Concept", ...STIGMERGY_RECOVERED_HEADINGS]);
 	});
