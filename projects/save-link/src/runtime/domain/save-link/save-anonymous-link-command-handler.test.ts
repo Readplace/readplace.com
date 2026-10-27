@@ -1,6 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlockedKeepingCommittedContent } from "./mark-crawl-blocked-keeping-committed-content";
-import { markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveAnonymousLinkCommandHandler } from "./save-anonymous-link-command-handler";
 import type {
@@ -184,9 +183,9 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlockedKeepingCommittedContent, {
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
 			url: "https://example.com/walled",
-			input: { reason: { kind: "blocked", cause: "edge-block" }, now: fixedNow().toISOString() },
+			input: { reason: { kind: "blocked", cause: "edge-block" } },
 		});
 		expect(publishEvent).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();

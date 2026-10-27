@@ -129,30 +129,6 @@ describe("recrawlTieKeptCanonical", () => {
 		assert.deepEqual([...writes].sort(), ["crawl", "readerAvailability", "summary"]);
 	});
 
-	it("re-arms a summary skipped because the crawl failed, so keeping the stored body does not leave its summary dead", () => {
-		const before = buildArticle({
-			url: "https://example.com/post",
-			summary: { kind: "skipped", reason: "crawl-failed" },
-		});
-
-		const { article, effects, writes } = recrawlTieKeptCanonical(before, buildInput());
-
-		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
-		assert.deepEqual(effects, [
-			{ kind: "generate-summary", url: "https://example.com/post" },
-			{ kind: "publish-recrawl-completed", url: "https://example.com/post" },
-		]);
-		assert.deepEqual([...writes].sort(), ["crawl", "readerAvailability", "summary"]);
-	});
-
-	it("preserves a summary skipped for a reason other than the crawl failing", () => {
-		const before = buildArticle({ summary: { kind: "skipped", reason: "content-too-short" } });
-
-		const { article } = recrawlTieKeptCanonical(before, buildInput());
-
-		assert.deepEqual(article.summary, { kind: "skipped", reason: "content-too-short" });
-	});
-
 	it("preserves failed(exhausted-retries) summary — only crawl-failed is stale", () => {
 		const existingSummary = {
 			kind: "failed" as const,

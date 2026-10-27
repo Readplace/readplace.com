@@ -14,7 +14,6 @@ import type { SelectMostCompleteContent, SelectionAudit } from "./select-content
 import { chooseTiedCandidate } from "./resolve-tie";
 import { COMPARISON_COMPLETED } from "./comparison-log";
 import { candidateProvenance } from "./candidate-provenance";
-import { holdsCommittedContent } from "./holds-committed-content";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 
@@ -33,6 +32,7 @@ export interface PreparedContentSelection {
 }
 
 const KIND_BY_TIER: Record<Tier, CandidateProvenance["kind"]> = { "tier-0": "extension", "tier-1": "live", "tier-2": "wrapper" };
+const EMPTY_TEXT_HASH = computeCanonicalContentHash("");
 
 function candidateIsReadable(source: VerifiedTierSource): boolean {
 	return source.html.trim().length > 0 && (source.metadata.wordCount > 0 || /<(?:img|video|audio|iframe)\b/i.test(source.html));
@@ -129,7 +129,7 @@ export function initPrepareContentSelection(deps: {
 		}
 		const previous = sources.find((source) => source.metadata.id === (canonical?.id ?? legacyCanonicalId) && candidateIsReadable(source));
 		const isFirstContent = article.freshness.canonicalContentHash === undefined ||
-			(!holdsCommittedContent(article) && previous === undefined);
+			(article.freshness.canonicalContentHash === EMPTY_TEXT_HASH && previous === undefined);
 		const firstCapture = firstCaptureOf({ isFirstContent, sources });
 		const directResources = directResourcesOf({ sources, saveAttemptId });
 		const proseUnchanged = previous !== undefined && sources.length > 1 &&

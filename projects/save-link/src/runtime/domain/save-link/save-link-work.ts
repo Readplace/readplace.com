@@ -2,6 +2,7 @@ import type { CandidateId, SaveAttemptId } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
+	markCrawlBlocked,
 	markCrawlFailed,
 	markCrawlNotFound,
 	markCrawlUnsupported,
@@ -19,7 +20,6 @@ import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
 import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
 import { candidateProvenance } from "../select-content/candidate-provenance";
-import { markCrawlBlockedKeepingCommittedContent } from "./mark-crawl-blocked-keeping-committed-content";
 
 export type SaveLinkWorkResult = { candidate: { id: CandidateId; tier: "tier-1" } } | "tier-1-deferred" | "tier-1-terminal";
 
@@ -173,11 +173,10 @@ export function initSaveLinkWork(deps: {
 		if (result.status === "blocked") {
 			logParseError({ url, reason: `crawl-blocked: HTTP ${result.httpStatus}` });
 			await emitTier1FailureOutcome({ url });
-			await transitionAndPersist(markCrawlBlockedKeepingCommittedContent, {
+			await transitionAndPersist(markCrawlBlocked, {
 				url,
 				input: {
 					reason: { kind: "blocked", cause: blockedCauseForStatus(result.httpStatus) },
-					now: now().toISOString(),
 				},
 			});
 			await adoptCanonicalIdentity({
