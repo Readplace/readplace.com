@@ -10,6 +10,7 @@ import {
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
+import { TOOL_DEFINITIONS } from "./tool-definitions";
 
 const CLIENT_ID = "hutch-firefox-extension";
 const REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
@@ -134,7 +135,7 @@ describe("MCP server over the real app", () => {
 		]);
 	});
 
-	it("records the client's declared identity on initialize and the tool count on tools/list", async () => {
+	it("records the client's declared identity on initialize and the tool count and client class on tools/list", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await obtainAccessToken(harness);
 
@@ -148,7 +149,10 @@ describe("MCP server over the real app", () => {
 				clientInfo: { name: "integration-client", version: "1.2.3" },
 			},
 		});
-		const listed = await callTool(harness, accessToken, { jsonrpc: "2.0", id: 2, method: "tools/list" });
+		const listed = await callTool(harness, accessToken, { jsonrpc: "2.0", id: 2, method: "tools/list" }).set(
+			"User-Agent",
+			"openai-mcp/1.0.0",
+		);
 
 		expect(harness.analytics.events.filter((event) => event.event === "mcp_session_initialized")).toEqual([
 			expect.objectContaining({
@@ -159,7 +163,11 @@ describe("MCP server over the real app", () => {
 			}),
 		]);
 		expect(harness.analytics.events.filter((event) => event.event === "mcp_tools_listed")).toEqual([
-			expect.objectContaining({ oauth_client_id: CLIENT_ID, tool_count: listed.body.result.tools.length }),
+			expect.objectContaining({
+				oauth_client_id: CLIENT_ID,
+				tool_count: listed.body.result.tools.length,
+				ua_client: "openai",
+			}),
 		]);
 	});
 
@@ -619,7 +627,7 @@ describe("MCP server over the real app", () => {
 		expect(otherArticles.body.result.structuredContent.total).toBe(0);
 	});
 
-	it("gates new readlist writes when an account is locked but leaves discovery open", async () => {
+	it("gates new readlist writes when an account is locked but leaves discovery and the tool list open", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		let locked = false;
 		const harness = useApp({
@@ -646,9 +654,11 @@ describe("MCP server over the real app", () => {
 		}
 		const discovered = await callTool(harness, token, tool("list_readlists"));
 		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		const listed = await callTool(harness, token, { jsonrpc: "2.0", id: nextId++, method: "tools/list" });
+		expect(listed.body.result.tools).toHaveLength(TOOL_DEFINITIONS.length);
 	});
 
-	it("refuses new readlist writes for a lapsed subscription without creating anything", async () => {
+	it("refuses new readlist writes for a lapsed subscription without creating anything, and still lists every tool", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const token = await obtainAccessToken(harness);
 		const id = await saveAndGetFirstId(harness, token);
@@ -665,6 +675,8 @@ describe("MCP server over the real app", () => {
 		}
 		const discovered = await callTool(harness, token, tool("list_readlists"));
 		expect(discovered.body.result.structuredContent.readlists).toEqual([{ id: DEFAULT_READLIST_SLUG, name: "All" }]);
+		const listed = await callTool(harness, token, { jsonrpc: "2.0", id: nextId++, method: "tools/list" });
+		expect(listed.body.result.tools).toHaveLength(TOOL_DEFINITIONS.length);
 	});
 
 });

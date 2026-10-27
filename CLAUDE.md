@@ -90,17 +90,7 @@ Only the functions that apply the rule can mint the body and summary brands (gre
 
 ### ChatGPT runs the tools OpenAI's scan last published
 
-ChatGPT readers never fetch `tools/list`. They call the tool definitions that OpenAI's plugin directory published from its last successful scan of our MCP server. The scan runs once a day at about 04:47 UTC (User-Agent `openai-mcp/1.0.0`) on a credential of its own: a grant under the one ChatGPT OAuth client every reader shares, bound to whichever Readplace account signed in when the scan was last connected in OpenAI's Plugins portal. That credential died on 2026-09-11. Nobody noticed until OpenAI emailed on 2026-10-22, and by then ChatGPT had missed six weeks of tool changes, including the named-readlist tools. It was reconnected on 2026-10-24.
-
-OpenAI's rule since about 2026-09-21: a scan unpublishes a tool the server stopped listing at once, while a new tool goes live only after automated checks, with no time limit. A rename is a delete plus an add. Reconnecting would have unpublished `list_queue`, ChatGPT's second most-used tool, days before its replacement could go live.
-
-- Keep listing a tool ChatGPT has published until its replacement shows **Published** on the MCPs tab. A changed definition keeps the old one live while OpenAI checks it; a missing tool is gone at the next scan.
-- Keep dispatching a tool's old name after it stops being listed. Readers call the published definition until the next scan unpublishes it, and a conversation started before then still holds it. `list_queue` stayed listed, byte for byte as published, until `list_readlist_articles` was published on 2026-10-24; the server still answers to `list_queue`.
-- Prefer fixing a failed check on the server to appealing it: an appeal pauses every automatic update, and OpenAI publishes no turnaround. The check failed `delete_article`'s name on 2026-10-24 because the tool deletes nothing, so it became `get_article_deletion_steps`, which was published on 2026-10-25 with no findings; the server still answers to `delete_article`.
-- Reconnect the scan through the Plugins portal's scan-account connection, never from chatgpt.com: connecting ChatGPT there mints a reader grant the scan never adopts. The portal rendered no control for it on 2026-10-24, so the runbook has the console steps.
-- Bind the scan to a dedicated account no person uses. Disconnecting ChatGPT under Connected apps, or a password change or reset on that account, revokes the scan grant and records no revocation.
-- Never gate `tools/list` on the caller's subscription or email verification. The scan account has neither, and a scan that lists fewer tools unpublishes the missing ones for every reader.
-- The [MCP scanner runbook](./projects/hutch/docs/mcp-scanner-runbook.md) has the scan's footprint and the events that prove a reconnect worked.
+ChatGPT readers call the tool definitions OpenAI's plugin directory published from its last successful scan of our MCP server, not our live `tools/list`, and the scan runs on an OAuth grant of its own. Changing a tool, the scan's credential, the OAuth code, `ANALYTICS_SALT` or the OAuth table is governed by the [MCP skill](./.claude/skills/mcp/SKILL.md), whose guards refuse the dangerous change and name the approval each needs. The [MCP scanner runbook](./projects/hutch/docs/mcp-scanner-runbook.md) has the operations.
 
 ## Architecture Guidelines
 

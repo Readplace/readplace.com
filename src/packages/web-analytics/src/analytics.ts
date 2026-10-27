@@ -566,6 +566,7 @@ export interface McpToolsListedEvent {
 	oauth_client_id: string;
 	user_id: UserId;
 	tool_count: number;
+	ua_client: McpUaClient;
 }
 
 export interface OAuthTokenRevokedEvent {
@@ -962,7 +963,7 @@ export function buildMcpSessionInitializedEvent(
 
 export function buildMcpToolsListedEvent(
 	deps: { now: () => Date },
-	params: { oauthClientId: string; userId: UserId; toolCount: number },
+	params: { oauthClientId: string; userId: UserId; toolCount: number; uaClient: McpUaClient },
 ): McpToolsListedEvent {
 	return {
 		stream: STREAMS.analytics,
@@ -971,6 +972,7 @@ export function buildMcpToolsListedEvent(
 		oauth_client_id: params.oauthClientId,
 		user_id: params.userId,
 		tool_count: params.toolCount,
+		ua_client: params.uaClient,
 	};
 }
 

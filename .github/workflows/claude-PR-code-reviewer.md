@@ -85,7 +85,8 @@ When reviewing code, apply these skills based on the files being changed:
 - **ai-agent-editor** (`.claude/skills/ai-agent-editor/SKILL.md`): Review changes to skills, `CLAUDE.md`, or other AI-agent documentation — flag duplicated code, time-bound/plan-bound comments, and prose that should be a reference or table
 - **blog-post-editor** (`.claude/skills/blog-post-editor/SKILL.md`): Review changes to blog post markdown files for authoring conventions
 - **crawl-pipeline-rca** (`.claude/skills/crawl-pipeline-rca/SKILL.md`): Review changes to the command → event → handler chain in the article crawl pipeline — watch for missing terminal-state writes, divergent entry points, and timeout/visibility bumps used as a shortcut
-- **hypermedia-api-design** (`.claude/skills/hypermedia-api-design/SKILL.md`): Review changes to the Siren/MCP hypermedia contract between the hutch server and any client (chrome/firefox extensions, iOS app, MCP) — action names, navigation flows, request/response shapes; server owns the protocol, clients read it
+- **hypermedia-api-design** (`.claude/skills/hypermedia-api-design/SKILL.md`): Review changes to the Siren hypermedia contract between the hutch server and any client (chrome/firefox extensions, iOS app) — action names, navigation flows, request/response shapes; server owns the protocol, clients read it
+- **mcp** (`.claude/skills/mcp/SKILL.md`): Review changes to the MCP server at `/mcp`, its tool catalogue or `tools/list`, MCP analytics events, the OAuth token, refresh-rotation or revocation code, the OAuth table or `ANALYTICS_SALT` against the skill's rules and the approval each guard needs
 - **infrastructure-design** (`.claude/skills/infrastructure-design/SKILL.md`): Review Pulumi infrastructure changes — flag environment-name branching, hard-coded values that belong in per-stage YAML, and other infra-config drift
 
 ## Summary Guidelines

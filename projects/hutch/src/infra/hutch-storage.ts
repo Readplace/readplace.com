@@ -222,6 +222,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 		this.oauthTable = new aws.dynamodb.Table(`hutch-oauth`, {
 			name: args.tableNames.oauth,
 			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
 			hashKey: "pk",
 			attributes: [
 				{ name: "pk", type: "S" },
@@ -238,7 +240,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 				attributeName: "expiresAt",
 				enabled: true,
 			},
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }], protect: true });
 
 		this.verificationTokensTable = new aws.dynamodb.Table(`hutch-verification-tokens`, {
 			name: args.tableNames.verificationTokens,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
 	MCP_TOOL_OUTCOMES,
 	type McpToolOutcome,
+	type McpUaClient,
 	UNKNOWN_MCP_TOOL,
 } from "@packages/web-analytics";
 import type { AuthenticatedUserId } from "@packages/domain/user";
@@ -271,17 +272,18 @@ interface McpToolsListRecord {
 	readonly userId: AuthenticatedUserId;
 	readonly oauthClientId: string;
 	readonly toolCount: number;
+	readonly uaClient: McpUaClient;
 }
 
 export type McpHandshakeRecord = McpInitializeRecord | McpToolsListRecord;
 
 export type RecordMcpHandshake = (record: McpHandshakeRecord) => void;
 
-/** The authenticated caller a request runs as. Resolved from the OAuth bearer
- * token by the transport before a message reaches the server. */
+/** The authenticated caller a request runs as. */
 interface McpRequestContext {
 	readonly userId: AuthenticatedUserId;
 	readonly oauthClientId: string;
+	readonly uaClient: McpUaClient;
 }
 
 type JsonRpcId = string | number | null;
@@ -1244,6 +1246,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 						userId: context.userId,
 						oauthClientId: context.oauthClientId,
 						toolCount: TOOL_DEFINITIONS.length,
+						uaClient: context.uaClient,
 					});
 					return success(id, toolsList());
 				case "tools/call":
