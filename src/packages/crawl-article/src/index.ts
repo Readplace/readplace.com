@@ -15,6 +15,7 @@ export {
 	initFetchThumbnailImage,
 	isValidHttpUrl,
 	type FetchThumbnailImage,
+	type LogThumbnailNotDelivered,
 	type ThumbnailNotDeliveredEvent,
 } from "./extract-thumbnail";
 export type {
