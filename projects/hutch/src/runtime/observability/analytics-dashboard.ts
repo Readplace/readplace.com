@@ -27,6 +27,7 @@ import {
 	SUBSCRIPTION_EVENTS,
 } from "./events";
 import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE } from "./metric-filters";
+import { deepseekCostWidget } from "./deepseek-cost-widget";
 import { hnStarterWidgets } from "./hn-starter-widgets";
 import type { LogWidgetSpec } from "./log-widget-spec.types";
 import { mcpWidgets } from "./mcp-widgets";
@@ -1103,6 +1104,8 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			view: "bar",
 		}),
 	);
+
+	widgets.push(deepseekCostWidget({ region, y: 230 }));
 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({

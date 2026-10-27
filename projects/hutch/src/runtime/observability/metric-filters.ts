@@ -38,6 +38,24 @@ export function analyticsMetricFilterPattern(filter: AnalyticsMetricFilter): str
 	return `{ $.stream = "${filter.stream}" && $.event = "${filter.event}" }`;
 }
 
+export const DEEPSEEK_COST_METRIC = {
+	namespace: "Readplace/DeepSeek",
+	name: "CostUsd",
+	dimension: "feature",
+} as const;
+
+export const DEEPSEEK_COST_METRIC_FILTER = {
+	stream: STREAMS.analytics,
+	event: "deepseek_usage",
+	value: "$.usd",
+	dimensionValue: "$.feature",
+} as const;
+
+export function deepseekCostMetricFilterPattern(): string {
+	const filter = DEEPSEEK_COST_METRIC_FILTER;
+	return `{ $.stream = "${filter.stream}" && $.event = "${filter.event}" && ${filter.value} = * }`;
+}
+
 const READER_DISCONNECT = "disconnect" satisfies RevocationCause;
 const LOGOUT_ALL = "logout-all" satisfies RevocationCause;
 const NONCE_REQUIRED = "nonce_required" satisfies Extract<ProofValidation, { ok: false }>["reason"];

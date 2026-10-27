@@ -1,10 +1,13 @@
 import { SUPPORTED_CLIENTS, isBuiltInOAuthClientId } from "@packages/supported-clients";
 import { mcpUaClientOf } from "@packages/web-analytics";
-import { ANALYTICS_EVENTS, CONVERSION_EVENTS, METRICS, STREAMS } from "./events";
+import { ANALYTICS_EVENTS, CONVERSION_EVENTS, FORWARDED_STREAMS, METRICS, STREAMS } from "./events";
 import {
 	ANALYTICS_METRIC_FILTERS,
 	ANALYTICS_METRIC_NAMESPACE,
 	analyticsMetricFilterPattern,
+	DEEPSEEK_COST_METRIC,
+	DEEPSEEK_COST_METRIC_FILTER,
+	deepseekCostMetricFilterPattern,
 	firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern,
 	openAiScanToolsListedPattern,
 } from "./metric-filters";
@@ -116,6 +119,32 @@ describe("OpenAI scan tools-listed metric filter", () => {
 		expect(METRICS.mcpToolsListedByOpenAiScan).toEqual({
 			namespace: "Readplace/OAuth",
 			name: "McpToolsListedByOpenAiScan",
+		});
+	});
+});
+
+describe("DeepSeek cost metric filter", () => {
+	it("selects a priced deepseek_usage line by stream, event and the presence of usd — the string aws logs test-metric-filter matched on staging against a priced line and a one-token line whose usd prints as 3e-9, and refused an unpriced line and a pageview", () => {
+		expect(deepseekCostMetricFilterPattern()).toBe(
+			'{ $.stream = "analytics" && $.event = "deepseek_usage" && $.usd = * }',
+		);
+	});
+
+	it("watches a stream the forwarder copies into /readplace/analytics, so the filter reads a group the usage line reaches", () => {
+		expect(FORWARDED_STREAMS).toContain(DEEPSEEK_COST_METRIC_FILTER.stream);
+	});
+
+	it("publishes the line's usd under one bounded dimension, feature, in a namespace of its own, so the counter-row tests keep selecting exactly the Readplace/Analytics counters and seven ids cost seven custom metrics", () => {
+		expect(DEEPSEEK_COST_METRIC).toEqual({
+			namespace: "Readplace/DeepSeek",
+			name: "CostUsd",
+			dimension: "feature",
+		});
+		expect(DEEPSEEK_COST_METRIC_FILTER).toEqual({
+			stream: "analytics",
+			event: "deepseek_usage",
+			value: "$.usd",
+			dimensionValue: "$.feature",
 		});
 	});
 });
