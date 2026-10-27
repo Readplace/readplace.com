@@ -26,8 +26,10 @@ Snapshot #1258, 87 unresolved articles. At the operator's request, [fb282b7](htt
 
 ## 27 October 2026
 
-Snapshot #1271 contains 88 unresolved articles; a local scan with the current source rules found one additional failure, for 89 unresolved articles. This run has verified no recoveries, so shares are `n/a`.
+Snapshot #1271 contains 88 unresolved articles; a local scan with the current source rules found one additional failure, for 89 articles in this run. One unique article has verified partial content recovery; zero articles meet full-recovery acceptance. Recovery share below uses that one partial recovery, counted once.
 
 | Category | Fix retained | Commit(s) | Verified outcome | Recovery share |
 |---|---|---|---|---|
-| GitHub PDF viewer | Pending verification | Uncommitted implementation | Production selected a loading shell instead of the document. The viewer's declared download returned a valid PDF locally. A scoped resolver and regression tests pass the full repository check. Deployment and full-document production verification remain pending. Local source access proves no production recovery. | n/a |
+| GitHub PDF viewer | Yes, partial benefit | [f8c8375](https://github.com/Readplace/readplace.com/commit/f8c837557829c465846fd83738cc0c456bf7a1b8), not reverted | Exact-commit CI, production deployment and Visual Review passed. One production recrawl retrieved the identical 67-page PDF and brought the original saved row to ready; the reader matches fresh canonical text and contains substantive passages from every page in order. Full PDF fidelity remains unproven: source recall is 88.38%, page boundaries are missing and mathematical discrepancies remain. The fresh summary's core claims are supported, but an editorial authenticity caveat is unsupported. Retain the scoped resolver; carry these content-quality gaps forward for a separate bounded investigation. The 15% weekly-allowance stop rule ended hypothesis selection. | 1 of 1 partial (100%); 0 full |
+
+[Refresh run 40493424793](https://github.com/Readplace/readplace.com/actions/runs/40493424793) executed a real scan and replaced #1271 with [#1273](https://github.com/Readplace/readplace.com/issues/1273): the same 88 baseline failures, with no new or regressed rows. All 89 original identities were reconciled. The ready partial article is omitted by the failure report; its PDF-fidelity and summary-quality gaps remain carried forward in the private checkpoint.
