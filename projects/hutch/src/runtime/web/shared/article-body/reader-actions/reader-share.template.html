@@ -1,0 +1,17 @@
+{{#if menu}}
+<div class="article-body__menu-slot article-body__menu-slot--visible" data-test-menu-share-slot>
+  <button class="menu__item article-body__menu-popover-item" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="menu-share-open">{{icon "share"}}<span>Share</span></button>
+  <details class="article-body__menu-fallback" data-test-menu-share-fallback>
+    <summary class="menu__item">{{icon "share"}}<span>Share</span></summary>
+    <div class="article-body__menu-fallback-panel">{{{fallbackHtml}}}</div>
+  </details>
+</div>
+{{else}}
+<div class="article-body__share-slot" data-test-share-slot>
+  <button class="btn btn--neutral btn--icon article-body__share" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="share-open">{{icon "share"}}<span class="sr-only">Share</span></button>
+  <details class="article-body__share-fallback" data-test-share-fallback>
+    <summary class="btn btn--neutral btn--icon">{{icon "share"}}<span class="sr-only">Share</span></summary>
+    <div class="article-body__share-fallback-panel">{{{fallbackHtml}}}</div>
+  </details>
+</div>
+{{/if}}

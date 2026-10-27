@@ -70,7 +70,12 @@ async function openOwnerReader(page: Page, stamp: string): Promise<void> {
 }
 
 async function openDownloadGuide(page: Page): Promise<void> {
-	await page.locator(OPENER).click();
+	if (await page.locator(OPENER).isVisible()) {
+		await page.locator(OPENER).click();
+	} else {
+		await page.click('[data-test-action="reader-menu"]');
+		await page.click('[data-test-reader-menu-panel] [data-test-action="menu-download-open"]');
+	}
 	await page.waitForSelector(`${DIALOG}:popover-open`);
 	await expect(page.locator(DOWNLOAD)).toBeFocused();
 }

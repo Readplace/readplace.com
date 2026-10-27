@@ -133,6 +133,7 @@ describe("every popup opens on its first decision", () => {
 
 		const gaps: string[] = [];
 		const keys = new Set<string>();
+		const readerKeys: string[] = [];
 		let drawerSeen = false;
 		for (const path of [
 			...MEMBER_PATHS,
@@ -145,11 +146,13 @@ describe("every popup opens on its first decision", () => {
 			expect({ path, status: response.status }).toEqual({ path, status: 200 });
 			gaps.push(...gapsOn({ path, html: response.text }));
 			for (const key of dialogKeys(response.text)) keys.add(key);
+			if (path === readerHref) readerKeys.push(...dialogKeys(response.text));
 			drawerSeen ||= parse(response.text).querySelector("[data-test-discovery-drawer]") !== null;
 		}
 
 		expect(gaps).toEqual([]);
 		expect(drawerSeen).toBe(true);
+		expect(readerKeys).toContain("delete");
 		expect([...keys].sort()).toEqual([
 			"account-profile",
 			"add-link",

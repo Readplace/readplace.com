@@ -8,6 +8,7 @@ import {
 	provenanceTitle,
 } from "../../../shared/article-body/article-header/provenance-label";
 import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
+import { renderDeleteMenuItems } from "./delete-confirm.component";
 import { renderMoveMenuItems } from "./move-dialog.component";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-card.template.html"), "utf-8");
@@ -46,23 +47,17 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	viaFallbackClass: string;
 	statusActions: DesignCardAction[];
 	statusTriggers: DesignCardTrigger[];
-	menuActions: DesignCardAction[];
-	menuTriggers: DesignCardTrigger[];
 	moveMenuHtml: string;
+	deleteMenuHtml: string;
 }
 
 const STATUS_LOADER_HTML = renderInFlightDots("readlist-article__action-btn-loader in-flight-dots");
-
-function isDeleteAction(action: ArticleAction): boolean {
-	return action.testAction === "delete";
-}
 
 function toDesignAction(
 	action: ArticleAction,
 	options: { isProcessing: boolean; articleId: string },
 ): DesignCardAction {
 	const isConfirmed = action.confirmPopoverId !== undefined;
-	const isStatus = !isDeleteAction(action);
 	return {
 		...action,
 		url: withInternalTracking(action.url, {
@@ -71,9 +66,9 @@ function toDesignAction(
 		}),
 		testAction: isConfirmed ? `${action.testAction}-fallback` : action.testAction,
 		fallbackClass: isConfirmed ? " readlist-article__fallback" : "",
-		disabled: options.isProcessing && isStatus,
-		loaderHtml: isStatus ? STATUS_LOADER_HTML : "",
-		buttonId: isStatus ? `readlist-status-${options.articleId}` : undefined,
+		disabled: options.isProcessing,
+		loaderHtml: STATUS_LOADER_HTML,
+		buttonId: `readlist-status-${options.articleId}`,
 	};
 }
 
@@ -127,8 +122,6 @@ export function toReadlistCardDisplayModel(
 			content,
 			term: options.deviceClass,
 		});
-	const statusActions = article.actions.filter((action) => !isDeleteAction(action));
-	const deleteActions = article.actions.filter(isDeleteAction);
 	const toAction = (action: ArticleAction) => toDesignAction(action, { isProcessing, articleId: article.id });
 	return {
 		...article,
@@ -146,11 +139,10 @@ export function toReadlistCardDisplayModel(
 		readTimeLabel: article.readTime?.label ?? "",
 		readTimeEmptyClass: article.readTime ? "" : " readlist-article__read-time--empty",
 		...toViaDisplay(article),
-		statusActions: statusActions.map(toAction),
-		statusTriggers: statusActions.flatMap(toTrigger),
-		menuActions: deleteActions.map(toAction),
-		menuTriggers: deleteActions.flatMap(toTrigger),
+		statusActions: article.actions.map(toAction),
+		statusTriggers: article.actions.flatMap(toTrigger),
 		moveMenuHtml: article.move === undefined ? "" : renderMoveMenuItems({ move: article.move }),
+		deleteMenuHtml: renderDeleteMenuItems({ deletion: article.deletion, surface: "queue-card" }),
 	};
 }
 

@@ -12,7 +12,7 @@ import type {
 	RelatedArticles,
 } from "@packages/provider-contracts/related-articles";
 import type { ReadlistRef, ReadlistSlug } from "@packages/domain/readlist";
-import { render, toRelativeOrDate, withInternalTracking } from "@packages/web-shell";
+import { render, renderIllustration, toRelativeOrDate, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody, renderArticleRail } from "../../shared/article-body/article-body.component";
@@ -23,6 +23,11 @@ import {
 	type RenderReaderActions,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
+import {
+	type ArticleDeletion,
+	renderDeleteConfirm,
+	renderDeleteMenuItems,
+} from "../readlist/readlist-card/delete-confirm.component";
 import {
 	markStatusConfirmPopoverId,
 	renderMarkStatusConfirm,
@@ -138,6 +143,7 @@ export function ReaderPage(
 		epubDownloadGuide?: EpubDownloadGuide;
 		provenance: ReaderProvenance | undefined;
 		issueLinks?: IssueLinksSectionInput;
+		deletion: ArticleDeletion;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -185,6 +191,7 @@ export function ReaderPage(
 				: { popoverId: SHARE_DIALOG_POPOVER_ID, fallbackHtml: renderSharePanel(share) },
 			epubDownloadHref: options.epubDownloadHref,
 			epubDownloadGuide: options.epubDownloadGuide,
+			menu: { deleteItemsHtml: renderDeleteMenuItems({ deletion: options.deletion, surface: "reader" }) },
 		},
 	});
 	const pastReadsInput: PastReadsSectionInput | undefined =
@@ -299,6 +306,16 @@ export function ReaderPage(
 		markStatusConfirm === undefined
 			? ""
 			: renderMarkStatusConfirm({ confirm: markStatusConfirm, source: "reader" });
+	const deleteConfirm = options.deletion.confirm;
+	const deleteConfirmHtml =
+		deleteConfirm === undefined
+			? ""
+			: renderDeleteConfirm({
+					confirm: deleteConfirm,
+					surface: "reader",
+					title: article.metadata.title,
+					illustrationHtml: renderIllustration("trash-can"),
+				});
 	const content = render(READER_TEMPLATE, {
 		innerContent,
 		railLandmark,
@@ -306,6 +323,7 @@ export function ReaderPage(
 		nextRead,
 		exitConfirmHtml,
 		markStatusConfirmHtml,
+		deleteConfirmHtml,
 		shareDialogHtml,
 		downloadGuideHtml,
 		readlistCreateHtml,

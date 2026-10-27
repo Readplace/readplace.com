@@ -62,7 +62,11 @@ describe("renderReaderSkeleton", () => {
 			"article-body__mark-read-slot",
 			"article-body__share-slot",
 			"article-body__downloads-slot",
+			"article-body__more-slot",
 		]);
+		expect(content.querySelector(".article-body__actions--top")?.classList.contains("article-body__actions--with-menu")).toBe(
+			true,
+		);
 		expect(content.querySelector(".article-body__actions--top")?.parentElement?.className).toBe(
 			"article-body__toolbar",
 		);

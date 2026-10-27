@@ -154,6 +154,7 @@ import { requireNotLocked } from "../../middleware/require-not-locked.middleware
 import { initObserveSaveRefusal, tagSaveRefusal } from "../../shared/save-refusal";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { RedirectComponent, type Redirect } from "../../redirect.component";
+import { HxRedirectPage } from "../../hx-redirect-page";
 import { CacheableComponent, FreshForComponent } from "../../conditional-get";
 import {
 	NO_READER_VIEW_FAILED_OOB,
@@ -177,6 +178,7 @@ import {
 	buildReadlistUrl,
 	READLIST_PATH,
 	canonicalReadlistPageRedirect,
+	readlistReturnQuery,
 	toArticleDiscoveryQuery,
 	type ReadlistUrlState,
 } from "./readlist.url";
@@ -192,7 +194,7 @@ import { preferencesFeatureParams, readlistPreferencesEnabled } from "./readlist
 import { DEFAULT_READLIST } from "./readlist.nav";
 import { readlistScopedStore } from "./readlist-scoped-store";
 import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
-import { DELETE_ACK_NEVER } from "./readlist-card/delete-confirm.component";
+import { type ArticleDeletion, DELETE_ACK_NEVER, buildArticleDeletion } from "./readlist-card/delete-confirm.component";
 import {
 	DEFAULT_READLIST_SLUG,
 	ReadlistSlugSchema,
@@ -1003,6 +1005,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				: `${READLIST_PATH}/${articleId}/view?${query}`;
 		};
 
+	const closeAppReader = (req: Request, res: Response): void => {
+		if (req.get("HX-Request") === "true") {
+			sendComponent(req, res, HxRedirectPage(APP_BACK_LINK.topHref));
+			return;
+		}
+		res.redirect(303, APP_BACK_LINK.topHref);
+	};
+
 	const readerReturnPath = (req: Request, articleId: string): string =>
 		readerPathFor(req)(articleId);
 
@@ -1085,26 +1095,40 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		res.redirect(301, `${READLIST_PATH}/${req.params.id}/view${queryString}`);
 	});
 
-	const readerReadlistFilingFor = async (params: {
+	const readerOwnerControlsFor = async (params: {
 		userId: UserId;
 		article: SavedArticle;
 		returnTo: string;
 		filed: ReadlistSlug | undefined;
-	}): Promise<ReaderReadlistFiling> => {
+	}): Promise<{ readlistFiling: ReaderReadlistFiling; deleteAcknowledged: boolean }> => {
 		const [definitions, saves, signals] = await Promise.all([
 			deps.listReadlistDefinitions(params.userId),
 			deps.listUserSavesForUrl({ userId: params.userId, url: params.article.url }),
 			deps.getOnboardingSignals({ userId: params.userId }),
 		]);
-		return buildReaderReadlistFiling({
-			articleId: params.article.id.value,
-			definitions,
-			saves,
-			returnTo: params.returnTo,
-			filed: params.filed,
-			markStatusConfirmGated:
-				readerReadlists(definitions).length > 1 &&
-				signals.markReadAcrossQueuesAckedAt === undefined,
+		return {
+			readlistFiling: buildReaderReadlistFiling({
+				articleId: params.article.id.value,
+				definitions,
+				saves,
+				returnTo: params.returnTo,
+				filed: params.filed,
+				markStatusConfirmGated:
+					readerReadlists(definitions).length > 1 &&
+					signals.markReadAcrossQueuesAckedAt === undefined,
+			}),
+			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
+		};
+	};
+
+	const readerDeletionFor = (req: Request, input: { articleId: string; acknowledged: boolean }): ArticleDeletion => {
+		const query = [readlistReturnQuery(parseReadlistUrl(req.query)).slice(1), nativeSurfaceQuery(req)]
+			.filter((part) => part !== "")
+			.join("&");
+		return buildArticleDeletion({
+			articleId: input.articleId,
+			query: query === "" ? "" : `?${query}`,
+			acknowledged: input.acknowledged,
 		});
 	};
 
@@ -1121,6 +1145,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				previouslyRead: PastReads;
 				previouslyReadPollUrl: string | undefined;
 				readlistFiling: ReaderReadlistFiling;
+				deletion: ArticleDeletion;
 				provenance: Awaited<ReturnType<ResolveReaderProvenance>>;
 				contentVersion: string;
 			};
@@ -1158,7 +1183,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			});
 		}
 
-		const [related, previouslyRead, state, readlistFiling, provenance] = await Promise.all([
+		const [related, previouslyRead, state, { readlistFiling, deleteAcknowledged }, provenance] = await Promise.all([
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
 			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, deps.logError),
 			reader.resolveReaderState({
@@ -1169,7 +1194,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				},
 				pollUrlBuilder: pollUrlBuilderFor(req, ownedArticle.id.value),
 			}),
-			readerReadlistFilingFor({
+			readerOwnerControlsFor({
 				userId: ownedArticle.userId,
 				article: ownedArticle,
 				returnTo: readerReturnPath(req, ownedArticle.id.value),
@@ -1197,6 +1222,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			crawl: state.crawl,
 			summary: state.summary,
 		});
+		const deletion = readerDeletionFor(req, { articleId: ownedArticle.id.value, acknowledged: deleteAcknowledged });
 
 		if (state.notice !== undefined) {
 			return {
@@ -1213,6 +1239,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				previouslyRead: { status: "ready", items: [] },
 				previouslyReadPollUrl: undefined,
 				readlistFiling,
+				deletion,
 				provenance,
 				contentVersion,
 			};
@@ -1227,6 +1254,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			previouslyRead,
 			previouslyReadPollUrl,
 			readlistFiling,
+			deletion,
 			provenance,
 			contentVersion,
 		};
@@ -1268,6 +1296,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			previouslyRead,
 			previouslyReadPollUrl,
 			readlistFiling,
+			deletion,
 			provenance,
 			contentVersion,
 		} = resolved;
@@ -1325,6 +1354,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				readerNotice: state.notice,
 				epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
 				issueLinks,
+				deletion,
 			});
 			assert(readerBody.scripts, "the reader page always sets its scripts");
 			sendComponent(
@@ -1411,6 +1441,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					epubDownloadHref: epubHrefFor(req, ownedArticle, state.content),
 					epubDownloadGuide: epubGuideFor(req, ownedArticle),
 					issueLinks,
+					deletion,
 				}), cspNonce), {
 					...(await deps.buildBannerState(req)),
 					currentPath,
@@ -2782,7 +2813,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
-		const readlistFiling = await readerReadlistFilingFor({
+		const { readlistFiling } = await readerOwnerControlsFor({
 			userId,
 			article,
 			returnTo: readerReturnPath(req, article.id.value),
@@ -2822,7 +2853,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
-		const readlistFiling = await readerReadlistFilingFor({
+		const { readlistFiling } = await readerOwnerControlsFor({
 			userId,
 			article,
 			returnTo: readerReturnPath(req, article.id.value),
@@ -3238,6 +3269,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			await deleteArticleFromReadlistFor(context.state.readlist)({ articleId: parsedId.data, userId });
 		}
 
+		if (isAppPlatform(req)) {
+			if (!parsedId.success) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			closeAppReader(req, res);
+			return;
+		}
 		res.redirect(303, buildReadlistUrl(context.state));
 	});
 

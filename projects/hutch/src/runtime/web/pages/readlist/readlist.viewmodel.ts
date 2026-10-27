@@ -5,7 +5,6 @@ import {
 	type SavedArticle,
 	type SaveableUrlErrorCode,
 } from "@packages/domain/article";
-import type { IconName } from "@packages/ui-icons";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
@@ -33,8 +32,8 @@ import { planChargedWithoutChoice } from "../../shared/subscribe-plans/subscribe
 import { MAX_POLLS } from "@packages/web-shell";
 import { buildCardPollUrl } from "./readlist-card/readlist-card-poll-url";
 import {
-	deleteConfirmPopoverId,
-	type DeleteConfirmViewModel,
+	type ArticleDeletion,
+	buildArticleDeletion,
 } from "./readlist-card/delete-confirm.component";
 import {
 	markStatusConfirmPopoverId,
@@ -78,9 +77,6 @@ export interface ArticleAction {
 	method: string;
 	url: string;
 	text: string;
-	/** Names an icon from the shared set; `text` then becomes the button's
-	 * screen-reader name instead of its visible label. */
-	iconName?: IconName;
 	title: string;
 	testAction: string;
 	fields: ArticleActionField[];
@@ -100,7 +96,7 @@ export interface ReadlistArticleViewModel {
 	via?: ProvenanceLabel;
 	saved: LocalTime;
 	actions: ArticleAction[];
-	deleteConfirm?: DeleteConfirmViewModel;
+	deletion: ArticleDeletion;
 	markStatusConfirm?: MarkStatusConfirmViewModel;
 	move?: ArticleMoveViewModel;
 	/**
@@ -227,25 +223,6 @@ function toStatusActions(
 	return actions;
 }
 
-function toDeleteAction(params: {
-	articleId: string;
-	returnQuery: string;
-	confirmPopoverId: string | undefined;
-}): ArticleAction {
-	return {
-		method: "POST",
-		url: `/queue/${params.articleId}/delete${params.returnQuery}`,
-		text: "Delete",
-		iconName: "x",
-		title: "Delete",
-		testAction: "delete",
-		fields: [],
-		...(params.confirmPopoverId === undefined
-			? {}
-			: { confirmPopoverId: params.confirmPopoverId }),
-	};
-}
-
 interface ArticleFiling {
 	readlists: readonly ReadlistRef[];
 	saves: readonly { readlist?: ReadlistSlug }[] | undefined;
@@ -321,12 +298,7 @@ export function toReadlistArticleViewModel(params: {
 			? undefined
 			: buildCardPollUrl({ articleId: id, pollCount, filters });
 	const isStalePending = !reachedTerminal && pollCount > maxPolls;
-	const deleteConfirmId = params.deleteAcknowledged ? undefined : deleteConfirmPopoverId(id);
-	const deleteAction = toDeleteAction({
-		articleId: id,
-		returnQuery,
-		confirmPopoverId: deleteConfirmId,
-	});
+	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const markStatusConfirm =
 		params.confirmReadlists === undefined
@@ -353,19 +325,14 @@ export function toReadlistArticleViewModel(params: {
 		readTime: displayableReadTime(article),
 		via: readlistCardVia(params.readerProvenance),
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now }),
-		actions: [
-			...toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
-			deleteAction,
-		],
-		...(deleteConfirmId === undefined
-			? {}
-			: { deleteConfirm: { articleId: id, popoverId: deleteConfirmId, url: deleteAction.url } }),
+		actions: toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
+		deletion,
 		markStatusConfirm,
 		move: toArticleMove({ articleId: id, from: filters.readlist, returnQuery, filing: params.filing }),
 		cardPollUrl,
 		readerHref: versionedReaderHref({
 			articleId: id,
-			returnQuery: readlistReturnQuery({ readlist: filters.readlist }),
+			returnQuery: readlistReturnQuery(filters),
 			contentVersion: computeArticleContentVersion({ article, crawl, summary }),
 		}),
 		isStalePending,

@@ -1,3 +1,17 @@
+{{#if menu}}
+<div id="reader-menu-downloads-slot" class="article-body__menu-slot {{#if visible}}article-body__menu-slot--visible{{else}}article-body__menu-slot--hidden{{/if}}" data-test-menu-downloads-slot{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
+  {{#if link}}
+  <a id="reader-menu-download-epub" class="menu__item article-body__menu-link" href="{{link.href}}" data-test-menu-download="epub">{{icon "download"}}<span>Download EPUB</span></a>
+  {{/if}}
+  {{#if guide}}
+  <button class="menu__item article-body__menu-popover-item" type="button" popovertarget="{{guide.popoverId}}" aria-haspopup="dialog" data-test-action="menu-download-open">{{icon "download"}}<span>Download EPUB</span></button>
+  <details class="article-body__menu-fallback" data-test-menu-download-fallback>
+    <summary class="menu__item">{{icon "download"}}<span>Download EPUB</span></summary>
+    <div class="article-body__menu-fallback-panel">{{{guide.fallbackHtml}}}</div>
+  </details>
+  {{/if}}
+</div>
+{{else}}
 <div id="reader-downloads-slot" class="article-body__downloads-slot {{#if visible}}article-body__downloads-slot--visible{{else}}article-body__downloads-slot--hidden{{/if}}" data-test-downloads-slot{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
   {{#if link}}
   <a id="reader-download-epub" class="btn btn--neutral btn--icon article-body__download" href="{{link.href}}" data-test-download="epub">{{icon "download"}}<span class="sr-only">Download EPUB</span></a>
@@ -10,3 +24,4 @@
   </details>
   {{/if}}
 </div>
+{{/if}}

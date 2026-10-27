@@ -159,13 +159,21 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 				"article-body__readlists-slot",
 				"article-body__mark-read-slot",
 				"article-body__downloads-slot (hidden)",
+				"article-body__more-slot",
 			],
+		);
+		assert.deepEqual(
+			Array.from(doc.querySelectorAll("[data-test-reader-menu-panel] > *"), (item) => {
+				const block = item.classList.item(0);
+				return item.classList.contains(`${block}--hidden`) ? `${block} (hidden)` : block;
+			}),
+			["article-body__menu-slot (hidden)", "article-delete__form", "menu__item"],
 		);
 		assert.deepEqual(
 			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (popover) =>
 				popover.getAttribute("data-test-confirm-popover"),
 			),
-			["exit-confirm", "readlist-create"],
+			["exit-confirm", "delete", "readlist-create"],
 		);
 	});
 

@@ -237,7 +237,7 @@ describe("downloads", () => {
 	});
 
 	it("swaps the toolbar's slot out of band with the link a page hands it", () => {
-		const doc = parse(renderReaderDownloadsSlotOob({ downloadHref: "/view/example.com/a?format=epub&utm_source=view-article", guide: undefined }));
+		const doc = parse(renderReaderDownloadsSlotOob({ downloadHref: "/view/example.com/a?format=epub&utm_source=view-article", guide: undefined, placements: ["toolbar"] }));
 
 		const slot = doc.querySelector("[data-test-downloads-slot]");
 		assert(slot, "the out-of-band downloads slot must render");

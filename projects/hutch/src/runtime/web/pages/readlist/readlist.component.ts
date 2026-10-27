@@ -539,11 +539,12 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
 		deleteConfirmsHtml: articles
 			.flatMap((article) =>
-				article.deleteConfirm === undefined
+				article.deletion.confirm === undefined
 					? []
 					: [
 							renderDeleteConfirm({
-								confirm: article.deleteConfirm,
+								confirm: article.deletion.confirm,
+								surface: "queue-card",
 								title: article.title,
 								illustrationHtml: renderIllustration("trash-can"),
 							}),
