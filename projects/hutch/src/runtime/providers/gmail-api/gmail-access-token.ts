@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GmailCredentialsStore } from "@packages/domain/gmail";
+import { type GmailCredentialsStore, hasGmailScope } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { GetGmailAccessToken, GmailApiResult } from "@packages/provider-contracts/gmail-filters";
@@ -8,7 +8,7 @@ import type {
 	GmailHttpClassification,
 	ObserveGmailHttpAttempt,
 } from "@packages/provider-contracts/gmail-history";
-import { GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { readGoogleTokenError } from "../gmail-oauth/google-token-error";
 import {
 	GOOGLE_OAUTH_ORIGIN,
@@ -38,7 +38,7 @@ interface AccessTokenDependencies {
 }
 
 interface RequestedScope<TScopeRefusal> {
-	parameters: Record<string, string>;
+	parameters: (grantedScope: string) => Record<string, string>;
 	refusal: (error: string | undefined) => TScopeRefusal | undefined;
 }
 
@@ -62,14 +62,15 @@ function initRefreshedAccessToken<TScopeRefusal extends { reason: GmailHttpClass
 	const cached = new Map<UserId, { accessToken: string; expiresAt: number; refreshToken: string }>();
 
 	return async ({ userId, forceRefresh, observe }) => {
-		const refreshToken = await deps.credentials.findRefreshTokenByUserId(userId);
+		const credentials = await deps.credentials.findCredentialsByUserId(userId);
+		const refreshToken = credentials?.refreshToken;
 		const live = cached.get(userId);
 		if (!forceRefresh && live !== undefined && live.refreshToken === refreshToken && live.expiresAt > deps.now().getTime()) {
 			return { ok: true, value: live.accessToken };
 		}
 		cached.delete(userId);
 
-		if (refreshToken === undefined) return { ok: false, reason: "reauth-required" };
+		if (credentials === undefined) return { ok: false, reason: "reauth-required" };
 
 		const { response, settle } = await observedFetch({
 			fetch: deps.fetch,
@@ -81,9 +82,9 @@ function initRefreshedAccessToken<TScopeRefusal extends { reason: GmailHttpClass
 				body: new URLSearchParams({
 					client_id: deps.clientId,
 					client_secret: deps.clientSecret,
-					refresh_token: refreshToken,
+					refresh_token: credentials.refreshToken,
 					grant_type: "refresh_token",
-					...deps.scope.parameters,
+					...deps.scope.parameters(credentials.grantedScope),
 				}).toString(),
 			},
 			target: {
@@ -153,7 +154,7 @@ function initRefreshedAccessToken<TScopeRefusal extends { reason: GmailHttpClass
 		}
 
 		cached.set(userId, {
-			refreshToken,
+			refreshToken: credentials.refreshToken,
 			accessToken: parsed.data.access_token,
 			expiresAt: deps.now().getTime() + parsed.data.expires_in * 1000 - EXPIRY_SKEW_MS,
 		});
@@ -165,7 +166,7 @@ function initRefreshedAccessToken<TScopeRefusal extends { reason: GmailHttpClass
 export function initGmailAccessToken(deps: AccessTokenDependencies): GetGmailAccessToken {
 	const refreshed = initRefreshedAccessToken<never>({
 		...deps,
-		scope: { parameters: {}, refusal: () => undefined },
+		scope: { parameters: () => ({}), refusal: () => undefined },
 	});
 	return ({ userId, forceRefresh }) => refreshed({ userId, forceRefresh, observe: unobserved });
 }
@@ -174,7 +175,11 @@ export function initGmailReadonlyAccessToken(deps: AccessTokenDependencies): Get
 	return initRefreshedAccessToken({
 		...deps,
 		scope: {
-			parameters: { scope: GMAIL_READONLY_SCOPE },
+			parameters: (grantedScope) => ({
+				scope: hasGmailScope({ grantedScope, scope: GMAIL_MODIFY_SCOPE }) && !hasGmailScope({ grantedScope, scope: GMAIL_READONLY_SCOPE })
+					? GMAIL_MODIFY_SCOPE
+					: GMAIL_READONLY_SCOPE,
+			}),
 			refusal: (error) =>
 				error === "invalid_scope" ? ({ ok: false, reason: "readonly-permission-required" } as const) : undefined,
 		},

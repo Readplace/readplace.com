@@ -123,3 +123,15 @@ export {
 	type InboxSavedLinkEntry,
 	type InboxSavedLinkStore,
 } from "./inbox-saved-link.types";
+export {
+	EmailOutputKeySchema,
+	type EmailOutputKey,
+	ISSUE_OUTPUT_KEY,
+	linkOutputKey,
+	outputLinkOrdinal,
+	type EmailOutputSelection,
+	type EmailImportCompletion,
+	type EmailImportCompletionStore,
+	isEmailSavedToAll,
+	uniqueGmailOrigins,
+} from "./email-output";

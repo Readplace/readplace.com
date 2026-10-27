@@ -126,7 +126,7 @@ export function registerGmailMappingRoutes(
 			redirectTo(res, state, { error: "import_revoked" });
 			return;
 		}
-		if (!(await imports.readonlyGranted(userId))) {
+		if (!(await imports.readGranted(userId))) {
 			redirectTo(res, state, { notice: "import_permission_needed" });
 			return;
 		}

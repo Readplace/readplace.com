@@ -64,6 +64,20 @@
         </section>
         {{/if}}
 
+        {{#if labelPermission}}
+        <section class="gmail__reconnect" data-test-gmail-label-permission>
+          <p class="gmail__step-copy">{{labelPermission.message}}</p>
+          {{#each labelPermission.actions}}
+          <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+            {{#each fields}}
+            <input type="hidden" name="{{name}}" value="{{value}}">
+            {{/each}}
+            <button type="submit" class="btn btn--{{variant}}" data-test-gmail-label-permission-button data-test-gmail-connection-action="{{key}}">{{label}}</button>
+          </form>
+          {{/each}}
+        </section>
+        {{/if}}
+
         {{{pageAutoDiscoverHtml}}}
         {{{dialogHtml}}}
         {{{mappingsHtml}}}

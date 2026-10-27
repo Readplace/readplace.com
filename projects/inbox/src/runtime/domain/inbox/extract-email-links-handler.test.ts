@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import {
 	AliasNameSchema,
 	type EmailLinkOrdinal,
+	type EmailOutputSelection,
+	formatEmailLinkOrdinal,
+	linkOutputKey,
 	EmailLinkOrdinalSchema,
 	type InboxAddressEntry,
 	InboxAddressSchema,
@@ -135,7 +138,12 @@ function makeHarness(opts?: {
 	findInboxAddress?: InboxAddressStore["findByAddress"];
 	failMeta?: boolean;
 	failCustomPublish?: boolean;
+	frozenSelection?: EmailOutputSelection;
 }) {
+	let storedSelection = opts?.frozenSelection;
+	const selectionWrites: EmailOutputSelection[] = [];
+	const outputsSelected: { userId: UserId; receivedAtMessageId: string; outputCount: number }[] = [];
+	const correlations: { kind: "submit" | "issue"; outputKey: string; url?: string }[] = [];
 	const linkStore = initInMemoryInboxEmailLink();
 	const subscriptionReads: UserId[] = [];
 	const published: { ordinal: EmailLinkOrdinal; url: string }[] = [];
@@ -146,11 +154,14 @@ function makeHarness(opts?: {
 			typeof initExtractEmailLinksHandler
 		>[0]["publishEmailLinksTriaged"]
 	>[0][] = [];
-	const issues: Parameters<
+	const issues: Omit<
 		Parameters<
-			typeof initExtractEmailLinksHandler
-		>[0]["publishSaveEmailIssue"]
-	>[0][] = [];
+			Parameters<
+				typeof initExtractEmailLinksHandler
+			>[0]["publishSaveEmailIssue"]
+		>[0],
+		"emailOutput"
+	>[] = [];
 	const addressReads: string[] = [];
 	const alerts: { found: number }[] = [];
 	const heldNotices: {
@@ -209,18 +220,29 @@ function makeHarness(opts?: {
 			publishOrder.push("preview");
 			published.push({ ordinal, url });
 		},
-		publishSubmitLink: async ({ saveAttemptId: _saveAttemptId, ...input }) => {
+		publishSubmitLink: async ({ saveAttemptId: _saveAttemptId, emailOutput, ...input }) => {
 			publishOrder.push("submit");
 			submitted.push(input);
+			if (emailOutput !== undefined) correlations.push({ kind: "submit", outputKey: emailOutput.outputKey, url: input.url });
 		},
 		publishEmailLinksTriaged: async (input) => {
 			publishOrder.push("triaged");
 			triaged.push(input);
 			if (opts?.failCustomPublish) throw new Error("custom publication failed");
 		},
-		publishSaveEmailIssue: async (input) => {
+		publishSaveEmailIssue: async ({ emailOutput, ...input }) => {
 			publishOrder.push("issue");
 			issues.push(input);
+			if (emailOutput !== undefined) correlations.push({ kind: "issue", outputKey: emailOutput.outputKey });
+		},
+		findCompletion: async () => ({ selection: storedSelection, savedOutputs: new Set(), origins: [] }),
+		selectOutputs: async ({ selection }) => {
+			selectionWrites.push(selection);
+			storedSelection ??= selection;
+			return storedSelection;
+		},
+		publishEmailOutputsSelected: async (input) => {
+			outputsSelected.push(input);
 		},
 		alertTruncated: async ({ found }) => {
 			alerts.push({ found });
@@ -281,6 +303,9 @@ function makeHarness(opts?: {
 		writeOrder,
 		subscriptionReads,
 		publishOrder,
+		selectionWrites,
+		outputsSelected,
+		correlations,
 		run,
 	};
 }
@@ -1375,7 +1400,7 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 
 		await harness.run(eventBody({ routing: issueRouting("issue") }));
 
-		expect(harness.publishOrder).toEqual(["issue", "preview", "preview"]);
+		expect(harness.publishOrder).toEqual(["preview", "preview", "issue"]);
 		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
 		expect(links.map(({ url, status }) => ({ url, status }))).toEqual([
 			{ url: "https://a.test/x", status: "pending" },
@@ -1397,7 +1422,11 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 
 		await harness.run(eventBody({ routing: issueRouting("both") }));
 
-		expect(harness.publishOrder).toEqual(["issue", "submit", "preview", "triaged"]);
+		expect(harness.publishOrder).toEqual(["preview", "issue", "submit", "triaged"]);
+		expect(harness.correlations).toEqual([
+			{ kind: "issue", outputKey: "issue" },
+			{ kind: "submit", outputKey: "link#0000", url: "https://a.test/x" },
+		]);
 		expect(harness.submitted).toEqual([
 			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
 		]);
@@ -1514,7 +1543,7 @@ describe("Gmail destination snapshots", () => {
 		expect(meta?.extractionFailed).toBe(false);
 	});
 
-	it("saves eligible articles to All before previewing and filters each distinct custom list", async () => {
+	it("saves eligible articles to All from the frozen selection and filters each distinct custom list", async () => {
 		const second = ReadlistSlugSchema.parse("science");
 		const workAddress = InboxAddressSchema.parse("work-abc123@read.place");
 		const secondAddress = InboxAddressSchema.parse("science-def456@read.place");
@@ -1544,8 +1573,8 @@ describe("Gmail destination snapshots", () => {
 			},
 		]);
 		expect(harness.publishOrder).toEqual([
-			"submit",
 			"preview",
+			"submit",
 			"triaged",
 			"triaged",
 		]);
@@ -1669,10 +1698,88 @@ it("preserves a Gmail article's first eligibility when custom publication retrie
 	category = "noise";
 	expect(await harness.run(body)).toEqual({ batchItemFailures: [{ itemIdentifier: "rec-1" }] });
 	expect(harness.triaged.map(({ links }) => links.map(({ ordinal }) => ordinal))).toEqual([["0000"], ["0000"]]);
-	expect(harness.submitted).toHaveLength(1);
+	expect(harness.correlations).toEqual([
+		{ kind: "submit", outputKey: "link#0000", url: "https://example.com/article" },
+		{ kind: "submit", outputKey: "link#0000", url: "https://example.com/article" },
+	]);
+	expect(harness.selectionWrites).toHaveLength(1);
 	expect(harness.firstInboxNotices).toEqual([]);
 	const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
 	expect(links[0]?.status).toBe("failed");
 	expect(meta?.eligibleArticleCount).toBe(1);
 	expect(meta?.selectedReadlists).toEqual([{ readlist: WORK, label: "Work" }]);
+});
+
+describe("frozen All selection for Gmail-mapped mail", () => {
+	const gmailLinks = { kind: "gmail" as const, destinationAddresses: ["all-abc123@read.place"] as [string], deliveryMode: "links" as const };
+
+	it("selects every eligible link, dispatches each with its output key, then announces the selection", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.selectionWrites.map(({ outputs, truncated }) => ({ outputs, truncated }))).toEqual([{ outputs: ["link#0000", "link#0001"], truncated: false }]);
+		expect(harness.correlations.map(({ outputKey }) => outputKey)).toEqual(["link#0000", "link#0001"]);
+		expect(harness.outputsSelected).toEqual([{ userId: USER, receivedAtMessageId: RAM, outputCount: 2 }]);
+	});
+
+	it("announces a successful extraction that found nothing eligible as zero outputs", async () => {
+		const harness = makeHarness({ derivedHtml: "no links here", inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.selectionWrites.map(({ outputs }) => outputs)).toEqual([[]]);
+		expect(harness.outputsSelected).toEqual([{ userId: USER, receivedAtMessageId: RAM, outputCount: 0 }]);
+	});
+
+	it("replays a frozen selection without asking triage again", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+			inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }),
+			frozenSelection: { outputs: [linkOutputKey(formatEmailLinkOrdinal(1))], truncated: false, selectedAt: NOW },
+		});
+		await harness.linkStore.putLink({
+			userId: USER, receivedAtMessageId: RAM, ordinal: formatEmailLinkOrdinal(0), url: "https://a.test/x", status: "pending",
+			resolvedUrl: undefined, title: undefined, excerpt: undefined, siteName: undefined, imageUrl: undefined, failureReason: undefined, droppedFor: undefined, skipReason: undefined,
+		});
+		await harness.linkStore.putLink({
+			userId: USER, receivedAtMessageId: RAM, ordinal: formatEmailLinkOrdinal(1), url: "https://b.test/y", status: "crawled",
+			resolvedUrl: undefined, title: "Y", excerpt: undefined, siteName: undefined, imageUrl: undefined, failureReason: undefined, droppedFor: undefined, skipReason: undefined,
+		});
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.triageCalls).toEqual([]);
+		expect(harness.selectionWrites).toEqual([]);
+		expect(harness.correlations).toEqual([{ kind: "submit", outputKey: "link#0001", url: "https://b.test/y" }]);
+		expect(harness.outputsSelected).toEqual([{ userId: USER, receivedAtMessageId: RAM, outputCount: 1 }]);
+	});
+
+	it("records truncated processing in the selection so it never completes", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x https://b.test/y", maxLinks: 1, inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.selectionWrites.map(({ truncated }) => truncated)).toEqual([true]);
+	});
+
+	it("tracks nothing while a read-only reader's saves are held", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x", subscription: READ_ONLY_SUBSCRIPTION, inboxAddress: makeInboxAddress({ readlist: DEFAULT_READLIST_SLUG }) });
+
+		await harness.run(eventBody({ routing: gmailLinks }));
+
+		expect(harness.selectionWrites).toEqual([]);
+		expect(harness.outputsSelected).toEqual([]);
+		expect(harness.correlations).toEqual([]);
+	});
+
+	it("tracks nothing for mail sent straight to an inbox address", async () => {
+		const harness = makeHarness({ derivedHtml: "https://a.test/x" });
+
+		await harness.run(eventBody());
+
+		expect(harness.selectionWrites).toEqual([]);
+		expect(harness.outputsSelected).toEqual([]);
+		expect(harness.submitted).toHaveLength(1);
+	});
 });

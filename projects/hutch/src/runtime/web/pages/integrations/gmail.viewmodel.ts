@@ -69,7 +69,8 @@ export interface GmailPageInput {
 	readlistLimitReached: boolean;
 	gatewayLive: boolean;
 	metadataScopeGranted: boolean;
-	readonlyScopeGranted: boolean;
+	readScopeGranted: boolean;
+	modifyScopeGranted: boolean;
 	discoveredSenders: readonly DiscoveredGmailSender[];
 	discovery: {
 		state: "idle" | GmailDiscovery["state"];
@@ -184,6 +185,7 @@ export interface GmailPageViewModel {
 	disconnectAction: string;
 	reconnect: GmailConnectionPrompt;
 	metadataReconnect: GmailConnectionPrompt;
+	labelPermission: GmailConnectionPrompt | undefined;
 	showStep: boolean;
 	showSenders: boolean;
 	showReconnect: boolean;
@@ -273,9 +275,11 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, { message: string; awai
 	readlist_created: { message: "Readlist created. Save the newsletter to use it.", variant: "success" },
 	readlist_reused: { message: "You already have a readlist with that name, so I chose it.", variant: "info" },
 	import_started: { message: "Importing unread messages from the last 30 days.", variant: "success" },
-	import_permission_needed: { message: "To import unread messages, give Readplace permission to read them in Gmail.", variant: "info" },
+	import_permission_needed: { message: "To import unread messages, give Readplace permission to read them in Gmail and to label and mark read the ones it saves.", variant: "info" },
 	import_permission_refused: { message: "Google didn't grant permission to read your messages, so the import is waiting. New mail still forwards.", variant: "warning" },
-	import_permission_granted: { message: "Readplace can now read your Gmail messages. Start the import from the newsletter below.", variant: "success" },
+	import_permission_granted: { message: "Readplace can now read your Gmail messages and label the ones it saves. Start the import from the newsletter below.", variant: "success" },
+	label_permission_granted: { message: "Readplace will now label saved newsletters imported-to-readplace and mark them read in Gmail, including the ones already waiting.", variant: "success" },
+	label_permission_refused: { message: "Google didn't grant permission to label your messages. Newsletters still save to Readplace, and the labelling waits until you allow it.", variant: "warning" },
 	import_cancelled: { message: "Import cancelled. Messages already imported stay in your readlists.", variant: "success" },
 	filter_retry_requested: { message: "Updating Gmail. Refresh in a moment.", variant: "info" },
 };
@@ -312,6 +316,8 @@ const GMAIL_NOTICE_SURFACES: Record<GmailPageNotice, GmailBannerSurface> = {
 	import_permission_refused: "page",
 	import_permission_granted: "page",
 	import_cancelled: "page",
+	label_permission_granted: "page",
+	label_permission_refused: "page",
 	filter_retry_requested: "page",
 };
 
@@ -610,6 +616,11 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			message: "Reconnect Gmail to choose senders from your mailbox. The newsletters you set up stay in place.",
 			content: "grant-sender-access", label: "Reconnect Gmail", variant: commitVariant, fields: [],
 		}),
+		labelPermission: revoked || input.modifyScopeGranted ? undefined : gmailConnectionPrompt({
+			canConnectGmail: input.canConnectGmail,
+			message: "Let Readplace tidy Gmail: once a newsletter is saved, it adds the label imported-to-readplace to the original email and marks it read. Your other labels and your inbox stay as they are.",
+			content: "grant-label-permission", label: "Allow labelling", variant: "neutral", fields: [{ name: "intent", value: "label" }],
+		}),
 		showStep,
 		showSenders,
 		showReconnect: revoked,
@@ -654,7 +665,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			readlists: input.readlists,
 			candidates,
 			imports: input.imports,
-			readonlyScopeGranted: input.readonlyScopeGranted,
+			readScopeGranted: input.readScopeGranted,
 			readlistChoiceShown: showSenders,
 			state: pickerState,
 			importsPollCount: input.importsPollCount,

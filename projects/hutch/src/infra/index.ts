@@ -15,6 +15,8 @@ import {
 	ExportUserDataCommand,
 	DisconnectGmailCommand,
 	GMAIL_FILTER_REWRITE_FAILED_EVENT,
+	GMAIL_EMAIL_UPDATE_FAILED_EVENT,
+	GMAIL_EMAIL_UPDATE_FAILED_METRIC,
 	GMAIL_FILTER_REWRITE_FAILED_METRIC,
 	GMAIL_HISTORY_IMPORT_DLQ_SOURCES,
 	GMAIL_METRIC_NAMESPACE,
@@ -33,6 +35,8 @@ import {
 	SendTrialFeedbackEmailCommand,
 	SendFirstInboxEmailNoticeCommand,
 	StartGmailHistoryImportCommand,
+	MarkGmailEmailImportedCommand,
+	GmailModifyPermissionGrantedEvent,
 	SubmitNewsletterSenderCommand,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
@@ -92,6 +96,7 @@ const alertEmail = config.require("alertEmail");
 const gmailConnectionCapWarnThreshold = config.requireNumber("gmailConnectionCapWarnThreshold");
 const oauthRefreshRefusedDailyThreshold = config.requireNumber("oauthRefreshRefusedDailyThreshold");
 const gmailFilterRewriteFailedThreshold = config.requireNumber("gmailFilterRewriteFailedThreshold");
+const gmailEmailUpdateFailedThreshold = config.requireNumber("gmailEmailUpdateFailedThreshold");
 const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
 const rawEmailBucketName = config.require("rawEmailBucketName");
 const newsletterCatalogBucketName = config.require("newsletterCatalogBucketName");
@@ -1757,6 +1762,55 @@ const gmailHistoryImportOutcomesWithSqs = new HutchSQSBackedLambda("gmail-histor
 });
 eventBus.subscribe(GmailHistoryImportMessageIngestedEvent, gmailHistoryImportOutcomesWithSqs, { name: "hutch-gmail-history-import-outcomes" });
 
+const gmailMessageUpdatesAccess = new HutchDynamoDBAccess("hutch-gmail-message-updates-tables", {
+	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+});
+const gmailMessageUpdatesAccountRead = new HutchDynamoDBAccess("hutch-gmail-message-updates-account-read", {
+	tables: [
+		{ arn: storage.gmailConnectionsTable.arn, includeIndexes: false },
+		{ arn: storage.gmailCredentialsTable.arn, includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem"],
+});
+const GMAIL_MESSAGE_UPDATES_TIMEOUT_SECONDS = 60;
+const gmailMessageUpdatesQueue = new HutchSQS(GMAIL_HISTORY_IMPORT_DLQ_SOURCES.messageUpdates, {
+	visibilityTimeoutSeconds: GMAIL_MESSAGE_UPDATES_TIMEOUT_SECONDS * 2,
+	dlqMaxReceiveCount: 5,
+	sharedDlq: gmailHistoryImportFailuresDlq,
+});
+const gmailMessageUpdatesLambda = new HutchLambda("gmail-message-updates", {
+	entryPoint: "./src/runtime/gmail-message-update.main.ts",
+	outputDir: ".lib/gmail-message-updates",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: GMAIL_MESSAGE_UPDATES_TIMEOUT_SECONDS,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
+		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
+		DYNAMODB_GMAIL_CREDENTIALS_TABLE: storage.gmailCredentialsTable.name,
+		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),
+		GMAIL_INTEGRATION_CLIENT_SECRET: requireEnv("GMAIL_INTEGRATION_CLIENT_SECRET"),
+	},
+	policies: [...gmailMessageUpdatesAccess.policies, ...gmailMessageUpdatesAccountRead.policies],
+});
+eventBus.grantPublish(gmailMessageUpdatesLambda);
+const gmailMessageUpdatesWithSqs = new HutchSQSBackedLambda("gmail-message-updates", {
+	lambda: gmailMessageUpdatesLambda,
+	queue: gmailMessageUpdatesQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+eventBus.subscribeAll(
+	[
+		{ ...MarkGmailEmailImportedCommand, name: "hutch-mark-gmail-email-imported" },
+		{ ...GmailModifyPermissionGrantedEvent, name: "hutch-gmail-modify-permission-granted" },
+	],
+	gmailMessageUpdatesWithSqs,
+	{ name: "hutch-gmail-message-updates" },
+);
+
 new HutchDLQEventHandler("gmail-history-import-dlq", {
 	deadLetterQueue: gmailHistoryImportFailuresDlq,
 	tableArn: storage.gmailHistoryImportsTable.arn,
@@ -1765,6 +1819,43 @@ new HutchDLQEventHandler("gmail-history-import-dlq", {
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem", "dynamodb:TransactWriteItems"],
+});
+
+const gmailEmailUpdateFailedTopic = new aws.sns.Topic("gmail-email-update-failed-topic", {
+	name: "gmail-email-update-failed-topic",
+});
+
+new aws.sns.TopicSubscription("gmail-email-update-failed-alert-email", {
+	topic: gmailEmailUpdateFailedTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.LogMetricFilter("gmail-email-update-failed-filter", {
+	name: "gmail-email-update-failed",
+	logGroupName: gmailMessageUpdatesLambda.logGroupName,
+	pattern: `{ $.event = "${GMAIL_EMAIL_UPDATE_FAILED_EVENT}" }`,
+	metricTransformation: {
+		name: GMAIL_EMAIL_UPDATE_FAILED_METRIC,
+		namespace: GMAIL_METRIC_NAMESPACE,
+		value: "1",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
+new aws.cloudwatch.MetricAlarm("gmail-email-update-failed-alarm", {
+	name: "gmail-email-update-failed-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: GMAIL_EMAIL_UPDATE_FAILED_METRIC,
+	namespace: GMAIL_METRIC_NAMESPACE,
+	period: 3600,
+	statistic: "Sum",
+	threshold: gmailEmailUpdateFailedThreshold,
+	treatMissingData: "notBreaching",
+	alarmDescription: "Readplace could not label and mark read the Gmail original of a saved email",
+	alarmActions: [gmailEmailUpdateFailedTopic.arn],
 });
 
 // --- Analytics Dashboard ---

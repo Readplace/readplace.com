@@ -100,7 +100,7 @@ export interface GmailMappingsInput {
 	readlists: readonly ReadlistRef[];
 	candidates: ReadonlyMap<ForwardableSender, GmailSenderCandidate>;
 	imports: readonly GmailHistoryImportJob[];
-	readonlyScopeGranted: boolean;
+	readScopeGranted: boolean;
 	readlistChoiceShown: boolean;
 	state: GmailPickerState;
 	importsPollCount: number;
@@ -238,7 +238,7 @@ function rowActions(input: {
 	importable: boolean;
 	importState: GmailImportState;
 	job: GmailHistoryImportJob | undefined;
-	readonlyScopeGranted: boolean;
+	readScopeGranted: boolean;
 	readlistChoiceShown: boolean;
 	state: GmailPickerState;
 }): GmailFormAction[] {
@@ -267,7 +267,7 @@ function rowActions(input: {
 	if (input.importable && STARTABLE.has(input.importState)) {
 		actions.push(postAction({ key: "start-import", content: "start-import", path: GMAIL_IMPORT_START_PATH, label: "Import unread messages", variant: "neutral", fields: senderFields }));
 	}
-	if (input.importable && input.readonlyScopeGranted && input.job !== undefined && RESTARTABLE.has(input.importState)) {
+	if (input.importable && input.readScopeGranted && input.job !== undefined && RESTARTABLE.has(input.importState)) {
 		actions.push(postAction({ key: "retry-import", content: "retry-import", path: GMAIL_IMPORT_RETRY_PATH, label: "Retry import", variant: "neutral", fields: jobFields(input.job) }));
 	}
 	if (input.job !== undefined && UNFINISHED.has(input.importState)) {
@@ -282,14 +282,14 @@ function consentFor(input: {
 	canConnectGmail: boolean;
 	importable: boolean;
 	importState: GmailImportState;
-	readonlyScopeGranted: boolean;
+	readScopeGranted: boolean;
 	state: GmailPickerState;
 }): GmailMappingRow["consent"] {
-	if (!input.importable || input.readonlyScopeGranted || !RESTARTABLE.has(input.importState)) return undefined;
+	if (!input.importable || input.readScopeGranted || !RESTARTABLE.has(input.importState)) return undefined;
 	const { sender: _picked, ...listState } = closeGmailDialog(input.state);
 	return gmailConnectionPrompt({
 		canConnectGmail: input.canConnectGmail,
-		message: "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender and leaves it unread.",
+		message: "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender, and once a message is saved it labels it imported-to-readplace and marks it read.",
 		content: "grant-import-permission",
 		label: "Grant permission",
 		variant: "neutral",
@@ -324,7 +324,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHis
 			canConnectGmail: input.canConnectGmail,
 			importable,
 			importState,
-			readonlyScopeGranted: input.readonlyScopeGranted,
+			readScopeGranted: input.readScopeGranted,
 			state: input.state,
 		}),
 		actions: rowActions({
@@ -333,7 +333,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHis
 			importable,
 			importState,
 			job: currentJob,
-			readonlyScopeGranted: input.readonlyScopeGranted,
+			readScopeGranted: input.readScopeGranted,
 			readlistChoiceShown: input.readlistChoiceShown,
 			state: input.state,
 		}),

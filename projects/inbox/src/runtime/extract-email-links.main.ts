@@ -11,6 +11,7 @@ import {
 import {
 	CrawlEmailLinkPreview,
 	EmailLinksTriagedEvent,
+	EmailOutputsSelectedEvent,
 	SaveEmailIssueCommand,
 	SendFirstInboxEmailNoticeCommand,
 	SendTrialFeedbackEmailCommand,
@@ -23,6 +24,7 @@ import {
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import {
+	initDynamoDbEmailImportCompletion,
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
 	initDynamoDbInboxEmailLink,
@@ -83,6 +85,10 @@ const inboxEmailStore = initDynamoDbInboxEmail({
 	client: dynamoClient,
 	tableName: inboxEmailsTable,
 });
+const emailImportCompletion = initDynamoDbEmailImportCompletion({
+	client: dynamoClient,
+	tableName: inboxEmailsTable,
+});
 const inboxEmailLinkStore = initDynamoDbInboxEmailLink({
 	client: dynamoClient,
 	tableName: inboxEmailLinksTable,
@@ -113,6 +119,9 @@ export const handler = initExtractEmailLinksHandler({
 	publishEmailLinksTriaged: (input) =>
 		publishEvent(EmailLinksTriagedEvent, input),
 	publishSaveEmailIssue: (input) => publishEvent(SaveEmailIssueCommand, input),
+	findCompletion: emailImportCompletion.findCompletion,
+	selectOutputs: emailImportCompletion.selectOutputs,
+	publishEmailOutputsSelected: (input) => publishEvent(EmailOutputsSelectedEvent, input),
 	alertTruncated: async (input) => {
 		// Dedicated alert queue, not the failure DLQ: truncation is a successful
 		// degradation, so its send-rate alarm is a distinct signal from genuine faults.

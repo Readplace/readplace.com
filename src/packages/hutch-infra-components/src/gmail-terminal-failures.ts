@@ -1,4 +1,5 @@
 import type {
+	GmailEmailUpdateFailedDetail,
 	GmailFilterRewriteFailedDetail,
 	GmailForwardingConfirmFailedDetail,
 } from "./events";
@@ -9,6 +10,8 @@ export const GMAIL_FORWARDING_CONFIRM_FAILED_EVENT = "gmail_forwarding_confirm_f
 export const GMAIL_METRIC_NAMESPACE = "Readplace/Gmail";
 export const GMAIL_FILTER_REWRITE_FAILED_METRIC = "GmailFilterRewriteFailed";
 export const GMAIL_FORWARDING_CONFIRM_FAILED_METRIC = "GmailForwardingConfirmFailed";
+export const GMAIL_EMAIL_UPDATE_FAILED_EVENT = "gmail_email_update_failed";
+export const GMAIL_EMAIL_UPDATE_FAILED_METRIC = "GmailEmailUpdateFailed";
 
 export const METERED_GMAIL_FILTER_REWRITE_REASONS = [
 	"query-too-long",
@@ -33,5 +36,14 @@ export interface GmailForwardingConfirmFailedLine {
 	message: string;
 	event: typeof GMAIL_FORWARDING_CONFIRM_FAILED_EVENT;
 	reason: (typeof METERED_GMAIL_FORWARDING_CONFIRM_REASONS)[number];
+	userId: string;
+}
+
+export interface GmailEmailUpdateFailedLine {
+	level: "ERROR";
+	message: string;
+	event: typeof GMAIL_EMAIL_UPDATE_FAILED_EVENT;
+	reason: GmailEmailUpdateFailedDetail["reason"];
+	originKind: GmailEmailUpdateFailedDetail["originKind"];
 	userId: string;
 }

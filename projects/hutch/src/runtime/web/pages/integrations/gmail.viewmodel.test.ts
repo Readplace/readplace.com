@@ -58,7 +58,8 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 		readlistLimitReached: false,
 		gatewayLive: true,
 		metadataScopeGranted: true,
-		readonlyScopeGranted: false,
+		readScopeGranted: false,
+		modifyScopeGranted: true,
 		discoveredSenders: [{ email: TLDR, name: "TLDR" }, { email: BREW, name: undefined }],
 		discovery: { state: "complete", mode: "history", checkedMessageCount: 6 },
 		detection: recognised([]),
@@ -493,5 +494,32 @@ describe("GMail Newsletters popup", () => {
 			toGmailPageViewModel(pageInput).mappings.emptyActions.flatMap((action) => action.fields.map((field) => `${field.name}=${field.value}`));
 		assert.deepEqual(fields(input({ state: { search: "tl", sender: [TLDR] } })), ["search=tl", "add=1", "utm_source=integrations-gmail", "utm_medium=internal", "utm_content=add-newsletters"]);
 		assert.deepEqual(fields(input({ state: { discovery_after: "none" }, discoveryStarted: true })), ["add=1", "discovery=started", "discovery_after=none", "utm_source=integrations-gmail", "utm_medium=internal", "utm_content=add-newsletters"]);
+	});
+});
+
+describe("GMail Newsletters labelling permission", () => {
+	it("asks a connected reader without modify permission to allow labelling and marking saved mail read", () => {
+		const model = toGmailPageViewModel(input({ modifyScopeGranted: false }));
+
+		expect(model.labelPermission?.message).toContain("imported-to-readplace");
+		expect(model.labelPermission?.actions.map(({ label, fields }) => ({ label, fields }))).toEqual([
+			{ label: "Allow labelling", fields: [{ name: "intent", value: "label" }] },
+		]);
+	});
+
+	it("asks nothing once the reader has allowed it", () => {
+		expect(toGmailPageViewModel(input({ modifyScopeGranted: true })).labelPermission).toBeUndefined();
+	});
+
+	it("asks nothing while the connection itself must be reconnected", () => {
+		const model = toGmailPageViewModel(input({ modifyScopeGranted: false, connection: connection({ revokedAt: "2026-10-01T00:00:00.000Z" }) }));
+
+		expect(model.labelPermission).toBeUndefined();
+	});
+
+	it("offers an upgrade instead of the grant to a reader whose plan cannot use Gmail", () => {
+		const model = toGmailPageViewModel(input({ modifyScopeGranted: false, canConnectGmail: false }));
+
+		expect(model.labelPermission?.actions.map(({ label }) => label)).toEqual(["Upgrade"]);
 	});
 });

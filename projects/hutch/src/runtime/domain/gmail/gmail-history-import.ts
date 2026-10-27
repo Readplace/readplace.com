@@ -42,6 +42,7 @@ type GmailCallFailed = Extract<GmailHistoryImportObservation, { kind: "gmail-cal
 const NOTHING: GmailHistoryImportStep = { next: undefined, completed: undefined, failed: undefined };
 const RUNNABLE_STATES: ReadonlySet<GmailHistoryImportJob["state"]> = new Set(["queued", "running"]);
 const UNLISTED_LABELS: ReadonlySet<string> = new Set(["SPAM", "TRASH"]);
+const UNREAD_LABEL = "UNREAD";
 const FAILURE_REASONS = {
 	"reauth-required": "permission-revoked",
 	"readonly-permission-required": "permission-revoked",
@@ -147,7 +148,7 @@ export function initGmailHistoryImport(deps: {
 
 		assert(job.window, "a queued import has its listing window");
 		const listingAttempts = observeCallAttempts(observe);
-		const listing = await history.listUnreadMessageIds({ userId: input.userId, sender: job.senderEmail, window: job.window, pageToken: job.pageToken, observe: listingAttempts.observe });
+		const listing = await history.listMessageIds({ userId: input.userId, sender: job.senderEmail, window: job.window, pageToken: job.pageToken, observe: listingAttempts.observe });
 		if (!listing.ok) return fail({ job, connection, operation: "messages.list", lastAttemptOperation: listingAttempts.lastAttemptOperation(), failure: listing, observe });
 		observe({ kind: "page-listed", messageCount: listing.value.messageIds.length, nextPagePresent: listing.value.nextPageToken !== undefined });
 
@@ -161,6 +162,10 @@ export function initGmailHistoryImport(deps: {
 			}
 			if (message.value.labelIds.some((label) => UNLISTED_LABELS.has(label))) {
 				observe({ kind: "message-processed", index, outcome: "unlisted-label" });
+				continue;
+			}
+			if (!message.value.labelIds.includes(UNREAD_LABEL)) {
+				observe({ kind: "message-processed", index, outcome: "already-read" });
 				continue;
 			}
 			const rawEmailS3Key = gmailHistoryImportRawKey({ userId: input.userId, jobId: input.jobId, gmailMessageId });

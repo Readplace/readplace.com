@@ -22,6 +22,7 @@ export interface InMemoryGmailIntegration {
 	disconnectRequests: { userId: UserId }[];
 	discoveryRequests: { userId: UserId }[];
 	importStartRequests: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }[];
+	modifyPermissionGrants: { userId: UserId; accountEmail: GmailAccountEmail }[];
 	newsletterSenderSubmissions: { senderEmail: ForwardableSender }[];
 	diagnosticLines: string[];
 }
@@ -43,6 +44,7 @@ export function initInMemoryGmailIntegration(input: {
 	const imports = initInMemoryGmailHistoryImport();
 	const importStartRequests: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }[] = [];
 	const newsletterSenderSubmissions: { senderEmail: ForwardableSender }[] = [];
+	const modifyPermissionGrants: { userId: UserId; accountEmail: GmailAccountEmail }[] = [];
 	let jobSequence = 0;
 	let generationSequence = 0;
 	const exchangedCodes: string[] = [];
@@ -61,6 +63,7 @@ export function initInMemoryGmailIntegration(input: {
 		disconnectRequests,
 		discoveryRequests,
 		importStartRequests,
+		modifyPermissionGrants,
 		newsletterSenderSubmissions,
 		diagnosticLines,
 		bundle: {
@@ -104,6 +107,9 @@ export function initInMemoryGmailIntegration(input: {
 			cancelGmailHistoryImports: (detail) => imports.cancelJobs({ ...detail, now: now() }),
 			publishStartGmailHistoryImport: async (detail) => {
 				importStartRequests.push(detail);
+			},
+			publishGmailModifyPermissionGranted: async (detail) => {
+				modifyPermissionGrants.push(detail);
 			},
 			publishSubmitNewsletterSender: async (detail) => {
 				newsletterSenderSubmissions.push(detail);

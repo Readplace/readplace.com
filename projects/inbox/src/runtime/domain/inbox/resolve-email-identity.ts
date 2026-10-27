@@ -13,7 +13,7 @@ import type { UserId } from "@packages/domain/user";
 
 type EmailIdentityResolution =
 	| { proceed: true; receivedAtMessageId: string }
-	| { proceed: false; reason: "already-ingested" };
+	| { proceed: false; reason: "already-ingested"; receivedAtMessageId: string };
 
 export type ResolveEmailIdentity = (input: {
 	userId: UserId;
@@ -37,10 +37,10 @@ export function initResolveEmailIdentity(deps: {
 		sender: ForwardableSender;
 		messageId: MessageId;
 		key: EmailIdentityKey;
-	}): Promise<boolean> => {
+	}): Promise<string | undefined> => {
 		const rows = await findReceivedByMessageId({ userId: input.userId, messageId: input.messageId });
 		const row = rows.find((candidate) => parseForwardableSender(candidate.senderEmail) === input.sender);
-		if (row === undefined) return false;
+		if (row === undefined) return undefined;
 		await identities.claim({
 			key: input.key,
 			userId: input.userId,
@@ -48,15 +48,14 @@ export function initResolveEmailIdentity(deps: {
 			attempt: { origin: "pre-claim-row" },
 			now: now(),
 		});
-		return true;
+		return row.receivedAtMessageId;
 	};
 
 	return async ({ userId, sender, messageId, normalizedMessageId, proposedReceivedAtMessageId, attempt }) => {
 		const key = messageIdentityKey({ userId, sender, messageId: normalizedMessageId });
 		const existing = await identities.find(key);
-		if (existing === undefined && (await adoptPreClaimRow({ userId, sender, messageId, key }))) {
-			return { proceed: false, reason: "already-ingested" };
-		}
+		const adopted = existing === undefined ? await adoptPreClaimRow({ userId, sender, messageId, key }) : undefined;
+		if (adopted !== undefined) return { proceed: false, reason: "already-ingested", receivedAtMessageId: adopted };
 
 		const result = await identities.claim({
 			key,
@@ -70,7 +69,7 @@ export function initResolveEmailIdentity(deps: {
 		}
 
 		const row = await getEmail({ userId, receivedAtMessageId: result.claim.receivedAtMessageId });
-		if (row !== undefined) return { proceed: false, reason: "already-ingested" };
+		if (row !== undefined) return { proceed: false, reason: "already-ingested", receivedAtMessageId: result.claim.receivedAtMessageId };
 
 		const tookOver = await identities.takeOver({ previous: result.claim, attempt, now: now() });
 		assert(tookOver, "another ingestion attempt took over this email identity first");

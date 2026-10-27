@@ -73,4 +73,16 @@ export {
 	restartedCounts,
 } from "./gmail-history-import";
 export { summarizeGmailHistoryImport, type GmailHistoryImportSummary } from "./gmail-history-import-summary";
-export { hasGmailScope } from "./gmail-scope";
+export { hasAnyGmailScope, hasGmailScope } from "./gmail-scope";
+export {
+	GMAIL_IMPORTED_LABEL_NAME,
+	GmailMessageOriginSchema,
+	type GmailMessageOrigin,
+	GmailMessageUpdateFailureReasonSchema,
+	type GmailMessageUpdateFailureReason,
+	type GmailMessageUpdate,
+	type GmailMessageUpdateStore,
+	gmailAccountKey,
+	gmailMessageOriginKey,
+	sameGmailAccount,
+} from "./gmail-message-update";

@@ -6,7 +6,7 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import type { GmailAccountEmail, GmailHistoryImportJob } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
-import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -72,7 +72,7 @@ async function connectAndCallback(
 }
 
 describe("POST /newsletters/gmail/connect", () => {
-	it("requests settings and message metadata access, offline and with forced consent", async () => {
+	it("requests settings, message metadata and labelling access, offline and with forced consent", async () => {
 		const { fixture } = fixtureWithGmail();
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -82,7 +82,7 @@ describe("POST /newsletters/gmail/connect", () => {
 		expect(response.status).toBe(303);
 		const url = new URL(response.headers.location);
 		expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
-		expect(url.searchParams.get("scope")).toBe(GMAIL_SCOPES);
+		expect(url.searchParams.get("scope")).toBe(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
 		expect(url.searchParams.get("access_type")).toBe("offline");
 		expect(url.searchParams.get("prompt")).toBe("consent");
 		expect(url.searchParams.get("response_type")).toBe("code");
@@ -924,10 +924,10 @@ describe("Gmail read permission for an import", () => {
 		return { agent, gmail, gmailConnectionStore, userId, jobId, askForPermission, findJob };
 	}
 
-	it("asks Google for read access on top of the scopes already granted", async () => {
+	it("asks Google for read and labelling access on top of the scopes already granted", async () => {
 		const { askForPermission } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`);
 		const url = await askForPermission();
-		expect(url.searchParams.get("scope")).toBe(GMAIL_READONLY_SCOPE);
+		expect(url.searchParams.get("scope")).toBe(GMAIL_MODIFY_SCOPE);
 		expect(url.searchParams.get("include_granted_scopes")).toBe("true");
 		expect(url.searchParams.get("login_hint")).toBe("reader@gmail.com");
 	});
@@ -973,7 +973,7 @@ describe("Gmail read permission for an import", () => {
 		expect(gmail.importStartRequests).toEqual([]);
 		const page = new JSDOM((await agent.get(response.headers.location)).text).window.document;
 		expect(page.querySelector('[data-test-alert="import_permission_granted"]')?.textContent).toBe(
-			"Readplace can now read your Gmail messages. Start the import from the newsletter below.",
+			"Readplace can now read your Gmail messages and label the ones it saves. Start the import from the newsletter below.",
 		);
 	});
 
@@ -991,6 +991,15 @@ describe("Gmail read permission for an import", () => {
 		await withheld.askForPermission(pickerState);
 		expect((await withheld.agent.get(CALLBACK).query({ error: "access_denied" })).headers.location)
 			.toBe(`/newsletters/gmail?notice=import_permission_refused&${back}`);
+	});
+
+	it("resumes waiting imports when the reader grants labelling access, which also reads mail", async () => {
+		const { agent, gmail, userId, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		const url = await askForPermission();
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=import_started");
+		expect((await findJob())?.state).toBe("queued");
+		expect(gmail.modifyPermissionGrants).toEqual([{ userId, accountEmail: READER }]);
 	});
 
 	it("keeps the import waiting when Google grants everything but read access", async () => {
@@ -1178,5 +1187,98 @@ describe("Gmail mappings across a disconnect and reconnect", () => {
 		const row = page.querySelector(`[data-test-gmail-mapping-row="${TLDR}"]`);
 		assert(row, "the kept newsletter must render its mapping row");
 		expect(row.querySelector("[data-test-gmail-import-state]")?.getAttribute("data-test-gmail-import-state")).toBe("none");
+	});
+});
+
+describe("Gmail labelling permission", () => {
+	const READER = GmailAccountEmailSchema.parse("reader@gmail.com");
+
+	async function connectedReader(grantedScope: string) {
+		const { fixture, gmail, gmailConnectionStore } = fixtureWithGmail({
+			ok: true,
+			grant: { refreshToken: "refresh-value", accessToken: "access-value", grantedScope },
+		});
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: READER });
+		await gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "prior-grant", grantedScope: GMAIL_SCOPES });
+		const askForLabelling = async () => {
+			const started = await agent.post(CONNECT).type("form").send({ intent: "label" });
+			return new URL(started.headers.location);
+		};
+		return { agent, gmail, gmailConnectionStore, userId, askForLabelling };
+	}
+
+	it("offers an existing read-only connection the upgrade on the Gmail page", async () => {
+		const { agent } = await connectedReader(GMAIL_SCOPES);
+
+		const page = new JSDOM((await agent.get("/newsletters/gmail")).text).window.document;
+
+		expect(page.querySelector("[data-test-gmail-label-permission]")?.textContent).toContain("imported-to-readplace");
+		expect(page.querySelector("[data-test-gmail-label-permission] input[name=intent]")?.getAttribute("value")).toBe("label");
+	});
+
+	it("asks Google only for labelling access, on top of what was already granted", async () => {
+		const { askForLabelling } = await connectedReader(GMAIL_SCOPES);
+
+		const url = await askForLabelling();
+
+		expect(url.searchParams.get("scope")).toBe(GMAIL_MODIFY_SCOPE);
+		expect(url.searchParams.get("include_granted_scopes")).toBe("true");
+		expect(url.searchParams.get("login_hint")).toBe("reader@gmail.com");
+	});
+
+	it("stores the upgraded grant, then announces it so pending Gmail updates resume", async () => {
+		const { agent, gmail, gmailConnectionStore, userId, askForLabelling } = await connectedReader(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		const before = await gmailConnectionStore.findConnectionByUserId(userId);
+		const url = await askForLabelling();
+
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=label_permission_granted");
+		expect(await gmail.bundle.gmailCredentialsStore.findGrantedScopeByUserId(userId)).toBe(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		expect(gmail.modifyPermissionGrants).toEqual([{ userId, accountEmail: READER }]);
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.connectedAt).toBe(before?.connectedAt);
+		const page = new JSDOM((await agent.get(response.headers.location)).text).window.document;
+		expect(page.querySelector("[data-test-gmail-label-permission]")).toBeNull();
+	});
+
+	it("keeps updates waiting when Google returns without labelling access", async () => {
+		const { agent, gmail, askForLabelling } = await connectedReader(GMAIL_SCOPES);
+		const url = await askForLabelling();
+
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=label_permission_refused");
+		expect(gmail.modifyPermissionGrants).toEqual([]);
+	});
+
+	it("keeps updates waiting when the reader refuses on Google's screen", async () => {
+		const { agent, gmail, askForLabelling } = await connectedReader(GMAIL_SCOPES);
+		await askForLabelling();
+
+		const response = await agent.get(CALLBACK).query({ error: "access_denied" });
+
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=label_permission_refused");
+		expect(gmail.exchangedCodes).toEqual([]);
+	});
+
+	it("announces labelling access granted on a first connect", async () => {
+		const { fixture, gmail } = fixtureWithGmail({
+			ok: true,
+			grant: { refreshToken: "refresh-value", accessToken: "access-value", grantedScope: `${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}` },
+		});
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+
+		await connectAndCallback(agent);
+
+		expect(gmail.modifyPermissionGrants).toEqual([{ userId, accountEmail: READER }]);
 	});
 });

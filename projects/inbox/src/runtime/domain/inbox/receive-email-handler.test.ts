@@ -3,6 +3,7 @@ import { initResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
 import assert from "node:assert/strict";
 import {
 	ForwardableSenderSchema,
+	type GmailAccountEmail,
 	GmailAccountEmailSchema,
 	GmailHistoryImportJobIdSchema,
 	GmailMessageIdSchema,
@@ -25,9 +26,11 @@ import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { RouteGmailForwardedEmail } from "../gmail/route-gmail-forwarded-email";
+import { initEvaluateGmailImportCompletion } from "../gmail-import-completion/evaluate-gmail-import-completion";
+import { initRecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import { initIngestParsedEmail } from "./ingest-parsed-email";
 import type { InterceptGmailConfirmation } from "./intercept-gmail-confirmation";
 import { initReceiveEmailHandler } from "./receive-email-handler";
@@ -41,6 +44,13 @@ const RECEIVED_AT = "2026-06-24T09:00:00.000Z";
 const RAW_KEY = "inbound/ses-msg-1";
 const IMPORTED_AT = "2026-06-20T08:00:00.000Z";
 const IMPORTED_ROW = `${IMPORTED_AT}#<real@x>`;
+const GMAIL_ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
+const FORWARDED_ORIGIN = {
+	kind: "forwarded" as const,
+	accountEmail: GMAIL_ACCOUNT,
+	senderEmail: ForwardableSenderSchema.parse("news@example.com"),
+	rfcMessageId: NormalizedMessageIdSchema.parse("real@x"),
+};
 const MESSAGE_KEY = messageIdentityKey({
 	userId: OWNER,
 	sender: ForwardableSenderSchema.parse("news@example.com"),
@@ -91,10 +101,13 @@ function makeHarness(opts?: {
 	interceptGmailConfirmation?: InterceptGmailConfirmation;
 	routeGmailForwardedEmail?: RouteGmailForwardedEmail;
 	publishErrorOnce?: boolean;
+	connectedGmailAccount?: GmailAccountEmail | undefined;
 }) {
 	let publishError = opts?.publishErrorOnce === true;
 	const addressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const emailStore = initInMemoryInboxEmail();
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emailStore.getEmail });
+	const marks: unknown[] = [];
 	const identities = initInMemoryEmailIdentity();
 	const rawMap = new Map<string, Buffer>();
 	const published: {
@@ -119,7 +132,17 @@ function makeHarness(opts?: {
 				});
 			};
 	const handler = initReceiveEmailHandler({
-		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emailStore.getEmail, publishEvent }),
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emailStore.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
+		recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
+			addGmailOrigins: completion.addGmailOrigins,
+			evaluate: initEvaluateGmailImportCompletion({
+				findCompletion: completion.findCompletion,
+				publishEvent: async (_event, detail) => {
+					marks.push(detail);
+				},
+			}),
+		}),
+		findConnectedGmailAccount: async () => (opts !== undefined && "connectedGmailAccount" in opts ? opts.connectedGmailAccount : GMAIL_ACCOUNT),
 		readRawEmail: async (key) => rawMap.get(key),
 		findByAddress: addressStore.findByAddress,
 		putEmail: emailStore.putEmail,
@@ -138,6 +161,7 @@ function makeHarness(opts?: {
 			storeBody: opts?.storeBody ?? (async () => "content/email/content.html"),
 			putEmail: emailStore.putEmail,
 			getEmail: emailStore.getEmail,
+			addGmailOrigins: completion.addGmailOrigins,
 			publishEvent,
 			logger: HutchLogger.from(noopLogger),
 		}),
@@ -170,6 +194,8 @@ function makeHarness(opts?: {
 	return {
 		addressStore,
 		emailStore,
+		completion,
+		marks,
 		identities,
 		rawMap,
 		published,
@@ -911,6 +937,54 @@ describe("initReceiveEmailHandler", () => {
 			published.map((entry) => entry.detail.recipientAddress),
 			[readlistAddress.address],
 		);
+	});
+
+	it("records the forwarded Gmail copy's account, sender and Message-ID on the stored email", async () => {
+		const { addressStore, completion, rawMap, run } = makeHarness();
+		const gateway = await mintGatewayAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(gateway);
+
+		const stored = await completion.findCompletion({ userId: OWNER, receivedAtMessageId: `${RECEIVED_AT}#<real@x>` });
+		assert.deepEqual(stored?.origins, [FORWARDED_ORIGIN]);
+	});
+
+	it("records no Gmail copy for forwarded mail when no Gmail account is connected", async () => {
+		const { addressStore, completion, rawMap, run } = makeHarness({ connectedGmailAccount: undefined });
+		const gateway = await mintGatewayAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(gateway);
+
+		const stored = await completion.findCompletion({ userId: OWNER, receivedAtMessageId: `${RECEIVED_AT}#<real@x>` });
+		assert.deepEqual(stored?.origins, []);
+	});
+
+	it("attaches a forwarded copy of an already-imported message to the imported email and requests its Gmail update", async () => {
+		const { addressStore, emailStore, completion, identities, marks, rawMap, published, run } = makeHarness();
+		const gateway = await mintGatewayAddress(addressStore);
+		await emailStore.putEmail({
+			userId: OWNER,
+			receivedAtMessageId: IMPORTED_ROW,
+			messageId: MessageIdSchema.parse("<real@x>"),
+			recipientAddress: gateway,
+			senderEmail: "news@example.com",
+			subject: "Digest",
+			status: "received",
+			receivedAt: IMPORTED_AT,
+			rawEmailS3Key: "gmail-import/owner/job/18c2f0a1b2c3d4e5.eml",
+			bodyS3Key: "content/imported/content.html",
+			linkCounts: undefined,
+		});
+		await identities.claim({ key: MESSAGE_KEY, userId: OWNER, receivedAtMessageId: IMPORTED_ROW, attempt: IMPORT_ATTEMPT, now: new Date(IMPORTED_AT) });
+		await completion.selectOutputs({ userId: OWNER, receivedAtMessageId: IMPORTED_ROW, selection: { outputs: [], truncated: false, selectedAt: IMPORTED_AT } });
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		await run(gateway);
+
+		assert.deepEqual(published, []);
+		assert.deepEqual(marks, [{ userId: OWNER, receivedAtMessageId: IMPORTED_ROW, origin: FORWARDED_ORIGIN }]);
 	});
 });
 

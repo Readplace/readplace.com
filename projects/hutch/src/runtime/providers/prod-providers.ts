@@ -102,11 +102,12 @@ import {
 	DisconnectGmailCommand,
 	RewriteGmailFilterCommand,
 	StartGmailHistoryImportCommand,
+	GmailModifyPermissionGrantedEvent,
 	StartGmailSenderDiscoveryCommand,
 	SubmitNewsletterSenderCommand,
 } from "@packages/hutch-infra-components";
 import { randomBytes, randomUUID } from "node:crypto";
-import { type ForwardableSender, type GmailHistoryImportJobId, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
+import { type ForwardableSender, type GmailAccountEmail, type GmailHistoryImportJobId, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { initCancelGmailHistoryImports } from "../domain/gmail/cancel-gmail-history-imports";
 import { NEWSLETTER_CATALOG_OBJECT_KEY, initS3NewsletterCatalog } from "./newsletter-catalog/s3-newsletter-catalog";
 import { initExchangeAppleCode } from "./apple-auth/apple-token";
@@ -463,6 +464,9 @@ export function initProdProviders(input: { appOrigin: string }) {
 		cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports: gmailHistoryImportStore, now: () => new Date() }),
 		publishStartGmailHistoryImport: async (detail: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }) => {
 			await publishEvent(StartGmailHistoryImportCommand, detail);
+		},
+		publishGmailModifyPermissionGranted: async (detail: { userId: UserId; accountEmail: GmailAccountEmail }) => {
+			await publishEvent(GmailModifyPermissionGrantedEvent, detail);
 		},
 		publishSubmitNewsletterSender: async (detail: { senderEmail: ForwardableSender }) => {
 			await publishEvent(SubmitNewsletterSenderCommand, detail);

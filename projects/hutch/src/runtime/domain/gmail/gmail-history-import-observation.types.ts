@@ -20,7 +20,7 @@ export type GmailHistoryImportObservation =
 		reason: GmailHistoryFailureReason;
 		status: number | undefined;
 	}
-	| { kind: "message-processed"; index: number; outcome: "published" | "not-found" | "unlisted-label" | "already-settled" }
+	| { kind: "message-processed"; index: number; outcome: "published" | "not-found" | "unlisted-label" | "already-read" | "already-settled" }
 	| { kind: "message-publication-failed"; index: number; errorName: string }
 	| { kind: "page-saved"; nextPagePresent: boolean }
 	| { kind: "connection-revoked"; persisted: boolean }

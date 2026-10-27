@@ -21,7 +21,7 @@ export interface GmailOAuthStateInspection {
 	payload: "valid" | "malformed-json" | "schema-rejected" | undefined;
 	createdAtMs: number | undefined;
 	ageMs: number | undefined;
-	intentKind: "connect" | "import" | undefined;
+	intentKind: "connect" | "import" | "label" | undefined;
 }
 
 export type GmailOAuthCallbackDecision =
@@ -65,7 +65,7 @@ export type GmailDiagnosticEvent =
 		level: "INFO";
 		issuedStateFingerprint: string;
 		previousCookie: GmailOAuthStateInspection;
-		intentKind: "connect" | "import";
+		intentKind: "connect" | "import" | "label";
 	})
 	| (GmailOAuthCorrelation & {
 		event: "gmail.oauth.callback.inspected";

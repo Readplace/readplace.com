@@ -304,6 +304,9 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 			publishStartGmailHistoryImport: async (detail) => {
 				logger.info("[gmail-history-import] start requested; the job stays queued without a local runner", detail);
 			},
+			publishGmailModifyPermissionGranted: async (detail) => {
+				logger.info("[gmail-message-update] permission granted; pending Gmail updates wait without a local runner", detail);
+			},
 			publishSubmitNewsletterSender: async ({ senderEmail }) => {
 				await updateNewsletterCatalog((document) => mergeSubmittedSender(document, { from: senderEmail, now: new Date() }));
 			},

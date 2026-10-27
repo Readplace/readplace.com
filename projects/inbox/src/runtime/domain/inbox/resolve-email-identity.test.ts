@@ -94,7 +94,7 @@ describe("initResolveEmailIdentity", () => {
 
 		const resolution = await resolve({ attempt: IMPORT, proposedReceivedAtMessageId: IMPORTED_ROW });
 
-		assert.deepEqual(resolution, { proceed: false, reason: "already-ingested" });
+		assert.deepEqual(resolution, { proceed: false, reason: "already-ingested", receivedAtMessageId: FORWARDED_ROW });
 	});
 
 	it("takes over a claim whose attempt never stored its row, keeping the claimed row id", async () => {
@@ -122,7 +122,7 @@ describe("initResolveEmailIdentity", () => {
 
 		const resolution = await resolve({ attempt: IMPORT, proposedReceivedAtMessageId: IMPORTED_ROW });
 
-		assert.deepEqual(resolution, { proceed: false, reason: "already-ingested" });
+		assert.deepEqual(resolution, { proceed: false, reason: "already-ingested", receivedAtMessageId: FORWARDED_ROW });
 		assert.deepEqual(await identities.find(KEY), {
 			key: KEY,
 			userId: READER,

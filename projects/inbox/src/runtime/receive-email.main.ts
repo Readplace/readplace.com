@@ -17,6 +17,7 @@ import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import {
 	initDynamoDbEmailIdentity,
+	initDynamoDbEmailImportCompletion,
 	initDynamoDbGmailConnection,
 	initDynamoDbGmailHeldMail,
 	initDynamoDbGmailMapping,
@@ -28,6 +29,8 @@ import {
 } from "@packages/inbox-store";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { initRouteGmailForwardedEmail } from "./domain/gmail/route-gmail-forwarded-email";
+import { initEvaluateGmailImportCompletion } from "./domain/gmail-import-completion/evaluate-gmail-import-completion";
+import { initRecordDuplicateGmailOrigin } from "./domain/gmail-import-completion/record-gmail-origin";
 import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
 import { initIngestParsedEmail } from "./domain/inbox/ingest-parsed-email";
 import { initInterceptGmailConfirmation } from "./domain/inbox/intercept-gmail-confirmation";
@@ -65,6 +68,15 @@ const inboxEmailStore = initDynamoDbInboxEmail({
 	client: dynamoClient,
 	tableName: inboxEmailsTable,
 });
+const emailImportCompletion = initDynamoDbEmailImportCompletion({
+	client: dynamoClient,
+	tableName: inboxEmailsTable,
+});
+const gmailConnections = initDynamoDbGmailConnection({
+	client: dynamoClient,
+	tableName: gmailConnectionsTable,
+	now: () => new Date(),
+});
 const { publishEvent } = initEventBridgePublisher({
 	client: eventBridgeClient,
 	eventBusName,
@@ -100,7 +112,18 @@ const storeBody = initStoreEmailBody({
 });
 
 export const handler = initReceiveEmailHandler({
-		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: inboxEmailStore.getEmail, publishEvent }),
+	resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({
+		getEmail: inboxEmailStore.getEmail,
+		addGmailOrigins: emailImportCompletion.addGmailOrigins,
+		publishEvent,
+	}),
+	recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
+		addGmailOrigins: emailImportCompletion.addGmailOrigins,
+		evaluate: initEvaluateGmailImportCompletion({
+			findCompletion: emailImportCompletion.findCompletion,
+			publishEvent,
+		}),
+	}),
 	readRawEmail: initS3ReadRawEmail({
 		client: s3Client,
 		bucketName: rawEmailBucketName,
@@ -122,6 +145,7 @@ export const handler = initReceiveEmailHandler({
 		storeBody,
 		putEmail: inboxEmailStore.putEmail,
 		getEmail: inboxEmailStore.getEmail,
+		addGmailOrigins: emailImportCompletion.addGmailOrigins,
 		publishEvent,
 		logger,
 	}),
@@ -130,12 +154,10 @@ export const handler = initReceiveEmailHandler({
 			publishEvent(ConfirmGmailForwardingCommand, detail),
 		logger,
 	}),
+	findConnectedGmailAccount: async (userId) =>
+		(await gmailConnections.findConnectionByUserId(userId))?.accountEmail,
 	routeGmailForwardedEmail: initRouteGmailForwardedEmail({
-		connections: initDynamoDbGmailConnection({
-			client: dynamoClient,
-			tableName: gmailConnectionsTable,
-			now: () => new Date(),
-		}),
+		connections: gmailConnections,
 		mappings: initDynamoDbGmailMapping({
 			client: dynamoClient,
 			tableName: gmailMappingsTable,

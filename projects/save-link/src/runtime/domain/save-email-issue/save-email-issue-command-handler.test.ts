@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { EmailOutputSavedToAllEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -35,7 +35,7 @@ function makeHarness(opts: {
 	recordInboxArticleQueued?: () => Promise<void>;
 }) {
 	const reads: string[] = [];
-	const saves: Parameters<SaveEmailIssue>[0][] = [];
+	const saves: Omit<Parameters<SaveEmailIssue>[0], "onSavedToAll">[] = [];
 	const tierSources: Parameters<PutTierSource>[0][] = [];
 	const published: { detailType: string; detail: unknown }[] = [];
 	const onboarding: string[] = [];
@@ -49,8 +49,9 @@ function makeHarness(opts: {
 			reads.push(id.value);
 			return "body" in opts ? opts.body : BODY;
 		},
-		saveEmailIssue: async (params) => {
+		saveEmailIssue: async ({ onSavedToAll, ...params }) => {
 			saves.push(params);
+			await onSavedToAll();
 			return { contentPending: opts.contentPending ?? true };
 		},
 		putTierSource: async (params) => {
@@ -73,6 +74,26 @@ function makeHarness(opts: {
 }
 
 describe("initSaveEmailIssueCommandHandler", () => {
+	it("confirms an email output in All as soon as the issue is saved, before handing its body to content selection", async () => {
+		const harness = makeHarness({});
+
+		await harness.run({ ...COMMAND, emailOutput: { receivedAtMessageId: RECEIVED_AT_MESSAGE_ID, outputKey: "issue" } });
+
+		assert.deepEqual(
+			harness.published.map(({ detailType }) => detailType),
+			[EmailOutputSavedToAllEvent.detailType, TierContentExtractedEvent.detailType],
+		);
+		assert.deepEqual(harness.published[0]?.detail, { userId: READER, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID, outputKey: "issue" });
+	});
+
+	it("confirms nothing for an issue saved without an email output", async () => {
+		const harness = makeHarness({ contentPending: false });
+
+		await harness.run(COMMAND);
+
+		assert.deepEqual(harness.published, []);
+	});
+
 	it("saves the issue from the email's stored body into All and its readlists", async () => {
 		const harness = makeHarness({});
 

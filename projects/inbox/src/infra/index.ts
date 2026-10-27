@@ -17,6 +17,8 @@ import {
 	ConfirmGmailForwardingCommand,
 	CrawlEmailLinkPreview,
 	EmailLinksFilteredEvent,
+	EmailOutputSavedToAllEvent,
+	EmailOutputsSelectedEvent,
 	EmailLinksFilterFailedEvent,
 	EmailReceivedEvent,
 	GmailHistoryImportMessageFetchedEvent,
@@ -882,6 +884,48 @@ eventBus.subscribeAll(
 	],
 	recordEmailLinksFilteredWithSQS,
 	{ name: "inbox-record-email-links-filtered" },
+);
+
+const gmailImportCompletionDynamodb = new HutchDynamoDBAccess("inbox-gmail-import-completion-dynamodb", {
+	tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const GMAIL_IMPORT_COMPLETION_TIMEOUT_SECONDS = 30;
+
+const gmailImportCompletionLambda = new HutchLambda("inbox-gmail-import-completion", {
+	entryPoint: "./src/runtime/gmail-import-completion.main.ts",
+	outputDir: ".lib/inbox-gmail-import-completion",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: GMAIL_IMPORT_COMPLETION_TIMEOUT_SECONDS,
+	environment: {
+		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [...gmailImportCompletionDynamodb.policies],
+});
+
+eventBus.grantPublish(gmailImportCompletionLambda);
+
+const gmailImportCompletionQueue = new HutchSQS("inbox-gmail-import-completion", {
+	visibilityTimeoutSeconds: GMAIL_IMPORT_COMPLETION_TIMEOUT_SECONDS + RECEIVE_TO_INVOKE_GUARD_SECONDS,
+});
+
+const gmailImportCompletionWithSQS = new HutchSQSBackedLambda("inbox-gmail-import-completion", {
+	lambda: gmailImportCompletionLambda,
+	queue: gmailImportCompletionQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribeAll(
+	[
+		{ ...EmailOutputsSelectedEvent, name: "inbox-gmail-import-outputs-selected" },
+		{ ...EmailOutputSavedToAllEvent, name: "inbox-gmail-import-output-saved-to-all" },
+	],
+	gmailImportCompletionWithSQS,
+	{ name: "inbox-gmail-import-completion" },
 );
 
 export const routeKeys = inboxRoutes.routes.map((route) => route.routeKey);

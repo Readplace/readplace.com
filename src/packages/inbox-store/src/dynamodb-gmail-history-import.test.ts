@@ -45,6 +45,7 @@ const MESSAGE_ID = GmailMessageIdSchema.parse("18c2f0a1b2");
 const NOW = new Date("2026-09-30T00:00:00.000Z");
 const JOB_KEY = { userId: USER, recordKey: `JOB#${JOB_ID}` };
 const MESSAGE_KEY = { userId: USER, recordKey: `MSG#${JOB_ID}#${MESSAGE_ID}` };
+const GMAIL_UPDATE_KEY = { userId: USER, recordKey: `GMAIL_UPDATE#reader@gmail.com#history#reader@gmail.com#${MESSAGE_ID}` };
 const ZERO_COUNTS = {
 	listed: 0,
 	imported: 0,
@@ -507,12 +508,12 @@ describe("initDynamoDbGmailHistoryImport", () => {
 		expect(everySender.commands.filter((c) => c.name === "UpdateCommand")).toHaveLength(3);
 	});
 
-	it("deletes every job and message row the user owns, page by page", async () => {
+	it("deletes every job, message and Gmail update row the user owns, page by page", async () => {
 		const { commands, store } = harness((command) => {
 			if (command.name !== "QueryCommand") return {};
 			return command.input.ExclusiveStartKey === undefined
 				? { Items: [JOB_KEY], LastEvaluatedKey: JOB_KEY }
-				: { Items: [MESSAGE_KEY] };
+				: { Items: [MESSAGE_KEY, GMAIL_UPDATE_KEY] };
 		});
 
 		await store.deleteAllByUserId(USER);
@@ -520,6 +521,6 @@ describe("initDynamoDbGmailHistoryImport", () => {
 		const query = commands[0].input;
 		expect(query.KeyConditionExpression).toBe("userId = :uid");
 		expect(query.ProjectionExpression).toBe("userId, recordKey");
-		expect(commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input.Key)).toEqual([JOB_KEY, MESSAGE_KEY]);
+		expect(commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input.Key)).toEqual([JOB_KEY, MESSAGE_KEY, GMAIL_UPDATE_KEY]);
 	});
 });

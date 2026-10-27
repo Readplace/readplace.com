@@ -539,7 +539,7 @@ describe("initGmailHistoryImport", () => {
 	it("fails the import as permission-revoked when the read-only permission is missing", async () => {
 		const h = await harness();
 		await h.startJob("generation-1");
-		h.gmail.failNext({ method: "listUnreadMessageIds", failure: { ok: false, reason: "readonly-permission-required" } });
+		h.gmail.failNext({ method: "listMessageIds", failure: { ok: false, reason: "readonly-permission-required" } });
 
 		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -556,10 +556,10 @@ describe("initGmailHistoryImport", () => {
 		let fetches = 0;
 		const h = await harness({
 			history: (inner) => ({
-				listUnreadMessageIds: async (input) => {
+				listMessageIds: async (input) => {
 					input.observe(attemptFor("oauth.refresh"));
 					input.observe(attemptFor("messages.list"));
-					return inner.listUnreadMessageIds(input);
+					return inner.listMessageIds(input);
 				},
 				fetchRawMessage: async (input) => {
 					fetches++;
@@ -598,9 +598,9 @@ describe("initGmailHistoryImport", () => {
 		let fetches = 0;
 		const h = await harness({
 			history: (inner) => ({
-				listUnreadMessageIds: async (input) => {
+				listMessageIds: async (input) => {
 					input.observe(attemptFor("messages.list"));
-					return inner.listUnreadMessageIds(input);
+					return inner.listMessageIds(input);
 				},
 				fetchRawMessage: async (input) => {
 					fetches++;
@@ -669,7 +669,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness({
 			history: (inner) => ({
 				...inner,
-				listUnreadMessageIds: async (input) => {
+				listMessageIds: async (input) => {
 					input.observe(attemptFor("oauth.refresh", "reauth-required"));
 					return { ok: false, reason: "reauth-required" };
 				},
@@ -694,7 +694,7 @@ describe("initGmailHistoryImport", () => {
 	it("blames no HTTP attempt when the listing fails before any request because no refresh token is stored", async () => {
 		const h = await harness();
 		await h.startJob("generation-1");
-		h.gmail.failNext({ method: "listUnreadMessageIds", failure: { ok: false, reason: "reauth-required" } });
+		h.gmail.failNext({ method: "listMessageIds", failure: { ok: false, reason: "reauth-required" } });
 
 		const step = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
 
@@ -711,7 +711,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness({
 			history: (inner, context) => ({
 				...inner,
-				listUnreadMessageIds: async () => {
+				listMessageIds: async () => {
 					context.advance(1_000);
 					await context.connections.clearRevoked({ userId: READER });
 					return { ok: false, reason: "reauth-required" };
@@ -733,7 +733,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness({
 			history: (inner, context) => ({
 				...inner,
-				listUnreadMessageIds: async () => {
+				listMessageIds: async () => {
 					await context.store.cancelJobs({ userId: READER, senderEmail: TLDR, reason: "user-cancelled", now: context.now() });
 					return { ok: false, reason: "rejected", status: 400, message: "Bad query" };
 				},
@@ -756,7 +756,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness({
 			history: (inner) => ({
 				...inner,
-				listUnreadMessageIds: async (input) => {
+				listMessageIds: async (input) => {
 					input.observe(attemptFor("oauth.refresh"));
 					input.observe(attemptFor("messages.list", "unavailable"));
 					return { ok: false, reason: "unavailable", status: 503 };
@@ -779,7 +779,7 @@ describe("initGmailHistoryImport", () => {
 		const h = await harness({
 			history: (inner) => ({
 				...inner,
-				listUnreadMessageIds: async (input) => {
+				listMessageIds: async (input) => {
 					input.observe(attemptFor("oauth.refresh", "unavailable"));
 					return { ok: false, reason: "unavailable", status: 503 };
 				},
@@ -837,9 +837,9 @@ describe("initGmailHistoryImport", () => {
 	it("hands each Gmail HTTP attempt to the observer of the page it belongs to, without message ids or addresses", async () => {
 		const h = await harness({
 			history: (inner) => ({
-				listUnreadMessageIds: async (input) => {
+				listMessageIds: async (input) => {
 					input.observe(attemptFor("messages.list"));
-					return inner.listUnreadMessageIds(input);
+					return inner.listMessageIds(input);
 				},
 				fetchRawMessage: async (input) => {
 					input.observe(attemptFor("messages.get"));
@@ -888,5 +888,47 @@ describe("initGmailHistoryImport", () => {
 			{ kind: "message-publication-failed", index: 0, errorName: "TypeError" },
 		]);
 		assert.equal((await h.job()).state, "running");
+	});
+});
+
+describe("history import listing that is independent of read state", () => {
+	it("lists a message that is already read and skips it when fetched", async () => {
+		const h = await harness();
+		await h.startJob("generation-1");
+		h.addUnread({ id: "unread", internalDate: "2026-08-31T00:00:00.000Z" });
+		h.gmail.addMessage({
+			userId: READER,
+			sender: TLDR,
+			messageId: messageId("read"),
+			raw: Buffer.from("read"),
+			internalDate: "2026-08-30T00:00:00.000Z",
+			labelIds: ["INBOX"],
+		});
+
+		await h.runAllPages("generation-1");
+
+		assert.deepEqual(publishedIds(h.published), ["unread"]);
+		assert.equal((await h.job()).counts.listed, 1);
+		assert.deepEqual(h.takeObservations(), [
+			{ kind: "page-claimed" },
+			{ kind: "page-listed", messageCount: 2, nextPagePresent: false },
+			{ kind: "message-processed", index: 0, outcome: "published" },
+			{ kind: "message-processed", index: 1, outcome: "already-read" },
+			{ kind: "page-saved", nextPagePresent: false },
+			{ kind: "job-completed", persisted: false },
+		]);
+	});
+
+	it("still reaches every later message when the earlier page's messages are marked read between pages", async () => {
+		const h = await harness();
+		await h.startJob("generation-1");
+		for (let index = 0; index < 30; index++) h.addUnread({ id: `m${String(index).padStart(2, "0")}`, internalDate: `2026-08-31T00:${String(59 - index).padStart(2, "0")}:00.000Z` });
+
+		const first = await h.importer.start({ userId: READER, jobId: JOB, generation: "generation-1" });
+		for (const id of publishedIds(h.published)) h.gmail.markRead(messageId(id));
+		assert(first.next, "a second page follows");
+		await h.importer.page(first.next);
+
+		assert.equal(new Set(publishedIds(h.published)).size, 30);
 	});
 });

@@ -222,9 +222,9 @@ export function initGmailHistory(deps: {
 	}
 
 	return {
-		listUnreadMessageIds: async ({ userId, sender, window, pageToken, observe }) => {
+		listMessageIds: async ({ userId, sender, window, pageToken, observe }) => {
 			const query = new URLSearchParams({
-				q: `from:${sender} is:unread after:${epochSeconds(window.start)} before:${epochSeconds(window.end)}`,
+				q: `from:${sender} after:${epochSeconds(window.start)} before:${epochSeconds(window.end)}`,
 				maxResults: String(GMAIL_HISTORY_IMPORT_PAGE_SIZE),
 				includeSpamTrash: String(LISTING_INCLUDES_SPAM_TRASH),
 				fields: LISTING_FIELDS,

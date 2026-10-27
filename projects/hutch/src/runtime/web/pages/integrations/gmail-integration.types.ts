@@ -1,5 +1,6 @@
 import type {
 	ForwardableSender,
+	GmailAccountEmail,
 	GmailConnectionStore,
 	GmailCredentialsStore,
 	GmailDiscoveryStore,
@@ -50,6 +51,7 @@ export interface GmailIntegrationProviders {
 		reason: GmailHistoryImportCancelReason;
 	}) => Promise<GmailHistoryImportJob[]>;
 	publishStartGmailHistoryImport: (input: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }) => Promise<void>;
+	publishGmailModifyPermissionGranted: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<void>;
 	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
 	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
 	newGmailHistoryImportGeneration: () => string;

@@ -121,6 +121,7 @@ export const SubmitLinkCommand = defineEvent({
 			provenance: z.looseObject({ kind: z.string() }), /* 1 */
 			readlist: z.string(),
 			rawHtml: z.string().optional(),
+			emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
 		}),
 		z.strictObject({ url: z.string(), saveAttemptId: SaveAttemptId, rawHtml: z.string().optional() }), /* 2 */
 	]),
@@ -1026,6 +1027,7 @@ export const SaveEmailIssueCommand = defineEvent({
 		senderName: z.string(),
 		issueUrl: z.string(),
 		readlists: z.array(z.string()),
+		emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
 	}),
 });
 
@@ -1315,6 +1317,94 @@ export const GmailHistoryImportFailedEvent = defineEvent({
 	}),
 });
 export type GmailHistoryImportFailedDetail = z.infer<typeof GmailHistoryImportFailedEvent.detailSchema>;
+
+const GmailMessageOriginDetail = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("history"), accountEmail: z.string(), gmailMessageId: z.string() }),
+	z.object({ kind: z.literal("forwarded"), accountEmail: z.string(), rfcMessageId: z.string(), senderEmail: z.string() }),
+]);
+
+export const EmailOutputsSelectedEvent = defineEvent({
+	name: "email-outputs-selected",
+	source: "hutch.inbox",
+	detailType: "EmailOutputsSelected",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		outputCount: z.number().int().nonnegative(),
+	}),
+});
+export type EmailOutputsSelectedDetail = z.infer<typeof EmailOutputsSelectedEvent.detailSchema>;
+
+export const EmailOutputSavedToAllEvent = defineEvent({
+	name: "email-output-saved-to-all",
+	source: "hutch.save-link",
+	detailType: "EmailOutputSavedToAll",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		outputKey: z.string(),
+	}),
+});
+export type EmailOutputSavedToAllDetail = z.infer<typeof EmailOutputSavedToAllEvent.detailSchema>;
+
+export const MarkGmailEmailImportedCommand = defineEvent({
+	name: "mark-gmail-email-imported",
+	source: "hutch.inbox",
+	detailType: "MarkGmailEmailImported",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		origin: GmailMessageOriginDetail,
+	}),
+});
+export type MarkGmailEmailImportedDetail = z.infer<typeof MarkGmailEmailImportedCommand.detailSchema>;
+
+export const GmailEmailMarkedImportedEvent = defineEvent({
+	name: "gmail-email-marked-imported",
+	source: "hutch.app",
+	detailType: "GmailEmailMarkedImported",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		originKind: z.enum(["history", "forwarded"]),
+		outcome: z.enum(["marked", "already-marked"]),
+	}),
+});
+export type GmailEmailMarkedImportedDetail = z.infer<typeof GmailEmailMarkedImportedEvent.detailSchema>;
+
+export const GmailEmailUpdateDeferredEvent = defineEvent({
+	name: "gmail-email-update-deferred",
+	source: "hutch.app",
+	detailType: "GmailEmailUpdateDeferred",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		originKind: z.enum(["history", "forwarded"]),
+		reason: z.enum(["permission-required", "account-unavailable"]),
+	}),
+});
+export type GmailEmailUpdateDeferredDetail = z.infer<typeof GmailEmailUpdateDeferredEvent.detailSchema>;
+
+export const GmailEmailUpdateFailedEvent = defineEvent({
+	name: "gmail-email-update-failed",
+	source: "hutch.app",
+	detailType: "GmailEmailUpdateFailed",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		originKind: z.enum(["history", "forwarded"]),
+		reason: z.enum(["original-not-found", "ambiguous-original", "gmail-rejected", "dead-lettered"]),
+	}),
+});
+export type GmailEmailUpdateFailedDetail = z.infer<typeof GmailEmailUpdateFailedEvent.detailSchema>;
+
+export const GmailModifyPermissionGrantedEvent = defineEvent({
+	name: "gmail-modify-permission-granted",
+	source: "hutch.app",
+	detailType: "GmailModifyPermissionGranted",
+	detailSchema: z.object({ userId: z.string(), accountEmail: z.string() }),
+});
+export type GmailModifyPermissionGrantedDetail = z.infer<typeof GmailModifyPermissionGrantedEvent.detailSchema>;
 
 export type { HutchEvent, HutchCommand };
 

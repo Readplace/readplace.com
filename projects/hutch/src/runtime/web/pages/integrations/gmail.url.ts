@@ -57,6 +57,8 @@ export type GmailPageNotice =
 	| "import_permission_refused"
 	| "import_permission_granted"
 	| "import_cancelled"
+	| "label_permission_granted"
+	| "label_permission_refused"
 	| "filter_retry_requested";
 
 export interface GmailPickerState {

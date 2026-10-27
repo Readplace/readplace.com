@@ -6,6 +6,7 @@ import {
 	ForwardableSenderSchema,
 	GMAIL_HISTORY_IMPORT_MAX_POLLS,
 	gmailConnectionState,
+	hasAnyGmailScope,
 	hasGmailScope,
 } from "@packages/domain/gmail";
 import type { ForwardableSender, GmailConnection } from "@packages/domain/gmail";
@@ -13,7 +14,7 @@ import { type InboxAddress, InboxAddressSchema, isLiveAddress } from "@packages/
 import { READLIST_MAX_PER_USER, readerReadlists } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
-import { GMAIL_METADATA_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MESSAGE_READ_SCOPES, GMAIL_METADATA_SCOPE, GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
 import { Base } from "../../base.component";
@@ -145,7 +146,8 @@ export function registerGmailPageRoutes(
 			readlistLimitReached: definitions.length >= READLIST_MAX_PER_USER,
 			gatewayLive: gateway !== undefined && isLiveAddress(gateway),
 			metadataScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_METADATA_SCOPE }),
-			readonlyScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_READONLY_SCOPE }),
+			readScopeGranted: hasAnyGmailScope({ grantedScope, scopes: GMAIL_MESSAGE_READ_SCOPES }),
+			modifyScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_MODIFY_SCOPE }),
 			discoveredSenders: discovered,
 			discovery: discovery === undefined || !sameMailbox
 				? { state: "idle", mode: "profile", checkedMessageCount: 0 }

@@ -67,6 +67,7 @@ config:
   hutch:gmailConnectionCapWarnThreshold: 5
   hutch:oauthRefreshRefusedDailyThreshold: 5
   hutch:gmailFilterRewriteFailedThreshold: 1
+  hutch:gmailEmailUpdateFailedThreshold: 1
   # Test rig for the outbound-mail-auth component on staging's own zone.
   # readplace-staging.com has no Google Workspace, so the SPF value is inert for
   # real deliverability here — this exists only to exercise the Pulumi record end

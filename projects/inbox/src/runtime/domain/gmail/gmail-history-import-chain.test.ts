@@ -23,10 +23,13 @@ import {
 	ConfirmGmailForwardingCommand,
 	CrawlEmailLinkPreview,
 	EmailLinksTriagedEvent,
+	EmailOutputSavedToAllEvent,
+	EmailOutputsSelectedEvent,
 	EmailReceivedEvent,
 	GmailHistoryImportMessageFetchedEvent,
 	GmailHistoryImportMessageIngestedEvent,
 	type HutchEvent,
+	MarkGmailEmailImportedCommand,
 	SaveEmailIssueCommand,
 	SendFirstInboxEmailNoticeCommand,
 	SendTrialFeedbackEmailCommand,
@@ -43,11 +46,15 @@ import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmai
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import {
+	initInMemoryEmailImportCompletion,
 	initInMemoryInboxEmail,
 	initInMemoryInboxEmailLink,
 } from "@packages/test-fixtures/providers/inbox-email";
+import { initEvaluateGmailImportCompletion } from "../gmail-import-completion/evaluate-gmail-import-completion";
+import { initGmailImportCompletionHandler } from "../gmail-import-completion/gmail-import-completion-handler";
+import { initRecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
-import type { z } from "zod";
+import { z } from "zod";
 import { initExtractEmailLinksHandler } from "../inbox/extract-email-links-handler";
 import { initIngestGmailImportHandler } from "../inbox/ingest-gmail-import-handler";
 import { initIngestParsedEmail } from "../inbox/ingest-parsed-email";
@@ -71,6 +78,10 @@ const NOW = new Date("2026-09-30T00:00:00.000Z");
 const WORK = ReadlistSlugSchema.parse("a1b2c3d4");
 const LATER = ReadlistSlugSchema.parse("e5f6a7b8");
 const STORY_URL = "https://example.com/story";
+
+const SaveCorrelation = z.object({
+	emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
+});
 
 type Published = { event: HutchEvent<z.ZodTypeAny>; detail: unknown };
 
@@ -96,6 +107,7 @@ function makePipeline() {
 	const logger = HutchLogger.from(noopLogger);
 	const addresses = initInMemoryInboxAddress({ now });
 	const emails = initInMemoryInboxEmail();
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail });
 	const links = initInMemoryInboxEmailLink();
 	const identities = initInMemoryEmailIdentity();
 	const imports = initInMemoryGmailHistoryImport();
@@ -109,6 +121,9 @@ function makePipeline() {
 	const publishEvent = (async (event, detail) => {
 		published.push({ event, detail: event.detailSchema.parse(detail) });
 	}) as PublishEvent;
+	const evaluateCompletion = initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent });
+	const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({ addGmailOrigins: completion.addGmailOrigins, evaluate: evaluateCompletion });
+	const completeImport = initGmailImportCompletionHandler({ acknowledgeOutput: completion.acknowledgeOutput, evaluate: evaluateCompletion, logger });
 
 	const resolveIdentity = initResolveEmailIdentity({
 		identities,
@@ -121,12 +136,14 @@ function makePipeline() {
 			`content/${receivedAtMessageId}/content.html`,
 		putEmail: emails.putEmail,
 		getEmail: emails.getEmail,
+		addGmailOrigins: completion.addGmailOrigins,
 		publishEvent,
 		logger,
 	});
 
 	const ingestImport = initIngestGmailImportHandler({
-		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, publishEvent }),
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
+		recordDuplicateGmailOrigin,
 		readRawEmail,
 		parseEmail,
 		findByAddress: addresses.findByAddress,
@@ -140,7 +157,8 @@ function makePipeline() {
 	});
 
 	const receive = initReceiveEmailHandler({
-		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, publishEvent }),
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
+		recordDuplicateGmailOrigin,
 		readRawEmail,
 		findByAddress: addresses.findByAddress,
 		putEmail: emails.putEmail,
@@ -153,6 +171,7 @@ function makePipeline() {
 				publishEvent(ConfirmGmailForwardingCommand, detail),
 			logger,
 		}),
+		findConnectedGmailAccount: async (userId) => (await connections.findConnectionByUserId(userId))?.accountEmail,
 		routeGmailForwardedEmail: initRouteGmailForwardedEmail({
 			connections,
 			mappings,
@@ -178,6 +197,9 @@ function makePipeline() {
 		publishEmailLinksTriaged: (input) =>
 			publishEvent(EmailLinksTriagedEvent, input),
 		publishSaveEmailIssue: (input) => publishEvent(SaveEmailIssueCommand, input),
+		findCompletion: completion.findCompletion,
+		selectOutputs: completion.selectOutputs,
+		publishEmailOutputsSelected: (input) => publishEvent(EmailOutputsSelectedEvent, input),
 		alertTruncated: async () => {},
 		publishSaveHeldNotice: ({ userId, receivedAtMessageId, inboxAddress }) =>
 			publishEvent(SendTrialFeedbackEmailCommand, {
@@ -400,9 +422,22 @@ function makePipeline() {
 	const publishedOf = (event: HutchEvent<z.ZodTypeAny>) =>
 		published.filter((entry) => entry.event === event);
 
+	const confirmSavedToAll = async () => {
+		const saves = [...publishedOf(SubmitLinkCommand), ...publishedOf(SaveEmailIssueCommand)].flatMap((entry) => {
+			const { emailOutput } = SaveCorrelation.parse(entry.detail);
+			return emailOutput === undefined ? [] : [{ "detail-type": EmailOutputSavedToAllEvent.detailType, detail: { userId: READER, ...emailOutput } }];
+		});
+		const selections = publishedOf(EmailOutputsSelectedEvent).map((entry) => ({ "detail-type": EmailOutputsSelectedEvent.detailType, detail: entry.detail }));
+		for (const [index, body] of [...selections, ...saves].entries()) {
+			await run(completeImport, [{ messageId: `completion-${index}`, body: JSON.stringify(body) }]);
+		}
+	};
+
 	return {
 		links,
 		emails,
+		completion,
+		confirmSavedToAll,
 		published,
 		publishedOf,
 		readlistAddress,
@@ -483,6 +518,7 @@ describe("gmail history import chain (inbox half)", () => {
 				readlist: DEFAULT_READLIST_SLUG,
 				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
 				saveAttemptId: expect.any(String),
+				emailOutput: { receivedAtMessageId: expect.any(String), outputKey: "link#0000" },
 			},
 		]);
 	});
@@ -507,6 +543,7 @@ describe("gmail history import chain (inbox half)", () => {
 				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
 				readlist: DEFAULT_READLIST_SLUG,
 				saveAttemptId: expect.any(String),
+				emailOutput: { receivedAtMessageId: expect.any(String), outputKey: "link#0000" },
 			},
 		]);
 		assert.deepEqual(pipeline.publishedOf(EmailLinksTriagedEvent), []);
@@ -631,6 +668,84 @@ describe("gmail history import chain (inbox half)", () => {
 		);
 		assert.equal(pipeline.publishedOf(EmailReceivedEvent).length, 1);
 	});
+
+	const HISTORY_ORIGIN = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: GMAIL_MESSAGE_ID };
+	const FORWARDED_ORIGIN = { kind: "forwarded", accountEmail: ACCOUNT, senderEmail: TLDR, rfcMessageId: "issue-42@tldr.tech" };
+
+	it("asks for the imported Gmail message to be marked only after its saves are confirmed in All", async () => {
+		const pipeline = makePipeline();
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>" });
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+
+		assert.deepEqual(pipeline.publishedOf(MarkGmailEmailImportedCommand), []);
+
+		await pipeline.confirmSavedToAll();
+
+		assert.deepEqual(
+			pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => detail),
+			[{ userId: READER, receivedAtMessageId: `${INTERNAL_DATE}#<issue-42@tldr.tech>`, origin: HISTORY_ORIGIN }],
+		);
+	});
+
+	it("marks an issue-mode import once the whole issue is confirmed in All", async () => {
+		const pipeline = makePipeline();
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>", deliveryMode: "issue" });
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+
+		assert.deepEqual(
+			pipeline.publishedOf(SaveEmailIssueCommand).map(({ detail }) => SaveEmailIssueCommand.detailSchema.parse(detail).emailOutput),
+			[{ receivedAtMessageId: `${INTERNAL_DATE}#<issue-42@tldr.tech>`, outputKey: "issue" }],
+		);
+		await pipeline.confirmSavedToAll();
+
+		assert.equal(pipeline.publishedOf(MarkGmailEmailImportedCommand).length, 1);
+	});
+
+	it("replays the frozen selection when extraction is retried, dispatching the same outputs again", async () => {
+		const pipeline = makePipeline();
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>" });
+		const received = pipeline.publishedOf(EmailReceivedEvent);
+
+		await pipeline.extractEach(received);
+		await pipeline.extractEach(received);
+
+		const outputs = pipeline.publishedOf(SubmitLinkCommand).map(({ detail }) => SaveCorrelation.parse(detail).emailOutput?.outputKey);
+		assert.deepEqual(outputs, ["link#0000", "link#0000"]);
+		assert.deepEqual(
+			pipeline.publishedOf(EmailOutputsSelectedEvent).map(({ detail }) => detail),
+			[
+				{ userId: READER, receivedAtMessageId: `${INTERNAL_DATE}#<issue-42@tldr.tech>`, outputCount: 1 },
+				{ userId: READER, receivedAtMessageId: `${INTERNAL_DATE}#<issue-42@tldr.tech>`, outputCount: 1 },
+			],
+		);
+	});
+
+	it("marks both the forwarded and the imported Gmail copies of one issue on the single canonical email", async () => {
+		const pipeline = makePipeline();
+		const destinationAddress = await pipeline.readlistAddress(WORK);
+		const gateway = await pipeline.gatewayAddress();
+		await pipeline.mapGatewaySender(destinationAddress);
+		await pipeline.forward({ gateway, messageId: "<issue-42@tldr.tech>", sesMessageId: "ses-42" });
+		await pipeline.startImport({ jobId: JOB, destinationAddress });
+		await pipeline.deliverFetched({ destinationAddress, messageId: "<issue-42@tldr.tech>" });
+		await pipeline.extractEach(pipeline.publishedOf(EmailReceivedEvent));
+
+		await pipeline.confirmSavedToAll();
+
+		assert.deepEqual(
+			pipeline.publishedOf(MarkGmailEmailImportedCommand).map(({ detail }) => detail),
+			[
+				{ userId: READER, receivedAtMessageId: `${FORWARDED_AT}#<issue-42@tldr.tech>`, origin: FORWARDED_ORIGIN },
+				{ userId: READER, receivedAtMessageId: `${FORWARDED_AT}#<issue-42@tldr.tech>`, origin: HISTORY_ORIGIN },
+			],
+		);
+	});
 });
 
 for (const delivery of ["forward", "import"] as const) {
@@ -669,6 +784,7 @@ for (const delivery of ["forward", "import"] as const) {
 				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
 				readlist: DEFAULT_READLIST_SLUG,
 				saveAttemptId: expect.any(String),
+				emailOutput: { receivedAtMessageId: expect.any(String), outputKey: "link#0000" },
 			},
 		]);
 		assert.deepEqual(

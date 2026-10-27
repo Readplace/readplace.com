@@ -12,10 +12,15 @@ const ISSUE_URL = "email://inbox/00000000000000000000000000000001/2026-06-24T09%
 const INBOX_PAGE = "https://readplace.com/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E";
 const WORK = ReadlistSlugSchema.parse("work");
 
-function harness(crawl: ArticleCrawl | undefined) {
+function harness(crawl: ArticleCrawl | undefined, opts: { failFiling?: boolean } = {}) {
 	const store = initInMemoryArticleStore();
 	const calls: string[] = [];
 	const displayUrls: { articleUrl: string; displayUrl: string }[] = [];
+	const fileIntoReadlist = initFileArticleIntoReadlist({
+		allocateSavedAt: store.allocateSavedAt,
+		saveReadlistArticle: store.saveReadlistArticle,
+		updateArticleStatusAcrossReadlists: store.updateArticleStatusAcrossReadlists,
+	});
 	const saveEmailIssue = initSaveEmailIssue({
 		allocateSavedAt: store.allocateSavedAt,
 		saveArticle: store.saveArticle,
@@ -29,11 +34,11 @@ function harness(crawl: ArticleCrawl | undefined) {
 		markSummaryPending: async () => {
 			calls.push("summary-pending");
 		},
-		fileArticleIntoReadlist: initFileArticleIntoReadlist({
-			allocateSavedAt: store.allocateSavedAt,
-			saveReadlistArticle: store.saveReadlistArticle,
-			updateArticleStatusAcrossReadlists: store.updateArticleStatusAcrossReadlists,
-		}),
+		fileArticleIntoReadlist: async (input) => {
+			calls.push("filed");
+			if (opts.failFiling) throw new Error("readlist write failed");
+			return fileIntoReadlist(input);
+		},
 		publishQueueEntryCreated: async () => {
 			calls.push("queue-entry-created");
 		},
@@ -47,6 +52,9 @@ function harness(crawl: ArticleCrawl | undefined) {
 			estimatedReadTime: MinutesSchema.parse(2),
 			provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
 			readlists,
+			onSavedToAll: async () => {
+				calls.push("saved-to-all");
+			},
 		});
 	return { store, calls, displayUrls, save };
 }
@@ -64,7 +72,7 @@ describe("initSaveEmailIssue", () => {
 			["Employee #1: Yahoo", "TLDR", 476, 2],
 		);
 		assert.deepEqual(h.displayUrls, [{ articleUrl: ISSUE_URL, displayUrl: INBOX_PAGE }]);
-		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "queue-entry-created"]);
+		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all", "queue-entry-created"]);
 	});
 
 	it("files the issue into every custom readlist the newsletter is mapped to, as well as All", async () => {
@@ -83,6 +91,15 @@ describe("initSaveEmailIssue", () => {
 		const outcome = await h.save([]);
 
 		assert.deepEqual(outcome, { contentPending: false });
-		assert.deepEqual(h.calls, []);
+		assert.deepEqual(h.calls, ["saved-to-all"]);
+	});
+
+	it("confirms the issue is in All before filing it into a custom readlist, so a filing failure cannot hold that back", async () => {
+		const h = harness(undefined, { failFiling: true });
+
+		await assert.rejects(h.save([WORK]), /readlist write failed/);
+
+		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all", "filed"]);
+		assert.notEqual(await h.store.findArticleByUrl(ISSUE_URL), undefined);
 	});
 });

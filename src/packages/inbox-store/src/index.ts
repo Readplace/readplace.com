@@ -16,3 +16,5 @@ export { initDynamoDbEmailIdentity } from "./dynamodb-email-identity";
 export { initDynamoDbGmailHistoryImport } from "./dynamodb-gmail-history-import";
 export { initS3WriteRawEmail } from "./s3-write-raw-email";
 export { initDynamoDbGmailMonitoring } from "./dynamodb-gmail-monitoring";
+export { initDynamoDbEmailImportCompletion } from "./dynamodb-email-import-completion";
+export { initDynamoDbGmailMessageUpdate } from "./dynamodb-gmail-message-update";

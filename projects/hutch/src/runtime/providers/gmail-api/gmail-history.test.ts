@@ -161,17 +161,17 @@ function tokenReply(accessToken: string): Response {
 }
 
 describe("initGmailHistory", () => {
-	describe("listUnreadMessageIds", () => {
-		it("asks Gmail for one page of the sender's unread mail inside the window, spam and trash excluded", async () => {
+	describe("listMessageIds", () => {
+		it("asks Gmail for one page of the sender's mail inside the window, read or unread, spam and trash excluded", async () => {
 			const body = { messages: [{ id: "18c2f0a1b2" }, { id: "18c2f0a1b3" }], nextPageToken: "page-2" };
 			const { history, requests, attempts, observe } = harness(() => ({ status: 200, body }));
 
-			const result = await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: "page-1", observe });
+			const result = await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: "page-1", observe });
 
 			assert.deepEqual(result, { ok: true, value: { messageIds: ["18c2f0a1b2", "18c2f0a1b3"], nextPageToken: "page-2" } });
 			const { url, authorization } = requests[0];
 			assert.equal(url.pathname, "/gmail/v1/users/me/messages");
-			assert.equal(url.searchParams.get("q"), "from:news@example.com is:unread after:1788134400 before:1790726400");
+			assert.equal(url.searchParams.get("q"), "from:news@example.com after:1788134400 before:1790726400");
 			assert.equal(url.searchParams.get("maxResults"), "25");
 			assert.equal(url.searchParams.get("includeSpamTrash"), "false");
 			assert.equal(url.searchParams.get("fields"), "messages(id),nextPageToken");
@@ -181,7 +181,7 @@ describe("initGmailHistory", () => {
 				requests.map(({ href, method }) => ({ href, method })),
 				[
 					{
-						href: "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from%3Anews%40example.com+is%3Aunread+after%3A1788134400+before%3A1790726400&maxResults=25&includeSpamTrash=false&fields=messages%28id%29%2CnextPageToken&pageToken=page-1",
+						href: "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from%3Anews%40example.com+after%3A1788134400+before%3A1790726400&maxResults=25&includeSpamTrash=false&fields=messages%28id%29%2CnextPageToken&pageToken=page-1",
 						method: "GET",
 					},
 				],
@@ -219,7 +219,7 @@ describe("initGmailHistory", () => {
 		it("reports an empty last page when the sender has no unread mail", async () => {
 			const { history, requests, attempts, observe } = harness(() => ({ status: 200, body: {} }));
 
-			const result = await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
+			const result = await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
 
 			assert.deepEqual(result, { ok: true, value: { messageIds: [], nextPageToken: undefined } });
 			assert.equal(requests[0].url.searchParams.has("pageToken"), false);
@@ -251,7 +251,7 @@ describe("initGmailHistory", () => {
 				const { history, attempts, observe } = harness(() => ({ status: 200, body }));
 
 				assert.deepEqual(
-					await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
+					await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
 					{ ok: false, reason: "unavailable", status: 200 },
 				);
 				assert.deepEqual(outcomes(attempts), [
@@ -279,7 +279,7 @@ describe("initGmailHistory", () => {
 				reachedAt({ url: url.href, redirected: false, response: new Response(null, { status: 204 }) }),
 			);
 
-			const result = await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
+			const result = await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
 
 			assert.deepEqual(result, { ok: false, reason: "unavailable", status: 204 });
 			assert.deepEqual(attempts[0].response, {
@@ -310,7 +310,7 @@ describe("initGmailHistory", () => {
 				const { history, attempts, observe } = harness((url) => reachedAt({ url: url.href, redirected: false, response: reply }));
 
 				assert.deepEqual(
-					await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
+					await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
 					{ ok: false, reason: "unavailable", status: 200 },
 				);
 				assert.deepEqual(outcomes(attempts), [
@@ -324,7 +324,7 @@ describe("initGmailHistory", () => {
 			const { history, attempts, observe } = harness(() => failure);
 
 			await assert.rejects(
-				history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
+				history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
 				(error) => error === failure,
 			);
 
@@ -352,7 +352,7 @@ describe("initGmailHistory", () => {
 				}),
 			);
 
-			const result = await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
+			const result = await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
 
 			assert.deepEqual(result, { ok: false, reason: "unavailable", status: 200 });
 			assert.deepEqual(attempts[0].response, {
@@ -482,7 +482,7 @@ describe("initGmailHistory", () => {
 				return calls === 1 ? reachedAt({ url: url.href, redirected: false, response: refused }) : { status: 200, body: {} };
 			});
 
-			const result = await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
+			const result = await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe });
 
 			assert.equal(result.ok, true);
 			assert.deepEqual(refreshes, [false, true]);
@@ -521,7 +521,7 @@ describe("initGmailHistory", () => {
 				now: tickingClock(7),
 			});
 
-			const result = await history.listUnreadMessageIds({
+			const result = await history.listMessageIds({
 				userId: USER,
 				sender: SENDER,
 				window: WINDOW,
@@ -596,7 +596,7 @@ describe("initGmailHistory", () => {
 			);
 
 			assert.deepEqual(
-				await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
+				await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
 				{ ok: false, reason: "readonly-permission-required" },
 			);
 			assert.equal(requests.length, 0);
@@ -653,7 +653,7 @@ describe("initGmailHistory", () => {
 			] as const) {
 				const { history, attempts, observe } = harness(() => reply);
 				assert.deepEqual(
-					await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
+					await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
 					{ ok: false, reason: "unavailable", status: reply.status },
 				);
 				assert.deepEqual(outcomes(attempts), [
@@ -712,7 +712,7 @@ describe("initGmailHistory", () => {
 			] as const) {
 				const { history, attempts, observe } = harness(() => reply);
 				assert.deepEqual(
-					await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
+					await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: undefined, observe }),
 					{ ok: false, reason: "rejected", status: reply.status, message },
 				);
 				assert.deepEqual(outcomes(attempts), [
@@ -737,7 +737,7 @@ describe("initGmailHistory", () => {
 				return next;
 			});
 			const results = [
-				await history.listUnreadMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: "page-1", observe }),
+				await history.listMessageIds({ userId: USER, sender: SENDER, window: WINDOW, pageToken: "page-1", observe }),
 				await history.fetchRawMessage({ userId: USER, messageId: MESSAGE_ID, observe }),
 				await history.fetchRawMessage({ userId: USER, messageId: MESSAGE_ID, observe }),
 				await history.fetchRawMessage({ userId: USER, messageId: MESSAGE_ID, observe }).catch((error: unknown) => error),
@@ -799,11 +799,11 @@ describe("initGmailHistory", () => {
 			const sender = ForwardableSenderSchema.parse("sentinel@example.com");
 			const messageId = GmailMessageIdSchema.parse("Sentinel77");
 
-			await history.listUnreadMessageIds({ userId: USER, sender, window: WINDOW, pageToken: "page-sentinel", observe });
+			await history.listMessageIds({ userId: USER, sender, window: WINDOW, pageToken: "page-sentinel", observe });
 			await history.fetchRawMessage({ userId: USER, messageId, observe });
 			await history.fetchRawMessage({ userId: USER, messageId, observe });
 			await history.fetchRawMessage({ userId: USER, messageId, observe });
-			await assert.rejects(history.listUnreadMessageIds({ userId: USER, sender, window: WINDOW, pageToken: "page-sentinel", observe }));
+			await assert.rejects(history.listMessageIds({ userId: USER, sender, window: WINDOW, pageToken: "page-sentinel", observe }));
 
 			assert.equal(failed, true);
 			assert.deepEqual(

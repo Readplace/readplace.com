@@ -187,6 +187,25 @@ export {
 	METERED_GMAIL_FORWARDING_CONFIRM_REASONS,
 	type GmailFilterRewriteFailedLine,
 	type GmailForwardingConfirmFailedLine,
+	GMAIL_EMAIL_UPDATE_FAILED_EVENT,
+	GMAIL_EMAIL_UPDATE_FAILED_METRIC,
+	type GmailEmailUpdateFailedLine,
 } from "./gmail-terminal-failures";
 export type { StripeEventType } from "./stripe-events";
 export { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, MonitorGmailNewslettersCommand, GmailNewsletterMonitoringProgressedEvent, SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "./events";
+export {
+	EmailOutputsSelectedEvent,
+	type EmailOutputsSelectedDetail,
+	EmailOutputSavedToAllEvent,
+	type EmailOutputSavedToAllDetail,
+	MarkGmailEmailImportedCommand,
+	type MarkGmailEmailImportedDetail,
+	GmailEmailMarkedImportedEvent,
+	type GmailEmailMarkedImportedDetail,
+	GmailEmailUpdateDeferredEvent,
+	type GmailEmailUpdateDeferredDetail,
+	GmailEmailUpdateFailedEvent,
+	type GmailEmailUpdateFailedDetail,
+	GmailModifyPermissionGrantedEvent,
+	type GmailModifyPermissionGrantedDetail,
+} from "./events";

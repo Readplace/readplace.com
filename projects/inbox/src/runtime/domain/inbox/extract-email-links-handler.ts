@@ -6,6 +6,12 @@ import { extractUrls } from "@packages/domain/import-session";
 import {
 	capEmailLinks,
 	classifyEmailLink,
+	type EmailImportCompletionStore,
+	type EmailOutputKey,
+	type EmailOutputSelection,
+	ISSUE_OUTPUT_KEY,
+	linkOutputKey,
+	outputLinkOrdinal,
 	type EmailLinkOrdinal,
 	type EmailLinkStatus,
 	formatEmailLinkOrdinal,
@@ -44,6 +50,11 @@ import { resolveEmailFanOut } from "./email-fan-out";
 import { LLM_SKIP_REASONS, type TriageEmailLinks } from "./triage-email-links";
 
 const TRIAGED_ANCHOR_TEXT_MAX_CHARS = 120;
+
+export interface EmailOutputCorrelation {
+	receivedAtMessageId: string;
+	outputKey: EmailOutputKey;
+}
 
 const SUBMITTING_ORIGINS: Record<EmailReceivedDetail["origin"], boolean> = {
 	receive: true,
@@ -95,6 +106,7 @@ export function initExtractEmailLinksHandler(deps: {
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
 		saveAttemptId: SaveAttemptId;
+		emailOutput: EmailOutputCorrelation | undefined;
 	}) => Promise<void>;
 	publishEmailLinksTriaged: (input: {
 		userId: UserId;
@@ -113,6 +125,14 @@ export function initExtractEmailLinksHandler(deps: {
 		senderName: string;
 		issueUrl: string;
 		readlists: ReadlistSlug[];
+		emailOutput: EmailOutputCorrelation | undefined;
+	}) => Promise<void>;
+	findCompletion: EmailImportCompletionStore["findCompletion"];
+	selectOutputs: EmailImportCompletionStore["selectOutputs"];
+	publishEmailOutputsSelected: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+		outputCount: number;
 	}) => Promise<void>;
 	alertTruncated: (input: {
 		userId: UserId;
@@ -151,6 +171,9 @@ export function initExtractEmailLinksHandler(deps: {
 		publishSubmitLink,
 		publishEmailLinksTriaged,
 		publishSaveEmailIssue,
+		findCompletion,
+		selectOutputs,
+		publishEmailOutputsSelected,
 		alertTruncated,
 		publishSaveHeldNotice,
 		publishFirstInboxEmailNotice,
@@ -261,10 +284,20 @@ export function initExtractEmailLinksHandler(deps: {
 					(link) => link.classification.action === "crawl",
 				);
 				const anchors = collectEmailAnchors(sanitizedHtml);
+				const canSubmit =
+					SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
+				const fanOut = resolveEmailFanOut(routing);
+				const writeAccess = canSubmit
+					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
+					: undefined;
+				const tracksImport = routing.kind === "gmail" && writeAccess === "full";
+				const frozenSelection = tracksImport
+					? (await findCompletion({ userId, receivedAtMessageId }))?.selection
+					: undefined;
 				// One batched triage call per email; `unavailable` fails open so previews
 				// never depend on the model being up.
 				let triage: Awaited<ReturnType<TriageEmailLinks>> | undefined;
-				if (crawlCandidates.length > 0) {
+				if (crawlCandidates.length > 0 && frozenSelection === undefined) {
 					triage = await triageEmailLinks({
 						subject: email.subject,
 						from: email.senderEmail,
@@ -293,12 +326,6 @@ export function initExtractEmailLinksHandler(deps: {
 					return existing.status;
 				};
 
-				const canSubmit =
-					SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
-				const fanOut = resolveEmailFanOut(routing);
-				const writeAccess = canSubmit
-					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
-					: undefined;
 				const routedReadlist =
 					writeAccess === "full" && routing.kind === "inbox"
 						? await findRoutedReadlist({
@@ -330,26 +357,34 @@ export function initExtractEmailLinksHandler(deps: {
 				let eligibleForAll = 0;
 				let noticePublished = false;
 				let firstInboxNoticePublished = false;
-				if (canSubmit && fanOut.issue) {
-					if (writeAccess === "full") {
-						await publishSaveEmailIssue({
-							userId,
-							saveAttemptId: newSaveAttemptId(),
-							receivedAtMessageId,
-							subject: email.subject,
-							senderEmail: email.senderEmail,
-							senderName: parsedEmail.email.fromName,
-							issueUrl: `${appOrigin}${inboxEmailPath(receivedAtMessageId)}`,
-							readlists: [...customReadlists],
-						});
-					} else {
-						noticePublished = true;
-						await publishSaveHeldNotice({
-							userId,
-							receivedAtMessageId,
-							inboxAddress: recipientAddress,
-						});
-					}
+				const saveIssue = (emailOutput: EmailOutputCorrelation) =>
+					publishSaveEmailIssue({
+						userId,
+						saveAttemptId: newSaveAttemptId(),
+						receivedAtMessageId,
+						subject: email.subject,
+						senderEmail: email.senderEmail,
+						senderName: parsedEmail.email.fromName,
+						issueUrl: `${appOrigin}${inboxEmailPath(receivedAtMessageId)}`,
+						readlists: [...customReadlists],
+						emailOutput,
+					});
+				const submitToAll = (input: { url: string; emailOutput: EmailOutputCorrelation | undefined }) =>
+					publishSubmitLink({
+						userId,
+						url: input.url,
+						provenance: { kind: "email", senderEmail: email.senderEmail },
+						readlist: DEFAULT_READLIST_SLUG,
+						saveAttemptId: newSaveAttemptId(),
+						emailOutput: input.emailOutput,
+					});
+				if (canSubmit && fanOut.issue && writeAccess !== "full") {
+					noticePublished = true;
+					await publishSaveHeldNotice({
+						userId,
+						receivedAtMessageId,
+						inboxAddress: recipientAddress,
+					});
 				}
 				const countStored = (status: EmailLinkStatus) => {
 					if (status === "skipped") skipped += 1;
@@ -430,13 +465,7 @@ export function initExtractEmailLinksHandler(deps: {
 					if (saveable && routedReadlist === undefined) {
 						eligibleForAll += 1;
 						if (writeAccess === "full") {
-							await publishSubmitLink({
-								userId,
-								url,
-								provenance: { kind: "email", senderEmail: email.senderEmail },
-								readlist: DEFAULT_READLIST_SLUG,
-								saveAttemptId: newSaveAttemptId(),
-							});
+							if (!tracksImport) await submitToAll({ url, emailOutput: undefined });
 							if (routing.kind === "inbox" && !firstInboxNoticePublished) {
 								firstInboxNoticePublished = true;
 								await publishFirstInboxEmailNotice({
@@ -463,6 +492,33 @@ export function initExtractEmailLinksHandler(deps: {
 						ordinal,
 						url,
 					});
+				}
+
+				let selectedOutputs: EmailOutputSelection | undefined;
+				if (tracksImport) {
+					selectedOutputs = frozenSelection ?? await selectOutputs({
+						userId,
+						receivedAtMessageId,
+						selection: {
+							outputs: [
+								...(fanOut.issue ? [ISSUE_OUTPUT_KEY] : []),
+								...triagedLinks.map((link) => linkOutputKey(link.ordinal)),
+							],
+							truncated,
+							selectedAt: now().toISOString(),
+						},
+					});
+					for (const outputKey of selectedOutputs.outputs) {
+						const emailOutput = { receivedAtMessageId, outputKey };
+						const ordinal = outputLinkOrdinal(outputKey);
+						if (ordinal === undefined) {
+							await saveIssue(emailOutput);
+							continue;
+						}
+						const link = await getLink({ userId, receivedAtMessageId, ordinal });
+						assert(link, "a selected link's row is written before its selection");
+						await submitToAll({ url: link.url, emailOutput });
+					}
 				}
 
 				if (held > 0) {
@@ -538,6 +594,13 @@ export function initExtractEmailLinksHandler(deps: {
 					},
 				});
 				if (routing.kind === "gmail") await publishReadlistSelections();
+				if (selectedOutputs !== undefined) {
+					await publishEmailOutputsSelected({
+						userId,
+						receivedAtMessageId,
+						outputCount: selectedOutputs.outputs.length,
+					});
+				}
 
 				if (truncated) {
 					await alertTruncated({

@@ -59,7 +59,7 @@ type GmailOAuthCallbackInspectedFields = WithoutCorrelation<
 
 interface GmailOAuthStatePayload {
 	createdAt: number;
-	intent: { kind: "connect" | "import" };
+	intent: { kind: "connect" | "import" | "label" };
 }
 
 type GmailOAuthStateReading =
@@ -68,7 +68,7 @@ type GmailOAuthStateReading =
 	| { kind: "invalid-signature"; fingerprint: string }
 	| { kind: "malformed-json"; fingerprint: string }
 	| { kind: "schema-rejected"; fingerprint: string }
-	| { kind: "valid"; fingerprint: string; createdAtMs: number; ageMs: number; intentKind: "connect" | "import" };
+	| { kind: "valid"; fingerprint: string; createdAtMs: number; ageMs: number; intentKind: "connect" | "import" | "label" };
 
 type ReadGmailOAuthState = (input: { value: unknown; checkedAtMs: number }) => GmailOAuthStateReading;
 

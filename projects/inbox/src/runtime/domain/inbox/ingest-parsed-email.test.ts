@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { GmailAccountEmailSchema, type GmailMessageOrigin, GmailMessageIdSchema } from "@packages/domain/gmail";
 import {
 	InboxAddressSchema,
 	MessageIdSchema,
@@ -8,7 +9,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { EmailReceivedEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { initIngestParsedEmail } from "./ingest-parsed-email";
 import type { StoreEmailBody } from "./store-email-body";
 
@@ -16,6 +17,12 @@ const READER = UserIdSchema.parse("00000000000000000000000000000001");
 const READLIST_ADDRESS = InboxAddressSchema.parse("gmail-abc123@read.place");
 const RECEIVED_AT = "2026-09-20T07:30:00.000Z";
 const ROW_ID = `${RECEIVED_AT}#<issue-42@tldr.tech>`;
+
+const ORIGIN: GmailMessageOrigin = {
+	kind: "history",
+	accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
+	gmailMessageId: GmailMessageIdSchema.parse("18c2f0a1b2c3d4e5"),
+};
 
 const tldrIssue: ParsedEmail = {
 	from: "dan@tldr.tech",
@@ -32,11 +39,13 @@ const tldrIssue: ParsedEmail = {
 
 function makeIngest(storeBody: StoreEmailBody) {
 	const emails = initInMemoryInboxEmail();
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail });
 	const published: { event: unknown; detail: unknown }[] = [];
 	const ingest = initIngestParsedEmail({
 		storeBody,
 		putEmail: emails.putEmail,
 		getEmail: emails.getEmail,
+		addGmailOrigins: completion.addGmailOrigins,
 		publishEvent: (async (event, detail) => {
 			published.push({ event, detail });
 		}) as PublishEvent,
@@ -53,8 +62,9 @@ function makeIngest(storeBody: StoreEmailBody) {
 			downloadedImages: [],
 			origin: "gmail-import",
 			routing: { kind: "inbox" },
+			gmailOrigin: undefined,
 		});
-	return { emails, published, ingestIssue, ingest };
+	return { emails, completion, published, ingestIssue, ingest };
 }
 
 describe("initIngestParsedEmail", () => {
@@ -128,7 +138,7 @@ describe("initIngestParsedEmail", () => {
 });
 
 it("reuses the first accepted Gmail destination and delivery snapshot after a mapping changes", async () => {
-	const { published, ingest } = makeIngest(
+	const { completion, published, ingest } = makeIngest(
 		async () => "content/issue-42/content.html",
 	);
 	const original = [
@@ -150,6 +160,7 @@ it("reuses the first accepted Gmail destination and delivery snapshot after a ma
 				destinationAddresses: [READLIST_ADDRESS, secondary],
 				deliveryMode,
 			},
+			gmailOrigin: ORIGIN,
 		});
 	await deliver(original[1], "issue");
 	await deliver("other-112233@read.place", "links");
@@ -172,4 +183,5 @@ it("reuses the first accepted Gmail destination and delivery snapshot after a ma
 			},
 		],
 	);
+	assert.deepEqual((await completion.findCompletion({ userId: READER, receivedAtMessageId: ROW_ID }))?.origins, [ORIGIN]);
 });

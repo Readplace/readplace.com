@@ -8,10 +8,10 @@ import type {
 	GmailHistoryImportState,
 	GmailMapping,
 } from "@packages/domain/gmail";
-import { hasGmailScope } from "@packages/domain/gmail";
+import { hasAnyGmailScope } from "@packages/domain/gmail";
 import type { InboxAddress } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import { GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MESSAGE_READ_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 
 export type StartGmailImportOutcome =
@@ -43,7 +43,7 @@ export function importFollowsMapping(input: { job: GmailHistoryImportJob; mappin
 }
 
 export interface GmailImportActions {
-	readonlyGranted: (userId: UserId) => Promise<boolean>;
+	readGranted: (userId: UserId) => Promise<boolean>;
 	resume: (input: { userId: UserId; jobId: GmailHistoryImportJobId }) => Promise<boolean>;
 	start: (input: {
 		userId: UserId;
@@ -60,10 +60,10 @@ export function initGmailImportActions(deps: {
 	const { gmail } = deps;
 	const imports = gmail.gmailHistoryImportStore;
 
-	const readonlyGranted = async (userId: UserId): Promise<boolean> =>
-		hasGmailScope({
+	const readGranted = async (userId: UserId): Promise<boolean> =>
+		hasAnyGmailScope({
 			grantedScope: await gmail.gmailCredentialsStore.findGrantedScopeByUserId(userId),
-			scope: GMAIL_READONLY_SCOPE,
+			scopes: GMAIL_MESSAGE_READ_SCOPES,
 		});
 
 	const resume: GmailImportActions["resume"] = async ({ userId, jobId }) => {
@@ -113,10 +113,10 @@ export function initGmailImportActions(deps: {
 			completedAt: undefined,
 		};
 		await imports.createJob(job);
-		if (!(await readonlyGranted(userId))) return { ok: true, notice: "import_permission_needed" };
+		if (!(await readGranted(userId))) return { ok: true, notice: "import_permission_needed" };
 		await resume({ userId, jobId: job.jobId });
 		return { ok: true, notice: "import_started" };
 	};
 
-	return { readonlyGranted, resume, start };
+	return { readGranted, resume, start };
 }

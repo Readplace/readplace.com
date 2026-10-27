@@ -26,3 +26,7 @@ export type RevokeGmailGrant = (input: {
 }) => Promise<RevokeGmailGrantResult>;
 
 export const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+
+export const GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+
+export const GMAIL_MESSAGE_READ_SCOPES = [GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE] as const;
