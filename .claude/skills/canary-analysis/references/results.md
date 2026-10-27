@@ -23,3 +23,11 @@ Snapshot #1258, 87 unresolved articles. At the operator's request, [fb282b7](htt
 | Category | Fix retained | Commit(s) | Verified outcome | Recovery share |
 |---|---|---|---|---|
 | Meta-refresh redirect stub | Yes | [24affdd](https://github.com/Readplace/readplace.com/commit/24affdd180548f9d8260706bc5130f14e5fe7afb), not reverted | The origin answered 200 with a textless page whose only way on was a meta refresh, so each save stored an empty page and failed. The crawler now follows one such refresh. Production recrawls on 27 October 2026 brought all three articles to ready on the saved link, with the target's full text: word counts matched the expected parses exactly and the reader showed the body. Two summaries became ready; the third is skipped as too short, like the article's other ready copy. One publisher blocks direct fetches, so that article was compared with production's earlier copy, not the publisher's page. Verification also found two reader gaps that predate the fix: inline videos vanish without a placeholder, and in-page links are dead. Revisit on a stub that needs more than one refresh or a script redirect. | 3 of 3 (100%) |
+
+## 27 October 2026
+
+Snapshot #1271 contains 88 unresolved articles; a local scan with the current source rules found one additional failure, for 89 unresolved articles. This run has verified no recoveries, so shares are `n/a`.
+
+| Category | Fix retained | Commit(s) | Verified outcome | Recovery share |
+|---|---|---|---|---|
+| GitHub PDF viewer | Pending verification | Uncommitted implementation | Production selected a loading shell instead of the document. The viewer's declared download returned a valid PDF locally. A scoped resolver and regression tests pass the full repository check. Deployment and full-document production verification remain pending. Local source access proves no production recovery. | n/a |

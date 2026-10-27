@@ -50,3 +50,4 @@ export { initFetchRedirectHop } from "./fetch-redirect-hop";
 export type { FetchRedirectHop } from "./fetch-redirect-hop";
 export { initStackOverflowSiteRules } from "./stack-overflow-site-rules";
 export { initHnSearchSiteRules } from "./hn-search-site-rules";
+export { initGitHubPdfSiteRules } from "./github-pdf-site-rules";

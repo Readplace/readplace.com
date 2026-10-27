@@ -1,3 +1,8 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { initCrawlArticle, type CrawlArticleResult, type CrawlFetch, type ExtractPdf } from "@packages/crawl-article";
+import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { initArticleSiteRules } from "@packages/article-parser";
 import { noopLogger } from "@packages/hutch-logger";
 import { ComprehensiveCrawlCommand } from "@packages/hutch-infra-components";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "./simple-crawl-unsupported-policy-handler";
@@ -201,5 +206,54 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(publishEvent).not.toHaveBeenCalled();
+	});
+});
+
+
+describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
+	it.each([false, true])("extracts the declared PDF after simple deferral (recrawl=%s)", async (recrawl) => {
+		const url = "https://github.com/sample/docs/blob/release%2Fnext/guides/paper.pdf?plain=1#page=2";
+		const rawUrl = "https://github.com/sample/docs/raw/refs/heads/release/next/guides/paper.pdf";
+		const pdf = Buffer.from("%PDF-1.4\nSynthetic PDF bytes for the injected extractor.");
+		const html = "<html><head><title>Research handbook</title></head><body><p>The complete document body.</p></body></html>";
+		const requests: string[] = [];
+		const crawlFetch: CrawlFetch = async (requestedUrl) => {
+			requests.push(requestedUrl);
+			const response = requestedUrl === rawUrl
+				? new Response(pdf, { headers: { "content-type": "application/pdf" } })
+				: new Response(`<html><body>Loading document…<script type="application/json" data-target="react-app.embeddedData">${JSON.stringify({
+					payload: { codeViewBlobLayoutRoute: {
+						path: "guides/paper.pdf",
+						refInfo: { name: "release/next", currentOid: "a".repeat(40), refType: "branch" },
+						blob: { rawBlobUrl: rawUrl },
+					} },
+				})}</script></body></html>`, { headers: { "content-type": "text/html" } });
+			Object.defineProperty(response, "url", { value: requestedUrl });
+			return response;
+		};
+		const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
+		const shared = { crawlFetch, siteRules, logError: () => {}, logInfo: () => {} };
+		const simple = initCrawlArticle(shared);
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "Research handbook", html }));
+		const comprehensive = initCrawlArticle({ ...shared, extractPdf });
+		const extracted: CrawlArticleResult[] = [];
+		const publishEvent: PublishEvent = async (_event, detail) => {
+			const command = ComprehensiveCrawlCommand.detailSchema.parse(detail);
+			extracted.push(await comprehensive({ url: command.url }));
+		};
+		const dispatch = jest.fn(publishEvent);
+		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
+
+		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		await policy(createSqsEvent({ url, recrawl }), buildLambdaContext(), () => {});
+
+		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, recrawl, saveAttemptId: "attempt-1" }));
+		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: rawUrl, onProgress: undefined });
+		const [result] = extracted;
+		assert(result?.status === "fetched");
+		expect(result.html).toBe(html);
+		expect(result.finalUrl).toBe(rawUrl);
+		expect(result.bodyHash).toBe(createHash("sha256").update(pdf).digest("hex"));
+		expect(requests).toEqual([url, rawUrl, url, rawUrl]);
 	});
 });
