@@ -54,11 +54,13 @@ function toUpdate(row: z.infer<typeof UpdateRow>): GmailMessageUpdate {
 	return { ...base, status: "pending" };
 }
 
-async function unlessConditionFails(write: () => Promise<unknown>): Promise<void> {
+async function unlessConditionFails(write: () => Promise<unknown>): Promise<"written" | "condition-failed"> {
 	try {
 		await write();
+		return "written";
 	} catch (error) {
 		if (!(error instanceof ConditionalCheckFailedException)) throw error;
+		return "condition-failed";
 	}
 }
 
@@ -102,15 +104,16 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 			});
 		},
 		markFailed: async ({ userId, origin, reason, now }) => {
-			await unlessConditionFails(() =>
+			const written = await unlessConditionFails(() =>
 				table.update({
 					Key: updateKey({ userId, origin }),
 					UpdateExpression: "SET #status = :failed, failedAt = :now, failureReason = :reason",
-					ConditionExpression: "attribute_exists(recordKey) AND #status <> :completed",
+					ConditionExpression: "attribute_exists(recordKey) AND #status = :pending",
 					ExpressionAttributeNames: { "#status": "status" },
-					ExpressionAttributeValues: { ":failed": "failed", ":now": now.toISOString(), ":reason": reason, ":completed": "completed" },
+					ExpressionAttributeValues: { ":failed": "failed", ":now": now.toISOString(), ":reason": reason, ":pending": "pending" },
 				}),
 			);
+			return written === "written" ? "failed" : "unchanged";
 		},
 		listPendingByAccount: async ({ userId, accountEmail }) => {
 			const pending: GmailMessageUpdate[] = [];

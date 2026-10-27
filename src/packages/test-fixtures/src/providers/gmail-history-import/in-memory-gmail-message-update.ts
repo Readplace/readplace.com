@@ -33,7 +33,7 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 		},
 		markFailed: async ({ userId, origin, reason, now }) => {
 			const current = records.get(keyOf({ userId, origin }));
-			if (current === undefined || current.status === "completed") return;
+			if (current?.status !== "pending") return "unchanged";
 			records.set(keyOf({ userId, origin }), {
 				status: "failed",
 				userId,
@@ -43,6 +43,7 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 				failedAt: now.toISOString(),
 				failureReason: reason,
 			});
+			return "failed";
 		},
 		listPendingByAccount: async ({ userId, accountEmail }) =>
 			[...records.values()].filter(

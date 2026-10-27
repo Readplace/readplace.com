@@ -77,18 +77,19 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 		assert.equal(sent[0].input.ExpressionAttributeValues?.[":completed"], "completed");
 	});
 
-	it("marks a record failed unless it already completed", async () => {
+	it("marks only a pending record failed and reports the transition", async () => {
 		const { updates, sent } = store();
-		await updates.markFailed({ userId: USER, origin: ORIGIN, reason: "dead-lettered", now: NOW });
-		assert.match(String(sent[0].input.ConditionExpression), /#status <> :completed/);
+		assert.equal(await updates.markFailed({ userId: USER, origin: ORIGIN, reason: "dead-lettered", now: NOW }), "failed");
+		assert.match(String(sent[0].input.ConditionExpression), /#status = :pending/);
+		assert.equal(sent[0].input.ExpressionAttributeValues?.[":pending"], "pending");
 		assert.equal(sent[0].input.ExpressionAttributeValues?.[":reason"], "dead-lettered");
 	});
 
-	it("leaves a completed record untouched when a later failure arrives", async () => {
+	it("reports a settled record as unchanged when a later failure arrives", async () => {
 		const { updates } = store(() => {
 			throw conditionFailed();
 		});
-		await updates.markFailed({ userId: USER, origin: ORIGIN, reason: "dead-lettered", now: NOW });
+		assert.equal(await updates.markFailed({ userId: USER, origin: ORIGIN, reason: "dead-lettered", now: NOW }), "unchanged");
 	});
 
 	it("lists one account's pending updates with consistent, paginated key queries", async () => {

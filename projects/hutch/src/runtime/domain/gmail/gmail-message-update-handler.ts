@@ -102,7 +102,11 @@ export function initGmailMessageUpdateDlqHandler(deps: {
 					deps.logger.error("[gmail-message-update-dlq] permission resume dead-lettered", { userId: envelope.userId });
 					continue;
 				}
-				await deps.markFailed({ userId: envelope.userId, origin: envelope.origin, reason: "dead-lettered", now: deps.now() });
+				const marked = await deps.markFailed({ userId: envelope.userId, origin: envelope.origin, reason: "dead-lettered", now: deps.now() });
+				if (marked === "unchanged") {
+					deps.logger.info("[gmail-message-update-dlq] update already settled", { userId: envelope.userId, receivedAtMessageId: envelope.receivedAtMessageId });
+					continue;
+				}
 				deps.metricLog.error({
 					level: "ERROR",
 					message: "[gmail-message-update-dlq] Gmail original not updated",

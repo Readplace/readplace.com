@@ -15,7 +15,7 @@ describe("initInMemoryGmailMessageUpdate", () => {
 		await updates.recordPending({ userId, receivedAtMessageId: "r", origin, now });
 		await updates.markCompleted({ userId, origin, now });
 		assert.equal((await updates.recordPending({ userId, receivedAtMessageId: "r", origin, now })).status, "completed");
-		await updates.markFailed({ userId, origin, reason: "dead-lettered", now });
+		assert.equal(await updates.markFailed({ userId, origin, reason: "dead-lettered", now }), "unchanged");
 		assert.equal((await updates.find({ userId, origin }))?.status, "completed");
 	});
 
@@ -23,8 +23,11 @@ describe("initInMemoryGmailMessageUpdate", () => {
 		const updates = initInMemoryGmailMessageUpdate();
 		await updates.recordPending({ userId, receivedAtMessageId: "r", origin, now });
 		await updates.recordPending({ userId, receivedAtMessageId: "r2", origin: other, now });
-		await updates.markFailed({ userId, origin, reason: "ambiguous-original", now });
-		assert.equal((await updates.find({ userId, origin }))?.status, "failed");
+		assert.equal(await updates.markFailed({ userId, origin, reason: "ambiguous-original", now }), "failed");
+		assert.equal(await updates.markFailed({ userId, origin, reason: "dead-lettered", now }), "unchanged");
+		const failed = await updates.find({ userId, origin });
+		assert(failed?.status === "failed");
+		assert.equal(failed.failureReason, "ambiguous-original");
 		assert.deepEqual((await updates.listPendingByAccount({ userId, accountEmail: GmailAccountEmailSchema.parse("A@gmail.com") })).map((u) => u.receivedAtMessageId), ["r2"]);
 		assert.equal(updates.all().length, 2);
 	});
@@ -32,7 +35,7 @@ describe("initInMemoryGmailMessageUpdate", () => {
 	it("ignores completion and failure of an unrecorded update", async () => {
 		const updates = initInMemoryGmailMessageUpdate();
 		await updates.markCompleted({ userId, origin, now });
-		await updates.markFailed({ userId, origin, reason: "dead-lettered", now });
+		assert.equal(await updates.markFailed({ userId, origin, reason: "dead-lettered", now }), "unchanged");
 		assert.equal(await updates.find({ userId, origin }), undefined);
 	});
 });

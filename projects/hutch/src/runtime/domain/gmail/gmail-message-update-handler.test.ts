@@ -147,6 +147,19 @@ describe("initGmailMessageUpdateDlqHandler", () => {
 		await run(h.handler, [markBody]);
 
 		assert.equal((await h.updates.find({ userId: USER, origin: ORIGIN }))?.status, "completed");
+		assert.deepEqual(h.published, []);
+		assert.deepEqual(h.metricLines, []);
+	});
+
+	it("reports an update that already failed only once", async () => {
+		const h = dlq();
+		await h.updates.recordPending({ userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, now: NOW });
+
+		await run(h.handler, [markBody]);
+		await run(h.handler, [markBody]);
+
+		assert.equal(h.published.length, 1);
+		assert.equal(h.metricLines.length, 1);
 	});
 
 	it("acknowledges a dead-lettered permission resume, leaving its updates pending", async () => {

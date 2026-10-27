@@ -72,6 +72,6 @@ export interface GmailMessageUpdateStore {
 		origin: GmailMessageOrigin;
 		reason: GmailMessageUpdateFailureReason;
 		now: Date;
-	}) => Promise<void>;
+	}) => Promise<"failed" | "unchanged">;
 	listPendingByAccount: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<GmailMessageUpdate[]>;
 }
