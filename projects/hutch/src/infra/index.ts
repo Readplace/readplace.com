@@ -1811,7 +1811,7 @@ eventBus.subscribeAll(
 	{ name: "hutch-gmail-message-updates" },
 );
 
-new HutchDLQEventHandler("gmail-history-import-dlq", {
+const gmailHistoryImportDlqHandler = new HutchDLQEventHandler("gmail-history-import-dlq", {
 	deadLetterQueue: gmailHistoryImportFailuresDlq,
 	tableArn: storage.gmailHistoryImportsTable.arn,
 	tableName: storage.gmailHistoryImportsTable.name,
@@ -1831,18 +1831,23 @@ new aws.sns.TopicSubscription("gmail-email-update-failed-alert-email", {
 	endpoint: alertEmail,
 });
 
-new aws.cloudwatch.LogMetricFilter("gmail-email-update-failed-filter", {
-	name: "gmail-email-update-failed",
-	logGroupName: gmailMessageUpdatesLambda.logGroupName,
-	pattern: `{ $.event = "${GMAIL_EMAIL_UPDATE_FAILED_EVENT}" }`,
-	metricTransformation: {
-		name: GMAIL_EMAIL_UPDATE_FAILED_METRIC,
-		namespace: GMAIL_METRIC_NAMESPACE,
-		value: "1",
-		defaultValue: "0",
-		unit: "Count",
-	},
-});
+for (const { resourceName, filterName, logGroupName } of [
+	{ resourceName: "gmail-email-update-failed-filter", filterName: "gmail-email-update-failed", logGroupName: gmailMessageUpdatesLambda.logGroupName },
+	{ resourceName: "gmail-email-update-dead-lettered-filter", filterName: "gmail-email-update-dead-lettered", logGroupName: gmailHistoryImportDlqHandler.logGroupName },
+]) {
+	new aws.cloudwatch.LogMetricFilter(resourceName, {
+		name: filterName,
+		logGroupName,
+		pattern: `{ $.event = "${GMAIL_EMAIL_UPDATE_FAILED_EVENT}" }`,
+		metricTransformation: {
+			name: GMAIL_EMAIL_UPDATE_FAILED_METRIC,
+			namespace: GMAIL_METRIC_NAMESPACE,
+			value: "1",
+			defaultValue: "0",
+			unit: "Count",
+		},
+	});
+}
 
 new aws.cloudwatch.MetricAlarm("gmail-email-update-failed-alarm", {
 	name: "gmail-email-update-failed-alarm",

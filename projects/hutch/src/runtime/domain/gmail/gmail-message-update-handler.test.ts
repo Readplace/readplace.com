@@ -77,6 +77,14 @@ describe("initGmailMessageUpdateHandler", () => {
 		}]);
 	});
 
+	it("publishes nothing and logs no failure metric for an update that already failed", async () => {
+		const h = handlerWith(async () => ({ kind: "already-failed", reason: "original-not-found" }));
+
+		assert.deepEqual(await run(h.handler, [markBody]), { batchItemFailures: [] });
+		assert.deepEqual(h.published, []);
+		assert.deepEqual(h.metricLines, []);
+	});
+
 	it("fails the record on a transient error so SQS retries it", async () => {
 		const h = handlerWith(async () => {
 			throw new Error("Gmail unavailable (503)");

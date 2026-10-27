@@ -73,7 +73,7 @@ export function initGmailMessageUpdateHandler(deps: {
 						originKind: envelope.origin.kind,
 						userId: envelope.userId,
 					});
-				} else {
+				} else if (outcome.kind !== "already-failed") {
 					await publishEvent(GmailEmailMarkedImportedEvent, { ...fact, outcome: outcome.kind });
 				}
 				logger.info("[gmail-message-update] processed", { ...fact, outcome: outcome.kind });

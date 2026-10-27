@@ -18,7 +18,7 @@ const UNREAD_LABEL = "UNREAD";
 export type MarkGmailEmailImportedOutcome =
 	| { kind: "marked" | "already-marked" }
 	| { kind: "deferred"; reason: "permission-required" | "account-unavailable" }
-	| { kind: "failed"; reason: GmailMessageUpdateFailureReason };
+	| { kind: "failed" | "already-failed"; reason: GmailMessageUpdateFailureReason };
 
 export type MarkGmailEmailImported = (input: {
 	userId: UserId;
@@ -87,7 +87,7 @@ export function initMarkGmailEmailImported(deps: {
 	return async ({ userId, receivedAtMessageId, origin }) => {
 		const recorded = await updates.recordPending({ userId, receivedAtMessageId, origin, now: deps.now() });
 		if (recorded.status === "completed") return { kind: "already-marked" };
-		if (recorded.status === "failed") return { kind: "failed", reason: recorded.failureReason };
+		if (recorded.status === "failed") return { kind: "already-failed", reason: recorded.failureReason };
 
 		const connection = await deps.connections.findConnectionByUserId(userId);
 		if (

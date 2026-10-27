@@ -223,12 +223,14 @@ describe("initMarkGmailEmailImported", () => {
 		assert.deepEqual(h.fake.calls, []);
 	});
 
-	it("answers a failed update as failed without touching Gmail again", async () => {
+	it("answers a failed update as already failed without touching Gmail again", async () => {
 		const h = await harness();
 		h.fake.messages.clear();
 		await h.mark();
+		const callsAfterFailure = h.fake.calls.length;
 
-		assert.deepEqual(await h.mark(), { kind: "failed", reason: "original-not-found" });
+		assert.deepEqual(await h.mark(), { kind: "already-failed", reason: "original-not-found" });
+		assert.equal(h.fake.calls.length, callsAfterFailure);
 	});
 
 	it("labels a forwarded email's original when exactly one message matches its Message-ID and sender", async () => {
