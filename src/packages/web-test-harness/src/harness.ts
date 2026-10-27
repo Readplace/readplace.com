@@ -45,8 +45,7 @@ export async function buildHarness<Result extends { app: Express }>(
 	return serveOn(await listenOnLoopback(), result);
 }
 
-/** Per-suite factory that registers an `afterEach` to close every harness it
- * creates. Call once at module scope (or describe scope) and use the returned
+/** Call once at module scope (or describe scope) and use the returned
  * function inside `it()` to build a fresh test server — the cleanup is
  * transparent so tests don't have to thread `close()` through finally blocks
  * or hoist fixture creation into `beforeEach` just for lifecycle reasons. */
