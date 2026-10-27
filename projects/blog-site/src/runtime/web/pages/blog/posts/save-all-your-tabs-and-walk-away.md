@@ -25,7 +25,7 @@ Press "Save 29 tabs" and the first paint reads "Saving 26 tabs…": the 3 tabs i
 
 The first stage copies each page out of its open tab, so the saved copy is the page as the tab shows it. "Captured 12 of 26" climbs as those copies land. Then the copies go to Readplace in batches, and the line switches to the sending side: "Sent 21 of 26 · Sending 5".
 
-The run ends on a tally instead of a blank. "Saved 26 · Skipped 3", with Failed and Retrying segments only when there is something to put in them. Under the tally sit the reasons, in the popup's own words: "Only http and https URLs can be saved" for the settings tab that rode along, "Readplace's own pages aren't saved", and "Already open in another tab" for the second copy of one address, which saves once.
+The run ends on a tally instead of a blank. "Saved 26 · Skipped 3", with extra segments such as Failed or Retrying only when there is something to put in them. Under the tally sit the reasons, in the popup's own words: "Only http and https URLs can be saved" for the settings tab that rode along, "Readplace's own pages aren't saved", and "Already open in another tab" for the second copy of one address, which saves once.
 
 A page too large to capture in full is saved as a link rather than dropped, and the tally names it.
 
@@ -33,7 +33,7 @@ A page too large to capture in full is saved as a link rather than dropped, and 
 
 A toolbar popup closes on the first click outside it. That is how browsers work, and it made 13 seconds of saving a strange thing to put behind one: switch tabs to keep working and the only view of the save was gone.
 
-The run doesn't live in the popup anymore. It lives with the extension's background worker, 1 run per window, written to session storage step by step, so a worker the browser stops mid-save picks the run back up on return. The popup is a window onto it.
+The run doesn't live in the popup anymore. It lives with the extension's background worker, 1 run per window, written to session storage step by step. The popup is a window onto it.
 
 "Continue in background" makes leaving official, and plain closing does the same thing. Either way, 1 notification arrives when the run ends, carrying the tally the popup would have shown.
 
