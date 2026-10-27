@@ -232,7 +232,7 @@ describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
 			return response;
 		};
 		const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
-		const shared = { crawlFetch, siteRules, logError: () => {}, logInfo: () => {} };
+		const shared = { crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
 		const simple = initCrawlArticle(shared);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "Research handbook", html }));
 		const comprehensive = initCrawlArticle({ ...shared, extractPdf });

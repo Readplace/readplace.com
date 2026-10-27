@@ -298,7 +298,13 @@ describe("SSRF guard — meta refresh hop", () => {
 			fetchH2,
 			fetchCurl,
 		});
-		const crawlArticle = initCrawlArticle({ crawlFetch, siteRules: [], logError, logInfo: () => {} });
+		const crawlArticle = initCrawlArticle({
+			crawlFetch,
+			siteRules: [],
+			logError,
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
 
 		try {
 			const result = await crawlArticle({ url: `${server.origin}/old-path` });
