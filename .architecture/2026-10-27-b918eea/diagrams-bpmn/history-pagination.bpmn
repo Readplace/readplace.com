@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_history_pagination" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_history_pagination" name="history-pagination" isExecutable="false">
+    <bpmn:serviceTask id="n_PAGE" name="gmail-history-import page">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_LIST" name="messages.list from:sender after/before no is:unread">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_GET" name="messages.get raw + labelIds">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_SPAM" name="SPAM / TRASH?">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:serviceTask id="n_SKIP1" name="skip: unlisted-label">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="n_UNREAD" name="UNREAD label?">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="n_SKIP2" name="skip: already-read">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:endEvent id="n_FETCHED" name="GmailHistoryImportMessageFetched">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_PAGE" targetRef="n_LIST" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_LIST" targetRef="n_GET" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_GET" targetRef="n_SPAM" />
+    <bpmn:sequenceFlow id="f_3" name="yes" sourceRef="n_SPAM" targetRef="n_SKIP1" />
+    <bpmn:sequenceFlow id="f_4" name="no" sourceRef="n_SPAM" targetRef="n_UNREAD" />
+    <bpmn:sequenceFlow id="f_5" name="no" sourceRef="n_UNREAD" targetRef="n_SKIP2" />
+    <bpmn:sequenceFlow id="f_6" name="yes" sourceRef="n_UNREAD" targetRef="n_FETCHED" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_history_pagination">
+    <bpmndi:BPMNPlane id="Plane_history_pagination" bpmnElement="Process_history_pagination">
+      <bpmndi:BPMNShape id="n_PAGE_di" bpmnElement="n_PAGE">
+        <dc:Bounds x="28" y="88.76" width="196.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LIST_di" bpmnElement="n_LIST">
+        <dc:Bounds x="282.25" y="78.76" width="193" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GET_di" bpmnElement="n_GET">
+        <dc:Bounds x="533.25" y="86.76" width="152.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SPAM_di" bpmnElement="n_SPAM">
+        <dc:Bounds x="744" y="88.76" width="128" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SKIP1_di" bpmnElement="n_SKIP1">
+        <dc:Bounds x="930" y="28" width="146.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UNREAD_di" bpmnElement="n_UNREAD">
+        <dc:Bounds x="969.61" y="112" width="67.53" height="67.53" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SKIP2_di" bpmnElement="n_SKIP2">
+        <dc:Bounds x="1136.3" y="34.76" width="141" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FETCHED_di" bpmnElement="n_FETCHED">
+        <dc:Bounds x="1186.8" y="118.76" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="224.25" y="112.76" />
+        <di:waypoint x="282.25" y="112.76" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="475.25" y="112.76" />
+        <di:waypoint x="533.25" y="112.76" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="686" y="112.76" />
+        <di:waypoint x="744" y="112.76" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="872" y="112.76" />
+        <di:waypoint x="901" y="112.76" />
+        <di:waypoint x="901" y="52" />
+        <di:waypoint x="930" y="52" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="872" y="112.76" />
+        <di:waypoint x="920.81" y="112.76" />
+        <di:waypoint x="920.81" y="145.76" />
+        <di:waypoint x="969.61" y="145.76" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="1037.14" y="145.76" />
+        <di:waypoint x="1086.72" y="145.76" />
+        <di:waypoint x="1086.72" y="58.76" />
+        <di:waypoint x="1136.3" y="58.76" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="1037.14" y="145.76" />
+        <di:waypoint x="1111.97" y="145.76" />
+        <di:waypoint x="1111.97" y="138.76" />
+        <di:waypoint x="1186.8" y="138.76" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
