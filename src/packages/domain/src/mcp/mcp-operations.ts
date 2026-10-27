@@ -127,10 +127,10 @@ export const MCP_OPERATIONS = [
 		effect: "update",
 	},
 	{
-		name: "delete_article",
-		title: "Delete a saved article (in the app)",
+		name: "get_article_deletion_steps",
+		title: "Get the steps to delete a saved article in the Readplace app",
 		description:
-			"Deleting a saved article is done by the user in the Readplace app, not by the assistant. Calling this does NOT delete anything — it returns instructions to open the app.",
+			"Return the steps for the user to delete a saved article themselves in the Readplace app, with a link to their readlist. Use this when the user asks you to delete or remove a saved article. Calling it changes nothing: deleting is done by the user in the app, never by the assistant.",
 		summary: "answers with a note pointing the user to the app; deleting stays in Readplace.",
 		effect: "appOnly",
 	},

@@ -42,7 +42,8 @@ export type SummarizeResult =
 		}
 	| { kind: "skipped"; reason: "content-too-short" }
 	| { kind: "declined" }
-	| { kind: "no-text-block" };
+	| { kind: "no-text-block" }
+	| { kind: "unusable-answer" };
 
 export type SummarizeArticle = (params: {
 	url: string;
@@ -98,7 +99,18 @@ export function initLinkSummariser(deps: {
 			return { kind: "no-text-block" };
 		}
 
-		const parsed = SummaryPayload.parse(JSON.parse(textBlock.text));
+		let parsed: z.infer<typeof SummaryPayload>;
+		try {
+			parsed = SummaryPayload.parse(JSON.parse(textBlock.text));
+		} catch (error) {
+			deps.logger.warn("[summarize] model answer is not the JSON shape asked for", {
+				url: params.url,
+				raw: textBlock.text,
+				usage: response.usage,
+				error,
+			});
+			return { kind: "unusable-answer" };
+		}
 		const summary = parsed.summary.trim();
 		if (summary === "Summary not available.") {
 			deps.logger.info("[summarize] model returned the refusal sentinel", {

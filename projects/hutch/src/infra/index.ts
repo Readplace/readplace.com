@@ -43,7 +43,7 @@ import {
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
-import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern } from "../runtime/observability/metric-filters";
+import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern, openAiScanToolsListedPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
@@ -52,6 +52,7 @@ import type { DynamoTables } from "../runtime/providers/dynamodb-tables";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
+import { checkedAnalyticsSalt } from "./analytics-salt";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
 import { HutchSsrCdn } from "./hutch-ssr-cdn";
@@ -93,6 +94,13 @@ const gmailConnectionCapWarnThreshold = config.requireNumber("gmailConnectionCap
 const oauthRefreshRefusedDailyThreshold = config.requireNumber("oauthRefreshRefusedDailyThreshold");
 const gmailFilterRewriteFailedThreshold = config.requireNumber("gmailFilterRewriteFailedThreshold");
 const readlistCapWarnThreshold = config.getNumber("readlistCapWarnThreshold");
+const mcpScanListingWindowHours = config.getNumber("mcpScanListingWindowHours");
+const analyticsSaltGeneration = config.requireNumber("analyticsSaltGeneration");
+const analyticsSalt = checkedAnalyticsSalt({
+	functionName: HutchLambda.handlerFunctionName(LAMBDA_NAMES.hutchHandler),
+	stack: pulumi.getStack(),
+	next: { salt: requireEnv("ANALYTICS_SALT"), generation: analyticsSaltGeneration },
+});
 const rawEmailBucketName = config.require("rawEmailBucketName");
 const newsletterCatalogBucketName = config.require("newsletterCatalogBucketName");
 
@@ -478,7 +486,8 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: analyticsSalt,
+		ANALYTICS_SALT_GENERATION: String(analyticsSaltGeneration),
 		SSR_EDGE_SECRET: ssrEdgeSecret,
 		ADMIN_EMAILS: requireEnv("ADMIN_EMAILS"),
 		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
@@ -785,7 +794,7 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		USER_EXPORT_BUCKET_NAME: userExportBucketName,
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: analyticsSalt,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		APPLE_LOGIN_CLIENT_ID: requireEnv("APPLE_LOGIN_CLIENT_ID"),
 		APPLE_LOGIN_TEAM_ID: requireEnv("APPLE_LOGIN_TEAM_ID"),
@@ -878,7 +887,7 @@ const sendUserDigestLambda = new HutchLambda("send-user-digest", {
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: analyticsSalt,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
 	policies: [
@@ -1262,7 +1271,7 @@ const sendTrialFeedbackEmailLambda = new HutchLambda(
 		memorySize: 256,
 		timeout: 60,
 		environment: {
-			ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+			ANALYTICS_SALT: analyticsSalt,
 			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 			DYNAMODB_USERS_TABLE: storage.usersTable.name,
 			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
@@ -1313,7 +1322,7 @@ const sendFirstInboxEmailNoticeLambda = new HutchLambda("send-first-inbox-email-
 	memorySize: 256,
 	timeout: 60,
 	environment: {
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: analyticsSalt,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
@@ -1475,7 +1484,7 @@ const gmailNewsletterNoticeLambda = new HutchLambda("gmail-newsletter-notice", {
 	memorySize: 256,
 	timeout: 60,
 	environment: {
-		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
+		ANALYTICS_SALT: analyticsSalt,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
@@ -2196,3 +2205,33 @@ new aws.cloudwatch.MetricAlarm("oauth-refresh-monitoring-health", {
 	],
 	alarmActions: [oauthRefreshRefusedTopic.arn], alarmDescription: "OAuth refresh monitoring has not completed an evaluation for five minutes",
 });
+
+if (mcpScanListingWindowHours !== undefined) {
+	new aws.cloudwatch.LogMetricFilter("mcp-tools-listed-by-openai-scan-filter", {
+		name: "mcp-tools-listed-by-openai-scan",
+		logGroupName: lambda.logGroupName,
+		pattern: openAiScanToolsListedPattern(),
+		metricTransformation: {
+			name: METRICS.mcpToolsListedByOpenAiScan.name,
+			namespace: METRICS.mcpToolsListedByOpenAiScan.namespace,
+			value: "1",
+			defaultValue: "0",
+			unit: "Count",
+		},
+	});
+
+	new aws.cloudwatch.MetricAlarm("mcp-scan-listing-alarm", {
+		name: "mcp-scan-listing-alarm",
+		comparisonOperator: "LessThanThreshold",
+		evaluationPeriods: mcpScanListingWindowHours,
+		datapointsToAlarm: mcpScanListingWindowHours,
+		metricName: METRICS.mcpToolsListedByOpenAiScan.name,
+		namespace: METRICS.mcpToolsListedByOpenAiScan.namespace,
+		period: 3600,
+		statistic: "Sum",
+		threshold: 1,
+		treatMissingData: "breaching",
+		alarmDescription: `OpenAI's plugin-directory scan has not listed Readplace's MCP tools for ${mcpScanListingWindowHours} hours, so ChatGPT stops receiving tool changes; see "Reconnecting the scan" in projects/hutch/docs/mcp-scanner-runbook.md`,
+		alarmActions: [oauthRefreshRefusedTopic.arn],
+	});
+}

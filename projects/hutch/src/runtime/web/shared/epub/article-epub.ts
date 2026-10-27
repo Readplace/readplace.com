@@ -6,9 +6,17 @@ import { buildEpub } from "./epub-package";
 
 const MAX_EPUB_IMAGE_BYTES = 3_500_000;
 
+type SkippedImage = { filename: string; bytes: number };
+
+export type ArticleEpubBuild = {
+	bytes: Uint8Array;
+	embeddedBytes: number;
+	skippedOverBudget: readonly SkippedImage[];
+};
+
 export type BuildArticleEpub = (
 	params: ArticleFrontMatter & { articleUrl: string; contentHtml: ArticleBody },
-) => Promise<Uint8Array>;
+) => Promise<ArticleEpubBuild>;
 
 type BuildArticleEpubDependencies = {
 	readArticleImage: ReadArticleImage;
@@ -33,13 +41,14 @@ export function epubFilename(params: { title: string; destinationUrl: ArticleDes
 export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildArticleEpub {
 	const { readArticleImage, logError, now } = deps;
 
-	return async (params): Promise<Uint8Array> => {
+	return async (params): Promise<ArticleEpubBuild> => {
 		const candidates = collectArticleImages({
 			contentHtml: params.contentHtml,
 			articleUrl: params.articleUrl,
 		});
 
 		const images: { filename: string; body: Uint8Array }[] = [];
+		const skippedOverBudget: SkippedImage[] = [];
 		let usedBytes = 0;
 		for (const candidate of candidates) {
 			const bytes = await readArticleImage({ url: params.articleUrl, filename: candidate.filename });
@@ -48,7 +57,7 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 				continue;
 			}
 			if (usedBytes + bytes.length > MAX_EPUB_IMAGE_BYTES) {
-				logError(`[ArticleEpub] image ${candidate.filename} over the embed budget; skipping`);
+				skippedOverBudget.push({ filename: candidate.filename, bytes: bytes.length });
 				continue;
 			}
 			usedBytes += bytes.length;
@@ -69,7 +78,7 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 			embeddedFilenames: images.map((image) => image.filename),
 		});
 
-		return buildEpub({
+		const epubBytes = buildEpub({
 			title: params.title,
 			language: "en",
 			identifier: params.articleUrl,
@@ -77,5 +86,6 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 			xhtml,
 			images,
 		});
+		return { bytes: epubBytes, embeddedBytes: usedBytes, skippedOverBudget };
 	};
 }

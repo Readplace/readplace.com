@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import {
 	markCrawlExhausted,
 	type TransitionAndPersist,
@@ -41,6 +41,7 @@ describe("initRecrawlContentExtractedDlqHandler", () => {
 		const handler = initRecrawlContentExtractedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
+			now: () => new Date(),
 		});
 
 		await handler(
@@ -65,6 +66,7 @@ describe("initRecrawlContentExtractedDlqHandler", () => {
 		const handler = initRecrawlContentExtractedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
+			now: () => new Date(),
 		});
 
 		const result = await handler({ Records: [] }, buildLambdaContext(), () => {});
@@ -79,6 +81,7 @@ describe("initRecrawlContentExtractedDlqHandler", () => {
 		const handler = initRecrawlContentExtractedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
+			now: () => new Date(),
 		});
 
 		const invalidEvent: SQSEvent = { Records: [createRecord({ invalid: true }, 3)] };
@@ -97,6 +100,7 @@ describe("initRecrawlContentExtractedDlqHandler", () => {
 		const handler = initRecrawlContentExtractedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
+			now: () => new Date(),
 		});
 
 		const result = await handler(
@@ -120,6 +124,7 @@ describe("initRecrawlContentExtractedDlqHandler", () => {
 		const handler = initRecrawlContentExtractedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
+			now: () => new Date(),
 		});
 
 		const event: SQSEvent = {
@@ -133,5 +138,58 @@ describe("initRecrawlContentExtractedDlqHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-bad" }] });
 		expect(transitionAndPersist).toHaveBeenCalledTimes(2);
+	});
+
+	it("logs one structured ERROR line with the URL, receive count and messageId after the exhausted transition", async () => {
+		const calls: unknown[][] = [];
+		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
+			calls.push(["transition"]);
+		});
+		const logger: HutchLogger = {
+			...noopLogger,
+			error: (...args) => {
+				calls.push(args);
+			},
+		};
+		const handler = initRecrawlContentExtractedDlqHandler({
+			transitionAndPersist,
+			logger,
+			now: () => new Date("2026-10-15T04:43:01.000Z"),
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});
+
+		expect(calls).toHaveLength(2);
+		expect(calls[0]).toEqual(["transition"]);
+		expect(calls[1]).toHaveLength(1);
+		expect(JSON.parse(String(calls[1]?.[0]))).toEqual({
+			level: "ERROR",
+			timestamp: "2026-10-15T04:43:01.000Z",
+			message: "[RecrawlContentExtractedDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
+			url: "https://example.com/failed",
+		});
+	});
+
+	it("a throwing transition logs only the record-failed line", async () => {
+		const calls: unknown[][] = [];
+		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
+			throw new Error("ddb down");
+		});
+		const logger: HutchLogger = {
+			...noopLogger,
+			error: (...args) => {
+				calls.push(args);
+			},
+		};
+		const handler = initRecrawlContentExtractedDlqHandler({
+			transitionAndPersist,
+			logger,
+			now: () => new Date("2026-10-15T04:43:01.000Z"),
+		});
+
+		const result = await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});
+
+		expect(calls.map((c) => c[0])).toEqual(["[RecrawlContentExtractedDlq] record failed"]);
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

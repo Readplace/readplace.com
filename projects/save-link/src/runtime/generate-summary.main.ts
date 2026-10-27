@@ -10,6 +10,7 @@ import {
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import OpenAI from "openai";
+import { initDeepseekChatCompletion } from "./providers/deepseek/deepseek-chat-completion";
 import { initCreateDeepseekMessage } from "@packages/ai-message";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
@@ -30,14 +31,15 @@ const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
-const deepseekClient = new OpenAI({
+const { createChatCompletion } = initDeepseekChatCompletion({
 	apiKey: deepseekApiKey,
-	baseURL: "https://api.deepseek.com",
-	timeout: GENERATE_SUMMARY_TIMEOUTS.deepseekMs,
+	timeoutMs: GENERATE_SUMMARY_TIMEOUTS.deepseekMs,
+	logger: consoleLogger,
+	newClient: (options) => new OpenAI(options),
 });
 
 const createMessage = initCreateDeepseekMessage({
-	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
+	createChatCompletion,
 });
 
 const { findArticleContent } = initFindArticleContent({

@@ -135,8 +135,7 @@ export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
  * dispatches `ComprehensiveCrawlCommand` so the dedicated PDF-handling
  * Lambda picks up the URL.
  *
- * `userId` is threaded so the downstream selector can emit `LinkSavedEvent`
- * with the original saver. `recrawl=true` tells the comprehensive handler
+ * `recrawl=true` tells the comprehensive handler
  * to emit `RecrawlContentExtractedEvent` instead of
  * `TierContentExtractedEvent`, preserving the recrawl chain's
  * always-regenerate-summary semantics. `refresh=true` tells the comprehensive
@@ -173,8 +172,7 @@ export type SimpleCrawlUnsupportedDetail = z.infer<
  * RecrawlContentExtractedEvent for recrawls, RefreshContentExtractedEvent
  * for stale-check refreshes).
  *
- * `userId` is threaded so the downstream selector can emit `LinkSavedEvent`
- * with the original saver. `recrawl=true` tells the handler to emit
+ * `recrawl=true` tells the handler to emit
  * `RecrawlContentExtractedEvent` instead of `TierContentExtractedEvent`,
  * preserving the recrawl Lambda chain's always-regenerate-summary semantics.
  * `refresh=true` tells the handler to emit `RefreshContentExtractedEvent`,

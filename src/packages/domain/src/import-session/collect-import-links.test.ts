@@ -42,6 +42,38 @@ describe("collectImportLinks", () => {
 		]);
 	});
 
+	it("dedupes tracking-parameter and fragment variants of one article, keeping the first spelling", () => {
+		const result = collectImportLinks([
+			"https://example.com/post?utm_content=card#play",
+			"https://example.com/post?utm_content=button",
+			"https://example.com/post",
+		]);
+
+		expect(result.urls).toEqual(["https://example.com/post?utm_content=card#play"]);
+		expect(result.totalFound).toBe(1);
+	});
+
+	it("keeps URLs whose identifying query parameters differ", () => {
+		const result = collectImportLinks([
+			"https://example.com/item?id=1",
+			"https://example.com/item?id=2",
+		]);
+
+		expect(result.urls).toEqual([
+			"https://example.com/item?id=1",
+			"https://example.com/item?id=2",
+		]);
+	});
+
+	it("dedupes scheme and query-parameter-order variants of one article, keeping the first spelling", () => {
+		const result = collectImportLinks([
+			"http://example.com/a?b=2&a=1",
+			"https://example.com/a?a=1&b=2",
+		]);
+
+		expect(result.urls).toEqual(["http://example.com/a?b=2&a=1"]);
+	});
+
 	it("caps the result at MAX_URLS_PER_IMPORT and reports truncation with the total found", () => {
 		const urls = Array.from(
 			{ length: MAX_URLS_PER_IMPORT + 5 },

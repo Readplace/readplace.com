@@ -8,6 +8,7 @@ describe("initParserDepBundle", () => {
 		const bundle = initParserDepBundle({
 			logError: () => {},
 			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
 			findAdoptedFetchUrl: async () => undefined,
 			proxyUrl: "http://proxy.test:8080",
 		});
@@ -22,6 +23,7 @@ describe("initParserDepBundle", () => {
 		const bundle = initParserDepBundle({
 			logError: () => {},
 			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
 			findAdoptedFetchUrl: async () => undefined,
 			proxyUrl: "http://proxy.test:8080",
 		});
@@ -41,6 +43,7 @@ describe("initComprehensiveParserDepBundle", () => {
 		const bundle = initComprehensiveParserDepBundle({
 			logError: () => {},
 			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
 			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
 			findAdoptedFetchUrl: async () => undefined,
 			proxyUrl: "http://proxy.test:8080",
@@ -56,6 +59,7 @@ describe("initComprehensiveParserDepBundle", () => {
 		const bundle = initComprehensiveParserDepBundle({
 			logError: () => {},
 			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
 			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
 			findAdoptedFetchUrl: async () => undefined,
 			proxyUrl: "http://proxy.test:8080",

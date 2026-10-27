@@ -47,6 +47,7 @@ import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.co
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import { VIEW_STYLES } from "./view.styles";
 import { displayableReadTime } from "@packages/domain/article";
+import { reportArticleHref } from "../../shared/report-article/report-article-href";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 
@@ -170,6 +171,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 		readerNotice: input.readerNotice,
+		reportHref: reportArticleHref({ viewUrl: shareableViewUrl, title: input.metadata.title }),
 	});
 	const crawlVersions = input.crawlVersions ?? [];
 	const railLandmark = railLandmarkFor({

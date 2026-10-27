@@ -65,6 +65,7 @@ import { READER_TOP_SCRIPT } from "./reader-top-script";
 import { READER_STYLES } from "./reader.styles";
 import { displayableReadTime } from "@packages/domain/article";
 import { parseEmailIssueArticleUrl } from "@packages/domain/inbox";
+import { reportArticleHref } from "../../shared/report-article/report-article-href";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 
@@ -249,6 +250,9 @@ export function ReaderPage(
 		extensionInstallUrl: options.extensionInstallUrl,
 		readerNotice: options.readerNotice,
 		issueLinksHtml: renderIssueLinksSection(options.issueLinks),
+		reportHref: isPrivateIssue
+			? undefined
+			: reportArticleHref({ viewUrl: share.shareUrl, title: article.metadata.title }),
 		previouslyReadHtml:
 			pastReadsInput === undefined
 				? undefined

@@ -1,7 +1,7 @@
 import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/hutch-logger";
-import { type Article, type CanonicalCommit, type TransitionAndPersist, promoteTier, recrawlPromoteTier, recrawlTieKeptCanonical, refreshContent } from "@packages/domain/article-aggregate";
+import { type Article, type CanonicalCommit, type TransitionAndPersist, initTransitionAndPersist, requestRecrawl, promoteTier, recrawlPromoteTier, recrawlTieKeptCanonical, refreshContent } from "@packages/domain/article-aggregate";
 import { initSelectContentWork, type SelectContentDependencies } from "./select-content-work";
 import { candidateProvenance } from "./candidate-provenance";
 import { labelForIndex } from "./select-content-prompt";
@@ -61,7 +61,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	};
 	return { work: initSelectContentWork({ ...deps, selectMostCompleteContent }), deps, commit, events };
 }
-const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const, userId: "saving-user" };
+const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const };
 const laterRequest = { ...request, saveAttemptId: SaveAttemptIdSchema.parse("later-attempt") };
 
 describe("initSelectContentWork", () => {
@@ -80,7 +80,7 @@ describe("initSelectContentWork", () => {
 			url: URL, canonicalCommit: commit,
 			input: {
 				tier: "tier-1", metadata: { ...winner.metadata, imageUrl: imageSource.metadata.imageUrl }, estimatedReadTime: 3,
-				contentFetchedAt: NOW, now: NOW, canonicalChanged: true, canonicalContentHash: computeCanonicalContentHash(winner.html), userId: "saving-user",
+				contentFetchedAt: NOW, now: NOW, canonicalChanged: true, canonicalContentHash: computeCanonicalContentHash(winner.html),
 			},
 		});
 		expect(deps.recordCrawlVersion).toHaveBeenCalledWith({ url: URL, crawledAt: extractedAt, authorUserId: "original-author", canonicalCommit: commit });
@@ -131,6 +131,45 @@ describe("initSelectContentWork", () => {
 		});
 		await work(request);
 		expect(deps.recordCrawlVersion).toHaveBeenCalledTimes(1);
+	});
+
+
+	it("recovers the failed saved GitHub PDF row through recrawl selection without creating a raw-URL article", async () => {
+		const blobUrl = "https://github.com/sample/docs/blob/main/guides/paper.pdf";
+		const rawUrl = "https://github.com/sample/docs/raw/refs/heads/main/guides/paper.pdf";
+		const html = "<p>The complete extracted PDF handbook.</p>";
+		const winner: VerifiedTierSource = { tier: "tier-1", html, metadata: { ...candidateProvenance({
+			metadata: { ...metadata, title: "Research handbook" }, html, evaluationHtml: html,
+			attemptId: request.saveAttemptId, originalUrl: blobUrl, sourceUrl: rawUrl, kind: "live", fetchedAt: NOW,
+		}), id: cid("github-pdf") } };
+		const rows = new Map<string, Article>([[blobUrl, article({
+			url: blobUrl, metadata: { ...metadata, wordCount: 0 }, freshness: { contentFetchedAt: NOW },
+			crawl: { kind: "failed", reason: { kind: "parse-error", detail: "No readable viewer content" } },
+			summary: { kind: "skipped", reason: "crawl-failed" },
+		})]]);
+		const bodies = new Map<string, string>();
+		const { transitionAndPersist } = initTransitionAndPersist({
+			store: { load: async (url) => rows.get(url), save: async ({ article: next }) => { rows.set(next.url, next); } },
+			dispatchEffect: async () => {},
+		});
+		await transitionAndPersist(requestRecrawl, { url: blobUrl, input: { now: NOW } });
+		const { work } = setup({
+			loadArticle: async (url) => rows.get(url), resolveOriginalUrl: async (url) => url,
+			listAvailableTierSources: async () => [winner], transitionAndPersist,
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: winner.metadata.id, reason: "Readable PDF" }),
+			writeCanonicalContent: async ({ url, source }) => {
+				bodies.set(url, source.html);
+				return { contentLocation: "s3://bucket/immutable/pdf.html", candidateId: source.metadata.id, tier: source.tier };
+			},
+		});
+
+		await work({ ...request, url: blobUrl, mode: "recrawl", candidates: [{ id: winner.metadata.id, tier: "tier-1" }] });
+
+		expect([...rows.keys()]).toEqual([blobUrl]);
+		expect(rows.get(blobUrl)?.crawl).toEqual({ kind: "ready" });
+		expect(rows.get(blobUrl)?.metadata.title).toBe("Research handbook");
+		expect(rows.get(blobUrl)?.freshness.canonicalContentHash).toBe(computeCanonicalContentHash(html));
+		expect([...bodies]).toEqual([[blobUrl, html]]);
 	});
 
 	it("promotes a recrawl through its recrawl transition and carries the immutable commit", async () => {

@@ -96,6 +96,36 @@ function buildReaderHarness(mountApp: typeof useApp = useApp, prepare: (fixture:
 }
 
 describe("View routes", () => {
+	it("serves the original saved GitHub PDF viewer after adopting its raw document destination", async () => {
+		const blobUrl = "https://github.com/sample/docs/blob/main/guides/paper.pdf";
+		const rawUrl = "https://github.com/sample/docs/raw/refs/heads/main/guides/paper.pdf";
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		await fixture.articleStore.saveArticleGlobally({
+			url: blobUrl,
+			metadata: { title: "Research handbook", siteName: "GitHub", excerpt: "A complete handbook.", wordCount: 500 },
+			estimatedReadTime: calculateReadTime(500),
+			savedAt: new Date(),
+		});
+		await fixture.articleStore.writeContent({ url: blobUrl, content: "<p>The complete handbook body.</p>" });
+		await fixture.articleCrawl.markCrawlReady({ url: blobUrl });
+		await fixture.articleStore.setDisplayUrl({ url: blobUrl, displayUrl: rawUrl });
+		await fixture.articleStore.claimAlias({ aliasUrl: rawUrl, targetOriginalUrl: blobUrl, now: new Date() });
+		const harness = useApp(fixture);
+
+		const response = await request(harness.server).get("/view/github.com/sample/docs/blob/main/guides/paper.pdf");
+
+		expect(response.status).toBe(200);
+		const document = new JSDOM(response.text).window.document;
+		const title = document.querySelector("[data-test-reader-title]");
+		const content = document.querySelector("[data-test-reader-content]");
+		assert(title);
+		assert(content);
+		expect(title.textContent).toBe("Research handbook");
+		expect(content.innerHTML.trim()).toBe("<p>The complete handbook body.</p>");
+		expect(await fixture.articleStore.resolveAlias(rawUrl)).toBe(blobUrl);
+		expect(await fixture.articleStore.findAdoptedFetchUrl(blobUrl)).toBe(rawUrl);
+	});
+
 	describe("GET /view/<canonical-url>", () => {
 		it("renders the article body for an anonymous visitor (200)", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
@@ -144,6 +174,20 @@ describe("View routes", () => {
 			expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
 			expect(response.text).not.toContain("/client-dist/reader-top.client.js");
 			expect(doc.body.className).toBe("page-view page-distraction-free");
+		});
+
+		it("offers an anonymous visitor a report link naming the article's public view", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const report = new JSDOM(response.text).window.document.querySelector('[data-test-action="report-article"]');
+			assert(report, "the public reader must offer a report link");
+			const reportHref = report.getAttribute("href");
+			assert(reportHref, "the report link must carry an href");
+			const href = new URL(reportHref);
+			assert.equal(href.pathname, "readplace+report@readplace.com");
+			expect(href.searchParams.get("body")).toContain(`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`);
 		});
 
 		it("lists the article's sections in the table of contents for a logged-out visitor, each row linking to its heading", async () => {
@@ -1202,6 +1246,33 @@ describe("View routes", () => {
 			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
 			assert(saved, "a bot open must save and crawl the article like any reader");
 		});
+
+		it("skips the crawl cascade for a HEAD request", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).head(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const saved = await harness.articleStore.findArticleByUrl(ARTICLE_URL);
+			assert(!saved, "a HEAD must not save or crawl the article");
+		});
+
+		it("publishes a stale check for a GET of a stored article but not for a HEAD", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: ARTICLE_URL, metadata: { title: "Seeded title", siteName: "example.com", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const headResponse = await request(harness.server).head(`/view/${CANONICAL_PATH}`);
+
+			expect(headResponse.status).toBe(200);
+			expect(staleChecks).toEqual([]);
+
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
+		});
 	});
 
 	describe("Share dialog", () => {
@@ -1943,6 +2014,34 @@ describe("View routes", () => {
 			const hxGet = slot.getAttribute("hx-get");
 			assert(hxGet, "a pending reader slot must poll");
 			expect(hxGet.endsWith("&utm_source=medium")).toBe(true);
+		});
+
+		it("reveals the report link once the reader poll swaps a pending slot for the article body", async () => {
+			let crawlStatus: "pending" | "ready" = "pending";
+			const { fixture, harness } = pollHarness({
+				crawl: async () => ({ status: crawlStatus }),
+			});
+			await seedRow(fixture);
+			const page = new JSDOM(
+				(await request(harness.server).get(`/view/${CANONICAL_PATH}`)).text,
+			).window.document;
+			const report = page.querySelector("[data-test-report-article]");
+			assert(report, "the public reader must render its report slot");
+			const shown = ".article-body__reader-slot--ready + .article-body__report--offered";
+			expect(report.matches(shown)).toBe(false);
+
+			crawlStatus = "ready";
+			await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: "<p>Body copy.</p>" });
+			const poll = new JSDOM(
+				(await request(harness.server).get(`/view/reader?url=${ENCODED}&poll=1`)).text,
+			).window.document;
+			const readySlot = poll.querySelector("#article-body-reader-slot");
+			assert(readySlot, "the reader poll must carry the reader slot");
+			const pendingSlot = page.querySelector("#article-body-reader-slot");
+			assert(pendingSlot, "the pending page must render the reader slot");
+			pendingSlot.replaceWith(page.importNode(readySlot, true));
+
+			expect(report.matches(shown)).toBe(true);
 		});
 	});
 

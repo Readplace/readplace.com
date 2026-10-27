@@ -20,6 +20,7 @@ export const ArticleRelatedRow = z.object({
 	summaryExcerpt: dynamoField(z.string()),
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	purgedAt: dynamoField(z.string()),
+	readerAvailableAt: dynamoField(z.string()),
 });
 
 const LooseArticleRelatedRow = z.looseObject({ url: z.string() });

@@ -1,5 +1,5 @@
 import { SUPPORTED_CLIENTS } from "@packages/supported-clients";
-import { OAUTH_TOKEN_GRANT_TYPES } from "@packages/web-analytics";
+import { MCP_UA_CLIENTS, OAUTH_TOKEN_GRANT_TYPES } from "@packages/web-analytics";
 import type { ProofValidation } from "../oauth-refresh/dpop";
 import type { RevocationCause } from "../oauth-refresh/evidence";
 import { ANALYTICS_EVENTS, CONVERSION_EVENTS, STREAMS } from "./events";
@@ -47,4 +47,8 @@ export function firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequire
 		client.auth.kind === "builtIn" ? [`$.client_id = "${client.auth.oauthClientId}"`] : [],
 	).join(" || ");
 	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.oauthTokenRefused}" && $.grant_type = "${OAUTH_TOKEN_GRANT_TYPES.refreshToken}" && (${anyFirstPartyClient}) && $.refresh_refusal.reason != "${READER_DISCONNECT}" && $.refresh_refusal.reason != "${LOGOUT_ALL}" && $.refresh_refusal.reason != "${NONCE_REQUIRED}" }`;
+}
+
+export function openAiScanToolsListedPattern(): string {
+	return `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.mcpToolsListed}" && $.ua_client = "${MCP_UA_CLIENTS.openai}" }`;
 }

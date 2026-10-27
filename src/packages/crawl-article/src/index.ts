@@ -9,10 +9,13 @@ export {
 } from "./crawl-article";
 export { isBlockClassStatus, type Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
+export { describeRejection } from "./describe-rejection";
 export {
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,
+	isValidHttpUrl,
 	type FetchThumbnailImage,
+	type ThumbnailNotDeliveredEvent,
 } from "./extract-thumbnail";
 export type {
 	CrawlArticle,
@@ -50,3 +53,4 @@ export { initFetchRedirectHop } from "./fetch-redirect-hop";
 export type { FetchRedirectHop } from "./fetch-redirect-hop";
 export { initStackOverflowSiteRules } from "./stack-overflow-site-rules";
 export { initHnSearchSiteRules } from "./hn-search-site-rules";
+export { initGitHubPdfSiteRules } from "./github-pdf-site-rules";

@@ -1,5 +1,4 @@
 import { initCreateDeepseekMessage } from "@packages/ai-message";
-import { isSameArticle } from "@packages/domain/article";
 import {
 	initDynamoDbPastReads,
 	initDynamoDbRelatedArticles,
@@ -12,16 +11,13 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import OpenAI from "openai";
-import { initSelectAgreedPicks } from "./domain/related-articles/agreed-picks";
+import { initDeepseekChatCompletion } from "./providers/deepseek/deepseek-chat-completion";
+import { initRelatedArticlesDepBundle } from "./dep-bundles/related-articles";
 import { initComputeRelatedPasses } from "./domain/related-articles/compute-related-passes";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
 import { initComputeRelatedPastReadsHandler } from "./domain/related-articles/compute-related-past-reads-handler";
+import { initRecomputeSkippedNextReadHandler } from "./domain/related-articles/recompute-skipped-next-read-handler";
 import { initGatherRelatedCandidatePools } from "./domain/related-articles/related-articles-candidates";
-import { NEXT_READ_SHARED_WORDS_FLOOR, PAST_READS_SHARED_WORDS_FLOOR } from "./domain/related-articles/related-articles-limits";
-import { initSelectRelatedArticles } from "./domain/related-articles/related-articles-selector";
-import { PAST_READS_PROMPT } from "./domain/related-articles/related-past-reads-prompt";
-import { initSelectRelatedArticlesWithoutSharedBoilerplate } from "./domain/related-articles/shared-boilerplate";
-import { initSelectRelatedArticlesAboveSharedWordsFloor } from "./domain/related-articles/shared-words-floor";
 import { RELATED_ARTICLES_TIMEOUTS } from "./domain/related-articles/timeouts";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -30,55 +26,33 @@ const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
 const dynamoClient = createDynamoDocumentClient();
-const deepseekClient = new OpenAI({
+const { createChatCompletion } = initDeepseekChatCompletion({
 	apiKey: deepseekApiKey,
-	baseURL: "https://api.deepseek.com",
-	timeout: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
-	maxRetries: 0,
+	timeoutMs: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
+	logger: consoleLogger,
+	newClient: (options) => new OpenAI(options),
 });
 
 const createMessage = initCreateDeepseekMessage({
-	createChatCompletion: (params) => deepseekClient.chat.completions.create(params, {
-		signal: AbortSignal.timeout(RELATED_ARTICLES_TIMEOUTS.deepseekMs),
-	}),
+	createChatCompletion,
 });
 
-const { selectRelatedArticles } = initSelectRelatedArticlesWithoutSharedBoilerplate(
-	initSelectRelatedArticlesAboveSharedWordsFloor({
-		...initSelectAgreedPicks(initSelectRelatedArticles({
-			createMessage,
-			nowMs: () => performance.now(),
-			logger: consoleLogger,
-		})),
-		floor: NEXT_READ_SHARED_WORDS_FLOOR,
-		countsTowardFloor: ({ target, candidate }) => !isSameArticle({
-			article: { url: target.destinationUrl, title: target.title },
-			other: { url: candidate.destinationUrl, title: candidate.title },
-		}),
-	}),
-);
-
-const { selectRelatedArticles: selectPastReads } =
-	initSelectRelatedArticlesWithoutSharedBoilerplate(
-		initSelectRelatedArticlesAboveSharedWordsFloor({
-			...initSelectRelatedArticles({
-				createMessage,
-				logger: consoleLogger,
-				system: PAST_READS_PROMPT,
-				nowMs: () => performance.now(),
-			}),
-			floor: PAST_READS_SHARED_WORDS_FLOOR,
-			countsTowardFloor: () => true,
-		}),
-	);
+const { selectRelatedArticles, selectPastReads } = initRelatedArticlesDepBundle({
+	createMessage,
+	nowMs: () => performance.now(),
+	logger: consoleLogger,
+});
 
 const {
 	findRelatedArticles,
 	findRelatedCandidateArticles,
 	findRelatedReadCandidateArticles,
 	findRelatedTargetArticle,
+	findSkippedNextReadSaves,
 	markRelatedArticlesReady,
 	markRelatedArticlesSkipped,
+	replaceSkippedRelatedArticlesWithReady,
+	replaceSkippedRelatedArticlesWithSkip,
 } = initDynamoDbRelatedArticles({
 	client: dynamoClient,
 	tableName: articlesTable,
@@ -125,4 +99,20 @@ const pastReadsHandler = initComputeRelatedPastReadsHandler({
 	logger: consoleLogger,
 });
 
-export const handler = initComputeRelatedPasses({ nextReadHandler, pastReadsHandler });
+const recomputeNextReadHandler = initRecomputeSkippedNextReadHandler({
+	findRelatedTargetArticle,
+	findSkippedNextReadSaves,
+	gatherRelatedCandidatePools,
+	selectRelatedArticles,
+	replaceSkippedRelatedArticlesWithReady,
+	replaceSkippedRelatedArticlesWithSkip,
+	publishEvent,
+	now: () => new Date(),
+	logger: consoleLogger,
+});
+
+export const handler = initComputeRelatedPasses({
+	nextReadHandler,
+	pastReadsHandler,
+	recomputeNextReadHandler,
+});

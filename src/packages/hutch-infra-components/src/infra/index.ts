@@ -4,6 +4,7 @@ export { curlImpersonateLayerArnFromPlatformStack } from "./curl-impersonate-lay
 export { ssrEdgeSecretFromPlatformStack } from "./ssr-edge-secret";
 export { HutchLambda } from "./hutch-lambda";
 export type { LambdaPolicy } from "./hutch-lambda";
+export { analyticsSaltRotation, isLambdaFunctionNotFound } from "./analytics-salt-rotation";
 export { HutchAPIGateway } from "./hutch-api-gateway";
 export { HutchAPIGatewayLambdaRoute } from "./hutch-api-gateway-lambda-route";
 export { HutchDynamoDBAccess } from "./hutch-dynamodb-access";

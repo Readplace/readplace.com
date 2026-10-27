@@ -1,3 +1,4 @@
+import type { ThumbnailNotDeliveredEvent } from "@packages/crawl-article";
 import { formatErrorLogLine, HutchLogger } from "@packages/hutch-logger";
 import {
 	initLogParseError,
@@ -7,10 +8,15 @@ import {
 	type LogParseError,
 	type LogCrawlOutcome,
 } from "@packages/hutch-infra-components";
+import type { ImageLeftAtOriginEvent } from "../domain/save-link/download-media";
 
 export type LogError = (message: string, error?: Error) => void;
 
 export type LogInfo = (message: string) => void;
+
+export type LogThumbnailNotDelivered = (event: ThumbnailNotDeliveredEvent) => void;
+
+export type LogImageLeftAtOrigin = (event: ImageLeftAtOriginEvent) => void;
 
 export type ParseErrorSource = ParseErrorEvent["source"];
 
@@ -20,6 +26,8 @@ export type ObservabilityDepBundle = {
 	logCrawlOutcome: LogCrawlOutcome;
 	logError: LogError;
 	logInfo: LogInfo;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
+	logImageLeftAtOrigin: LogImageLeftAtOrigin;
 };
 
 export function initObservabilityDepBundle(deps: {
@@ -39,5 +47,13 @@ export function initObservabilityDepBundle(deps: {
 		logger: HutchLogger.fromJSON<CrawlOutcomeEvent>(),
 		now: deps.now,
 	});
-	return { logger: deps.logger, logParseError, logCrawlOutcome, logError, logInfo };
+	return {
+		logger: deps.logger,
+		logParseError,
+		logCrawlOutcome,
+		logError,
+		logInfo,
+		logThumbnailNotDelivered: HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn,
+		logImageLeftAtOrigin: HutchLogger.fromJSON<ImageLeftAtOriginEvent>().warn,
+	};
 }

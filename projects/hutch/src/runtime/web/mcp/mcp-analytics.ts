@@ -78,7 +78,7 @@ export function initRecordMcpHandshake(deps: {
 		deps.recordUngatedAnalyticsEvent(
 			buildMcpToolsListedEvent(
 				{ now: deps.now },
-				{ oauthClientId: record.oauthClientId, userId: record.userId, toolCount: record.toolCount },
+				{ oauthClientId: record.oauthClientId, userId: record.userId, toolCount: record.toolCount, uaClient: record.uaClient },
 			),
 		);
 	};

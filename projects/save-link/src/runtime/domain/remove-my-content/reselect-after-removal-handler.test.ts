@@ -35,7 +35,7 @@ describe("content reselection after erasure", () => {
 	it("promotes surviving verified content without attributing a new save to the remover", async () => {
 		const { handler, savedInputs } = setup();
 		expect(await handler(event({ url: URL }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
-		expect(savedInputs[0]).toMatchObject({ tier: "tier-1", userId: undefined, metadata: { title: "Article" } });
+		expect(savedInputs[0]).toMatchObject({ tier: "tier-1", metadata: { title: "Article" } });
 	});
 	it("rejects malformed erasure events before invoking selection", async () => {
 		const listAvailableTierSources = jest.fn(async () => [source]);

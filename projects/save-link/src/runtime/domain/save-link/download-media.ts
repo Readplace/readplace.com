@@ -1,4 +1,4 @@
-import { extensionFromContentType, MAX_IMAGE_BYTES } from "@packages/crawl-article";
+import { describeRejection, extensionFromContentType, isValidHttpUrl, MAX_IMAGE_BYTES } from "@packages/crawl-article";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
 import type { CrawlFetch } from "@packages/crawl-article";
@@ -10,13 +10,21 @@ const MAX_RENDITIONS_PER_IMAGE = 24;
 const DOWNLOAD_TIMEOUT_MS = 5_000;
 const CONCURRENCY = 5;
 
+export type ImageLeftAtOriginEvent = {
+	message: "[DownloadMedia] image left at its origin";
+	url: string;
+	name: string;
+	reason: string;
+};
+
 export function initDownloadMedia(deps: {
 	putImageObject: PutImageObject;
 	logError: (message: string, error?: Error) => void;
+	logImageLeftAtOrigin: (event: ImageLeftAtOriginEvent) => void;
 	crawlFetch: CrawlFetch;
 	imagesCdnBaseUrl: string;
 }): DownloadMedia {
-	const { putImageObject, logError, crawlFetch, imagesCdnBaseUrl } = deps;
+	const { putImageObject, logError, logImageLeftAtOrigin, crawlFetch, imagesCdnBaseUrl } = deps;
 
 	return async ({ html, referer, articleResourceUniqueId, writeContext }) => {
 		const results: DownloadedMedia[] = [];
@@ -26,10 +34,15 @@ export function initDownloadMedia(deps: {
 		for (let i = 0; i < uniqueUrls.length; i += CONCURRENCY) {
 			const batch = uniqueUrls.slice(i, i + CONCURRENCY);
 			await Promise.all(batch.map(async (originalUrl) => {
+				let downloaded: Awaited<ReturnType<typeof downloadImage>>;
 				try {
-					const downloaded = await downloadImage({ crawlFetch, url: originalUrl, referer });
-					if (!downloaded) return;
-
+					downloaded = await downloadImage({ crawlFetch, url: originalUrl, referer });
+				} catch (error) {
+					logImageLeftAtOrigin({ message: "[DownloadMedia] image left at its origin", url: originalUrl, ...describeRejection(error) });
+					return;
+				}
+				if (!downloaded) return;
+				try {
 					const ext = extensionFromContentType({ contentType: downloaded.contentType, url: originalUrl });
 					const filename = mediaFilename({ sourceUrl: originalUrl, body: downloaded.body, extension: ext, writeContext });
 					const key = articleResourceUniqueId.toS3ImageKey(filename);
@@ -104,8 +117,7 @@ function collectImageRenditions(img: DomElement): string[] {
 }
 
 function pushImageUrls(urls: string[], img: DomElement): void {
-	const src = img.getAttribute("src");
-	if (src && !src.startsWith("data:")) urls.push(src);
+	pushFetchableUrl(urls, img.getAttribute("src"));
 	pushSrcsetUrls(urls, img.getAttribute("srcset"));
 }
 
@@ -113,8 +125,12 @@ function pushSrcsetUrls(urls: string[], srcset: string | null): void {
 	if (!srcset) return;
 	/* c8 ignore next 3 -- V8 block coverage phantom: for-of iterator creates zero-count sub-range inside loop body (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 	for (const entry of parseSrcset(srcset)) {
-		urls.push(entry.url);
+		pushFetchableUrl(urls, entry.url);
 	}
+}
+
+function pushFetchableUrl(urls: string[], url: string | null): void {
+	if (url && isValidHttpUrl(url)) urls.push(url);
 }
 
 async function downloadImage(args: {

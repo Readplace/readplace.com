@@ -319,6 +319,13 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// URL with a 404 or an empty "Posts by <handle>" timeline stub, never
 	// readable content. Tweet permalinks must still surface.
 	/^https?:\/\/(?:(?:www|mobile)\.)?(?:twitter|x)\.com\/[a-z0-9_]{1,15}\/?(?:[?#]|$)/i,
+	// (o) YouTube, on every host and path shape. YouTube serves the production
+	// crawler a page with no player data and no `og:image`, so every save fails
+	// as `no readable article candidate`. A rule that read the player data
+	// recovered every page locally and none of the eight failed rows in
+	// production. Anchored to the host so a page that only links to a video
+	// still surfaces.
+	/^(?:https?:\/\/)?(?:[a-z0-9-]+\.)*(?:youtube\.com|youtu\.be)(?:[/:?#]|$)/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

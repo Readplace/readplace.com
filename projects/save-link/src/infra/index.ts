@@ -51,6 +51,7 @@ import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/ti
 import { OWN_CAPTURE_FAILED_METRIC } from "../runtime/domain/select-content/comparison-log";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "../runtime/domain/generate-summary/max-receive-count";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "../runtime/domain/submit-link/max-receive-count";
+import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "../runtime/domain/related-articles/max-receive-count";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "../runtime/domain/filter-email-links/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
@@ -1095,9 +1096,7 @@ eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
 // Subscribes to TierContentExtractedEvent emitted by the three save-link
 // workers. Reads available per-tier sources from S3, runs the Deepseek
 // selector when there is competition, short-circuits when only one tier is
-// present. Emits LinkSavedEvent /
-// AnonymousLinkSavedEvent (only on canonical change) and
-// CrawlArticleCompletedEvent (every successful selection).
+// present. Emits CrawlArticleCompletedEvent (every successful selection).
 
 const selectMostCompleteContentQueue = new HutchSQS(
 	SAVE_LINK_DLQ_SOURCES.selectMostCompleteContent,
@@ -1444,6 +1443,7 @@ eventBus.subscribe(CanonicalContentChangedEvent, canonicalContentChangedLambdaWi
 
 const computeRelatedArticlesQueue = new HutchSQS("compute-related-articles", {
 	visibilityTimeoutSeconds: RELATED_ARTICLES_TIMEOUTS.sqsVisibilitySeconds,
+	dlqMaxReceiveCount: COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT,
 });
 
 const computeRelatedArticlesArticlesDynamodb = new HutchDynamoDBAccess("compute-related-articles-articles-dynamodb", {
@@ -1489,7 +1489,11 @@ const computeRelatedArticlesLambdaWithSQS = new HutchSQSBackedLambda("compute-re
 });
 
 eventBus.subscribeAll(
-	[{ ...QueueEntryCreatedEvent, name: "compute-related-articles" }, ComputeRelatedPastReadsCommand],
+	[
+		{ ...QueueEntryCreatedEvent, name: "compute-related-articles" },
+		ComputeRelatedPastReadsCommand,
+		{ ...CanonicalContentChangedEvent, name: "compute-related-articles-content-changed" },
+	],
 	computeRelatedArticlesLambdaWithSQS,
 	{ name: "compute-related-articles" },
 );

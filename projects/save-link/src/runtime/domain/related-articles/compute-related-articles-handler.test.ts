@@ -15,6 +15,7 @@ import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { initComputeRelatedArticlesHandler } from "./compute-related-articles-handler";
 import { RelatedArticlesComputedEvent } from "./index";
 import type { RelatedArticlesComputedDetail } from "./index";
+import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type {
 	SelectRelatedArticles,
 	SelectRelatedArticlesParams,
@@ -31,13 +32,13 @@ const stubAttributes: SQSRecordAttributes = {
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
 
-function createSqsEvent(body: string): SQSEvent {
+function createSqsEvent(body: string, receiveCount = 1): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
 			body,
-			attributes: stubAttributes,
+			attributes: { ...stubAttributes, ApproximateReceiveCount: String(receiveCount) },
 			messageAttributes: {},
 			md5OfBody: "",
 			eventSource: "aws:sqs",
@@ -47,9 +48,9 @@ function createSqsEvent(body: string): SQSEvent {
 	};
 }
 
-const queueEntryEvent = createSqsEvent(
-	JSON.stringify({ detail: { url: TARGET_URL, userId: USER_ID } }),
-);
+const queueEntryBody = JSON.stringify({ detail: { url: TARGET_URL, userId: USER_ID } });
+const queueEntryEvent = createSqsEvent(queueEntryBody);
+const finalReceiveEvent = createSqsEvent(queueEntryBody, COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT);
 
 function crawledTarget(overrides: Partial<RelatedTargetArticle> = {}): RelatedTargetArticle {
 	return {
@@ -147,6 +148,8 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
 			url: TARGET_URL,
 			reason: "no earlier save shares the saved article's words",
+			receiveCount: 1,
+			crawlStatus: "ready",
 			bestScore: 7.4,
 			candidateCount: 150,
 			hasSummary,
@@ -242,7 +245,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			markOutcome: "superseded",
 		});
 
-		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
+		const result = await handler(finalReceiveEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(skipped).toHaveLength(1);
@@ -297,7 +300,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logger.info).toHaveBeenCalledWith(
 			"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
-			{ url: TARGET_URL, messageId: "msg-1" },
+			{ url: TARGET_URL, messageId: "msg-1", receiveCount: 1, crawlStatus: "pending" },
 		);
 		expect(logger.error).not.toHaveBeenCalled();
 		expect({ ready, skipped }).toEqual({ ready: [], skipped: [] });
@@ -312,7 +315,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logger.info).toHaveBeenCalledWith(
 			"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
-			{ url: TARGET_URL, messageId: "msg-1" },
+			{ url: TARGET_URL, messageId: "msg-1", receiveCount: 1, crawlStatus: undefined },
 		);
 		expect(logger.error).not.toHaveBeenCalled();
 	});
@@ -351,16 +354,25 @@ describe("initComputeRelatedArticlesHandler", () => {
 		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
 	});
 
-	it("skips when the crawl gave up before writing anything to compare", async () => {
+	it("skips on the final receive when the crawl gave up before writing anything to compare", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const { handler, skipped, published } = createHandler({
 			targetLookup: {
 				state: "found",
 				article: crawledTarget({ crawlStatus: "failed", hasStubMetadata: true }),
 			},
+			logger,
 		});
 
-		await handler(queueEntryEvent, buildLambdaContext(), () => {});
+		const result = await handler(finalReceiveEvent, buildLambdaContext(), () => {});
 
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			url: TARGET_URL,
+			reason: "crawl produced no metadata to compare",
+			receiveCount: 3,
+			crawlStatus: "failed",
+		});
 		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
 		expect(published).toEqual([
 			{
@@ -372,6 +384,49 @@ describe("initComputeRelatedArticlesHandler", () => {
 				outputTokens: 0,
 			},
 		]);
+	});
+
+	it.each([1, 2])("waits on receive %i for the reader's capture when the crawl failed with nothing to compare", async (receiveCount) => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, skipped, published } = createHandler({
+			targetLookup: {
+				state: "found",
+				article: crawledTarget({ crawlStatus: "failed", hasStubMetadata: true }),
+			},
+			logger,
+		});
+
+		const result = await handler(createSqsEvent(queueEntryBody, receiveCount), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect({ skipped, published }).toEqual({ skipped: [], published: [] });
+		expect(logger.info).toHaveBeenCalledWith(
+			"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
+			{ url: TARGET_URL, messageId: "msg-1", receiveCount, crawlStatus: "failed" },
+		);
+	});
+
+	it.each(["unsupported", "ready"] as const)("skips at once when a crawl that ended %s left nothing to compare", async (crawlStatus) => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, skipped, published } = createHandler({
+			targetLookup: {
+				state: "found",
+				article: crawledTarget({ crawlStatus, hasStubMetadata: true }),
+			},
+			logger,
+		});
+
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+		expect(published).toEqual([{ url: TARGET_URL, userId: USER_ID, outcome: "skipped", relatedCount: 0, inputTokens: 0, outputTokens: 0 }]);
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			url: TARGET_URL,
+			reason: "crawl produced no metadata to compare",
+			receiveCount: 1,
+			crawlStatus,
+		});
 	});
 
 	it("skips while the reader has fewer than fifty other saves, unread and read together", async () => {
