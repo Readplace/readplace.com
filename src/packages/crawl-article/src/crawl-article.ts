@@ -11,7 +11,7 @@ import type {
 	CrawlArticleResult,
 } from "./crawl-article.types";
 import { type CrawlFetch, PROXIED_CRAWL_HEADERS_MILLISECONDS } from "./crawl-fetch";
-import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
+import { extractThumbnailCandidates, initFetchThumbnailImage, type LogThumbnailNotDelivered } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { initLogFetchFailure } from "./log-fetch-failure";
@@ -319,12 +319,13 @@ export async function parseHtmlFromBuffer(input: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 }): Promise<CrawlArticleResult> {
-	const { buffer, bodyHash, response, documentUrl, fetchThumbnail, crawlFetch, logError, logInfo } = input;
+	const { buffer, bodyHash, response, documentUrl, fetchThumbnail, crawlFetch, logError, logInfo, logThumbnailNotDelivered } = input;
 	const html = new TextDecoder().decode(buffer);
 	const candidates = extractThumbnailCandidates({ html, baseUrl: documentUrl });
 	const thumbnailUrl = candidates[0];
-	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo });
+	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError, logInfo, logThumbnailNotDelivered });
 	const thumbnail = fetchThumbnail
 		? await fetchThumbnailImage({ candidates, referer: documentUrl })
 		: undefined;
@@ -414,13 +415,14 @@ export function initCrawlArticle(deps: {
 	extractPdf?: ExtractPdf;
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 	/** Omitted, an unproxied crawler's budget applies. A composition root that
 	 * configures an egress proxy passes PROXIED_FETCH_TIMEOUTS, whose header
 	 * budget seats the proxied second pass; tests inject millisecond-scale
 	 * budgets so the timer-abort paths run for real. */
 	fetchTimeouts?: FetchTimeouts;
 }): CrawlArticle {
-	const { crawlFetch, siteRules, extractPdf, logError, logInfo } = deps;
+	const { crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered } = deps;
 	const fetchTimeouts = deps.fetchTimeouts ?? DEFAULT_FETCH_TIMEOUTS;
 	const conditionalGet = withMetaRefreshHop({
 		conditionalGet: initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts }),
@@ -532,6 +534,7 @@ export function initCrawlArticle(deps: {
 			crawlFetch,
 			logError,
 			logInfo,
+			logThumbnailNotDelivered,
 		});
 		/* One dispatch point rather than one per parser, so a 3xx resolves the
 		 * article's identity uniformly across HTML/PDF/text/image. */
@@ -565,8 +568,9 @@ async function dispatchSupportedMedia(input: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
+	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 }): Promise<CrawlArticleResult> {
-	const { mediaType, buffer, bodyHash, response, contentType, url, documentUrl, crawlFetch, logError, logInfo } = input;
+	const { mediaType, buffer, bodyHash, response, contentType, url, documentUrl, crawlFetch, logError, logInfo, logThumbnailNotDelivered } = input;
 	switch (mediaType) {
 		case "html":
 			return parseHtmlFromBuffer({
@@ -578,6 +582,7 @@ async function dispatchSupportedMedia(input: {
 				crawlFetch,
 				logError,
 				logInfo,
+				logThumbnailNotDelivered,
 			});
 		case "pdf":
 			if (!input.extractPdf) {

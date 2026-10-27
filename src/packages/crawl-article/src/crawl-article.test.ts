@@ -8,6 +8,7 @@ import {
 } from "./crawl-article";
 import type { CrawlArticleResult } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
+import type { LogThumbnailNotDelivered } from "./extract-thumbnail";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { CurlFetch } from "./curl-fetch";
 import { redirectable, type RedirectableFetch } from "./follow-redirects";
@@ -99,6 +100,7 @@ function initCrawl(overrides: {
 		extractPdf: overrides.extractPdf,
 		logError,
 		logInfo: overrides.logInfo ?? noopLogInfo,
+		logThumbnailNotDelivered: () => {},
 		fetchTimeouts: overrides.fetchTimeouts,
 	});
 }
@@ -1413,6 +1415,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			crawlFetch: throwingCrawlFetch,
 			logError: noopLogError,
 			logInfo: noopLogInfo,
+			logThumbnailNotDelivered: () => {},
 		});
 	}
 
@@ -1468,6 +1471,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			crawlFetch: throwingCrawlFetch,
 			logError: noopLogError,
 			logInfo: noopLogInfo,
+			logThumbnailNotDelivered: () => {},
 		});
 		expect(result).toEqual({
 			status: "fetched",
@@ -1489,6 +1493,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		crawlFetch: CrawlFetch;
 		logError?: (message: string, error?: Error) => void;
 		logInfo?: (message: string) => void;
+		logThumbnailNotDelivered?: LogThumbnailNotDelivered;
 	}): Promise<CrawlArticleResult> {
 		const buffer = Buffer.from(input.html ?? articleHtml);
 		return parseHtmlFromBuffer({
@@ -1500,6 +1505,7 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 			crawlFetch: input.crawlFetch,
 			logError: input.logError ?? noopLogError,
 			logInfo: input.logInfo ?? noopLogInfo,
+			logThumbnailNotDelivered: input.logThumbnailNotDelivered ?? (() => {}),
 		});
 	}
 
@@ -1611,25 +1617,39 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Thumbnail too large for https://cdn.example.com/thumb.jpg");
 	});
 
-	it("logs the Error instance when the thumbnail fetch throws a network error", async () => {
+	it("logs the not-delivered event naming the error when the thumbnail fetch throws a network error", async () => {
 		const networkError = Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
 		const crawlFetch: CrawlFetch = async () => { throw networkError; };
 		const logError = jest.fn();
-		const result = await parseWithImage({ crawlFetch, logError });
+		const logThumbnailNotDelivered = jest.fn();
+		const result = await parseWithImage({ crawlFetch, logError, logThumbnailNotDelivered });
 
 		assertFetched(result);
 		expect(result.thumbnail?.image).toBeUndefined();
-		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Thumbnail network error for https://cdn.example.com/thumb.jpg", networkError);
+		expect(logThumbnailNotDelivered).toHaveBeenCalledWith({
+			message: "[CrawlArticle] thumbnail candidate not delivered",
+			url: "https://cdn.example.com/thumb.jpg",
+			name: "Error",
+			reason: "connect ECONNREFUSED",
+		});
+		expect(logError).not.toHaveBeenCalled();
 	});
 
-	it("logs undefined when the thumbnail fetch throws a non-Error value", async () => {
+	it("logs the not-delivered event with the value as its reason when the thumbnail fetch throws a non-Error value", async () => {
 		const crawlFetch: CrawlFetch = async () => { throw "boom"; };
 		const logError = jest.fn();
-		const result = await parseWithImage({ crawlFetch, logError });
+		const logThumbnailNotDelivered = jest.fn();
+		const result = await parseWithImage({ crawlFetch, logError, logThumbnailNotDelivered });
 
 		assertFetched(result);
 		expect(result.thumbnail?.image).toBeUndefined();
-		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Thumbnail network error for https://cdn.example.com/thumb.jpg", undefined);
+		expect(logThumbnailNotDelivered).toHaveBeenCalledWith({
+			message: "[CrawlArticle] thumbnail candidate not delivered",
+			url: "https://cdn.example.com/thumb.jpg",
+			name: "unknown",
+			reason: "boom",
+		});
+		expect(logError).not.toHaveBeenCalled();
 	});
 
 	it("cascades to the second candidate when the first og:image fetch fails", async () => {
@@ -2056,16 +2076,16 @@ describe("bounded wrapper response candidates", () => {
 	it("returns a fresh received body for comparison even when it matches the previous body hash", async () => {
 		const html = "<html><body><article>Unchanged readable article.</article></body></html>";
 		const bodyHash = createHash("sha256").update(html).digest("hex");
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status: 200, headers: { "content-type": "text/html", etag: '"capture-v1"' } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status: 200, headers: { "content-type": "text/html", etag: '"capture-v1"' } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		expect(await crawlArticle({ url: "https://example.com/article", previousBodyHash: bodyHash, retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash, httpStatus: 200, finalUrl: undefined, etag: '"capture-v1"' });
 	});
 	it("retains an error response without Content-Type for the article judge", async () => {
 		const html = "<html><body><article>Article returned without a media declaration.</article></body></html>";
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(Buffer.from(html), { status: 503 }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(Buffer.from(html), { status: 503 }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		expect(await crawlArticle({ url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: 503, finalUrl: undefined });
 	});
 	it("defers a retained PDF response without an extractor and extracts it when comprehensive work resumes", async () => {
-		const shared = { crawlFetch: async () => new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo };
+		const shared = { crawlFetch: async () => new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} };
 		expect(await initCrawlArticle(shared)({ url: "https://example.com/report.pdf", retainResponseBody: true })).toMatchObject({ status: "unsupported" });
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "PDF article", html: "<html><body>Extracted PDF article</body></html>" }));
 		const result = await initCrawlArticle({ ...shared, extractPdf })({ url: "https://example.com/report.pdf", retainResponseBody: true });
@@ -2073,12 +2093,12 @@ describe("bounded wrapper response candidates", () => {
 		expect(extractPdf).toHaveBeenCalledTimes(1);
 	});
 	it("bounds an unknown retained body before parsing it as HTML", async () => {
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response("x".repeat(MAX_HTML_BYTES.bytes + 1), { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response("x".repeat(MAX_HTML_BYTES.bytes + 1), { status: 200, headers: { "content-type": "application/octet-stream" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		expect(await crawlArticle({ url: "https://example.com/unknown", retainResponseBody: true })).toMatchObject({ status: "unsupported", unsupportedReason: { kind: "content-too-large" } });
 	});
 	it.each([200, 403, 404, 410, 429, 500])("retains HTTP %i body for the article judge", async (status) => {
 		const html = "<html><body><h1>Verify you are human</h1></body></html>";
-		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo });
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		const result = await crawlArticle({ url: "https://archive.ph/abcde", retainResponseBody: true });
 		expect(result).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: status, finalUrl: undefined });
 	});
@@ -2107,6 +2127,7 @@ describe.each([false, true])("AWS WAF classification with retainResponseBody=%s"
 			siteRules: [],
 			logInfo,
 			logError,
+			logThumbnailNotDelivered: () => {},
 		});
 
 		const result = await crawlArticle({ url: WRAPPER_URL, retainResponseBody });
