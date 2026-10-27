@@ -1,11 +1,17 @@
+import assert from "node:assert/strict";
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlBlockedKeepingCommittedContent } from "./mark-crawl-blocked-keeping-committed-content";
+import { type Article, type Effect, initTransitionAndPersist, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-aggregate";
+import { initCrawlArticle } from "@packages/crawl-article";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
-import type {
-	CrawlAndFinalizeArticle,
-	CrawlAndFinalizeResult,
-	FinalizedArticle,
+import {
+	initCrawlAndFinalizeArticle,
+	type CrawlAndFinalizeArticle,
+	type CrawlAndFinalizeResult,
+	type FinalizedArticle,
 } from "@packages/finalize-article";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
@@ -149,9 +155,9 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlockedKeepingCommittedContent, {
 			url: "https://example.com/walled",
-			input: { reason: { kind: "blocked", cause: "edge-block" } },
+			input: { reason: { kind: "blocked", cause: "edge-block" }, now: fixedNow().toISOString() },
 		});
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
@@ -321,5 +327,86 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 
 			expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({ candidates: [], liveAttempt: { outcome: "no-body", failureReason: { kind: "origin-unreachable", code: "ENOTFOUND" } } }));
 		});
+	});
+
+	it("keeps an article that already holds a stored body readable when an admin recrawl is answered HTTP 429", async () => {
+		const url = "https://example.com/stored";
+		const storedBody = "<article><p>The stored body a reader has already read in full.</p></article>";
+		const stored: Article = {
+			url,
+			metadata: { title: "Stored", siteName: "example.com", excerpt: "Stored excerpt", wordCount: 1274 },
+			freshness: { contentFetchedAt: "2026-08-20T00:00:00.000Z", canonicalContentHash: computeCanonicalContentHash(storedBody) },
+			estimatedReadTime: 6,
+			crawl: { kind: "ready" },
+			summary: { kind: "ready", summary: "Stored summary" },
+			summaryAutoHeal: { attempts: 0 },
+			readerAvailableAt: "2026-08-20T00:00:00.000Z",
+			contentSelection: { tier: "tier-1", contentLocation: "s3://content/stored.html" },
+		};
+		const store = initInMemoryArticleStore();
+		store.seed(stored);
+		const forceMarkCrawlPending = async () => {
+			const row = await store.load(url);
+			assert(row);
+			await store.save({ article: { ...row, crawl: { kind: "pending", pendingSince: fixedNow().toISOString() } }, writes: ["crawl"] });
+		};
+		const dispatched: Effect[] = [];
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { dispatched.push(effect); } });
+		const crawlArticle = initCrawlArticle({
+			crawlFetch: async () => new Response("Too Many Requests", { status: 429 }),
+			siteRules: [],
+			logError: () => {},
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+		const handler = createHandler({
+			crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({
+				crawlArticle,
+				finalizeArticle: async () => { throw new Error("finalizeArticle invoked for a rate-limited fetch"); },
+			}),
+			transitionAndPersist,
+		});
+
+		await forceMarkCrawlPending();
+		const result = await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		const persisted = await store.load(url);
+		expect(persisted?.crawl).toEqual({ kind: "ready" });
+		expect(persisted?.freshness).toEqual(stored.freshness);
+		expect(persisted?.metadata).toEqual(stored.metadata);
+		expect(persisted?.contentSelection).toEqual(stored.contentSelection);
+		expect(persisted?.summary).toEqual(stored.summary);
+		expect(persisted?.readerAvailableAt).toBe("2026-08-20T00:00:00.000Z");
+		expect(dispatched).toEqual([{ kind: "publish-recrawl-completed", url }]);
+	});
+
+	it("re-arms the summary a rate-limited recrawl had left skipped, once the stored body is kept", async () => {
+		const url = "https://example.com/stranded";
+		const storedBody = "<article><p>The stored body a reader has already read in full.</p></article>";
+		const store = initInMemoryArticleStore();
+		store.seed({
+			url,
+			metadata: { title: "Stranded", siteName: "example.com", excerpt: "Stranded excerpt", wordCount: 738 },
+			freshness: { contentFetchedAt: "2026-08-20T00:00:00.000Z", canonicalContentHash: computeCanonicalContentHash(storedBody) },
+			estimatedReadTime: 4,
+			crawl: { kind: "pending", pendingSince: fixedNow().toISOString() },
+			summary: { kind: "skipped", reason: "crawl-failed" },
+			summaryAutoHeal: { attempts: 0 },
+			readerAvailableAt: "2026-08-20T00:00:00.000Z",
+		});
+		const dispatched: Effect[] = [];
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { dispatched.push(effect); } });
+		const handler = createHandler({
+			crawlAndFinalizeArticle: async () => ({ status: "blocked", httpStatus: 429 }),
+			transitionAndPersist,
+		});
+
+		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+		const persisted = await store.load(url);
+		expect(persisted?.crawl).toEqual({ kind: "ready" });
+		expect(persisted?.summary).toEqual({ kind: "pending", pendingSince: fixedNow().toISOString() });
+		expect(dispatched).toContainEqual({ kind: "generate-summary", url });
 	});
 });
