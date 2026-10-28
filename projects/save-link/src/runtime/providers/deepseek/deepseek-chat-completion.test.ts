@@ -8,6 +8,7 @@ const params: CreateParams[0] = {
 	model: "deepseek-v4-flash",
 	max_tokens: 100,
 	thinking: { type: "disabled" },
+	temperature: 0,
 	messages: [{ role: "user", content: "hello" }],
 };
 
