@@ -172,7 +172,7 @@ describe("View routes", () => {
 			assert(content, "reader content must be rendered");
 			expect(content.innerHTML.trim()).toBe("<p>Body copy.</p>");
 			expect(response.text).not.toContain("/client-dist/reader-nav.client.js");
-			expect(response.text).not.toContain("/client-dist/reader-top.client.js");
+			expect(response.text).toContain("/client-dist/reader-top.client.js");
 			expect(doc.body.className).toBe("page-view page-distraction-free");
 		});
 
