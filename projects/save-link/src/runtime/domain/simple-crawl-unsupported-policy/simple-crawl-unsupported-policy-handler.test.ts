@@ -257,3 +257,50 @@ describe("GitHub PDF viewer simple-to-comprehensive routing", () => {
 		expect(requests).toEqual([url, rawUrl, url, rawUrl]);
 	});
 });
+
+describe("OJS galley viewer simple-to-comprehensive routing", () => {
+	it.each([false, true])("extracts the declared galley PDF after simple deferral (recrawl=%s)", async (recrawl) => {
+		const url = "https://journals.example.org/index.php/sample/article/view/37/33";
+		const downloadUrl = "https://journals.example.org/index.php/sample/article/download/37/33/527";
+		const pdf = Buffer.from("%PDF-1.4\nSynthetic galley PDF bytes for the injected extractor.");
+		const html = "<html><head><title>A sample study</title></head><body><p>The complete galley body.</p></body></html>";
+		const viewer = `<!DOCTYPE html><html lang="en-US"><head><title>View of A sample study</title><meta name="generator" content="Open Journal Systems 3.3.0.21" /></head>
+<body class="pkp_page_article pkp_op_view"><header class="header_view">
+<a href="https://journals.example.org/index.php/sample/article/view/37" class="title">A sample study</a>
+<a href="${downloadUrl}" class="download" download><span class="label">Download</span></a>
+</header><div id="pdfCanvasContainer" class="galley_view"><iframe src="" title="PDF of A sample study"></iframe></div></body></html>`;
+		const requests: string[] = [];
+		const crawlFetch: CrawlFetch = async (requestedUrl) => {
+			requests.push(requestedUrl);
+			const response = requestedUrl === downloadUrl
+				? new Response(pdf, { status: 200, headers: { "content-type": "application/pdf" } })
+				: new Response(viewer, { status: 200, headers: { "content-type": "text/html" } });
+			Object.defineProperty(response, "url", { value: requestedUrl });
+			return response;
+		};
+		const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
+		const shared = { crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
+		const simple = initCrawlArticle(shared);
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "A sample study", html }));
+		const comprehensive = initCrawlArticle({ ...shared, extractPdf });
+		const extracted: CrawlArticleResult[] = [];
+		const publishEvent: PublishEvent = async (_event, detail) => {
+			const command = ComprehensiveCrawlCommand.detailSchema.parse(detail);
+			extracted.push(await comprehensive({ url: command.url }));
+		};
+		const dispatch = jest.fn(publishEvent);
+		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
+
+		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		await policy(createSqsEvent({ url, recrawl }), buildLambdaContext(), () => {});
+
+		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, recrawl, saveAttemptId: "attempt-1" }));
+		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: downloadUrl, onProgress: undefined });
+		const [result] = extracted;
+		assert(result?.status === "fetched");
+		expect(result.html).toBe(html);
+		expect(result.finalUrl).toBe(downloadUrl);
+		expect(result.bodyHash).toBe(createHash("sha256").update(pdf).digest("hex"));
+		expect(requests).toEqual([url, downloadUrl, url, downloadUrl]);
+	});
+});

@@ -3,6 +3,7 @@ import {
 	initAppleNewsSiteRules,
 	initGitHubPdfSiteRules,
 	initHnSearchSiteRules,
+	initOjsGalleySiteRules,
 	initStackOverflowSiteRules,
 	initXTwitterSiteRules,
 } from "@packages/crawl-article";
@@ -26,6 +27,7 @@ export function initArticleSiteRules(deps: {
 		initXTwitterSiteRules(deps),
 		initAppleNewsSiteRules(deps),
 		initGitHubPdfSiteRules(deps),
+		initOjsGalleySiteRules(deps),
 		initStackOverflowSiteRules(deps),
 		initHnSearchSiteRules(deps),
 	];

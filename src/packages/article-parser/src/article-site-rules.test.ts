@@ -32,10 +32,10 @@ describe("initArticleSiteRules", () => {
 			substackSiteRules,
 			...crawlClaimingSiteRules,
 		]);
-		expect(crawlClaimingSiteRules).toHaveLength(5);
+		expect(crawlClaimingSiteRules).toHaveLength(6);
 	});
 
-	it("claims X, Apple News, GitHub PDF and Stack Overflow URLs among the crawl-claiming rules", () => {
+	it("claims X, Apple News, GitHub PDF, OJS galley and Stack Overflow URLs among the crawl-claiming rules", () => {
 		const { crawlClaimingSiteRules } = initArticleSiteRules({ crawlFetch: recordingCrawlFetch([]), logError: () => {} });
 
 		const claimed = (url: string) =>
@@ -45,6 +45,8 @@ describe("initArticleSiteRules", () => {
 		expect(claimed("https://twitter.com/jack/status/20")).toBe(1);
 		expect(claimed("https://apple.news/A123")).toBe(1);
 		expect(claimed("https://github.com/sample/docs/blob/main/paper.pdf")).toBe(1);
+		expect(claimed("https://journals.example.org/index.php/sample/article/view/37/33")).toBe(1);
+		expect(claimed("https://journals.example.org/index.php/sample/article/view/37")).toBe(0);
 		expect(claimed("https://stackoverflow.com/questions/42/why")).toBe(1);
 		expect(claimed("https://hn.algolia.com/?dateRange=all&page=0&prefix=true&query=typescript&sort=byPopularity&type=story")).toBe(1);
 		expect(claimed("https://example.com/story")).toBe(0);
