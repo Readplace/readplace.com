@@ -3911,6 +3911,54 @@ describe("GET /account (export)", () => {
 	});
 });
 
+describe("GET /account (import)", () => {
+	const EXPORT = ["Export data", "/export?utm_source=account&utm_medium=internal&utm_content=export"];
+	const IMPORT = ["Import links", "/import?utm_source=account&utm_medium=internal&utm_content=import"];
+
+	function dataCardLinks(doc: Document) {
+		const section = doc.querySelector('[data-test-account-section="data"]');
+		assert(section, "the data section must render");
+		return Array.from(
+			section.querySelectorAll("[data-test-account-export-link], [data-test-account-import-link]"),
+		).map((link) => [link.textContent, link.getAttribute("href")]);
+	}
+
+	it("offers Import after Export in the data card for a full-access user", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(dataCardLinks(doc)).toEqual([EXPORT, IMPORT]);
+	});
+
+	it("offers Import on the app shell too, where the header nav never renders", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account?platform=ios&shell=app");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(dataCardLinks(doc)).toEqual([EXPORT, IMPORT]);
+	});
+
+	it("offers only Export to a read-only user, since committing an import saves links and saving is a write", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "import-expired@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(dataCardLinks(doc)).toEqual([EXPORT]);
+	});
+});
+
 describe("GET /account (danger zone)", () => {
 	function expectConfirmationField(form: Element, inputId: string, opensFocused: boolean) {
 		const input = form.querySelector("[data-test-danger-confirm-input]");

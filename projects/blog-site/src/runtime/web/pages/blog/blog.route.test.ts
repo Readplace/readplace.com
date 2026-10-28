@@ -183,7 +183,7 @@ describe("GET /blog", () => {
 		const items = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) =>
 			el.getAttribute("data-test-nav-item"),
 		);
-		expect(items).toEqual(expect.arrayContaining(["queue", "import", "inbox", "account", "logout"]));
+		expect(items).toEqual(expect.arrayContaining(["queue", "install", "inbox", "account", "logout"]));
 	});
 });
 

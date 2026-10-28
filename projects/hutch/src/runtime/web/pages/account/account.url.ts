@@ -77,6 +77,7 @@ export const ACCOUNT_DELETE_URL = "/account/delete";
 export const ACCOUNT_REACTIVATE_URL = "/account/reactivate";
 export const ACCOUNT_STATUS_URL = "/account/status";
 export const ACCOUNT_EXPORT_URL = "/export";
+export const ACCOUNT_IMPORT_URL = "/import";
 export const ACCOUNT_SUBSCRIBE_URL = "/account/subscribe";
 export const ACCOUNT_PLANS_URL = "/account/plans";
 export const ACCOUNT_INVOICES_URL = "/account/invoices";

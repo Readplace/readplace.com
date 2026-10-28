@@ -458,27 +458,6 @@ describe("Base component", () => {
 		expect(nav.getAttribute("data-test-nav-variant")).toBe("authenticated");
 	});
 
-	it("renders the Import Links nav item for an authenticated request, tagged for funnel attribution", () => {
-		const page = createTestPageBody();
-		const result = Base(page, { cspNonce: CSP_NONCE, isAuthenticated: true, emailVerified: true }).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		const button = doc.querySelector('[data-test-nav-item="import"]');
-		assert(button, "Import Links nav item must be rendered for authenticated users");
-		expect(button.textContent).toBe("Import Links");
-
-		const form = button.closest("form");
-		assert(form, "Import Links nav item must be wrapped in a form");
-		expect(form.getAttribute("method")?.toUpperCase()).toBe("GET");
-		const action = form.getAttribute("action");
-		assert(action, "Import Links form must have an action");
-		const url = new URL(action, "https://readplace.com");
-		expect(url.pathname).toBe("/import");
-		expect(url.searchParams.get("utm_source")).toBe("header-nav");
-		expect(url.searchParams.get("utm_medium")).toBe("internal");
-		expect(url.searchParams.get("utm_content")).toBe("import");
-	});
-
 	it("renders the Import Links nav item for unauthenticated requests so guests can start a migration", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");
@@ -519,7 +498,7 @@ describe("Base component", () => {
 		expect(navItems).toEqual(["install", "import", "features", "login"]);
 	});
 
-	it("renders the full nav (queue + import + inbox + integrations + account + blog + privacy + terms + logout) for an authenticated full-access user", () => {
+	it("renders the full nav (queue + install + inbox + integrations + account + blog + privacy + terms + logout) for an authenticated full-access user", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
@@ -532,7 +511,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "import", "inbox", "integrations", "account", "blog", "privacy", "terms", "logout"]);
+		expect(navItems).toEqual(["queue", "install", "inbox", "integrations", "account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("hands the signed-in user to the header so the account section renders as the user menu", () => {
@@ -551,7 +530,7 @@ describe("Base component", () => {
 		expect(menu.querySelector("[data-test-nav-user-name]")?.textContent).toBe("ana_lu@example.com");
 	});
 
-	it("hides import and inbox from the nav for a read-only user (trial-expired / subscription-cancelled) but keeps Integrations and Account so they can still stop forwarding and reach /account", () => {
+	it("keeps Install, Integrations and Account for a read-only user (trial-expired / subscription-cancelled), since installing writes nothing and they can still stop forwarding and reach /account, but hides Inbox, since minting an address is a write", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			cspNonce: CSP_NONCE,
@@ -564,7 +543,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "integrations", "account", "blog", "privacy", "terms", "logout"]);
+		expect(navItems).toEqual(["queue", "install", "integrations", "account", "blog", "privacy", "terms", "logout"]);
 	});
 
 	it("should include the footer with copyright", () => {

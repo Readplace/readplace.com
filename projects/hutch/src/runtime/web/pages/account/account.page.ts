@@ -110,6 +110,7 @@ import {
 	MAX_CARDS,
 	type PaymentSectionInput,
 	buildAppearanceSection,
+	buildImportLinks,
 	buildProfileSection,
 	buildSecuritySection,
 	parseAccountQuery,
@@ -285,6 +286,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
+		const importLinks = buildImportLinks({ access: input.access });
 		const webVm = toAccountViewModel({
 			access: input.access,
 			queryState,
@@ -309,6 +311,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 							security,
 							appearance: appearanceSection,
 							connectedApps,
+							importLinks,
 							surface: { backLink: { href: APP_BACK_LINK.topHref, label: APP_BACK_LINK.label } },
 						},
 					),
@@ -327,7 +330,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		sendComponent(
 			req,
 			res,
-			Base(AccountPage(vm, { profile, security, appearance: appearanceSection, connectedApps }), bannerState),
+			Base(AccountPage(vm, { profile, security, appearance: appearanceSection, connectedApps, importLinks }), bannerState),
 		);
 	}
 
