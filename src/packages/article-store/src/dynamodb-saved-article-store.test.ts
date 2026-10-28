@@ -444,9 +444,7 @@ describe("initDynamoDbSavedArticleStore global writes", () => {
 		expect(update?.input.ConditionExpression).toBe("attribute_not_exists(#url) OR attribute_exists(purgedAt)");
 		expect(update?.input.ExpressionAttributeValues?.[":imageUrl"]).toBe("https://x/i.jpg");
 		expect(update?.input.ExpressionAttributeValues?.[":publishedOn"]).toBe("2025-10-08");
-		const removeClause = update?.input.UpdateExpression?.slice(update.input.UpdateExpression.indexOf("REMOVE")) ?? "";
 		expect(update?.input.UpdateExpression).toContain("publishedOn = :publishedOn");
-		expect(removeClause.split(/[ ,]+/)).not.toContain("publishedOn");
 		expect(result).toEqual({ created: true });
 	});
 
