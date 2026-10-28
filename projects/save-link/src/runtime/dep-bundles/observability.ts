@@ -1,4 +1,4 @@
-import type { ThumbnailNotDeliveredEvent } from "@packages/crawl-article";
+import type { LogThumbnailNotDelivered, ThumbnailNotDeliveredEvent } from "@packages/crawl-article";
 import { formatErrorLogLine, HutchLogger } from "@packages/hutch-logger";
 import {
 	initLogParseError,
@@ -14,7 +14,7 @@ export type LogError = (message: string, error?: Error) => void;
 
 export type LogInfo = (message: string) => void;
 
-export type LogThumbnailNotDelivered = (event: ThumbnailNotDeliveredEvent) => void;
+export type { LogThumbnailNotDelivered };
 
 export type LogImageLeftAtOrigin = (event: ImageLeftAtOriginEvent) => void;
 
