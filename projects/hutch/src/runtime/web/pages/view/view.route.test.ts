@@ -2056,7 +2056,10 @@ describe("View routes", () => {
 			};
 		}
 
-		function buildThrottledHarness(rule: { limit: number; windowSeconds: number }) {
+		function buildThrottledHarness(
+			rule: { limit: number; windowSeconds: number },
+			signedInRule: { limit: number; windowSeconds: number } = { limit: 10_000, windowSeconds: 3600 },
+		) {
 			const clock = createMutableClock(1_700_000_000_000);
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const publishedUrls: string[] = [];
@@ -2067,11 +2070,33 @@ describe("View routes", () => {
 			};
 			fixture.rateLimit = {
 				consumeRateLimit: initInMemoryRateLimit({ now: clock.now }).consumeRateLimit,
-				rules: { ...fixture.rateLimit.rules, viewCrawl: rule },
+				rules: { ...fixture.rateLimit.rules, viewCrawl: rule, viewCrawlSignedIn: signedInRule },
 			};
 			const harness = useApp(fixture);
 			return { harness, publishedUrls, clock };
 		}
+
+		it("holds a signed-in viewer to the signed-in limit, leaving the logged-out allowance untouched", async () => {
+			const { harness, publishedUrls } = buildThrottledHarness(
+				{ limit: 1, windowSeconds: 3600 },
+				{ limit: 2, windowSeconds: 3600 },
+			);
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const signedInFirst = await agent.get("/view/example.com/first");
+			const signedInSecond = await agent.get("/view/example.com/second");
+			const signedInThrottled = await agent.get("/view/example.com/third");
+			const loggedOut = await request(harness.server).get("/view/example.com/fourth");
+
+			expect([signedInFirst.status, signedInSecond.status, signedInThrottled.status]).toEqual([200, 200, 429]);
+			expect(signedInThrottled.text).toBe("Too many requests from your network. Please try again later.");
+			expect(loggedOut.status).toBe(200);
+			expect(publishedUrls).toEqual([
+				"https://example.com/first",
+				"https://example.com/second",
+				"https://example.com/fourth",
+			]);
+		});
 
 		it("returns 429 past the per-IP limit and enqueues no crawl for the throttled URL", async () => {
 			const { harness, publishedUrls } = buildThrottledHarness({
@@ -2086,6 +2111,7 @@ describe("View routes", () => {
 			expect([first.status, second.status]).toEqual([200, 200]);
 			expect(throttled.status).toBe(429);
 			expect(String(throttled.headers["retry-after"])).toMatch(/^\d+$/);
+			expect(new JSDOM(throttled.text).window.document.querySelector("body.page-view-crawl-limit")).not.toBeNull();
 			expect(publishedUrls).toEqual([
 				"https://example.com/first",
 				"https://example.com/second",
@@ -2093,6 +2119,65 @@ describe("View routes", () => {
 			expect(
 				await harness.articleStore.findArticleByUrl("https://example.com/third"),
 			).toBeNull();
+		});
+
+		it("asks a throttled logged-out visitor to create an account, with tracked sign-up and log-in links", async () => {
+			const { harness } = buildThrottledHarness({ limit: 1, windowSeconds: 3600 });
+			await request(harness.server).get("/view/example.com/first");
+
+			const throttled = await request(harness.server).get("/view/example.com/second");
+
+			const document = new JSDOM(throttled.text).window.document;
+			const actions = Array.from(document.querySelectorAll("[data-test-crawl-limit-action]")).map((el) => ({
+				action: el.getAttribute("data-test-crawl-limit-action"),
+				href: el.getAttribute("href"),
+			}));
+			expect(actions).toEqual([
+				{ action: "signup", href: "/signup?utm_source=view-crawl-limit&utm_medium=internal&utm_content=signup" },
+				{ action: "login", href: "/login?utm_source=view-crawl-limit&utm_medium=internal&utm_content=login" },
+			]);
+			expect(document.querySelector("h1")?.textContent).toBe("You've opened a lot of new links this hour");
+		});
+
+		it("records one view_crawl_limited event per screen shown to a browser, joinable on visitor_id", async () => {
+			const { harness } = buildThrottledHarness({ limit: 1, windowSeconds: 3600 });
+			await request(harness.server).get("/view/example.com/first").set(BROWSER_REQUEST_HEADERS);
+
+			await request(harness.server).get("/view/example.com/second").set(BROWSER_REQUEST_HEADERS);
+
+			const events = harness.analytics.events.filter((e) => e.event === "view_crawl_limited");
+			assert.equal(events.length, 1, "exactly one view_crawl_limited");
+			expect(events[0]).toMatchObject({
+				stream: "analytics",
+				event: "view_crawl_limited",
+				path: "/view/example.com/second",
+				article_host: "example.com",
+				is_authenticated: 0,
+			});
+			expect(events[0]).toHaveProperty("visitor_id", expect.any(String));
+			expect(events[0]).toHaveProperty("visitor_hash", expect.any(String));
+		});
+
+		it("records no view_crawl_limited for a bot that hits the limit", async () => {
+			const { harness } = buildThrottledHarness({ limit: 1, windowSeconds: 3600 });
+			await request(harness.server).get("/view/example.com/first").set("User-Agent", GOOGLEBOT);
+
+			const throttled = await request(harness.server).get("/view/example.com/second").set("User-Agent", GOOGLEBOT);
+
+			expect(throttled.status).toBe(429);
+			expect(harness.analytics.events.filter((e) => e.event === "view_crawl_limited")).toEqual([]);
+		});
+
+		it("remembers the throttled article so signing up from the screen saves it to the new readlist", async () => {
+			const { harness } = buildThrottledHarness({ limit: 1, windowSeconds: 3600 });
+			await request(harness.server).get("/view/example.com/first");
+
+			const throttled = await request(harness.server).get("/view/example.com/second");
+
+			const setCookie = throttled.headers["set-cookie"];
+			const cookie = (Array.isArray(setCookie) ? setCookie : []).find((c) => c.startsWith("hutch_lastview="));
+			assert(cookie, "the limit screen must set hutch_lastview");
+			expect(decodeURIComponent(cookie.slice("hutch_lastview=".length).split(";")[0])).toBe("https://example.com/second");
 		});
 
 		it("spends no crawl budget on repeat views of an already-known article", async () => {

@@ -1,0 +1,11 @@
+    <main class="view-crawl-limit">
+      <div class="view-crawl-limit__container">
+        <h1 class="view-crawl-limit__title">You've opened a lot of new links this hour</h1>
+        <p class="view-crawl-limit__text">Create a free account to keep reading. We'll save this article to your readlist so it's waiting for you.</p>
+        <div class="view-crawl-limit__actions">
+          <a href="{{signupHref}}" class="btn btn--primary" data-test-crawl-limit-action="signup">Create a free account</a>
+          <a href="{{loginHref}}" class="btn btn--secondary" data-test-crawl-limit-action="login">Log in</a>
+        </div>
+        <p class="view-crawl-limit__text">Or come back in about {{retryMinutes}} minutes.</p>
+      </div>
+    </main>

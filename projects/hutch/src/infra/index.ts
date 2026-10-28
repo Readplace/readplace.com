@@ -148,6 +148,7 @@ const tableNames = {
  * strict. Parsed and enforced by the runtime's DynamoDB-backed limiter. */
 const rateLimitRules = {
 	viewCrawl: config.require("rateLimitViewCrawl"),
+	viewCrawlSignedIn: config.require("rateLimitViewCrawlSignedIn"),
 	login: config.require("rateLimitLogin"),
 	loginAccount: config.require("rateLimitLoginAccount"),
 	signup: config.require("rateLimitSignup"),
@@ -458,6 +459,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		} satisfies Record<keyof DynamoTables, pulumi.Input<string>>),
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
+		RATE_LIMIT_VIEW_CRAWL_SIGNED_IN: rateLimitRules.viewCrawlSignedIn,
 		RATE_LIMIT_LOGIN: rateLimitRules.login,
 		RATE_LIMIT_LOGIN_ACCOUNT: rateLimitRules.loginAccount,
 		RATE_LIMIT_SIGNUP: rateLimitRules.signup,

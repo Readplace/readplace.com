@@ -1605,6 +1605,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		consumeRateLimit: deps.consumeRateLimit,
 		viewCrawlRateLimit: deps.rateLimitRules.viewCrawl,
+		viewCrawlSignedInRateLimit: deps.rateLimitRules.viewCrawlSignedIn,
 		now: deps.now,
 		buildBannerState,
 		recordAnalyticsEvent,

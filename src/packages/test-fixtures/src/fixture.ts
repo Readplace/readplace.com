@@ -280,6 +280,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
 		rules: {
 			viewCrawl: unlimitedRule,
+			viewCrawlSignedIn: unlimitedRule,
 			login: unlimitedRule,
 			loginAccount: unlimitedRule,
 			signup: unlimitedRule,

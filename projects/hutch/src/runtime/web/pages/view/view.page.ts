@@ -61,6 +61,7 @@ import { isPrefetchRequest } from "../../shared/prefetch-request";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
+import { ViewCrawlLimitPage } from "./view-crawl-limit.component";
 import { parseViewPath, viewPathFor } from "./view-path";
 import {
 	type BuildArticleEpub,
@@ -104,6 +105,7 @@ interface ViewDependencies {
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	consumeRateLimit: ConsumeRateLimit;
 	viewCrawlRateLimit: RateLimitRule;
+	viewCrawlSignedInRateLimit: RateLimitRule;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
@@ -374,13 +376,32 @@ function handleViewArticle(
 				}
 			}
 			if (!existing || offersCapture) {
-				const decision = await deps.consumeRateLimit({
-					bucket: "view-crawl",
-					key: rateLimitKeyFromRequest(req),
-					rule: deps.viewCrawlRateLimit,
-				});
-				if (!decision.allowed && !existing) {
+				const decision = await deps.consumeRateLimit(
+					req.userId === undefined
+						? { bucket: "view-crawl", key: rateLimitKeyFromRequest(req), rule: deps.viewCrawlRateLimit }
+						: { bucket: "view-crawl-signed-in", key: rateLimitKeyFromRequest(req), rule: deps.viewCrawlSignedInRateLimit },
+				);
+				if (!decision.allowed && !existing && req.userId !== undefined) {
 					sendRateLimited(res, decision.retryAfterSeconds);
+					return;
+				}
+				if (!decision.allowed && !existing) {
+					if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
+						assert(req.visitorId, "visitor-id middleware must run before the /view router");
+						deps.recordAnalyticsEvent(req, {
+							stream: STREAMS.analytics,
+							event: ANALYTICS_EVENTS.viewCrawlLimited,
+							timestamp: deps.now().toISOString(),
+							path: originalPath,
+							article_host: articleHostFrom(articleUrl),
+							visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: deps.salt }),
+							visitor_id: req.visitorId,
+							is_authenticated: 0,
+						});
+					}
+					if (!isPrefetchOrBot(req)) setLastViewUrl({ res, secure: deps.secureCookies }, articleUrl);
+					res.set("Retry-After", String(decision.retryAfterSeconds));
+					sendComponent(req, res, Base(ViewCrawlLimitPage({ retryAfterSeconds: decision.retryAfterSeconds }), await deps.buildBannerState(req)));
 					return;
 				}
 				const identity = decision.allowed ? await deps.resolveSaveIdentity(validation.url) : undefined;
