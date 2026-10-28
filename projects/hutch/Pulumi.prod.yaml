@@ -98,7 +98,8 @@ config:
     54ec3bbd-7911-4a2c-9e15-87f59c027e00,
     3f7895fb-d11a-4105-a326-aa5058e3c3ed,
     eb37c63f-6dd2-4865-b64b-4a9145d61171,
-    e59a19ac-aa60-4789-98e9-27070f4068bc
+    e59a19ac-aa60-4789-98e9-27070f4068bc,
+    6fc71358-1432-45ed-8eea-6901d6ce2af8
   ]
   hutch:engagementStarterDeploymentSha: '86715381be193c8cf0b8fe2eb53428ee4ff91970'
   hutch:excludedUserIds: [
@@ -109,7 +110,8 @@ config:
     d62e199d47a5b1d9c419c94ddf74d712,
     c6f587a1e604f02595c1032a764543d7,
     342d72290cd7570617cc1f99d8e1bc30,
-    ec6d29487a6f2b8e4f55621c9b7ff280
+    ec6d29487a6f2b8e4f55621c9b7ff280,
+    65daef31554ad10764c3e72ac282deae
   ]
   hutch:dynamodbOAuthOutcomesTable: hutch-oauth-refresh-outcomes-prod
   hutch:oauthTestGrants: []
