@@ -106,7 +106,7 @@ function freePort() {
 }
 
 async function assertNoOtherModelServer() {
-  const { stdout } = await promisify(execFile)("/usr/bin/pgrep", ["-fl", "mlx_vlm.server"]).catch((error) => {
+  const { stdout } = await promisify(execFile)("/usr/bin/pgrep", ["-fl", "mlx_vlm\\.server"]).catch((error) => {
     if (error.code === 1) {
       return { stdout: "" };
     }
@@ -371,7 +371,9 @@ main().catch((error) => {
   console.error(
     "::error::Visual review failed:",
     error instanceof Error ? error.message : error,
-    JSON.stringify({ elapsedMs: error?.elapsedMs, serverExit: error?.serverExit }),
+    ...(error?.elapsedMs === undefined && error?.serverExit === undefined
+      ? []
+      : [JSON.stringify({ elapsedMs: error?.elapsedMs, serverExit: error?.serverExit })]),
   );
   process.exitCode = 1;
 });
