@@ -64,7 +64,7 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 		detection: recognised([]),
 		imports: [],
 		state: {},
-		command: { pick: undefined, select: undefined },
+		command: { pick: undefined, select: undefined, dismiss: undefined },
 		listed: undefined,
 		discoveryStarted: false,
 		discoveryPending: false,

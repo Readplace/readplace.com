@@ -133,6 +133,7 @@ export function registerGmailPageRoutes(
 		]);
 		const pick = ForwardableSenderSchema.safeParse(req.query.pick);
 		const select = SelectCommandSchema.safeParse(req.query.select);
+		const dismiss = ForwardableSenderSchema.safeParse(req.query.dismiss);
 		const listed = ListedSchema.safeParse(req.query.listed);
 		const saved = SavedSchema.safeParse(req.query.saved);
 		return toGmailPageViewModel({
@@ -158,6 +159,7 @@ export function registerGmailPageRoutes(
 			command: {
 				pick: pick.success ? pick.data : undefined,
 				select: select.success ? select.data : undefined,
+				dismiss: dismiss.success ? dismiss.data : undefined,
 			},
 			listed: listed.success ? listed.data : undefined,
 			discoveryStarted: queryValue(req, "discovery") === "started",
