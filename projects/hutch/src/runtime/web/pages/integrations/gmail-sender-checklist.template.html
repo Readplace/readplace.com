@@ -17,6 +17,9 @@
                       <input class="form-choice gmail__checklist-checkbox" type="checkbox" form="gmail-readlist-selection" name="sender" value="{{email}}"{{#if checked}} checked{{/if}}{{#if autofocus}} autofocus{{/if}} data-test-gmail-checklist-sender="{{email}}">
                       <span class="gmail__checklist-text">{{#if name}}<span class="gmail__checklist-name" data-test-gmail-checklist-name>{{name}}</span>{{/if}}<span class="gmail__checklist-email">{{email}}</span></span>
                     </label>
+                    {{#each ../actions}}
+                    <button class="btn btn--neutral btn--s gmail__checklist-remove" type="submit" form="gmail-readlist-selection" formmethod="get" formnovalidate name="{{name}}" value="{{../email}}" aria-label="{{label}} {{../email}} from added senders" data-test-gmail-checklist-remove="{{../email}}">{{label}}</button>
+                    {{/each}}
                     {{#each fields}}
                     <input type="hidden" form="gmail-readlist-selection" name="{{name}}" value="{{value}}">
                     {{/each}}

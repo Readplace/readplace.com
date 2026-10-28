@@ -10,6 +10,7 @@ export type GmailChecklistSelect = "all" | "none";
 export interface GmailChecklistCommand {
 	pick: ForwardableSender | undefined;
 	select: GmailChecklistSelect | undefined;
+	dismiss: ForwardableSender | undefined;
 }
 
 export interface GmailChecklistRow {
@@ -24,6 +25,7 @@ export interface GmailChecklistGroup {
 	key: "editing" | "known" | "added";
 	title: string;
 	rows: GmailChecklistRow[];
+	actions: { name: "dismiss"; label: string }[];
 }
 
 export interface GmailChecklistAction {
@@ -94,7 +96,7 @@ export function toGmailSenderChecklist(input: {
 	const requested = new Set([...tickRequests, ...(input.state.added ?? [])]);
 	const known = candidates.filter((candidate) => !candidate.mapped && candidate.recognized);
 	const editing = candidates.filter((candidate) => candidate.mapped && requested.has(candidate.email));
-	const added = candidates.filter((candidate) => !candidate.mapped && requested.has(candidate.email) && !known.includes(candidate));
+	const added = candidates.filter((candidate) => !candidate.mapped && requested.has(candidate.email) && !known.includes(candidate) && candidate.email !== input.command.dismiss);
 	const listed = [...editing, ...known, ...added];
 	const ticked = tickedEmails({ requested: tickRequests, select: input.command.select, listed });
 	const row = (fields: (candidate: GmailSenderCandidate) => FormField[]) => (candidate: GmailSenderCandidate): GmailChecklistRow => ({
@@ -105,9 +107,14 @@ export function toGmailSenderChecklist(input: {
 		fields: fields(candidate),
 	});
 	const groups: GmailChecklistGroup[] = [
-		{ key: "editing", title: GMAIL_CHECKLIST_TITLES.editing, rows: editing.map(row(() => [])) },
-		{ key: "known", title: GMAIL_CHECKLIST_TITLES.known, rows: known.map(row(() => [])) },
-		{ key: "added", title: GMAIL_CHECKLIST_TITLES.added, rows: added.map(row((candidate) => [{ name: "added", value: candidate.email }])) },
+		{ key: "editing", title: GMAIL_CHECKLIST_TITLES.editing, rows: editing.map(row(() => [])), actions: [] },
+		{ key: "known", title: GMAIL_CHECKLIST_TITLES.known, rows: known.map(row(() => [])), actions: [] },
+		{
+			key: "added",
+			title: GMAIL_CHECKLIST_TITLES.added,
+			rows: added.map(row((candidate) => [{ name: "added", value: candidate.email }])),
+			actions: [{ name: "dismiss", label: "Remove" }],
+		},
 	];
 	const state = chooseState({ candidates, catalogAvailable: input.catalogAvailable, known });
 	const allTicked = listed.every((candidate) => ticked.has(candidate.email));

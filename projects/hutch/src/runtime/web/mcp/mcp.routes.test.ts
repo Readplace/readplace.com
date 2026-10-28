@@ -6,7 +6,7 @@ import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { initMcpRoutes } from "./mcp.routes";
-import { initMcpServer } from "./mcp-server";
+import { initMcpServer, type McpHandshakeRecord, type McpServerDeps } from "./mcp-server";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
@@ -16,7 +16,7 @@ const validateAccessToken: ValidateAccessToken = async (token) =>
 		? { userId, emailVerified: true, oauthClientId: "dyn-registered-mcp-client", oauthGrantId: undefined }
 		: null;
 
-function buildObservedApp(): { app: Express; captured: AnalyticsEvent[] } {
+function buildObservedApp(overrides: Partial<McpServerDeps> = {}): { app: Express; captured: AnalyticsEvent[] } {
 	const captured: AnalyticsEvent[] = [];
 	const mcpServer = initMcpServer({
 		appOrigin: "https://readplace.com",
@@ -41,6 +41,7 @@ function buildObservedApp(): { app: Express; captured: AnalyticsEvent[] } {
 		recordToolCall: () => {},
 		recordHandshake: () => {},
 		logError: () => {},
+		...overrides,
 	});
 	const app = express();
 	app.use(createViewerIdentityMiddleware({ edgeSecret: "" }));
@@ -321,6 +322,28 @@ describe("MCP transport routes", () => {
 				.send(body);
 			expect(captured).toHaveLength(1);
 			expect(JSON.stringify(captured)).not.toContain("good-token");
+		});
+	});
+
+	describe("handshake records", () => {
+		it("records a tools/list with the classified client and never the raw User-Agent", async () => {
+			const records: McpHandshakeRecord[] = [];
+			const { app } = buildObservedApp({
+				recordHandshake: (record) => {
+					records.push(record);
+				},
+			});
+			await post(app, { jsonrpc: "2.0", id: 1, method: "tools/list" }).set("User-Agent", "openai-mcp/1.0.0");
+			expect(records).toEqual([
+				{
+					method: "tools/list",
+					userId,
+					oauthClientId: "dyn-registered-mcp-client",
+					toolCount: expect.any(Number),
+					uaClient: "openai",
+				},
+			]);
+			expect(JSON.stringify(records)).not.toContain("openai-mcp/1.0.0");
 		});
 	});
 });

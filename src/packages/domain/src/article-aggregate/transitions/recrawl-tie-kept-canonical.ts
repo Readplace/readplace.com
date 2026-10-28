@@ -22,8 +22,8 @@ export function recrawlTieKeptCanonical(
 	writes: readonly AggregateField[];
 } {
 	const staleCrawlFailedSummary =
-		(article.summary.kind === "failed" && article.summary.reason.kind === "crawl-failed") ||
-		(article.summary.kind === "skipped" && article.summary.reason === "crawl-failed");
+		article.summary.kind === "failed" &&
+		article.summary.reason.kind === "crawl-failed";
 
 	const effects: Effect[] = [];
 	if (staleCrawlFailedSummary) {

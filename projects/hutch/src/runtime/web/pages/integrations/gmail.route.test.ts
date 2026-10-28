@@ -535,6 +535,37 @@ describe("GMail Newsletters page", () => {
 		]);
 	});
 
+	it("dismisses an added sender through the selection form, preserves the other choices, and keeps it searchable", async () => {
+		const { agent, gmail, createReadlist } = await connectedAgent({ scope: READONLY_SCOPES });
+		await createReadlist({ slug: "tech", label: "Tech" });
+		const state = new URLSearchParams({ search: "dan", add: "1", delivery: "both", import: "1" });
+		state.append("sender", MORNING);
+		state.append("sender", TLDR);
+		state.append("added", TLDR);
+		state.append("readlist", "default");
+		state.append("readlist", "tech");
+		const before = load((await agent.get(`${GMAIL}?${state}`)).text);
+		const remove = before.querySelector<HTMLButtonElement>(`[data-test-gmail-checklist-remove="${TLDR}"]`);
+		assert(remove, "the added sender must offer removal");
+		expect([remove.type, remove.getAttribute("form"), remove.getAttribute("formmethod"), remove.hasAttribute("formnovalidate")]).toEqual([
+			"submit", "gmail-readlist-selection", "get", true,
+		]);
+		expect(Array.from(checklist(before).querySelectorAll("[data-test-gmail-checklist-remove]"), (button) => button.getAttribute("data-test-gmail-checklist-remove"))).toEqual([TLDR]);
+		state.set(remove.name, remove.value);
+
+		const dismissedUrl = `${GMAIL}?search=dan&sender=crew%40morningbrew.com&readlist=default&readlist=tech&delivery=both&import=1&add=1&discovery=started`;
+		const response = await agent.get(`${GMAIL}?${state}`);
+		expect([response.status, response.headers.location]).toEqual([303, dismissedUrl]);
+		const after = load((await agent.get(dismissedUrl)).text);
+		expect(checklistRows(after)).toEqual([["known", MORNING, "Morning Brew", true]]);
+		expect(optionEmails(after)).toEqual([TLDR]);
+		expect(gmail.rewriteRequests).toEqual([]);
+
+		const boosted = await agent.get(`${GMAIL}?${state}`).set("HX-Request", "true").set("HX-Target", "gmail-dialog-body");
+		expect([boosted.status, boosted.headers["hx-push-url"]]).toEqual([200, dismissedUrl]);
+		expect(checklistRows(load(boosted.text))).toEqual(checklistRows(after));
+	});
+
 	it("submits the typed search through the mapping form with GET, so the live ticks reach the reloaded page without JavaScript", async () => {
 		const { agent } = await connectedAgent();
 

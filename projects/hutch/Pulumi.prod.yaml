@@ -74,6 +74,8 @@ config:
   hutch:alertEmail: readplace+devops@readplace.com
   hutch:gmailConnectionCapWarnThreshold: 50
   hutch:oauthRefreshRefusedDailyThreshold: 5
+  hutch:analyticsSaltGeneration: 1
+  hutch:mcpScanListingWindowHours: 26
   hutch:gmailFilterRewriteFailedThreshold: 1
   hutch:gmailEmailUpdateFailedThreshold: 1
   hutch:readlistCapWarnThreshold: 1

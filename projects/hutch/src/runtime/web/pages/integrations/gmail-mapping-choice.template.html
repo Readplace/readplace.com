@@ -1,5 +1,5 @@
 <div id="gmail-mapping-choice" class="gmail__mapping-choice"{{#if notificationSender}} data-gmail-notification="{{notificationSender}}" data-gmail-notification-highlight{{/if}}{{#if outOfBand}} hx-swap-oob="outerHTML"{{/if}}>
-              <form id="gmail-readlist-selection" class="gmail__selection" method="GET" action="{{readlistPicker.pagePath}}" hx-boost="true" hx-target="#gmail-dialog-body" hx-select="#gmail-dialog-body" hx-swap="outerHTML show:none" hx-disabled-elt="#gmail-readlist-selection button" data-gmail-readlist-selection data-test-gmail-save-mapping>
+              <form id="gmail-readlist-selection" class="gmail__selection" method="GET" action="{{readlistPicker.pagePath}}" hx-boost="true" hx-target="#gmail-dialog-body" hx-select="#gmail-dialog-body" hx-swap="outerHTML show:none" hx-disabled-elt="#gmail-readlist-selection button, .gmail__checklist-remove" data-gmail-readlist-selection data-test-gmail-save-mapping>
                 {{#each readlistPicker.fields}}
                 <input type="hidden" name="{{name}}" value="{{value}}">
                 {{/each}}

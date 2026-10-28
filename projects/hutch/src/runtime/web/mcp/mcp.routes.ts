@@ -12,6 +12,7 @@ import {
 	buildMcpRequestRefusedEvent,
 	MCP_REQUEST_REFUSAL_REASONS,
 	type McpRequestRefusalReason,
+	mcpUaClientOf,
 	type RecordUngatedEvent,
 } from "@packages/web-analytics";
 import type { McpServer } from "./mcp-server";
@@ -152,6 +153,7 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 			const response = await deps.mcpServer.handle(message, {
 				userId: req.userId,
 				oauthClientId,
+				uaClient: mcpUaClientOf(req.get("user-agent")),
 			});
 			if (!response) {
 				res.status(202).end();

@@ -43,7 +43,7 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 		detection: { status: "available", recognized: new Map() },
 		imports: [],
 		state: {},
-		command: { pick: undefined, select: undefined },
+		command: { pick: undefined, select: undefined, dismiss: undefined },
 		listed: undefined,
 		discoveryStarted: false,
 		discoveryPending: false,

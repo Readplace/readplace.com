@@ -4,7 +4,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
 import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, classifyOsFamily, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
-import { MCP_REQUEST_REFUSAL_REASONS, OAUTH_TOKEN_GRANT_TYPES, OAUTH_TOKEN_KINDS, OAUTH_TOKEN_REVOCATION_OUTCOMES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
+import { MCP_REQUEST_REFUSAL_REASONS, MCP_UA_CLIENTS, OAUTH_TOKEN_GRANT_TYPES, OAUTH_TOKEN_KINDS, OAUTH_TOKEN_REVOCATION_OUTCOMES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1931,7 +1931,7 @@ describe("buildMcpToolsListedEvent", () => {
 		expect(
 			buildMcpToolsListedEvent(
 				{ now: () => new Date("2026-09-12T04:47:00.000Z") },
-				{ oauthClientId: "dyn-registered-mcp-client", userId, toolCount: 12 },
+				{ oauthClientId: "dyn-registered-mcp-client", userId, toolCount: 12, uaClient: MCP_UA_CLIENTS.openai },
 			),
 		).toEqual({
 			stream: "analytics",
@@ -1940,6 +1940,7 @@ describe("buildMcpToolsListedEvent", () => {
 			oauth_client_id: "dyn-registered-mcp-client",
 			user_id: userId,
 			tool_count: 12,
+			ua_client: "openai",
 		});
 	});
 });

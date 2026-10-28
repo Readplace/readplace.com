@@ -18,7 +18,7 @@ function candidates(...entries: GmailSenderCandidate[]): Map<ForwardableSender, 
 	return new Map(entries.map((entry) => [entry.email, entry]));
 }
 
-const NO_COMMAND: GmailChecklistCommand = { pick: undefined, select: undefined };
+const NO_COMMAND: GmailChecklistCommand = { pick: undefined, select: undefined, dismiss: undefined };
 
 const MAILBOX = candidates(
 	candidate(TLDR, { newsletterName: "TLDR", displayName: "Dan", recognized: true }),
@@ -78,13 +78,13 @@ describe("Gmail sender checklist groups", () => {
 	});
 
 	it("adds a picked sender as a ticked row and ticks a picked known newsletter in place", () => {
-		const added = checklist({ state: { sender: [TLDR] }, command: { pick: FRIEND, select: undefined } });
+		const added = checklist({ state: { sender: [TLDR] }, command: { pick: FRIEND, select: undefined, dismiss: undefined } });
 		assert.deepEqual(rows(added).filter(([, , , checked]) => checked), [
 			["known", TLDR, "TLDR", true, ""],
 			["added", FRIEND, "Alex", true, `added=${FRIEND}`],
 		]);
 		assert.deepEqual(added.sender, [TLDR, FRIEND]);
-		const known = checklist({ command: { pick: BREW, select: undefined } });
+		const known = checklist({ command: { pick: BREW, select: undefined, dismiss: undefined } });
 		assert.deepEqual(known.groups.map((group) => group.key), ["known"]);
 		assert.deepEqual(known.sender, [BREW]);
 	});
@@ -104,13 +104,13 @@ describe("Gmail sender checklist toggle", () => {
 	});
 
 	it("ticks every listed row on select=all, added rows included", () => {
-		const vm = checklist({ state: { added: [SHOP] }, command: { pick: undefined, select: "all" } });
+		const vm = checklist({ state: { added: [SHOP] }, command: { pick: undefined, select: "all", dismiss: undefined } });
 		assert.deepEqual(vm.sender, [BREW, TLDR, SHOP]);
 		assert.deepEqual(actions(vm), [["select", "select", "none", "Clear selection"]]);
 	});
 
 	it("unticks every row on select=none and keeps the added rows listed", () => {
-		const vm = checklist({ state: { sender: [TLDR, SHOP], added: [SHOP] }, command: { pick: undefined, select: "none" } });
+		const vm = checklist({ state: { sender: [TLDR, SHOP], added: [SHOP] }, command: { pick: undefined, select: "none", dismiss: undefined } });
 		assert.deepEqual(rows(vm).map(([group, email, , checked]) => [group, email, checked]), [
 			["known", BREW, false],
 			["known", TLDR, false],
@@ -118,6 +118,47 @@ describe("Gmail sender checklist toggle", () => {
 		]);
 		assert.deepEqual(vm.sender, []);
 		assert.deepEqual(vm.added, [SHOP]);
+	});
+});
+
+describe("Gmail added sender dismissal", () => {
+	it("offers removal only for rows the reader added", () => {
+		const vm = checklist({ state: { sender: [BYTES, TLDR, FRIEND], added: [SHOP] } });
+		assert.deepEqual(vm.groups.map((group) => [group.key, group.actions]), [
+			["editing", []],
+			["known", []],
+			["added", [{ name: "dismiss", label: "Remove" }]],
+		]);
+	});
+
+	it.each([true, false])("dismisses a draft row whether checked=%s while preserving the other rows", (checked) => {
+		const vm = checklist({
+			state: { sender: checked ? [TLDR, FRIEND] : [TLDR], added: [FRIEND, SHOP] },
+			command: { ...NO_COMMAND, dismiss: FRIEND },
+		});
+		assert.deepEqual(rows(vm), [
+			["known", BREW, "Morning Brew Crew", false, ""],
+			["known", TLDR, "TLDR", true, ""],
+			["added", SHOP, undefined, false, `added=${SHOP}`],
+		]);
+		assert.deepEqual(vm.sender, [TLDR]);
+		assert.deepEqual(vm.added, [SHOP]);
+		assert.equal(vm.total, 3);
+	});
+
+	it.each([TLDR, BYTES, SHOP])("leaves known, mapped, and absent rows alone when asked to dismiss %s", (dismiss) => {
+		const state = { sender: [TLDR, BYTES, FRIEND], added: [FRIEND] };
+		assert.deepEqual(checklist({ state, command: { ...NO_COMMAND, dismiss } }), checklist({ state }));
+	});
+
+	it("removes the added group with its last row and allows the sender to be picked again", () => {
+		const removed = checklist({ state: { sender: [FRIEND], added: [FRIEND] }, command: { ...NO_COMMAND, dismiss: FRIEND } });
+		assert.deepEqual(removed.groups.map((group) => group.key), ["known"]);
+		assert.deepEqual(removed.sender, []);
+		assert.deepEqual(removed.added, []);
+		const restored = checklist({ state: { sender: removed.sender, added: removed.added }, command: { ...NO_COMMAND, pick: FRIEND } });
+		assert.deepEqual(restored.sender, [FRIEND]);
+		assert.deepEqual(restored.added, [FRIEND]);
 	});
 });
 

@@ -345,6 +345,8 @@ form.htmx-request .gmail__submit-loader {
 }
 
 .gmail__checklist-row {
+  display: flex;
+  align-items: center;
   border-bottom: 1px solid var(--border);
   transition: background-color 0.15s ease;
 }
@@ -359,11 +361,23 @@ form.htmx-request .gmail__submit-loader {
 
 .gmail__checklist-label {
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: 12px;
   min-height: 44px;
   padding: 12px 20px;
   cursor: pointer;
+}
+
+.gmail__checklist-remove {
+  flex: none;
+  margin-right: 20px;
+}
+
+.gmail-dialog__body:has(.gmail__selection.htmx-request) .gmail__checklist-remove {
+  opacity: 1;
+  cursor: progress;
 }
 
 .gmail__checklist-checkbox {

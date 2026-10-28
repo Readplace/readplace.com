@@ -156,7 +156,7 @@ The server can refuse or annotate an action with a generic, feature-agnostic mes
 }
 ```
 
-The client owns **no** knowledge of what a message means — it only knows how to render one. The web/extension clients inject `content.body` as HTML (so an `<a href="mailto:…">` renders); iOS strips it to plain text. A locked-account save refusal is the first producer (the server's locked-account refusal builder — the one Siren emitter that interpolates a `mailto:` address into its body; grep the server for `mailto:${` — the non-test hit is the module), but the channel is deliberately generic so any future "show the user this, let them keep reading, but block the save" interceptor reuses it rather than adding another bespoke surface.
+The client owns **no** knowledge of what a message means — it only knows how to render one. The web/extension clients inject `content.body` as HTML (so an `<a href="mailto:…">` renders); iOS strips it to plain text. A locked-account save refusal is the first producer (the server's locked-account refusal builder — the one Siren emitter that interpolates a `mailto:` address into its body; grep the server for `mailto:${` and take the non-test hit that builds a Siren message, not the report-article link builder), but the channel is deliberately generic so any future "show the user this, let them keep reading, but block the save" interceptor reuses it rather than adding another bespoke surface.
 
 **The client renders only media types it understands.** `content.type` is the body's media type. Every client renders exactly one — `text/html` — and **ignores any other media type**: an unrecognised `content.type` is dropped, never displayed, never injected. Be liberal in what you accept (the envelope parses regardless of `content.type`, so a refusal carrying an unknown type still drops the user back into the list rather than failing generically) and conservative in what you render (only the media types the client knows). This makes a new media type a forward-compatible change — older clients skip a body they can't interpret instead of mis-rendering it. The extension filters in the extension core's message-view builder (the pure module that also picks the live-region `role` — grep the extension core for `"alert" : "status"`); iOS filters in its API client's refusal decoder (the step that runs right after the `401` check — grep the iOS Swift sources for `status == 401` — which keeps only renderable messages and still treats a refusal left with none as a refusal, so the app shows its own words instead of a generic failure).
 
@@ -372,28 +372,12 @@ iOS honours the discovery freshness headers only on the **share extension's** se
 
 ### MCP: the same doctrine over a different transport
 
-Readplace also exposes its domain over MCP (Model Context Protocol) at `/mcp`; the external AI assistant is the client. MCP shares this skill's core stance — **the server owns the protocol; the client hardcodes one connection and discovers everything else** — so the Client Conformance rules apply to an MCP client too. It diverges in transport and statefulness, so the mapping is partial, not 1:1.
-
-| Siren / HATEOAS | MCP |
-|---|---|
-| Single entry point `/` (the one hardcoded URL) | The server connection — one Streamable HTTP endpoint or stdio command |
-| `Accept` content negotiation, per request | `initialize` capability + protocol-version handshake, once per stateful session |
-| `actions[]` (`name`, `href`, `method`, `fields`); `name` is the contract | Tools (`tools/list` → `name`, `inputSchema`; invoked via `tools/call`); tool `name` is the contract |
-| `action.fields` (declared inputs) | `inputSchema` (JSON Schema) + optional `outputSchema` the client validates the result against |
-| `links[]` by `rel`/`href`, followed not built | Resources (`resources/list` → `uri`; read via `resources/read`); RFC 6570 `uriTemplate` for parameterized access |
-| Opaque `next` link; never build `?page=` | Opaque pagination `cursor`/`nextCursor`; echo unchanged, never parse or persist |
-| `303` back to the collection after a mutation | Server-pushed `notifications/*/list_changed` and `resources/updated` → re-list / re-read |
-| Generic `messages[]` channel; render media types you understand | JSON-RPC error object (the call failed) vs `isError:true` in a result (the operation refused); typed content blocks |
-| (no analog) | Prompts (`prompts/list` / `prompts/get`) — user-initiated; MCP-only |
-
-Divergences a client must respect: MCP fixes the invocation verb (`tools/call`, `resources/read`) instead of declaring a `method` per affordance; capabilities are three flat global registries (tools/resources/prompts), not actions bound to an entity, so a per-item operation is a tool taking the item's id/uri as an argument; and staleness signals are asynchronous server pushes, not a synchronous redirect.
-
-In this repo, the Readplace server is also the MCP **server**: the tool set is the single source of truth in the tool catalogue (the one server module that declares each tool's `inputSchema` and annotations — grep the server for `readOnlyHint`; the non-test hit), advertised by the MCP server module's `tools/list` handler (grep the server for `"tools/list"`; the `case` that answers it, not the callers), with no client copy to drift. The WebMCP surface (the browser-side provider script — the one that feature-detects the WebMCP `registerTool`/`provideContext` entry points; grep the workspace packages' non-test sources for `registerTool`) is a **provider** that registers one local `save_link` tool for an in-browser agent — a provider declares its own shape, so discover-don't-hardcode does not apply to it. Spec: [modelcontextprotocol.io](https://modelcontextprotocol.io).
+MCP at `/mcp` follows this doctrine over a different transport. The Siren-to-MCP mapping, the divergences an MCP client must respect and the tool-catalogue rule are in the [MCP skill](../mcp/SKILL.md).
 
 ## Checklist — Adding a New Capability to the API
 
 1. **Name the action as a capability**, not a domain fact. Check the Evolvability table before picking a name.
-2. **Emit the capability on the server** — Siren: an action in the collection emitter (collection-level) or the article-entity emitter (entity-level) — both anchored under [References](#references) — with its `fields` declared as Siren field types; MCP: a tool in the tool catalogue (anchored under [MCP](#mcp-the-same-doctrine-over-a-different-transport)), with its `inputSchema`.
+2. **Emit the capability on the server** — Siren: an action in the collection emitter (collection-level) or the article-entity emitter (entity-level) — both anchored under [References](#references) — with its `fields` declared as Siren field types; MCP: a tool in the tool catalogue, with its `inputSchema`, following the [MCP skill](../mcp/SKILL.md).
 3. **Implement the route handler** behind the Siren content-negotiation predicate; return `303` for mutations that should land the client back on a collection.
 4. **Add a handler for the action name on each client** that should expose the capability — see [Per-Client Implementations](#per-client-implementations).
 5. **Test server and client independently** — server integration tests, plus each client's own tests. The contract surface (action name + fields + method + response class) is what both sides pin down.

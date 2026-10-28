@@ -182,6 +182,10 @@ export class HutchLambda extends pulumi.ComponentResource {
 	public readonly role: aws.iam.Role;
 	public readonly logGroupName: pulumi.Output<string>;
 
+	static handlerFunctionName(name: string): string {
+		return `${name}-handler`;
+	}
+
 	constructor(
 		name: string,
 		args: {
@@ -236,7 +240,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 		super("hutch:infra:HutchLambda", name, {}, opts);
 
 		this.name = name;
-		const lambdaName = `${name}-handler`;
+		const lambdaName = HutchLambda.handlerFunctionName(name);
 		const roleName = `${lambdaName}-role`;
 		const basicExecutionName = `${name}-basic-execution`;
 

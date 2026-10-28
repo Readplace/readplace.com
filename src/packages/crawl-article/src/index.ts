@@ -15,6 +15,7 @@ export {
 	initFetchThumbnailImage,
 	isValidHttpUrl,
 	type FetchThumbnailImage,
+	type LogThumbnailNotDelivered,
 	type ThumbnailNotDeliveredEvent,
 } from "./extract-thumbnail";
 export type {
@@ -54,3 +55,4 @@ export type { FetchRedirectHop } from "./fetch-redirect-hop";
 export { initStackOverflowSiteRules } from "./stack-overflow-site-rules";
 export { initHnSearchSiteRules } from "./hn-search-site-rules";
 export { initGitHubPdfSiteRules } from "./github-pdf-site-rules";
+export { initOjsGalleySiteRules } from "./ojs-galley-site-rules";

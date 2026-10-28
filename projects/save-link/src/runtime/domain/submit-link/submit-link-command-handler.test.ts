@@ -1,6 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlockedKeepingCommittedContent } from "../save-link/mark-crawl-blocked-keeping-committed-content";
-import { markCrawlExhausted } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	MinutesSchema,
 	ReaderArticleHashIdSchema,
@@ -671,9 +670,9 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlockedKeepingCommittedContent, {
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
 			url: exampleUrl,
-			input: { reason: { kind: "blocked", cause: "edge-block" }, now: fixedNow().toISOString() },
+			input: { reason: { kind: "blocked", cause: "edge-block" } },
 		});
 		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});

@@ -144,7 +144,7 @@ export function closeGmailDialog(state: GmailPickerState): GmailPickerState {
 	return closed;
 }
 
-export const GMAIL_COMMAND_PARAMS = ["confirm_readlists", "pick", "select"] as const;
+export const GMAIL_COMMAND_PARAMS = ["confirm_readlists", "pick", "select", "dismiss"] as const;
 
 export function confirmGmailReadlists(state: GmailPickerState): GmailPickerState {
 	const choiceFor = state.readlist_choice_for;

@@ -1,10 +1,12 @@
 import { SUPPORTED_CLIENTS, isBuiltInOAuthClientId } from "@packages/supported-clients";
+import { mcpUaClientOf } from "@packages/web-analytics";
 import { ANALYTICS_EVENTS, CONVERSION_EVENTS, METRICS, STREAMS } from "./events";
 import {
 	ANALYTICS_METRIC_FILTERS,
 	ANALYTICS_METRIC_NAMESPACE,
 	analyticsMetricFilterPattern,
 	firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern,
+	openAiScanToolsListedPattern,
 } from "./metric-filters";
 
 describe("analytics metric filters", () => {
@@ -96,5 +98,24 @@ describe("first-party refresh-refused metric filter", () => {
 		expect(["OAuthRefreshRefused", "OAuthRefreshRefusedFirstParty"]).not.toContain(
 			METRICS.oauthRefreshRefusedFirstPartyExceptDisconnect.name,
 		);
+	});
+});
+
+describe("OpenAI scan tools-listed metric filter", () => {
+	it("counts a tools/list only when the caller classified as OpenAI's MCP client", () => {
+		expect(openAiScanToolsListedPattern()).toBe(
+			'{ $.stream = "analytics" && $.event = "mcp_tools_listed" && $.ua_client = "openai" }',
+		);
+	});
+
+	it("matches the class the transport gives the scan's User-Agent, so the filter and the classifier cannot drift apart", () => {
+		expect(openAiScanToolsListedPattern()).toContain(`$.ua_client = "${mcpUaClientOf("openai-mcp/1.0.0")}"`);
+	});
+
+	it("publishes the scan's listings into the OAuth namespace the scan's credential belongs to", () => {
+		expect(METRICS.mcpToolsListedByOpenAiScan).toEqual({
+			namespace: "Readplace/OAuth",
+			name: "McpToolsListedByOpenAiScan",
+		});
 	});
 });

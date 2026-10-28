@@ -1,5 +1,6 @@
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
+import { MCP_UA_CLIENTS } from "@packages/web-analytics";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
 import {
@@ -15,7 +16,7 @@ import { TOOL_DEFINITIONS } from "./tool-definitions";
 import { articleBody } from "@packages/test-fixtures";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
-const context = { userId, oauthClientId: "dyn-registered-mcp-client" };
+const context = { userId, oauthClientId: "dyn-registered-mcp-client", uaClient: MCP_UA_CLIENTS.other };
 
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {
@@ -1328,6 +1329,28 @@ describe("initMcpServer", () => {
 			});
 			expect(listReadlist).toHaveBeenCalled();
 		});
+
+		it("lists every tool to a caller whose subscription is inactive", async () => {
+			const server = initMcpServer(fakeDeps({ resolveToolAccess: inactive }));
+			const response = await server.handle({ jsonrpc: "2.0", id: 76, method: "tools/list" }, context);
+			expect(response).toMatchObject({
+				id: 76,
+				result: { tools: TOOL_DEFINITIONS.map(({ name }) => ({ name })) },
+			});
+		});
+
+		it("lists every tool without running the subscription check, even when that check throws", async () => {
+			const resolveToolAccess = jest.fn(async () => {
+				throw new Error("subscription store unavailable");
+			});
+			const server = initMcpServer(fakeDeps({ resolveToolAccess }));
+			const response = await server.handle({ jsonrpc: "2.0", id: 77, method: "tools/list" }, context);
+			expect(response).toMatchObject({
+				id: 77,
+				result: { tools: TOOL_DEFINITIONS.map(({ name }) => ({ name })) },
+			});
+			expect(resolveToolAccess).toHaveBeenCalledTimes(0);
+		});
 	});
 
 	describe("subscription state never reaches a successful result", () => {
@@ -2259,6 +2282,7 @@ describe("recordHandshake", () => {
 				userId,
 				oauthClientId: "dyn-registered-mcp-client",
 				toolCount: TOOL_DEFINITIONS.length,
+				uaClient: "other",
 			},
 		]);
 	});
