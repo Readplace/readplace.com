@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseHTML } from "linkedom";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { readabilityAdditions } from "./readability-additions";
@@ -110,7 +112,13 @@ function substackPost(input: { tag: "h2" | "h3"; titles: readonly string[] }): s
 	);
 }
 
-function parsedHeadings(input: { html: string; siteRules: Parameters<typeof initReadabilityParser>[0]["siteRules"] }): {
+const CUSTOM_DOMAIN_POST_URL = "https://www.example-newsletter.com/p/stigmergy";
+
+function parsedHeadings(input: {
+	html: string;
+	url: string;
+	siteRules: Parameters<typeof initReadabilityParser>[0]["siteRules"];
+}): {
 	headings: string[];
 	paragraphs: string[];
 } {
@@ -120,8 +128,7 @@ function parsedHeadings(input: { html: string; siteRules: Parameters<typeof init
 		readabilityAdditions,
 		logError: () => {},
 	});
-	const url = "https://www.example-newsletter.com/p/stigmergy";
-	const result = parseHtml({ url, documentUrl: url, html: input.html, thumbnailUrl: null });
+	const result = parseHtml({ url: input.url, documentUrl: input.url, html: input.html, thumbnailUrl: null });
 	expect(result.ok).toBe(true);
 	if (!result.ok) return { headings: [], paragraphs: [] };
 	const { document } = parseHTML(`<html><body>${result.article.content}</body></html>`);
@@ -135,13 +142,21 @@ describe("substackSiteRules end-to-end through parseHtml", () => {
 	const TITLES = ["The Mechanism", "Why It Works", "Further reading"];
 
 	it.each(["h2", "h3"] as const)("keeps %s section headings on a custom-domain post, with no anchor chrome", (tag) => {
-		const { headings } = parsedHeadings({ html: substackPost({ tag, titles: TITLES }), siteRules: [substackSiteRules] });
+		const { headings } = parsedHeadings({
+			html: substackPost({ tag, titles: TITLES }),
+			url: CUSTOM_DOMAIN_POST_URL,
+			siteRules: [substackSiteRules],
+		});
 
 		expect(headings).toEqual(TITLES.map((title) => `${tag.toUpperCase()} ${title}`));
 	});
 
 	it("loses the same headings when the rule is not registered", () => {
-		const { headings } = parsedHeadings({ html: substackPost({ tag: "h2", titles: TITLES }), siteRules: [] });
+		const { headings } = parsedHeadings({
+			html: substackPost({ tag: "h2", titles: TITLES }),
+			url: CUSTOM_DOMAIN_POST_URL,
+			siteRules: [],
+		});
 
 		expect(headings).toEqual([]);
 	});
@@ -149,8 +164,8 @@ describe("substackSiteRules end-to-end through parseHtml", () => {
 	it("leaves every paragraph exactly as the parser kept it without the rule", () => {
 		const html = substackPost({ tag: "h2", titles: TITLES });
 
-		const withRule = parsedHeadings({ html, siteRules: [substackSiteRules] });
-		const withoutRule = parsedHeadings({ html, siteRules: [] });
+		const withRule = parsedHeadings({ html, url: CUSTOM_DOMAIN_POST_URL, siteRules: [substackSiteRules] });
+		const withoutRule = parsedHeadings({ html, url: CUSTOM_DOMAIN_POST_URL, siteRules: [] });
 
 		expect(withRule.paragraphs).toEqual(withoutRule.paragraphs);
 	});
@@ -169,8 +184,59 @@ describe("substackSiteRules end-to-end through parseHtml", () => {
 				.join("") +
 			"</div></div></body></html>";
 
-		const { headings } = parsedHeadings({ html, siteRules: [mediaWikiSiteRules, substackSiteRules] });
+		const { headings } = parsedHeadings({
+			html,
+			url: "https://en.wikipedia.org/wiki/The_Mythical_Man-Month",
+			siteRules: [mediaWikiSiteRules, substackSiteRules],
+		});
 
 		expect(headings).toEqual(["H2 Ideas presented", "H2 Reception"]);
+	});
+});
+
+describe("substackSiteRules on captured articles", () => {
+	const STIGMERGY_URL = "https://francisheylighen.substack.com/p/stigmergy-the-most-important-concept";
+	const stigmergyHtml = readFileSync(join(__dirname, "fixtures", "substack-stigmergy.html"), "utf-8");
+	const STIGMERGY_RECOVERED_HEADINGS = [
+		"H2 The Mechanism",
+		"H2 Where the Idea Came From: Termites and Ants",
+		"H2 The Coordination Problem We All Live With",
+		"H2 What Is Stigmergy, in Plain Language?",
+		"H2 Systems We Already Rely On (Without Noticing)",
+		"H2 Why Stigmergy Works So Well",
+		"H2 What Happens without Stigmergy",
+		"H2 Why We’ve Missed the Concept",
+		"H2 Why Stigmergy Matters Now",
+		"H2 A Concept Whose Time Has Come",
+		"H2 Further reading",
+	];
+
+	it("holds twelve anchored section headings in the captured source", () => {
+		const { document } = parseHTML(stigmergyHtml);
+
+		expect(
+			Array.from(document.querySelectorAll("h2.header-anchor-post, h3.header-anchor-post"), (heading) =>
+				`${heading.tagName} ${heading.textContent}`,
+			),
+		).toEqual(["H2 The Concept", ...STIGMERGY_RECOVERED_HEADINGS]);
+	});
+
+	it("recovers every Stigmergy section heading but The Concept, in document order", () => {
+		const { headings } = parsedHeadings({ html: stigmergyHtml, url: STIGMERGY_URL, siteRules: [substackSiteRules] });
+
+		expect(headings).toEqual(STIGMERGY_RECOVERED_HEADINGS);
+	});
+
+	it("loses every Stigmergy section heading when the rule is not registered", () => {
+		const { headings } = parsedHeadings({ html: stigmergyHtml, url: STIGMERGY_URL, siteRules: [] });
+
+		expect(headings).toEqual([]);
+	});
+
+	it("leaves every Stigmergy paragraph exactly as the parser kept it without the rule", () => {
+		const withRule = parsedHeadings({ html: stigmergyHtml, url: STIGMERGY_URL, siteRules: [substackSiteRules] });
+		const withoutRule = parsedHeadings({ html: stigmergyHtml, url: STIGMERGY_URL, siteRules: [] });
+
+		expect(withRule.paragraphs).toEqual(withoutRule.paragraphs);
 	});
 });
