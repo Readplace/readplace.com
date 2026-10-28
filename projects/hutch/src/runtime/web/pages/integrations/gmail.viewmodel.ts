@@ -619,7 +619,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		}),
 		labelPermission: revoked || showMetadataReconnect || input.modifyScopeGranted ? undefined : gmailConnectionPrompt({
 			canConnectGmail: input.canConnectGmail,
-			message: "Let Readplace tidy Gmail: once a newsletter is saved, it adds the label imported-to-readplace to the original email and marks it read. Your other labels and your inbox stay as they are.",
+			message: "Let Readplace tidy Gmail: once a newsletter is saved, it adds the label imported-to-readplace to the original email and marks it read. Your other labels stay as they are, and nothing is archived or deleted.",
 			content: "grant-label-permission", label: "Allow labelling", variant: "neutral", fields: [{ name: "intent", value: "label" }],
 		}),
 		showStep,

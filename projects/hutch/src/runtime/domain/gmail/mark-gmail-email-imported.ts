@@ -107,8 +107,9 @@ export function initMarkGmailEmailImported(deps: {
 		const { mailbox } = opened;
 
 		const fail = async (outcome: MarkGmailEmailImportedOutcome): Promise<MarkGmailEmailImportedOutcome> => {
-			if (outcome.kind === "failed") await updates.markFailed({ userId, origin, reason: outcome.reason, now: deps.now() });
-			return outcome;
+			if (outcome.kind !== "failed") return outcome;
+			const marked = await updates.markFailed({ userId, origin, reason: outcome.reason, now: deps.now() });
+			return marked === "failed" ? outcome : { kind: "already-failed", reason: outcome.reason };
 		};
 		const original = await locateOriginal(mailbox, origin);
 		if (!original.ok) return fail(original.outcome);
