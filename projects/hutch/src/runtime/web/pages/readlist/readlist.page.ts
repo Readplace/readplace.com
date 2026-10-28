@@ -3260,6 +3260,11 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 
+		if (isAppPlatform(req) && !parsedId.success) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
 		if (req.body?.ack === DELETE_ACK_NEVER) {
 			await deps.recordDeleteArticleAcknowledged({ userId });
 		}
@@ -3270,10 +3275,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}
 
 		if (isAppPlatform(req)) {
-			if (!parsedId.success) {
-				res.status(404).type("html").send("");
-				return;
-			}
 			closeAppReader(req, res);
 			return;
 		}

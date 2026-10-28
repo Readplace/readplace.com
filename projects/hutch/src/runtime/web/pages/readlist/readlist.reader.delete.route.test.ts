@@ -374,17 +374,24 @@ describe("Deleting an article from the owner reader", () => {
 			},
 		);
 
-		it("answers an unparseable id from the app without closing its sheet", async () => {
+		it("answers an unparseable id from the app without closing its sheet or silencing the confirmation", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.post("/queue/not-a-valid-hash/delete?platform=ios").set("HX-Request", "true");
+			const response = await agent
+				.post("/queue/not-a-valid-hash/delete?platform=ios")
+				.set("HX-Request", "true")
+				.type("form")
+				.send({ ack: "never" });
 
 			expect([response.status, response.headers["hx-redirect"], response.headers.location]).toEqual([
 				404,
 				undefined,
 				undefined,
 			]);
+			const articleId = await saveArticle(agent);
+			const doc = parse((await agent.get(`/queue/${articleId}/view`)).text);
+			expect(doc.querySelectorAll("[data-test-confirm-popover='delete']")).toHaveLength(1);
 		});
 
 		it("neither redirects nor closes the app's sheet when the deletion fails", async () => {
