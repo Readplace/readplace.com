@@ -93,6 +93,7 @@ export {
 	type DisplayableReadTime,
 } from "./displayable-read-time";
 export { stubMetadataFor } from "./stub-metadata";
+export { publishedOnFrom } from "./published-on";
 export {
 	articleDestinationUrl,
 	articleDestinationHost,

@@ -17,6 +17,7 @@ const baseInput = {
 	provenance: undefined,
 	readlistTags: undefined,
 	saved: undefined,
+	publishedOn: undefined,
 };
 
 const SIX_HOURS_AGO = { iso: "2026-04-25T06:00:00.000Z", label: "6h ago", mode: "relative" } as const;
@@ -102,9 +103,53 @@ describe("renderArticleHeader (inline)", () => {
 
 		expect(facts(doc)).toEqual([
 			["site", "example.com"],
-			["saved", "6h ago"],
+			["saved", "Saved 6h ago"],
 			["read-time", "3 min read"],
 			["provenance", "via Web"],
+			["original", "Original article"],
+		]);
+	});
+
+	it("orders an owner's facts site, published, saved, read time, provenance, then Original when the source states a publish date", () => {
+		const doc = parse(
+			renderArticleHeader({ ...baseInput, publishedOn: "2025-10-08", saved: SIX_HOURS_AGO, provenance: { kind: "web" } }),
+		);
+
+		expect(facts(doc)).toEqual([
+			["site", "example.com"],
+			["published", "Published Oct 8, 2025"],
+			["saved", "Saved 6h ago"],
+			["read-time", "3 min read"],
+			["provenance", "via Web"],
+			["original", "Original article"],
+		]);
+	});
+
+	it("names the publish date as an absolute calendar date the local-time script leaves alone", () => {
+		const doc = parse(renderArticleHeader({ ...baseInput, publishedOn: "2025-10-08" }));
+
+		const fact = doc.querySelector('[data-test-reader-fact="published"]');
+		assert(fact, "the published fact must render");
+		expect(fact.classList.contains("article-body__published")).toBe(true);
+		const published = doc.querySelector("[data-test-reader-published]");
+		assert(published, "the publish date must render");
+		expect(published.tagName.toLowerCase()).toBe("time");
+		expect([published.getAttribute("datetime"), published.getAttribute("data-local-time"), published.textContent]).toEqual([
+			"2025-10-08",
+			null,
+			"Oct 8, 2025",
+		]);
+	});
+
+	it("labels a save older than the relative window with its date", () => {
+		const doc = parse(
+			renderArticleHeader({ ...baseInput, saved: { iso: "2025-09-08T00:00:00.000Z", label: "Sep 8, 2025", mode: "date" } }),
+		);
+
+		expect(facts(doc)).toEqual([
+			["site", "example.com"],
+			["saved", "Saved Sep 8, 2025"],
+			["read-time", "3 min read"],
 			["original", "Original article"],
 		]);
 	});
@@ -336,13 +381,15 @@ describe("renderArticleHeaderOob", () => {
 				...baseInput,
 				provenance: { kind: "web" },
 				saved: SIX_HOURS_AGO,
+				publishedOn: "2025-10-08",
 				readlistTags: WORK_READLIST,
 			}),
 		);
 
 		expect(facts(doc)).toEqual([
 			["site", "example.com"],
-			["saved", "6h ago"],
+			["published", "Published Oct 8, 2025"],
+			["saved", "Saved 6h ago"],
 			["read-time", "3 min read"],
 			["provenance", "via Web"],
 			["original", "Original article"],

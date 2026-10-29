@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "../user";
-import { emailIssueArticleUrl, parseEmailIssueArticleUrl } from "./email-issue-url";
+import { emailIssueArticleUrl, emailIssueReceivedAt, parseEmailIssueArticleUrl } from "./email-issue-url";
 
 const READER = UserIdSchema.parse("00000000000000000000000000000001");
 const RECEIVED_AT_MESSAGE_ID = "2026-06-24T09:00:00.000Z#<m@x>";
@@ -11,6 +11,12 @@ describe("emailIssueArticleUrl", () => {
 			emailIssueArticleUrl({ userId: READER, receivedAtMessageId: RECEIVED_AT_MESSAGE_ID }),
 			"email://inbox/00000000000000000000000000000001/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E",
 		);
+	});
+});
+
+describe("emailIssueReceivedAt", () => {
+	it("is the receipt instant before the first # of the sort key", () => {
+		assert.equal(emailIssueReceivedAt("2026-06-24T09:00:00.000Z#<m#1@x>"), "2026-06-24T09:00:00.000Z");
 	});
 });
 

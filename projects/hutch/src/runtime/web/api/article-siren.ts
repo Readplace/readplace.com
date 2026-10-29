@@ -45,6 +45,7 @@ export function toArticleSubEntity(
 			readTime: readTime ?? null,
 			status: article.status,
 			savedAt: article.savedAt.toISOString(),
+			publishedOn: article.metadata.publishedOn ?? null,
 			readAt: article.readAt?.toISOString() ?? null,
 			// An explicit presentational read-state so a client renders the read
 			// indicator from one server-authored boolean rather than re-deriving it

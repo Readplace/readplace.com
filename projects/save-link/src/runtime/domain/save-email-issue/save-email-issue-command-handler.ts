@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { deriveEmailIssueMetadata, emailIssueArticleUrl } from "@packages/domain/inbox";
+import { deriveEmailIssueMetadata, emailIssueArticleUrl, emailIssueReceivedAt } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { SaveEmailIssueCommand, TierContentExtractedEvent } from "@packages/hutch-infra-components";
@@ -41,6 +41,7 @@ export function initSaveEmailIssueCommandHandler(deps: {
 					senderEmail: detail.senderEmail,
 					senderName: detail.senderName,
 					html: body,
+					receivedAt: emailIssueReceivedAt(detail.receivedAtMessageId),
 				});
 				const { contentPending } = await deps.saveEmailIssue({
 					userId,

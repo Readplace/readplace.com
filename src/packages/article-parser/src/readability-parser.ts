@@ -108,6 +108,7 @@ export function initReadabilityParser(deps: {
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,
+				publishedOn: deps.readabilityAdditions.publishedOnFrom(parsed.publishedTime),
 			},
 		};
 	};

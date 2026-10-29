@@ -17,7 +17,7 @@ import { initDynamoRefreshOutcomes } from "../oauth-refresh/dynamodb-outcomes";
 import { defineDynamoTable } from "@packages/hutch-storage-client";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
-import { parseCompressedDynamoTables } from "./dynamodb-tables";
+import { parseDynamoTables } from "./dynamodb-tables";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import {
 	initDynamoDbCanaryReports,
@@ -44,8 +44,7 @@ import { initSkipReservedDomain } from "./email/skip-reserved-domain";
 import { initDynamoDbEmailVerification } from "./email-verification/dynamodb-email-verification";
 import { initDynamoDbPasswordReset } from "./password-reset/dynamodb-password-reset";
 import { initDynamoDbBrowserHandoff } from "./browser-handoff/dynamodb-browser-handoff";
-import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
-import { parseRateLimitRule } from "@packages/domain/rate-limit";
+import { parseRateLimitRules } from "./rate-limit-rules";
 import { initDynamoDbRateLimit } from "./rate-limit/dynamodb-rate-limit";
 import {
 	initDynamoDbGeneratedSummary,
@@ -139,7 +138,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress, logInfo, proxyUrl: undefined });
 
-	const tables = parseCompressedDynamoTables(requireEnv("DYNAMODB_TABLES_GZIP_BASE64"));
+	const tables = parseDynamoTables(requireEnv("DYNAMODB_TABLES"));
 	const articlesTable = tables.articles;
 	const userArticlesTable = tables.userArticles;
 	const usersTable = tables.users;
@@ -480,19 +479,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	// Strict (no defaults) so a deploy missing a limit fails at cold start
 	// instead of silently running unthrottled. Values come from the Pulumi
 	// stack config via the Lambda environment.
-	const rateLimitRules: RateLimitRules = {
-		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
-		viewCrawlSignedIn: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL_SIGNED_IN")),
-		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
-		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
-		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
-		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
-		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
-		oauthToken: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_TOKEN")),
-		browserHandoff: parseRateLimitRule(requireEnv("RATE_LIMIT_BROWSER_HANDOFF")),
-		import: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT")),
-		importFromUrl: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT_FROM_URL")),
-	};
+	const rateLimitRules = parseRateLimitRules(requireEnv("RATE_LIMITS"));
 
 	return {
 		recordEngagementActivity: initRecordEngagementActivity({

@@ -4,6 +4,7 @@ import type {
 	ArticleMetadata,
 } from "../article.types";
 import type { CanonicalImageUrl } from "../canonical-image-url";
+import type { CanonicalPublishedOn } from "../canonical-published-on";
 import type { Effect } from "../effects.types";
 import { isCanonicalCandidateRevoked } from "../content-selection.types";
 import { stampReaderAvailability } from "../reader-availability";
@@ -14,7 +15,10 @@ export interface RefreshContentInput {
 	 * is `resolveCanonicalImageUrl` (save-link/select-content), which rescues
 	 * an og:image from a losing tier when the winner has none. Passing
 	 * `winnerSource.metadata.imageUrl` directly is a compile error. */
-	metadata: Omit<ArticleMetadata, "imageUrl"> & { imageUrl: CanonicalImageUrl };
+	metadata: Omit<ArticleMetadata, "imageUrl" | "publishedOn"> & {
+		imageUrl: CanonicalImageUrl;
+		publishedOn: CanonicalPublishedOn;
+	};
 	freshness: ArticleFreshness;
 	estimatedReadTime: number;
 	now: string;

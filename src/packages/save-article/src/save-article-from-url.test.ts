@@ -24,7 +24,7 @@ function makeSaved(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		userId,
 		url: exampleUrl,
 		destinationUrl: destination,
-		metadata: articleDisplayMetadata({ url: exampleUrl, destinationUrl: destination, title: "", siteName: "", excerpt: "", wordCount: 0, imageUrl: undefined }),
+		metadata: articleDisplayMetadata({ url: exampleUrl, destinationUrl: destination, title: "", siteName: "", excerpt: "", wordCount: 0, imageUrl: undefined, publishedOn: undefined }),
 		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(0),
 		status: "unread",

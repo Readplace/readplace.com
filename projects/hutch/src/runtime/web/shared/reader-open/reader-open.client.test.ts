@@ -262,6 +262,7 @@ describe("initReaderOpen", () => {
 		expect(main.querySelector('[data-reader-field-text="site"]')?.textContent).toBe("example.com");
 		const saved = main.querySelector('[data-reader-field-text="saved"]');
 		expect(saved?.textContent).toBe("10m ago");
+		expect(saved?.parentElement?.textContent).toBe("Saved 10m ago");
 		expect(saved?.classList.contains("article-body__fact-label--empty")).toBe(false);
 		const readTime = main.querySelector('[data-reader-field-text="read-time"]');
 		expect(readTime?.textContent).toBe("3 min read");

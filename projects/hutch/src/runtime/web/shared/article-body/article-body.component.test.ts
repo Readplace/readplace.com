@@ -17,6 +17,7 @@ const baseInput = {
 	topActionsHtml: "",
 	bottomActionsHtml: "",
 	saved: undefined,
+	publishedOn: undefined,
 };
 
 function parse(html: string) {
@@ -132,6 +133,12 @@ describe("renderArticleBody", () => {
 		);
 
 		expect(doc.querySelector("[data-test-reader-saved]")?.textContent).toBe("6h ago");
+	});
+
+	it("passes the article's publish date through to the header", () => {
+		const doc = parse(renderArticleBody({ ...baseInput, publishedOn: "2025-10-08" }));
+
+		expect(doc.querySelector('[data-test-reader-fact="published"]')?.textContent).toBe("Published Oct 8, 2025");
 	});
 
 	it("renders the article title, site name, reading time and content", () => {

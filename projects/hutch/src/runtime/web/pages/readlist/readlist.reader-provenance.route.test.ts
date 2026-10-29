@@ -47,7 +47,7 @@ describe("Reader save-provenance tag", () => {
 		expect(response.status).toBe(200);
 		expect(facts(response.text)).toEqual([
 			["site", "example.com"],
-			["saved", "just now"],
+			["saved", "Saved just now"],
 			["read-time", "1 min read"],
 			["provenance", "via Web"],
 			["original", "Original article"],

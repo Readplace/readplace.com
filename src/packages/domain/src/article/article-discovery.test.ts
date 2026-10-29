@@ -39,6 +39,7 @@ function savedArticle(input: {
 			excerpt: "",
 			wordCount: input.wordCount ?? 1000,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		}),
 		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(input.minutes ?? 5),

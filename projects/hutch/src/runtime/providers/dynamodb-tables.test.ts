@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { gzipSync } from "node:zlib";
-import { type DynamoTables, encodeDynamoTables, parseCompressedDynamoTables, parseDynamoTables } from "./dynamodb-tables";
+import { formatEnvMap } from "./env-map";
+import { type DynamoTables, parseDynamoTables } from "./dynamodb-tables";
 
 const TABLES: DynamoTables = {
 	articles: "hutch-articles",
@@ -32,40 +32,20 @@ const TABLES: DynamoTables = {
 };
 
 describe("parseDynamoTables", () => {
-	it("reads every table name from the JSON map", () => {
-		assert.deepEqual(parseDynamoTables(JSON.stringify(TABLES)), TABLES);
+	it("reads every table name from the env map", () => {
+		assert.deepEqual(parseDynamoTables(formatEnvMap(TABLES)), TABLES);
 	});
 
 	it("rejects a map missing a table", () => {
 		const { gmailSenders: _gmailSenders, ...missing } = TABLES;
-		assert.throws(() => parseDynamoTables(JSON.stringify(missing)), /gmailSenders/);
+		assert.throws(() => parseDynamoTables(formatEnvMap(missing)), /gmailSenders/);
 	});
 
 	it("rejects a table the app does not read", () => {
-		assert.throws(() => parseDynamoTables(JSON.stringify({ ...TABLES, staleTable: "hutch-stale" })), /staleTable/);
+		assert.throws(() => parseDynamoTables(formatEnvMap({ ...TABLES, staleTable: "hutch-stale" })), /staleTable/);
 	});
 
 	it("rejects an empty table name", () => {
-		assert.throws(() => parseDynamoTables(JSON.stringify({ ...TABLES, users: "" })), /users/);
-	});
-});
-
-describe("compressed DynamoDB table environment", () => {
-	it("roundtrips every table from the infrastructure encoder to the runtime parser", () => {
-		assert.deepEqual(parseCompressedDynamoTables(encodeDynamoTables(TABLES)), TABLES);
-	});
-
-	it("rejects a payload that is not gzip data", () => {
-		assert.throws(() => parseCompressedDynamoTables(Buffer.from("not compressed").toString("base64")), /incorrect header check/);
-	});
-
-	it("rejects a truncated compressed payload", () => {
-		const encoded = encodeDynamoTables(TABLES);
-		const truncated = Buffer.from(encoded, "base64").subarray(0, 12).toString("base64");
-		assert.throws(() => parseCompressedDynamoTables(truncated), /unexpected end of file/);
-	});
-
-	it("rejects compressed content that is not JSON", () => {
-		assert.throws(() => parseCompressedDynamoTables(gzipSync("not JSON").toString("base64")), SyntaxError);
+		assert.throws(() => parseDynamoTables(formatEnvMap({ ...TABLES, users: "" })), /users/);
 	});
 });

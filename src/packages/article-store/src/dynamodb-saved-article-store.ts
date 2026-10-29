@@ -107,6 +107,7 @@ const ArticleRow = z.object({
 	excerpt: z.string(),
 	wordCount: z.number(),
 	imageUrl: dynamoField(z.string()),
+	publishedOn: dynamoField(z.string()),
 	content: dynamoField(z.string()),
 	estimatedReadTime: MinutesSchema,
 	savedAt: dynamoField(z.string()),
@@ -187,6 +188,7 @@ function toSavedArticle(
 			excerpt: article.excerpt,
 			wordCount: article.wordCount,
 			imageUrl: article.imageUrl,
+			publishedOn: article.publishedOn,
 		}),
 		content: isUnverifiedWrapperContent(article) ? undefined : article.content,
 		servedBody: servedBodyOf(article),
@@ -351,7 +353,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		try {
 			await articles.update({
 				Key: { url: articleResourceUniqueId.value },
-				UpdateExpression: `SET routeId = :routeId, originalUrl = :originalUrl, title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, imageUrl = :imageUrl, estimatedReadTime = :estimatedReadTime, savedAt = :savedAt ADD contentSelectionRevision :one REMOVE ${[...CONTENT_BEARING_COLUMNS.filter((column) => column !== "imageUrl"), "purgedAt", "crawlStatus", "summaryStatus", "summarySkippedReason", "readerAvailableAt"].join(", ")}`,
+				UpdateExpression: `SET routeId = :routeId, originalUrl = :originalUrl, title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, imageUrl = :imageUrl, publishedOn = :publishedOn, estimatedReadTime = :estimatedReadTime, savedAt = :savedAt ADD contentSelectionRevision :one REMOVE ${[...CONTENT_BEARING_COLUMNS.filter((column) => column !== "imageUrl" && column !== "publishedOn"), "purgedAt", "crawlStatus", "summaryStatus", "summarySkippedReason", "readerAvailableAt"].join(", ")}`,
 				ExpressionAttributeValues: {
 					":routeId": routeId.value,
 					":originalUrl": params.url,
@@ -360,6 +362,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					":excerpt": params.metadata.excerpt,
 					":wordCount": params.metadata.wordCount,
 					":imageUrl": params.metadata.imageUrl ?? null,
+					":publishedOn": params.metadata.publishedOn ?? null,
 					":estimatedReadTime": params.estimatedReadTime,
 					":savedAt": params.savedAt.toISOString(),
 					":one": 1,
@@ -1373,6 +1376,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					"excerpt",
 					"wordCount",
 					"imageUrl",
+					"publishedOn",
 					"estimatedReadTime",
 					"savedAt",
 					"contentSourceTier",
@@ -1401,6 +1405,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 				excerpt: row.excerpt,
 				wordCount: row.wordCount,
 				imageUrl: row.imageUrl,
+				publishedOn: row.publishedOn,
 			}),
 			estimatedReadTime: row.estimatedReadTime,
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),

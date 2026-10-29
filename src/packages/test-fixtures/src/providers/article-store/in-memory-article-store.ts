@@ -141,6 +141,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 			excerpt: article.metadata.excerpt,
 			wordCount: article.metadata.wordCount,
 			imageUrl: article.metadata.imageUrl,
+			publishedOn: article.metadata.publishedOn,
 		}),
 		content: article.content,
 		servedBody: servedBodyOf(article),
@@ -481,6 +482,7 @@ export function initInMemoryArticleStore(): {
 				excerpt: article.metadata.excerpt,
 				wordCount: article.metadata.wordCount,
 				imageUrl: article.metadata.imageUrl,
+				publishedOn: article.metadata.publishedOn,
 			}),
 			content: article.content,
 

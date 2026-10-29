@@ -1,5 +1,5 @@
-import { gzipSync, gunzipSync } from "node:zlib";
 import { z } from "zod";
+import { parseEnvMap } from "./env-map";
 
 const TableName = z.string().min(1);
 
@@ -34,14 +34,6 @@ const DynamoTablesSchema = z.strictObject({
 
 export type DynamoTables = z.infer<typeof DynamoTablesSchema>;
 
-export function parseDynamoTables(json: string): DynamoTables {
-	return DynamoTablesSchema.parse(JSON.parse(json));
-}
-
-export function encodeDynamoTables(tables: DynamoTables): string {
-	return gzipSync(JSON.stringify(tables)).toString("base64");
-}
-
-export function parseCompressedDynamoTables(encoded: string): DynamoTables {
-	return parseDynamoTables(gunzipSync(Buffer.from(encoded, "base64")).toString("utf8"));
+export function parseDynamoTables(raw: string): DynamoTables {
+	return DynamoTablesSchema.parse(parseEnvMap(raw));
 }

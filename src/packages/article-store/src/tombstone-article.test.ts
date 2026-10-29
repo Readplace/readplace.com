@@ -55,6 +55,7 @@ describe("initTombstoneArticle", () => {
 			"lastModified",
 			"contentFetchedAt",
 			"imageUrl",
+			"publishedOn",
 			"contentSourceUrl",
 			"sourceOriginalUrl",
 			"directContentBeforePin",

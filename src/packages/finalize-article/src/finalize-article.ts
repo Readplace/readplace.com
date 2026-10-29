@@ -27,6 +27,7 @@ export type FinalizedArticle = {
 		wordCount: number;
 		estimatedReadTime: number;
 		imageUrl?: string;
+		publishedOn?: string;
 		directResourceKind?: "image" | "plain-text";
 	};
 };
@@ -172,6 +173,7 @@ export function initFinalizeArticle(deps: {
 					wordCount: article.wordCount,
 					estimatedReadTime: estimatedReadTimeFromWordCount(article.wordCount),
 					imageUrl,
+					publishedOn: article.publishedOn,
 				},
 			},
 		};

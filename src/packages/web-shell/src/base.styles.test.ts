@@ -101,6 +101,10 @@ describe("BASE_CSS_VARIABLES", () => {
 		expect(lightRootDeclarations()).toContain("--fact-provenance: var(--color-secondary-text);");
 	});
 
+	it("tints the reader header's publish-date glyph in the secondary ink the site glyph shares", () => {
+		expect(lightRootDeclarations()).toContain("--fact-published: var(--color-secondary-text);");
+	});
+
 	it("lifts the public reader's action bar on an upward shadow that deepens in dark, pinned or not", () => {
 		expect(lightRootDeclarations()).toContain("--shadow-bar: 0 -2px 12px rgba(0,0,0,0.2);");
 		expect(darkRootDeclarations()).toContain("--shadow-bar: 0 -2px 12px rgba(0,0,0,0.5);");

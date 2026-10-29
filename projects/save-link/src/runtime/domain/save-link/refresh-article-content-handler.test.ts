@@ -24,6 +24,7 @@ interface RefreshDetail {
 		excerpt: string;
 		wordCount: number;
 		imageUrl?: string;
+		publishedOn?: string;
 	};
 	estimatedReadTime: number;
 	etag?: string;
@@ -95,6 +96,24 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 				wordCount: 250,
 				estimatedReadTime: 2,
 			}),
+		}));
+	});
+
+	it("carries the command's publish date into the tier-1 manifest", async () => {
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initRefreshArticleContentHandler({
+			resolveOriginalUrl: async (url) => url,
+			readRefreshHtml: jest.fn().mockResolvedValue(HTML),
+			putTierSource,
+			publishEvent: jest.fn().mockResolvedValue(undefined),
+			logger: noopLogger,
+		});
+
+		await handler(createSqsEvent({ ...DETAIL, metadata: { ...DETAIL.metadata, publishedOn: "2025-10-08" } }), buildLambdaContext(), () => {});
+
+		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+			metadata: expect.objectContaining({ publishedOn: "2025-10-08" }),
 		}));
 	});
 

@@ -649,6 +649,23 @@ describe("initMcpServer", () => {
 			});
 		});
 
+		it("leads the dates line with the publish date when the article has one", async () => {
+			const article = mcpArticle({
+				savedAt: "2026-10-08T12:34:56.000Z",
+				publishedOn: "2025-10-08",
+				status: "read",
+				readAt: "2026-10-09T08:09:10.000Z",
+			});
+			const server = initMcpServer(fakeDeps({ getArticle: async () => article }));
+			const response = await call(server, 36, "get_article", { id: article.id });
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: expect.stringContaining("\nPublished 2025-10-08; saved 2026-10-08; read 2026-10-09") }],
+					structuredContent: { article: { publishedOn: "2025-10-08" } },
+				},
+			});
+		});
+
 		it("reports not found for an id that does not resolve", async () => {
 			const server = initMcpServer(fakeDeps({ getArticle: async () => null }));
 			const response = await call(server, 31, "get_article", { id: "x".repeat(32) });

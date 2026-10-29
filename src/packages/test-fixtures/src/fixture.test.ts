@@ -291,6 +291,31 @@ describe("createFakeApplyParseResult", () => {
 		const status = await articleCrawl.findArticleCrawlStatus(url);
 		expect(status?.status).toBe("ready");
 	});
+
+	it("writes the parsed article's publish date onto the global row", async () => {
+		const articleStore = initInMemoryArticleStore();
+		const articleCrawl = initInMemoryArticleCrawl();
+		const parseArticle: ParseArticle = async () => ({
+			ok: true,
+			article: {
+				title: "Title",
+				siteName: "Site",
+				excerpt: "Lead",
+				wordCount: 500,
+				content: "<p>body</p>",
+				publishedOn: "2025-10-08",
+			},
+		});
+
+		const apply = createFakeApplyParseResult({ articleStore, articleCrawl, parseArticle });
+		const url = "https://example.com/x";
+
+		await seedGlobalArticle(articleStore, url);
+		await apply(url);
+
+		const article = await articleStore.findArticleByUrl(url);
+		expect(article?.metadata.publishedOn).toBe("2025-10-08");
+	});
 });
 
 describe("createFakePublishLinkSaved", () => {

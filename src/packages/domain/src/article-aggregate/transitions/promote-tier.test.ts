@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { CandidateIdSchema } from "../../article/article.schema";
 import type { Article, ArticleMetadata } from "../article.types";
 import { CanonicalImageUrlSchema } from "../canonical-image-url";
+import { CanonicalPublishedOnSchema } from "../canonical-published-on";
 import { promoteTier, type PromoteTierInput } from "./promote-tier";
 
 /* Helper that brands the imageUrl on test fixtures so they satisfy the
@@ -9,7 +10,11 @@ import { promoteTier, type PromoteTierInput } from "./promote-tier";
  * CanonicalImageUrl }` shape. Production code goes through
  * `resolveCanonicalImageUrl` for the same brand. */
 function canonicalMetadata(metadata: ArticleMetadata) {
-	return { ...metadata, imageUrl: CanonicalImageUrlSchema.parse(metadata.imageUrl) };
+	return {
+		...metadata,
+		imageUrl: CanonicalImageUrlSchema.parse(metadata.imageUrl),
+		publishedOn: CanonicalPublishedOnSchema.parse(metadata.publishedOn),
+	};
 }
 
 const FIXED_PENDING = "2026-01-01T00:00:00.000Z";
@@ -47,6 +52,7 @@ function buildInput(overrides: Partial<PromoteTierInput> = {}): PromoteTierInput
 			excerpt: "New excerpt",
 			wordCount: 250,
 			imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
+			publishedOn: CanonicalPublishedOnSchema.parse("2025-10-08"),
 		},
 		estimatedReadTime: 2,
 		contentFetchedAt: "2026-05-10T12:00:00.000Z",
@@ -64,6 +70,7 @@ describe("promoteTier", () => {
 		assert.equal(article.metadata.title, "New title");
 		assert.equal(article.metadata.wordCount, 250);
 		assert.equal(article.metadata.imageUrl, "https://example.com/image.jpg");
+		assert.equal(article.metadata.publishedOn, "2025-10-08");
 	});
 
 	it("updates contentFetchedAt on freshness while preserving other freshness attributes (etag, lastModified)", () => {

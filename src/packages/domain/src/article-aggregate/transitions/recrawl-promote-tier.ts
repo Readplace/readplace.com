@@ -1,6 +1,7 @@
 import type { ContentTier } from "@packages/article-state-types";
 import type { Article, ArticleMetadata } from "../article.types";
 import type { CanonicalImageUrl } from "../canonical-image-url";
+import type { CanonicalPublishedOn } from "../canonical-published-on";
 import type { Effect } from "../effects.types";
 import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
@@ -12,7 +13,10 @@ export interface RecrawlPromoteTierInput {
 	 * is `resolveCanonicalImageUrl` (save-link/select-content), which rescues
 	 * an og:image from a losing tier when the winner has none. Passing
 	 * `winnerSource.metadata.imageUrl` directly is a compile error. */
-	metadata: Omit<ArticleMetadata, "imageUrl"> & { imageUrl: CanonicalImageUrl };
+	metadata: Omit<ArticleMetadata, "imageUrl" | "publishedOn"> & {
+		imageUrl: CanonicalImageUrl;
+		publishedOn: CanonicalPublishedOn;
+	};
 	estimatedReadTime: number;
 	contentFetchedAt: string;
 	now: string;
