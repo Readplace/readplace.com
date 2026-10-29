@@ -2,6 +2,7 @@ import {
 	type CrawlFetch,
 	initAppleNewsSiteRules,
 	initGitHubPdfSiteRules,
+	initGallupDocumentSiteRules,
 	initHnSearchSiteRules,
 	initOjsGalleySiteRules,
 	initStackOverflowSiteRules,
@@ -28,6 +29,7 @@ export function initArticleSiteRules(deps: {
 		initAppleNewsSiteRules(deps),
 		initGitHubPdfSiteRules(deps),
 		initOjsGalleySiteRules(deps),
+		initGallupDocumentSiteRules(deps),
 		initStackOverflowSiteRules(deps),
 		initHnSearchSiteRules(deps),
 	];

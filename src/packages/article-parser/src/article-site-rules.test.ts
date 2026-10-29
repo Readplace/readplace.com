@@ -32,7 +32,7 @@ describe("initArticleSiteRules", () => {
 			substackSiteRules,
 			...crawlClaimingSiteRules,
 		]);
-		expect(crawlClaimingSiteRules).toHaveLength(6);
+		expect(crawlClaimingSiteRules).toHaveLength(7);
 	});
 
 	it("claims X, Apple News, GitHub PDF, OJS galley and Stack Overflow URLs among the crawl-claiming rules", () => {
@@ -46,6 +46,7 @@ describe("initArticleSiteRules", () => {
 		expect(claimed("https://apple.news/A123")).toBe(1);
 		expect(claimed("https://github.com/sample/docs/blob/main/paper.pdf")).toBe(1);
 		expect(claimed("https://journals.example.org/index.php/sample/article/view/37/33")).toBe(1);
+		expect(claimed("https://www.gallup.com/analytics/123/sample-report.aspx")).toBe(1);
 		expect(claimed("https://journals.example.org/index.php/sample/article/view/37")).toBe(0);
 		expect(claimed("https://stackoverflow.com/questions/42/why")).toBe(1);
 		expect(claimed("https://hn.algolia.com/?dateRange=all&page=0&prefix=true&query=typescript&sort=byPopularity&type=story")).toBe(1);
