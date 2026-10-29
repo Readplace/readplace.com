@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { type DynamoTables, parseDynamoTables } from "./dynamodb-tables";
+import { gzipSync } from "node:zlib";
+import { type DynamoTables, encodeDynamoTables, parseCompressedDynamoTables, parseDynamoTables } from "./dynamodb-tables";
 
 const TABLES: DynamoTables = {
 	articles: "hutch-articles",
@@ -46,5 +47,25 @@ describe("parseDynamoTables", () => {
 
 	it("rejects an empty table name", () => {
 		assert.throws(() => parseDynamoTables(JSON.stringify({ ...TABLES, users: "" })), /users/);
+	});
+});
+
+describe("compressed DynamoDB table environment", () => {
+	it("roundtrips every table from the infrastructure encoder to the runtime parser", () => {
+		assert.deepEqual(parseCompressedDynamoTables(encodeDynamoTables(TABLES)), TABLES);
+	});
+
+	it("rejects a payload that is not gzip data", () => {
+		assert.throws(() => parseCompressedDynamoTables(Buffer.from("not compressed").toString("base64")), /incorrect header check/);
+	});
+
+	it("rejects a truncated compressed payload", () => {
+		const encoded = encodeDynamoTables(TABLES);
+		const truncated = Buffer.from(encoded, "base64").subarray(0, 12).toString("base64");
+		assert.throws(() => parseCompressedDynamoTables(truncated), /unexpected end of file/);
+	});
+
+	it("rejects compressed content that is not JSON", () => {
+		assert.throws(() => parseCompressedDynamoTables(gzipSync("not JSON").toString("base64")), SyntaxError);
 	});
 });

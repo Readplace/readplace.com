@@ -48,7 +48,7 @@ import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-
 import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
-import type { DynamoTables } from "../runtime/providers/dynamodb-tables";
+import { type DynamoTables, encodeDynamoTables } from "../runtime/providers/dynamodb-tables";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
@@ -433,7 +433,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		 * so it must be present even though serverless-http does not bind a port. */
 		PORT: "3000",
 		APP_ORIGIN: appOrigin,
-		DYNAMODB_TABLES: pulumi.jsonStringify({
+		DYNAMODB_TABLES_GZIP_BASE64: pulumi.output({
 			articles: storage.articlesTable.name,
 			userArticles: storage.userArticlesTable.name,
 			users: storage.usersTable.name,
@@ -460,7 +460,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 			gmailMappings: storage.gmailMappingsTable.name,
 			gmailHistoryImports: storage.gmailHistoryImportsTable.name,
 			canaryReports: storage.canaryReportsTable.name,
-		} satisfies Record<keyof DynamoTables, pulumi.Input<string>>),
+		} satisfies Record<keyof DynamoTables, pulumi.Input<string>>).apply(encodeDynamoTables),
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
 		RATE_LIMIT_VIEW_CRAWL_SIGNED_IN: rateLimitRules.viewCrawlSignedIn,

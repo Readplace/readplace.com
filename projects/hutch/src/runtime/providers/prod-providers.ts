@@ -17,7 +17,7 @@ import { initDynamoRefreshOutcomes } from "../oauth-refresh/dynamodb-outcomes";
 import { defineDynamoTable } from "@packages/hutch-storage-client";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
-import { parseDynamoTables } from "./dynamodb-tables";
+import { parseCompressedDynamoTables } from "./dynamodb-tables";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import {
 	initDynamoDbCanaryReports,
@@ -139,7 +139,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress, logInfo, proxyUrl: undefined });
 
-	const tables = parseDynamoTables(requireEnv("DYNAMODB_TABLES"));
+	const tables = parseCompressedDynamoTables(requireEnv("DYNAMODB_TABLES_GZIP_BASE64"));
 	const articlesTable = tables.articles;
 	const userArticlesTable = tables.userArticles;
 	const usersTable = tables.users;
