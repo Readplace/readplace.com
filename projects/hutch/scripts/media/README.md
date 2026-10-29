@@ -69,5 +69,5 @@ the onboarding card and other account-state chrome are removed from the DOM befo
 
 `file` every output: the stills are `1440 x 900` WebP, `1200 x 630` and `1280 x 800` 8-bit RGB PNG
 (App Store and Chrome Web Store both reject alpha), the marquee `1400 x 560`. Then look at each
-one: no `My Queue` heading, the nav reads Readlist / Import Links / Inbox, and the callout sits on
-the control its caption names.
+one: the headings and the nav match what the site renders today, and the callout sits on the
+control its caption names.

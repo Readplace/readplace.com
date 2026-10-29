@@ -4,25 +4,13 @@ import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save
 import { initCrawlAndFinalizeArticle } from "@packages/finalize-article";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
-import { candidateProvenance } from "../select-content/candidate-provenance";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { blockedCauseForStatus } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
+import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
-import {
-	markCrawlBlocked,
-	markCrawlFailed,
-	markCrawlNotFound,
-	markCrawlUnsupported,
-} from "@packages/domain/article-aggregate";
-import {
-	ComprehensiveCrawlCommand,
-	RecrawlContentExtractedEvent,
-	RefreshContentExtractedEvent,
-	TierContentExtractedEvent,
-} from "@packages/hutch-infra-components";
+import { markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { ComprehensiveCrawlCommand } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
 import type {
@@ -34,20 +22,9 @@ import type { PutTierSource } from "../../providers/article-store/put-tier-sourc
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-failure-outcome";
-import { type FinalizeArticle, UNREADABLE_ARTICLE } from "@packages/finalize-article";
+import { type CrawlTermination, initCommitDeferredCrawl } from "../crawl-article-state/commit-deferred-crawl";
+import type { FinalizeArticle } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
-
-/* Every comprehensive-crawl record must account for the row's crawl axis being
- * in a terminal state: committed in-process here (unsupported), deferred to a
- * downstream *-ContentExtracted event whose handler runs the terminal
- * transition (fetched), or already terminal and left as-is (not-modified).
- * Returning this disposition forces each crawlResult branch to declare which;
- * a branch that does none fails to type-check. */
-type CrawlTermination =
-	| { via: "committed-in-process" }
-	| { via: "deferred-to-event" }
-	| { via: "already-terminal" };
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComprehensiveCrawlHandler(deps: {
@@ -104,59 +81,29 @@ export function initComprehensiveCrawlHandler(deps: {
 		verifyWrapperSource: deps.verifyWrapperSource,
 	});
 
-	const { emitTier1FailureOutcome } = initEmitTier1FailureOutcome({
-		readTierSnapshot,
-		logCrawlOutcome,
+	const {
+		commitFetchedBody,
+		resolveUnreadable,
+		resolveBudgetExhausted,
+		resolveBlocked,
+		publishArchiveComparison,
+		emitTier1FailureOutcome,
+	} = initCommitDeferredCrawl({
+		resolveOriginalUrl: deps.resolveOriginalUrl,
+		finalizeArticle,
+		putTierSource,
+		updateFetchTimestamp,
+		transitionAndPersist,
+		markCrawlStage,
+		adoptCanonicalIdentity,
+		publishEvent,
+		now,
 		logger,
+		logParseError,
+		logCrawlOutcome,
+		readTierSnapshot,
 		logPrefix,
 	});
-
-	/* Spend breaker, not a crawl error: the message is consumed (no SQS retry —
-	 * a retry would re-spend the very budget that is exhausted) and the row is
-	 * settled so readers see the terminal "link is saved, content unavailable"
-	 * reframe instead of a forever-pending progress bar. markCrawlBlocked
-	 * terminalises both axes (crawl=failed, summary=skipped) in one atomic save:
-	 * the stub save set summary to `pending` and no *-ContentExtracted event will
-	 * ever fire to advance it, so a partial two-write terminalisation could strand
-	 * the row half-terminal (the comprehensive queue is maxReceiveCount=1, so the
-	 * failed message hits a DLQ handler that only advances the crawl axis) and the
-	 * stuck-articles canary would page an operator over a transient throttle. */
-	const resolveBudgetExhausted = async (ctx: {
-		url: string;
-		refresh?: boolean;
-	}): Promise<CrawlTermination> => {
-		logParseError({ url: ctx.url, reason: "paid-crawl-budget-exhausted" });
-		await emitTier1FailureOutcome({ url: ctx.url });
-		if (ctx.refresh) {
-			// A refresh re-checks an article that already has served content; the
-			// prior canonical stays valid, its freshness simply doesn't bump.
-			return { via: "already-terminal" };
-		}
-		await transitionAndPersist(markCrawlBlocked, {
-			url: ctx.url,
-			input: { reason: { kind: "blocked", cause: "spend-capped" } },
-		});
-		return { via: "committed-in-process" };
-	};
-
-	const publishArchiveComparison = async (ctx: {
-		url: string;
-		userId?: string;
-		recrawl?: boolean;
-		saveAttemptId: SaveAttemptId;
-		candidates: CandidateReference[];
-	}) => {
-		const detail = {
-			url: ctx.url,
-			userId: ctx.userId,
-			saveAttemptId: ctx.saveAttemptId,
-			candidates: ctx.candidates,
-			liveAttempt: { outcome: "no-body" as const },
-			extractedAt: now().toISOString(),
-		};
-		if (ctx.recrawl) await publishEvent(RecrawlContentExtractedEvent, detail);
-		else await publishEvent(TierContentExtractedEvent, detail);
-	};
 
 	const resolveCrawlResult = async (
 		crawlResult: Awaited<ReturnType<CrawlArticle>>,
@@ -171,10 +118,9 @@ export function initComprehensiveCrawlHandler(deps: {
 			candidates?: CandidateReference[];
 		},
 	): Promise<CrawlTermination> => {
-		const { url, originalUrl, refresh, recrawl, userId, previousBodyHash } = ctx;
+		const { url, previousBodyHash } = ctx;
 		if (ctx.candidates !== undefined && crawlResult.status !== "fetched") {
-			await publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
-			return { via: "deferred-to-event" };
+			return publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
 		}
 		switch (crawlResult.status) {
 			case "unsupported": {
@@ -213,24 +159,8 @@ export function initComprehensiveCrawlHandler(deps: {
 				await emitTier1FailureOutcome({ url });
 				throw new Error(`crawl failed for ${url}: ${reason}`);
 			}
-			case "blocked": {
-				logParseError({ url, reason: `crawl-blocked: HTTP ${crawlResult.httpStatus}` });
-				await emitTier1FailureOutcome({ url });
-				/* The origin's edge refuses this egress IP, which no retry from this
-				 * Lambda can change. Settle the row so the reader can ask for a
-				 * browser capture instead of the message dead-lettering and being
-				 * relabelled `exhausted-retries`. */
-				await transitionAndPersist(markCrawlBlocked, {
-					url,
-					input: {
-						reason: {
-							kind: "blocked",
-							cause: blockedCauseForStatus(crawlResult.httpStatus),
-						},
-					},
-				});
-				return { via: "committed-in-process" };
-			}
+			case "blocked":
+				return resolveBlocked({ url, httpStatus: crawlResult.httpStatus });
 			case "not-found": {
 				await emitTier1FailureOutcome({ url });
 				await transitionAndPersist(markCrawlNotFound, {
@@ -240,116 +170,12 @@ export function initComprehensiveCrawlHandler(deps: {
 				return { via: "committed-in-process" };
 			}
 			case "fetched": {
-				const fetchedAt = now().toISOString();
-				const finalized = await finalizeArticle({
-					writeContext: { url, attemptId: ctx.saveAttemptId },
-					url: originalUrl,
-					documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: crawlResult.finalUrl }),
-					html: crawlResult.html,
-					resolvedThumbnail: crawlResult.thumbnail,
-					...(crawlResult.mediaType === "plain-text"
-						? { mediaType: crawlResult.mediaType, plainText: crawlResult.plainText }
-						: { mediaType: crawlResult.mediaType }),
-				});
-				if (!finalized.ok && ctx.candidates === undefined) {
-					logParseError({ url, reason: finalized.reason });
-					await emitTier1FailureOutcome({ url });
-					await transitionAndPersist(markCrawlFailed, {
-						url,
-						input: {
-							reason: { kind: "parse-error", detail: finalized.reason },
-						},
-					});
-					throw new Error(`crawl failed for ${url}: ${finalized.reason}`);
+				const committed = await commitFetchedBody(crawlResult, ctx);
+				if (committed.via === "unreadable") {
+					await resolveUnreadable({ url, detail: committed.reason });
+					throw new Error(`crawl failed for ${url}: ${committed.reason}`);
 				}
-				const article = finalized.ok ? finalized.article : UNREADABLE_ARTICLE;
-				const liveFailed = !finalized.ok || (crawlResult.httpStatus !== undefined && (crawlResult.httpStatus < 200 || crawlResult.httpStatus >= 300));
-				const evaluationHtml = ctx.candidates === undefined ? article.html : crawlResult.evaluationHtml ?? crawlResult.html;
-
-				/* Best-effort and never throws: a redirecting PDF/comprehensive URL
-				 * claims its terminal identity here too. Refresh and recrawl are both
-				 * re-crawls of an existing article, so folding either flag into
-				 * `recrawl` suppresses re-adoption on every stale re-fetch. */
-				await adoptCanonicalIdentity({
-					url,
-					finalUrl: crawlResult.finalUrl,
-					outcome: liveFailed ? { kind: "crawl-failed" } : { kind: "finalized", wordCount: article.metadata.wordCount },
-					recrawl: Boolean(recrawl || refresh),
-				});
-				const metadata = candidateProvenance({
-					metadata: article.metadata,
-					html: article.html,
-					evaluationHtml,
-					attemptId: ctx.saveAttemptId,
-					originalUrl: await deps.resolveOriginalUrl(url),
-					sourceUrl: crawlResult.finalUrl ?? originalUrl,
-					kind: "live",
-					fetchedAt,
-					httpStatus: crawlResult.httpStatus,
-				});
-				const candidates = [...(ctx.candidates ?? []), { id: metadata.id, tier: "tier-1" as const }];
-				await putTierSource({
-					url,
-					tier: "tier-1",
-					html: article.html,
-					evaluationHtml,
-					metadata,
-				});
-				await markCrawlStage({ url, stage: "crawl-content-uploaded" });
-
-				const contentFetchedAt = now().toISOString();
-
-				/* Refresh chain carries freshness directly on the
-				 * RefreshContentExtractedEvent and the downstream
-				 * refresh-content-extracted handler sets it via the refreshContent
-				 * aggregate transition, mirroring the existing in-place refresh
-				 * Lambda. Save / recrawl chains have no aggregate write that
-				 * persists etag/lastModified, so they still go through the
-				 * UpdateFetchTimestampCommand → update-fetch-timestamp Lambda. */
-				if (!refresh && !liveFailed) {
-					await updateFetchTimestamp({
-						url,
-						contentFetchedAt,
-						etag: crawlResult.etag,
-						lastModified: crawlResult.lastModified,
-						bodyHash: crawlResult.bodyHash,
-					});
-				}
-
-				const successSnapshot = await readTierSnapshot({ url });
-				logCrawlOutcome({
-					url,
-					thisTier: "tier-1",
-					thisTierStatus: liveFailed ? "failed" : "success",
-					otherTierStatus: successSnapshot.tier0Status,
-					pickedTier: successSnapshot.pickedTier,
-				});
-
-				if (refresh) {
-					// Stale-check refresh chain: a downstream handler runs the selector
-					// across all tier sources, picks a winner, and drives the transition
-					// that sets freshness and canonical content.
-					await publishEvent(RefreshContentExtractedEvent, {
-						url,
-						candidates,
-						saveAttemptId: ctx.saveAttemptId,
-						etag: crawlResult.etag,
-						lastModified: crawlResult.lastModified,
-						contentFetchedAt,
-						bodyHash: crawlResult.bodyHash,
-					});
-					logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
-				} else if (recrawl) {
-					// Recrawl chain runs a clone of the selector that ALWAYS dispatches
-					// generate-summary regardless of canonical change. Emit the recrawl-
-					// specific event so admin recrawls of PDFs preserve that semantics.
-					await publishEvent(RecrawlContentExtractedEvent, { url, extractedAt: contentFetchedAt, candidates, saveAttemptId: ctx.saveAttemptId });
-					logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
-				} else {
-					await publishEvent(TierContentExtractedEvent, { url, userId, extractedAt: contentFetchedAt, candidates, saveAttemptId: ctx.saveAttemptId });
-					logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
-				}
-				return { via: "deferred-to-event" };
+				return committed;
 			}
 		}
 	};
@@ -392,8 +218,7 @@ export function initComprehensiveCrawlHandler(deps: {
 				const budget = await consumePaidCrawlBudget({ messageId: record.messageId });
 				if (!budget.allowed) {
 					logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
-					if (candidates !== undefined) await publishArchiveComparison({ url, userId, recrawl, saveAttemptId, candidates });
-					else await resolveBudgetExhausted({ url, refresh });
+					await resolveBudgetExhausted({ url, refresh, recrawl, userId, saveAttemptId, candidates });
 					continue;
 				}
 

@@ -102,9 +102,10 @@ export function initSaveLinkCommandHandler(deps: {
 				}
 
 				const result = await saveLinkWork(detail.url, { userId: detail.userId, saveAttemptId });
-				if (result === "tier-1-deferred") {
+				if (typeof result === "object" && "deferred" in result) {
 					logger.info("[SaveLinkCommand] tier-1 deferred to comprehensive Lambda", {
 						url: detail.url,
+						unsupportedReason: result.deferred,
 					});
 					continue;
 				}

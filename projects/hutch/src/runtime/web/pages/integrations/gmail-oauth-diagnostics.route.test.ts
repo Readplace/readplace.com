@@ -327,7 +327,7 @@ describe("Gmail OAuth diagnostics", () => {
 
 			const { response, lines } = await traced(gmail, () => request(harness.server).post(CONNECT).send());
 
-			expect(response.headers.location).toBe("/login");
+			expect(response.headers.location).toBe("/login?return=%2Fnewsletters%2Fgmail%2Fconnect");
 			expect(stateCookieWrites(response)).toEqual([]);
 			expect(only(lines, COMPLETED)).toMatchObject({ route: "connect", status: 303, stage: "requireAuth", redirect: "login" });
 		});

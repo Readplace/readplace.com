@@ -88,9 +88,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 71 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 72 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(71);
+		expect(body.widgets).toHaveLength(72);
 	});
 
 	it("counts EPUB visitor/article pairs after a public render or directly from the owner reader, by device, OS family and browser, preferring click labels over historical pageviews", () => {
@@ -119,6 +119,22 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(query).toContain('coalesce(click_browser_label, pageview_browser_label, "unclassified") as browser_label');
 		expect(query).toContain('if(owner_clicks > 0, "reader", "view-article") as source');
 		expect(query).toContain("stats count(*) as downloads, count_distinct(visitor_id) as downloaders by device, os_label, browser_label, source");
+	});
+
+	it("counts visitors shown the public save limit screen, who of them clicked each action, and who signed up after first seeing it", () => {
+		const widget = buildBody().widgets.find(
+			({ properties }) =>
+				properties.title === "Public save limit: visitors shown the create-account screen, who clicked, and signups after it",
+		);
+		assert(widget, "the public save limit funnel widget must exist");
+		const query = widget.properties.query;
+		assert(typeof query === "string");
+		expect(query).toContain(`if(event = "${ANALYTICS_EVENTS.viewCrawlLimited}", 1, 0) as is_seen`);
+		expect(query).toContain(`if(event = "${ANALYTICS_EVENTS.click}" and utm_source = "view-crawl-limit" and utm_content = "signup", 1, 0) as is_signup_click`);
+		expect(query).toContain(`if(event = "${ANALYTICS_EVENTS.click}" and utm_source = "view-crawl-limit" and utm_content = "login", 1, 0) as is_login_click`);
+		expect(query).toContain('if(event = "user_created", toMillis(@timestamp), 0) as signup_ms');
+		expect(query).toContain("| filter screens > 0");
+		expect(query).toContain("count(*) as visitors_shown, sum(signup_clicks > 0) as visitors_clicked_create_account, sum(login_clicks > 0) as visitors_clicked_log_in, sum(last_signup_ms > first_seen_ms) as signups_after_screen");
 	});
 
 	it("splits the starter activity widget by whether the activity acted on a suggestion", () => {

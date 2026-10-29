@@ -33,6 +33,9 @@ export { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "./c
 export type { CurlImpersonateProbe, CurlImpersonateProbeResult } from "./curl-fetch";
 export { readBodyWithCap, BodyTooLargeError } from "./read-capped-body";
 export type { IsBlockedAddress, ResolveAll } from "./blocked-address-lookup";
+export { createLiteralHostGuard, createPinnedAddressResolver, defaultResolveAll } from "./blocked-address-lookup";
+export { isAwsWafChallenge } from "./aws-waf-challenge";
+export { hasFastlyChallengeMarkers } from "./fastly-client-challenge";
 export type { ExtractPdf, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
 export { isPDF } from "./pdf-detect";
 export type { PdfSignal } from "./pdf-detect";
@@ -55,3 +58,4 @@ export type { FetchRedirectHop } from "./fetch-redirect-hop";
 export { initStackOverflowSiteRules } from "./stack-overflow-site-rules";
 export { initHnSearchSiteRules } from "./hn-search-site-rules";
 export { initGitHubPdfSiteRules } from "./github-pdf-site-rules";
+export { initOjsGalleySiteRules } from "./ojs-galley-site-rules";

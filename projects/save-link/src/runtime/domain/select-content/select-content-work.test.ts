@@ -333,6 +333,26 @@ describe("initSelectContentWork", () => {
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, { url: URL, input: { reason }, selectionExpected: { snapshot: undefined } });
 	});
 
+	it.each([
+		{ renderedThrough: "direct-egress" as const },
+		{ renderedThrough: "residential-proxy" as const },
+	])("records that this save's live page had nothing readable even after rendering it through $renderedThrough", async ({ renderedThrough }) => {
+		const rendered = source();
+		rendered.metadata.httpStatus = 200;
+		rendered.metadata.renderedThrough = renderedThrough;
+		const { work, deps } = setup({ listAvailableTierSources: async () => [rendered], selectMostCompleteContent: async () => ({ kind: "none", reason: "App shell" }) });
+		await work(request);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "parse-error", detail: `no readable article candidate after render (${renderedThrough}): App shell` } } }));
+	});
+
+	it("does not say an earlier attempt's rendered page was rendered for this save", async () => {
+		const earlier = source();
+		earlier.metadata.renderedThrough = "direct-egress";
+		const { work, deps } = setup({ listAvailableTierSources: async () => [earlier], selectMostCompleteContent: async () => ({ kind: "none", reason: "App shell" }) });
+		await work(laterRequest);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "parse-error", detail: "no readable article candidate: App shell" } } }));
+	});
+
 	it("does not blame an earlier attempt's refused live response for this save finding nothing readable", async () => {
 		const earlier = source();
 		earlier.metadata.httpStatus = 403;

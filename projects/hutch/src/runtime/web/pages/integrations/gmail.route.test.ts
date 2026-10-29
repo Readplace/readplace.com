@@ -318,10 +318,10 @@ describe("GMail Newsletters page", () => {
 		const { harness } = harnessWithGmail();
 		expect((await request(harness.server).get(GMAIL)).headers.location).toBe(`/login?return=${encodeURIComponent(GMAIL)}`);
 		for (const path of [`${GMAIL}/senders`, `${GMAIL}/status`]) {
-			expect((await request(harness.server).get(path)).headers.location).toBe("/login");
+			expect((await request(harness.server).get(path)).headers.location).toBe(`/login?return=${encodeURIComponent(path)}`);
 		}
 		for (const path of [ADD, REMOVE, RETRY, DISCOVER, CREATE_READLIST, IMPORT_START, IMPORT_RETRY, IMPORT_CANCEL, `${GMAIL}/disconnect`]) {
-			expect((await request(harness.server).post(path)).headers.location).toBe("/login");
+			expect((await request(harness.server).post(path)).headers.location).toBe(`/login?return=${encodeURIComponent(path)}`);
 		}
 	});
 

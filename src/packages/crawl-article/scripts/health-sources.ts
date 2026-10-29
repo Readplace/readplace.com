@@ -328,6 +328,12 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		expectedContent: "ranked five times more valuable than likes",
 		expectsThumbnail: true,
 	},
+	{
+		label: "Client-rendered React blog post (headless render path)",
+		url: "https://blog.roku.com/developer/gitlab-move",
+		expectedContent: "Roku has completed migrating all developer resources from GitHub to GitLab.",
+		expectsThumbnail: true,
+	},
 	// PDF sources run last and are ordered cheapest-first: each one fans out
 	// per-page OCR (rasterisation + DeepInfra vision) and burns real tokens, so
 	// the tier-1-plus canary's fail-fast gate skips every remaining PDF once any

@@ -530,7 +530,8 @@ describe("ViewPage", () => {
 		expect([
 			rail.getAttribute("aria-label"),
 			Array.from(rail.children, (child) => [child.id, child.getAttribute("data-test-table-of-contents")]),
-		]).toEqual(["Article details", [["table-of-contents", "empty"]]]);
+		]).toEqual(["Article details", [["table-of-contents", "empty"], ["", null]]]);
+		expect(rail.lastElementChild?.getAttribute("href")).toBe("#top");
 		expect(doc.querySelector("[data-test-view-cta] > .reading-frame > .view__cta-content")).not.toBeNull();
 	});
 
@@ -543,19 +544,20 @@ describe("ViewPage", () => {
 			rail.tagName,
 			rail.getAttribute("aria-label"),
 			Array.from(rail.children, (child) => [child.id, child.getAttribute("data-test-table-of-contents")]),
-		]).toEqual(["DIV", null, [["table-of-contents", "hidden"]]]);
+		]).toEqual(["DIV", null, [["table-of-contents", "hidden"], ["", null]]]);
 	});
 
-	it("loads the table of contents script right after the save tip's", () => {
+	it("loads the table of contents script right after the save tip's, then the Top button's", () => {
 		const doc = render();
 
 		const bundles = Array.from(doc.querySelectorAll('script[src^="/client-dist/"]'), (script) =>
 			script.getAttribute("src"),
 		);
 		const saveTip = bundles.indexOf("/client-dist/save-tip.client.js");
-		expect(bundles.slice(saveTip, saveTip + 2)).toEqual([
+		expect(bundles.slice(saveTip, saveTip + 3)).toEqual([
 			"/client-dist/save-tip.client.js",
 			"/client-dist/table-of-contents.client.js",
+			"/client-dist/reader-top.client.js",
 		]);
 	});
 
@@ -578,7 +580,8 @@ describe("ViewPage", () => {
 		const rail = layout.querySelector(":scope > aside[data-test-reader-rail]");
 		assert(rail, "the rail must sit beside the main track");
 		expect(rail.getAttribute("aria-label")).toBe("Article details");
-		expect(Array.from(rail.children, (child) => child.hasAttribute("data-test-article-history"))).toEqual([false, true]);
+		expect(Array.from(rail.children, (child) => child.hasAttribute("data-test-article-history"))).toEqual([false, true, false]);
+		expect(rail.lastElementChild?.hasAttribute("data-test-reader-top")).toBe(true);
 		expect(
 			Array.from(rail.querySelectorAll("[data-test-article-history-version]"), (row) =>
 				row.getAttribute("data-test-article-history-version"),

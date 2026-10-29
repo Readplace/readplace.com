@@ -50,6 +50,7 @@ export type CreateSelectorChatCompletion = (params: {
 	model: string;
 	max_tokens: number;
 	thinking: { type: "disabled" };
+	temperature: number;
 	response_format: { type: "json_object" };
 	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
 }) => Promise<ChatCompletionResponse>;
@@ -82,6 +83,7 @@ export function initSelectMostCompleteContent(deps: {
 			response = await createChatCompletion({
 				model: DEEPSEEK_MODEL,
 				thinking: DEEPSEEK_NON_THINKING,
+				temperature: 0,
 				max_tokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
 				response_format: { type: "json_object" },
 				messages,

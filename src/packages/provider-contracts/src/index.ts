@@ -4,6 +4,7 @@ export type * from "./article-freshness";
 export type * from "./article-store";
 export * from "./article-summary";
 export type * from "./auth";
+export * from "./browser-handoff";
 export type * from "./email";
 export type * from "./email-verification";
 export type * from "./events";

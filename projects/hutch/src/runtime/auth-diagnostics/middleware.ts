@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Request, RequestHandler } from "express";
+import type { Request, RequestHandler, Response } from "express";
 import { z } from "zod";
 import { AuthDiagnosticEvent, AuthDiagnosticReason } from "@packages/domain/auth-diagnostics";
 import { gatewayRequestIdOf } from "@packages/web-analytics";
@@ -22,8 +22,14 @@ const FLOW_COOKIE = "readplace_auth_flow";
 const loginStarts = new Set(["/login", "/signup", "/auth/google", "/auth/apple"]);
 const callbacks = new Set(["/auth/google/callback", "/auth/apple/callback"]);
 
+function issuedSessionCookie(res: Response): boolean {
+	const cookies = res.getHeader("Set-Cookie");
+	return (Array.isArray(cookies) ? cookies : [String(cookies)]).some((cookie) => cookie.startsWith(`${SESSION_COOKIE_NAME}=`) && !cookie.startsWith(`${SESSION_COOKIE_NAME}=;`));
+}
+
 function requestCause(req: Request): AuthDiagnosticContext["reason"] {
 	if (req.path === "/auth/session") return "oauth_bridge";
+	if (req.path === "/auth/handoff") return "browser_handoff";
 	if (req.path === "/logout") return "web_logout";
 	if (req.path === "/oauth/revoke") return "native_logout";
 	if (req.path === "/reset-password" || req.path === "/account/password") return "password_reset";
@@ -55,7 +61,7 @@ export function initAuthDiagnosticMiddleware(deps: {
 			installation_ref: z.uuid().safeParse(req.get("X-Readplace-Installation-Id")).data,
 			reason: requestCause(req),
 		};
-		const boundary = loginStarts.has(req.path) || callbacks.has(req.path) || req.path === "/oauth/authorize" || req.path === "/auth/session";
+		const boundary = loginStarts.has(req.path) || callbacks.has(req.path) || req.path === "/oauth/authorize" || req.path === "/auth/session" || req.path === "/auth/handoff";
 		if ((loginStarts.has(req.path) || req.path === "/oauth/authorize") && flow === undefined) {
 			res.cookie(FLOW_COOKIE, context.context_id, { httpOnly: true, secure: deps.secureCookies, sameSite: "lax", maxAge: 30 * 60 * 1_000, path: "/" });
 		}
@@ -82,10 +88,13 @@ export function initAuthDiagnosticMiddleware(deps: {
 				});
 			}
 			if (req.path === "/auth/session") observe({ event: "session_bridge_completed", ...common, outcome: res.statusCode === 204 ? "success" : "failure", ...(context.auth_refusal_reason ? { reason: context.auth_refusal_reason } : {}) });
+			if (req.path === "/auth/handoff") {
+				const succeeded = req.method === "POST" ? res.statusCode === 200 : issuedSessionCookie(res);
+				observe({ event: "session_bridge_completed", ...common, outcome: succeeded ? "success" : "failure" });
+			}
 			if (req.path === "/logout") observe({ event: "logout_completed", ...common, outcome: res.statusCode === 303 ? "success" : "failure" });
 			if ((req.path === "/login" && req.method === "POST") || callbacks.has(req.path)) {
-				const cookies = res.getHeader("Set-Cookie");
-				const issued = (Array.isArray(cookies) ? cookies : [String(cookies)]).some((cookie) => cookie.startsWith(`${SESSION_COOKIE_NAME}=`) && !cookie.startsWith(`${SESSION_COOKIE_NAME}=;`));
+				const issued = issuedSessionCookie(res);
 				const reason = AuthDiagnosticReason.safeParse(res.locals.authDiagnosticReason).data;
 				observe({ event: "login_finished", ...common, outcome: issued ? "success" : reason === "user_cancelled" ? "cancelled" : "failure", ...(reason ? { reason } : {}) });
 			}

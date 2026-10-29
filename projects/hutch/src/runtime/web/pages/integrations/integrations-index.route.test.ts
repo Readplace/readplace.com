@@ -30,7 +30,7 @@ describe("GET /newsletters", () => {
 		const response = await request(harness.server).get("/newsletters");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Fnewsletters");
 	});
 
 	it("lists the services for a signed-in reader", async () => {

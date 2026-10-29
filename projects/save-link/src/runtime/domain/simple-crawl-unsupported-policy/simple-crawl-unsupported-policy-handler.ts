@@ -8,8 +8,20 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
 	SimpleCrawlUnsupportedEvent,
+	type SimpleCrawlUnsupportedDetail,
 	ComprehensiveCrawlCommand,
+	RenderCrawlCommand,
 } from "@packages/hutch-infra-components";
+
+const DEFERRED_CRAWL_COMMANDS = {
+	"non-html-content": ComprehensiveCrawlCommand,
+	paywall: ComprehensiveCrawlCommand,
+	"javascript-required": RenderCrawlCommand,
+	unspecified: ComprehensiveCrawlCommand,
+} satisfies Record<
+	NonNullable<SimpleCrawlUnsupportedDetail["unsupportedReason"]> | "unspecified",
+	typeof ComprehensiveCrawlCommand | typeof RenderCrawlCommand
+>;
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
@@ -27,7 +39,9 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 				const envelope = JSON.parse(record.body);
 				const detail = SimpleCrawlUnsupportedEvent.detailSchema.parse(envelope.detail);
 
-				await publishEvent(ComprehensiveCrawlCommand, {
+				const command = DEFERRED_CRAWL_COMMANDS[detail.unsupportedReason ?? "unspecified"];
+
+				await publishEvent(command, {
 					url: detail.url,
 					userId: detail.userId,
 					recrawl: detail.recrawl,
@@ -37,8 +51,9 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 					candidates: detail.candidates,
 				});
 
-				logger.info(`${logPrefix} dispatched ComprehensiveCrawlCommand`, {
+				logger.info(`${logPrefix} dispatched ${command.detailType}`, {
 					url: detail.url,
+					unsupportedReason: detail.unsupportedReason,
 					recrawl: detail.recrawl ? 1 : 0,
 					refresh: detail.refresh ? 1 : 0,
 				});

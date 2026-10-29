@@ -23,6 +23,7 @@ import type {
 import type { NewsletterCatalogSeed } from "@packages/domain/newsletter-catalog";
 import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/provider-contracts/newsletter-catalog";
 import type { FindCanaryReport, SaveCanaryReport } from "@packages/provider-contracts/canary-report";
+import type { MintBrowserHandoffCode, RedeemBrowserHandoffCode } from "@packages/provider-contracts/browser-handoff";
 import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
@@ -545,6 +546,11 @@ export interface EmailVerificationBundle {
 	verifyEmailToken: VerifyEmailToken;
 }
 
+export interface BrowserHandoffBundle {
+	mintBrowserHandoffCode: MintBrowserHandoffCode;
+	redeemBrowserHandoffCode: RedeemBrowserHandoffCode;
+}
+
 export interface PasswordResetBundle {
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
@@ -711,6 +717,7 @@ export interface TestAppFixture {
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
+	browserHandoff: BrowserHandoffBundle;
 	rateLimit: RateLimitBundle;
 	wrapperTarget: WrapperTargetBundle;
 	submitLink: SubmitLinkBundle;

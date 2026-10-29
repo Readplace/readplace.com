@@ -34,6 +34,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	/// Injected so the composition point wires the live browser and tests inject
 	/// their own; there is deliberately no internal default.
 	let externalBrowser: ExternalBrowser
+	let mintHandoff: () async throws -> String
 	/// Reports the page's load lifecycle (provisional → commit → finish/fail plus
 	/// live `estimatedProgress`) so the sheet can drive its skeleton and progress
 	/// bar. The reader page load is otherwise invisible to the sheet.
@@ -54,6 +55,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			onClose: onClose,
 			onLogout: onLogout,
 			externalBrowser: externalBrowser,
+			mintHandoff: mintHandoff,
 			onLoadPhaseChange: onLoadPhaseChange
 		)
 	}
@@ -128,6 +130,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		private let onClose: () -> Void
 		private let onLogout: () -> Void
 		private let externalBrowser: ExternalBrowser
+		private let mintHandoff: () async throws -> String
 		private let onLoadPhaseChange: (ReaderLoadPhase) -> Void
 		private var handled = false
 		private var capturing = false
@@ -162,6 +165,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			onClose: @escaping () -> Void,
 			onLogout: @escaping () -> Void,
 			externalBrowser: ExternalBrowser,
+			mintHandoff: @escaping () async throws -> String,
 			onLoadPhaseChange: @escaping (ReaderLoadPhase) -> Void
 		) {
 			self.url = url
@@ -177,6 +181,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 			self.onClose = onClose
 			self.onLogout = onLogout
 			self.externalBrowser = externalBrowser
+			self.mintHandoff = mintHandoff
 			self.onLoadPhaseChange = onLoadPhaseChange
 		}
 
@@ -366,7 +371,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				// most users browse in Chrome but leave Safari as the OS default, so
 				// the default browser has no Readplace session. An article's link to
 				// someone else's site is opened untouched — see `chromeURLFor`.
-				openURLChromeFirst(target, browser: externalBrowser)
+				Task { @MainActor in await openURLWithHandoff(target, browser: externalBrowser, mint: mintHandoff) }
 			}
 		}
 

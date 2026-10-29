@@ -9,6 +9,7 @@ import {
 } from "@packages/hutch-infra-components/runtime";
 import {
 	SimpleCrawlUnsupportedEvent,
+	type SimpleCrawlUnsupportedDetail,
 	GenerateSummaryCommand,
 } from "@packages/hutch-infra-components";
 import type { CandidateReference } from "../domain/select-content/list-available-tier-sources";
@@ -25,8 +26,11 @@ export type DispatchGenerateSummary = DispatchCommand<typeof GenerateSummaryComm
  * admin-recrawl chain (RecrawlContentExtractedEvent downstream), `refresh`
  * is the stale-check chain (RefreshContentExtractedEvent downstream). The
  * default (neither set) is the save chain (TierContentExtractedEvent). */
+export type DeferredUnsupportedKind = SimpleCrawlUnsupportedDetail["unsupportedReason"];
+
 export type EmitSimpleCrawlUnsupported = (params: {
 	url: string;
+	unsupportedReason: DeferredUnsupportedKind;
 	userId?: string;
 	recrawl?: boolean;
 	refresh?: boolean;
@@ -64,9 +68,10 @@ export function initEventsDepBundle(deps: {
 export function initEmitSimpleCrawlUnsupported(deps: {
 	publishEvent: PublishEvent;
 }): EmitSimpleCrawlUnsupported {
-	return ({ url, userId, recrawl, refresh, previousBodyHash, saveAttemptId, candidates }) =>
+	return ({ url, unsupportedReason, userId, recrawl, refresh, previousBodyHash, saveAttemptId, candidates }) =>
 		deps.publishEvent(SimpleCrawlUnsupportedEvent, {
 			url,
+			unsupportedReason,
 			userId,
 			recrawl,
 			refresh,

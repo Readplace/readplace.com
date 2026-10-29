@@ -512,6 +512,23 @@ describe("toArticleCollectionEntity", () => {
 		expect(sessionAction?.method).toBe("POST");
 	});
 
+	it("advertises a create-browser-handoff action so the app can hand its sign-in to the external browser", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+
+		const handoffAction = entity.actions?.find((a) => a.name === "create-browser-handoff");
+		expect(handoffAction?.href).toBe("/auth/handoff");
+		expect(handoffAction?.method).toBe("POST");
+		expect(handoffAction?.title).toBeUndefined();
+	});
+
 	it("includes search action with filter fields", () => {
 		const result: FindArticlesResult = {
 			articles: [],

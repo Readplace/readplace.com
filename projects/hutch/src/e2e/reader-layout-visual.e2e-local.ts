@@ -55,6 +55,7 @@ const HIDDEN_TABLE_OF_CONTENTS = '[data-test-table-of-contents="hidden"]';
 const RAIL_CARD_GAP = 16;
 const RAIL_CARD = `${RAIL} > ${ARTICLE_HISTORY}`;
 const CTA_CONTENT = ".view__cta-content";
+const VIEW_CTA = "[data-test-view-cta]";
 const SAVED_CARD = "[data-test-article]";
 const SAVED_CARD_TITLE = "[data-test-article-title]";
 const SUMMARY_READY = '[data-test-reader-summary][data-summary-status="ready"]';
@@ -204,13 +205,13 @@ async function openReaderWithNoRailCard(page: Page, stamp: string): Promise<void
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function openSettledPublicView(page: Page, stamp: string): Promise<void> {
-	const slug = `reader-layout-public-${stamp}`;
+async function openSettledPublicView(page: Page, input: { stamp: string; content: string }): Promise<void> {
+	const slug = `reader-layout-public-${input.stamp}`;
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-crawled-article`, {
 		data: {
 			url: `https://example.com/${slug}`,
 			title: ARTICLE_TITLE,
-			content: SHORT_ARTICLE,
+			content: input.content,
 			contentFetchedAt: CONTENT_FETCHED_AT,
 			generatedSummary: SUMMARY,
 		},
@@ -559,7 +560,7 @@ test.describe("Public view layout", () => {
 
 	test("puts the column beside the rail's card at every desktop width, with the CTA bar still centred on the page", async ({ page }, testInfo) => {
 		await quietReader(page);
-		await openSettledPublicView(page, `${testInfo.workerIndex}-${Date.now()}`);
+		await openSettledPublicView(page, { stamp: `${testInfo.workerIndex}-${Date.now()}`, content: SHORT_ARTICLE });
 		await expect(page.locator(RAIL_CARD)).toHaveCount(1);
 		await expectDesktopColumns(page, async (measured, desktop) => {
 			await expectColumnBesideRailCard(measured, desktop);
@@ -575,8 +576,9 @@ test.describe("Public view layout", () => {
 		await page.waitForSelector(NOT_AN_ARTICLE_NOTICE);
 		await waitForBrandFonts(page, ["Inter"]);
 		await expect(page.locator(RAIL)).toHaveCount(1);
-		await expect(page.locator(`${RAIL} > *`)).toHaveCount(1);
+		await expect(page.locator(`${RAIL} > *`)).toHaveCount(2);
 		await expect(page.locator(`${RAIL} > ${HIDDEN_TABLE_OF_CONTENTS}`)).toHaveCount(1);
+		await expect(page.locator(`${RAIL} > ${TOP}`)).toHaveCount(1);
 		await expectDesktopColumns(page, expectCentredColumn);
 		await expectSingleColumn(page, 1023);
 		await expectSingleColumn(page, 768);
@@ -643,6 +645,27 @@ test.describe("The reader's Top button", () => {
 			{ actual: restingTop.y + restingTop.height, expected: restingCard.y + restingCard.height - TOP_INSET, tolerance: 1 },
 			"at the page's end Top rests 32px above the article card's end",
 		);
+
+		await page.locator(TOP).click();
+		await expect.poll(() => page.evaluate(readScrollY)).toBe(0);
+		await expect(page.locator(TOP)).toHaveCSS("visibility", "hidden");
+	});
+});
+
+test.describe("The public view's Top button", () => {
+	test.use({ timezoneId: "UTC", viewport: { width: 1440, height: 900 } });
+
+	test("appears past one viewport, rides 32px above the sticky CTA bar and returns to the top", async ({ page }, testInfo) => {
+		await quietReader(page);
+		await openSettledPublicView(page, { stamp: `top-${testInfo.workerIndex}-${Date.now()}`, content: LONG_ARTICLE });
+		const viewport = page.viewportSize();
+		assert.ok(viewport, "the Top checks must run with an explicit viewport");
+		await expect(page.locator(TOP)).toHaveCSS("visibility", "hidden");
+
+		await scrollToY(page, viewport.height + 200);
+		await expect(page.locator(TOP)).toHaveCSS("visibility", "visible");
+		const [top, cta] = await page.evaluate(measureBoxes, [TOP, VIEW_CTA]);
+		assertNear({ actual: top.y + top.height, expected: cta.y - TOP_INSET, tolerance: 1 }, "Top rides 32px above the CTA bar");
 
 		await page.locator(TOP).click();
 		await expect.poll(() => page.evaluate(readScrollY)).toBe(0);

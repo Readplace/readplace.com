@@ -43,6 +43,7 @@ import { initResendEmail } from "./email/resend-email";
 import { initSkipReservedDomain } from "./email/skip-reserved-domain";
 import { initDynamoDbEmailVerification } from "./email-verification/dynamodb-email-verification";
 import { initDynamoDbPasswordReset } from "./password-reset/dynamodb-password-reset";
+import { initDynamoDbBrowserHandoff } from "./browser-handoff/dynamodb-browser-handoff";
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { initDynamoDbRateLimit } from "./rate-limit/dynamodb-rate-limit";
@@ -481,12 +482,14 @@ export function initProdProviders(input: { appOrigin: string }) {
 	// stack config via the Lambda environment.
 	const rateLimitRules: RateLimitRules = {
 		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
+		viewCrawlSignedIn: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL_SIGNED_IN")),
 		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
 		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
 		oauthToken: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_TOKEN")),
+		browserHandoff: parseRateLimitRule(requireEnv("RATE_LIMIT_BROWSER_HANDOFF")),
 		import: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT")),
 		importFromUrl: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT_FROM_URL")),
 	};
@@ -537,6 +540,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		}),
 		...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
 		...initDynamoDbPasswordReset({ client, tableName: passwordResetTokensTable }),
+		...initDynamoDbBrowserHandoff({ client, tableName: tables.browserHandoffCodes, now: () => new Date() }),
 		...stripe,
 		...pendingSignup,
 		googleAuth,

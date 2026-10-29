@@ -26,6 +26,7 @@ import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PrepareArticleIdentity } from "@packages/save-article";
 import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-reason";
+import { deferredUnsupportedKind } from "../save-link/save-link-work";
 
 /**
  * Stale-check is a simple-only worker: PDFs flow through the
@@ -180,6 +181,7 @@ export function initStaleCheckHandler(deps: {
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
 			await emitSimpleCrawlUnsupported({
 				url,
+				unsupportedReason: deferredUnsupportedKind(result.unsupportedReason),
 				saveAttemptId,
 				refresh: true,
 				previousBodyHash: freshness.bodyHash,

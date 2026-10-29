@@ -28,7 +28,7 @@ describe("contextMenuItemsFor", () => {
 	});
 
 	it("drops a capability it has no entry point for, so a new server action adds no mystery menu", () => {
-		expect(contextMenuItemsFor(["search", "create-session"])).toEqual([]);
+		expect(contextMenuItemsFor(["search", "create-session", "create-browser-handoff"])).toEqual([]);
 	});
 
 	it("offers nothing once the server advertises no save capability at all", () => {

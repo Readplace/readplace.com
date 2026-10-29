@@ -25,6 +25,7 @@ import { ACCOUNT_EXPORT_URL } from "./account.url";
 import type {
 	AccountAction,
 	AccountActionKey,
+	AccountImportLink,
 	AccountViewModel,
 	AppearanceSectionViewModel,
 	BillingHistoryViewModel,
@@ -317,6 +318,7 @@ export function AccountPage(
 		security: SecuritySectionViewModel;
 		appearance: AppearanceSectionViewModel;
 		connectedApps: ConnectedAppsSectionViewModel;
+		importLinks: readonly AccountImportLink[];
 		surface?: AccountSurface;
 	},
 ): PageBody {
@@ -348,6 +350,7 @@ export function AccountPage(
 				connectedAppsHtml: renderConnectedApps(page.connectedApps),
 				appearance: page.appearance,
 				exportHref: EXPORT_HREF,
+				importLinks: page.importLinks,
 				danger: buildDangerZone(vm),
 				backLink: surface?.backLink,
 			}),

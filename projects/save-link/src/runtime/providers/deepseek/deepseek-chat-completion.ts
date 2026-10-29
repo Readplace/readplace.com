@@ -16,6 +16,7 @@ type ChatCompletionParams = {
 	model: string;
 	max_tokens: number;
 	thinking: { type: "enabled" } | { type: "disabled" };
+	temperature?: number;
 	response_format?: { type: "json_object" };
 	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
 };

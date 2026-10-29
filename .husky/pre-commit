@@ -1,3 +1,4 @@
 eval "$(grep '^export ' .envrc)" 2>/dev/null || true
+unset GIT_DIR
 
 pnpm check || { echo "Ensure you read Claude.md for instructions to setup the dev environment"; exit 1; }

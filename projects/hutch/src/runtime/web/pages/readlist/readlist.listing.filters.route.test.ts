@@ -359,26 +359,4 @@ describe("Readlist routes", () => {
 			expect(input?.getAttribute("value")).toBe("");
 		});
 	});
-
-	describe("GET /queue Import Links nav", () => {
-		it("surfaces the Import Links nav item and does not render the upload form on /queue", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent.get("/queue");
-
-			expect(response.status).toBe(200);
-			const doc = new JSDOM(response.text).window.document;
-			const navButton = doc.querySelector('[data-test-nav-item="import"]');
-			assert(navButton, "Import Links nav item must be rendered for authenticated users");
-			const navForm = navButton.closest("form");
-			assert(navForm, "Import Links nav item must be wrapped in a form");
-			const navAction = navForm.getAttribute("action");
-			assert(navAction, "Import Links nav item form must have an action");
-			expect(new URL(navAction, "https://readplace.com").pathname).toBe("/import");
-			expect(doc.querySelector("form.readlist__import-form")).toBeNull();
-			expect(doc.querySelector('[data-test-form="import-file"]')).toBeNull();
-		});
-	});
 });

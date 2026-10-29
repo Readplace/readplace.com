@@ -26,6 +26,7 @@ import {
 	SaveLinkRawPdfCommand,
 	SimpleCrawlUnsupportedEvent,
 	ComprehensiveCrawlCommand,
+	RenderCrawlCommand,
 	LinkSavedEvent,
 	AnonymousLinkSavedEvent,
 	CanonicalContentChangedEvent,
@@ -89,6 +90,7 @@ const onboardingTableArn = config.require("onboardingTableArn");
 // "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
+const renderCrawlBudget = config.require("renderCrawlBudget");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
@@ -105,6 +107,7 @@ const ocrImageTags = z
 		"comprehensive-crawl-command": z.string(),
 		"pdf-page-ocr": z.string(),
 		"save-link-raw-pdf-command": z.string(),
+		"render-crawl-command": z.string(),
 	})
 	.parse(JSON.parse(readFileSync(".lib/ocr-image-tags.json", "utf-8")));
 
@@ -930,6 +933,58 @@ const comprehensiveCrawlCommandLambdaWithSQS = new HutchSQSBackedLambda("compreh
 });
 
 eventBus.subscribe(ComprehensiveCrawlCommand, comprehensiveCrawlCommandLambdaWithSQS);
+
+const renderCrawlCommandQueue = new HutchSQS(
+	SAVE_LINK_DLQ_SOURCES.renderCrawlCommand,
+	{
+		visibilityTimeoutSeconds: 600,
+		dlqMaxReceiveCount: 1,
+		sharedDlq: failuresDlq,
+	},
+);
+
+const renderCrawlCommandDynamodb = new HutchDynamoDBAccess("render-crawl-command-dynamodb", {
+	tables: [
+		{ arn: articlesTableArn, includeIndexes: false },
+		{ arn: rateLimitsTableArn, includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const renderCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCommand, {
+	memorySize: 3008,
+	ephemeralStorageSize: 1024,
+	timeout: 300,
+	containerImage: { imageUri: ocrImageTags["render-crawl-command"] },
+	environment: {
+		...crawlEgressProxyEnvironment,
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
+		RENDER_CRAWL_BUDGET: renderCrawlBudget,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		AWS_LAMBDA_JS_RUNTIME: "nodejs22.x",
+	},
+	policies: [
+		...renderCrawlCommandDynamodb.policies,
+		...contentBucket.readPolicies("render-crawl-command-content-read"),
+		...contentBucket.writePolicies("render-crawl-command-s3"),
+		...renamePolicies(generateSummaryQueue.policies, "render-crawl-command"),
+	],
+});
+
+eventBus.grantPublish(renderCrawlCommandLambda);
+
+const renderCrawlCommandLambdaWithSQS = new HutchSQSBackedLambda("render-crawl-command", {
+	lambda: renderCrawlCommandLambda,
+	queue: renderCrawlCommandQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(RenderCrawlCommand, renderCrawlCommandLambdaWithSQS);
 
 // --- SaveLinkRawPdfCommand handler ---
 // Client-uploaded PDFs (tier-0) arrive already in the browser, so there is no

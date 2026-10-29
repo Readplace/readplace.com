@@ -11,6 +11,7 @@ let readerLogger = Logger(subsystem: "com.readplace.app", category: "reader")
 struct ReaderSheet: View {
 	let presentation: ReaderPresentation
 	let mintSession: () async -> ReaderSessionMint
+	let mintHandoff: () async throws -> String
 	let onMarkedRead: () -> Void
 	let onStatusChanged: () -> Void
 	let onCaptureBlocked: (HTMLCapturing) async -> CaptureEnding
@@ -78,6 +79,7 @@ struct ReaderSheet: View {
 					onClose: onClose,
 					onLogout: onLogout,
 					externalBrowser: .system,
+					mintHandoff: mintHandoff,
 					onLoadPhaseChange: { loadPhase = $0 }
 				)
 				.id(reopenedFromCache)

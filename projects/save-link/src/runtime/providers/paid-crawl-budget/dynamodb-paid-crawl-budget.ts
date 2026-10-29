@@ -35,6 +35,7 @@ const BudgetRow = z.object({ pk: z.string() });
 export function initDynamoDbPaidCrawlBudget(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
+	scope: "paid-crawl" | "render-crawl";
 	rule: RateLimitRule;
 	now: () => Date;
 }): {
@@ -68,7 +69,7 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 							// re-running the gate on a redelivery adds nothing to the counter.
 							Update: {
 								TableName: deps.tableName,
-								Key: { pk: `paid-crawl#claim#${messageId}#${windowStartSeconds}` },
+								Key: { pk: `${deps.scope}#claim#${messageId}#${windowStartSeconds}` },
 								UpdateExpression: "SET expiresAt = :expiresAt",
 								ConditionExpression: "attribute_not_exists(pk)",
 								ExpressionAttributeValues: { ":expiresAt": expiresAt },
@@ -80,7 +81,7 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 							// crawl never leaves a stranded claim marker behind.
 							Update: {
 								TableName: deps.tableName,
-								Key: { pk: `paid-crawl#global#${windowStartSeconds}` },
+								Key: { pk: `${deps.scope}#global#${windowStartSeconds}` },
 								UpdateExpression:
 									"ADD #count :one SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
 								ConditionExpression: "attribute_not_exists(#count) OR #count < :limit",
@@ -128,7 +129,7 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 		});
 		try {
 			await table.update({
-				Key: { pk: `paid-crawl#global#${windowStartSeconds}` },
+				Key: { pk: `${deps.scope}#global#${windowStartSeconds}` },
 				UpdateExpression: "ADD #count :negOne",
 				ConditionExpression: "attribute_exists(#count) AND #count > :zero",
 				ExpressionAttributeNames: { "#count": "count" },

@@ -3876,6 +3876,32 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertEqual(viewModel.warningText, "Cannot save that link.")
 	}
 
+	func testMintBrowserHandoffFollowsTheServersCreateBrowserHandoffAction() async throws {
+		let readlistWithHandoff = """
+		{
+			"class": ["collection", "articles"],
+			"properties": { "total": 1, "page": 1, "pageSize": 20 },
+			"entities": [\(Fixtures.article(id: "a1"))],
+			"links": [{ "rel": ["self"], "href": "/queue" }, { "rel": ["root"], "href": "/queue" }],
+			"actions": [{ "name": "create-browser-handoff", "href": "/custom/handoff", "method": "POST" }]
+		}
+		"""
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/": return .redirect(to: "/queue")
+			case "/queue": return .json(200, readlistWithHandoff)
+			case "/custom/handoff": return .json(200, #"{"code":"from-action"}"#)
+			default: return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		let code = try await viewModel.mintBrowserHandoff()
+
+		XCTAssertEqual(code, "from-action")
+	}
+
 	func testMintReaderSessionFollowsTheServersCreateSessionAction() async {
 		let readlistWithSession = """
 		{

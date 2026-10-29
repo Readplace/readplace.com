@@ -11,6 +11,7 @@ const DynamoTablesSchema = z.strictObject({
 	oauthOutcomes: TableName,
 	verificationTokens: TableName,
 	passwordResetTokens: TableName,
+	browserHandoffCodes: TableName,
 	pendingSignups: TableName,
 	importSessions: TableName,
 	inboxAddresses: TableName,

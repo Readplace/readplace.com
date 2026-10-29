@@ -52,10 +52,13 @@ function noReadableReason(params: { selection: PreparedContentSelection; saveAtt
 	const { selection, saveAttemptId } = params;
 	const detail = `no readable article candidate: ${selection.reason}`;
 	if (selection.sources.some((source) => source.tier === "tier-0" && source.metadata.captureTrigger !== "automatic" && source.metadata.attemptId === saveAttemptId)) return { kind: "capture-unreadable", detail };
-	const httpStatus = selection.sources.find((source) => source.metadata.kind === "live" && source.metadata.attemptId === saveAttemptId)?.metadata.httpStatus;
+	const live = selection.sources.find((source) => source.metadata.kind === "live" && source.metadata.attemptId === saveAttemptId)?.metadata;
+	const httpStatus = live?.httpStatus;
 	if (httpStatus === 404 || httpStatus === 410) return { kind: "not-found", httpStatus };
 	if (httpStatus !== undefined && (httpStatus === 429 || isBlockClassStatus(httpStatus))) return { kind: "blocked", cause: blockedCauseForStatus(httpStatus) };
 	if (httpStatus === undefined && params.liveAttempt?.failureReason !== undefined) return params.liveAttempt.failureReason;
+	const renderedThrough = live?.renderedThrough;
+	if (renderedThrough !== undefined) return { kind: "parse-error", detail: `no readable article candidate after render (${renderedThrough}): ${selection.reason}` };
 	return { kind: "parse-error", detail };
 }
 

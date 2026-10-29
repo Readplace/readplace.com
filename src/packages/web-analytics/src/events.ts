@@ -25,6 +25,7 @@ export const ANALYTICS_EVENTS = {
 	articleRead: "article_read",
 	summaryToggled: "summary_toggled",
 	viewOpened: "view_opened",
+	viewCrawlLimited: "view_crawl_limited",
 	viewSaveIntent: "view_save_intent",
 	signupAttempted: "signup_attempted",
 	firstArticleAutosaved: "first_article_autosaved",

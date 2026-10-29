@@ -22,6 +22,7 @@ export function candidateProvenance(params: {
 	fetchedAt: string;
 	httpStatus?: number;
 	captureTrigger?: CaptureTrigger;
+	renderedThrough?: TierSourceMetadata["renderedThrough"];
 }): CandidateProvenance {
 	const contentHash = createHash("sha256").update(params.evaluationHtml).digest("hex");
 	const id = CandidateIdSchema.parse(createHash("sha256")
@@ -38,6 +39,7 @@ export function candidateProvenance(params: {
 		fetchedAt: params.fetchedAt,
 		httpStatus: params.httpStatus,
 		captureTrigger: params.captureTrigger,
+		...(params.renderedThrough === undefined ? {} : { renderedThrough: params.renderedThrough }),
 	};
 }
 

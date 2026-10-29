@@ -12,6 +12,7 @@ import type {
 	EmailBundle,
 	EmailVerificationBundle,
 	PasswordResetBundle,
+	BrowserHandoffBundle,
 	PaymentMethodsBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
@@ -59,6 +60,7 @@ export type {
 	OAuthBundle,
 	ParserBundle,
 	PasswordResetBundle,
+	BrowserHandoffBundle,
 	PaymentMethodsBundle,
 	PendingHtmlBundle,
 	PendingPdfBundle,
@@ -116,6 +118,7 @@ export interface TestAppResult {
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
+	browserHandoff: BrowserHandoffBundle;
 	hostedCheckout: HostedCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
@@ -275,6 +278,8 @@ function flattenFixtureToAppDependencies(
 		verifyEmailToken: fixture.emailVerification.verifyEmailToken,
 		createPasswordResetToken: fixture.passwordReset.createPasswordResetToken,
 		verifyPasswordResetToken: fixture.passwordReset.verifyPasswordResetToken,
+		mintBrowserHandoffCode: fixture.browserHandoff.mintBrowserHandoffCode,
+		redeemBrowserHandoffCode: fixture.browserHandoff.redeemBrowserHandoffCode,
 		consumeRateLimit: fixture.rateLimit.consumeRateLimit,
 		rateLimitRules: fixture.rateLimit.rules,
 		getOnboardingSignals: fixture.onboardingSignals.getOnboardingSignals,
@@ -420,6 +425,7 @@ export function createTestApp(
 		email: fixture.email,
 		emailVerification: fixture.emailVerification,
 		passwordReset: fixture.passwordReset,
+		browserHandoff: fixture.browserHandoff,
 		hostedCheckout: fixture.hostedCheckout,
 		pendingSignup: fixture.pendingSignup,
 		subscriptionProviders: fixture.subscriptionProviders,

@@ -1058,7 +1058,7 @@ describe("View routes", () => {
 			expect([
 				rail.tagName,
 				Array.from(rail.children, (child) => child.getAttribute("data-test-table-of-contents")),
-			]).toEqual(["DIV", ["hidden"]]);
+			]).toEqual(["DIV", ["hidden", null]]);
 			expect(doc.querySelectorAll("[data-test-article-history-version]").length).toBe(0);
 
 			expect(response.text).not.toContain(SEEDED_INBOX_TITLE);

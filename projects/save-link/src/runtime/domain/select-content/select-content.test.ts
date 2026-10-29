@@ -74,12 +74,12 @@ describe("initSelectMostCompleteContent", () => {
 		expect(createChatCompletion).toHaveBeenCalledTimes(1);
 	});
 
-	it("sends candidate labels and content hashes, never candidate ids, with the actual challenge body in non-thinking JSON mode", async () => {
+	it("sends candidate labels and content hashes, never candidate ids, with the actual challenge body in non-thinking JSON mode at temperature 0", async () => {
 		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] })));
 		const info = jest.fn();
 		const result = await initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, info } }).selectMostCompleteContent(request);
 		expect(createChatCompletion).toHaveBeenCalledWith(expect.objectContaining({
-			model: "deepseek-flash", thinking: { type: "disabled" }, response_format: { type: "json_object" },
+			model: "deepseek-flash", thinking: { type: "disabled" }, temperature: 0, response_format: { type: "json_object" },
 			messages: expect.arrayContaining([expect.objectContaining({ role: "user", content: expect.stringContaining("Verify you are human") })]),
 		}));
 		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {

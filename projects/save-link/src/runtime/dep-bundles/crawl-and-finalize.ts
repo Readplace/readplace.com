@@ -9,6 +9,7 @@ import type { LogError, LogInfo, LogThumbnailNotDelivered } from "./observabilit
 import type { ArticleStoreDepBundle } from "./article-store";
 import type { MediaDepBundle } from "./media";
 import type { ParserDepBundle } from "./parser";
+import { deferJavascriptShells } from "../domain/save-link/javascript-shell";
 
 export type CrawlAndFinalizeDepBundle = {
 	finalizeArticle: FinalizeArticle;
@@ -44,9 +45,11 @@ export function initCrawlAndFinalizeDepBundle(deps: {
 		putImageObject: deps.articleStore.putImageObject,
 		imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 	});
-	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({
-		crawlArticle: deps.parser.crawlArticle,
-		finalizeArticle,
+	const crawlAndFinalizeArticle = deferJavascriptShells({
+		crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({
+			crawlArticle: deps.parser.crawlArticle,
+			finalizeArticle,
+		}),
 	});
 	return { finalizeArticle, crawlAndFinalizeArticle };
 }

@@ -16,6 +16,7 @@ import { initDynamoDbArticleStore } from "@packages/article-store";
 import { requireEnv } from "@packages/require-env";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { initComprehensiveCrawlDlqHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-dlq-handler";
+import { initRenderCrawlDlqHandler } from "./domain/render-crawl/render-crawl-dlq-handler";
 import { initRecrawlLinkInitiatedDlqHandler } from "./domain/crawl-article-state/recrawl-link-initiated-dlq-handler";
 import { initSaveAnonymousLinkDlqHandler } from "./domain/crawl-article-state/save-anonymous-link-dlq-handler";
 import { initSaveLinkDlqHandler } from "./domain/crawl-article-state/save-link-dlq-handler";
@@ -93,6 +94,11 @@ export const handler = initDeadLetterRouter({
 				now,
 			}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.comprehensiveCrawlCommand]: initComprehensiveCrawlDlqHandler({
+			transitionAndPersist,
+			logger,
+			now,
+		}),
+		[SAVE_LINK_DLQ_SOURCE_QUEUES.renderCrawlCommand]: initRenderCrawlDlqHandler({
 			transitionAndPersist,
 			logger,
 			now,

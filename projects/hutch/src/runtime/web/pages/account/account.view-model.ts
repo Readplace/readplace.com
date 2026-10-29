@@ -38,6 +38,7 @@ import {
 	ACCOUNT_CARDS_CONFIRM_URL,
 	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_DELETE_URL,
+	ACCOUNT_IMPORT_URL,
 	ACCOUNT_INVOICES_URL,
 	ACCOUNT_PROFILE_URL,
 	ACCOUNT_REACTIVATE_URL,
@@ -996,6 +997,19 @@ export function buildSecuritySection(input: {
 		updated: updatedAt === undefined ? undefined : toRelativePhrase({ iso: updatedAt, now: input.now }),
 		changed: input.changed,
 	};
+}
+
+export interface AccountImportLink {
+	href: string;
+}
+
+const IMPORT_LINKS: Record<EffectiveAccess["access"], readonly AccountImportLink[]> = {
+	full: [{ href: withInternalTracking(ACCOUNT_IMPORT_URL, { source: ACCOUNT_SOURCE, content: "import" }) }],
+	"read-only": [],
+};
+
+export function buildImportLinks(input: { access: EffectiveAccess }): readonly AccountImportLink[] {
+	return IMPORT_LINKS[input.access.access];
 }
 
 /** Rewrites the account view model for the app's in-app web surface: strips

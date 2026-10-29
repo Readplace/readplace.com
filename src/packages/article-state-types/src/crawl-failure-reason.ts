@@ -6,6 +6,7 @@ export const CrawlFailureReasonSchema = z.discriminatedUnion("kind", [
 	z.object({
 		kind: z.literal("fetch-failed"),
 		httpStatus: z.number().optional(),
+		detail: z.string().optional(),
 	}),
 	z.object({
 		kind: z.literal("origin-unreachable"),
