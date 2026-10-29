@@ -2627,7 +2627,7 @@ Exact HTML body: [`html/queue-digest--single-article.html`](html/queue-digest--s
 
 ### When it is sent
 
-The first time Readplace acts on an email sent directly to one of the reader's Readplace inbox addresses, it tells the reader the address works. The email can be a newsletter sent to their signup address or mail to a custom address routed to a readlist; mail auto-forwarded from Gmail and messages from a Gmail history import never trigger it. The inbox Lambda publishes the trigger as soon as it submits the email's first article link to All (or hands the links to a custom readlist's filter), and the send Lambda emails the reader moments later. Each account gets it at most once, ever.
+The first time Readplace acts on an email sent directly to one of the reader's Readplace inbox addresses, it tells the reader the address works. The email can be a newsletter sent to their signup address or mail to a custom address routed to a readlist; mail auto-forwarded from Gmail and messages from a Gmail history import never trigger it. The inbox Lambda publishes the trigger as soon as it submits the email's first article link to All, which it does for every inbox address, including one routed to a custom readlist, and the send Lambda emails the reader moments later. Each account gets it at most once, ever.
 
 Trigger chain:
 
@@ -2648,8 +2648,7 @@ Sent only when:
 - The reader has full write access when the links are extracted: an active trial, an active membership, a pending cancellation before its end date, or no membership row (founding member) `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:297`
 - At least one link is not an unsubscribe or action link and is not judged a non-article by the LLM triage; if the triage is unavailable, every link is kept `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:385`
 - That link is a saveable URL `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:407`
-- Signup address and other addresses on All: the link's row is pending and its SubmitLinkCommand to All was just published `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:439`
-- Alias routed to a custom readlist: at least one saveable link was handed to that readlist's filter through EmailLinksTriaged `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:497`
+- The link's row is pending and its SubmitLinkCommand to All was just published, for the signup address, other addresses on All and aliases routed to a custom readlist alike `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:439`
 - The reader still has full write access when the send Lambda runs `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - The account has a login email on file `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:72`
 - This email has never been sent to the account (the once-only marker is unset) `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:82`
@@ -2880,10 +2879,12 @@ Subject: **Your first email landed in your Readplace Inbox** · To: `sam.reader@
   },
   "extractLambdaNow": "2026-10-05T07:42:21.493Z",
   "inboxLambdaPublishes": [
+    "SubmitLinkCommand",
+    "SendFirstInboxEmailNoticeCommand",
     "CrawlEmailLinkPreview",
+    "SubmitLinkCommand",
     "CrawlEmailLinkPreview",
-    "EmailLinksTriaged",
-    "SendFirstInboxEmailNoticeCommand"
+    "EmailLinksTriaged"
   ],
   "sendFirstInboxEmailNoticeCommand": {
     "source": "hutch.inbox",
