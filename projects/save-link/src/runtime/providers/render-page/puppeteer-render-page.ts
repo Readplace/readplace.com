@@ -7,6 +7,7 @@ import type { ShouldAbortRequest } from "./render-request-filter";
 const PROTOCOL_MARGIN_MILLISECONDS = 10_000;
 const CONTENT_DEADLINE_MILLISECONDS = 10_000;
 const CLOSE_DEADLINE_MILLISECONDS = 5_000;
+const NETWORK_QUIET_MILLISECONDS = 1_000;
 const LAUNCH_ARGS = ["--block-new-web-contents"];
 
 const DEADLINE_PASSED = Symbol("deadline-passed");
@@ -86,8 +87,13 @@ export function initPuppeteerRenderPage(deps: {
 					mainDocument = response;
 				}
 			});
+			const navigationDeadline = Date.now() + navigationTimeoutMilliseconds;
 			try {
-				await page.goto(url, { waitUntil: "networkidle2", timeout: navigationTimeoutMilliseconds });
+				await page.goto(url, { waitUntil: "load", timeout: navigationTimeoutMilliseconds });
+				await page.waitForNetworkIdle({
+					idleTime: NETWORK_QUIET_MILLISECONDS,
+					timeout: Math.max(1, navigationDeadline - Date.now()),
+				});
 			} catch (error) {
 				if (!(error instanceof TimeoutError)) throw error;
 			}
