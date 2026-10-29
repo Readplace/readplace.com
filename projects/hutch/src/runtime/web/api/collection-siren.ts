@@ -190,6 +190,11 @@ export function toArticleCollectionEntity(
 				href: "/auth/session",
 				method: "POST",
 			},
+			{
+				name: "create-browser-handoff",
+				href: "/auth/handoff",
+				method: "POST",
+			},
 		],
 	};
 }

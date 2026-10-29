@@ -177,7 +177,7 @@ describe("GET /account (unauthenticated)", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/account");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount");
 	});
 });
 
@@ -1559,7 +1559,7 @@ describe("POST /account/cancel — single entrypoint, redirects to the pending p
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/cancel");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Fcancel");
 	});
 });
 
@@ -1970,7 +1970,7 @@ describe("POST /account/subscribe", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/subscribe");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Fsubscribe");
 	});
 
 	it("treats pending_cancellation as noop on /subscribe — the Reactivate route owns un-cancel, /subscribe must NOT create a second Stripe subscription", async () => {
@@ -2579,7 +2579,7 @@ describe("POST /account/reactivate", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/reactivate");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Freactivate");
 	});
 });
 
@@ -2851,7 +2851,7 @@ describe("POST /account/cards/:id/primary", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/cards/pm_x/primary");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Fcards%2Fpm_x%2Fprimary");
 	});
 });
 
@@ -2924,7 +2924,7 @@ describe("POST /account/cards/:id/remove", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/cards/pm_x/remove");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Fcards%2Fpm_x%2Fremove");
 	});
 });
 
@@ -3056,7 +3056,7 @@ describe("POST /account/cards/new", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/cards/new");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Fcards%2Fnew");
 	});
 });
 
@@ -3418,7 +3418,7 @@ describe("POST /account/cards/confirm — server-side setup verification and cap
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/cards/confirm");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Fcards%2Fconfirm");
 	});
 });
 
@@ -3632,7 +3632,7 @@ describe("GET /account/invoices", () => {
 		const response = await request(harness.server).get("/account/invoices");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Finvoices");
 	});
 });
 
@@ -3666,7 +3666,7 @@ describe("POST /account/delete", () => {
 		// The session was destroyed, so the agent's cookie no longer authenticates.
 		const after = await agent.get("/account");
 		expect(after.status).toBe(303);
-		expect(after.headers.location).toBe("/login");
+		expect(after.headers.location).toBe("/login?return=%2Faccount");
 	});
 
 	it("marks the identity deleted before publishing, so the same password cannot mint a fresh session while the scrub runs", async () => {
@@ -3837,7 +3837,7 @@ describe("POST /account/delete", () => {
 		// The account is still deleted — the session no longer authenticates.
 		const after = await agent.get("/account");
 		expect(after.status).toBe(303);
-		expect(after.headers.location).toBe("/login");
+		expect(after.headers.location).toBe("/login?return=%2Faccount");
 	});
 
 	it("keeps sending a pre-marker app build to the logged-out home — it cannot execute a deep link", async () => {
@@ -3857,7 +3857,7 @@ describe("POST /account/delete", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/delete");
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Fdelete");
 	});
 });
 

@@ -16,6 +16,7 @@ import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
 import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
+import { initInMemoryBrowserHandoff } from "./providers/browser-handoff/in-memory-browser-handoff";
 import { initInMemoryRateLimit } from "./providers/rate-limit/in-memory-rate-limit";
 import { initInMemoryWrapperTarget } from "./providers/wrapper-target/in-memory-wrapper-target";
 import { initInMemoryEngagementStarter } from "./providers/onboarding-signals/in-memory-engagement-starter";
@@ -287,6 +288,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			forgotPassword: unlimitedRule,
 			oauthRegister: unlimitedRule,
 			oauthToken: unlimitedRule,
+			browserHandoff: unlimitedRule,
 			import: unlimitedRule,
 			importFromUrl: unlimitedRule,
 		},
@@ -490,6 +492,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		email,
 		emailVerification,
 		passwordReset,
+		browserHandoff: initInMemoryBrowserHandoff({ now: () => new Date() }),
 		rateLimit,
 		wrapperTarget: initInMemoryWrapperTarget(),
 		submitLink: initInMemorySubmitLink(),

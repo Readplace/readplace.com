@@ -12,6 +12,7 @@ export type RateLimitBucket =
 	| "oauth-register"
 	| "oauth-token"
 	| "auth-diagnostics"
+	| "browser-handoff"
 	| "import"
 	| "import-from-url";
 
@@ -41,6 +42,7 @@ export interface RateLimitRules {
 	/** PKCE token exchange (`POST /oauth/token`). Public and client-auth-disabled,
 	 * so without a per-IP ceiling it is open to unbounded hammering. */
 	oauthToken: RateLimitRule;
+	browserHandoff: RateLimitRule;
 	/** Anonymous file upload that creates an import review session. */
 	import: RateLimitRule;
 	/** Anonymous outbound fetch that extracts links from a pasted URL. Tighter

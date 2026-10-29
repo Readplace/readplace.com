@@ -66,6 +66,7 @@ import { createValidateAccessToken } from "@packages/web-session";
 import { initLogEmail } from "./email/log-email";
 import { initInMemoryEmailVerification } from "@packages/test-fixtures/providers/email-verification";
 import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/password-reset";
+import { initInMemoryBrowserHandoff } from "@packages/test-fixtures/providers/browser-handoff";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
@@ -531,6 +532,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
 		oauthToken: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_TOKEN")),
+		browserHandoff: parseRateLimitRule(requireEnv("RATE_LIMIT_BROWSER_HANDOFF")),
 		import: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT")),
 		importFromUrl: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT_FROM_URL")),
 	};
@@ -571,6 +573,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),
 		...initInMemoryEmailVerification(),
 		...initInMemoryPasswordReset(),
+		...initInMemoryBrowserHandoff({ now: () => new Date() }),
 		createCheckoutSession: devStripe.createCheckoutSession,
 		retrieveCheckoutSession: devStripe.retrieveCheckoutSession,
 		storePendingSignup: devPendingSignup.storePendingSignup,

@@ -34,6 +34,7 @@ config:
   hutch:dynamodbOauthTable: hutch-oauth-ecd3db9
   hutch:dynamodbVerificationTokensTable: hutch-verification-tokens-3f85043
   hutch:dynamodbPasswordResetTokensTable: hutch-password-reset-tokens
+  hutch:dynamodbBrowserHandoffCodesTable: hutch-browser-handoff-codes
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
@@ -60,6 +61,7 @@ config:
   hutch:rateLimitForgotPassword: 5/3600
   hutch:rateLimitOauthRegister: 30/3600
   hutch:rateLimitOauthToken: 60/3600
+  hutch:rateLimitBrowserHandoff: 600/3600
   hutch:rateLimitImport: 60/3600
   hutch:rateLimitImportFromUrl: 30/3600
   hutch:apiThrottleBurstLimit: 200

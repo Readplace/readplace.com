@@ -10,7 +10,7 @@ export const AuthDiagnosticReason = z.enum([
 	"storage_partial", "storage_mismatch", "newer_generation", "callback_invalid",
 	"provider_rejected", "user_cancelled", "cookie_absent", "row_missing", "lookup_error",
 	"web_logout", "native_logout", "oauth_account_switch", "password_reset", "account_deleted",
-	"sliding_visit", "oauth_bridge", "login", "legacy_migration", "refresh_rejected",
+	"sliding_visit", "oauth_bridge", "browser_handoff", "login", "legacy_migration", "refresh_rejected",
 	"journal_overflow", "journal_unavailable", "unknown",
 ]);
 

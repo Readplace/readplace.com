@@ -482,7 +482,7 @@ describe("POST /account/password — a valid change", () => {
 
 		const stolen = await otherBrowser.get("/account");
 		expect(stolen.status).toBe(303);
-		expect(stolen.headers.location).toBe("/login");
+		expect(stolen.headers.location).toBe("/login?return=%2Faccount");
 		const kept = await agent.get("/account");
 		expect(kept.status).toBe(200);
 	});
@@ -834,7 +834,7 @@ describe("POST /account/password from a session a connected app minted", () => {
 				"revoked",
 			]);
 			const signedOut = await browser.get("/account");
-			expect([signedOut.status, signedOut.headers.location]).toEqual([303, "/login"]);
+			expect([signedOut.status, signedOut.headers.location]).toEqual([303, "/login?return=%2Faccount"]);
 		},
 	);
 

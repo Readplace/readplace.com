@@ -407,7 +407,10 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   additive server surfaces that must be **deployed before** this build ships to
   TestFlight: the entity-level `update-status` action; the `create-session`
   collection action the app discovers to mint its reader session (with a fixed
-  `POST /auth/session` fallback for an older server); the `isRead` property the row
+  `POST /auth/session` fallback for an older server); its sibling
+  `create-browser-handoff` action, which mints the single-use code that signs the
+  external browser in when the app opens a readplace.com link (with a fixed
+  `POST /auth/handoff` fallback); the `isRead` property the row
   reads (falling back to the `status`/`readAt` derivation when it is absent); and
   the server-authored reader bridge (`READER_MARK_READ_BRIDGE_SCRIPT`, which posts
   `markedRead` to the app's `readplaceReader` handler). All are additive and

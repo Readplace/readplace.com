@@ -294,6 +294,25 @@ final class ReadplaceAPI {
 		return cookies
 	}
 
+	private struct BrowserHandoffCode: Decodable {
+		let code: String
+	}
+
+	func mintBrowserHandoff(action: SirenAction? = nil) async throws -> String {
+		var request = URLRequest(url: try absoluteURL(action?.href ?? "/auth/handoff"))
+		request.httpMethod = action?.method ?? "POST"
+		request.timeoutInterval = Self.sessionMintTimeout
+		let (data, http, _) = try await send(request)
+		guard (200...299).contains(http.statusCode) else {
+			throw apiError(from: data, status: http.statusCode)
+		}
+		guard let minted = try? JSONDecoder().decode(BrowserHandoffCode.self, from: data), !minted.code.isEmpty else {
+			throw APIError.decoding
+		}
+		await oauth.recordAuthEvent("session_bridge_completed", outcome: "success", reason: "browser_handoff")
+		return minted.code
+	}
+
 	/// Identity of a jar cookie for the before/after comparison in `sessionCookies`.
 	/// Re-reading the jar hands back fresh `HTTPCookie` instances for the same
 	/// cookie, so object identity can't decide whether a cookie is one this mint

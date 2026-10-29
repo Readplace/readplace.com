@@ -105,6 +105,8 @@ describe("authentication request diagnostics", () => {
 	it.each([
 		["/auth/session", "oauth_bridge", 204, "session_bridge_completed", "success"],
 		["/auth/session", "oauth_bridge", 401, "session_bridge_completed", "failure"],
+		["/auth/handoff", "browser_handoff", 200, "session_bridge_completed", "success"],
+		["/auth/handoff", "browser_handoff", 401, "session_bridge_completed", "failure"],
 		["/logout", "web_logout", 303, "logout_completed", "success"],
 		["/logout", "web_logout", 500, "logout_completed", "failure"],
 		["/reset-password", "password_reset", 200, "session_deleted", undefined],
@@ -120,6 +122,17 @@ describe("authentication request diagnostics", () => {
 		await request(app).post(path).set("Cookie", "hutch_sid=private-cookie").send({});
 		expect(events[0]).toMatchObject({ event: "session_deleted", reason: cause });
 		expect(events.at(-1)).toMatchObject({ event, ...(outcome ? { outcome } : {}) });
+	});
+
+	it.each([
+		["issues a session cookie", "success", (res: express.Response) => res.cookie("hutch_sid", "fresh-session").redirect(303, "/export")],
+		["redirects without a session cookie", "failure", (res: express.Response) => res.redirect(303, "/export")],
+	])("records a browser handoff redeem that %s as %s", async (_label, outcome, respond) => {
+		const { app, events } = create();
+		app.get("/auth/handoff", (_req, res) => { respond(res); });
+		await request(app).get("/auth/handoff").query({ code: "private-code" });
+		expect(events.at(-1)).toMatchObject({ event: "session_bridge_completed", reason: "browser_handoff", outcome, http_status: 303 });
+		expect(JSON.stringify(events)).not.toContain("private-code");
 	});
 
 	it("records account switch and unrelated resource refusal without inventing a logout", async () => {

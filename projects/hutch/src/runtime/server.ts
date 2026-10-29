@@ -187,6 +187,10 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
 import type {
+	MintBrowserHandoffCode,
+	RedeemBrowserHandoffCode,
+} from "@packages/provider-contracts/browser-handoff";
+import type {
 	ConsumeRateLimit,
 	RateLimitRules,
 } from "@packages/provider-contracts/rate-limit";
@@ -225,6 +229,7 @@ import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { initAppleAuthRoutes } from "./web/auth/apple-auth.page";
 import { initResolveLogin } from "@packages/web-session";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
+import { initBrowserHandoffRoutes } from "./web/auth/browser-handoff.page";
 import { initReadlistRoutes } from "./web/pages/readlist/readlist.page";
 import { initUnrouteInboxesOnReadlistDelete } from "./domain/readlist/unroute-inboxes-on-readlist-delete";
 import {
@@ -445,6 +450,8 @@ interface AppDependencies {
 	verifyEmailToken: VerifyEmailToken;
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
+	mintBrowserHandoffCode: MintBrowserHandoffCode;
+	redeemBrowserHandoffCode: RedeemBrowserHandoffCode;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	baseUrl: string;
@@ -573,7 +580,7 @@ interface AppDependencies {
 
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
 	if (!req.userId) {
-		res.redirect(303, "/login");
+		res.redirect(303, `/login?return=${encodeURIComponent(req.originalUrl)}`);
 		return;
 	}
 	next();
@@ -1350,6 +1357,18 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use("/auth/session", sessionBridgeCors);
 	app.use(authRouter);
+	app.use(
+		initBrowserHandoffRoutes({
+			validateAccessToken: deps.validateAccessToken,
+			mintBrowserHandoffCode: deps.mintBrowserHandoffCode,
+			redeemBrowserHandoffCode: deps.redeemBrowserHandoffCode,
+			createSession: deps.createSession,
+			renewSession: deps.renewSession,
+			secureCookies,
+			consumeRateLimit: deps.consumeRateLimit,
+			rateLimitRule: deps.rateLimitRules.browserHandoff,
+		}),
+	);
 
 	if (deps.googleAuth) {
 		const googleAuthRouter = initGoogleAuthRoutes({

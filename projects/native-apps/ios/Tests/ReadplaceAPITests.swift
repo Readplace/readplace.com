@@ -1089,6 +1089,80 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(cookies.first?.value, "discovered")
 	}
 
+	func testMintBrowserHandoffFollowsADiscoveredActionsHrefAndMethod() async throws {
+		StubURLProtocol.setHandler { request, _ in
+			XCTAssertEqual(request.url?.path, "/custom/handoff", "follows the action's href, not a hard-coded path")
+			XCTAssertEqual(request.httpMethod, "PUT")
+			return .json(200, #"{"code":"discovered"}"#)
+		}
+		let action = SirenAction(
+			name: "create-browser-handoff", href: "/custom/handoff", method: "PUT", title: nil, type: nil, fields: nil
+		)
+
+		let code = try await makeAPI(store: TestSupport.loggedInStore()).mintBrowserHandoff(action: action)
+
+		XCTAssertEqual(code, "discovered")
+	}
+
+	func testMintBrowserHandoffPostsToTheFixedRouteWhenNoActionIsAdvertised() async throws {
+		StubURLProtocol.setHandler { _, _ in .json(200, #"{"code":"fallback"}"#) }
+
+		let code = try await makeAPI(store: TestSupport.loggedInStore()).mintBrowserHandoff()
+
+		XCTAssertEqual(code, "fallback")
+		let mint = try XCTUnwrap(StubURLProtocol.records(path: "/auth/handoff").first)
+		XCTAssertEqual(mint.request.httpMethod, "POST")
+		XCTAssertEqual(mint.request.timeoutInterval, 8)
+	}
+
+	func testMintBrowserHandoffRefreshesOnceWhenBearerExpired() async throws {
+		let store = TestSupport.loggedInStore(access: "stale", refresh: "r1")
+		var mintAttempts = 0
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/auth/handoff":
+				mintAttempts += 1
+				return mintAttempts == 1 ? .json(401, "{}") : .json(200, #"{"code":"after-refresh"}"#)
+			case "/oauth/token":
+				return .json(200, Fixtures.tokenResponse(access: "fresh-access", refresh: "r2"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let code = try await makeAPI(store: store).mintBrowserHandoff()
+
+		XCTAssertEqual(code, "after-refresh")
+		XCTAssertEqual(mintAttempts, 2)
+	}
+
+	func testMintBrowserHandoffSurfacesAServerRefusal() async {
+		StubURLProtocol.setHandler { _, _ in .json(429, "{}") }
+
+		do {
+			_ = try await makeAPI(store: TestSupport.loggedInStore()).mintBrowserHandoff()
+			XCTFail("a refused mint must throw")
+		} catch APIError.server(let status, _, _) {
+			XCTAssertEqual(status, 429)
+		} catch {
+			XCTFail("expected a server error, got \(error)")
+		}
+	}
+
+	func testMintBrowserHandoffRejectsAResponseWithoutACode() async {
+		for body in ["{}", #"{"code":""}"#] {
+			StubURLProtocol.setHandler { _, _ in .json(200, body) }
+
+			do {
+				_ = try await makeAPI(store: TestSupport.loggedInStore()).mintBrowserHandoff()
+				XCTFail("\(body) carries no usable code")
+			} catch APIError.decoding {
+			} catch {
+				XCTFail("expected a decoding error for \(body), got \(error)")
+			}
+		}
+	}
+
 	func testBootstrapSessionReturnsOnlyTheCookiesThisResponseSet() async throws {
 		let config = TestSupport.stubbedConfiguration()
 		// A cookie an earlier request left in the jar must not be handed back as one

@@ -435,6 +435,6 @@ describe("POST /account/connected-apps/:clientId/disconnect", () => {
 		const response = await request(harness.server).post("/account/connected-apps/hutch-chrome-extension/disconnect");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Faccount%2Fconnected-apps%2Fhutch-chrome-extension%2Fdisconnect");
 	});
 });

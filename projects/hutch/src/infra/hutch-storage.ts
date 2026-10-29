@@ -10,6 +10,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly oauthTable: aws.dynamodb.Table;
 	public readonly verificationTokensTable: aws.dynamodb.Table;
 	public readonly passwordResetTokensTable: aws.dynamodb.Table;
+	public readonly browserHandoffCodesTable: aws.dynamodb.Table;
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
@@ -32,6 +33,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		oauth: string;
 		verificationTokens: string;
 		passwordResetTokens: string;
+		browserHandoffCodes: string;
 		pendingSignups: string;
 		importSessions: string;
 		subscriptionProviders: string;
@@ -360,6 +362,17 @@ export class HutchStorage extends pulumi.ComponentResource {
 			hashKey: "reportId",
 			rangeKey: "rowIndex",
 			attributes: [{ name: "reportId", type: "S" }, { name: "rowIndex", type: "N" }],
+		}, { parent: this });
+
+		this.browserHandoffCodesTable = new aws.dynamodb.Table("hutch-browser-handoff-codes", {
+			name: args.tableNames.browserHandoffCodes,
+			billingMode: "PAY_PER_REQUEST",
+			hashKey: "code",
+			attributes: [{ name: "code", type: "S" }],
+			ttl: {
+				attributeName: "expiresAt",
+				enabled: true,
+			},
 		}, { parent: this });
 
 		this.registerOutputs();

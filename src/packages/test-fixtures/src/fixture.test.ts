@@ -115,6 +115,7 @@ describe("createDefaultTestAppFixture", () => {
 		expect(typeof fixture.email.sendEmail).toBe("function");
 		expect(typeof fixture.emailVerification.createVerificationToken).toBe("function");
 		expect(typeof fixture.passwordReset.createPasswordResetToken).toBe("function");
+		expect(typeof fixture.browserHandoff.mintBrowserHandoffCode).toBe("function");
 		expect(fixture.google).toBeUndefined();
 		expect(fixture.admin.recrawlServiceToken).toMatch(/.+/);
 		expect(fixture.shared.appOrigin).toBe(TEST_APP_ORIGIN);
