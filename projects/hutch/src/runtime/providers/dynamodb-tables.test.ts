@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { formatEnvMap } from "./env-map";
 import { type DynamoTables, parseDynamoTables } from "./dynamodb-tables";
 
 const TABLES: DynamoTables = {
@@ -31,20 +32,20 @@ const TABLES: DynamoTables = {
 };
 
 describe("parseDynamoTables", () => {
-	it("reads every table name from the JSON map", () => {
-		assert.deepEqual(parseDynamoTables(JSON.stringify(TABLES)), TABLES);
+	it("reads every table name from the env map", () => {
+		assert.deepEqual(parseDynamoTables(formatEnvMap(TABLES)), TABLES);
 	});
 
 	it("rejects a map missing a table", () => {
 		const { gmailSenders: _gmailSenders, ...missing } = TABLES;
-		assert.throws(() => parseDynamoTables(JSON.stringify(missing)), /gmailSenders/);
+		assert.throws(() => parseDynamoTables(formatEnvMap(missing)), /gmailSenders/);
 	});
 
 	it("rejects a table the app does not read", () => {
-		assert.throws(() => parseDynamoTables(JSON.stringify({ ...TABLES, staleTable: "hutch-stale" })), /staleTable/);
+		assert.throws(() => parseDynamoTables(formatEnvMap({ ...TABLES, staleTable: "hutch-stale" })), /staleTable/);
 	});
 
 	it("rejects an empty table name", () => {
-		assert.throws(() => parseDynamoTables(JSON.stringify({ ...TABLES, users: "" })), /users/);
+		assert.throws(() => parseDynamoTables(formatEnvMap({ ...TABLES, users: "" })), /users/);
 	});
 });

@@ -49,6 +49,8 @@ import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PA
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
 import { parseStripeWebhookSecret } from "../runtime/stripe-webhook-receiver/stripe-webhook-secret";
 import type { DynamoTables } from "../runtime/providers/dynamodb-tables";
+import { formatEnvMap } from "../runtime/providers/env-map";
+import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
@@ -159,7 +161,7 @@ const rateLimitRules = {
 	browserHandoff: config.require("rateLimitBrowserHandoff"),
 	import: config.require("rateLimitImport"),
 	importFromUrl: config.require("rateLimitImportFromUrl"),
-};
+} satisfies Record<keyof RateLimitRules, string>;
 
 /* Blunt TOTAL-rate ceiling (all clients combined) applied by API Gateway before
  * the Lambda runs — per-stack so staging, whose e2e suite drives the whole run
@@ -433,7 +435,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		 * so it must be present even though serverless-http does not bind a port. */
 		PORT: "3000",
 		APP_ORIGIN: appOrigin,
-		DYNAMODB_TABLES: pulumi.jsonStringify({
+		DYNAMODB_TABLES: pulumi.all({
 			articles: storage.articlesTable.name,
 			userArticles: storage.userArticlesTable.name,
 			users: storage.usersTable.name,
@@ -460,20 +462,10 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 			gmailMappings: storage.gmailMappingsTable.name,
 			gmailHistoryImports: storage.gmailHistoryImportsTable.name,
 			canaryReports: storage.canaryReportsTable.name,
-		} satisfies Record<keyof DynamoTables, pulumi.Input<string>>),
+		} satisfies Record<keyof DynamoTables, pulumi.Input<string>>).apply(formatEnvMap),
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
-		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
-		RATE_LIMIT_VIEW_CRAWL_SIGNED_IN: rateLimitRules.viewCrawlSignedIn,
-		RATE_LIMIT_LOGIN: rateLimitRules.login,
-		RATE_LIMIT_LOGIN_ACCOUNT: rateLimitRules.loginAccount,
-		RATE_LIMIT_SIGNUP: rateLimitRules.signup,
-		RATE_LIMIT_FORGOT_PASSWORD: rateLimitRules.forgotPassword,
-		RATE_LIMIT_OAUTH_REGISTER: rateLimitRules.oauthRegister,
-		RATE_LIMIT_OAUTH_TOKEN: rateLimitRules.oauthToken,
-		RATE_LIMIT_BROWSER_HANDOFF: rateLimitRules.browserHandoff,
+		RATE_LIMITS: formatEnvMap(rateLimitRules),
 		OAUTH_REFRESH_ENROLLMENT_ENABLED: String(config.requireBoolean("oauthRefreshEnrollmentEnabled")),
-		RATE_LIMIT_IMPORT: rateLimitRules.import,
-		RATE_LIMIT_IMPORT_FROM_URL: rateLimitRules.importFromUrl,
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: requireEnv("GOOGLE_LOGIN_CLIENT_SECRET"),
 		GMAIL_INTEGRATION_CLIENT_ID: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),

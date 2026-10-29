@@ -68,8 +68,7 @@ import { initInMemoryEmailVerification } from "@packages/test-fixtures/providers
 import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/password-reset";
 import { initInMemoryBrowserHandoff } from "@packages/test-fixtures/providers/browser-handoff";
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
-import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
-import { parseRateLimitRule } from "@packages/domain/rate-limit";
+import { parseRateLimitRules } from "./rate-limit-rules";
 import { devSummariseInline } from "./article-summary/dev-summarise-inline";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -523,19 +522,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	// server. Defaults are liberal — every local/e2e request shares 127.0.0.1,
 	// so prod-strength per-IP limits would throttle a full e2e run.
 	const { consumeRateLimit } = initInMemoryRateLimit({ now: () => new Date() });
-	const rateLimitRules: RateLimitRules = {
-		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
-		viewCrawlSignedIn: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL_SIGNED_IN")),
-		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
-		loginAccount: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN_ACCOUNT")),
-		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
-		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
-		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
-		oauthToken: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_TOKEN")),
-		browserHandoff: parseRateLimitRule(requireEnv("RATE_LIMIT_BROWSER_HANDOFF")),
-		import: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT")),
-		importFromUrl: parseRateLimitRule(requireEnv("RATE_LIMIT_IMPORT_FROM_URL")),
-	};
+	const rateLimitRules = parseRateLimitRules(requireEnv("RATE_LIMITS"));
 
 	return {
 		...auth,
