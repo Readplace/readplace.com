@@ -30,6 +30,18 @@ function defineCommand<T extends z.ZodTypeAny>(definition: {
 const SaveAttemptId = z.string().min(1).brand<"SaveAttemptId">();
 const CandidateReferences = z.array(z.object({ id: z.string().min(1).brand<"CandidateId">(), tier: z.enum(["tier-0", "tier-1", "tier-2"]) }));
 const LiveAttempt = z.object({ outcome: z.enum(["body", "no-body", "deferred"]), failureReason: CrawlFailureReasonSchema.optional() });
+const DeferredCrawlDetailSchema = z.object({
+	url: z.string(),
+	saveAttemptId: SaveAttemptId,
+	candidates: CandidateReferences.optional(),
+	userId: z.string().optional(),
+	recrawl: z.boolean().optional(),
+	refresh: z.boolean().optional(),
+	previousBodyHash: z.string().optional(),
+}).refine(
+	(d) => !(d.recrawl && d.refresh),
+	{ message: "recrawl and refresh are mutually exclusive" },
+);
 
 export const SaveLinkCommand = defineEvent({
 	name: "save-link-command",
@@ -155,6 +167,7 @@ export const SimpleCrawlUnsupportedEvent = defineEvent({
 		recrawl: z.boolean().optional(),
 		refresh: z.boolean().optional(),
 		previousBodyHash: z.string().optional(),
+		unsupportedReason: z.enum(["non-html-content", "paywall", "javascript-required"]).optional(),
 	}).refine(
 		(d) => !(d.recrawl && d.refresh),
 		{ message: "recrawl and refresh are mutually exclusive" },
@@ -183,21 +196,20 @@ export const ComprehensiveCrawlCommand = defineEvent({
 	name: "comprehensive-crawl-command",
 	source: "hutch.save-link",
 	detailType: "ComprehensiveCrawlCommand",
-	detailSchema: z.object({
-		url: z.string(),
-		saveAttemptId: SaveAttemptId,
-		candidates: CandidateReferences.optional(),
-		userId: z.string().optional(),
-		recrawl: z.boolean().optional(),
-		refresh: z.boolean().optional(),
-		previousBodyHash: z.string().optional(),
-	}).refine(
-		(d) => !(d.recrawl && d.refresh),
-		{ message: "recrawl and refresh are mutually exclusive" },
-	),
+	detailSchema: DeferredCrawlDetailSchema,
 });
 export type ComprehensiveCrawlDetail = z.infer<
 	typeof ComprehensiveCrawlCommand.detailSchema
+>;
+
+export const RenderCrawlCommand = defineEvent({
+	name: "render-crawl-command",
+	source: "hutch.save-link",
+	detailType: "RenderCrawlCommand",
+	detailSchema: DeferredCrawlDetailSchema,
+});
+export type RenderCrawlDetail = z.infer<
+	typeof RenderCrawlCommand.detailSchema
 >;
 
 export const StaleCheckRequestedEvent = defineEvent({

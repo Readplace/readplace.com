@@ -114,6 +114,7 @@ export {
 	type ArticleReadEvent,
 	type SummaryToggledEvent,
 	type ViewOpenedEvent,
+	type ViewCrawlLimitedEvent,
 	type EpubImagesOverBudgetEvent,
 	type ViewSaveIntentEvent,
 	type FirstArticleAutosavedEvent,

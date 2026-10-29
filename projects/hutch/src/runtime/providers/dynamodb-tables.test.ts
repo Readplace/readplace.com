@@ -10,6 +10,7 @@ const TABLES: DynamoTables = {
 	oauthOutcomes: "hutch-oauth-outcomes",
 	verificationTokens: "hutch-verification-tokens",
 	passwordResetTokens: "hutch-password-reset-tokens",
+	browserHandoffCodes: "hutch-browser-handoff-codes",
 	pendingSignups: "hutch-pending-signups",
 	importSessions: "hutch-import-sessions",
 	inboxAddresses: "hutch-inbox-addresses",

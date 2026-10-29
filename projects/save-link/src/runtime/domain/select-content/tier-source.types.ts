@@ -24,6 +24,7 @@ export const TierSourceMetadataSchema = z.object({
 	fetchedAt: z.string().optional(),
 	httpStatus: z.number().optional(),
 	captureTrigger: CaptureTriggerSchema.optional(),
+	renderedThrough: z.enum(["direct-egress", "residential-proxy"]).optional(),
 	htmlLocation: z.string().optional(),
 	evaluationLocation: z.string().optional(),
 });

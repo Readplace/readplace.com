@@ -16,7 +16,7 @@ describe("Export routes", () => {
 			const response = await request(harness.server).get("/export");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/login");
+			expect(response.headers.location).toBe("/login?return=%2Fexport");
 		});
 	});
 
@@ -60,7 +60,7 @@ describe("Export routes", () => {
 			const response = await request(harness.server).post("/export/start");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/login");
+			expect(response.headers.location).toBe("/login?return=%2Fexport%2Fstart");
 		});
 	});
 

@@ -133,4 +133,20 @@ describe("Per-IP rate limiting", () => {
 			assert.equal(harness.email.getSentEmails().length, 2);
 		});
 	});
+
+	describe("POST /auth/handoff", () => {
+		it("returns 429 past the limit and stops minting codes", async () => {
+			const { fixture } = fixtureWithTightRules({ browserHandoff: { limit: 1, windowSeconds: 3600 } });
+			const harness = useApp(fixture);
+			const attemptMint = () =>
+				request(harness.server).post("/auth/handoff").set("Authorization", "Bearer not-a-real-token");
+
+			const underLimit = await attemptMint();
+			const throttled = await attemptMint();
+
+			assert.equal(underLimit.status, 401);
+			assert.equal(throttled.status, 429);
+			assert.match(String(throttled.headers["retry-after"]), /^\d+$/);
+		});
+	});
 });

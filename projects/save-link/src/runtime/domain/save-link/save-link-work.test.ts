@@ -269,12 +269,45 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported, markCrawlStage });
 
-		await expect(saveLinkWork("https://example.com/doc.pdf", { saveAttemptId })).resolves.toBe("tier-1-deferred");
+		await expect(saveLinkWork("https://example.com/doc.pdf", { saveAttemptId })).resolves.toEqual({ deferred: undefined });
 		expect(markCrawlStage).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
 			stage: "comprehensive-fetching",
 		});
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalled();
+	});
+
+	it("carries a javascript-required deferral's reason into the emitted event and the result so the policy can route it to the render crawl", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "unsupported",
+			reason: "javascript-required",
+			unsupportedReason: { kind: "javascript-required" },
+		});
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported });
+
+		await expect(saveLinkWork("https://example-spa.test/post", { userId: "user-1", saveAttemptId })).resolves.toEqual({ deferred: "javascript-required" });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
+			url: "https://example-spa.test/post",
+			unsupportedReason: "javascript-required",
+			userId: "user-1",
+			saveAttemptId,
+		});
+	});
+
+	it("returns the deferred reason without emitting when the archive pairing owns the emit", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "unsupported",
+			reason: "paywall",
+			unsupportedReason: { kind: "paywall" },
+		});
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported });
+
+		await expect(saveLinkWork("https://example-spa.test/post", { saveAttemptId, deferUnsupported: true })).resolves.toEqual({ deferred: "paywall" });
+		expect(emitSimpleCrawlUnsupported).not.toHaveBeenCalled();
 	});
 
 	it.each([402, 403])(

@@ -20,7 +20,7 @@ final class AffordancePresentationTests: XCTestCase {
 		// iOS can't capture a page from the toolbar, so save-content is reached only
 		// through the Share Sheet; create-session is invoked bespoke to mint the
 		// reader session. Neither renders in the toolbar.
-		for token in ["save-content", "create-session"] {
+		for token in ["save-content", "create-session", "create-browser-handoff"] {
 			let presentation = AffordancePresentation(token: token)
 			XCTAssertFalse(presentation.isToolbarControl, "\(token) must not present as a toolbar control")
 			XCTAssertFalse(presentation.isDestructive)
@@ -221,6 +221,7 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertFalse(AffordancePresentation(token: "delete").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "save-content").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "create-session").showsTitle)
+		XCTAssertFalse(AffordancePresentation(token: "create-browser-handoff").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "self").showsTitle)
 		XCTAssertFalse(AffordancePresentation(token: "a-token-shipped-after-this-build").showsTitle)
 	}

@@ -31,7 +31,7 @@ const GUEST: NavProps = {
 };
 
 describe("GlobalNav component", () => {
-	it("renders authenticated nav items (queue, import, inbox, integrations, account, blog, sign out) for an authenticated full-access user", () => {
+	it("renders authenticated nav items (queue, install, inbox, integrations, account, blog, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -44,7 +44,7 @@ describe("GlobalNav component", () => {
 		assert(nav, "nav variant marker must render");
 		expect(nav.getAttribute("data-test-nav-variant")).toBe("authenticated");
 		assert(doc.querySelector('[data-test-nav-item="queue"]'));
-		assert(doc.querySelector('[data-test-nav-item="import"]'));
+		assert(doc.querySelector('[data-test-nav-item="install"]'));
 		assert(doc.querySelector('[data-test-nav-item="inbox"]'));
 		assert(doc.querySelector('[data-test-nav-item="logout"]'));
 		assert(doc.querySelector('[data-test-nav-item="blog"]'));
@@ -55,7 +55,7 @@ describe("GlobalNav component", () => {
 		expect(form.getAttribute("action")).toBe("/account?utm_source=header-nav&utm_medium=internal&utm_content=account");
 	});
 
-	it("splits the authenticated nav into a Library section (queue, import, inbox, integrations) and an Account section (account, blog, privacy, terms, sign out)", () => {
+	it("splits the authenticated nav into a Library section (queue, install, inbox, integrations) and an Account section (account, blog, privacy, terms, sign out)", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -75,7 +75,7 @@ describe("GlobalNav component", () => {
 		const libraryItems = Array.from(
 			library.querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(libraryItems).toEqual(["queue", "import", "inbox", "integrations"]);
+		expect(libraryItems).toEqual(["queue", "install", "inbox", "integrations"]);
 
 		const account = doc.querySelector('[data-test-nav-group="account"]');
 		assert(account, "account group must render");
@@ -159,7 +159,7 @@ describe("GlobalNav component", () => {
 		expect(accountItems).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
-	it("keeps the library icons distinct: a solid book for the current readlist, a stroke file for imports, a stroke tray for the inbox", () => {
+	it("keeps the library icons distinct: a solid book for the current readlist, a stroke download for installing, a stroke tray for the inbox", () => {
 		const doc = parse(
 			GlobalNav({
 				variant: "default",
@@ -171,7 +171,7 @@ describe("GlobalNav component", () => {
 
 		const drawn = [
 			["queue", iconSvg("book", { variant: "solid" })],
-			["import", iconSvg("file-down")],
+			["install", iconSvg("download")],
 			["inbox", iconSvg("inbox")],
 		] as const;
 		for (const [key, svg] of drawn) {
@@ -193,7 +193,7 @@ describe("GlobalNav component", () => {
 				.querySelector('[data-test-nav-group="library"]')
 				?.querySelectorAll("[data-test-nav-item]") ?? [],
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(libraryItems).toEqual(["queue", "import", "inbox", "integrations"]);
+		expect(libraryItems).toEqual(["queue", "install", "inbox", "integrations"]);
 	});
 
 	it("submits the Inbox entry as a plain GET form", () => {
@@ -273,8 +273,8 @@ describe("GlobalNav component", () => {
 			["/queues/rl-1?order=asc", "queue"],
 			["/view/example.com/an-article", "queue"],
 			["/view?url=https%3A%2F%2Fexample.com", "queue"],
-			["/import", "import"],
-			["/import/imp-1/review?page=2", "import"],
+			["/install", "install"],
+			["/install?client=firefox", "install"],
 			["/inbox", "inbox"],
 			["/inbox/emails/msg-1", "inbox"],
 			["/newsletters", "integrations"],
@@ -301,7 +301,8 @@ describe("GlobalNav component", () => {
 			"/export",
 			"/queued",
 			"/view-source",
-			"/install",
+			"/import",
+			"/import/imp-1/review?page=2",
 			"//[::1",
 			"//%zz[/queue",
 		])("marks no signed-in item current on %s", (currentPath) => {
@@ -317,7 +318,7 @@ describe("GlobalNav component", () => {
 		});
 
 		it("puts aria-current on the current item alone, leaving the other items without the attribute", () => {
-			const doc = parse(GlobalNav({ ...SIGNED_IN, currentPath: "/import" }));
+			const doc = parse(GlobalNav({ ...SIGNED_IN, currentPath: "/install" }));
 
 			const ariaCurrent = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) => [
 				el.getAttribute("data-test-nav-item"),
@@ -325,7 +326,7 @@ describe("GlobalNav component", () => {
 			]);
 			expect(ariaCurrent).toEqual([
 				["queue", null],
-				["import", "page"],
+				["install", "page"],
 				["inbox", null],
 				["integrations", null],
 				["account", null],
@@ -341,7 +342,7 @@ describe("GlobalNav component", () => {
 
 			const drawn = [
 				["queue", iconSvg("book")],
-				["import", iconSvg("file-down")],
+				["install", iconSvg("download")],
 				["inbox", iconSvg("inbox", { variant: "solid" })],
 				["integrations", iconSvg("plug")],
 			] as const;

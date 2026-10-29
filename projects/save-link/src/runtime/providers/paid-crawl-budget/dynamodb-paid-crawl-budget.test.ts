@@ -61,6 +61,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				return {};
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
@@ -87,6 +88,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				throw cancelled(["ConditionalCheckFailed", "None"]);
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
@@ -102,6 +104,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				throw cancelled(["None", "ConditionalCheckFailed"]);
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
@@ -117,6 +120,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				throw cancelled(["ConditionalCheckFailed", "ConditionalCheckFailed"]);
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
@@ -132,6 +136,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				throw cancelled(["TransactionConflict", "None"]);
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
@@ -147,11 +152,50 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				throw new Error("throttled");
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
 
 		await expect(consumePaidCrawlBudget({ messageId: "msg-1" })).rejects.toThrow("throttled");
+	});
+
+	it("prefixes the claim and window counter keys with the render-crawl scope so the render budget counts apart from the paid-crawl one", async () => {
+		let received: unknown;
+		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: createFakeClient((command) => {
+				received = command;
+				return {};
+			}) as DynamoDBDocumentClient,
+			tableName: TABLE,
+			scope: "render-crawl",
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+		});
+
+		await consumePaidCrawlBudget({ messageId: "msg-1" });
+
+		const [claim, counter] = (received as CapturedTransaction).input.TransactItems ?? [];
+		assert.deepEqual(claim?.Update?.Key, { pk: "render-crawl#claim#msg-1#7200" });
+		assert.deepEqual(counter?.Update?.Key, { pk: "render-crawl#global#7200" });
+	});
+
+	it("refunds a render-crawl slot to the render-crawl window counter", async () => {
+		let received: unknown;
+		const { refundPaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: createFakeClient((command) => {
+				received = command;
+				return {};
+			}) as DynamoDBDocumentClient,
+			tableName: TABLE,
+			scope: "render-crawl",
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+		});
+
+		await refundPaidCrawlBudget();
+
+		assert.deepEqual((received as CapturedUpdate).input.Key, { pk: "render-crawl#global#7200" });
 	});
 
 	it("refunds a slot to the current window with an underflow-guarding condition", async () => {
@@ -162,6 +206,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				return {};
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
@@ -184,6 +229,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				});
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
@@ -197,6 +243,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 				throw new Error("throttled");
 			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
+			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});

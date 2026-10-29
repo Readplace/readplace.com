@@ -51,7 +51,7 @@ struct AffordancePresentation {
 			isToolbarControl = false
 			isRecognizedToken = true
 			showsTitle = false
-		case "create-session":
+		case "create-session", "create-browser-handoff":
 			// Not a user control: the client invokes this bespoke to mint the reader
 			// session cookie (like a capture-only save), so it never renders in the
 			// toolbar even though it is advertised on the collection.

@@ -99,20 +99,20 @@ describe("buildGuestNavGroups", () => {
 });
 
 describe("buildNavGroups", () => {
-	it("groups full-access items into Library (queue, import, inbox, integrations) and Account (account, blog, privacy, terms, sign out)", () => {
+	it("groups full-access items into Library (queue, install, inbox, integrations) and Account (account, blog, privacy, terms, sign out)", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "inbox", "integrations"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "install", "inbox", "integrations"]);
 		expect(account?.label).toBe("Account");
 		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 
-	it("omits import and inbox for a read-only user but keeps Account, the only path to /account now the header has no trial chip", () => {
+	it("keeps Install for a read-only user, since installing writes nothing, but omits Inbox, since minting an address is a write; Account stays, the only path to /account now the header has no trial chip", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: true });
 		const [library, account] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "integrations"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "install", "integrations"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
 	});
 

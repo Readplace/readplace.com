@@ -178,7 +178,7 @@ describe("POST /newsletters/gmail/connect", () => {
 		const response = await request(harness.server).post(CONNECT).send();
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/login");
+		expect(response.headers.location).toBe("/login?return=%2Fnewsletters%2Fgmail%2Fconnect");
 	});
 
 	it("redirects a read-only reader to newsletters without starting the grant", async () => {

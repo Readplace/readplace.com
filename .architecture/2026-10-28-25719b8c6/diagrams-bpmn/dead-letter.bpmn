@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_dead_letter" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_dead_letter" name="dead-letter" isExecutable="false">
+    <bpmn:intermediateCatchEvent id="n_RQ" name="render-crawl-command queue">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_CQ" name="comprehensive-crawl-command queue">
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_FDLQ" name="save-link-failures shared DLQ arrival alarm emails the operator">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_ROUTER" name="save-link-failures-dlq Lambda routes by source queue">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_RDH" name="render dead-letter handler parses RenderCrawlCommand">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_CDH" name="comprehensive dead-letter handler">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_MCE" name="markCrawlExhausted reason exhausted-retries">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_BAD" name="batch item failure detail does not parse">
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_ART" name="articles table"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_CAF" name="CrawlArticleFailedEvent">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="first failed receive" sourceRef="n_RQ" targetRef="n_FDLQ" />
+    <bpmn:sequenceFlow id="f_1" name="first failed receive" sourceRef="n_CQ" targetRef="n_FDLQ" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_FDLQ" targetRef="n_ROUTER" />
+    <bpmn:sequenceFlow id="f_3" name="render-crawl-command-q" sourceRef="n_ROUTER" targetRef="n_RDH" />
+    <bpmn:sequenceFlow id="f_4" name="comprehensive-crawl-command-q" sourceRef="n_ROUTER" targetRef="n_CDH" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_RDH" targetRef="n_MCE" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_CDH" targetRef="n_MCE" />
+    <bpmn:sequenceFlow id="f_7" name="no parse" sourceRef="n_RDH" targetRef="n_BAD" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_MCE" targetRef="n_CAF" />
+    <bpmn:association id="f_8" sourceRef="n_MCE" targetRef="n_ART" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_dead_letter">
+    <bpmndi:BPMNPlane id="Plane_dead_letter" bpmnElement="Process_dead_letter">
+      <bpmndi:BPMNShape id="n_RQ_di" bpmnElement="n_RQ">
+        <dc:Bounds x="130.76" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CQ_di" bpmnElement="n_CQ">
+        <dc:Bounds x="307.46" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FDLQ_di" bpmnElement="n_FDLQ">
+        <dc:Bounds x="223.13" y="158" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ROUTER_di" bpmnElement="n_ROUTER">
+        <dc:Bounds x="157.25" y="315" width="171.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RDH_di" bpmnElement="n_RDH">
+        <dc:Bounds x="28" y="441" width="197" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CDH_di" bpmnElement="n_CDH">
+        <dc:Bounds x="261" y="449" width="197.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MCE_di" bpmnElement="n_MCE">
+        <dc:Bounds x="225.5" y="577" width="188.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_BAD_di" bpmnElement="n_BAD">
+        <dc:Bounds x="110.88" y="567" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ART_di" bpmnElement="n_ART">
+        <dc:Bounds x="106.44" y="697" width="98.56" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CAF_di" bpmnElement="n_CAF">
+        <dc:Bounds x="290.4" y="700.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="150.76" y="68" />
+        <di:waypoint x="150.76" y="113" />
+        <di:waypoint x="243.13" y="113" />
+        <di:waypoint x="243.13" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="327.46" y="68" />
+        <di:waypoint x="327.46" y="113" />
+        <di:waypoint x="243.13" y="113" />
+        <di:waypoint x="243.13" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="243.13" y="198" />
+        <di:waypoint x="243.13" y="315" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="243.13" y="383" />
+        <di:waypoint x="243.13" y="412" />
+        <di:waypoint x="126.5" y="412" />
+        <di:waypoint x="126.5" y="441" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="243.13" y="383" />
+        <di:waypoint x="243.13" y="416" />
+        <di:waypoint x="359.63" y="416" />
+        <di:waypoint x="359.63" y="449" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="126.5" y="509" />
+        <di:waypoint x="126.5" y="543" />
+        <di:waypoint x="319.76" y="543" />
+        <di:waypoint x="319.76" y="577" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="359.63" y="501" />
+        <di:waypoint x="359.63" y="539" />
+        <di:waypoint x="319.76" y="539" />
+        <di:waypoint x="319.76" y="577" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="126.5" y="509" />
+        <di:waypoint x="126.5" y="538" />
+        <di:waypoint x="130.88" y="538" />
+        <di:waypoint x="130.88" y="567" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="319.76" y="629" />
+        <di:waypoint x="319.76" y="664.75" />
+        <di:waypoint x="310.4" y="664.75" />
+        <di:waypoint x="310.4" y="700.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="319.76" y="629" />
+        <di:waypoint x="319.76" y="663" />
+        <di:waypoint x="155.72" y="663" />
+        <di:waypoint x="155.72" y="697" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

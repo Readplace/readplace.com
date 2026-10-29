@@ -325,6 +325,21 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
+	it("emits SimpleCrawlUnsupportedEvent carrying the javascript-required reason so the policy dispatches the render crawl", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "unsupported", reason: "javascript-required", unsupportedReason: { kind: "javascript-required" } });
+
+		const handler = createHandler({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported });
+
+		await handler(createSqsEvent({ url: "https://example-spa.test/post", userId: "user-1" }), buildLambdaContext(), () => {});
+
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({
+			url: "https://example-spa.test/post",
+			unsupportedReason: "javascript-required",
+			userId: "user-1",
+		}));
+	});
+
 	it("marks comprehensive-fetching between the simple bail-out and the event emission so the reader's progress bar advances during the policy + comprehensive Lambda's cold-start", async () => {
 		const calls: string[] = [];
 		const markCrawlStage = jest.fn(async ({ stage }: { stage: string }) => { calls.push(`stage:${stage}`); });

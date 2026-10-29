@@ -50,6 +50,7 @@ final class ReadingListViewModel: ObservableObject {
 	/// followed to mint the reader's browser session. Nil against a server that
 	/// hasn't advertised it, in which case the API falls back to a fixed path.
 	private var sessionAction: SirenAction?
+	private var handoffAction: SirenAction?
 	private var isLoadingMore = false
 	private var isDrainingUploads = false
 	private var offlineDownloadTask: Task<Void, Never>?
@@ -562,6 +563,10 @@ final class ReadingListViewModel: ObservableObject {
 		await running?.value
 	}
 
+	func mintBrowserHandoff() async throws -> String {
+		try await api.mintBrowserHandoff(action: handoffAction)
+	}
+
 	/// Mints the cookie session the reader webview needs from the current bearer.
 	func mintReaderSession() async -> ReaderSessionMint {
 		do {
@@ -609,6 +614,7 @@ final class ReadingListViewModel: ObservableObject {
 		if replacing {
 			applyToolbar(page)
 			sessionAction = page.action(named: "create-session")
+			handoffAction = page.action(named: "create-browser-handoff")
 			rootHref = page.rootHref
 			tabs = page.tabs
 			readlists = page.readlists

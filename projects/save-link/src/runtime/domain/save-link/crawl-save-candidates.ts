@@ -35,10 +35,11 @@ export function initCrawlSaveCandidates(deps: {
 		]);
 		if (wrapper.status === "rejected") throw wrapper.reason;
 		const failureReason = live.status === "rejected" ? classifiedFailureReason(live.reason) : undefined;
-		const liveCandidate = live.status === "fulfilled" && typeof live.value === "object" ? live.value.candidate : undefined;
+		const liveValue = live.status === "fulfilled" && typeof live.value === "object" ? live.value : undefined;
+		const liveCandidate = liveValue !== undefined && "candidate" in liveValue ? liveValue.candidate : undefined;
 		const candidates = [...(liveCandidate === undefined ? [] : [liveCandidate]), ...(wrapper.value === undefined ? [] : [wrapper.value])];
-		const deferred = live.status === "fulfilled" && live.value === "tier-1-deferred";
-		if (deferred) await deps.emitSimpleCrawlUnsupported({ url: params.url, userId: params.userId, recrawl: params.recrawl, saveAttemptId: params.saveAttemptId, candidates });
+		const deferred = liveValue !== undefined && "deferred" in liveValue;
+		if (deferred) await deps.emitSimpleCrawlUnsupported({ url: params.url, unsupportedReason: liveValue.deferred, userId: params.userId, recrawl: params.recrawl, saveAttemptId: params.saveAttemptId, candidates });
 		if (failureReason !== undefined) return { candidates, liveAttempt: { outcome: "no-body", failureReason } };
 		return {
 			candidates,

@@ -161,6 +161,7 @@ struct ReadingListView: View {
 					ReaderSheet(
 						presentation: presentation,
 						mintSession: { await viewModel.mintReaderSession() },
+						mintHandoff: { try await viewModel.mintBrowserHandoff() },
 						onMarkedRead: {
 							Task { await viewModel.readerStatusChanged() }
 							viewModel.readerPresentation = nil

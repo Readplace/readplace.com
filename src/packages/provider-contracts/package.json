@@ -33,6 +33,10 @@
       "types": "./dist/auth.d.ts",
       "default": "./dist/auth.js"
     },
+    "./browser-handoff": {
+      "types": "./dist/browser-handoff.d.ts",
+      "default": "./dist/browser-handoff.js"
+    },
     "./email": {
       "types": "./dist/email.d.ts",
       "default": "./dist/email.js"
@@ -166,6 +170,7 @@
       "article-store": ["./dist/article-store.d.ts"],
       "article-summary": ["./dist/article-summary.d.ts"],
       "auth": ["./dist/auth.d.ts"],
+      "browser-handoff": ["./dist/browser-handoff.d.ts"],
       "email": ["./dist/email.d.ts"],
       "email-verification": ["./dist/email-verification.d.ts"],
       "events": ["./dist/events.d.ts"],

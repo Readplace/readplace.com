@@ -198,7 +198,7 @@ async function rowAnatomy(page: Page, input: { cardRight: number; rows: number }
 	}
 }
 
-async function designWidthGeometry(page: Page, input: { rows: number }): Promise<void> {
+async function designWidthGeometry(page: Page, input: { rows: number; dataCardHeight: number }): Promise<void> {
 	const [main, title] = await page.evaluate(measureBoxes, [MAIN, TITLE]);
 	assertNear({ actual: title.y - main.y, expected: 32 }, "at 1440 the title's line box starts 32px under the header");
 	const cards = await boxesOf(page, CARDS);
@@ -210,7 +210,7 @@ async function designWidthGeometry(page: Page, input: { rows: number }): Promise
 	await sectionRhythm(page);
 	await rowAnatomy(page, { cardRight: 1160, rows: input.rows });
 	const dataCard = await measuredBox(page, DATA_CARD);
-	assertNear({ actual: dataCard.height, expected: 98 }, "a one-line row's card is 98px tall");
+	assertNear({ actual: dataCard.height, expected: input.dataCardHeight }, `the data card is ${input.dataCardHeight}px tall`);
 	const options = await boxesOf(page, THEME_OPTION);
 	assert.equal(options.length, 3, "Theme offers three options");
 	for (const [index, option] of options.slice(1).entries()) {
@@ -454,7 +454,7 @@ test.describe("Account page at the design width", () => {
 			await openAccount(page);
 			await captureCheckpoint(
 				page,
-				mainCheckpoint({ name: `account-founding-${theme}`, geometry: (settled) => designWidthGeometry(settled, { rows: 6 }) }),
+				mainCheckpoint({ name: `account-founding-${theme}`, geometry: (settled) => designWidthGeometry(settled, { rows: 7, dataCardHeight: 195 }) }),
 			);
 		});
 
@@ -473,7 +473,7 @@ test.describe("Account page at the design width", () => {
 		await openAccount(page);
 		await captureCheckpoint(
 			page,
-			mainCheckpoint({ name: "account-inactive-light", geometry: (settled) => designWidthGeometry(settled, { rows: 7 }) }),
+			mainCheckpoint({ name: "account-inactive-light", geometry: (settled) => designWidthGeometry(settled, { rows: 7, dataCardHeight: 98 }) }),
 		);
 	});
 

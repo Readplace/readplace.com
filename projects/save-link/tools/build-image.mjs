@@ -40,7 +40,7 @@
  */
 import assert from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -64,6 +64,11 @@ const HANDLERS = [
   {
     name: "save-link-raw-pdf-command",
     entryPoint: "src/runtime/save-link-raw-pdf-command.main.ts",
+  },
+  {
+    name: "render-crawl-command",
+    entryPoint: "src/runtime/render-crawl-command.main.ts",
+    assets: [{ from: "node_modules/@sparticuz/chromium/bin", to: "chromium-bin" }],
   },
 ];
 
@@ -159,6 +164,9 @@ async function bundleHandler(handler) {
     loader: { ".ts": "ts" },
   });
   copyAssetFiles({ src: resolve(PROJECT_ROOT, "src"), dest: outputDir });
+  for (const asset of handler.assets ?? []) {
+    cpSync(resolve(PROJECT_ROOT, asset.from), resolve(outputDir, asset.to), { recursive: true, dereference: true });
+  }
   return outputDir;
 }
 

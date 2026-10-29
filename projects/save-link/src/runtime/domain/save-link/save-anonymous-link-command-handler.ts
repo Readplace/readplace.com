@@ -102,9 +102,10 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 				logger.info("[SaveAnonymousLinkCommand] processing", { url: detail.url });
 
 				const result = await saveLinkWork(detail.url, { saveAttemptId });
-				if (result === "tier-1-deferred") {
+				if (typeof result === "object" && "deferred" in result) {
 					logger.info("[SaveAnonymousLinkCommand] tier-1 deferred to comprehensive Lambda", {
 						url: detail.url,
+						unsupportedReason: result.deferred,
 					});
 					continue;
 				}

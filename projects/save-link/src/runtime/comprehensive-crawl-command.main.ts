@@ -110,6 +110,7 @@ const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 	client: dynamoClient,
 	tableName: rateLimitsTable,
+	scope: "paid-crawl",
 	rule: paidCrawlBudget,
 	now,
 });

@@ -41,6 +41,10 @@
       "types": "./dist/providers/auth/index.d.ts",
       "default": "./dist/providers/auth/index.js"
     },
+    "./providers/browser-handoff": {
+      "types": "./dist/providers/browser-handoff/index.d.ts",
+      "default": "./dist/providers/browser-handoff/index.js"
+    },
     "./providers/canary-report": {
       "types": "./dist/providers/canary-report/index.d.ts",
       "default": "./dist/providers/canary-report/index.js"
@@ -227,6 +231,9 @@
       ],
       "providers/auth": [
         "./dist/providers/auth/index.d.ts"
+      ],
+      "providers/browser-handoff": [
+        "./dist/providers/browser-handoff/index.d.ts"
       ],
       "providers/canary-report": [
         "./dist/providers/canary-report/index.d.ts"

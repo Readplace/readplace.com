@@ -12,6 +12,7 @@ import { campaignTag, HOMEPAGE_SPLIT } from "../web/experiments/homepage-split";
 import { HOMEPAGE_EXPOSURE } from "../web/pages/home/home.version";
 import { READLIST_PATH } from "../web/pages/readlist/readlist.url";
 import { EPUB_DOWNLOAD_CONTENT } from "../web/shared/epub/epub-link";
+import { VIEW_CRAWL_LIMIT_SOURCE } from "../web/pages/view/view-crawl-limit.component";
 import { type ExcludedIdentities, excludeNonAudienceClauses } from "./excluded-identities";
 import {
 	ANALYTICS_EVENTS,
@@ -1106,7 +1107,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 312, width: 8, height: 4,
+			x: index * 8, y: 318, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1230,6 +1231,28 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| limit 20",
 			].join(" "),
 			x: 12, y: 222, width: 12, height: 8,
+			view: "table",
+		}),
+	);
+
+	const crawlLimitSeen = `event = "${ANALYTICS_EVENTS.viewCrawlLimited}"`;
+	const crawlLimitClick = (content: string) =>
+		`event = "${ANALYTICS_EVENTS.click}" and utm_source = "${VIEW_CRAWL_LIMIT_SOURCE}" and utm_content = "${content}"`;
+	widgets.push(
+		logWidget({
+			region,
+			title: "Public save limit: visitors shown the create-account screen, who clicked, and signups after it",
+			logGroupNames: analyticsSource,
+			query: [
+				`fields @timestamp, visitor_id, if(${crawlLimitSeen}, 1, 0) as is_seen, if(${crawlLimitClick("signup")}, 1, 0) as is_signup_click, if(${crawlLimitClick("login")}, 1, 0) as is_login_click, if(${crawlLimitSeen}, toMillis(@timestamp), 99999999999999) as seen_ms, if(event = "${CONVERSION_EVENTS.userCreated}", toMillis(@timestamp), 0) as signup_ms`,
+				`| filter (stream = "${STREAMS.analytics}" and (${crawlLimitSeen} or utm_source = "${VIEW_CRAWL_LIMIT_SOURCE}")) or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}")`,
+				...exclude,
+				"| filter ispresent(visitor_id)",
+				"| stats sum(is_seen) as screens, sum(is_signup_click) as signup_clicks, sum(is_login_click) as login_clicks, min(seen_ms) as first_seen_ms, max(signup_ms) as last_signup_ms by visitor_id",
+				"| filter screens > 0",
+				"| stats sum(screens) as screens_shown, count(*) as visitors_shown, sum(signup_clicks > 0) as visitors_clicked_create_account, sum(login_clicks > 0) as visitors_clicked_log_in, sum(last_signup_ms > first_seen_ms) as signups_after_screen",
+			].join(" "),
+			x: 0, y: 312, width: 24, height: 6,
 			view: "table",
 		}),
 	);

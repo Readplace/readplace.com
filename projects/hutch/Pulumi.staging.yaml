@@ -26,6 +26,7 @@ config:
   hutch:dynamodbOauthTable: hutch-oauth-ecd3db9
   hutch:dynamodbVerificationTokensTable: hutch-verification-tokens-3f85043
   hutch:dynamodbPasswordResetTokensTable: hutch-password-reset-tokens
+  hutch:dynamodbBrowserHandoffCodesTable: hutch-browser-handoff-codes
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-staging
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-staging
@@ -45,12 +46,14 @@ config:
   hutch:dynamodbInboxEmailIdentitiesTable: hutch-inbox-email-identities-staging
   hutch:dynamodbCanaryReportsTable: hutch-canary-reports-staging
   hutch:rateLimitViewCrawl: 10000/3600
+  hutch:rateLimitViewCrawlSignedIn: 10000/3600
   hutch:rateLimitLogin: 5000/900
   hutch:rateLimitLoginAccount: 5000/900
   hutch:rateLimitSignup: 5000/3600
   hutch:rateLimitForgotPassword: 5000/3600
   hutch:rateLimitOauthRegister: 5000/3600
   hutch:rateLimitOauthToken: 5000/3600
+  hutch:rateLimitBrowserHandoff: 5000/3600
   hutch:rateLimitImport: 5000/3600
   hutch:rateLimitImportFromUrl: 5000/3600
   hutch:apiThrottleBurstLimit: 5000

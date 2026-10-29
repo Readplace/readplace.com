@@ -13,6 +13,12 @@ describe("candidate provenance", () => {
 		expect(candidateProvenance({ ...params, captureTrigger: "automatic" }).captureTrigger).toBe("automatic");
 		expect(candidateProvenance(params).captureTrigger).toBeUndefined();
 	});
+	it("carries the render leg through provenance", () => {
+		const params = { metadata: { title: "Title", siteName: "Site", excerpt: "Excerpt", wordCount: 1, estimatedReadTime: 1 }, html: "<p>one</p>", evaluationHtml: "<p>one</p>", attemptId: SaveAttemptIdSchema.parse("save"), originalUrl: "https://example-spa.test/post", sourceUrl: "https://example-spa.test/post", kind: "live" as const, fetchedAt: "2026-10-01T00:00:00Z" };
+		const rendered = candidateProvenance({ ...params, renderedThrough: "residential-proxy" });
+		expect(rendered.renderedThrough).toBe("residential-proxy");
+		expect(candidateProvenance(params).renderedThrough).toBeUndefined();
+	});
 	it("uses adopted identity and accepts ordinary legacy row identity", async () => {
 		const resolveAdopted = initResolveCandidateOriginal({ findIdentityRow: async () => ({ kind: "article", originalUrl: "https://trusted.example/article" }) });
 		expect(await resolveAdopted("https://redirector.example/a")).toBe("https://trusted.example/article");

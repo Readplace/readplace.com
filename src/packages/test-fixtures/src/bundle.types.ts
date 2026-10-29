@@ -4,6 +4,7 @@ export type {
 	ArticleStoreBundle,
 	AuthBundle,
 	BotDefenseBundle,
+	BrowserHandoffBundle,
 	ConversionsBundle,
 	EmailBundle,
 	EmailVerificationBundle,

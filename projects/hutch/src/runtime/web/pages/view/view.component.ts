@@ -42,6 +42,7 @@ import {
 } from "../../shared/share-dialog/share-dialog.component";
 import { SHARE_DIALOG_STYLES } from "../../shared/share-dialog/share-dialog.styles";
 import { railLandmarkFor } from "../../shared/reading-layout/rail-landmark";
+import { READER_TOP_SCRIPT } from "../reader/reader-top-script";
 import { viewPathFor } from "./view-path";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
@@ -251,7 +252,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			page:
 				SHARE_DIALOG_SCRIPT +
 				SAVE_TIP_SCRIPT +
-				TABLE_OF_CONTENTS_SCRIPT,
+				TABLE_OF_CONTENTS_SCRIPT +
+				READER_TOP_SCRIPT,
 		}),
 	};
 }

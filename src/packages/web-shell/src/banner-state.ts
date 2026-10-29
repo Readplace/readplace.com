@@ -209,12 +209,9 @@ export function buildGuestNavGroups(): NavGroup[] {
  * editing the template.
  * Export is deliberately absent: it lives on the account page instead. */
 export function buildNavGroups(input: { accessIsReadOnly: boolean }): NavGroup[] {
-	const library: NavItem[] = [NAV_READLIST];
-	// Saving and minting an address are write actions gated by requireWriteAccess,
-	// so a read-only user gets neither entry. They keep access to existing
-	// addresses by direct link.
+	const library: NavItem[] = [NAV_READLIST, NAV_INSTALL];
 	if (!input.accessIsReadOnly) {
-		library.push(NAV_IMPORT, NAV_INBOX);
+		library.push(NAV_INBOX);
 	}
 	library.push(NAV_INTEGRATIONS);
 	return [

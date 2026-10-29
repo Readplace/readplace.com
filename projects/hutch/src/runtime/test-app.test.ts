@@ -56,6 +56,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			email: fixture.email,
 			emailVerification: fixture.emailVerification,
 			passwordReset: fixture.passwordReset,
+			browserHandoff: fixture.browserHandoff,
 			rateLimit: fixture.rateLimit,
 			wrapperTarget: fixture.wrapperTarget,
 			submitLink: fixture.submitLink,

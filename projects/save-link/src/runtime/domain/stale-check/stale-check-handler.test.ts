@@ -294,6 +294,37 @@ describe("initStaleCheckHandler", () => {
 		});
 	});
 
+	it("forwards the javascript-required reason so the policy routes a refreshed client-rendered shell to the render crawl", async () => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+		});
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "unsupported",
+			reason: "javascript-required",
+			unsupportedReason: { kind: "javascript-required" },
+		});
+		const emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = jest
+			.fn()
+			.mockResolvedValue(undefined);
+
+		const handler = createHandler({
+			findArticleFreshness,
+			crawlAndFinalizeArticle,
+			emitSimpleCrawlUnsupported,
+		});
+
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
+
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			unsupportedReason: "javascript-required",
+			saveAttemptId: REFRESH_ATTEMPT_ID,
+			refresh: true,
+		});
+	});
+
 	it("forwards the stored etag/lastModified into crawlAndFinalize so the crawler can short-circuit on 304", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: '"abc"',

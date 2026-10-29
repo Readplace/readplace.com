@@ -360,6 +360,17 @@ export interface ViewOpenedEvent {
 	is_authenticated: 0 | 1;
 }
 
+export interface ViewCrawlLimitedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.viewCrawlLimited;
+	timestamp: string;
+	path: string;
+	article_host: string;
+	visitor_hash: string | null;
+	visitor_id: string;
+	is_authenticated: 0;
+}
+
 export interface EpubImagesOverBudgetEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.epubImagesOverBudget;
@@ -591,6 +602,7 @@ export type AnalyticsEvent =
 	| ArticleReadEvent
 	| SummaryToggledEvent
 	| ViewOpenedEvent
+	| ViewCrawlLimitedEvent
 	| ViewSaveIntentEvent
 	| SignupAttemptedEvent
 	| FirstArticleAutosavedEvent

@@ -2,11 +2,11 @@
 title: "Paste One Link, Save Every Article on the Page"
 description: "Readplace can now import links from a single page. Paste a newsletter issue or a links page, and Readplace lists every outbound link for you to pick from. Save the whole batch in one click."
 excerpt: "20 newsletter links used to mean 20 round trips, and now they take one paste."
-tldr: "Readplace now imports links from one page. Open Import Links in the menu. \"Paste a link\" is the first tab. Drop in a newsletter issue or any page that lists articles. Readplace loads the page and lists every outbound link, each one checked by default. Untick what you skip, then click Import. The articles appear as cards right away and fill in their titles and excerpts within seconds. One page can hold up to 2,000 links, and the same screen still takes a file upload too."
+tldr: "Readplace now imports links from one page. Open the Import Links page. \"Paste a link\" is the first tab. Drop in a newsletter issue or any page that lists articles. Readplace loads the page and lists every outbound link, each one checked by default. Untick what you skip, then click Import. The articles appear as cards right away and fill in their titles and excerpts within seconds. One page can hold up to 2,000 links, and the same screen still takes a file upload too."
 slug: "import-links-from-a-page"
 date: "2026-05-31"
 author: "Fayner Brack"
-lastModified: "2026-09-30"
+lastModified: "2026-10-28"
 keywords: "import newsletter links, save all links from a page, bulk save articles, read it later, save newsletter to read later, extract links from web page, blogroll, readplace"
 ---
 
@@ -16,7 +16,7 @@ Readplace now collapses all of that into one paste.
 
 ## Paste the page, pick the links
 
-Open Import Links in the menu. The "Paste a link" tab is the first one. Drop in the address of a newsletter issue, a blogroll, or any page that lists articles. Readplace loads that page and reads out every link on it that points somewhere else.
+Open the [Import Links](/import?utm_source=blog-import-links-from-a-page&utm_medium=internal&utm_content=import) page. The "Paste a link" tab is the first one. Drop in the address of a newsletter issue, a blogroll, or any page that lists articles. Readplace loads that page and reads out every link on it that points somewhere else.
 
 You get a plain, checkable list, and every link starts ticked.
 

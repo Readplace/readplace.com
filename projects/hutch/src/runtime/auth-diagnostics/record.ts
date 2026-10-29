@@ -16,7 +16,7 @@ export interface AuthDiagnosticContext {
 	grant_id?: string;
 	subject_ref?: string;
 	auth_refusal_reason?: "expired" | "revoked";
-	reason?: "login" | "sliding_visit" | "oauth_bridge" | "web_logout" | "native_logout" | "oauth_account_switch" | "password_reset" | "account_deleted";
+	reason?: "login" | "sliding_visit" | "oauth_bridge" | "browser_handoff" | "web_logout" | "native_logout" | "oauth_account_switch" | "password_reset" | "account_deleted";
 }
 
 export const authDiagnosticContext = new AsyncLocalStorage<AuthDiagnosticContext>();

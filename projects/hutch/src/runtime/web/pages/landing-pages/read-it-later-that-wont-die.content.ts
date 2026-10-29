@@ -8,7 +8,7 @@ function track(path: string, content: string): string {
 }
 
 export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-01",
+	lastModified: "2026-10-28",
 	title: "A Read-It-Later App That Goes Read-Only, Not Dark | Readplace",
 	description:
 		"Cancel and your Readplace account keeps working for reading. You keep every article you saved, and the export route carries no subscription gate.",
@@ -62,7 +62,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	limits: [
 		"The export lists what you saved — URL, title, excerpt and read history. It does not contain the full article text.",
 		"The export runs in the background and arrives as an emailed download link. The link works for 7 days; after that, request another.",
-		"A read-only account loses Import and Inbox from the nav. Readlist, Account and sign-out stay, and the export lives on the account page.",
+		"A read-only account loses Import and Inbox. The readlist, the account page and the export stay.",
 		"Source-available is not open source. The code is on GitHub to read, but no licence grants you rights to reuse it.",
 		"None of this promises Readplace outlives Pocket. It describes what happens to your account if you stop paying.",
 	],
