@@ -21,6 +21,7 @@ import type {
 
 import { switchHelpers } from "../../handlebars-switch";
 import { BROWSER_EXTENSIONS_OR } from "../../shared/client-enumerations";
+import { MCP_GUIDE_PATH, MCP_SERVER_URL } from "../../shared/assistant-roster";
 import { SAVE_INTENT_PROMPT } from "../mcp";
 import { CLIENT_ICON_SVG } from "../../shared/client-icons";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
@@ -92,15 +93,11 @@ function clientByName(name: ClientName): SupportedClient {
 	return client;
 }
 
-const claude = clientByName("claude");
-assert(claude.install.kind === "mcpConnector", "Claude install must be the MCP connector");
-const MCP_SERVER_URL = claude.install.serverUrl;
-const MCP_GUIDE_URL = claude.install.guidePath;
-const MCP_GUIDE_HREF = withInternalTracking(MCP_GUIDE_URL, {
+const MCP_GUIDE_HREF = withInternalTracking(MCP_GUIDE_PATH, {
 	source: "install-ai-panel",
 	content: "mcp-guide",
 });
-const MCP_OTHER_CLIENTS_GUIDE_HREF = withInternalTracking(MCP_GUIDE_URL, {
+const MCP_OTHER_CLIENTS_GUIDE_HREF = withInternalTracking(MCP_GUIDE_PATH, {
 	source: "install-ai-panel",
 	content: "mcp-guide-other-clients",
 });

@@ -20,7 +20,7 @@
             {{#if confirmPopoverId}}
             <button type="button" class="btn btn--{{variant}} btn--s" popovertarget="{{confirmPopoverId}}" aria-haspopup="dialog" data-test-integration-action="{{key}}">{{label}}</button>
             {{else}}
-            <form class="integrations__action" method="{{method}}" action="{{href}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+            <form class="integrations__action" method="{{method}}" action="{{href}}" hx-boost="{{boost}}" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
               <input type="hidden" name="utm_source" value="{{trackSource}}">
               <input type="hidden" name="utm_medium" value="internal">
               <input type="hidden" name="utm_content" value="{{trackContent}}">
