@@ -51,10 +51,13 @@ export function initOpenGmailMailboxForUpdate(deps: {
 				client_secret: deps.clientSecret,
 				refresh_token: credentials.refreshToken,
 				grant_type: "refresh_token",
+				scope: GMAIL_MODIFY_SCOPE,
 			}).toString(),
 		});
 		const tokenBody: unknown = await token.json().catch(() => undefined);
-		if (readGoogleTokenError(tokenBody).error === "invalid_grant") return { ok: false, reason: "reauth-required" };
+		const tokenError = readGoogleTokenError(tokenBody).error;
+		if (tokenError === "invalid_grant") return { ok: false, reason: "reauth-required" };
+		if (tokenError === "invalid_scope") return { ok: false, reason: "modify-permission-required" };
 		const accessToken = TokenResponse.safeParse(tokenBody);
 		if (!token.ok || !accessToken.success) return { ok: false, reason: "unavailable", status: token.status };
 

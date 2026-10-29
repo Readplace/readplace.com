@@ -3,6 +3,7 @@ import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailMessageIdSchema 
 import { NormalizedMessageIdSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { OpenedGmailMailbox } from "@packages/provider-contracts/gmail-message-update";
+import { GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { initOpenGmailMailboxForUpdate } from "./gmail-message-update";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -78,7 +79,7 @@ describe("initOpenGmailMailboxForUpdate", () => {
 		assert.deepEqual(h.sent, []);
 	});
 
-	it("mints one access token from the stored refresh token and checks the mailbox's address", async () => {
+	it("mints one modify-scoped access token from the stored refresh token and checks the mailbox's address", async () => {
 		const h = harness();
 
 		const result = await h.open();
@@ -86,7 +87,14 @@ describe("initOpenGmailMailboxForUpdate", () => {
 		assert.equal(result.ok, true);
 		assert.equal(h.sent[0]?.url.pathname, "/token");
 		assert.equal(new URLSearchParams(h.sent[0]?.body).get("refresh_token"), "refresh-1");
+		assert.equal(new URLSearchParams(h.sent[0]?.body).get("scope"), GMAIL_MODIFY_SCOPE);
 		assert.equal(h.sent[1]?.authorization, "Bearer token-1");
+	});
+
+	it("needs modify permission when Google refuses to narrow the token to it", async () => {
+		const h = harness({ routes: [on("POST", /^\/token$/, () => json({ error: "invalid_scope" }, 400))] });
+
+		assert.deepEqual(await h.open(), { ok: false, reason: "modify-permission-required" });
 	});
 
 	it("needs reauthorisation when Google rejects the stored grant", async () => {
