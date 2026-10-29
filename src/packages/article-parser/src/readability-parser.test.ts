@@ -1246,3 +1246,122 @@ describe("initReadabilityParser — site rules recognise twitter.com and x.com a
 		expect(calls).toEqual([]);
 	});
 });
+
+describe("the publish date", () => {
+	const ARTICLE_BODY = `<body><article>
+		<h1>Dated Article</h1>
+		<p>This is the first paragraph of the article with enough text to be meaningful content for readability extraction.</p>
+		<p>This is the second paragraph with additional content that helps readability determine this is a real article worth parsing.</p>
+		<p>And a third paragraph to ensure there is enough content for the word count calculation to work properly.</p>
+	</article></body>`;
+
+	function publishedOnOf(params: { head: string; overrides?: Parameters<typeof initParser>[0] }): string | undefined {
+		const { parseHtml } = initParser(params.overrides);
+		const result = parseHtml({
+			url: "https://blog.example.com/post",
+			documentUrl: "https://blog.example.com/post",
+			html: `<html><head><title>Dated Article</title>${params.head}</head>${ARTICLE_BODY}</html>`,
+			thumbnailUrl: null,
+		});
+		assert(result.ok, "the dated fixture parses");
+		return result.article.publishedOn;
+	}
+
+	function jsonLd(value: Record<string, unknown>): string {
+		return `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", ...value })}</script>`;
+	}
+
+	it("reads a date-only JSON-LD datePublished", () => {
+		assert.equal(publishedOnOf({ head: jsonLd({ "@type": "BlogPosting", datePublished: "2025-10-08" }) }), "2025-10-08");
+	});
+
+	it("keeps the day a JSON-LD datetime is written in, before its offset", () => {
+		assert.equal(
+			publishedOnOf({ head: jsonLd({ "@type": "NewsArticle", datePublished: "2025-10-12T22:30:00-07:00" }) }),
+			"2025-10-12",
+		);
+	});
+
+	it("reads article:published_time alone", () => {
+		assert.equal(
+			publishedOnOf({ head: '<meta property="article:published_time" content="2025-10-08T14:00:00.000Z">' }),
+			"2025-10-08",
+		);
+	});
+
+	it("reads parsely-pub-date alone", () => {
+		assert.equal(publishedOnOf({ head: '<meta name="parsely-pub-date" content="2025-10-08T14:00:00Z">' }), "2025-10-08");
+	});
+
+	it("prefers JSON-LD over the meta tags", () => {
+		assert.equal(
+			publishedOnOf({
+				head: `${jsonLd({ "@type": "Article", datePublished: "2025-10-08" })}<meta property="article:published_time" content="2024-01-01"><meta name="parsely-pub-date" content="2023-01-01">`,
+			}),
+			"2025-10-08",
+		);
+	});
+
+	it("takes datePublished, not dateModified, from a post that carries both", () => {
+		assert.equal(
+			publishedOnOf({ head: jsonLd({ "@type": "BlogPosting", datePublished: "2026-06-07", dateModified: "2026-10-01" }) }),
+			"2026-06-07",
+		);
+	});
+
+	it("finds no date in a dateModified alone", () => {
+		assert.equal(publishedOnOf({ head: jsonLd({ "@type": "BlogPosting", dateModified: "2026-10-01" }) }), undefined);
+	});
+
+	it("finds no date in the JSON-LD of a type that is not an article", () => {
+		assert.equal(publishedOnOf({ head: jsonLd({ "@type": "Organization", datePublished: "2025-10-08" }) }), undefined);
+	});
+
+	it("carries whatever the injected publishedOnFrom produced from Readability's published time", () => {
+		const received: (string | null | undefined)[] = [];
+		const publishedOn = publishedOnOf({
+			head: '<meta property="article:published_time" content="2025-10-08T14:00:00Z">',
+			overrides: {
+				readabilityAdditions: {
+					publishedOnFrom: (raw) => {
+						received.push(raw);
+						return "1999-12-31";
+					},
+				},
+			},
+		});
+
+		assert.deepEqual([publishedOn, received], ["1999-12-31", ["2025-10-08T14:00:00Z"]]);
+	});
+
+	it("finds no date on a page a site rule extracts, whose head holds only the title", () => {
+		const extractingSite: TestSite = {
+			matches: ({ hostname }) => hostname === "blog.example.com",
+			extract: () => ({
+				title: "Extracted",
+				bodyHtml:
+					"<p>Content the site rule extracted, long enough for readability to score it as the article body of the page.</p>",
+			}),
+		};
+
+		assert.equal(
+			publishedOnOf({
+				head: '<meta property="article:published_time" content="2025-10-08">',
+				overrides: { siteRules: [extractingSite] },
+			}),
+			undefined,
+		);
+	});
+
+	it("finds no date on the host stub Readability's empty parse falls back to", () => {
+		const spy = jest.spyOn(Readability.prototype, "parse").mockImplementation(() => null);
+		try {
+			assert.equal(
+				publishedOnOf({ head: '<meta property="article:published_time" content="2025-10-08">' }),
+				undefined,
+			);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+});

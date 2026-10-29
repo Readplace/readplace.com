@@ -66,7 +66,8 @@ The document opens with YAML frontmatter. This is a **published interface**: the
 |---|---|
 | Use Obsidian Web Clipper's name for a concept Readplace shares with it ([preset variables](https://obsidian.md/help/web-clipper/variables)) | A note sorts and filters alongside the reader's existing clippings |
 | Give every other key the `readplace_` prefix | Obsidian gives a property name [one type across the whole vault](https://obsidian.md/help/properties), so a plain name can collide with one the reader already uses |
-| Never emit `author`, `published`, `tags`, `highlights` or `notes`, not even empty | Readplace holds none of them, and a note must not imply it does; a client adds none on its side either |
+| Never emit `author`, `tags`, `highlights` or `notes`, not even empty | Readplace holds none of them, and a note must not imply it does; a client adds none on its side either |
+| Write the publish date under `published`, Obsidian Web Clipper's name for it, as the `YYYY-MM-DD` calendar date the article holds, and omit it when none is known | A byline is a calendar date in the publisher's calendar; an instant would move it a day for a reader in another zone |
 | Omit a key whose value is absent; never write `null` | Absence has one encoding |
 | Write timestamps as ISO 8601 UTC strings | The form Siren's timestamps use |
 

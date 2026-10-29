@@ -104,6 +104,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		url: input.destinationUrl,
 		articleId: undefined,
 		saved: undefined,
+		publishedOn: input.metadata.publishedOn,
 		content: input.content,
 		crawl: input.crawl,
 		readerPollUrl: input.readerPollUrl,

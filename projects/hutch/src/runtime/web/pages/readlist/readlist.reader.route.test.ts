@@ -87,6 +87,46 @@ describe("Readlist routes", () => {
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
 		});
 
+		it("shows the source's publish date beside the save time, in the web reader and the iOS reader", async () => {
+			const articleHtml = `
+			<html><head><title>Dated Post</title><meta property="article:published_time" content="2025-10-08T09:00:00Z"></head>
+			<body><article>
+				<h1>Dated Post</h1>
+				<p>This is archived content that should survive the original site going down. Enough text for readability.</p>
+				<p>A second paragraph with more words for the parser to work with properly.</p>
+			</article></body></html>`;
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: { ...fixture.events, publishLinkSaved: createFakePublishLinkSaved(applyParseResult) },
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/dated-post" });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .readlist-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "saved article must have an id");
+
+			const factsOf = async (path: string) => {
+				const response = await agent.get(path);
+				expect(response.status).toBe(200);
+				const doc = new JSDOM(response.text).window.document;
+				return ["published", "saved"].map((key) => doc.querySelector(`[data-test-reader-fact="${key}"]`)?.textContent?.trim());
+			};
+
+			expect(await factsOf(`/queue/${articleId}/view`)).toEqual(["Published Oct 8, 2025", "Saved just now"]);
+			expect(await factsOf(`/queue/${articleId}/view?platform=ios`)).toEqual(["Published Oct 8, 2025", "Saved just now"]);
+		});
+
 		it("points the Original link at the adopted redirect destination on the first paint", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);

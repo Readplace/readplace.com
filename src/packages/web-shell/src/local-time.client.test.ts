@@ -63,6 +63,16 @@ describe("initLocalTime", () => {
 		expect(el.getAttribute("title")).toBe("Jun 24, 2026, 19:00 GMT+10");
 	});
 
+	it("leaves a calendar date that carries no data-local-time as the server wrote it", () => {
+		const { document } = initWithDom(
+			`<time datetime="2025-10-08">Oct 8, 2025</time>`,
+			"America/Los_Angeles",
+		);
+		const el = document.querySelector("time");
+		assert(el, "time element must render");
+		expect([el.textContent, el.getAttribute("title")]).toEqual(["Oct 8, 2025", null]);
+	});
+
 	it("skips an element with a missing or unparseable datetime", () => {
 		const { document } = initWithDom(
 			`<time data-local-time="datetime">no datetime</time><time datetime="not-a-date" data-local-time="datetime">bad</time>`,

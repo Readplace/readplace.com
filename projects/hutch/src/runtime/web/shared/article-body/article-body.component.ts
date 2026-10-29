@@ -52,6 +52,7 @@ export interface ArticleBodyInput {
 	 * passes it; the public `/view` and the admin recrawl omit it. */
 	provenance?: ReaderProvenance;
 	saved: LocalTime | undefined;
+	publishedOn: string | undefined;
 	readlistTags?: ReaderReadlistTags;
 	readerNotice?: ReaderFailedVariant;
 	issueLinksHtml?: string;
@@ -126,6 +127,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		provenance: input.provenance,
 		readlistTags: input.readlistTags,
 		saved: input.saved,
+		publishedOn: input.publishedOn,
 	});
 
 	return render(ARTICLE_BODY_TEMPLATE, {

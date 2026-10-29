@@ -87,6 +87,13 @@ describe("articleMarkdown", () => {
 		it("writes every key in its fixed order and ends the document with one newline", () => {
 			const markdown = articleMarkdown({
 				article: makeArticle({
+					metadata: {
+						title: "Hello World",
+						siteName: siteLabel("example.com"),
+						excerpt: "Parsed blurb.",
+						wordCount: 1200,
+						publishedOn: "2025-10-08",
+					},
 					status: "read",
 					readAt: new Date("2026-10-01T04:05:06.000Z"),
 				}),
@@ -110,6 +117,7 @@ describe("articleMarkdown", () => {
 					"site: example.com",
 					"description: Generated blurb.",
 					"created: '2026-09-30T01:02:03.000Z'",
+					"published: '2025-10-08'",
 					"words: 1200",
 					"readplace_id: 1d990bb353ea3e44e1e1b66dc6c0b41f",
 					"readplace_url: 'https://readplace.test/queue/1d990bb353ea3e44e1e1b66dc6c0b41f/view'",
@@ -559,6 +567,7 @@ describe("articleMarkdown", () => {
 							siteName: siteLabel("mail.google.com"),
 							excerpt: "Saved from mail.google.com.",
 							wordCount: 0,
+							publishedOn: "2025-10-08",
 						},
 						estimatedReadTime: MinutesSchema.parse(1),
 					}),

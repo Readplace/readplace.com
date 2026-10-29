@@ -30,10 +30,12 @@ export {
 	SERVER_TIME_ZONE,
 	toAbsoluteDate,
 	toAbsoluteDateTime,
+	toCalendarDate,
 	toRelativeOrDate,
 	toRelativePhrase,
 } from "./local-time.format";
 export type {
+	CalendarDate,
 	LocalTime,
 	LocalTimeMode,
 	LocalTimeStyle,

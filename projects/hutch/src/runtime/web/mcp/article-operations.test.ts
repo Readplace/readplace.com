@@ -41,6 +41,7 @@ function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 			excerpt: "An excerpt",
 			wordCount: 400,
 			imageUrl: "https://example.com/i.png",
+			publishedOn: "2025-10-08",
 		},
 		content: "<p>body</p>",
 		servedBody: { kind: "legacy" },
@@ -108,7 +109,7 @@ function buildOps(overrides: DepOverrides = {}) {
 }
 
 describe("toMcpArticle", () => {
-	it("maps every field, including optional imageUrl and readAt when present", () => {
+	it("maps every field, including optional imageUrl, publishedOn and readAt when present", () => {
 		const article = buildArticle({
 			status: "read",
 			readAt: new Date("2026-02-02T00:00:00.000Z"),
@@ -125,6 +126,7 @@ describe("toMcpArticle", () => {
 			readTime: { value: "2", label: "2 min read" },
 			status: "read",
 			savedAt: "2026-01-01T00:00:00.000Z",
+			publishedOn: "2025-10-08",
 			readAt: "2026-02-02T00:00:00.000Z",
 		});
 	});
@@ -137,7 +139,7 @@ describe("toMcpArticle", () => {
 		expect(toMcpArticle(article, []).url).toBe("https://example.com/a");
 	});
 
-	it("omits imageUrl and readAt when they are absent", () => {
+	it("omits imageUrl, publishedOn and readAt when they are absent", () => {
 		const article = buildArticle({
 			metadata: {
 				title: "T",
@@ -148,6 +150,7 @@ describe("toMcpArticle", () => {
 		});
 		const mapped = toMcpArticle(article, []);
 		expect(mapped).not.toHaveProperty("imageUrl");
+		expect(mapped).not.toHaveProperty("publishedOn");
 		expect(mapped).not.toHaveProperty("readAt");
 	});
 

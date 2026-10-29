@@ -209,8 +209,53 @@ describe("initSelectContentWork", () => {
 			selectMostCompleteContent: async () => ({ kind: "tie", candidateIds: [cid("tier-1"), cid("tier-0")], reason: "Identical prose" }),
 		});
 		await work({ ...laterRequest, mode: "recrawl", candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
-		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, { url: URL, input: { now: NOW }, canonicalCommit: { ...commit, expected: existing.contentSelection } });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, { url: URL, input: { now: NOW, publishedOn: undefined }, canonicalCommit: { ...commit, expected: existing.contentSelection } });
 		expect(deps.recordCrawlVersion).not.toHaveBeenCalled();
+	});
+
+	it("promotes a save with the winner's publish date", async () => {
+		const winner = source();
+		winner.metadata.publishedOn = "2025-10-08";
+		const other = source("tier-0");
+		other.metadata.publishedOn = "2024-01-01";
+		const { work, deps } = setup({ listAvailableTierSources: async () => [winner, other] });
+
+		await work(request);
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, expect.objectContaining({
+			input: expect.objectContaining({ metadata: expect.objectContaining({ publishedOn: "2025-10-08" }) }),
+		}));
+	});
+
+	it("writes the fresh candidate's publish date when a refresh retains the canonical, whose manifest has none", async () => {
+		const fresh = source("tier-0");
+		fresh.metadata.publishedOn = "2025-10-08";
+		const { work, deps } = setup({
+			loadArticle: async () => article({ freshness: { contentFetchedAt: "2026-10-04T00:00:00.000Z", canonicalContentHash: computeCanonicalContentHash(source().html) }, contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 3 } }),
+			listAvailableTierSources: async () => [source(), fresh],
+		});
+
+		await work({ ...laterRequest, mode: "refresh", refresh: { bodyHash: "raw-body-hash", contentFetchedAt: NOW }, candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(refreshContent, expect.objectContaining({
+			input: expect.objectContaining({ metadata: expect.objectContaining({ publishedOn: "2025-10-08" }) }),
+		}));
+	});
+
+	it("passes the resolved publish date into the recrawl tie transition", async () => {
+		const fresh = source("tier-0");
+		fresh.metadata.publishedOn = "2025-10-08";
+		const existing = article({ contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 4 } });
+		const { work, deps } = setup({
+			loadArticle: async () => existing, listAvailableTierSources: async () => [source(), fresh],
+			selectMostCompleteContent: async () => ({ kind: "tie", candidateIds: [cid("tier-1"), cid("tier-0")], reason: "Identical prose" }),
+		});
+
+		await work({ ...laterRequest, mode: "recrawl", candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, expect.objectContaining({
+			input: { now: NOW, publishedOn: "2025-10-08" },
+		}));
 	});
 
 	it("commits the identity selection resolved for the row, not the winner's recorded one", async () => {

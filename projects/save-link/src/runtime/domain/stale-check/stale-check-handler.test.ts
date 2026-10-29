@@ -569,6 +569,7 @@ describe("initStaleCheckHandler", () => {
 				wordCount: 200,
 				estimatedReadTime: 1,
 				imageUrl: "https://cdn.example.com/content/x/images/abc.png",
+				publishedOn: "2025-10-08",
 			},
 		};
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
@@ -604,6 +605,7 @@ describe("initStaleCheckHandler", () => {
 				excerpt: "Hi excerpt",
 				wordCount: 200,
 				imageUrl: "https://cdn.example.com/content/x/images/abc.png",
+				publishedOn: "2025-10-08",
 			},
 			estimatedReadTime: 1,
 			etag: '"new"',

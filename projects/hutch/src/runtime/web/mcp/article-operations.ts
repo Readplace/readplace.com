@@ -69,6 +69,9 @@ export function toMcpArticle(
 			: {}),
 		status: article.status,
 		savedAt: article.savedAt.toISOString(),
+		...(article.metadata.publishedOn !== undefined
+			? { publishedOn: article.metadata.publishedOn }
+			: {}),
 		...(article.readAt !== undefined
 			? { readAt: article.readAt.toISOString() }
 			: {}),

@@ -82,6 +82,7 @@ interface StoredDisplayMetadata {
 	excerpt: string;
 	wordCount: number;
 	imageUrl: string | undefined;
+	publishedOn: string | undefined;
 }
 
 interface DisplayMetadata {
@@ -90,6 +91,7 @@ interface DisplayMetadata {
 	excerpt: string;
 	wordCount: number;
 	imageUrl?: string;
+	publishedOn?: string;
 }
 
 function rehostTitle(params: {
@@ -124,6 +126,7 @@ export function articleDisplayMetadata(stored: StoredDisplayMetadata): DisplayMe
 		...displayText(stored),
 		wordCount: stored.wordCount,
 		...(stored.imageUrl === undefined ? {} : { imageUrl: stored.imageUrl }),
+		...(stored.publishedOn === undefined ? {} : { publishedOn: stored.publishedOn }),
 	};
 }
 
@@ -161,7 +164,7 @@ export function articleLinkedDisplay(stored: {
 	title: string;
 	siteName: string;
 }): { title: string; siteName: SiteLabel } {
-	const { title, siteName } = articleDisplayMetadata({ ...stored, excerpt: "", wordCount: 0, imageUrl: undefined });
+	const { title, siteName } = articleDisplayMetadata({ ...stored, excerpt: "", wordCount: 0, imageUrl: undefined, publishedOn: undefined });
 	return { title, siteName };
 }
 

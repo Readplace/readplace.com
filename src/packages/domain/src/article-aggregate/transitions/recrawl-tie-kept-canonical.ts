@@ -1,14 +1,16 @@
 import type { Article } from "../article.types";
+import type { CanonicalPublishedOn } from "../canonical-published-on";
 import type { Effect } from "../effects.types";
 import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
 
 export interface RecrawlTieKeptCanonicalInput {
 	now: string;
+	publishedOn: CanonicalPublishedOn;
 }
 
 /* Tie kept canonical: the selector returned a tie and a canonical already
- * exists on disk. No tier flip, no metadata refresh. The crawl axis flips
+ * exists on disk. No tier flip. The crawl axis flips
  * to ready to unstick the row, and no generate-summary effect is emitted
  * — re-summarising identical canonical content would burn DeepSeek tokens
  * for no value. Exception: a summary that failed only because the crawl
@@ -46,8 +48,15 @@ export function recrawlTieKeptCanonical(
 		nextSummary = article.summary;
 	}
 
+	let nextMetadata = article.metadata;
+	if (input.publishedOn !== undefined && input.publishedOn !== article.metadata.publishedOn) {
+		nextMetadata = { ...article.metadata, publishedOn: input.publishedOn };
+		writes.push("metadata");
+	}
+
 	const next: Article = {
 		...available.article,
+		metadata: nextMetadata,
 		crawl: { kind: "ready" },
 		summary: nextSummary,
 	};

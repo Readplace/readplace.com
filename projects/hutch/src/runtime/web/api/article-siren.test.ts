@@ -72,6 +72,7 @@ describe("toArticleSubEntity", () => {
 				readTime: { value: "5", label: "5 min read" },
 				status: "unread",
 				savedAt: "2026-03-04T10:00:00.000Z",
+				publishedOn: null,
 				readAt: null,
 				isRead: false,
 				needsBrowserCapture: false,
@@ -91,6 +92,22 @@ describe("toArticleSubEntity", () => {
 				},
 			],
 		});
+	});
+
+	it("carries the article's publish date as a calendar date", () => {
+		const subEntity = toArticleSubEntity(
+			makeArticle({
+				metadata: {
+					title: "Test Article",
+					siteName: siteLabel("Example"),
+					excerpt: "First paragraph...",
+					wordCount: 1200,
+					publishedOn: "2025-10-08",
+				},
+			}),
+		);
+
+		expect(subEntity.properties?.publishedOn).toBe("2025-10-08");
 	});
 
 	it("withholds the read time while the crawl has not landed — a stub's minutes are synthetic", () => {
