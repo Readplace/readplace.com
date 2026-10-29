@@ -26,6 +26,7 @@ function savedArticleAt(url: string): SavedArticle {
 			excerpt: "E",
 			wordCount: 1,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		}),
 		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(1),
