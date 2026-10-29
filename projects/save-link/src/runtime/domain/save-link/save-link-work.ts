@@ -1,5 +1,6 @@
+import assert from "node:assert";
 import type { CandidateId, SaveAttemptId } from "@packages/domain/article";
-import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
+import { blockedCauseForStatus, type CrawlFailureReason, type CrawlUnsupportedReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	markCrawlBlocked,
@@ -14,14 +15,23 @@ import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-compo
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-failure-outcome";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
-import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
+import type { DeferredUnsupportedKind, EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
 import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
 import { candidateProvenance } from "../select-content/candidate-provenance";
 
-export type SaveLinkWorkResult = { candidate: { id: CandidateId; tier: "tier-1" } } | "tier-1-deferred" | "tier-1-terminal";
+export type SaveLinkWorkResult =
+	| { candidate: { id: CandidateId; tier: "tier-1" } }
+	| { deferred: DeferredUnsupportedKind }
+	| "tier-1-terminal";
+
+export function deferredUnsupportedKind(reason: CrawlUnsupportedReason | undefined): DeferredUnsupportedKind {
+	if (reason === undefined) return undefined;
+	assert(reason.kind !== "content-too-large", "a terminal unsupported reason is never deferred");
+	return reason.kind;
+}
 
 export type SaveLinkWorkOptions = {
 	userId?: string;
@@ -146,13 +156,15 @@ export function initSaveLinkWork(deps: {
 			 * the content is a PDF (handle) or something else (mark unsupported).
 			 * `comprehensive-fetching` is written before the emit so the reader's
 			 * progress bar moves forward immediately. */
+			const unsupportedReason = deferredUnsupportedKind(result.unsupportedReason);
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
-			if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId });
+			if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason, userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId });
 			logger.info(`${logPrefix} tier-1 deferred to comprehensive crawl`, {
 				url,
 				reason: result.reason,
+				unsupportedReason,
 			});
-			return "tier-1-deferred";
+			return { deferred: unsupportedReason };
 		}
 
 		if (result.status === "not-found") {

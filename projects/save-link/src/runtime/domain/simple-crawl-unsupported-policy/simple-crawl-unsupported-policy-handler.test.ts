@@ -4,7 +4,7 @@ import { initCrawlArticle, type CrawlArticleResult, type CrawlFetch, type Extrac
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { initArticleSiteRules } from "@packages/article-parser";
 import { noopLogger } from "@packages/hutch-logger";
-import { ComprehensiveCrawlCommand } from "@packages/hutch-infra-components";
+import { ComprehensiveCrawlCommand, RenderCrawlCommand } from "@packages/hutch-infra-components";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "./simple-crawl-unsupported-policy-handler";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -22,6 +22,7 @@ function createSqsEvent(detail: {
 	recrawl?: boolean;
 	refresh?: boolean;
 	previousBodyHash?: string;
+	unsupportedReason?: string;
 }): SQSEvent {
 	return {
 		Records: [{
@@ -161,6 +162,86 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			recrawl: undefined,
 			refresh: undefined,
 			previousBodyHash: undefined,
+		});
+	});
+
+	it("dispatches RenderCrawlCommand with every forwarded field when the tier-1 crawl deferred a javascript-required page", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initSimpleCrawlUnsupportedPolicyHandler({
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		await handler(
+			createSqsEvent({
+				url: "https://example-spa.test/post",
+				userId: "user-1",
+				refresh: true,
+				previousBodyHash: "h".repeat(64),
+				unsupportedReason: "javascript-required",
+			}),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(publishEvent).toHaveBeenCalledTimes(1);
+		expect(publishEvent).toHaveBeenCalledWith(RenderCrawlCommand, {
+			url: "https://example-spa.test/post",
+			saveAttemptId: "attempt-1",
+			userId: "user-1",
+			recrawl: undefined,
+			refresh: true,
+			previousBodyHash: "h".repeat(64),
+		});
+	});
+
+	it.each(["non-html-content", "paywall"])("dispatches ComprehensiveCrawlCommand when the tier-1 crawl deferred a %s page", async (unsupportedReason) => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initSimpleCrawlUnsupportedPolicyHandler({
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/doc.pdf", recrawl: true, unsupportedReason }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+			url: "https://example.com/doc.pdf",
+			saveAttemptId: "attempt-1",
+			userId: undefined,
+			recrawl: true,
+			refresh: undefined,
+			previousBodyHash: undefined,
+		});
+	});
+
+	it.each([
+		{ unsupportedReason: "javascript-required", message: "[SimpleCrawlUnsupportedPolicy] dispatched RenderCrawlCommand" },
+		{ unsupportedReason: undefined, message: "[SimpleCrawlUnsupportedPolicy] dispatched ComprehensiveCrawlCommand" },
+	])("names the dispatched command in its log line (unsupportedReason=$unsupportedReason)", async ({ unsupportedReason, message }) => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+
+		const handler = initSimpleCrawlUnsupportedPolicyHandler({
+			publishEvent: jest.fn().mockResolvedValue(undefined),
+			logger,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://example-spa.test/post", unsupportedReason }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(logger.info).toHaveBeenCalledWith(message, {
+			url: "https://example-spa.test/post",
+			unsupportedReason,
+			recrawl: 0,
+			refresh: 0,
 		});
 	});
 

@@ -6,8 +6,11 @@ export async function isFastlyClientChallenge(response: Response): Promise<boole
 	if (!response.headers.get("content-type")?.includes("text/html")) return false;
 	const { body } = response.clone();
 	if (body === null) return false;
-	const leadingHtml = await readLeadingText(body);
-	return CHALLENGE_PAGE_MARKERS.every((marker) => leadingHtml.includes(marker));
+	return hasFastlyChallengeMarkers(await readLeadingText(body));
+}
+
+export function hasFastlyChallengeMarkers(html: string): boolean {
+	return CHALLENGE_PAGE_MARKERS.every((marker) => html.includes(marker));
 }
 
 async function readLeadingText(body: ReadableStream<Uint8Array>): Promise<string> {

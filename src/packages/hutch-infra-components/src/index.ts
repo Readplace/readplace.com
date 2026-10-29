@@ -11,6 +11,8 @@ export {
 	type SimpleCrawlUnsupportedDetail,
 	ComprehensiveCrawlCommand,
 	type ComprehensiveCrawlDetail,
+	RenderCrawlCommand,
+	type RenderCrawlDetail,
 	SubmitLinkCommand,
 	type SubmitLinkDetail,
 	StaleCheckRequestedEvent,

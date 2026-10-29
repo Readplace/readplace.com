@@ -113,8 +113,8 @@ export function initSubmitLinkCommandHandler(deps: {
 
 	async function crawlTier1(link: { url: string; userId: UserId; saveAttemptId: SaveAttemptId }): Promise<void> {
 		const result = await saveLinkWork(link.url, { userId: link.userId, saveAttemptId: link.saveAttemptId });
-		if (result === "tier-1-deferred") {
-			logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, { url: link.url });
+		if (typeof result === "object" && "deferred" in result) {
+			logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, { url: link.url, unsupportedReason: result.deferred });
 			return;
 		}
 		if (result === "tier-1-terminal") {

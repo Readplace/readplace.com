@@ -91,7 +91,7 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 					extracted = await crawlSaveCandidates({ url: detail.url, captureUrl, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
 				} else {
 					const result = await saveLinkWork(detail.url, { recrawl: true, saveAttemptId });
-					if (typeof result !== "object") continue;
+					if (typeof result !== "object" || "deferred" in result) continue;
 					extracted = { candidates: [result.candidate], liveAttempt: { outcome: "body" } };
 				}
 

@@ -31,7 +31,7 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", saveAttemptId, userId: "user-1" });
+		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, userId: "user-1" });
 
 		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
 			url: "https://example.com/doc.pdf",
@@ -46,7 +46,7 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", saveAttemptId, recrawl: true });
+		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, recrawl: true });
 
 		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
 			url: "https://example.com/doc.pdf",
@@ -61,7 +61,7 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", saveAttemptId, refresh: true });
+		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, refresh: true });
 
 		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
 			url: "https://example.com/doc.pdf",
@@ -69,6 +69,19 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 			userId: undefined,
 			recrawl: undefined,
 			refresh: true,
+		});
+	});
+
+	it("threads the unsupported reason through the event so the policy routes a javascript-required deferral to the render crawl", async () => {
+		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
+		await emit({ url: "https://example-spa.test/post", unsupportedReason: "javascript-required", saveAttemptId });
+
+		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+			url: "https://example-spa.test/post",
+			unsupportedReason: "javascript-required",
+			saveAttemptId,
 		});
 	});
 });
