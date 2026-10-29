@@ -1,20 +1,12 @@
 import OpenAI, { type ClientOptions } from "openai";
-import { z } from "zod";
 import type { DeepseekChatResponse, DeepseekClient, DeepseekMessage, DeepseekWireRequest } from "./deepseek-chat.types";
 import type { DeepseekFeature } from "./deepseek-feature";
 import type { DeepseekModel } from "./deepseek-model";
 import { DEEPSEEK_PRICE_TABLE, deepseekCostUsd, deepseekRate } from "./deepseek-pricing";
+import { DeepseekUsageSchema } from "./deepseek-usage";
 import type { DeepseekUsageLine, LogDeepseekUsage } from "./deepseek-usage-line.types";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
-
-const DeepseekUsageSchema = z.object({
-	prompt_tokens: z.number(),
-	completion_tokens: z.number(),
-	prompt_cache_hit_tokens: z.number().optional(),
-	prompt_cache_miss_tokens: z.number().optional(),
-	completion_tokens_details: z.object({ reasoning_tokens: z.number().optional() }).optional(),
-});
 
 export type DeepseekClientOptions = {
 	apiKey: string;

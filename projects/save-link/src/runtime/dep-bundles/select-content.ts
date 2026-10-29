@@ -3,6 +3,7 @@ import { initSelectionSourceIdentity } from "./source-identity";
 import { initFindArticleContent, type FindArticleContent } from "../providers/article-store/find-article-content";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import type { S3Client } from "@aws-sdk/client-s3";
+import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import {
@@ -13,7 +14,6 @@ import {
 	initListAvailableTierSources,
 	type ListAvailableTierSources,
 } from "../domain/select-content/list-available-tier-sources";
-import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
 import {
 	initSelectMostCompleteContent,
 	type SelectMostCompleteContent,

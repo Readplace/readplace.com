@@ -1,15 +1,8 @@
 import type { DeepseekFeature } from "./deepseek-feature";
 import type { DeepseekModel } from "./deepseek-model";
+import type { DeepseekUsage } from "./deepseek-usage";
 
 export type DeepseekMessage = { role: "system" | "user" | "assistant"; content: string };
-
-type DeepseekUsage = {
-	prompt_tokens: number;
-	completion_tokens: number;
-	prompt_cache_hit_tokens?: number;
-	prompt_cache_miss_tokens?: number;
-	completion_tokens_details?: { reasoning_tokens?: number };
-};
 
 export type DeepseekChatResponse = {
 	choices: Array<{ message?: { content?: string | null; reasoning_content?: string | null } }>;

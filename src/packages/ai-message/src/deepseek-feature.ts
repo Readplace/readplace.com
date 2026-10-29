@@ -1,4 +1,3 @@
-// Each value is the line's permanent id on the cost chart: changing one starts a new line; the label a line shows is set where the chart is built.
 export const DEEPSEEK_FEATURES = {
 	summary: "summary",
 	nextRead: "next_read",
