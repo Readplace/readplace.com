@@ -53,7 +53,6 @@ export function isBlockClassError(error: unknown): boolean {
 	}
 	let link: unknown = error;
 	while (link instanceof Error) {
-		if ("code" in link && link.code === "ERR_HTTP2_ERROR") return true;
 		const message = link.message.toLowerCase();
 		if (BLOCK_ERROR_SIGNATURES.some((sig) => message.includes(sig))) return true;
 		link = link.cause;
