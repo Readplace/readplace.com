@@ -46,7 +46,7 @@ App Review Guideline 2.3.1(a) requires every new feature to be described with sp
 | Note | Baseline to diff from |
 |---|---|
 | TestFlight "What to Test" | The previous build's `ios-readplace@v*` tag (`git tag --list 'ios-readplace@v*' --sort=-v:refname`) |
-| App Store release notes and App Review notes | The last build submitted for App Review, which is the build the last "prepare build N for store review" commit on the review notes names. The `whats_new` lane's `status:true` lists the App Store versions to confirm it. Most TestFlight builds never reach review, so the previous tag is the wrong baseline here |
+| App Store release notes and App Review notes | The last build submitted for App Review: the latest successful run of `gh run list --workflow "Submit iOS build for App Review" --status success` logs `Submitted 1.0.N (build N) for App Review`. The `whats_new` lane's `status:true` lists the App Store versions and their states to cross-check it. Most TestFlight builds never reach review, so the previous tag is the wrong baseline here |
 
 Read two scopes of history from the baseline to the build's tag:
 
