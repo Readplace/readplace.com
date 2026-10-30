@@ -23,7 +23,7 @@ Say what the thing *is*, and when the agent must open it, say how to *find* it f
 
 | Anchor | Example |
 |---|---|
-| A behaviour or distinctive string the code must contain | "the handler that writes the `HX-Retarget` header — grep for it" |
+| A behaviour or distinctive string the code must contain | "the handler that writes the `X-Seat-Hold` header — grep for it" |
 | A command that lists it | `pnpm nx show projects`, `pnpm run`, `ls` |
 | A contract that names it | a route, a query parameter, an event name, a config key, an nx target |
 
@@ -38,12 +38,12 @@ See the listing page's row-swap handler — the one that answers with the
 
 ```markdown
 <!-- ❌ BAD - a filename -->
-Local suites import `test` from `hermetic-fixture.ts`.
+Local suites import `test` from `fare-cache-fixture.ts`.
 
 <!-- ✅ GOOD - the role -->
-Local suites import `test` from the hermetic fixture — the module that
-answers third-party asset requests from pinned local files instead of the
-network; grep for the request-fulfilment call.
+Local suites import `test` from the fare-cache fixture — the module that
+answers airline fare requests from recorded fares instead of the network;
+grep for the fare host it intercepts, `fares.example-airline.test`.
 ```
 
 What a skill may still name, because these are contracts or documents rather than code identifiers, and changing one is a deliberate published change:

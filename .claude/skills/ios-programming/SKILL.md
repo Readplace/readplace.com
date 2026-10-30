@@ -50,7 +50,7 @@ App Review Guideline 2.3.1(a) requires every new feature to be described with sp
 
 Read two scopes of history from the baseline to the build's tag:
 
-- **The app**: commits under the iOS project's directory (`pnpm nx show project ios` gives its root).
+- **The app**: commits under the directory of the project that defines the `whats_new` fastlane lane (grep for `lane :whats_new`).
 - **Server surfaces the app shows or obeys.** These ship without a new binary, so a reviewer sees them only if the notes name them. They are the Siren responses (the `save-article`, `save-content`, `update-status` actions and the `account` link), the reader page and its `readplaceReader` message bridge to the app, the pages rendered for the app (the app config names the query items it appends, `platform` and `shell`; the server branches on the same names), the OAuth sign-in and consent pages behind `/oauth/authorize`, and the shared nav and banners. Grep the main app for those wire values to find the files, then `git log` them.
 
 Sort every commit into user-visible feature, behaviour change, fix, or internal. Internal commits are left out. Every feature and behaviour change goes into:

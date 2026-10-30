@@ -29,7 +29,7 @@ If there are no transcripts and no history, stop. Report that, and recommend a l
 
 ## 3. Read the digest and judge it
 
-`Read` the `digest.json` file. It already holds everything deterministic: deduplicated token and $ totals, findings H00–H19 with evidence, prompt clusters, corrections, cache misses, hot paths, subagent economics, and the current repo and user config (`repo_config`). Your job is the judgement the script can't make.
+`Read` the `digest.json` file. It already holds everything deterministic: deduplicated token and $ totals, findings H00–H19 with evidence, prompt clusters, corrections, cache misses, hot paths, subagent economics, and the current repo and user config (`repo_config`, `user_config`). Your job is the judgement the script can't make.
 
 - **Real vs noise.** Is a prompt cluster a real repeatable procedure? Was a big output, a high effort level or a long session actually needed?
 - **Pick one artifact per problem.** Use the cheapest artifact that fixes it (table below).

@@ -58,11 +58,13 @@ If the hook fails with `TS2307: Cannot find module` for a workspace package, the
 
 ### Step 4: Handle Stale Coverage Data
 
-If coverage shows 0% for new files, run a fresh test cycle:
+If coverage shows 0% for new files, re-run coverage for the project the hook reported (`pnpm nx show projects --with-target test-with-coverage` lists the projects that have the target):
 
 ```bash
-pnpm compile && pnpm test
+pnpm nx run <project>:test-with-coverage
 ```
+
+Run `pnpm compile` first only when a stale `dist` is the cause.
 
 ### Step 5: Handle Stale Nx Cache
 

@@ -1,11 +1,11 @@
 ---
 name: hypermedia-api-design
-description: Hypermedia contract between the Readplace server and every client that consumes it — the chrome and firefox extensions, the iOS app, the MCP server, and future clients. Use when adding, renaming, or removing an API capability a client consumes, when the server emits or parses Siren responses, or when any client's navigation/action flow changes.
+description: Hypermedia contract between the Readplace server and every client that consumes it — the chrome and firefox extensions, the iOS and Android apps, the MCP server, and future clients. Use when adding, renaming, or removing an API capability a client consumes, when the server emits or parses Siren responses, or when any client's navigation/action flow changes.
 ---
 
 # Client ↔ Server Hypermedia API Design
 
-Clients talk to the server over a Siren (`application/vnd.siren+json`) hypermedia API; the same URLs serve browsers (`text/html`) via content negotiation. This doctrine governs **every** client surface — the chrome and firefox extensions, the iOS app, the MCP server, and any future client — so a server-side view change never forces a client redeploy. The contract is **the message format plus a stable vocabulary of action names** — not a catalogue of URLs, methods, or request shapes.
+Clients talk to the server over a Siren (`application/vnd.siren+json`) hypermedia API; the same URLs serve browsers (`text/html`) via content negotiation. This doctrine governs **every** client surface — the chrome and firefox extensions, the iOS and Android apps, the MCP server, and any future client — so a server-side view change never forces a client redeploy. The contract is **the message format plus a stable vocabulary of action names** — not a catalogue of URLs, methods, or request shapes.
 
 ## Core Principle: The Server Owns the Protocol
 
@@ -133,7 +133,7 @@ The server declares what an action needs via `action.fields`, and **the input VA
 
 A field-requiring action whose field carries no server-provided `value` is **not invokable by a bare control** — only a bespoke handler that produces that value (e.g. a search box's typed query) can invoke it.
 
-**A field name enters the contract exactly when a client must author its value.** A server-valued field is copied `name`→`value` by the generic invoker, so renaming it is invisible to every client. A field only a bespoke handler can fill has its name hardcoded in that handler, so renaming it is breaking — and breaking *silently*, because the invoker looks up `fields?.[field.name]`: a renamed field stops matching and the request goes out **without** that input instead of failing. A field that is neither — no server `value`, no handler — is inert, and removing it breaks nothing.
+**A field name enters the contract exactly when a client must author its value.** A server-valued field is copied `name`→`value` by the generic invoker, so renaming it is invisible to every client. A field only a bespoke handler can fill has its name hardcoded in that handler, so renaming it is breaking — and breaking *silently*, because the handler's callable looks each declared field up by name in the values it was given: a renamed field stops matching and the request goes out **without** that input instead of failing. A field that is neither — no server `value`, no handler — is inert, and removing it breaks nothing.
 
 A query parameter the server bakes into an `href` (`?order=asc` in `self`/`next`/`pages[].href`) is **not** a field and is not contract. The client treats the href as opaque and never parses it, which is exactly what keeps "change an action's `href`" non-breaking.
 
@@ -151,7 +151,7 @@ The server can refuse or annotate an action with a generic, feature-agnostic mes
 ```jsonc
 "properties": {
   "messages": [
-    { "type": "warning" | "error",
+    { "type": "success" | "warning" | "error",
       "content": { "type": "text/html", "body": "…server-authored HTML…" } }
   ]
 }
@@ -165,7 +165,7 @@ The client owns **no** knowledge of what a message means — it only knows how t
 
 1. Escape it server-side. The body is HTML; treat every interpolation as untrusted until escaped.
 2. Only `text/html` bodies are ever injected — the client ignores any other `content.type` (see "The client renders only media types it understands" above), so an unknown media type can never be mis-rendered as HTML. A `text/html` body, by contrast, is *always* injected, so the escaping in (1) is mandatory for it.
-3. Never move escaping to the client — the server owns the protocol, and "the client only renders" is what stops every client (extension, iOS, future) re-implementing sanitisation differently.
+3. Never move escaping to the client — the server owns the protocol, and "the client only renders" is what stops every client (extension, iOS, Android, future) re-implementing sanitisation differently.
 
 The client-side render decisions (per-`type` variant class, the `role` politeness, empty/hidden, and which media types are renderable) live in the extension core's message-view builder (anchored above) — pure and unit-tested; the popup glue only paints its output.
 
@@ -329,7 +329,7 @@ A client loops over the current response's `actions` and renders **one control p
 
 ## Client Conformance
 
-These rules make any client (extension, iOS, MCP, future) behave like a browser over the contract above — "the app is a browser, Siren is HTML." Each prevents a real cross-client failure mode.
+These rules make any client (extension, iOS, Android, MCP, future) behave like a browser over the contract above — "the app is a browser, Siren is HTML." Each prevents a real cross-client failure mode.
 
 | Rule | Why |
 |---|---|

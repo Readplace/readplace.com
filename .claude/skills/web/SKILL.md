@@ -133,16 +133,17 @@ apart. `utm_content` is the *element*, unique within that source and named for
 what pressing it does (`install`, `see-inbox-address`, `new-readlist`), never for
 where it happens to sit. `utm_medium` is fixed for in-site clicks and is stamped
 for you. Reuse an existing source when a CTA genuinely belongs to that section —
-`git grep` the non-test sources for `utm_source` to see the vocabulary in use.
+grep the templates for the tracking helper's `source='` argument
+(`git grep -F "source='" -- '*.html' '*.template.ts' ':!*.test.*' ':!.claude'`) and
+read the `source` field in the TypeScript callers of the tagging function to see
+the vocabulary in use.
 
 **How to stamp it.** Never hand-write the query string. In a template use the
 tracking Handlebars helper (the registration in the shared renderer that asserts
 its `source=` and `content=` named args before stamping); in TypeScript call the
-shared tagging function it wraps, exported by the same package that mints the
-site chrome — grep the workspace packages' non-test sources for the literal
-`utm_medium` value they both stamp, and the single module that defines it is the
-one to import from. Both are idempotent and both leave a non-root-relative href
-untouched.
+shared tagging function it wraps — the function that helper's `registerHelper`
+call delegates to — and import it from where that registration imports it.
+Both are idempotent and both leave a non-root-relative href untouched.
 
 **GET and POST need the params in different places**, and getting this wrong is
 the failure that looks tracked and reports nothing:
@@ -175,9 +176,10 @@ without a decision to make.
 
 **This is enforced, not remembered.** Each deployable that serves pages has a
 route test that renders its surfaces and asserts no same-origin CTA is missing
-`utm_source` — grep the non-test sources for the shared checker's report helper
-to find it and its callers. The blog's test enumerates every published post, so a
-post shipping an untagged link fails the build. A new page belongs in that test's
+`utm_source` — grep the shared web test harness's non-test sources for
+`utm_source` to find the checker, then grep the route tests for the function it
+exports to find each deployable's test. The blog's test enumerates every
+published post, so a post shipping an untagged link fails the build. A new page belongs in that test's
 path list. When it fails, it names the element and the destination: tag the CTA
 rather than widening the skip list.
 

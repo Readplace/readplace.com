@@ -23,8 +23,9 @@ reaps it. Whoever boots one stops it: run `make emulator-stop` before you finish
 task failed or you are handing back early. Left running it burns CPU cores indefinitely, because its
 screen never sleeps and its frames are rasterized on the host CPU.
 
-For `install-emulator-local`, start the web server first: `pnpm nx run hutch:compile`, then, from
-the directory of the project that target belongs to (`pnpm nx show project <project> --json`
+For `install-emulator-local`, start the web server first: compile the main app — the one project with an `e2e-server`
+target (`pnpm nx show projects --with-target e2e-server`) — with `pnpm nx run <project>:compile`,
+then, from the directory of that project (`pnpm nx show project <project> --json`
 prints its `root`) with the repo's `.envrc` loaded, run `node` on the compiled entry point its
 `start` script names (`pnpm run` lists it) — without the script's `NODE_ENV=production` prefix.
 The dev app signs users up without an email round-trip, logs the verification email to stdout,
@@ -71,8 +72,8 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 BOOT=/opt/homebrew/share/android-commandlinetools/cmdline-tools/latest/bin/sdkmanager
 yes | "$BOOT" --sdk_root="$ANDROID_HOME" --licenses   # licences are PER SDK root
 "$BOOT" --sdk_root="$ANDROID_HOME" "cmdline-tools;latest" "platform-tools" \
-  "platforms;android-36" "build-tools;36.1.0" "emulator" \
-  "system-images;android-36;google_apis;arm64-v8a"
+  "platforms;android-36" "build-tools;36.0.0" "emulator" \
+  "system-images;android-36;google_apis;arm64-v8a"   # same pins as CI's Android job: git grep -n -F 'build-tools;' -- ':/.github'
 make emulator-create
 ```
 
