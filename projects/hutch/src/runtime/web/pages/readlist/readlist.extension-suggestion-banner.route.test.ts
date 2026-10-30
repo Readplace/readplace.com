@@ -260,6 +260,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"reader-menu-downloads-slot",
 			"article-body-reader-notice",
 		]);
 	});
@@ -386,6 +387,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"reader-menu-downloads-slot",
 			"article-body-reader-notice",
 		]);
 	});

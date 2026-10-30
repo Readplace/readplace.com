@@ -1,4 +1,4 @@
-<div class="article-body__actions article-body__actions--top">
+<div class="article-body__actions article-body__actions--top{{#if menu}} article-body__actions--with-menu{{/if}}">
   {{#if backLink}}
   <div class="article-body__back-slot article-body__back-slot--visible" data-test-back-slot>
     <a class="article-body__back" href="{{backLink.href}}" data-test-back-link>{{icon "arrow-left"}}<span class="article-body__action-label">{{backLink.label}}</span></a>
@@ -51,14 +51,18 @@
   {{else}}
   <div class="article-body__mark-read-slot article-body__mark-read-slot--hidden" data-test-mark-read-slot></div>
   {{/if}}
-  {{#if share}}
-  <div class="article-body__share-slot" data-test-share-slot>
-    <button class="btn btn--neutral btn--icon article-body__share" type="button" popovertarget="{{share.popoverId}}" aria-haspopup="dialog" data-test-action="share-open">{{icon "share"}}<span class="sr-only">Share</span></button>
-    <details class="article-body__share-fallback" data-test-share-fallback>
-      <summary class="btn btn--neutral btn--icon">{{icon "share"}}<span class="sr-only">Share</span></summary>
-      <div class="article-body__share-fallback-panel">{{{share.fallbackHtml}}}</div>
+  {{{shareHtml}}}
+  {{{downloadsHtml}}}
+  {{#if menu}}
+  <div class="article-body__more-slot" data-test-more-slot>
+    <details class="menu article-body__more" data-test-reader-menu>
+      <summary class="btn btn--neutral btn--icon article-body__more-toggle" data-test-action="reader-menu">{{icon "ellipsis"}}<span class="sr-only">More options</span></summary>
+      <div class="menu__panel article-body__more-panel" data-test-reader-menu-panel>
+        {{{menu.shareHtml}}}
+        {{{menu.downloadsHtml}}}
+        {{{menu.deleteItemsHtml}}}
+      </div>
     </details>
   </div>
   {{/if}}
-  {{{downloadsHtml}}}
 </div>

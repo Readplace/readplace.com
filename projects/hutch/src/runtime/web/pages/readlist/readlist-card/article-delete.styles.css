@@ -1,0 +1,17 @@
+.article-delete__form {
+  margin: 0;
+}
+
+.article-delete__trigger {
+  display: none;
+}
+
+@supports selector(:popover-open) {
+  .article-delete__trigger {
+    display: flex;
+  }
+
+  .article-delete__form--fallback {
+    display: none;
+  }
+}

@@ -23,6 +23,7 @@ import {
 	WebReader,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
 import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
+import { buildArticleDeletion } from "../readlist/readlist-card/delete-confirm.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { articleBody } from "@packages/test-fixtures";
 
@@ -73,6 +74,8 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 	};
 }
 
+const TEST_DELETION = buildArticleDeletion({ articleId: articleId.value, query: "", acknowledged: false });
+
 const DEFAULT_APP_ORIGIN = "http://localhost:3000";
 const TEST_BACK_LINK = {
 	topHref: "/queue?back=top",
@@ -88,7 +91,7 @@ function renderReaderDocument(
 	readlistFiling: ReaderReadlistFiling = NO_QUEUE_FILING,
 ): Document {
 	const html = Base(
-		ReaderPage(makeArticle(), { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions, readlistFiling, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
+		ReaderPage(makeArticle(), { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions, readlistFiling, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 		{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 	).to("text/html").body;
 	return new JSDOM(html).window.document;
@@ -110,6 +113,7 @@ function renderReaderPageDocument(options: Partial<Parameters<typeof ReaderPage>
 			now: NOW,
 			currentPath: TEST_CURRENT_PATH,
 			readerPathFor: TEST_READER_PATH,
+			deletion: TEST_DELETION,
 			...options,
 		}),
 		{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
@@ -177,6 +181,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -263,6 +268,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 				readerPathForReadlist: (id: string) => `/queue/${id}/view`,
 				previouslyRead: { status: "pending" },
 				previouslyReadPollUrl: "/queue/abc/topic-reads?poll=1",
@@ -293,6 +299,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -404,6 +411,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -416,8 +424,14 @@ describe("ReaderPage", () => {
 			"article-body__readlists-slot",
 			"article-body__mark-read-slot",
 			"article-body__downloads-slot",
+			"article-body__more-slot",
 		]);
-		expect(doc.querySelectorAll("[data-test-confirm-popover]").length).toBe(0);
+		expect(doc.querySelectorAll("[data-test-reader-menu-panel] [data-test-menu-share-slot]").length).toBe(0);
+		expect(
+			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (popover) =>
+				popover.getAttribute("data-test-confirm-popover"),
+			),
+		).toEqual(["delete"]);
 		const report = doc.querySelector("[data-test-report-article]");
 		assert(report, "the reader must render the report slot");
 		expect(report.classList.contains("article-body__report--withheld")).toBe(true);
@@ -425,7 +439,7 @@ describe("ReaderPage", () => {
 
 	it("offers a report link naming the article's public view, against the supplied appOrigin", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { content: articleBody("<p>Body</p>"), appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
+			ReaderPage(makeArticle(), { content: articleBody("<p>Body</p>"), appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -447,7 +461,7 @@ describe("ReaderPage", () => {
 	});
 
 	it("opts the reader <main> out of htmx history snapshots so a boosted open never restores it", () => {
-		const html = Base(ReaderPage(makeArticle(), { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }), {
+		const html = Base(ReaderPage(makeArticle(), { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -457,7 +471,7 @@ describe("ReaderPage", () => {
 	});
 
 	it("loads the reader-open client so a boosted queue open can fill the reader in place", () => {
-		const html = Base(ReaderPage(makeArticle(), { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }), {
+		const html = Base(ReaderPage(makeArticle(), { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -474,7 +488,7 @@ describe("ReaderPage", () => {
 			destinationUrl: destinationUrl("https://example.com/post"),
 		});
 		const html = Base(
-			ReaderPage(article, { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
+			ReaderPage(article, { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -496,6 +510,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -509,7 +524,7 @@ describe("ReaderPage", () => {
 
 	it("points the toolbar back link at the supplied backLink href and renders no bottom bar", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
+			ReaderPage(makeArticle(), { content: undefined, appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -540,6 +555,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -564,6 +580,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -596,6 +613,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -623,6 +641,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -636,7 +655,7 @@ describe("ReaderPage", () => {
 			'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
 				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
 		);
-		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", content: body, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }), {
+		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", content: body, backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 			cspNonce: CSP_NONCE,
@@ -679,6 +698,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 				exitConfirmScopes: [
 					EXIT_CONFIRM_SCOPE.articleBody,
 					EXIT_CONFIRM_SCOPE.nextReadCard,
@@ -707,6 +727,7 @@ describe("ReaderPage", () => {
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
+				deletion: TEST_DELETION,
 				exitConfirmScopes: [
 					EXIT_CONFIRM_SCOPE.articleBody,
 					EXIT_CONFIRM_SCOPE.nextReadCard,
@@ -722,7 +743,7 @@ describe("ReaderPage", () => {
 
 	it("renders the share dialog's link against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { content: undefined, appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH }),
+			ReaderPage(makeArticle(), { content: undefined, appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK, renderActions: WebReader, readlistFiling: NO_QUEUE_FILING, provenance: undefined, now: NOW, currentPath: TEST_CURRENT_PATH, readerPathFor: TEST_READER_PATH, deletion: TEST_DELETION }),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;

@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
 import {
 	DELETE_ACK_NEVER,
+	buildArticleDeletion,
 	deleteConfirmPopoverId,
 	renderDeleteConfirm,
+	renderDeleteMenuItems,
 } from "./delete-confirm.component";
 
 function panelFor(url: string, title = "A Saved Article") {
 	const { document } = parseHTML(
 		`<div>${renderDeleteConfirm({
 			confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url },
+			surface: "queue-card",
 			title,
 		})}</div>`,
 	);
@@ -101,6 +104,7 @@ describe("renderDeleteConfirm", () => {
 		const { document } = parseHTML(
 			`<div>${renderDeleteConfirm({
 				confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url: "/queue/abc123/delete" },
+				surface: "queue-card",
 				title: "A Saved Article",
 				illustrationHtml: "<svg data-test-trash-illustration></svg>",
 			})}</div>`,
@@ -130,5 +134,118 @@ function focusTargets(scope: ParentNode): (string | null)[] {
 describe("renderDeleteConfirm opening focus", () => {
 	it("opens on Delete article, so Enter confirms and the never-ask submit stays a deliberate choice", () => {
 		expect(focusTargets(panelFor("/queue/abc123/delete"))).toEqual(["delete-confirm"]);
+	});
+});
+
+describe("buildArticleDeletion", () => {
+	it("asks first while the reader has not silenced the confirmation", () => {
+		const deletion = buildArticleDeletion({ articleId: "abc123", query: "?tab=done", acknowledged: false });
+
+		expect(deletion).toEqual({
+			articleId: "abc123",
+			url: "/queue/abc123/delete?tab=done",
+			confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url: "/queue/abc123/delete?tab=done" },
+		});
+	});
+
+	it("asks first when the caller never read the signal", () => {
+		const deletion = buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: undefined });
+
+		expect(deletion.confirm?.popoverId).toBe("readlist-delete-confirm-abc123");
+	});
+
+	it("deletes straight away once the reader chose not to be asked again", () => {
+		const deletion = buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: true });
+
+		expect(deletion).toEqual({ articleId: "abc123", url: "/queue/abc123/delete", confirm: undefined });
+	});
+});
+
+describe("renderDeleteMenuItems", () => {
+	function itemsFor(input: Parameters<typeof renderDeleteMenuItems>[0]) {
+		return parseHTML(`<div>${renderDeleteMenuItems(input)}</div>`).document;
+	}
+
+	it("opens the confirmation and keeps a plain-post fallback while the reader is still asked", () => {
+		const doc = itemsFor({
+			deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
+			surface: "queue-card",
+		});
+
+		const trigger = doc.querySelector("[data-test-action='delete']");
+		const fallback = doc.querySelector("[data-test-action='delete-fallback']");
+		assert(trigger, "the confirmation trigger must be rendered");
+		assert(fallback, "the plain-post fallback must be rendered");
+		expect(trigger.getAttribute("type")).toBe("button");
+		expect(trigger.getAttribute("popovertarget")).toBe("readlist-delete-confirm-abc123");
+		expect(fallback.getAttribute("type")).toBe("submit");
+		expect(fallback.closest("form")?.classList.contains("article-delete__form--fallback")).toBe(true);
+	});
+
+	it("submits straight away once the reader silenced the confirmation", () => {
+		const doc = itemsFor({
+			deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: true }),
+			surface: "queue-card",
+		});
+
+		const control = doc.querySelector("[data-test-action='delete']");
+		assert(control, "the delete control must be rendered");
+		expect(control.getAttribute("type")).toBe("submit");
+		expect(control.closest("form")?.getAttribute("method")).toBe("POST");
+		expect(doc.querySelectorAll("[popovertarget]")).toHaveLength(0);
+	});
+
+	it("keeps a list card's scroll position but lands the reader at the top of its readlist", () => {
+		const deletion = buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: true });
+
+		const swaps = (["queue-card", "reader"] as const).map((surface) =>
+			itemsFor({ deletion, surface }).querySelector("form")?.getAttribute("hx-swap"),
+		);
+
+		expect(swaps).toEqual(["outerHTML show:none", "outerHTML show:window:top"]);
+	});
+
+	it("credits the deletion to the surface it was made from", () => {
+		const deletion = buildArticleDeletion({ articleId: "abc123", query: "?queue=work", acknowledged: true });
+
+		const action = new URL(
+			itemsFor({ deletion, surface: "reader" }).querySelector("form")?.getAttribute("action") ?? "",
+			"https://internal.invalid",
+		);
+
+		expect([action.pathname, action.searchParams.get("queue"), action.searchParams.get("utm_source"), action.searchParams.get("utm_content")]).toEqual([
+			"/queue/abc123/delete",
+			"work",
+			"reader",
+			"delete",
+		]);
+	});
+
+	it("never posts a status field, so a native host never reads a deletion as a mark-read", () => {
+		const doc = itemsFor({
+			deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
+			surface: "reader",
+		});
+
+		expect(doc.querySelectorAll("[name='status']")).toHaveLength(0);
+	});
+});
+
+describe("renderDeleteConfirm on the reader", () => {
+	it("credits the confirmed deletion to the reader and lands at the top of the readlist", () => {
+		const { document } = parseHTML(
+			`<div>${renderDeleteConfirm({
+				confirm: { articleId: "abc123", popoverId: "readlist-delete-confirm-abc123", url: "/queue/abc123/delete" },
+				surface: "reader",
+				title: "A Saved Article",
+			})}</div>`,
+		);
+
+		const form = document.querySelector("form");
+		assert(form, "the confirmation must post through a form");
+		expect(new URL(form.getAttribute("action") ?? "", "https://internal.invalid").searchParams.get("utm_source")).toBe(
+			"reader",
+		);
+		expect(form.getAttribute("hx-swap")).toBe("outerHTML show:window:top");
 	});
 });

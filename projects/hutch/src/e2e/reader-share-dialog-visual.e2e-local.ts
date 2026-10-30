@@ -82,7 +82,12 @@ async function openOwnerReader(page: Page, stamp: string): Promise<void> {
 }
 
 async function openShareDialog(page: Page): Promise<void> {
-	await page.locator(SHARE).click();
+	if (await page.locator(SHARE).isVisible()) {
+		await page.locator(SHARE).click();
+	} else {
+		await page.click('[data-test-action="reader-menu"]');
+		await page.click('[data-test-reader-menu-panel] [data-test-action="menu-share-open"]');
+	}
 	await page.waitForSelector(`${DIALOG}:popover-open`);
 	await expect(page.locator(COPY)).toBeVisible();
 	await expect(page.locator(COPY)).toBeFocused();

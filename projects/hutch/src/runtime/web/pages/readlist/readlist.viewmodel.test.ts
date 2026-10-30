@@ -241,20 +241,20 @@ describe("toReadlistViewModel", () => {
 		expect(vm.errors?.[0]?.message).toBe("Could not parse article: Invalid URL");
 	});
 
-	it("should generate mark-read and delete actions for unread article", () => {
+	it("should generate a mark-read action and a deletion for unread article", () => {
 		const article = makeArticle({ status: "unread" });
 		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });
 
-		const actions = vm.articles[0].actions;
-		expect(actions.map(a => a.testAction)).toEqual(["mark-read", "delete"]);
+		expect(vm.articles[0].actions.map(a => a.testAction)).toEqual(["mark-read"]);
+		expect(vm.articles[0].deletion.url).toBe(`/queue/${ARTICLE_ID}/delete`);
 	});
 
-	it("should generate mark-unread and delete actions for read article", () => {
+	it("should generate a mark-unread action and a deletion for read article", () => {
 		const article = makeArticle({ status: "read" });
 		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });
 
-		const actions = vm.articles[0].actions;
-		expect(actions.map(a => a.testAction)).toEqual(["mark-unread", "delete"]);
+		expect(vm.articles[0].actions.map(a => a.testAction)).toEqual(["mark-unread"]);
+		expect(vm.articles[0].deletion.url).toBe(`/queue/${ARTICLE_ID}/delete`);
 	});
 
 	it("should include return query in action URLs for non-default view", () => {
@@ -262,16 +262,14 @@ describe("toReadlistViewModel", () => {
 		const filters = { readlist: DEFAULT_READLIST_SLUG, order: "asc" as const, page: 1, tab: "done" as const };
 		const vm = toReadlistViewModel(makeResult([article]), filters, { now: NOW });
 
-		const deleteAction = vm.articles[0].actions.find(a => a.testAction === "delete");
-		expect(deleteAction?.url).toBe(`/queue/${ARTICLE_ID}/delete?tab=done&order=asc`);
+		expect(vm.articles[0].deletion.url).toBe(`/queue/${ARTICLE_ID}/delete?tab=done&order=asc`);
 	});
 
 	it("should not include query string in action URLs for default view", () => {
 		const article = makeArticle({ status: "unread" });
 		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });
 
-		const deleteAction = vm.articles[0].actions.find(a => a.testAction === "delete");
-		expect(deleteAction?.url).toBe(`/queue/${ARTICLE_ID}/delete`);
+		expect(vm.articles[0].deletion.url).toBe(`/queue/${ARTICLE_ID}/delete`);
 	});
 
 	it("should use POST method and /status URL for mark-unread action", () => {
@@ -303,20 +301,12 @@ describe("toReadlistViewModel", () => {
 		expect(markReadAction?.url).toBe(`/queue/${ARTICLE_ID}/status?order=asc&swap=card`);
 	});
 
-	it("should have no hidden fields in delete action", () => {
-		const article = makeArticle({ status: "unread" });
-		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });
-
-		const deleteAction = vm.articles[0].actions.find(a => a.testAction === "delete");
-		expect(deleteAction?.fields).toEqual([]);
-	});
-
 	it("should use POST for all actions", () => {
 		const article = makeArticle({ status: "unread" });
 		const vm = toReadlistViewModel(makeResult([article]), DEFAULT_FILTERS, { now: NOW });
 
 		const methods = vm.articles[0].actions.map(a => a.method);
-		expect(methods).toEqual(["POST", "POST"]);
+		expect(methods).toEqual(["POST"]);
 	});
 
 	it("should expose the counts URL for the active filters", () => {

@@ -208,7 +208,7 @@ describe("Reader exit confirmation (GET /queue/:id/view)", () => {
 		const ids = Array.from(doc.querySelectorAll("[data-test-confirm-popover]")).map(
 			(panel) => panel.getAttribute("data-test-confirm-popover"),
 		);
-		expect(ids).toEqual(["exit-confirm", "mark-status", "share", "readlist-create"]);
+		expect(ids).toEqual(["exit-confirm", "mark-status", "delete", "share", "readlist-create"]);
 		expect(new Set(Array.from(doc.querySelectorAll("[popover]")).map((p) => p.id)).size).toBe(
 			ids.length,
 		);

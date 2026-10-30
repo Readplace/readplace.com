@@ -19,6 +19,7 @@ export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker
 const TOP_TEMPLATE = readFileSync(join(__dirname, "reader-actions-top.template.html"), "utf-8");
 const BOTTOM_TEMPLATE = readFileSync(join(__dirname, "reader-actions-bottom.template.html"), "utf-8");
 const DOWNLOADS_TEMPLATE = readFileSync(join(__dirname, "reader-downloads.template.html"), "utf-8");
+const SHARE_TEMPLATE = readFileSync(join(__dirname, "reader-share.template.html"), "utf-8");
 const MARK_READ_LOADER = renderInFlightDots("article-body__mark-read-loader in-flight-dots");
 
 export interface MarkReadAction {
@@ -40,13 +41,21 @@ export interface ReaderReadlistPicker {
 		| undefined;
 }
 
+type ReaderControlPlacement = "toolbar" | "menu";
+
+interface ReaderShare {
+	popoverId: string;
+	fallbackHtml: string;
+}
+
 export interface ActionButtons {
 	backLink?: { topHref: string; bottomHref?: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
 	readlistPicker: ReaderReadlistPicker | undefined;
-	share?: { popoverId: string; fallbackHtml: string };
+	share?: ReaderShare;
 	epubDownloadHref?: string;
 	epubDownloadGuide?: EpubDownloadGuide;
+	menu?: { deleteItemsHtml: string };
 }
 
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
@@ -94,11 +103,32 @@ function downloadsSlotView(params: { href: string | undefined; guide: EpubDownlo
 	};
 }
 
+function renderReaderDownloads(params: {
+	href: string | undefined;
+	guide: EpubDownloadGuide | undefined;
+	placement: ReaderControlPlacement;
+	oob: boolean;
+}): string {
+	return render(DOWNLOADS_TEMPLATE, {
+		...downloadsSlotView({ href: params.href, guide: params.guide }),
+		menu: params.placement === "menu",
+		oob: params.oob,
+	});
+}
+
+function renderReaderShare(params: { share: ReaderShare | undefined; placement: ReaderControlPlacement }): string {
+	if (params.share === undefined) return "";
+	return render(SHARE_TEMPLATE, { ...params.share, menu: params.placement === "menu" });
+}
+
 export function renderReaderDownloadsSlotOob(params: {
 	downloadHref: string;
 	guide: EpubDownloadGuide | undefined;
+	placements: readonly ReaderControlPlacement[];
 }): string {
-	return render(DOWNLOADS_TEMPLATE, { ...downloadsSlotView({ href: params.downloadHref, guide: params.guide }), oob: true });
+	return params.placements
+		.map((placement) => renderReaderDownloads({ href: params.downloadHref, guide: params.guide, placement, oob: true }))
+		.join("");
 }
 
 export function renderReaderDownloadsOob(params: {
@@ -109,20 +139,33 @@ export function renderReaderDownloadsOob(params: {
 	return renderReaderDownloadsSlotOob({
 		downloadHref: articleEpubHref({ articleUrl: params.articleUrl, utmSource: "reader", appClient: params.appClient }),
 		guide: params.guide,
+		placements: ["toolbar", "menu"],
 	});
 }
 
 function topBar(actionBtns: ActionButtons): string {
+	const downloadsAt = (placement: ReaderControlPlacement): string =>
+		renderReaderDownloads({
+			href: actionBtns.epubDownloadHref,
+			guide: actionBtns.epubDownloadGuide,
+			placement,
+			oob: false,
+		});
 	return render(TOP_TEMPLATE, {
 		backLink: actionBtns.backLink
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
 		readlistPicker: actionBtns.readlistPicker,
-		share: actionBtns.share,
-		downloadsHtml: render(DOWNLOADS_TEMPLATE, {
-			...downloadsSlotView({ href: actionBtns.epubDownloadHref, guide: actionBtns.epubDownloadGuide }),
-			oob: false,
-		}),
+		shareHtml: renderReaderShare({ share: actionBtns.share, placement: "toolbar" }),
+		downloadsHtml: downloadsAt("toolbar"),
+		menu:
+			actionBtns.menu === undefined
+				? undefined
+				: {
+						shareHtml: renderReaderShare({ share: actionBtns.share, placement: "menu" }),
+						downloadsHtml: downloadsAt("menu"),
+						deleteItemsHtml: actionBtns.menu.deleteItemsHtml,
+					},
 		markRead: markReadFields(actionBtns.markReadActions?.find((action) => action.position === "top")),
 	});
 }

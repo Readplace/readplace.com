@@ -5,7 +5,7 @@ import { generateCspNonce } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import type { InstallableClientOnboarding, OnboardingContext } from "../../onboarding/onboarding.types";
 import type { ReadlistRailViewModel } from "./readlist-rail";
-import { deleteConfirmPopoverId } from "./readlist-card/delete-confirm.component";
+import { buildArticleDeletion } from "./readlist-card/delete-confirm.component";
 import { moveCreatePopoverId, moveDialogPopoverId } from "./readlist-card/move-dialog.component";
 import { markStatusConfirmPopoverId } from "./mark-status-confirm.component";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
@@ -39,11 +39,7 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	readTime: { value: "3", label: "3 min read" },
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
-	deleteConfirm: {
-		articleId: "abc123",
-		popoverId: deleteConfirmPopoverId("abc123"),
-		url: "/queue/abc123/delete",
-	},
+	deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
 	markStatusConfirm: {
 		articleId: "abc123",
 		popoverId: markStatusConfirmPopoverId("abc123"),
@@ -66,6 +62,7 @@ const PLAIN_ARTICLE: ReadlistArticleViewModel = {
 	readTime: undefined,
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
+	deletion: buildArticleDeletion({ articleId: "def456", query: "", acknowledged: true }),
 	readerHref: "/queue/def456/view",
 	isStalePending: false,
 };
