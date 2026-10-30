@@ -67,6 +67,12 @@ The model remains a heuristic: these numbers measure repeatability on known fram
 
 A review that fails keeps its frames as evidence: confirmed defects, an unparseable review, or a verification that answered neither true nor false. Before this, the upload step was skipped whenever the review step failed, so review 40077996187 kept no evidence.
 
+## One model server per host
+
+The reviewer refuses to start while any process whose command line contains `mlx_vlm.server` is running: it fails within seconds, names each such process (PID and command line) in the job log, and leaves the frames on disk, so re-running the review from the Actions UI once that process is gone reviews them. A review that gives up on loading its own server stops that server before it fails, so a timed-out review leaves no second copy behind. Two resident copies of the model have stalled together: review 40108828635 attempt 1 began 3 s after a local fixture replay had started its server and loaded its own copy 15 s later; from then on neither produced another token, and the job ran into its 10-minute limit — reported by the API as `cancelled` — instead of ending with the cause. Attempt 3 passed twelve hours later on the frames the first two had left in place.
+
+It is a refusal, not a wait or a lock: a `concurrency:` group cannot see a local process, and a review that waited would spend its job budget on someone else's replay. The reverse therefore holds too: any local `mlx_vlm.server` — a fixture replay, a prompt harness, a stub — fails the CI review that arrives while it runs. Start one only while both self-hosted runners are idle and no CI or Visual Review run is queued or in progress (`gh api repos/{owner}/{repo}/actions/runners`; `gh run list --workflow ci.yml --status in_progress`, `--status queued`, and the same for `visual-review.yml`), and after `pgrep -fl mlx_vlm.server` finds nothing. Do not re-run a CI run or a Visual Review from the Actions UI while a local server runs: a re-run of a single CI job completed in 1.4 minutes and its review loaded the model 1.8 minutes after the re-run started (run 38394552205, attempt 2). A review this refusal failed is re-run after the local server has exited.
+
 ## Rollout
 
 The runner stack boots from a separate deploy checkout (`~/Git/hutch-app`). Pull there and restart with `docker compose up -d` from `.github/runner/gha-runner/` — but only while the runner is idle: `EPHEMERAL=true` means a restart mid-job fails that job.

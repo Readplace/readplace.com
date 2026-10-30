@@ -1,13 +1,15 @@
 import assert from "node:assert";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { access, appendFile, cp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { promisify } from "node:util";
 
 const GENERATE_TIMEOUT_MS = 3 * 60 * 1000;
 const SERVER_LOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const SERVER_POLL_INTERVAL_MS = 2000;
+const SERVER_EXIT_GRACE_MS = 10 * 1000;
 const GENERATE_MAX_TOKENS = 800;
 const VERIFY_MAX_TOKENS = 10;
 
@@ -103,6 +105,20 @@ function freePort() {
   });
 }
 
+async function assertNoOtherModelServer() {
+  const { stdout } = await promisify(execFile)("/usr/bin/pgrep", ["-fl", "mlx_vlm\\.server"]).catch((error) => {
+    if (error.code === 1) {
+      return { stdout: "" };
+    }
+    throw error;
+  });
+  const running = stdout.trim().replaceAll("\n", "; ");
+  assert(
+    running === "",
+    `Another mlx_vlm.server is running on this host, so this review did not start its own; wait for it to finish or stop it, then re-run this review (its frames are kept): ${running}`,
+  );
+}
+
 async function startServer({ python, model }) {
   const port = await freePort();
   const child = spawn(
@@ -115,25 +131,36 @@ async function startServer({ python, model }) {
     server.exit = { code, signal };
   });
   const startedAt = performance.now();
-  for (;;) {
-    assert(server.exit === undefined, `mlx_vlm.server exited before loading ${model}: ${JSON.stringify(server.exit)}`);
-    assert(performance.now() - startedAt < SERVER_LOAD_TIMEOUT_MS, `mlx_vlm.server did not load ${model} in time`);
-    const health = await fetch(`${server.baseUrl}/health`)
-      .then((response) => (response.ok ? response.json() : undefined))
-      .catch(() => undefined);
-    if (health?.loaded_model === model) {
-      return server;
+  try {
+    for (;;) {
+      assert(server.exit === undefined, `mlx_vlm.server exited before loading ${model}: ${JSON.stringify(server.exit)}`);
+      assert(performance.now() - startedAt < SERVER_LOAD_TIMEOUT_MS, `mlx_vlm.server did not load ${model} in time`);
+      const health = await fetch(`${server.baseUrl}/health`)
+        .then((response) => (response.ok ? response.json() : undefined))
+        .catch(() => undefined);
+      if (health?.loaded_model === model) {
+        return server;
+      }
+      await sleep(SERVER_POLL_INTERVAL_MS);
     }
-    await sleep(SERVER_POLL_INTERVAL_MS);
+  } catch (error) {
+    await stopServer(server, { killAfterMs: SERVER_EXIT_GRACE_MS });
+    throw Object.assign(error, { elapsedMs: Math.round(performance.now() - startedAt), serverExit: server.exit });
   }
 }
 
-async function stopServer(server) {
+async function stopServer(server, { killAfterMs } = {}) {
   if (server.exit !== undefined) {
     return;
   }
   const exited = new Promise((resolve) => server.child.once("exit", resolve));
   server.child.kill();
+  if (killAfterMs !== undefined) {
+    await Promise.race([exited, sleep(killAfterMs, undefined, { ref: false })]);
+    if (server.exit === undefined) {
+      server.child.kill("SIGKILL");
+    }
+  }
   await exited;
 }
 
@@ -304,6 +331,7 @@ async function main() {
     throw new Error(`No transition frames reached ${framesDir}`);
   }
   const reviewedFrames = await frameVersions(flows);
+  await assertNoOtherModelServer();
   const server = await startServer({ python, model });
   const reviews = [];
   try {
@@ -351,7 +379,9 @@ main().catch((error) => {
   console.error(
     "::error::Visual review failed:",
     error instanceof Error ? error.message : error,
-    JSON.stringify({ elapsedMs: error?.elapsedMs, serverExit: error?.serverExit }),
+    ...(error?.elapsedMs === undefined && error?.serverExit === undefined
+      ? []
+      : [JSON.stringify({ elapsedMs: error?.elapsedMs, serverExit: error?.serverExit })]),
   );
   process.exitCode = 1;
 });
