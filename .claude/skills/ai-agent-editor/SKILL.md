@@ -29,11 +29,11 @@ Say what the thing *is*, and when the agent must open it, say how to *find* it f
 
 ```markdown
 <!-- ❌ BAD - a path and a symbol, both gone at the next rename -->
-See `pages/listing/listing.page.ts` (`respondRowSwap`).
+See `seating/seat-swap.ts` (`respondSeatSwap`).
 
 <!-- ✅ GOOD - the role, plus a rename-proof way to find it -->
-See the listing page's row-swap handler — the one that answers with the
-`HX-Retarget` header when the DOM has drifted.
+See the boarding page's seat-swap handler — the one that answers with the
+`X-Seat-Hold` header when the seat map has drifted.
 ```
 
 ```markdown
@@ -111,7 +111,7 @@ Examples use an invented domain — the skills here use flights and bookings —
 
 | Avoid | Reason |
 |-------|--------|
-| Real file paths, symbols, class names | Rot on rename and nothing catches it; describe the role and how to find it |
+| Real file paths, symbols, class names | See [Describe Code by Its Role, Never by Its Name](#describe-code-by-its-role-never-by-its-name) |
 | Directory structure diagrams | Stale when files change; use `ls` |
 | Command output examples | Stale with versions; just run the command |
 | ASCII workflow diagrams | Hard to maintain; use prose or link externally |

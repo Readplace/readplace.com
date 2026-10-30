@@ -50,5 +50,4 @@ Switch to a device that does not have it set. Confirm before spending time on it
 xcrun simctl io "$D" enumerate | grep -A4 "Class: Display" | grep "Default width"
 ```
 
-Two widths means the phantom is attached — one is the device (e.g. `1206`), the other is the
-external display (e.g. `720`). One width means the device is clean.
+Two widths means the phantom is attached; one width means the device is clean.

@@ -361,7 +361,7 @@ The browser-extension client separates three concerns:
 
 1. **Understandings** — one handler per action name the client knows how to invoke, each built by an initialiser named for that action. Each handler receives the Siren action descriptor and a context, returns a bound callable.
 2. **Composition** — a grouping combinator merges multiple understandings; an HTTP-cache decorator wraps them with ETag caching.
-3. **Walker** — the extension initialiser takes the composed understandings plus deps and returns a no-arg function that fetches the entry point, resolves the `self` link, and parses collections into `{items, actions}` where every item has its own action map.
+3. **Walker** — the extension initialiser takes the composed understandings plus deps and returns a no-arg function that fetches the entry point, resolves the `self` link, and parses each collection into the walker's navigation result: its items, each with its own bound actions, plus the collection's affordances and server-owned properties. The walker module's exported result type (found below) has the full shape.
 
 For the full flow see the source — it is the spec: the extension core's Siren walker module, the one that declares the structural link rels as a set (grep the extension core for `"root", "prev", "next", "item"`). The legacy reading-list adapter (the walker module's export that owns the known-items map its one `.clear()` empties) exists only to bridge this walker to the per-operation interface (save a URL, find by URL, list items, …) that the popup consumes. New consumers should call the walker directly.
 

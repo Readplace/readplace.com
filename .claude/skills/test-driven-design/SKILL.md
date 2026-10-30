@@ -1,6 +1,6 @@
 ---
 name: test-driven-design
-description: Software design and testing conventions that support testability. Use when writing tests, designing testable code, working with dependency injection, or when test coverage issues arise.
+description: Software design and testing conventions that support testability. Use when writing tests, designing testable code, working with dependency injection, or when test coverage issues arise; also when adding or changing a field on an event, command or DynamoDB row schema, or when tempted to make a field optional for backward compatibility.
 ---
 
 # Test Driven Design Guidelines

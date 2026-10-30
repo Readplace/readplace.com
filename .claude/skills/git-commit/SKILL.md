@@ -1,6 +1,6 @@
 ---
 name: git-commit
-description: Format git commit messages following Conventional Commits specification. Use when the user asks to commit, create a commit, stage and commit, write a commit message, or mentions "git commit". Applies to all commits in this monorepo.
+description: Format git commit messages following Conventional Commits specification. Use when the user asks to commit, create a commit, stage and commit, write a commit message, or mentions "git commit". Applies to all commits in this monorepo. Also use when the pre-commit hook fails, after pushing to main to watch CI and the Visual Review, and when a GitHub Actions run shows `action_required`, waits at an environment gate, or reads "GitHub detected that this workflow file may be malicious".
 ---
 
 # Git Commit Message Convention
@@ -52,27 +52,14 @@ pnpm check  # Run on clean main
 - If clean main passes: The issue is with your changes. Restore with `git stash pop` and investigate.
 - If clean main fails: The issue is pre-existing. Report this to the user.
 
-### Step 3: Handle Missing Module Errors
+### Step 3: Match the Symptom
 
-If the hook fails with `TS2307: Cannot find module` for a workspace package, the symlink in `node_modules` may be stale. Run `pnpm install` to re-link workspace packages, then retry.
-
-### Step 4: Handle Stale Coverage Data
-
-If coverage shows 0% for new files, re-run coverage for the project the hook reported (`pnpm nx show projects --with-target test-with-coverage` lists the projects that have the target):
-
-```bash
-pnpm nx run <project>:test-with-coverage
-```
-
-Run `pnpm compile` first only when a stale `dist` is the cause.
-
-### Step 5: Handle Stale Nx Cache
-
-If tests pass when run directly with `--skip-nx-cache` but fail during the hook, the Nx cache may be stale. Run `pnpm nx reset` to clear the cache, then retry the commit.
-
-### Step 6: Fix Failing Tests
-
-If tests fail after your changes, update the tests to match the new behavior rather than asking to bypass hooks.
+| Symptom | Remedy |
+|---|---|
+| `TS2307: Cannot find module` for a workspace package | The `node_modules` symlink may be stale: `pnpm install`, then retry |
+| Coverage shows 0% for new files | `pnpm nx run <project>:test-with-coverage` for the project the hook reported (`pnpm nx show projects --with-target test-with-coverage` lists them); run `pnpm compile` first only when a stale `dist` is the cause |
+| Tests pass with `--skip-nx-cache` but fail in the hook | The Nx cache may be stale: `pnpm nx reset`, then retry the commit |
+| Tests fail after your change | Update the tests to match the new behavior rather than asking to bypass hooks |
 
 ### Never Bypass Hooks Without User Approval
 

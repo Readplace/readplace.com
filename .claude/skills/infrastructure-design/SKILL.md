@@ -100,7 +100,7 @@ Any change that adds, removes, renames, or re-wires a command or event declarati
 
 1. Show the **complete current state** of every flow that touches the changed command(s) or event(s) — not just the diff.
 2. **Visually highlight the new change** so a reader can see what shifted from the previous snapshot. Use a distinct `classDef` (e.g. `classDef new fill:#ffd24c,stroke:#a0660b,stroke-width:3px;`) and apply `:::new` to the changed nodes/edges. Mention the highlight convention in the snapshot's Legend block.
-3. Append a row to `.architecture/index.md` with the commit hash, date, branch, subject, and a flow-level (path-free) description.
+3. Add the snapshots-table row the prompt's Step 4 specifies.
 
 **Why:** Wire-format changes are deployment contracts that propagate across producer and consumer stacks. The pinned snapshot becomes the historical record of how the system *used to* look so reviewers can reason about migration steps. Skipping the snapshot makes the next "why does this event exist?" archaeology session orders of magnitude more expensive.
 
