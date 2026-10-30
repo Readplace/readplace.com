@@ -93,11 +93,23 @@ function rowsOf(input: PastReadsSectionInput): PastReadRow[] {
 interface PastReadsPreview {
 	title: string;
 	siteName: string;
+	othersLabel?: string;
+}
+
+function othersLabelOf(othersCount: number): string | undefined {
+	if (othersCount === 0) return undefined;
+	return `… and ${othersCount} ${othersCount === 1 ? "other" : "others"}`;
 }
 
 function previewOf(rows: PastReadRow[]): PastReadsPreview | undefined {
 	const first = rows.at(0);
-	return first === undefined ? undefined : { title: first.title, siteName: first.siteName };
+	if (first === undefined) return undefined;
+	const othersLabel = othersLabelOf(rows.length - 1);
+	return {
+		title: first.title,
+		siteName: first.siteName,
+		...(othersLabel !== undefined ? { othersLabel } : {}),
+	};
 }
 
 export function hasVisiblePastReads(input: PastReadsSectionInput): boolean {

@@ -8,7 +8,7 @@
     <summary class="disclosure-card__header">
       <span class="past-reads__heading"><span class="disclosure-card__title">You've already seen this before</span> <span class="chip chip--badge chip--accent" data-test-past-reads-beta>Beta</span></span>
       <span class="disclosure-card__chevron">{{icon "chevron-down"}}</span>
-      <span class="past-reads__preview" aria-hidden="true"><span class="past-reads__preview-title">{{preview.title}}</span> <span class="past-reads__preview-site">{{preview.siteName}}</span></span>
+      <span class="past-reads__preview" aria-hidden="true"><span class="past-reads__preview-title">{{preview.title}}</span> <span class="past-reads__preview-site">{{preview.siteName}}</span>{{#if preview.othersLabel}} <span class="past-reads__preview-more" data-test-past-reads-others>{{preview.othersLabel}}</span>{{/if}}</span>
     </summary>
     <ul class="disclosure-card__body past-reads__list" role="list">
       {{#each rows}}

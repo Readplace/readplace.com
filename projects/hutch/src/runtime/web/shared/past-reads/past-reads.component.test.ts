@@ -13,6 +13,7 @@ function parse(html: string) {
 const SOURCE_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const IN_WORK = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
 const IN_DEFAULT = ReaderArticleHashIdSchema.parse("fedcba9876543210fedcba9876543210");
+const IN_THIRD = ReaderArticleHashIdSchema.parse("00112233445566778899aabbccddeeff");
 const WORK = ReadlistSlugSchema.parse("work");
 const NOW = new Date("2026-09-15T12:00:00.000Z");
 const READ_THREE_DAYS_AGO = new Date("2026-09-12T12:00:00.000Z");
@@ -185,7 +186,29 @@ describe("renderPastReadsSection", () => {
 		expect(Array.from(preview.children, (child) => [child.className, child.textContent])).toEqual([
 			["past-reads__preview-title", "In a custom list"],
 			["past-reads__preview-site", "Example"],
+			["past-reads__preview-more", "… and 1 other"],
 		]);
+	});
+
+	it("counts every other past read in the toggle so a collapsed card shows there are more", () => {
+		const html = renderPastReadsSection({
+			pastReads: {
+				status: "ready",
+				items: [
+					{ id: IN_WORK, title: "First", siteName: siteLabel("Example"), reason: "Same subject", readlist: WORK },
+					{ id: IN_DEFAULT, title: "Second", siteName: siteLabel("Elsewhere"), reason: "Also the subject" },
+					{ id: IN_THIRD, title: "Third", siteName: siteLabel("Another"), reason: "Again the subject" },
+				],
+			},
+			placement: { kind: "rail", computeUrl: "/queue/x/topic-reads" },
+			sourceArticleId: SOURCE_ID,
+			now: NOW,
+			readerPathForReadlist,
+		});
+		const more = parse(html).querySelector("[data-test-past-reads-others]");
+		assert(more, "the toggle names the other past reads");
+		expect(more.textContent).toBe("… and 2 others");
+		assert(more.closest("summary"), "the count lives inside the <summary> so a tap opens the card");
 	});
 
 	it("hides the preview from assistive technology so the toggle is named by its heading", () => {
@@ -233,6 +256,7 @@ describe("renderPastReadsSection", () => {
 		const doc = parse(html);
 		expect(doc.querySelector(".past-reads__preview-title")?.textContent).toBe("The lone match");
 		expect(doc.querySelector(".past-reads__preview-site")?.textContent).toBe("Solo");
+		expect(doc.querySelector("[data-test-past-reads-others]")).toBeNull();
 		expect(doc.querySelectorAll("[data-test-topic-read-item]")).toHaveLength(1);
 	});
 
