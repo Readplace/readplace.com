@@ -229,6 +229,7 @@ import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_SORT_OPTIONS } from "./readlist-sort";
 import { readlistTotalLabel } from "./readlist-tab-total.component";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
+import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, MoveFlash, StatusFlash } from "./readlist.error";
 import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, SAVE_FAILED_MESSAGE, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
@@ -1860,6 +1861,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						surfacePlatform: nativeSurfaceOf(req),
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
 						appearance,
@@ -2021,6 +2023,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						warning: { code: validation.error.code, message: validation.error.message },
 						surfacePlatform: nativeSurfaceOf(req),
 						crawlByUrl,

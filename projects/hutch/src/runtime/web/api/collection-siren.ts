@@ -14,6 +14,7 @@ import { buildSortList, type SortOption } from "./sort-list";
 import { buildReadlistList, type ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
 import { READLIST_CREATE_PATH, readlistDeletePath, readlistRenamePath } from "../pages/readlist/readlist.url";
+import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import { toArticleSubEntity } from "./article-siren";
 import { saveInProgressNotice } from "./save-notice-siren";
@@ -29,6 +30,7 @@ export function toArticleCollectionEntity(
 	options: {
 		tabs: readonly StatusTab[];
 		readlists: readonly ReadlistOption[];
+		addToReadlist: AddToReadlistOffer;
 		warning?: CollectionWarning;
 		surfacePlatform?: NativeClientPlatform;
 		showSaveInProgressNotice?: boolean;
@@ -121,6 +123,7 @@ export function toArticleCollectionEntity(
 		properties,
 		entities: articles.map((article) =>
 			toArticleSubEntity(article, {
+				addToReadlist: options.addToReadlist,
 				crawl: options.crawlByUrl?.get(article.url),
 				summary: options.summaryByUrl?.get(article.url),
 				collectionQuery: { readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },

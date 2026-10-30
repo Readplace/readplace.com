@@ -10,6 +10,7 @@ import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./sir
 import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 import type { ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
+import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
 
 function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 	if (crawl?.status !== "failed") return false;
@@ -20,7 +21,12 @@ function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 
 export function toArticleSubEntity(
 	article: SavedArticle,
-	options: { crawl?: ArticleCrawl; summary?: GeneratedSummary; collectionQuery?: CollectionQueryParams } = {},
+	options: {
+		addToReadlist: AddToReadlistOffer;
+		crawl?: ArticleCrawl;
+		summary?: GeneratedSummary;
+		collectionQuery?: CollectionQueryParams;
+	},
 ): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
@@ -72,13 +78,17 @@ export function toArticleSubEntity(
 				type: "application/x-www-form-urlencoded",
 				fields: [{ name: "status", type: "text", value: targetStatus }],
 			},
-			{
-				name: "add-to-readlist",
-				href: `/queue/${id}/assign${hrefQuery}`,
-				method: "POST",
-				type: "application/json",
-				fields: [{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER }],
-			},
+			...(options.addToReadlist === "withheld"
+				? []
+				: [
+						{
+							name: "add-to-readlist",
+							href: `/queue/${id}/assign${hrefQuery}`,
+							method: "POST",
+							type: "application/json",
+							fields: [{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER }],
+						},
+					]),
 			...(ownReadlist === undefined
 				? []
 				: [
@@ -94,7 +104,7 @@ export function toArticleSubEntity(
 }
 
 export function toArticleEntity(article: SavedArticle): SirenEntity {
-	const { rel: _rel, ...entity } = toArticleSubEntity(article);
+	const { rel: _rel, ...entity } = toArticleSubEntity(article, { addToReadlist: "advertised" });
 	return entity;
 }
 

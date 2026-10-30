@@ -1176,6 +1176,74 @@ describe("Article sub-entity actions", () => {
 			{ name: "status", type: "text", value: "read" },
 		]);
 	});
+
+	function itemActionNames(body: { entities?: { actions?: { name: string }[] }[] }): string[][] {
+		return (body.entities ?? []).map((entity) => (entity.actions ?? []).map((action) => action.name));
+	}
+
+	function saveWithBearer(harness: ReturnType<typeof useApp>, params: { accessToken: string; url: string }) {
+		return request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${params.accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: params.url });
+	}
+
+	it("withholds add-to-readlist from the Firefox extension's collection rows, which its AMO-signed build would render as a button that posts no readlists", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		await saveWithBearer(harness, { accessToken, url: "https://example.com/article" });
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.status).toBe(200);
+		expect(itemActionNames(response.body)).toEqual([["update-status"]]);
+	});
+
+	it("withholds add-to-readlist from the rows of the 422 collection a Firefox extension's rejected save returns", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		await saveWithBearer(harness, { accessToken, url: "https://example.com/article" });
+
+		const response = await saveWithBearer(harness, { accessToken, url: "chrome://newtab/" });
+
+		expect(response.status).toBe(422);
+		expect(itemActionNames(response.body)).toEqual([["update-status"]]);
+	});
+
+	it("keeps add-to-readlist on the article a Firefox extension's save returns, whose saved view renders its messages and links but no actions", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await saveWithBearer(harness, { accessToken, url: "https://example.com/article" });
+
+		expect(response.status).toBe(201);
+		expect(response.body.actions.map((action: { name: string }) => action.name)).toEqual([
+			"update-status",
+			"add-to-readlist",
+		]);
+	});
+
+	it.each(["hutch-chrome-extension", "ios-app", "android-app"] as const)(
+		"advertises add-to-readlist on the collection rows %s reads",
+		async (clientId) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const userId = await loginAndSave(harness, { email: `${clientId}@example.com`, urlCount: 1 });
+			const accessToken = await saveAccessTokenForClient(harness, { userId, clientId });
+
+			const response = await request(harness.server)
+				.get("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect(response.status).toBe(200);
+			expect(itemActionNames(response.body)).toEqual([["update-status", "add-to-readlist"]]);
+		},
+	);
 });
 
 describe("needsBrowserCapture on the Siren collection", () => {
@@ -1337,7 +1405,7 @@ describe("Siren readlists", () => {
 			agent,
 			userId,
 			readlist,
-			accessToken: await saveAccessTokenForUser(harness, userId),
+			accessToken: await saveAccessTokenForClient(harness, { userId, clientId: "hutch-chrome-extension" }),
 		};
 	}
 
