@@ -301,16 +301,26 @@ async function publishSummary(markdown) {
   console.log(markdown);
 }
 
-async function cleanReviewOfFramesNoLongerOnDisk({ framesDir, cleanReviewRecord }) {
+async function deliveredFramesOrCleanReviewRecord({ framesDir, cleanReviewRecord }) {
   const framesDelivered = await access(framesDir).then(
     () => true,
     () => false,
   );
   if (framesDelivered) {
     await rm(cleanReviewRecord, { force: true });
-    return undefined;
+    return { framesDelivered };
   }
-  return readFile(cleanReviewRecord, "utf8").catch(() => undefined);
+  const earlierCleanReview = await readFile(cleanReviewRecord, "utf8").catch(() => undefined);
+  return { framesDelivered, earlierCleanReview };
+}
+
+function missingFramesExplanation({ framesDir, reviewAttempt }) {
+  const ciRunId = path.basename(path.dirname(framesDir));
+  const cause =
+    reviewAttempt >= 2
+      ? `This is attempt ${reviewAttempt} of the review: every review deletes the frames it read, and only a clean one leaves the record a later attempt can pass on, so re-running the review alone cannot find frames.`
+      : "The CI attempt that triggered this review handed over no frames directory: the run was held for approval and ran no job, or only its failed jobs were re-run and web-tests was not among them, after an earlier review of this run had read and deleted the frames without leaving the record of a clean review.";
+  return `No frames directory at ${framesDir} and no record of a clean review for CI run ${ciRunId}. ${cause} Re-run CI run ${ciRunId} with all its jobs (approve it in the browser if it is held), or push a new commit, so web-tests hands over frames again.`;
 }
 
 async function main() {
@@ -319,12 +329,15 @@ async function main() {
   const python = requireEnv("VLM_PYTHON");
   const reviewRunUrl = requireEnv("REVIEW_RUN_URL");
   const cleanReviewRecord = path.join(path.dirname(framesDir), "frames-reviewed-clean.md");
-  const earlierCleanReview = await cleanReviewOfFramesNoLongerOnDisk({ framesDir, cleanReviewRecord });
+  const { framesDelivered, earlierCleanReview } = await deliveredFramesOrCleanReviewRecord({ framesDir, cleanReviewRecord });
   if (earlierCleanReview !== undefined) {
     await publishSummary(
       `This CI attempt delivered no new transition frames; the frames of this CI run were already reviewed clean.\n\n${earlierCleanReview}`,
     );
     return;
+  }
+  if (!framesDelivered) {
+    throw new Error(missingFramesExplanation({ framesDir, reviewAttempt: Number(process.env.GITHUB_RUN_ATTEMPT) }));
   }
   const flows = await listFlows(framesDir);
   if (flows.length === 0) {

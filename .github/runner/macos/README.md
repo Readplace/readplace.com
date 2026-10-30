@@ -27,6 +27,8 @@ A clean review leaves `frames-reviewed-clean.md` in the run directory, and a lat
 
 A fully nx-cache-replayed `pnpm check` runs no e2e, so it has to deliver the frames its original run captured; a run that delivers none fails the review rather than being assumed already checked.
 
+A review that finds neither `frames/` nor the record fails with a message that names the directory it looked for, the CI run id and why the frames are gone, in place of a bare `ENOENT`. A re-run of the review alone never finds frames: every review deletes the frames it read, and only a clean one leaves the record. On a first attempt the CI attempt that triggered the review handed nothing over: a run GitHub held for approval completes as `action_required` with no job run and still triggers a review, or the run's failed jobs were re-run without `web-tests` after an earlier review had consumed the frames without leaving the record. The remedy the message gives is the same for all of them: re-run the CI run with all its jobs — approve it in the browser if it is held — or push a new commit.
+
 ## Cost
 
 The review starts one resident `mlx_vlm.server` per job and sends every call to it over HTTP, so the 18 GB of weights load once per job instead of once per call — the per-call reload is where the intermittent `Command failed` kills of a fresh `mlx_vlm.generate` process died on a contended host. Once loaded, a multi-frame review pass takes ~9 s and a single-image verification ~1–2 s. Every reported finding costs one verification call, because the 4-bit model invents cross-frame defects when handed a sequence and only holds up under single-frame questioning.
