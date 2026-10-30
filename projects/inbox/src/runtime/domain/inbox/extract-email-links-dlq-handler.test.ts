@@ -65,7 +65,6 @@ describe("extractEmailLinksDlqHandler", () => {
 			meta: {
 				truncated: true,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 

@@ -527,7 +527,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				userId,
 				url: unresolved ? link.url : stripUtmParams(link.url),
 				provenance: { kind: "email", senderEmail: email.senderEmail },
-				readlist: link.droppedFor?.readlist ?? DEFAULT_READLIST_SLUG,
+				readlist: DEFAULT_READLIST_SLUG,
 				saveAttemptId: newSaveAttemptId(),
 			});
 			await deps.recordEngagementActivity({ userId, kind: "personal-save", at: deps.now() });

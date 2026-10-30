@@ -19,5 +19,6 @@ config:
   save-link:pendingHtmlBucketName: hutch-pending-html-prod
   save-link:pendingPdfBucketName: hutch-pending-pdf-prod
   save-link:contentMediaCdnDomain: cdn.readplace.com
+  save-link:readlistFitEngine: deepseek-flash
 
 encryptionsalt: v1:wtDgBy80qGM=:v1:blQ7pAjXgW+f/NKU:eQnkrsxqXh9Nnvo+fQ/ofy4bxQK7/Q==

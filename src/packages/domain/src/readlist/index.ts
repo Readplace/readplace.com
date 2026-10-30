@@ -43,6 +43,16 @@ export {
 	parseReadlistPurpose,
 } from "./readlist-purpose.schema";
 export {
+	ReadlistPurposeVersionSchema,
+	type ReadlistPurposeVersion,
+	readlistPurposeVersion,
+} from "./readlist-purpose-version";
+export {
+	type ReadlistPurposeFields,
+	composeReadlistPurposeText,
+	parseReadlistPurposeFields,
+} from "./readlist-purpose-fields";
+export {
 	decideReadlistPurpose,
 	decideReadlistPurposeClear,
 	type ReadlistPurposeClearDecision,

@@ -834,14 +834,6 @@ const recordEmailLinksFilteredDynamodb = new HutchDynamoDBAccess(
 	},
 );
 
-const recordEmailLinksFilteredEmailsDynamodb = new HutchDynamoDBAccess(
-	"inbox-record-email-links-filtered-emails-dynamodb",
-	{
-		tables: [{ arn: inboxStorage.emailsTable.arn, includeIndexes: false }],
-		actions: ["dynamodb:UpdateItem"],
-	},
-);
-
 const RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS = 30;
 
 const recordEmailLinksFilteredLambda = new HutchLambda("inbox-record-email-links-filtered", {
@@ -852,12 +844,8 @@ const recordEmailLinksFilteredLambda = new HutchLambda("inbox-record-email-links
 	timeout: RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
-		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 	},
-	policies: [
-		...recordEmailLinksFilteredDynamodb.policies,
-		...recordEmailLinksFilteredEmailsDynamodb.policies,
-	],
+	policies: [...recordEmailLinksFilteredDynamodb.policies],
 });
 
 const recordEmailLinksFilteredQueue = new HutchSQS("inbox-record-email-links-filtered", {

@@ -24,12 +24,6 @@ const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
 const GENERIC_EXCLUDED_LABEL = "Not an article";
 
 function reasonLabelFor(link: InboxEmailLinkEntry): string {
-	const { droppedFor } = link;
-	if (droppedFor !== undefined) {
-		return droppedFor.reason === ""
-			? `Not for ${droppedFor.readlistLabel}`
-			: `Not for ${droppedFor.readlistLabel} — ${droppedFor.reason}`;
-	}
 	return link.skipReason === undefined ? GENERIC_EXCLUDED_LABEL : SKIP_REASON_LABELS[link.skipReason];
 }
 

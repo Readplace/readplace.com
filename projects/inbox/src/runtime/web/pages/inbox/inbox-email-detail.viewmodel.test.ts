@@ -9,10 +9,7 @@ import {
 	type InboxLinkSaveState,
 	MessageIdSchema,
 } from "@packages/domain/inbox";
-import {
-	DEFAULT_READLIST_SLUG,
-	ReadlistSlugSchema,
-} from "@packages/domain/readlist";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { ARTICLES_PAGE_SIZE } from "./inbox-articles-more.url";
 import type { MailTabKey } from "./inbox-email-detail.url";
@@ -75,7 +72,7 @@ function link(
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
+		anchorText: undefined,
 		...overrides,
 	};
 }
@@ -139,7 +136,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -153,7 +149,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -251,7 +246,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: true,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -281,7 +275,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: true,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -301,7 +294,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -364,7 +356,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -394,7 +385,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -415,7 +405,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 			links: [
 				link({
@@ -460,7 +449,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: true,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -475,7 +463,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: true,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -493,7 +480,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -521,7 +507,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -583,7 +568,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -618,7 +602,6 @@ describe("toInboxEmailDetailViewModel", () => {
 				meta: {
 					truncated: false,
 					extractionFailed: false,
-					readlistDecision: undefined,
 				},
 			},
 			maxPolls: 300,
@@ -634,7 +617,6 @@ describe("toInboxEmailDetailViewModel", () => {
 				linksMeta: {
 					truncated: false,
 					extractionFailed: false,
-					readlistDecision: undefined,
 				},
 			}).statusToastMessage,
 		).toBeUndefined();
@@ -665,7 +647,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -680,7 +661,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -695,7 +675,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 			linkSaveStates: new Map([["https://example.com/post", "saved"]]),
 		});
@@ -717,7 +696,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -737,7 +715,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 			linkSaveStates: new Map([["https://example.com/post", "failed"]]),
 		});
@@ -762,7 +739,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -775,7 +751,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -796,7 +771,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -812,7 +786,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -826,7 +799,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 			shown: 40,
 		});
@@ -848,7 +820,6 @@ describe("toInboxEmailDetailViewModel", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 			},
 		});
 
@@ -975,35 +946,10 @@ describe("toInboxArticlesMoreViewModel", () => {
 		expect(vm.cards.map((card) => card.ordinal)).toEqual(["0021"]);
 	});
 
-	it("never reveals a link the readlist dropped as a card", () => {
-		const vm = buildMore({
-			links: [
-				...crawledLinks(ARTICLES_PAGE_SIZE),
-				link({
-					ordinal: formatEmailLinkOrdinal(20),
-					status: "crawled",
-					title: "A product launch",
-					droppedFor: {
-						readlist: WORK,
-						readlistLabel: "Work",
-						reason: "Not engineering",
-					},
-				}),
-				...crawledLinks(1, 21),
-			],
-			shown: 40,
-		});
-
-		expect(vm.cards.map((card) => card.ordinal)).toEqual(["0021"]);
-	});
 });
 
 describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => {
-	const DECIDING_NOTICE = {
-		key: "deciding",
-		text: "Choosing which links fit this custom email's readlist…",
-		iconName: "loader",
-	};
+	const SAVED_TO_ALL = { key: "decided", text: "Saved to All.", iconName: undefined };
 
 	function kept(ordinal: string): InboxEmailLinkEntry {
 		return link({
@@ -1014,119 +960,32 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		});
 	}
 
-	function dropped({ ordinal, reason }: { ordinal: string; reason: string }): InboxEmailLinkEntry {
-		return link({
-			ordinal: EmailLinkOrdinalSchema.parse(ordinal),
-			url: `https://example.com/dropped-${ordinal}`,
-			status: "crawled",
-			title: `Dropped ${ordinal}`,
-			droppedFor: { readlist: WORK, readlistLabel: "Work", reason },
-		});
+	function routedMeta(input: {
+		eligibleArticleCount: number;
+		readlistOutcomes?: InboxEmailLinksMeta["readlistOutcomes"];
+	}): InboxEmailLinksMeta {
+		return {
+			truncated: false,
+			extractionFailed: false,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+			eligibleArticleCount: input.eligibleArticleCount,
+			savesHeld: false,
+			readlistOutcomes: input.readlistOutcomes,
+		};
 	}
 
-	function skipped(ordinal: string): InboxEmailLinkEntry {
-		return link({
-			ordinal: EmailLinkOrdinalSchema.parse(ordinal),
-			url: `https://news.example.com/unsub-${ordinal}`,
-			status: "skipped",
-			skipReason: "list-unsubscribe",
-		});
-	}
-
-	function metaWith(
-		readlistDecision: InboxEmailLinksMeta["readlistDecision"],
-	): InboxEmailLinksMeta {
-		return { truncated: false, extractionFailed: false, readlistDecision };
-	}
-
-	it("keeps both panels polling a notice while the readlist decides, withholding every count", () => {
+	it("says every article went to All and keeps polling while the readlist chooses, with counts shown", () => {
 		const vm = build({
 			links: [kept("0000"), kept("0001")],
-			linksMeta: metaWith({ state: "deciding", readlist: WORK }),
+			linksMeta: routedMeta({ eligibleArticleCount: 2 }),
 		});
 
-		expect(vm.articles.isDeciding).toBe(true);
-		expect(vm.articles.panelPollUrl).toContain("/articles?poll=1");
-		expect(vm.articles.notices).toEqual([DECIDING_NOTICE]);
-		expect(vm.articles.alerts).toEqual([]);
-		expect(vm.articles.listing).toBeUndefined();
-		expect(vm.excluded.isDeciding).toBe(true);
-		expect(vm.excluded.panelPollUrl).toContain("/excluded?poll=1");
-		expect(vm.excluded.notices).toEqual([DECIDING_NOTICE]);
-		expect(vm.excluded.listing).toBeUndefined();
-		expect(vm.tabs.map((tab) => tab.label)).toEqual([
-			"View",
-			"Extracted Articles",
-			"Skipped",
-		]);
-		expect(vm.extractionReported).toBe(false);
-	});
-
-	it("stays deciding on the last budgeted poll, before the give-up threshold", () => {
-		const vm = build({
-			links: [kept("0000")],
-			linksMeta: metaWith({ state: "deciding", readlist: WORK }),
-			panelPollCount: 300,
-		});
-
-		expect(vm.articles.isDeciding).toBe(true);
-		expect(vm.articles.panelPollUrl).toContain("poll=300");
-	});
-
-	it("stops polling into the listing with a still-choosing alert once the budget is spent mid-decision", () => {
-		const vm = build({
-			links: [kept("0000"), skipped("0001")],
-			linksMeta: metaWith({ state: "deciding", readlist: WORK }),
-			panelPollCount: 301,
-		});
-
-		expect(vm.articles.isDeciding).toBe(false);
-		expect(vm.articles.panelPollUrl).toBeUndefined();
-		expect(vm.excluded.panelPollUrl).toBeUndefined();
-		expect(vm.articles.alerts).toEqual([
-			{
-				key: "decision-stale",
-				title: "Still choosing which links to save",
-				body: "This is taking longer than usual. Reload later to see what was saved.",
-			},
-		]);
-		expect(vm.articles.notices).toEqual([]);
-		expect(vm.articles.listing).toEqual({
-			countLabel: "1 Extracted Article",
-			emptyStates: [],
-		});
-		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
-		expect(vm.excluded.alerts).toEqual([]);
-		expect(vm.excluded.notices).toEqual([SKIPPED_NOTE]);
-		expect(vm.tabs.map((tab) => tab.label)).toEqual([
-			"View",
-			"Extracted Articles (1)",
-			"Skipped (1)",
-		]);
-		expect(vm.extractionReported).toBe(true);
-	});
-
-	it("says where the links went once the readlist kept every one of them", () => {
-		const vm = build({
-			links: [kept("0000"), kept("0001")],
-			linksMeta: metaWith({
-				state: "decided",
-				readlist: WORK,
-				readlistLabel: "Work",
-			}),
-		});
-
-		expect(vm.articles.isDeciding).toBe(false);
-		expect(vm.articles.panelPollUrl).toBeUndefined();
-		expect(vm.articles.alerts).toEqual([]);
 		expect(vm.articles.notices).toEqual([
-			{ key: "decided", text: "Saved to All and Work.", iconName: undefined },
+			SAVED_TO_ALL,
+			{ key: "deciding", text: "Choosing articles for Work…", iconName: "loader" },
 		]);
-		expect(vm.articles.listing).toEqual({
-			countLabel: "2 Extracted Articles",
-			emptyStates: [],
-		});
-		expect(vm.excluded.notices).toEqual([]);
+		expect(vm.articles.alerts).toEqual([]);
+		expect(vm.articles.panelPollUrl).toContain("/articles?poll=1");
 		expect(vm.tabs.map((tab) => tab.label)).toEqual([
 			"View",
 			"Extracted Articles (2)",
@@ -1135,138 +994,90 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		expect(vm.extractionReported).toBe(true);
 	});
 
-	it("names All alone when the readlist was deleted and every kept link went to All", () => {
+	it("says it is still choosing once the poll budget is spent", () => {
 		const vm = build({
-			links: [kept("0000"), kept("0001")],
-			linksMeta: metaWith({
-				state: "decided",
-				readlist: DEFAULT_READLIST_SLUG,
-				readlistLabel: "All",
-			}),
+			links: [kept("0000")],
+			linksMeta: routedMeta({ eligibleArticleCount: 1 }),
+			panelPollCount: 301,
 		});
 
 		expect(vm.articles.notices).toEqual([
-			{ key: "decided", text: "Saved to All.", iconName: undefined },
-		]);
-	});
-
-	it("moves the links the readlist dropped to the Skipped tab, beside the skipped ones", () => {
-		const vm = build({
-			links: [
-				kept("0000"),
-				dropped({ ordinal: "0001", reason: "A product launch, not engineering" }),
-				skipped("0002"),
-			],
-			linksMeta: metaWith({
-				state: "decided",
-				readlist: WORK,
-				readlistLabel: "Work",
-			}),
-		});
-
-		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000"]);
-		expect(vm.articles.notices).toEqual([
+			SAVED_TO_ALL,
 			{
-				key: "decided",
-				text: "Saved to All and Work. Links that didn't fit are on the Skipped tab.",
+				key: "deciding",
+				text: "Still choosing articles for Work. Reload later to see the result.",
 				iconName: undefined,
 			},
 		]);
-		expect(vm.articles.listing).toEqual({
-			countLabel: "1 Extracted Article",
-			emptyStates: [],
-		});
-		expect(
-			vm.excluded.links.map((row) => [row.ordinal, row.reasonLabel]),
-		).toEqual([
-			["0001", "Not for Work — A product launch, not engineering"],
-			["0002", "Unsubscribe link"],
-		]);
-		expect(vm.excluded.links[0].actions.map((action) => action.href)).toEqual([
-			`/inbox/${encodeURIComponent(SK)}/links/0001/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
-		]);
-		expect(vm.excluded.listing).toEqual({
-			countLabel: "2 Skipped",
-			emptyStates: [],
-		});
-		expect(vm.excluded.notices).toEqual([
-			SKIPPED_NOTE,
-			{
-				key: "dropped-note",
-				text: "Links that didn't fit Work weren't saved. Save any you still want.",
-				iconName: undefined,
-			},
-		]);
-		expect(vm.tabs.map((tab) => tab.label)).toEqual([
-			"View",
-			"Extracted Articles (1)",
-			"Skipped (2)",
-		]);
-	});
-
-	it("says nothing was saved when the readlist dropped every link", () => {
-		const vm = build({
-			links: [dropped({ ordinal: "0000", reason: "Off topic" }), dropped({ ordinal: "0001", reason: "Off topic" })],
-			linksMeta: metaWith({
-				state: "decided",
-				readlist: WORK,
-				readlistLabel: "Work",
-			}),
-		});
-
-		expect(vm.articles.notices).toEqual([
-			{
-				key: "decided",
-				text: "Nothing in this email fit Work, so nothing was saved.",
-				iconName: undefined,
-			},
-		]);
-		expect(vm.articles.cards).toEqual([]);
-		expect(vm.excluded.links.map((row) => row.ordinal)).toEqual([
-			"0000",
-			"0001",
-		]);
-	});
-
-	it("explains only the readlist's drops when nothing was skipped", () => {
-		const vm = build({
-			links: [kept("0000"), dropped({ ordinal: "0001", reason: "" })],
-			linksMeta: metaWith({
-				state: "decided",
-				readlist: WORK,
-				readlistLabel: "Work",
-			}),
-		});
-
-		expect(vm.excluded.notices.map((notice) => notice.key)).toEqual([
-			"dropped-note",
-		]);
-		expect(vm.excluded.links.map((row) => row.reasonLabel)).toEqual([
-			"Not for Work",
-		]);
-	});
-
-	it("alerts that the decision failed while still listing every link to save by hand", () => {
-		const vm = build({
-			links: [kept("0000"), kept("0001")],
-			linksMeta: metaWith({ state: "failed", readlist: WORK }),
-		});
-
 		expect(vm.articles.panelPollUrl).toBeUndefined();
-		expect(vm.articles.alerts).toEqual([
+	});
+
+	it("ends on the count line once the readlist decided", () => {
+		const vm = build({
+			links: [kept("0000"), kept("0001")],
+			linksMeta: routedMeta({
+				eligibleArticleCount: 2,
+				readlistOutcomes: [
+					{
+						readlist: WORK,
+						decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
+						dropped: [{ ordinal: EmailLinkOrdinalSchema.parse("0001"), reason: "Off topic" }],
+					},
+				],
+			}),
+		});
+
+		expect(vm.articles.notices).toEqual([
+			SAVED_TO_ALL,
+			{ key: "decided", text: "1 article saved to Work; 1 didn't fit.", iconName: undefined },
+		]);
+		expect(vm.articles.cards.map((card) => card.ordinal)).toEqual(["0000", "0001"]);
+		expect(vm.articles.panelPollUrl).toBeUndefined();
+	});
+
+	it("says the readlist could not choose when its decision failed", () => {
+		const vm = build({
+			links: [kept("0000")],
+			linksMeta: routedMeta({
+				eligibleArticleCount: 1,
+				readlistOutcomes: [
+					{ readlist: WORK, decision: { state: "failed", readlist: WORK }, dropped: [] },
+				],
+			}),
+		});
+
+		expect(vm.articles.alerts).toEqual([]);
+		expect(vm.articles.notices).toEqual([
+			SAVED_TO_ALL,
 			{
-				key: "decision-failed",
-				title: "Couldn't choose which links to save",
-				body: "Nothing from this email was saved. Use Save on any link you want to keep.",
+				key: "decided",
+				text: "Couldn't choose articles for Work. Articles remain in All.",
+				iconName: undefined,
 			},
 		]);
-		expect(vm.articles.notices).toEqual([]);
-		expect(
-			vm.articles.cards.map((card) => card.actions.map((action) => action.key)),
-		).toEqual([["save"], ["save"]]);
-		expect(vm.excluded.alerts).toEqual([]);
-		expect(vm.extractionReported).toBe(true);
 	});
+
+	it("ends a routed email with no eligible link on its count line", () => {
+		const vm = build({
+			links: [],
+			linksMeta: routedMeta({
+				eligibleArticleCount: 0,
+				readlistOutcomes: [
+					{
+						readlist: WORK,
+						decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
+						dropped: [],
+					},
+				],
+			}),
+		});
+
+		expect(vm.articles.notices).toEqual([
+			{ key: "decided", text: "0 articles saved to Work; 0 didn't fit.", iconName: undefined },
+		]);
+		expect(vm.articles.panelPollUrl).toBeUndefined();
+	});
+
 });
 
 describe("Gmail filtering results", () => {
@@ -1278,7 +1089,6 @@ describe("Gmail filtering results", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 				selectedReadlists: [
 					{ readlist: WORK, label: "Work" },
 					{ readlist: science, label: "Science" },
@@ -1333,7 +1143,6 @@ it("finishes Gmail All-only extraction without a custom filtering spinner", () =
 		linksMeta: {
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			selectedReadlists: [],
 		},
 	});
@@ -1348,7 +1157,6 @@ it("stops polling an unfinished Gmail custom list while the All articles remain 
 		linksMeta: {
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			selectedReadlists: [{ readlist: WORK, label: "Work" }],
 		},
 	});
@@ -1365,7 +1173,6 @@ it("reports one accepted Gmail article using the readlist's captured name", () =
 		linksMeta: {
 			truncated: false,
 			extractionFailed: false,
-			readlistDecision: undefined,
 			selectedReadlists: [{ readlist: WORK, label: "Day job" }],
 			readlistOutcomes: [
 				{
@@ -1388,13 +1195,13 @@ it("reports one accepted Gmail article using the readlist's captured name", () =
 });
 
 it("reports zero eligible Gmail articles using the stored count rather than unsaveable previews", () => {
-	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [{ readlist: WORK, decision: { state: "decided", readlist: WORK, readlistLabel: "Work" }, dropped: [] }] } });
+	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [{ readlist: WORK, decision: { state: "decided", readlist: WORK, readlistLabel: "Work" }, dropped: [] }] } });
 	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["0 articles saved to Work; 0 didn't fit."]);
 	expect(vm.articles.panelPollUrl).toBeUndefined();
 });
 
 it("shows held Gmail selections without claiming saves or waiting for custom outcomes", () => {
-	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true } });
+	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 1, savesHeld: true } });
 	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["No articles were saved to Work because this account is read-only."]);
 	expect(vm.articles.panelPollUrl).toBeUndefined();
 });
@@ -1403,7 +1210,7 @@ describe("a Gmail newsletter kept as an issue", () => {
 	it("says the issue went to All when its mapping has no custom readlist", () => {
 		const vm = build({
 			links: [link({ status: "crawled" })],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave: { readlists: [], held: false } },
+			linksMeta: { truncated: false, extractionFailed: false, issueSave: { readlists: [], held: false } },
 		});
 		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved this issue to All."]);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
@@ -1417,7 +1224,6 @@ describe("a Gmail newsletter kept as an issue", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 				issueSave: { readlists: [{ readlist: WORK, label: "Work" }, { readlist: science, label: "Science" }], held: false },
 			},
 		});
@@ -1427,7 +1233,7 @@ describe("a Gmail newsletter kept as an issue", () => {
 	it("says the issue was held for a read-only reader", () => {
 		const vm = build({
 			links: [link({ status: "crawled" })],
-			linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: true } },
+			linksMeta: { truncated: false, extractionFailed: false, issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: true } },
 		});
 		expect(vm.articles.notices.map(({ text }) => text)).toEqual(["This issue wasn't saved because this account is read-only."]);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
@@ -1439,7 +1245,6 @@ describe("a Gmail newsletter kept as an issue", () => {
 			linksMeta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: undefined,
 				selectedReadlists: [{ readlist: WORK, label: "Work" }],
 				eligibleArticleCount: 1,
 				savesHeld: false,
@@ -1456,7 +1261,7 @@ describe("a Gmail newsletter kept as an issue", () => {
 });
 
 it("confirms eligible Gmail articles retained in All when no custom readlists were selected", () => {
-	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, readlistDecision: undefined, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] } });
+	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, selectedReadlists: [], eligibleArticleCount: 1, savesHeld: false, readlistOutcomes: [] } });
 	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["Saved to All."]);
 	expect(vm.articles.panelPollUrl).toBeUndefined();
 });

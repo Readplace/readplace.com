@@ -57,7 +57,7 @@ async function buildHarness(options: { extraction?: "finished" | "failed" | "pen
 			imageUrl: undefined,
 			failureReason: undefined,
 			skipReason: undefined,
-			droppedFor: undefined,
+			anchorText: undefined,
 			...entry,
 			ordinal: EmailLinkOrdinalSchema.parse(entry.ordinal),
 		});
@@ -70,7 +70,7 @@ async function buildHarness(options: { extraction?: "finished" | "failed" | "pen
 		await links.putLinksMeta({
 			userId,
 			receivedAtMessageId: RECEIVED_AT_MESSAGE_ID,
-			meta: { truncated: false, extractionFailed: false, readlistDecision: undefined },
+			meta: { truncated: false, extractionFailed: false },
 		});
 	}
 

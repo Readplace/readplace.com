@@ -139,6 +139,50 @@ export const SubmitLinkCommand = defineEvent({
 });
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
 
+const PurposeVersionSchema = z.string().regex(/^[0-9a-f]{12}$/);
+
+const EmailFitSourceSchema = z.object({ kind: z.literal("email"), receivedAtMessageId: z.string(), ordinal: z.string() });
+
+const ReadlistFitSourceSchema = z.union([
+	EmailFitSourceSchema,
+	z.object({ kind: z.literal("reader") }),
+]);
+
+export const FileArticleIntoReadlistCommand = defineEvent({
+	name: "file-article-into-readlist-command",
+	source: "hutch.api",
+	detailType: "FileArticleIntoReadlistCommand",
+	detailSchema: z.object({
+		userId: z.string(),
+		url: z.string(),
+		readlist: z.string(),
+		provenance: z.looseObject({ kind: z.string() }),
+		fit: z.union([
+			z.object({
+				verdict: z.literal("keep"),
+				reason: z.string(),
+				purposeVersion: PurposeVersionSchema,
+				source: EmailFitSourceSchema,
+			}),
+			z.strictObject({
+				verdict: z.literal("keep"),
+				purposeVersion: PurposeVersionSchema.optional(),
+				source: z.strictObject({ kind: z.literal("reader") }),
+			}),
+			z.object({ kind: z.literal("no-purpose"), source: ReadlistFitSourceSchema }),
+		]),
+	}),
+});
+export type FileArticleIntoReadlistDetail = z.infer<typeof FileArticleIntoReadlistCommand.detailSchema>;
+
+export const ArticleFiledIntoReadlistEvent = defineEvent({
+	name: "article-filed-into-readlist",
+	source: "hutch.save-link",
+	detailType: "ArticleFiledIntoReadlist",
+	detailSchema: z.object({ userId: z.string(), readlist: z.string(), url: z.string(), source: ReadlistFitSourceSchema }),
+});
+export type ArticleFiledIntoReadlistDetail = z.infer<typeof ArticleFiledIntoReadlistEvent.detailSchema>;
+
 /** Irreversible fact: the simple crawl reported `unsupported` for a URL.
  * Published by `save-link-work` (initial save / recrawl) and by the
  * `stale-check` Lambda (freshness refresh), so the publishing Lambda's

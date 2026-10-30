@@ -16,7 +16,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
+		anchorText: undefined,
 		...overrides,
 	};
 }

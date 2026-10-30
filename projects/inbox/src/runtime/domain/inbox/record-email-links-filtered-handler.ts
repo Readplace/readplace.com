@@ -2,9 +2,6 @@ import assert from "node:assert";
 import {
 	EmailLinkOrdinalSchema,
 	type InboxEmailLinkStore,
-	type InboxEmailStore,
-	isExcludedLink,
-	type SettledInboxReadlistDecision,
 } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
@@ -39,138 +36,58 @@ const FilterFailedFactSchema = z.object({
 });
 
 export function initRecordEmailLinksFilteredHandler(deps: {
-	markLinkDropped: InboxEmailLinkStore["markLinkDropped"];
-	settleReadlistDecision: InboxEmailLinkStore["settleReadlistDecision"];
 	putReadlistOutcome: InboxEmailLinkStore["putReadlistOutcome"];
 	listLinksByEmail: InboxEmailLinkStore["listLinksByEmail"];
-	setEmailLinkCounts: InboxEmailStore["setEmailLinkCounts"];
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const {
-		markLinkDropped,
-		settleReadlistDecision,
-		putReadlistOutcome,
-		listLinksByEmail,
-		setEmailLinkCounts,
-		logger,
-	} = deps;
+	const { putReadlistOutcome, listLinksByEmail, logger } = deps;
 
-	const recountLinks = async (input: {
+	const destinationSnapshot = async (fact: {
 		userId: UserId;
 		receivedAtMessageId: string;
+		readlist: string;
 	}): Promise<void> => {
-		const { links, meta } = await listLinksByEmail(input);
-		assert(meta, "a settled readlist decision lives on the extraction barrier");
-		await setEmailLinkCounts({
-			...input,
-			linkCounts: {
-				kept: links.filter((link) => !isExcludedLink(link)).length,
-				skipped: links.filter(isExcludedLink).length,
-				truncated: meta.truncated,
-			},
-		});
-	};
-
-	const settle = async (input: {
-		userId: UserId;
-		receivedAtMessageId: string;
-		decision: SettledInboxReadlistDecision;
-	}): Promise<void> => {
-		const outcome = await settleReadlistDecision(input);
-		logger.info(`[record-email-links-filtered] decision ${outcome}`, {
-			receivedAtMessageId: input.receivedAtMessageId,
-			state: input.decision.state,
-		});
+		const { meta } = await listLinksByEmail(fact);
+		assert(meta, "filtering outcome arrived before the extraction barrier");
+		assert(
+			meta.selectedReadlists,
+			"a readlist decision arrives only for an email with a destination snapshot",
+		);
+		assert(
+			meta.selectedReadlists.some(({ readlist }) => readlist === fact.readlist),
+			"filtering outcome is outside the destination snapshot",
+		);
 	};
 
 	const recordFiltered = async (detail: unknown): Promise<void> => {
 		const fact = FilteredFactSchema.parse(detail);
-		const { meta } = await listLinksByEmail(fact);
-		assert(meta, "filtering outcome arrived before the extraction barrier");
-		if (meta.selectedReadlists !== undefined) {
-			assert(
-				meta.selectedReadlists.some(
-					({ readlist }) => readlist === fact.readlist,
-				),
-				"filtering outcome is outside the destination snapshot",
-			);
-			await putReadlistOutcome({
-				userId: fact.userId,
-				receivedAtMessageId: fact.receivedAtMessageId,
-				outcome: {
-					readlist: fact.readlist,
-					decision: {
-						state: "decided",
-						readlist: fact.savedTo,
-						readlistLabel: fact.readlistLabel,
-					},
-					dropped: fact.dropped,
-				},
-			});
-			return;
-		}
-		for (const drop of fact.dropped) {
-			const marked = await markLinkDropped({
-				userId: fact.userId,
-				receivedAtMessageId: fact.receivedAtMessageId,
-				ordinal: drop.ordinal,
-				droppedFor: {
-					readlist: fact.readlist,
+		await destinationSnapshot(fact);
+		await putReadlistOutcome({
+			userId: fact.userId,
+			receivedAtMessageId: fact.receivedAtMessageId,
+			outcome: {
+				readlist: fact.readlist,
+				decision: {
+					state: "decided",
+					readlist: fact.savedTo,
 					readlistLabel: fact.readlistLabel,
-					reason: drop.reason,
 				},
-			});
-			if (marked === "not-a-candidate") {
-				logger.warn(
-					"[record-email-links-filtered] dropped link is not a candidate",
-					{
-						receivedAtMessageId: fact.receivedAtMessageId,
-						ordinal: drop.ordinal,
-					},
-				);
-			}
-		}
-		await settle({
-			userId: fact.userId,
-			receivedAtMessageId: fact.receivedAtMessageId,
-			decision: {
-				state: "decided",
-				readlist: fact.savedTo,
-				readlistLabel: fact.readlistLabel,
+				dropped: fact.dropped,
 			},
-		});
-		await recountLinks({
-			userId: fact.userId,
-			receivedAtMessageId: fact.receivedAtMessageId,
 		});
 	};
 
 	const recordFilterFailed = async (detail: unknown): Promise<void> => {
 		const fact = FilterFailedFactSchema.parse(detail);
-		const { meta } = await listLinksByEmail(fact);
-		assert(meta, "filtering outcome arrived before the extraction barrier");
-		if (meta.selectedReadlists !== undefined) {
-			assert(
-				meta.selectedReadlists.some(
-					({ readlist }) => readlist === fact.readlist,
-				),
-				"filtering outcome is outside the destination snapshot",
-			);
-			await putReadlistOutcome({
-				userId: fact.userId,
-				receivedAtMessageId: fact.receivedAtMessageId,
-				outcome: {
-					readlist: fact.readlist,
-					decision: { state: "failed", readlist: fact.readlist },
-					dropped: [],
-				},
-			});
-			return;
-		}
-		await settle({
+		await destinationSnapshot(fact);
+		await putReadlistOutcome({
 			userId: fact.userId,
 			receivedAtMessageId: fact.receivedAtMessageId,
-			decision: { state: "failed", readlist: fact.readlist },
+			outcome: {
+				readlist: fact.readlist,
+				decision: { state: "failed", readlist: fact.readlist },
+				dropped: [],
+			},
 		});
 	};
 

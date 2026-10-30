@@ -3,11 +3,9 @@ import {
 	EmailLinkOrdinalSchema,
 	EmailLinkSkipReasonSchema,
 	EmailLinkStatusSchema,
-	InboxEmailLinkDropSchema,
 	type InboxEmailLinkEntry,
 	type InboxEmailLinkStore,
 	type InboxEmailLinksMeta,
-	InboxReadlistDecisionSchema,
 	type InboxReadlistOutcome,
 	InboxReadlistOutcomeSchema,
 } from "@packages/domain/inbox";
@@ -72,8 +70,7 @@ const InboxEmailLinkRow = z.object({
 	skipReason: dynamoField(EmailLinkSkipReasonSchema),
 	truncated: dynamoField(z.boolean()),
 	extractionFailed: dynamoField(z.boolean()),
-	droppedFor: dynamoField(InboxEmailLinkDropSchema),
-	readlistDecision: dynamoField(InboxReadlistDecisionSchema),
+	anchorText: dynamoField(z.string()),
 	selectedReadlists: dynamoField(
 		z.array(
 			z.object({ readlist: ReadlistSlugSchema, label: z.string().min(1) }),
@@ -110,7 +107,7 @@ function toEntry(row: InboxEmailLinkRowType): InboxEmailLinkEntry {
 		imageUrl: row.imageUrl,
 		failureReason: row.failureReason,
 		skipReason: row.skipReason,
-		droppedFor: row.droppedFor,
+		anchorText: row.anchorText,
 	};
 }
 
@@ -160,6 +157,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 				status: link.status,
 			};
 			if (link.skipReason !== undefined) Item.skipReason = link.skipReason;
+			if (link.anchorText !== undefined) Item.anchorText = link.anchorText;
 			try {
 				await table.put({
 					Item,
@@ -283,15 +281,6 @@ export function initDynamoDbInboxEmailLink(deps: {
 				":truncated": meta.truncated,
 				":extractionFailed": meta.extractionFailed,
 			};
-			if (meta.readlistDecision !== undefined) {
-				sets.push(
-					"readlistDecision = if_not_exists(readlistDecision, :deciding)",
-				);
-				values[":deciding"] = {
-					state: "deciding",
-					readlist: meta.readlistDecision.readlist,
-				};
-			}
 			if (meta.selectedReadlists !== undefined) {
 				sets.push(
 					"selectedReadlists = if_not_exists(selectedReadlists, :selectedReadlists)",
@@ -333,63 +322,6 @@ export function initDynamoDbInboxEmailLink(deps: {
 					return "superseded";
 				throw error;
 			}
-		},
-		markLinkDropped: async ({
-			userId,
-			receivedAtMessageId,
-			ordinal,
-			droppedFor,
-		}) => {
-			try {
-				await table.update({
-					Key: {
-						userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-						ordinal,
-					},
-					ConditionExpression:
-						"attribute_exists(ordinal) AND #status <> :skipped",
-					UpdateExpression: "SET droppedFor = :droppedFor",
-					ExpressionAttributeNames: { "#status": "status" },
-					ExpressionAttributeValues: {
-						":droppedFor": droppedFor,
-						":skipped": "skipped",
-					},
-				});
-				return "marked";
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException)
-					return "not-a-candidate";
-				throw error;
-			}
-		},
-		settleReadlistDecision: async ({
-			userId,
-			receivedAtMessageId,
-			decision,
-		}) => {
-			const Key = {
-				userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-				ordinal: META_SORT_KEY,
-			};
-			try {
-				await table.update({
-					Key,
-					ConditionExpression:
-						"attribute_exists(ordinal) AND readlistDecision.#state = :deciding",
-					UpdateExpression: "SET readlistDecision = :decision",
-					ExpressionAttributeNames: { "#state": "state" },
-					ExpressionAttributeValues: {
-						":decision": decision,
-						":deciding": "deciding",
-					},
-				});
-				return "settled";
-			} catch (error) {
-				if (!(error instanceof ConditionalCheckFailedException)) throw error;
-			}
-			const meta = await table.get(Key, { consistentRead: true });
-			assert(meta, "readlist decision arrived before the extraction barrier");
-			return "already-settled";
 		},
 		putReadlistOutcome: async ({ userId, receivedAtMessageId, outcome }) => {
 			try {
@@ -435,7 +367,6 @@ export function initDynamoDbInboxEmailLink(deps: {
 					meta = {
 						truncated: Boolean(item.truncated),
 						extractionFailed: Boolean(item.extractionFailed),
-						readlistDecision: item.readlistDecision,
 						...(item.eligibleArticleCount === undefined ? {} : { eligibleArticleCount: item.eligibleArticleCount }),
 						...(item.savesHeld === undefined ? {} : { savesHeld: item.savesHeld }),
 						...(item.issueSave === undefined ? {} : { issueSave: item.issueSave }),

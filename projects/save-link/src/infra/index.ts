@@ -21,6 +21,7 @@ import {
 	SaveLinkCommand,
 	SaveEmailIssueCommand,
 	SubmitLinkCommand,
+	FileArticleIntoReadlistCommand,
 	SaveAnonymousLinkCommand,
 	SaveLinkRawHtmlCommand,
 	SaveLinkRawPdfCommand,
@@ -91,6 +92,7 @@ const onboardingTableArn = config.require("onboardingTableArn");
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
 const renderCrawlBudget = config.require("renderCrawlBudget");
+const readlistFitEngine = config.require("readlistFitEngine");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
@@ -1574,6 +1576,7 @@ const filterEmailLinksLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.filterEmai
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		READLIST_FIT_ENGINE: readlistFitEngine,
 	},
 	policies: [...filterEmailLinksUserArticlesDynamodb.policies],
 });
@@ -1588,6 +1591,49 @@ const filterEmailLinksLambdaWithSQS = new HutchSQSBackedLambda("filter-email-lin
 });
 
 eventBus.subscribe(EmailLinksTriagedEvent, filterEmailLinksLambdaWithSQS);
+
+const fileArticleIntoReadlistQueue = new HutchSQS("file-article-into-readlist", {
+	visibilityTimeoutSeconds: 300,
+	dlqMaxReceiveCount: 5,
+});
+
+const fileArticleIntoReadlistArticlesDynamodb = new HutchDynamoDBAccess("file-article-into-readlist-articles-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: true }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"],
+});
+
+const fileArticleIntoReadlistUserArticlesDynamodb = new HutchDynamoDBAccess("file-article-into-readlist-user-articles-dynamodb", {
+	tables: [{ arn: userArticlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
+});
+
+const fileArticleIntoReadlistLambda = new HutchLambda("file-article-into-readlist", {
+	entryPoint: "./src/runtime/file-article-into-readlist.main.ts",
+	outputDir: ".lib/file-article-into-readlist",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [
+		...fileArticleIntoReadlistArticlesDynamodb.policies,
+		...fileArticleIntoReadlistUserArticlesDynamodb.policies,
+	],
+});
+
+eventBus.grantPublish(fileArticleIntoReadlistLambda);
+
+const fileArticleIntoReadlistLambdaWithSQS = new HutchSQSBackedLambda("file-article-into-readlist", {
+	lambda: fileArticleIntoReadlistLambda,
+	queue: fileArticleIntoReadlistQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(FileArticleIntoReadlistCommand, fileArticleIntoReadlistLambdaWithSQS);
 
 // --- RecrawlLinkInitiated handler ---
 
