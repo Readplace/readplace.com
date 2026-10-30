@@ -356,6 +356,10 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/colorhunt\.co\/$/i,
 	/^https:\/\/trends\.google\.com\/trends\/explore\?date=2016-06-23%202023-05-27&amp;q=\/g\/11bzxympx6$/i,
 	/^https:\/\/appagg\.com\/search\/recoder:macos\/\?hl=en$/i,
+	/^https:\/\/www\.theknot\.com\/\?utm_source=[^&#]*&utm_medium=email$/i,
+	/^https:\/\/ir\.tesla\.com\/corporate\/[a-z]{2}-[a-z]+\?utm_source=[^&#]*&utm_medium=email$/i,
+	/^https:\/\/www\.instagram\.com\/v[a-z_]{12}\/\?utm_source=[^&#]*&utm_medium=email$/i,
+	/^https:\/\/train\.s[a-z]{8}\.com\/$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
