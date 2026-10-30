@@ -76,6 +76,7 @@ Content-Type: application/json
         <p class="developers__text"><code>/oauth/revoke</code> takes an access token or a refresh token, and revoking either drops the other too. Readers can also sign your app out from all devices under <a class="developers__link" href="{{track '/account#connected-apps' source='developers' content='connected-apps'}}">Connected apps</a> in their account.</p>
         <p class="developers__text" data-test-copy="app-listing">Connected apps lists your app as AI assistant, connected from the host of your first redirect URI, or from an app on your computer when that URI is on <code>127.0.0.1</code> or <code>[::1]</code>. A <code>client_name</code> that matches a supported assistant's name, in any letter case, lists your app as that assistant instead.</p>
         <p class="developers__text" data-test-copy="create-session"><code data-test-action>create-session</code>, on every collection, answers <code>204</code> with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader signing your app out from all devices, doesn't end a session it made.</p>
+        <p class="developers__text"><code data-test-action>create-browser-handoff</code>, on every collection, answers <code>200</code> with a single-use, short-lived <code>code</code>. A browser that opens the handoff page with that code is signed in as the reader. Most integrations skip it.</p>
       </section>
 
       <section class="developers__section" data-test-section="discovery">
@@ -131,6 +132,7 @@ Location: COLLECTION_HREF</code></pre>
           <li class="developers__item"><code data-test-property>readTime</code>: <code>{value, label}</code>, where <code>value</code> is the minutes as a string and <code>label</code> is display text such as <code>5 min read</code>, or <code>null</code> when Readplace has no word count for the article.</li>
           <li class="developers__item"><code data-test-property>status</code>: <code>unread</code> or <code>read</code>. <code data-test-property>isRead</code> is the same fact as a boolean.</li>
           <li class="developers__item"><code data-test-property>savedAt</code> and <code data-test-property>readAt</code>: ISO 8601 UTC timestamps. <code>readAt</code> is <code>null</code> until the article is read.</li>
+          <li class="developers__item"><code data-test-property>publishedOn</code>: the date the source published the article, as <code>YYYY-MM-DD</code>, or <code>null</code> when Readplace doesn't know it.</li>
           <li class="developers__item"><code data-test-property>needsBrowserCapture</code>: <code>true</code> when the site blocked Readplace's fetch, so a capture from the reader's browser through <code>save-content</code> would get the article.</li>
           <li class="developers__item"><code data-test-property>contentVersion</code>: changes when the article's content, metadata, crawl outcome or summary changes. Fetch the document again when it does.</li>
         </ul>
