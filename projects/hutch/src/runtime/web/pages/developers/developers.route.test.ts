@@ -228,7 +228,7 @@ describe("/developers documents what the API emits", () => {
 		await harness.articleStore.saveArticle({
 			userId: UserIdSchema.parse("test-user-123"),
 			url,
-			metadata: { title: "Hello World", siteName: "example.com", excerpt: "Parsed blurb.", wordCount: 3 },
+			metadata: { title: "Hello World", siteName: "example.com", excerpt: "Parsed blurb.", wordCount: 3, publishedOn: "2026-09-29" },
 			estimatedReadTime: MinutesSchema.parse(1),
 			provenance: { kind: "web" },
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
