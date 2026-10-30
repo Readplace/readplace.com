@@ -140,6 +140,7 @@ async function seedOwnerArticle(
 			content: input.content,
 			contentFetchedAt: CONTENT_FETCHED_AT,
 			savedByUserId: userId,
+			publishedOn: "2025-10-08",
 			generatedSummary: SUMMARY,
 			crawlVersions: input.crawlVersions,
 		},

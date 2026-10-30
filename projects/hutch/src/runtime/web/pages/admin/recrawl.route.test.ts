@@ -341,6 +341,34 @@ describe("Admin recrawl routes", () => {
 			).toEqual(["site", "read-time", "original"]);
 		});
 
+		it("shows the article's publish date with the public facts", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0, publishedOn: "2025-10-08" },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(
+				Array.from(doc.querySelectorAll("[data-test-reader-fact]"), (fact) => [
+					fact.getAttribute("data-test-reader-fact"),
+					fact.textContent?.trim(),
+				]),
+			).toEqual([
+				["site", "example.com"],
+				["published", "Published Oct 8, 2025"],
+				["read-time", ""],
+				["original", "Original article"],
+			]);
+		});
+
 		it("renders the Tier 1 badge when contentSourceTier is tier-1 (HTTP crawl)", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

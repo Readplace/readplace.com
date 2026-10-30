@@ -174,6 +174,13 @@ async function generate({ server, model, prompt, images, maxTokens }) {
   return content;
 }
 
+function verdictName(verdict) {
+  if (verdict === undefined) {
+    return "unanswered";
+  }
+  return verdict ? "confirmed" : "rejected";
+}
+
 async function verifiedFindings({ server, model, flow, findings }) {
   const verified = [];
   const unanswered = [];
@@ -190,6 +197,7 @@ async function verifiedFindings({ server, model, flow, findings }) {
       maxTokens: VERIFY_MAX_TOKENS,
     });
     const verdict = verificationVerdict(reply);
+    console.log(`verify ${JSON.stringify({ flow: flow.flow, claim: finding, verdict: verdictName(verdict), reply })}`);
     if (verdict === undefined) {
       unanswered.push({ finding, reply: reply.trim() });
     } else if (verdict) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { CandidateIdSchema } from "../../article/article.schema";
 import type { Article } from "../article.types";
 import { CanonicalImageUrlSchema } from "../canonical-image-url";
+import { CanonicalPublishedOnSchema } from "../canonical-published-on";
 import { refreshContent, type RefreshContentInput } from "./refresh-content";
 
 const NOW = "2026-05-13T12:00:00.000Z";
@@ -42,6 +43,7 @@ function buildInput(overrides: Omit<Partial<RefreshContentInput>, "metadata"> = 
 			excerpt: "New excerpt",
 			wordCount: 250,
 			imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
+			publishedOn: CanonicalPublishedOnSchema.parse("2025-10-08"),
 		},
 		freshness: {
 			etag: '"new-etag"',
@@ -65,6 +67,7 @@ describe("refreshContent", () => {
 				excerpt: "New excerpt",
 				wordCount: 250,
 				imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
+				publishedOn: CanonicalPublishedOnSchema.parse("2025-10-08"),
 			},
 			freshness: {
 				etag: '"new-etag"',
@@ -79,6 +82,7 @@ describe("refreshContent", () => {
 		assert.equal(article.metadata.title, "New title");
 		assert.equal(article.metadata.wordCount, 250);
 		assert.equal(article.metadata.imageUrl, "https://example.com/image.jpg");
+		assert.equal(article.metadata.publishedOn, "2025-10-08");
 		assert.equal(article.freshness.etag, '"new-etag"');
 		assert.equal(article.freshness.contentFetchedAt, "2026-05-10T12:00:00.000Z");
 		assert.equal(article.estimatedReadTime, 2);
@@ -326,6 +330,7 @@ describe("refreshContent", () => {
 				excerpt: "Different",
 				wordCount: 200,
 				imageUrl: CanonicalImageUrlSchema.parse(undefined),
+				publishedOn: CanonicalPublishedOnSchema.parse(undefined),
 			},
 			freshness: {
 				etag: '"different"',

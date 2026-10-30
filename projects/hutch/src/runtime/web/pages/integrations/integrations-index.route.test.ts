@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
@@ -7,9 +8,61 @@ import { GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
+import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
 import { BROWSER_REQUEST_HEADERS, loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
+
+type Harness = ReturnType<typeof useApp>;
+type Agent = ReturnType<typeof request.agent>;
+
+const PASSWORD = "password123";
+const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
+
+function generatePKCE() {
+	const verifier = randomBytes(32).toString("base64url");
+	const challenge = createHash("sha256").update(verifier).digest("base64url");
+	return { verifier, challenge };
+}
+
+async function signIn(harness: Harness, email: string): Promise<Agent> {
+	await harness.auth.createUser({ email, password: PASSWORD });
+	const agent = request.agent(harness.server).set("User-Agent", BROWSER_USER_AGENT);
+	await agent.post("/login").type("form").send({ email, password: PASSWORD });
+	return agent;
+}
+
+async function grant(harness: Harness, input: { agent: Agent; clientId: string; redirectUri: string }): Promise<void> {
+	const pkce = generatePKCE();
+	const authorize = await input.agent.post("/oauth/authorize").type("form").send({
+		client_id: input.clientId,
+		redirect_uri: input.redirectUri,
+		response_type: "code",
+		code_challenge: pkce.challenge,
+		code_challenge_method: "S256",
+		state: "connectors",
+		action: "approve",
+	});
+	assert.equal(authorize.status, 302, "the reader's approval must redirect with a code");
+	const code = new URL(authorize.headers.location).searchParams.get("code");
+	assert(code, "the approval must carry an authorization code");
+	const token = await request(harness.server).post("/oauth/token").type("form").send({
+		grant_type: "authorization_code",
+		code,
+		redirect_uri: input.redirectUri,
+		client_id: input.clientId,
+		code_verifier: pkce.verifier,
+	});
+	assert.equal(token.status, 200, "the authorization code must exchange for tokens");
+}
+
+async function registerAssistant(harness: Harness, input: { name: string; redirectUri: string }): Promise<string> {
+	const registration = await request(harness.server)
+		.post("/oauth/register")
+		.send({ redirect_uris: [input.redirectUri], client_name: input.name });
+	assert.equal(registration.status, 201, "the assistant must register itself");
+	return registration.body.client_id;
+}
 
 const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 
@@ -44,7 +97,7 @@ describe("GET /newsletters", () => {
 		const services = Array.from(doc.querySelectorAll("[data-test-integration]")).map((el) =>
 			el.getAttribute("data-test-integration"),
 		);
-		expect(services).toEqual(["gmail", "custom-emails"]);
+		expect(services).toEqual(["gmail", "custom-emails", "ai-assistant"]);
 	});
 
 	it("shows Gmail as not set up", async () => {
@@ -187,6 +240,73 @@ describe("GET /newsletters", () => {
 		expect(form.querySelector<HTMLInputElement>("input[name='from']")?.value).toBe("newsletters");
 	});
 
+	it("opens the AI assistant guide as a full navigation that lists what an assistant can do", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const row = doc.querySelector('[data-test-integration="ai-assistant"]');
+		assert(row, "the AI assistant row must render");
+		expect(row.querySelector(".integrations__name")?.textContent).toBe("AI assistant");
+		expect(row.querySelector(".integrations__description")?.textContent).toBe(
+			"Let ChatGPT, Gemini, or Claude save links, mark articles read, and file them into readlists for you.",
+		);
+		const status = row.querySelector("[data-test-integration-status]");
+		assert(status, "the AI assistant row must carry a status");
+		expect(status.getAttribute("data-test-integration-status")).toBe("not-set-up");
+		expect(status.textContent).toBe("Not set up");
+		const setUp = row.querySelector('[data-test-integration-action="ai-assistant-setup"]');
+		assert(setUp, "the AI assistant row offers Set up");
+		expect(setUp.textContent).toBe("Set up");
+		const form = setUp.closest("form");
+		assert(form, "Set up navigates with a form");
+		expect(form.getAttribute("method")).toBe("GET");
+		expect(form.getAttribute("hx-boost")).toBe("false");
+		const destination = new URL(form.action, TEST_APP_ORIGIN);
+		destination.search = new URLSearchParams(Array.from(form.querySelectorAll<HTMLInputElement>("input"), (field) => [field.name, field.value])).toString();
+		expect(destination.pathname).toBe("/mcp");
+		expect(Object.fromEntries(destination.searchParams)).toEqual({
+			utm_source: "integrations",
+			utm_medium: "internal",
+			utm_content: "ai-assistant-setup",
+		});
+		const guide = await agent.get(destination.pathname + destination.search).set(BROWSER_REQUEST_HEADERS);
+		expect(guide.status).toBe(200);
+		const guideDoc = load(guide.text);
+		expect(guideDoc.body.classList.contains("page-mcp-connect")).toBe(true);
+		const capabilities = guideDoc.querySelector('[data-test-section="capabilities"]');
+		assert(capabilities, "the guide lists what an assistant can do");
+		for (const tool of ["mark_as_read", "add_to_readlist", "create_readlist"]) {
+			expect(capabilities.textContent).toContain(tool);
+		}
+		expect(harness.analytics.events.filter((event) => event.event === "click")).toEqual([
+			expect.objectContaining({ path: "/mcp", utm_source: "integrations", utm_medium: "internal", utm_content: "ai-assistant-setup" }),
+		]);
+	});
+
+	it("counts the reader's connected assistants", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await signIn(harness, "connectors-claude@example.com");
+		const claudeId = await registerAssistant(harness, { name: "Claude", redirectUri: CLAUDE_CALLBACK });
+		await grant(harness, { agent, clientId: claudeId, redirectUri: CLAUDE_CALLBACK });
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		const row = doc.querySelector('[data-test-integration="ai-assistant"]');
+		assert(row, "the AI assistant row must render");
+		const status = row.querySelector("[data-test-integration-status]");
+		assert(status, "the AI assistant row must carry a status");
+		expect(status.getAttribute("data-test-integration-status")).toBe("active");
+		expect(status.textContent).toBe("1 connected");
+		const guide = row.querySelector('[data-test-integration-action="ai-assistant-guide"]');
+		assert(guide, "a reader with a connected assistant is offered the guide");
+		expect(guide.textContent).toBe("See guide");
+		const form = guide.closest("form");
+		assert(form, "See guide navigates with a form");
+		expect(form.getAttribute("action")).toBe("/mcp?utm_source=integrations&utm_medium=internal&utm_content=ai-assistant-guide");
+	});
+
 	it("offers only Connect to a reader with no connection", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -305,7 +425,7 @@ describe("GET /newsletters", () => {
 			row.getAttribute("data-test-integration"),
 			row.querySelector("[data-test-integration-account]")?.getAttribute("data-integration-account-state"),
 		]);
-		expect(states).toEqual([["gmail", "hidden"], ["custom-emails", "hidden"]]);
+		expect(states).toEqual([["gmail", "hidden"], ["custom-emails", "hidden"], ["ai-assistant", "hidden"]]);
 	});
 
 	it("boosts the action form and loads the clipboard bundle so a boosted hop keeps copy working", async () => {

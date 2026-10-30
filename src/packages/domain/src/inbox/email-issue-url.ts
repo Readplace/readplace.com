@@ -11,6 +11,11 @@ export function emailIssueArticleUrl(ref: EmailIssueRef): string {
 	return `email://inbox/${encodeURIComponent(ref.userId)}/${encodeURIComponent(ref.receivedAtMessageId)}`;
 }
 
+export function emailIssueReceivedAt(receivedAtMessageId: string): string {
+	const [receivedAt] = receivedAtMessageId.split("#", 1);
+	return receivedAt;
+}
+
 export function parseEmailIssueArticleUrl(url: string): EmailIssueRef | undefined {
 	const match = EMAIL_ISSUE_URL.exec(url);
 	if (match === null) return undefined;

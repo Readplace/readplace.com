@@ -95,6 +95,7 @@ export interface McpArticle {
 	readonly readTime?: DisplayableReadTime;
 	readonly status: ArticleStatus;
 	readonly savedAt: string;
+	readonly publishedOn?: string;
 	readonly readAt?: string;
 	readonly readlists: readonly McpReadlist[];
 }
@@ -405,9 +406,10 @@ function formatReadlistNames(readlists: readonly McpReadlist[]): string {
 }
 
 function formatArticle(article: McpArticleOutput): string {
-	const dates = article.readAt
-		? `Saved ${formatDate(article.savedAt)}; read ${formatDate(article.readAt)}`
+	const saved = article.publishedOn
+		? `Published ${article.publishedOn}; saved ${formatDate(article.savedAt)}`
 		: `Saved ${formatDate(article.savedAt)}`;
+	const dates = article.readAt ? `${saved}; read ${formatDate(article.readAt)}` : saved;
 	const excerpt = article.excerpt ? `\n${article.excerpt}` : "";
 	const meta = [
 		article.siteName,

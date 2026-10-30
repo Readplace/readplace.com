@@ -1,9 +1,13 @@
 import { withInternalTracking } from "@packages/web-shell";
 import type { IconName } from "@packages/ui-icons";
+import type { OAuthClientId } from "@packages/domain/oauth";
+import { isBuiltInOAuthClientId } from "@packages/supported-clients";
 import type { GmailConnection, GmailConnectionState } from "@packages/domain/gmail";
 import { gmailConnectionState } from "@packages/domain/gmail";
 import { CUSTOM_EMAILS_ORIGIN_PARAM, CUSTOM_EMAILS_PATH } from "@packages/domain/inbox";
 import type { CustomEmailsOrigin } from "@packages/domain/inbox";
+import { MCP_GUIDE_PATH } from "../../shared/assistant-roster";
+import { AI_ASSISTANTS_OR } from "../../shared/client-enumerations";
 import { ACCOUNT_PLANS_URL } from "../account/account.url";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
 import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
@@ -16,6 +20,7 @@ export interface IntegrationActionViewModel {
 	label: string;
 	variant: "primary" | "secondary" | "neutral";
 	fields: { name: string; value: string }[];
+	boost: boolean;
 	trackSource: string;
 	trackContent: string;
 	confirmPopoverId?: typeof GMAIL_CONNECT_DISCLAIMER_ID;
@@ -39,7 +44,7 @@ function trackedAction(
 	};
 }
 
-type CustomEmailsState = "active" | "not-set-up";
+type SetupState = "active" | "not-set-up";
 
 export interface IntegrationRowViewModel {
 	key: string;
@@ -48,7 +53,7 @@ export interface IntegrationRowViewModel {
 	iconName: IconName;
 	beta: boolean;
 	accountEmail: string | undefined;
-	statusKey: GmailConnectionState | CustomEmailsState;
+	statusKey: GmailConnectionState | SetupState;
 	statusLabel: string;
 	statusModifier: string;
 	actions: IntegrationActionViewModel[];
@@ -92,6 +97,7 @@ const GMAIL_ACTIONS: Record<
 		label: "Connect Gmail",
 		variant: "primary",
 		fields: [],
+		boost: true,
 		confirmPopoverId: GMAIL_CONNECT_DISCLAIMER_ID,
 	}],
 	disconnecting: [],
@@ -102,6 +108,7 @@ const GMAIL_ACTIONS: Record<
 		label: "Finish setup",
 		variant: "primary",
 		fields: [],
+		boost: true,
 	}],
 	"confirm-failed": [{
 		key: "finish-setup",
@@ -110,6 +117,7 @@ const GMAIL_ACTIONS: Record<
 		label: "Finish setup",
 		variant: "primary",
 		fields: [],
+		boost: true,
 	}],
 	"ready-to-filter": [{
 		key: "manage",
@@ -118,6 +126,7 @@ const GMAIL_ACTIONS: Record<
 		label: "Manage",
 		variant: "neutral",
 		fields: [],
+		boost: true,
 	}],
 	filtering: [{
 		key: "manage",
@@ -126,6 +135,7 @@ const GMAIL_ACTIONS: Record<
 		label: "Manage",
 		variant: "neutral",
 		fields: [],
+		boost: true,
 	}],
 	"filter-failed": [{
 		key: "manage",
@@ -134,6 +144,7 @@ const GMAIL_ACTIONS: Record<
 		label: "Manage",
 		variant: "primary",
 		fields: [],
+		boost: true,
 	}],
 	revoked: [{
 		key: "reconnect",
@@ -142,6 +153,7 @@ const GMAIL_ACTIONS: Record<
 		label: "Reconnect Gmail",
 		variant: "primary",
 		fields: [],
+		boost: true,
 	}],
 };
 
@@ -212,6 +224,7 @@ function gmailUpgradeRow(connection: GmailConnection | undefined): IntegrationRo
 				label: "Upgrade",
 				variant: "primary",
 				fields: [],
+				boost: true,
 			}),
 			...managementActions.map((action): IntegrationActionViewModel => ({ ...action, variant: "secondary" })),
 		],
@@ -219,7 +232,7 @@ function gmailUpgradeRow(connection: GmailConnection | undefined): IntegrationRo
 }
 
 function customEmailsRow(activeCount: number): IntegrationRowViewModel {
-	const state: CustomEmailsState = activeCount > 0 ? "active" : "not-set-up";
+	const state: SetupState = activeCount > 0 ? "active" : "not-set-up";
 	return {
 		key: "custom-emails",
 		name: "My Custom Emails",
@@ -237,13 +250,53 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 			label: "Manage",
 			variant: "neutral",
 			fields: [{ name: CUSTOM_EMAILS_ORIGIN_PARAM, value: "newsletters" satisfies CustomEmailsOrigin }],
+			boost: true,
 		})],
+	};
+}
+
+const AI_ASSISTANT_ACTIONS: Record<SetupState, Omit<IntegrationActionViewModel, "trackSource" | "trackContent">> = {
+	"not-set-up": {
+		key: "ai-assistant-setup",
+		method: "GET",
+		href: MCP_GUIDE_PATH,
+		label: "Set up",
+		variant: "primary",
+		fields: [],
+		boost: false,
+	},
+	active: {
+		key: "ai-assistant-guide",
+		method: "GET",
+		href: MCP_GUIDE_PATH,
+		label: "See guide",
+		variant: "neutral",
+		fields: [],
+		boost: false,
+	},
+};
+
+function aiAssistantRow(connectedClientIds: readonly OAuthClientId[]): IntegrationRowViewModel {
+	const connectedCount = connectedClientIds.filter((id) => !isBuiltInOAuthClientId(id)).length;
+	const state: SetupState = connectedCount > 0 ? "active" : "not-set-up";
+	return {
+		key: "ai-assistant",
+		name: "AI assistant",
+		description: `Let ${AI_ASSISTANTS_OR} save links, mark articles read, and file them into readlists for you.`,
+		iconName: "sparkles",
+		beta: false,
+		accountEmail: undefined,
+		statusKey: state,
+		statusLabel: state === "active" ? `${connectedCount} connected` : "Not set up",
+		statusModifier: `integrations__status--${state}`,
+		actions: [trackedAction(AI_ASSISTANT_ACTIONS[state])],
 	};
 }
 
 export function toIntegrationsIndexViewModel(input: {
 	connection: GmailConnection | undefined;
 	activeCustomEmailCount: number;
+	connectedClientIds: readonly OAuthClientId[];
 	canConnectGmail: boolean;
 	error?: string;
 	notice?: string;
@@ -254,6 +307,7 @@ export function toIntegrationsIndexViewModel(input: {
 		services: [
 			input.canConnectGmail ? gmailRow(input.connection) : gmailUpgradeRow(input.connection),
 			customEmailsRow(input.activeCustomEmailCount),
+			aiAssistantRow(input.connectedClientIds),
 		],
 		notices,
 		alerts,

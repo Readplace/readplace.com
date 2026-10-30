@@ -378,6 +378,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 						provenance: undefined,
 						readlistTags: undefined,
 						saved: undefined,
+						publishedOn: undefined,
 					}) + renderDocumentTitleOob(deps.formatDocumentTitle(stub.title)),
 				readerViewFailedOob: "",
 				downloadsOob: "",
@@ -413,6 +414,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			provenance: input.provenance,
 			readlistTags: input.readlistTags,
 			saved: input.saved,
+			publishedOn: article.metadata.publishedOn,
 		});
 		const titleOob = renderDocumentTitleOob(
 			deps.formatDocumentTitle(article.metadata.title),

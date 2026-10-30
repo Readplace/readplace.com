@@ -55,6 +55,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 			excerpt: "New excerpt",
 			wordCount: 250,
 			imageUrl: "https://example.com/image.jpg",
+			publishedOn: "2025-10-08",
 		},
 		freshness: {
 			etag: '"new-etag"',
@@ -92,6 +93,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					wordCount: 100,
 					estimatedReadTime: 1,
 					imageUrl: "https://example.com/img.jpg",
+					publishedOn: "2025-10-08",
 					etag: '"old-etag"',
 					lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
 					contentFetchedAt: "2026-01-01T00:00:00.000Z",
@@ -120,6 +122,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					excerpt: "Old excerpt",
 					wordCount: 100,
 					imageUrl: "https://example.com/img.jpg",
+					publishedOn: "2025-10-08",
 				},
 				freshness: {
 					etag: '"old-etag"',
@@ -585,6 +588,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.UpdateExpression).toContain("etag = :etag");
 			expect(command.input.UpdateExpression).toContain("lastModified = :lm");
 			expect(command.input.UpdateExpression).toContain("imageUrl = :img");
+			expect(command.input.UpdateExpression).toContain("publishedOn = :publishedOn");
+			expect(command.input.ExpressionAttributeValues?.[":publishedOn"]).toBe("2025-10-08");
 			expect(command.input.UpdateExpression).toContain(
 				"summaryStatus = :summaryStatus",
 			);
@@ -1125,6 +1130,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.ExpressionAttributeValues?.[":etag"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":lm"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":img"]).toBeNull();
+			expect(command.input.ExpressionAttributeValues?.[":publishedOn"]).toBeNull();
 		});
 	});
 
@@ -1616,6 +1622,19 @@ describe("atomic canonical selection", () => {
 		await expect(store.save({ article: buildArticle(), writes: ["crawl"], selectionExpected: { snapshot: undefined } })).rejects.toThrow("selection changed");
 	});
 
+	it("loads a legacy row that predates publish dates with no publish date", async () => {
+		const client = createFakeClient(() => ({ Item: { title: "Old title", siteName: "Example", excerpt: "Old excerpt", wordCount: 100 } }));
+		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+		expect((await store.load(URL))?.metadata).toStrictEqual({
+			title: "Old title",
+			siteName: "Example",
+			excerpt: "Old excerpt",
+			wordCount: 100,
+			imageUrl: undefined,
+			publishedOn: undefined,
+		});
+	});
+
 	it("loads an identity-only legacy snapshot without inventing a canonical candidate", async () => {
 		const client = createFakeClient(() => ({ Item: { displayUrl: URL } }));
 		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
@@ -1629,7 +1648,7 @@ describe("atomic canonical selection", () => {
 		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
 		await store.save({ article: buildArticle(), writes: ["metadata"] });
 		const command = capturedCommand(received).input;
-		expect(command.UpdateExpression).toBe("SET title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, estimatedReadTime = :ert, imageUrl = :img");
+		expect(command.UpdateExpression).toBe("SET title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, estimatedReadTime = :ert, imageUrl = :img, publishedOn = :publishedOn");
 	});
 
 });

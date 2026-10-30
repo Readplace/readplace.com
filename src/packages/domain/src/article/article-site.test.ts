@@ -46,6 +46,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: "A real excerpt.",
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 		expect(result).toStrictEqual({ title: "A real post", siteName: "nodeweekly.com", excerpt: "A real excerpt.", wordCount: 120 });
 	});
@@ -59,6 +60,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: "A real excerpt.",
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 		expect(result).toEqual({ title: "A real post", siteName: "nodeweekly.com", excerpt: "A real excerpt.", wordCount: 120 });
 	});
@@ -72,6 +74,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: contentSavedFromHostExcerpt("nodeweekly.com"),
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 		expect(result).toEqual({
 			title: articleFromHostTitle("memcached.org"),
@@ -79,6 +82,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: contentSavedFromHostExcerpt("memcached.org"),
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 	});
 
@@ -91,6 +95,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: savedFromHostExcerpt("nodeweekly.com"),
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 		expect(result).toEqual({ title: "memcached.org", siteName: "memcached.org", excerpt: savedFromHostExcerpt("memcached.org"), wordCount: 120 });
 	});
@@ -104,6 +109,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: imageSavedFromHostExcerpt("nodeweekly.com"),
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 		expect(result).toEqual({ title: "Declared Title", siteName: "memcached.org", excerpt: imageSavedFromHostExcerpt("memcached.org"), wordCount: 120 });
 	});
@@ -117,6 +123,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: "A real excerpt.",
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 		expect(result).toEqual({ title: "nodeweekly.com", siteName: "Node Weekly", excerpt: "A real excerpt.", wordCount: 120 });
 	});
@@ -130,6 +137,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: "A real excerpt.",
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 		expect(result.siteName).toBe("memcached.org");
 	});
@@ -143,6 +151,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: "x",
 			wordCount: 120,
 			imageUrl: undefined,
+			publishedOn: undefined,
 		});
 		expect(result.siteName).toBe("www.example.com");
 	});
@@ -156,6 +165,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: "A real excerpt.",
 			wordCount: 120,
 			imageUrl: "https://nodeweekly.com/cover.png",
+			publishedOn: undefined,
 		});
 		expect(result).toEqual({
 			title: "A real post",
@@ -166,7 +176,27 @@ describe("articleDisplayMetadata", () => {
 		});
 	});
 
-	it("shows only the host of a webmail page, with no word count and no image", () => {
+	it("copies the publish date for an article host", () => {
+		const result = articleDisplayMetadata({
+			url: SAVED,
+			destinationUrl: destinationOf(SAVED, undefined),
+			title: "A real post",
+			siteName: "nodeweekly.com",
+			excerpt: "A real excerpt.",
+			wordCount: 120,
+			imageUrl: undefined,
+			publishedOn: "2025-10-08",
+		});
+		expect(result).toStrictEqual({
+			title: "A real post",
+			siteName: "nodeweekly.com",
+			excerpt: "A real excerpt.",
+			wordCount: 120,
+			publishedOn: "2025-10-08",
+		});
+	});
+
+	it("shows only the host of a webmail page, with no word count, no image and no publish date", () => {
 		const url = "https://mail.google.com/mail/u/2/";
 		const result = articleDisplayMetadata({
 			url,
@@ -176,6 +206,7 @@ describe("articleDisplayMetadata", () => {
 			excerpt: "A private message",
 			wordCount: 9,
 			imageUrl: "https://cdn.readplace.test/media/private-avatar.png",
+			publishedOn: "2026-10-01",
 		});
 		expect(result).toStrictEqual({ title: "mail.google.com", siteName: "mail.google.com", excerpt: "", wordCount: 0 });
 	});

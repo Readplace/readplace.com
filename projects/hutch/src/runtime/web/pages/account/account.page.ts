@@ -18,10 +18,8 @@ import {
 	DISPLAY_NAME_MAX_LENGTH,
 	parseDisplayNameInput,
 } from "@packages/domain/user";
-import { type OAuthClient, OAuthClientIdSchema, type OAuthSignIn } from "@packages/domain/oauth";
+import { OAuthClientIdSchema } from "@packages/domain/oauth";
 import type {
-	FindOAuthClient,
-	ListUserOAuthClients,
 	RevokeAllUserOAuthTokens,
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
@@ -72,6 +70,7 @@ import {
 	trialEndToPreserve,
 } from "../../../domain/stripe/stripe-trial-config";
 import { type TrialSchedulerPort, startTrial } from "../../../domain/trial/start-trial";
+import type { ListConnectedOAuthClients } from "../../../domain/oauth/connected-oauth-clients";
 import { initLoadNextCharge } from "../../../domain/subscription/next-charge";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
 import {
@@ -156,9 +155,8 @@ interface AccountDependencies {
 	destroyUserSessions: DestroyUserSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
-	listUserOAuthClients: ListUserOAuthClients;
+	listConnectedOAuthClients: ListConnectedOAuthClients;
 	revokeUserOAuthClient: RevokeUserOAuthClient;
-	findOAuthClient: FindOAuthClient;
 	publishDeleteAccountCommand: PublishDeleteAccountCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
@@ -229,16 +227,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		}
 	}
 
-	async function loadConnectedClients(
-		userId: UserId,
-	): Promise<{ client: OAuthClient; latestSignIn: OAuthSignIn | undefined }[]> {
-		const listed = await deps.listUserOAuthClients(userId);
-		const resolved = await Promise.all(
-			listed.map(async ({ clientId, latestSignIn }) => ({ client: await deps.findOAuthClient(clientId), latestSignIn })),
-		);
-		return resolved.flatMap(({ client, latestSignIn }) => (client === undefined ? [] : [{ client, latestSignIn }]));
-	}
-
 	async function renderAccount(
 		req: Request,
 		res: Response,
@@ -255,7 +243,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			deps.findEmailByUserId(req.userId),
 			deps.findUserById(req.userId),
 			deps.findUserPasswordStatus(req.userId),
-			loadConnectedClients(req.userId),
+			deps.listConnectedOAuthClients(req.userId),
 		]);
 		assert(email, "an authenticated account page must resolve an email");
 		assert(user, "an authenticated account page must resolve a user");

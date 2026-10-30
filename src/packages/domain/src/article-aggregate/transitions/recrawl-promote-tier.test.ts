@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Article } from "../article.types";
 import { CanonicalImageUrlSchema } from "../canonical-image-url";
+import { CanonicalPublishedOnSchema } from "../canonical-published-on";
 import {
 	recrawlPromoteTier,
 	type RecrawlPromoteTierInput,
@@ -42,6 +43,7 @@ function buildInput(overrides: Partial<RecrawlPromoteTierInput> = {}): RecrawlPr
 			excerpt: "New excerpt",
 			wordCount: 250,
 			imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
+			publishedOn: CanonicalPublishedOnSchema.parse("2025-10-08"),
 		},
 		estimatedReadTime: 3,
 		contentFetchedAt: "2026-05-10T12:00:00.000Z",
@@ -68,6 +70,7 @@ describe("recrawlPromoteTier", () => {
 					excerpt: "Refreshed excerpt",
 					wordCount: 999,
 					imageUrl: CanonicalImageUrlSchema.parse("https://example.com/refreshed.jpg"),
+					publishedOn: CanonicalPublishedOnSchema.parse("2025-10-08"),
 				},
 			}),
 		);
@@ -77,6 +80,7 @@ describe("recrawlPromoteTier", () => {
 		assert.equal(article.metadata.excerpt, "Refreshed excerpt");
 		assert.equal(article.metadata.wordCount, 999);
 		assert.equal(article.metadata.imageUrl, "https://example.com/refreshed.jpg");
+		assert.equal(article.metadata.publishedOn, "2025-10-08");
 	});
 
 	it("writes the incoming contentFetchedAt onto article.freshness, preserving other freshness fields (etag/lastModified)", () => {

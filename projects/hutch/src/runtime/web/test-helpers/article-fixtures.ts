@@ -17,6 +17,7 @@ export function siteLabel(name: string): SiteLabel {
 		excerpt: "",
 		wordCount: 0,
 		imageUrl: undefined,
+		publishedOn: undefined,
 	}).siteName;
 }
 

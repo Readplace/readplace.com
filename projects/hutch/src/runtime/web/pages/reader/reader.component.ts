@@ -235,6 +235,7 @@ export function ReaderPage(
 		articleId,
 		provenance: options.provenance,
 		saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: options.now }),
+		publishedOn: article.metadata.publishedOn,
 		readlistTags: options.readlistFiling.tags,
 		content: options.content,
 		crawl: options.crawl,

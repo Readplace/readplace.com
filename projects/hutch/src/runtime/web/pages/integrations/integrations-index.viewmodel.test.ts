@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { GmailConnection } from "@packages/domain/gmail";
 import { CUSTOM_EMAILS_PATH, InboxAddressSchema } from "@packages/domain/inbox";
+import { OAuthClientIdSchema } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
 import { GMAIL_PATH } from "./gmail.url";
@@ -30,10 +31,21 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 
 type IndexInput = Parameters<typeof toIntegrationsIndexViewModel>[0];
 
-type GmailIndexInput = Omit<IndexInput, "activeCustomEmailCount" | "canConnectGmail"> & { canConnectGmail?: boolean };
+type GmailIndexInput = Omit<IndexInput, "activeCustomEmailCount" | "canConnectGmail" | "connectedClientIds"> & { canConnectGmail?: boolean };
 
 function indexViewModel(input: GmailIndexInput) {
-	return toIntegrationsIndexViewModel({ canConnectGmail: true, ...input, activeCustomEmailCount: 0 });
+	return toIntegrationsIndexViewModel({ canConnectGmail: true, ...input, activeCustomEmailCount: 0, connectedClientIds: [] });
+}
+
+function aiAssistantRow(connectedClientIds: string[]) {
+	const row = toIntegrationsIndexViewModel({
+		connection: undefined,
+		activeCustomEmailCount: 0,
+		canConnectGmail: true,
+		connectedClientIds: connectedClientIds.map((id) => OAuthClientIdSchema.parse(id)),
+	}).services.find((s) => s.key === "ai-assistant");
+	assert(row, "the AI assistant row is always present");
+	return row;
 }
 
 function gmailRow(input: GmailIndexInput) {
@@ -43,17 +55,73 @@ function gmailRow(input: GmailIndexInput) {
 }
 
 describe("toIntegrationsIndexViewModel", () => {
-	it("lists Newsletters from Gmail then Custom Emails", () => {
+	it("lists Newsletters from Gmail, then Custom Emails, then the AI assistant", () => {
 		const vm = indexViewModel({ connection: undefined });
 
 		assert.deepEqual(
 			vm.services.map((s) => [s.key, s.name]),
-			[["gmail", "Newsletters from Gmail"], ["custom-emails", "My Custom Emails"]],
+			[["gmail", "Newsletters from Gmail"], ["custom-emails", "My Custom Emails"], ["ai-assistant", "AI assistant"]],
 		);
 	});
 
+	it("offers to set up an AI assistant through the guide while none is connected", () => {
+		const row = aiAssistantRow([]);
+
+		assert.equal(row.statusKey, "not-set-up");
+		assert.equal(row.statusLabel, "Not set up");
+		assert.equal(row.statusModifier, "integrations__status--not-set-up");
+		assert.equal(row.iconName, "sparkles");
+		assert.equal(
+			row.description,
+			"Let ChatGPT, Gemini, or Claude save links, mark articles read, and file them into readlists for you.",
+		);
+		assert.equal(row.accountEmail, undefined);
+		assert.deepEqual(
+			row.actions.map((a) => [a.key, a.method, a.href, a.label, a.variant, a.boost]),
+			[[
+				"ai-assistant-setup",
+				"GET",
+				"/mcp?utm_source=integrations&utm_medium=internal&utm_content=ai-assistant-setup",
+				"Set up",
+				"primary",
+				false,
+			]],
+		);
+	});
+
+	it("counts the connected assistants and offers the guide instead of set-up", () => {
+		const row = aiAssistantRow(["dyn_claude", "dyn_chatgpt"]);
+
+		assert.equal(row.statusKey, "active");
+		assert.equal(row.statusLabel, "2 connected");
+		assert.equal(row.statusModifier, "integrations__status--active");
+		assert.deepEqual(
+			row.actions.map((a) => [a.key, a.method, a.href, a.label, a.variant, a.boost]),
+			[[
+				"ai-assistant-guide",
+				"GET",
+				"/mcp?utm_source=integrations&utm_medium=internal&utm_content=ai-assistant-guide",
+				"See guide",
+				"neutral",
+				false,
+			]],
+		);
+	});
+
+	it("does not count the extension or the phone app as an assistant", () => {
+		assert.equal(aiAssistantRow(["hutch-chrome-extension", "ios-app", "dyn_claude"]).statusLabel, "1 connected");
+	});
+
+	it("shows the AI assistant as not set up when only built-in apps are connected", () => {
+		const row = aiAssistantRow(["hutch-chrome-extension", "ios-app"]);
+
+		assert.equal(row.statusKey, "not-set-up");
+		assert.equal(row.statusLabel, "Not set up");
+		assert.deepEqual(row.actions.map((a) => a.key), ["ai-assistant-setup"]);
+	});
+
 	it("counts the active custom emails and links to manage them", () => {
-		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 2, canConnectGmail: true })
+		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 2, canConnectGmail: true, connectedClientIds: [] })
 			.services.find((s) => s.key === "custom-emails");
 		assert(customEmails, "the Custom Emails row is always present");
 
@@ -61,18 +129,19 @@ describe("toIntegrationsIndexViewModel", () => {
 		assert.equal(customEmails.statusLabel, "2 active");
 		assert.equal(customEmails.statusModifier, "integrations__status--active");
 		assert.deepEqual(
-			customEmails.actions.map((a) => [a.key, a.method, a.href, a.label]),
+			customEmails.actions.map((a) => [a.key, a.method, a.href, a.label, a.boost]),
 			[[
 				"custom-emails",
 				"GET",
 				`${CUSTOM_EMAILS_PATH}?utm_source=integrations&utm_medium=internal&utm_content=custom-emails`,
 				"Manage",
+				true,
 			]],
 		);
 	});
 
 	it("shows custom emails as not set up while none is active", () => {
-		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0, canConnectGmail: true })
+		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0, canConnectGmail: true, connectedClientIds: [] })
 			.services.find((s) => s.key === "custom-emails");
 		assert(customEmails, "the Custom Emails row is always present");
 
@@ -101,11 +170,11 @@ describe("toIntegrationsIndexViewModel", () => {
 		["a reader who may connect", true],
 		["a reader who must upgrade first", false],
 	])("tags Gmail as beta and Custom Emails as not for %s", (_reader, canConnectGmail) => {
-		const vm = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0, canConnectGmail });
+		const vm = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0, canConnectGmail, connectedClientIds: [] });
 
 		assert.deepEqual(
 			vm.services.map((s) => [s.key, s.beta]),
-			[["gmail", true], ["custom-emails", false]],
+			[["gmail", true], ["custom-emails", false], ["ai-assistant", false]],
 		);
 	});
 
@@ -126,6 +195,7 @@ describe("toIntegrationsIndexViewModel", () => {
 			label: "Upgrade",
 			variant: "primary",
 			fields: [],
+			boost: true,
 			trackSource: "integrations",
 			trackContent: "upgrade-gmail",
 		});

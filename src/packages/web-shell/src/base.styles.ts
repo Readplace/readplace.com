@@ -89,6 +89,7 @@ const LIGHT_THEME_VARIABLES: Record<string, string> = {
 	"--progress-track": "var(--border)",
 	"--progress-fill": "var(--success)",
 	"--fact-site": "var(--color-secondary-text)",
+	"--fact-published": "var(--color-secondary-text)",
 	"--fact-saved": "var(--color-error)",
 	"--fact-read-time": "var(--color-success)",
 	"--fact-provenance": "var(--color-secondary-text)",

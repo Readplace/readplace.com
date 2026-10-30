@@ -18,6 +18,7 @@ import type { WriteCanonicalContent } from "../../providers/article-store/promot
 import type { RecordCrawlVersion } from "../../providers/article-store/record-crawl-version";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
+import { resolveCanonicalPublishedOn } from "./resolve-canonical-published-on";
 import { type LiveAttempt, type PreparedContentSelection, initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
@@ -77,10 +78,10 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 		}
 		const canonicalContentHash = computeCanonicalContentHash(source.html);
 		const crawledAt = deps.now().toISOString();
-		const metadata = { ...source.metadata, imageUrl: resolveCanonicalImageUrl({ winner: source, candidates: selection.sources }) };
+		const metadata = { ...source.metadata, imageUrl: resolveCanonicalImageUrl({ winner: source, candidates: selection.sources }), publishedOn: resolveCanonicalPublishedOn({ winner: source, candidates: selection.sources }) };
 		const canonicalCommit = { ...(await deps.writeCanonicalContent({ url: params.url, source })), originalUrl: selection.originalUrl, expected };
 		if (params.mode === "recrawl" && selection.outcome === "retained") {
-			await deps.transitionAndPersist(recrawlTieKeptCanonical, { url: params.url, input: { now: crawledAt }, canonicalCommit });
+			await deps.transitionAndPersist(recrawlTieKeptCanonical, { url: params.url, input: { now: crawledAt, publishedOn: metadata.publishedOn }, canonicalCommit });
 		} else if (params.mode === "recrawl") {
 			await deps.transitionAndPersist(recrawlPromoteTier, {
 				url: params.url,

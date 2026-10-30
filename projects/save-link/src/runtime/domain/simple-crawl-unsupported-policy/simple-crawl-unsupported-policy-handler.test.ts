@@ -385,3 +385,46 @@ describe("OJS galley viewer simple-to-comprehensive routing", () => {
 		expect(requests).toEqual([url, downloadUrl, url, downloadUrl]);
 	});
 });
+
+describe("Gallup document simple-to-comprehensive routing", () => {
+	it.each([false, true])("extracts the declared report while preserving the original save attempt (recrawl=%s)", async (recrawl) => {
+		const url = "https://www.gallup.com/analytics/123/sample-report.aspx";
+		const downloadUrl = "https://www.gallup.com/file/analytics/123/sample-report.pdf";
+		const pdf = Buffer.from("%PDF-1.4\nSynthetic report bytes for the injected extractor.");
+		const html = "<html><head><title>Sample research report</title></head><body><p>The report findings and methodology.</p></body></html>";
+		const landing = `<html><body><nav>Publisher navigation</nav><main class="sa-document"><article class="o-article"><div class="article-content"><p><a class="gel-icon-document-pdf-solid" href="${downloadUrl}">Download report</a></p></div></article></main></body></html>`;
+		const requests: string[] = [];
+		const crawlFetch: CrawlFetch = async (requestedUrl) => {
+			requests.push(requestedUrl);
+			const response = requestedUrl === downloadUrl
+				? new Response(pdf, { status: 200, headers: { "content-type": "application/pdf" } })
+				: new Response(landing, { status: 200, headers: { "content-type": "text/html" } });
+			Object.defineProperty(response, "url", { value: requestedUrl });
+			return response;
+		};
+		const { siteRules } = initArticleSiteRules({ crawlFetch, logError: () => {} });
+		const shared = { crawlFetch, siteRules, logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} };
+		const simple = initCrawlArticle(shared);
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>(async () => ({ kind: "fetched", title: "Sample research report", html }));
+		const comprehensive = initCrawlArticle({ ...shared, extractPdf });
+		const extracted: CrawlArticleResult[] = [];
+		const publishEvent: PublishEvent = async (_event, detail) => {
+			const command = ComprehensiveCrawlCommand.detailSchema.parse(detail);
+			extracted.push(await comprehensive({ url: command.url }));
+		};
+		const dispatch = jest.fn(publishEvent);
+		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent: dispatch, logger: noopLogger });
+
+		expect(await simple({ url })).toEqual({ status: "unsupported", reason: "unsupported content type: application/pdf" });
+		await policy(createSqsEvent({ url, recrawl, unsupportedReason: "non-html-content" }), buildLambdaContext(), () => {});
+
+		expect(dispatch).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({ url, recrawl, saveAttemptId: "attempt-1" }));
+		expect(extractPdf).toHaveBeenCalledWith({ buffer: pdf, url: downloadUrl, onProgress: undefined });
+		const [result] = extracted;
+		assert(result?.status === "fetched");
+		expect(result.html).toBe(html);
+		expect(result.finalUrl).toBe(downloadUrl);
+		expect(result.bodyHash).toBe(createHash("sha256").update(pdf).digest("hex"));
+		expect(requests).toEqual([url, downloadUrl, url, downloadUrl]);
+	});
+});
