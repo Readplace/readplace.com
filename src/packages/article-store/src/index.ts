@@ -1,6 +1,7 @@
 export { initDynamoDbArticleStore } from "./dynamodb-article-store";
 export { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
 export { initDynamoDbReadlistDefinitions } from "./dynamodb-readlist-definitions";
+export { initFindSavedArticleForLink } from "./find-saved-article-for-link";
 export { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
 export { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 export { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";

@@ -25,7 +25,7 @@ function productLink(params: { userId: UserId; url: string }): InboxEmailLinkEnt
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: undefined,
-		droppedFor: undefined,
+		anchorText: undefined,
 	};
 }
 

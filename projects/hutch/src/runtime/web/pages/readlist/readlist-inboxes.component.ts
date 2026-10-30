@@ -53,7 +53,7 @@ const DESCRIPTIONS: Record<"unset" | "set", (label: string) => string> = {
 	unset: (label) =>
 		`Send a custom email here and the articles each issue links to are saved to ${DEFAULT_READLIST_LABEL} and ${label}.`,
 	set: (label) =>
-		`Send a custom email here and the articles each issue links to are saved to ${DEFAULT_READLIST_LABEL} and ${label}, keeping only the links that fit its purpose.`,
+		`Send a custom email here and every article each issue links to is saved to ${DEFAULT_READLIST_LABEL}. The ones that fit are also saved to ${label}.`,
 };
 
 export interface ReadlistInboxRow {

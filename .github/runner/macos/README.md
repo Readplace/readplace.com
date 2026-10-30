@@ -27,6 +27,8 @@ A clean review leaves `frames-reviewed-clean.md` in the run directory, and a lat
 
 A fully nx-cache-replayed `pnpm check` runs no e2e, so it has to deliver the frames its original run captured; a run that delivers none fails the review rather than being assumed already checked.
 
+A review that finds neither `frames/` nor the record fails with a message that names the directory it looked for, the CI run id and why the frames are gone, in place of a bare `ENOENT`. A re-run of the review alone never finds frames: every review deletes the frames it read, and only a clean one leaves the record. On a first attempt the CI attempt that triggered the review handed nothing over: a run GitHub held for approval completes as `action_required` with no job run and still triggers a review, or the run's failed jobs were re-run without `web-tests` after an earlier review had consumed the frames without leaving the record. The remedy the message gives is the same for all of them: re-run the CI run with all its jobs — approve it in the browser if it is held — or push a new commit.
+
 ## Cost
 
 The review starts one resident `mlx_vlm.server` per job and sends every call to it over HTTP, so the 18 GB of weights load once per job instead of once per call — the per-call reload is where the intermittent `Command failed` kills of a fresh `mlx_vlm.generate` process died on a contended host. Once loaded, a multi-frame review pass takes ~9 s and a single-image verification ~1–2 s. Every reported finding costs one verification call, because the 4-bit model invents cross-frame defects when handed a sequence and only holds up under single-frame questioning.
@@ -66,6 +68,12 @@ The valid set needed 21 runs to get 20 verdicts. One run hung: the model server 
 The model remains a heuristic: these numbers measure repeatability on known frames, not a guarantee. The text-fit assertions in hutch's `verify-banner-nav-visual.e2e-local.ts` cover deterministically that the banner's text fits its box and the viewport, on desktop and mobile, light and dark, and with the dialog open and closed.
 
 A review that fails keeps its frames as evidence: confirmed defects, an unparseable review, or a verification that answered neither true nor false. Before this, the upload step was skipped whenever the review step failed, so review 40077996187 kept no evidence.
+
+## One model server per host
+
+The reviewer refuses to start while any process whose command line contains `mlx_vlm.server` is running: it fails within seconds, names each such process (PID and command line) in the job log, and leaves the frames on disk, so re-running the review from the Actions UI once that process is gone reviews them. A review that gives up on loading its own server stops that server before it fails, so a timed-out review leaves no second copy behind. Two resident copies of the model have stalled together: review 40108828635 attempt 1 began 3 s after a local fixture replay had started its server and loaded its own copy 15 s later; from then on neither produced another token, and the job ran into its 10-minute limit — reported by the API as `cancelled` — instead of ending with the cause. Attempt 3 passed twelve hours later on the frames the first two had left in place.
+
+It is a refusal, not a wait or a lock: a `concurrency:` group cannot see a local process, and a review that waited would spend its job budget on someone else's replay. The reverse therefore holds too: any local `mlx_vlm.server` — a fixture replay, a prompt harness, a stub — fails the CI review that arrives while it runs. Start one only while both self-hosted runners are idle and no CI or Visual Review run is queued or in progress (`gh api repos/{owner}/{repo}/actions/runners`; `gh run list --workflow ci.yml --status in_progress`, `--status queued`, and the same for `visual-review.yml`), and after `pgrep -fl mlx_vlm.server` finds nothing. Do not re-run a CI run or a Visual Review from the Actions UI while a local server runs: a re-run of a single CI job completed in 1.4 minutes and its review loaded the model 1.8 minutes after the re-run started (run 38394552205, attempt 2). A review this refusal failed is re-run after the local server has exited.
 
 ## Rollout
 

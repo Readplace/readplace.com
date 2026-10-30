@@ -1,17 +1,12 @@
 import type {
 	InboxEmailEntry,
 	InboxEmailLinkCounts,
-	InboxEmailLinkDrop,
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 	InboxLinkSaveState,
-	InboxReadlistDecision,
 } from "@packages/domain/inbox";
 import { INBOX_PATH, isExcludedLink } from "@packages/domain/inbox";
-import {
-	DEFAULT_READLIST_LABEL,
-	DEFAULT_READLIST_SLUG,
-} from "@packages/domain/readlist";
+import { DEFAULT_READLIST_LABEL } from "@packages/domain/readlist";
 import {
 	type LocalTime,
 	toAbsoluteDateTime,
@@ -48,7 +43,7 @@ export interface AlertCopy {
 }
 
 export interface PanelAlert extends AlertCopy {
-	key: "failed" | "stale" | "decision-failed" | "decision-stale";
+	key: "failed" | "stale";
 }
 
 export interface PanelNotice {
@@ -57,8 +52,7 @@ export interface PanelNotice {
 		| "deciding"
 		| "truncated"
 		| "decided"
-		| "skipped-note"
-		| "dropped-note";
+		| "skipped-note";
 	text: string;
 	iconName: "loader" | undefined;
 }
@@ -104,78 +98,6 @@ const SKIPPED_NOTE_NOTICE: PanelNotice = {
 	text: "These looked like unsubscribe, ad, or menu links — not articles — so they weren't fetched or added.",
 	iconName: undefined,
 };
-
-const DECIDING_NOTICE: PanelNotice = {
-	key: "deciding",
-	text: "Choosing which links fit this custom email's readlist…",
-	iconName: "loader",
-};
-const DECISION_FAILED_ALERT: PanelAlert = {
-	key: "decision-failed",
-	title: "Couldn't choose which links to save",
-	body: "Nothing from this email was saved. Use Save on any link you want to keep.",
-};
-const DECISION_STALE_ALERT: PanelAlert = {
-	key: "decision-stale",
-	title: "Still choosing which links to save",
-	body: "This is taking longer than usual. Reload later to see what was saved.",
-};
-
-function decidedNoticeText(input: {
-	readlistLabel: string;
-	destination: string;
-	anyDropped: boolean;
-	anyKept: boolean;
-}): string {
-	if (!input.anyDropped) return `Saved to ${input.destination}.`;
-	if (!input.anyKept)
-		return `Nothing in this email fit ${input.readlistLabel}, so nothing was saved.`;
-	return `Saved to ${input.destination}. Links that didn't fit are on the Skipped tab.`;
-}
-
-function droppedNote(drop: InboxEmailLinkDrop): PanelNotice {
-	return {
-		key: "dropped-note",
-		text: `Links that didn't fit ${drop.readlistLabel} weren't saved. Save any you still want.`,
-		iconName: undefined,
-	};
-}
-
-function decisionTerminalRegions(input: {
-	decision: InboxReadlistDecision | undefined;
-	withinPollBudget: boolean;
-	anyDropped: boolean;
-	anyKept: boolean;
-}): { alerts: PanelAlert[]; notices: PanelNotice[] } {
-	const { decision } = input;
-	if (decision === undefined) return { alerts: [], notices: [] };
-	if (decision.state === "failed")
-		return { alerts: [DECISION_FAILED_ALERT], notices: [] };
-	if (decision.state === "deciding") {
-		return {
-			alerts: input.withinPollBudget ? [] : [DECISION_STALE_ALERT],
-			notices: [],
-		};
-	}
-	return {
-		alerts: [],
-		notices: [
-			{
-				key: "decided",
-				text: decidedNoticeText({
-					readlistLabel: decision.readlistLabel,
-					destination:
-						decision.readlist === DEFAULT_READLIST_SLUG
-							? DEFAULT_READLIST_LABEL
-							: `${DEFAULT_READLIST_LABEL} and ${decision.readlistLabel}`,
-					anyDropped: input.anyDropped,
-					anyKept: input.anyKept,
-				}),
-				iconName: undefined,
-			},
-		],
-	};
-}
 
 function readlistSaveNotices(input: {
 	selectedReadlists: NonNullable<InboxEmailLinksMeta["selectedReadlists"]>;
@@ -275,7 +197,6 @@ interface ExtractionPanelViewModel {
 	 * links…" state instead of a terminal answer, so a non-terminal state is never
 	 * shown as terminal. Goes false once `isStalePending` takes over. */
 	isExtracting: boolean;
-	isDeciding: boolean;
 	/** True when the poll budget is spent but extraction never wrote its meta
 	 * barrier — a pre-feature email that predates the meta row, or an extractor
 	 * that died without reaching its dead-letter queue. The panel gives up on
@@ -388,9 +309,6 @@ function buildPanelRegions(input: {
 	if (input.status === "extracting") {
 		return { alerts: [], notices: [EXTRACTING_NOTICE], listing: undefined };
 	}
-	if (input.status === "deciding") {
-		return { alerts: [], notices: [DECIDING_NOTICE], listing: undefined };
-	}
 	if (input.status !== "terminal") {
 		return {
 			alerts: [{ key: input.status, ...STALE_ALERT }],
@@ -475,9 +393,6 @@ export function toInboxEmailDetailViewModel(input: {
 			pollContext: { mode: "static" },
 		}),
 	);
-	const firstDrop = excludedEntries.find(
-		(link) => link.droppedFor !== undefined,
-	)?.droppedFor;
 	const truncated = linksMeta?.truncated === true;
 	// No meta row yet means the async extractor has not finished for this received
 	// email — keep polling rather than asserting it has zero links. Non-received
@@ -487,14 +402,12 @@ export function toInboxEmailDetailViewModel(input: {
 	// A barrier written by the dead-letter handler reports a scan that never
 	// completed, so its zero rows are not an answer about the email's contents.
 	const isExtractionFailed = linksMeta?.extractionFailed === true;
-	const decision = linksMeta?.readlistDecision;
 	const panelPollCount = input.panelPollCount ?? INITIAL_POLL_COUNT;
 	const withinPollBudget = panelPollCount <= input.maxPolls;
-	const isDeciding = decision?.state === "deciding" && withinPollBudget;
 	let linkCounts: InboxEmailLinkCounts | undefined;
 	if (input.linkData.source === "rows") {
 		linkCounts =
-			awaitingMeta || isExtractionFailed || isDeciding
+			awaitingMeta || isExtractionFailed
 				? undefined
 				: { kept: allCards.length, skipped: excludedLinks.length, truncated };
 	} else if (input.entry.status === "received") {
@@ -517,7 +430,6 @@ export function toInboxEmailDetailViewModel(input: {
 				: undefined;
 	const panelStatus = panelStatusFor({
 		isExtracting,
-		isDeciding,
 		isExtractionFailed,
 		isStalePending,
 	});
@@ -529,7 +441,7 @@ export function toInboxEmailDetailViewModel(input: {
 				),
 		) === true;
 	const isPolling =
-		isExtracting || isDeciding || (gmailPending && linksMeta?.savesHeld !== true && withinPollBudget);
+		isExtracting || (gmailPending && linksMeta?.savesHeld !== true && withinPollBudget);
 	const truncatedNotices: PanelNotice[] = truncated
 		? [
 				{
@@ -539,17 +451,12 @@ export function toInboxEmailDetailViewModel(input: {
 				},
 			]
 		: [];
-	const decisionRegions = decisionTerminalRegions({
-		decision,
-		withinPollBudget,
-		anyDropped: firstDrop !== undefined,
-		anyKept: totalCards > 0,
-	});
+	const decisionNotices: PanelNotice[] = [];
 	if (linksMeta?.issueSave !== undefined) {
-		decisionRegions.notices.push(issueSaveNotice(linksMeta.issueSave));
+		decisionNotices.push(issueSaveNotice(linksMeta.issueSave));
 	}
 	if (linksMeta?.selectedReadlists !== undefined) {
-		decisionRegions.notices.push(
+		decisionNotices.push(
 			...readlistSaveNotices({
 				selectedReadlists: linksMeta.selectedReadlists,
 				outcomes: linksMeta.readlistOutcomes,
@@ -564,11 +471,8 @@ export function toInboxEmailDetailViewModel(input: {
 	)
 		? [SKIPPED_NOTE_NOTICE]
 		: [];
-	const droppedNotices =
-		firstDrop === undefined ? [] : [droppedNote(firstDrop)];
 	const shared = {
 		isExtracting,
-		isDeciding,
 		isStalePending,
 		isExtractionFailed,
 	};
@@ -598,7 +502,7 @@ export function toInboxEmailDetailViewModel(input: {
 					? {}
 					: { articles: linkCounts.kept, excluded: linkCounts.skipped },
 		}),
-		extractionReported: !awaitingMeta && !isExtractionFailed && !isDeciding,
+		extractionReported: !awaitingMeta && !isExtractionFailed,
 		canRenderBody,
 		bodyHtml: input.bodyHtml ?? "",
 		imagesCdnBaseUrl: input.imagesCdnBaseUrl,
@@ -612,8 +516,8 @@ export function toInboxEmailDetailViewModel(input: {
 			isEmpty: totalCards === 0,
 			...buildPanelRegions({
 				status: panelStatus,
-				terminalAlerts: decisionRegions.alerts,
-				terminalNotices: [...truncatedNotices, ...decisionRegions.notices],
+				terminalAlerts: [],
+				terminalNotices: [...truncatedNotices, ...decisionNotices],
 				countLabel: `${totalCards} Extracted ${totalCards === 1 ? "Article" : "Articles"}`,
 				emptyStates:
 					totalCards > 0
@@ -638,7 +542,6 @@ export function toInboxEmailDetailViewModel(input: {
 				terminalNotices: [
 					...truncatedNotices,
 					...skippedNotices,
-					...droppedNotices,
 				],
 				countLabel: `${excludedLinks.length} Skipped`,
 				emptyStates:

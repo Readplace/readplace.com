@@ -4,7 +4,6 @@ import {
 	type InboxEmailLinkEntry,
 	type InboxLinkSaveState,
 } from "@packages/domain/inbox";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	type ExcludedLinkPollContext,
@@ -28,7 +27,7 @@ function link(overrides: Partial<InboxEmailLinkEntry> = {}): InboxEmailLinkEntry
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: "llm-ad",
-		droppedFor: undefined,
+		anchorText: undefined,
 		...overrides,
 	};
 }
@@ -77,37 +76,6 @@ describe("toInboxExcludedLinkViewModel", () => {
 
 	it("labels a row with no recorded reason generically", () => {
 		expect(build({ link: link({ skipReason: undefined }) }).reasonLabel).toBe("Not an article");
-	});
-
-	it("labels a link the readlist dropped with the readlist and the reason it gave", () => {
-		const vm = build({
-			link: link({
-				status: "crawled",
-				skipReason: undefined,
-				droppedFor: {
-					readlist: ReadlistSlugSchema.parse("work"),
-					readlistLabel: "Work",
-					reason: "A product launch, not engineering",
-				},
-			}),
-		});
-
-		expect(vm.reasonLabel).toBe("Not for Work — A product launch, not engineering");
-		expect(saveActionOf(vm).href).toBe(
-			`/inbox/${encodeURIComponent(SK)}/links/0000/save?utm_source=inbox-excluded-link&utm_medium=internal&utm_content=save-link`,
-		);
-	});
-
-	it("names only the readlist when the filter gave no reason for the drop", () => {
-		const vm = build({
-			link: link({
-				status: "crawled",
-				skipReason: undefined,
-				droppedFor: { readlist: ReadlistSlugSchema.parse("work"), readlistLabel: "Work", reason: "" },
-			}),
-		});
-
-		expect(vm.reasonLabel).toBe("Not for Work");
 	});
 
 	it("offers the save action for a saveable url", () => {

@@ -161,7 +161,7 @@ Grew out of a personal reading system that Fayner Brack, now Founder & CEO, ran 
 
 **Strengths:**
 - AI TL;DR summaries included on every plan. No upsell tier required.
-- Privacy-first: hosted in Australia, no third-party tracking scripts in the app, no third-party analytics. Article text is sent to DeepSeek to write summaries.
+- Privacy-first: hosted in Australia, no third-party tracking scripts in the app, no third-party analytics. Article text is sent to DeepSeek to write summaries. For newsletters, each issue's subject, sender, link addresses and link text are sent to DeepSeek to tell articles from ads and menus, and, for a readlist you described, what you wrote is sent with them to choose which fit.
 - Source-available. You can read every line of code that handles your data.
 - "Even If You Cancel" promise: export a list of every saved article anytime, even after cancellation.
 
@@ -355,7 +355,7 @@ Readplace collects only what is necessary to run the service:
 - Saved article URLs
 - Basic server logs
 
-Readplace does NOT use third-party analytics and does NOT sell data. Article text is sent to the DeepSeek API to generate the TL;DR summary and to clean up the extracted article content. Data is stored in the AWS Sydney region under the Australian Privacy Act. First-party cookies only — a login session, an anonymous visitor id, campaign attribution, and short-lived functional cookies; no third-party or cross-site tracking cookies. Users can export a list of their saved articles from the export page, and delete their account from the account page, at any time. Export is available even after cancellation.
+Readplace does NOT use third-party analytics and does NOT sell data. Article text is sent to the DeepSeek API to generate the TL;DR summary and to clean up the extracted article content. Data is stored in the AWS Sydney region under the Australian Privacy Act. First-party cookies only — a login session, an anonymous visitor id, campaign attribution, and short-lived functional cookies; no third-party or cross-site tracking cookies. Users can export a list of their saved articles from the export page, and delete their account from the account page, at any time. Export is available even after cancellation. For newsletters, each issue's subject, sender, link addresses and link text are sent to DeepSeek to tell articles from ads and menus, and, for a readlist you described, what you wrote is sent with them to choose which fit.
 
 ## Terms
 

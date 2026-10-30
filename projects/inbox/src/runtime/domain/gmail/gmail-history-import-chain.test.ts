@@ -798,11 +798,8 @@ for (const delivery of ["forward", "import"] as const) {
 		);
 		const row = (await pipeline.rows())[0];
 		const recordOutcome = initRecordEmailLinksFilteredHandler({
-			markLinkDropped: pipeline.links.markLinkDropped,
-			settleReadlistDecision: pipeline.links.settleReadlistDecision,
 			putReadlistOutcome: pipeline.links.putReadlistOutcome,
 			listLinksByEmail: pipeline.links.listLinksByEmail,
-			setEmailLinkCounts: pipeline.emails.setEmailLinkCounts,
 			logger: HutchLogger.from(noopLogger),
 		});
 		const details = [
@@ -852,7 +849,7 @@ for (const delivery of ["forward", "import"] as const) {
 			userId: READER,
 			receivedAtMessageId: row.receivedAtMessageId,
 		});
-		assert.equal(links[0].droppedFor, undefined);
+		assert.equal(links.length, 1);
 		assert.deepEqual(
 			meta?.readlistOutcomes?.map(({ readlist, decision, dropped }) => ({
 				readlist,

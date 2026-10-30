@@ -2627,7 +2627,7 @@ Exact HTML body: [`html/queue-digest--single-article.html`](html/queue-digest--s
 
 ### When it is sent
 
-The first time Readplace acts on an email sent directly to one of the reader's Readplace inbox addresses, it tells the reader the address works. The email can be a newsletter sent to their signup address or mail to a custom address routed to a readlist; mail auto-forwarded from Gmail and messages from a Gmail history import never trigger it. The inbox Lambda publishes the trigger as soon as it submits the email's first article link to All (or hands the links to a custom readlist's filter), and the send Lambda emails the reader moments later. Each account gets it at most once, ever.
+The first time Readplace acts on an email sent directly to one of the reader's Readplace inbox addresses, it tells the reader the address works. The email can be a newsletter sent to their signup address or mail to a custom address routed to a readlist; mail auto-forwarded from Gmail and messages from a Gmail history import never trigger it. The inbox Lambda publishes the trigger as soon as it submits the email's first article link to All, which it does for every inbox address, including one routed to a custom readlist, and the send Lambda emails the reader moments later. Each account gets it at most once, ever.
 
 Trigger chain:
 
@@ -2635,7 +2635,7 @@ Trigger chain:
 2. receive-email resolves the recipient address, skips a message already ingested, and ingests the email as inbox mail; mail to the Gmail forwarding address or a gmail-mapped address is ingested as Gmail mail instead, which never triggers this email `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:322`
 3. Ingest writes a 'received' inbox row and publishes EmailReceivedEvent, which EventBridge routes to the extract-email-links Lambda `projects/inbox/src/runtime/domain/inbox/ingest-parsed-email.ts:97`
 4. extract-email-links re-parses the email, drops unsubscribe and action links and LLM-judged non-articles, and checks the reader's write access `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:297`
-5. Right after the email's first SubmitLinkCommand to All (or after EmailLinksTriaged on an alias routed to a custom readlist) it publishes SendFirstInboxEmailNoticeCommand once for that email, only when the email is routed as inbox mail `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
+5. Right after the email's first SubmitLinkCommand to All it publishes SendFirstInboxEmailNoticeCommand once for that email, only when the email is routed as inbox mail `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:439`
 6. EventBridge routes the command to the send-first-inbox-email-notice-q SQS queue and Lambda `projects/hutch/src/infra/index.ts:1309`
 7. The handler re-checks write access, looks up the login email, claims the once-only marker, renders the email and sends it through Resend behind the reserved-domain filter `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:101`
 
@@ -2648,8 +2648,7 @@ Sent only when:
 - The reader has full write access when the links are extracted: an active trial, an active membership, a pending cancellation before its end date, or no membership row (founding member) `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:297`
 - At least one link is not an unsubscribe or action link and is not judged a non-article by the LLM triage; if the triage is unavailable, every link is kept `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:385`
 - That link is a saveable URL `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:407`
-- Signup address and other addresses on All: the link's row is pending and its SubmitLinkCommand to All was just published `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
-- Alias routed to a custom readlist: at least one saveable link was handed to that readlist's filter through EmailLinksTriaged `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:497`
+- The link's row is pending and its SubmitLinkCommand to All was just published, for the signup address, other addresses on All and aliases routed to a custom readlist alike `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:439`
 - The reader still has full write access when the send Lambda runs `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - The account has a login email on file `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:72`
 - This email has never been sent to the account (the once-only marker is unset) `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:82`
@@ -2662,7 +2661,7 @@ Not sent when:
 - A reader who is read-only when the send Lambda runs is skipped without setting the marker, so a later email can still trigger it once access returns `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - An account with no login email on file is skipped without setting the marker `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:72`
 - Email to an unknown or disabled address gets an audit row only and is never ingested `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:248`
-- Mail routed from Gmail never triggers it, even when its links are submitted to All: newsletters Gmail auto-forwards to the reader's Gmail forwarding address (or a gmail-mapped address) and every message from a Gmail history import `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
+- Mail routed from Gmail never triggers it, even when its links are submitted to All: newsletters Gmail auto-forwards to the reader's Gmail forwarding address (or a gmail-mapped address) and every message from a Gmail history import `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:439`
 - Gmail's forwarding-confirmation email is consumed by setup and never ingested `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:225`
 - A message already ingested for the reader (same sender and Message-ID, for example a copy sent to two of their addresses) is skipped; when the copy ingested first came through Gmail, neither copy triggers it `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:314`
 - An email whose links are all skipped (unsubscribe, action, LLM non-article, or unsaveable URLs) never triggers it `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:385`
@@ -2691,9 +2690,7 @@ Not sent when:
 > **Observations**
 >
 > - Silent loss: the once-only marker is claimed before Resend is called, so a Resend failure (4xx or 5xx) is retried into a skip and the reader never gets the email, with nothing in the DLQ; the colocated test checks only the first attempt (`projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.test.ts:207`) `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:81`
-> - Premature on the custom-readlist path: the email goes out before the readlist's filter decides, and a readlist with a purpose can keep zero links, so the reader can be told their links were added when nothing was saved `projects/save-link/src/runtime/domain/filter-email-links/filter-email-links-handler.ts:85`
-> - The copy says Readplace adds the links 'to All, your main readlist' for every address, including aliases routed to a custom readlist where the readlist's filter decides `projects/hutch/src/runtime/web/auth/inbox-first-arrival-email.ts:23`
-> - A reader whose mail all reaches Readplace through Gmail (auto-forwarding or history imports) never gets this email, even though those links are saved to All `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436`
+> - A reader whose mail all reaches Readplace through Gmail (auto-forwarding or history imports) never gets this email, even though those links are saved to All `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:439`
 > - Gmail mail sets no marker, so a reader whose Gmail newsletters have been landing in their inbox for weeks is still told 'The first email to your custom email {address} just came through' the first time mail reaches a Readplace address directly `projects/hutch/src/runtime/web/auth/inbox-first-arrival-email.ts:19`
 > - The LLM triage fails open, so during a DeepSeek outage a non-article email (a receipt or notification) can trigger this once-ever onboarding email `projects/inbox/src/runtime/domain/inbox/triage-email-links.ts:133`
 > - No unsubscribe or preference check and no List-Unsubscribe header; it is sent as a one-time transactional notice `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:101`
@@ -2719,7 +2716,7 @@ Content variants:
 | Variant | Shown when |
 |---|---|
 | default | Live email to the signup address inbox-<token>@read.place, or any address left on All. There is one template with no conditional copy: only the bold address and the button's highlight id change. The button links to https://readplace.com/inbox?highlight={receivedAtMessageId}&utm_source=first-inbox-email&utm_medium=email&utm_campaign=inbox-first-arrival&utm_content=open-inbox, and the highlight id here is {SES receipt time}#{Message-ID}. |
-| custom-readlist-alias | Live email to a Readplace address the reader routed to a custom readlist, while they have full write access. No link is submitted to All; the email is sent right after the links are handed to that readlist's filter, and the body names the custom address. |
+| custom-readlist-alias | Live email to a Readplace address the reader routed to a custom readlist, while they have full write access. Every saveable link is submitted to All first, and the email is sent right after the first submit, naming the custom address. |
 
 ### Example
 
@@ -2820,7 +2817,7 @@ Subject: **Your first email landed in your Readplace Inbox** · To: `sam.reader@
 
 Exact HTML body: [`html/inbox-first-arrival--default.html`](html/inbox-first-arrival--default.html)
 
-#### `custom-readlist-alias` — A newsletter sent to the custom address longreads-p4n8z2@read.place, which the reader routed to their 'Long reads' readlist; the email goes out when the links are handed to that readlist's filter, before anything is saved.
+#### `custom-readlist-alias` — A newsletter sent to the custom address longreads-p4n8z2@read.place, which the reader routed to their 'Long reads' readlist; the email goes out right after the first link is submitted to All.
 
 Subject: **Your first email landed in your Readplace Inbox** · To: `sam.reader@gmail.com`
 
@@ -2882,10 +2879,12 @@ Subject: **Your first email landed in your Readplace Inbox** · To: `sam.reader@
   },
   "extractLambdaNow": "2026-10-05T07:42:21.493Z",
   "inboxLambdaPublishes": [
+    "SubmitLinkCommand",
+    "SendFirstInboxEmailNoticeCommand",
     "CrawlEmailLinkPreview",
+    "SubmitLinkCommand",
     "CrawlEmailLinkPreview",
-    "EmailLinksTriaged",
-    "SendFirstInboxEmailNoticeCommand"
+    "EmailLinksTriaged"
   ],
   "sendFirstInboxEmailNoticeCommand": {
     "source": "hutch.inbox",
@@ -2924,7 +2923,7 @@ Exact HTML body: [`html/inbox-first-arrival--custom-readlist-alias.html`](html/i
 - `projects/hutch/src/runtime/send-first-inbox-email-notice.main.ts:40` — composition root: Resend wrapped by the reserved-domain filter
 - `projects/hutch/src/runtime/providers/email/resend-email.ts:9` — sender: Resend API call
 - `src/packages/onboarding-signals/src/dynamodb-onboarding-signals.ts:175` — once-only marker firstInboxEmailNoticeSentAt
-- `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:436` — publisher of SendFirstInboxEmailNoticeCommand
+- `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:439` — publisher of SendFirstInboxEmailNoticeCommand
 - `projects/hutch/src/infra/index.ts:1280` — trigger infra: SQS queue, Lambda and EventBridge subscription
 
 ## 12. Gmail newsletter notice

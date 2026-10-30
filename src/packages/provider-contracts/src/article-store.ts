@@ -406,6 +406,11 @@ export type PinContentSource = (params: {
  * another alias, so one lookup is total. */
 export type ResolveCanonicalIdentity = (url: string) => Promise<string>;
 
+export type FindSavedArticleForLink = (input: { userId: UserId; url: string }) => Promise<
+	| { kind: "saved"; resolvedUrl: string; article: SavedArticle }
+	| { kind: "not-saved"; resolvedUrl: string }
+>;
+
 export type RepairWrapperIdentity = (params: {
 	articleUrl: string;
 	expectedOriginalUrl: string;

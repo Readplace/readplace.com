@@ -24,7 +24,6 @@ interface SeedLink {
 	url: string;
 	status: "crawled" | "skipped";
 	title?: string;
-	droppedFor?: { readlist: string; readlistLabel: string; reason: string };
 }
 
 interface SeedReadlistOutcome {
@@ -40,24 +39,10 @@ const TWO_CRAWLED_LINKS: readonly SeedLink[] = [
 	{ url: "https://example.com/second", status: "crawled", title: "Another article" },
 ];
 
-const DECIDED_LINKS: readonly SeedLink[] = [
+const ROUTED_LINKS: readonly SeedLink[] = [
 	{ url: "https://example.com/first", status: "crawled", title: "An example article" },
-	{
-		url: "https://example.com/spring-launch",
-		status: "crawled",
-		title: "Our spring launch",
-		droppedFor: {
-			readlist: WORK_READLIST,
-			readlistLabel: "Work",
-			reason: "A product announcement, not engineering practice",
-		},
-	},
-	{
-		url: "https://example.com/careers",
-		status: "crawled",
-		title: "We're hiring",
-		droppedFor: { readlist: WORK_READLIST, readlistLabel: "Work", reason: "" },
-	},
+	{ url: "https://example.com/spring-launch", status: "crawled", title: "Our spring launch" },
+	{ url: "https://example.com/careers", status: "crawled", title: "We're hiring" },
 	{ url: "https://example.com/unsubscribe", status: "skipped" },
 ];
 
@@ -110,7 +95,6 @@ async function seedEmail(
 	page: Page,
 	seed: {
 		links: readonly SeedLink[];
-		readlistDecision?: Record<string, string>;
 		selectedReadlists?: { readlist: string; label: string }[];
 		readlistOutcomes?: SeedReadlistOutcome[];
 		eligibleArticleCount?: number;
@@ -262,8 +246,8 @@ const articlesTab: VisualCheckpoint = {
 const articlesDeciding: VisualCheckpoint = {
 	name: "inbox-articles-deciding",
 	settled: articlesPanelSettled({
-		status: "deciding",
-		region: '[data-test-panel-notice="deciding"]',
+		status: "terminal",
+		region: '[data-test-panel-notice="deciding"]:has-text("Choosing articles for")',
 	}),
 	geometry: NO_GEOMETRY,
 	target: "main",
@@ -275,7 +259,7 @@ const articlesDecisionStale: VisualCheckpoint = {
 	name: "inbox-articles-decision-stale",
 	settled: articlesPanelSettled({
 		status: "terminal",
-		region: '[data-test-alert="decision-stale"]',
+		region: '[data-test-panel-notice="deciding"]:has-text("Still choosing articles for")',
 	}),
 	geometry: NO_GEOMETRY,
 	target: "main",
@@ -287,7 +271,7 @@ const articlesDecided: VisualCheckpoint = {
 	name: "inbox-articles-decided",
 	settled: articlesPanelSettled({
 		status: "terminal",
-		region: '[data-test-panel-notice="decided"]',
+		region: '[data-test-panel-notice="decided"]:has-text("saved to Work;")',
 	}),
 	geometry: NO_GEOMETRY,
 	target: "main",
@@ -299,24 +283,8 @@ const articlesDecisionFailed: VisualCheckpoint = {
 	name: "inbox-articles-decision-failed",
 	settled: articlesPanelSettled({
 		status: "terminal",
-		region: '[data-test-alert="decision-failed"]',
+		region: '[data-test-panel-notice="decided"]:has-text("Couldn\'t choose articles for")',
 	}),
-	geometry: NO_GEOMETRY,
-	target: "main",
-	capture: "element",
-	pinnedText: PINNED_DETAIL_RECIPIENT,
-};
-
-const skippedWithDropped: VisualCheckpoint = {
-	name: "inbox-skipped-dropped",
-	settled: async (page) => {
-		await expect(page.locator('[data-test-tab-panel="excluded"]')).toHaveAttribute(
-			"data-excluded-status",
-			"terminal",
-		);
-		await expect(page.locator('[data-test-panel-notice="dropped-note"]')).toBeVisible();
-		await expect(page.locator("[data-test-inbox-excluded-link]")).toHaveCount(3);
-	},
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
@@ -454,7 +422,9 @@ test.describe("Inbox visual checkpoints", () => {
 	}) => {
 		const emailId = await seedEmail(page, {
 			links: TWO_CRAWLED_LINKS,
-			readlistDecision: { state: "deciding", readlist: WORK_READLIST },
+			selectedReadlists: [{ readlist: WORK_READLIST, label: "Work" }],
+			eligibleArticleCount: 2,
+			savesHeld: false,
 		});
 		const releasePoll = await holdPanelPollThenSpendBudget(page);
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
@@ -465,8 +435,20 @@ test.describe("Inbox visual checkpoints", () => {
 
 	test("captures the Articles tab once its readlist decided", async ({ page }) => {
 		const emailId = await seedEmail(page, {
-			links: DECIDED_LINKS,
-			readlistDecision: { state: "decided", readlist: WORK_READLIST, readlistLabel: "Work" },
+			links: ROUTED_LINKS,
+			selectedReadlists: [{ readlist: WORK_READLIST, label: "Work" }],
+			eligibleArticleCount: 3,
+			savesHeld: false,
+			readlistOutcomes: [
+				{
+					readlist: WORK_READLIST,
+					decision: { state: "decided", readlist: WORK_READLIST, readlistLabel: "Work" },
+					dropped: [
+						{ ordinal: "0001", reason: "A product announcement, not engineering practice" },
+						{ ordinal: "0002", reason: "" },
+					],
+				},
+			],
 		});
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
 		await captureCheckpoint(page, articlesDecided);
@@ -475,7 +457,12 @@ test.describe("Inbox visual checkpoints", () => {
 	test("captures the Articles tab when its readlist could not decide", async ({ page }) => {
 		const emailId = await seedEmail(page, {
 			links: TWO_CRAWLED_LINKS,
-			readlistDecision: { state: "failed", readlist: WORK_READLIST },
+			selectedReadlists: [{ readlist: WORK_READLIST, label: "Work" }],
+			eligibleArticleCount: 2,
+			savesHeld: false,
+			readlistOutcomes: [
+				{ readlist: WORK_READLIST, decision: { state: "failed", readlist: WORK_READLIST }, dropped: [] },
+			],
 		});
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
 		await captureCheckpoint(page, articlesDecisionFailed);
@@ -547,15 +534,6 @@ test.describe("Inbox visual checkpoints", () => {
 				});
 			}
 		}
-	});
-
-	test("captures the Skipped tab listing the links its readlist dropped", async ({ page }) => {
-		const emailId = await seedEmail(page, {
-			links: DECIDED_LINKS,
-			readlistDecision: { state: "decided", readlist: WORK_READLIST, readlistLabel: "Work" },
-		});
-		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=excluded`);
-		await captureCheckpoint(page, skippedWithDropped);
 	});
 
 	test("captures an open article menu inside its card", async ({ page }) => {

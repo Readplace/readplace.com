@@ -1,13 +1,15 @@
 import assert from "node:assert";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { access, appendFile, cp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { promisify } from "node:util";
 
 const GENERATE_TIMEOUT_MS = 3 * 60 * 1000;
 const SERVER_LOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const SERVER_POLL_INTERVAL_MS = 2000;
+const SERVER_EXIT_GRACE_MS = 10 * 1000;
 const GENERATE_MAX_TOKENS = 800;
 const VERIFY_MAX_TOKENS = 10;
 
@@ -103,6 +105,20 @@ function freePort() {
   });
 }
 
+async function assertNoOtherModelServer() {
+  const { stdout } = await promisify(execFile)("/usr/bin/pgrep", ["-fl", "mlx_vlm\\.server"]).catch((error) => {
+    if (error.code === 1) {
+      return { stdout: "" };
+    }
+    throw error;
+  });
+  const running = stdout.trim().replaceAll("\n", "; ");
+  assert(
+    running === "",
+    `Another mlx_vlm.server is running on this host, so this review did not start its own; wait for it to finish or stop it, then re-run this review (its frames are kept): ${running}`,
+  );
+}
+
 async function startServer({ python, model }) {
   const port = await freePort();
   const child = spawn(
@@ -115,25 +131,36 @@ async function startServer({ python, model }) {
     server.exit = { code, signal };
   });
   const startedAt = performance.now();
-  for (;;) {
-    assert(server.exit === undefined, `mlx_vlm.server exited before loading ${model}: ${JSON.stringify(server.exit)}`);
-    assert(performance.now() - startedAt < SERVER_LOAD_TIMEOUT_MS, `mlx_vlm.server did not load ${model} in time`);
-    const health = await fetch(`${server.baseUrl}/health`)
-      .then((response) => (response.ok ? response.json() : undefined))
-      .catch(() => undefined);
-    if (health?.loaded_model === model) {
-      return server;
+  try {
+    for (;;) {
+      assert(server.exit === undefined, `mlx_vlm.server exited before loading ${model}: ${JSON.stringify(server.exit)}`);
+      assert(performance.now() - startedAt < SERVER_LOAD_TIMEOUT_MS, `mlx_vlm.server did not load ${model} in time`);
+      const health = await fetch(`${server.baseUrl}/health`)
+        .then((response) => (response.ok ? response.json() : undefined))
+        .catch(() => undefined);
+      if (health?.loaded_model === model) {
+        return server;
+      }
+      await sleep(SERVER_POLL_INTERVAL_MS);
     }
-    await sleep(SERVER_POLL_INTERVAL_MS);
+  } catch (error) {
+    await stopServer(server, { killAfterMs: SERVER_EXIT_GRACE_MS });
+    throw Object.assign(error, { elapsedMs: Math.round(performance.now() - startedAt), serverExit: server.exit });
   }
 }
 
-async function stopServer(server) {
+async function stopServer(server, { killAfterMs } = {}) {
   if (server.exit !== undefined) {
     return;
   }
   const exited = new Promise((resolve) => server.child.once("exit", resolve));
   server.child.kill();
+  if (killAfterMs !== undefined) {
+    await Promise.race([exited, sleep(killAfterMs, undefined, { ref: false })]);
+    if (server.exit === undefined) {
+      server.child.kill("SIGKILL");
+    }
+  }
   await exited;
 }
 
@@ -274,16 +301,26 @@ async function publishSummary(markdown) {
   console.log(markdown);
 }
 
-async function cleanReviewOfFramesNoLongerOnDisk({ framesDir, cleanReviewRecord }) {
+async function deliveredFramesOrCleanReviewRecord({ framesDir, cleanReviewRecord }) {
   const framesDelivered = await access(framesDir).then(
     () => true,
     () => false,
   );
   if (framesDelivered) {
     await rm(cleanReviewRecord, { force: true });
-    return undefined;
+    return { framesDelivered };
   }
-  return readFile(cleanReviewRecord, "utf8").catch(() => undefined);
+  const earlierCleanReview = await readFile(cleanReviewRecord, "utf8").catch(() => undefined);
+  return { framesDelivered, earlierCleanReview };
+}
+
+function missingFramesExplanation({ framesDir, reviewAttempt }) {
+  const ciRunId = path.basename(path.dirname(framesDir));
+  const cause =
+    reviewAttempt >= 2
+      ? `This is attempt ${reviewAttempt} of the review: every review deletes the frames it read, and only a clean one leaves the record a later attempt can pass on, so re-running the review alone cannot find frames.`
+      : "The CI attempt that triggered this review handed over no frames directory: the run was held for approval and ran no job, or only its failed jobs were re-run and web-tests was not among them, after an earlier review of this run had read and deleted the frames without leaving the record of a clean review.";
+  return `No frames directory at ${framesDir} and no record of a clean review for CI run ${ciRunId}. ${cause} Re-run CI run ${ciRunId} with all its jobs (approve it in the browser if it is held), or push a new commit, so web-tests hands over frames again.`;
 }
 
 async function main() {
@@ -292,18 +329,22 @@ async function main() {
   const python = requireEnv("VLM_PYTHON");
   const reviewRunUrl = requireEnv("REVIEW_RUN_URL");
   const cleanReviewRecord = path.join(path.dirname(framesDir), "frames-reviewed-clean.md");
-  const earlierCleanReview = await cleanReviewOfFramesNoLongerOnDisk({ framesDir, cleanReviewRecord });
+  const { framesDelivered, earlierCleanReview } = await deliveredFramesOrCleanReviewRecord({ framesDir, cleanReviewRecord });
   if (earlierCleanReview !== undefined) {
     await publishSummary(
       `This CI attempt delivered no new transition frames; the frames of this CI run were already reviewed clean.\n\n${earlierCleanReview}`,
     );
     return;
   }
+  if (!framesDelivered) {
+    throw new Error(missingFramesExplanation({ framesDir, reviewAttempt: Number(process.env.GITHUB_RUN_ATTEMPT) }));
+  }
   const flows = await listFlows(framesDir);
   if (flows.length === 0) {
     throw new Error(`No transition frames reached ${framesDir}`);
   }
   const reviewedFrames = await frameVersions(flows);
+  await assertNoOtherModelServer();
   const server = await startServer({ python, model });
   const reviews = [];
   try {
@@ -351,7 +392,9 @@ main().catch((error) => {
   console.error(
     "::error::Visual review failed:",
     error instanceof Error ? error.message : error,
-    JSON.stringify({ elapsedMs: error?.elapsedMs, serverExit: error?.serverExit }),
+    ...(error?.elapsedMs === undefined && error?.serverExit === undefined
+      ? []
+      : [JSON.stringify({ elapsedMs: error?.elapsedMs, serverExit: error?.serverExit })]),
   );
   process.exitCode = 1;
 });

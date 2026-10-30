@@ -57,6 +57,15 @@
   text-overflow: ellipsis;
 }
 
+.past-reads__preview-more {
+  color: var(--primary-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
 .past-reads__list {
   list-style: none;
   margin: 0;

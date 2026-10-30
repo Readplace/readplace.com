@@ -10,7 +10,7 @@ export function authDiagnosticsWidgets(input: { logGroupName: string }) {
 		authenticationFailures: {
 			title: "Authentication failures by client and version",
 			logGroupNames,
-			query: `${stream} | filter outcome = "failure" or event = "credentials_cleared" | stats count_distinct(event_id) by client, client_version, event, reason`,
+			query: `${stream} | filter outcome = "failure" or event = "credentials_cleared" | stats count_distinct(event_id) as failed_requests, count_distinct(context_id) as distinct_flows by client, client_version, event, reason | sort failed_requests desc`,
 			x: 0, y: 0, width: 12, height: 7,
 			view: "table",
 		},

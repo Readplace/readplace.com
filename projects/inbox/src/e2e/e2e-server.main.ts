@@ -6,9 +6,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import {
 	EmailLinkOrdinalSchema,
 	EmailLinkStatusSchema,
-	InboxEmailLinkDropSchema,
 	InboxEmailStatusSchema,
-	InboxReadlistDecisionSchema,
 	InboxReadlistOutcomeSchema,
 	isExcludedLink,
 	MessageIdSchema,
@@ -51,12 +49,10 @@ const seedEmailSchema = z.object({
 				url: z.string().min(1),
 				status: EmailLinkStatusSchema,
 				title: z.string().optional(),
-				droppedFor: InboxEmailLinkDropSchema.optional(),
 			}),
 		)
 		.default([]),
 	extractionFinished: z.boolean().default(true),
-	readlistDecision: InboxReadlistDecisionSchema.optional(),
 	selectedReadlists: z
 		.array(z.object({ readlist: ReadlistSlugSchema, label: z.string().min(1) }))
 		.optional(),
@@ -131,7 +127,7 @@ server.post("/e2e/seed-email", async (req, res) => {
 		imageUrl: undefined,
 		failureReason: undefined,
 		skipReason: link.status === "skipped" ? "list-unsubscribe" : undefined,
-		droppedFor: link.droppedFor,
+		anchorText: undefined,
 	}));
 	const skipped = rows.filter(isExcludedLink).length;
 	const kept = rows.length - skipped;
@@ -162,26 +158,17 @@ server.post("/e2e/seed-email", async (req, res) => {
 	}
 
 	if (input.extractionFinished) {
-		const decision = input.readlistDecision;
 		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
 			userId,
 			receivedAtMessageId,
 			meta: {
 				truncated: false,
 				extractionFailed: false,
-				readlistDecision: decision === undefined ? undefined : { readlist: decision.readlist },
 				selectedReadlists: input.selectedReadlists,
 				eligibleArticleCount: input.eligibleArticleCount,
 				savesHeld: input.savesHeld,
 			},
 		});
-		if (decision !== undefined && decision.state !== "deciding") {
-			await fixture.inboxEmail.inboxEmailLinkStore.settleReadlistDecision({
-				userId,
-				receivedAtMessageId,
-				decision,
-			});
-		}
 		for (const outcome of input.readlistOutcomes) {
 			await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
 				userId,

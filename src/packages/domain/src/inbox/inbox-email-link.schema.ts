@@ -43,33 +43,15 @@ export const EmailLinkSkipReasonSchema = z.enum([
 ]);
 export type EmailLinkSkipReason = z.infer<typeof EmailLinkSkipReasonSchema>;
 
-export const InboxEmailLinkDropSchema = z.object({
-	readlist: ReadlistSlugSchema,
-	readlistLabel: z.string().min(1),
-	reason: z.string(),
-});
-export type InboxEmailLinkDrop = z.infer<typeof InboxEmailLinkDropSchema>;
-
-export const InboxReadlistDecisionSchema = z.discriminatedUnion("state", [
-	z.object({ state: z.literal("deciding"), readlist: ReadlistSlugSchema }),
-	z.object({
-		state: z.literal("decided"),
-		readlist: ReadlistSlugSchema,
-		readlistLabel: z.string().min(1),
-	}),
-	z.object({ state: z.literal("failed"), readlist: ReadlistSlugSchema }),
-]);
-export type InboxReadlistDecision = z.infer<typeof InboxReadlistDecisionSchema>;
-export type SettledInboxReadlistDecision = Exclude<
-	InboxReadlistDecision,
-	{ state: "deciding" }
->;
-
 export const InboxReadlistOutcomeSchema = z.object({
 	readlist: ReadlistSlugSchema,
-	decision: z.union([
-		InboxReadlistDecisionSchema.options[1],
-		InboxReadlistDecisionSchema.options[2],
+	decision: z.discriminatedUnion("state", [
+		z.object({
+			state: z.literal("decided"),
+			readlist: ReadlistSlugSchema,
+			readlistLabel: z.string().min(1),
+		}),
+		z.object({ state: z.literal("failed"), readlist: ReadlistSlugSchema }),
 	]),
 	dropped: z.array(
 		z.object({ ordinal: EmailLinkOrdinalSchema, reason: z.string() }),

@@ -234,7 +234,7 @@ describe("buildReadlistInboxes", () => {
 		const doc = renderInboxes({ inboxes: [], purpose: "Essays on how teams ship." });
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and the articles each issue links to are saved to All and Work Reading, keeping only the links that fit its purpose.",
+			"Send a custom email here and every article each issue links to is saved to All. The ones that fit are also saved to Work Reading.",
 		);
 	});
 
