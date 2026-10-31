@@ -12,7 +12,7 @@ export type ImportFromUrlProgress = {
 	pageWithoutLinksSurfaced: boolean
 }
 
-export type ImportFromUrlActionsConfig = { baseUrl: string }
+export type ImportFromUrlActionsConfig = { baseUrl: string; linksPageOrigin: string }
 
 async function openFromUrlPanel(page: Page, config: ImportFromUrlActionsConfig): Promise<void> {
 	await page.goto(`${config.baseUrl}/import`, { waitUntil: 'domcontentloaded' })
@@ -56,7 +56,7 @@ export function createImportFromUrlActions(
 			},
 			execute: async (page) => {
 				await openFromUrlPanel(page, config)
-				await submitUrl(page, `${config.baseUrl}/e2e/fixtures/links-page/happy`)
+				await submitUrl(page, `${config.linksPageOrigin}/e2e/fixtures/links-page/happy`)
 				const summary = page.locator('[data-test-import-summary] .import__summary-count')
 				await expect(summary).toHaveText('3')
 				await commitAndAssertOnReadlist(page)

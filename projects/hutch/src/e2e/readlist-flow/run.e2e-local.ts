@@ -15,6 +15,7 @@ import { visualCheckpoints } from './visual-checkpoints'
 import { requireEnv } from "@packages/require-env"
 
 const BASE_URL = `http://127.0.0.1:${requireEnv('E2E_PORT')}`
+const LINKS_PAGE_ORIGIN = `http://localhost:${requireEnv('E2E_PORT')}`
 const runStamp = Date.now()
 
 test.describe('Readlist management flow (local)', () => {
@@ -140,7 +141,7 @@ test.describe('Readlist management flow (local)', () => {
 					bannerOnReaderProgress,
 				),
 				importActions: createImportActions({ baseUrl: BASE_URL }, readlistProgress, importProgress),
-				importFromUrlActions: createImportFromUrlActions({ baseUrl: BASE_URL }, readlistProgress, importFromUrlProgress),
+				importFromUrlActions: createImportFromUrlActions({ baseUrl: BASE_URL, linksPageOrigin: LINKS_PAGE_ORIGIN }, readlistProgress, importFromUrlProgress),
 			},
 			preReadlistProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress, importFromUrlProgress],
 			onActionComplete: async (actionName) => {
