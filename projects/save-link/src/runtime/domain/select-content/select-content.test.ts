@@ -1,7 +1,8 @@
 import { CandidateIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
 import { createHash } from "node:crypto";
-import { initSelectMostCompleteContent, type CreateSelectorChatCompletion } from "./select-content";
+import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
+import { initSelectMostCompleteContent } from "./select-content";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 
@@ -21,7 +22,7 @@ function modelResponse(answer: JudgeAnswer, { readable = [], assessed = ["A", "B
 	return JSON.stringify({ ...answer, readability: assessed.map((candidate) => ({ candidate, readable: readable.includes(candidate) })) });
 }
 
-function fakeChat(content: string | null | undefined): CreateSelectorChatCompletion {
+function fakeChat(content: string | null | undefined): CreateDeepseekChatCompletion {
 	return async () => ({
 		choices: [{ message: { content } }],
 		usage: { prompt_tokens: 900, completion_tokens: 40, prompt_cache_hit_tokens: 768, prompt_cache_miss_tokens: 132 },
@@ -74,12 +75,12 @@ describe("initSelectMostCompleteContent", () => {
 		expect(createChatCompletion).toHaveBeenCalledTimes(1);
 	});
 
-	it("sends candidate labels and content hashes, never candidate ids, with the actual challenge body in non-thinking JSON mode at temperature 0", async () => {
+	it("sends candidate labels and content hashes, never candidate ids, with the actual challenge body under the content_selection feature in JSON mode at temperature 0", async () => {
 		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] })));
 		const info = jest.fn();
 		const result = await initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, info } }).selectMostCompleteContent(request);
 		expect(createChatCompletion).toHaveBeenCalledWith(expect.objectContaining({
-			model: "deepseek-flash", thinking: { type: "disabled" }, temperature: 0, response_format: { type: "json_object" },
+			feature: "content_selection", temperature: 0, response_format: { type: "json_object" },
 			messages: expect.arrayContaining([expect.objectContaining({ role: "user", content: expect.stringContaining("Verify you are human") })]),
 		}));
 		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {

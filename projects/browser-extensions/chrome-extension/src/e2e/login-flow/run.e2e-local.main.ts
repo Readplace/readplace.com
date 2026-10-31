@@ -26,6 +26,7 @@ import {
 	waitForUi,
 } from "browser-extension-core/e2e-actions";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
+import { getFreePort } from "@packages/test-phase-runner";
 
 const EXTENSION_DIR = path.resolve(__dirname, "../../../dist-extension-compiled");
 const CFT_PATH_FILE = path.resolve(__dirname, "../../../.cache/chrome/binary-path");
@@ -208,6 +209,7 @@ async function runTest() {
 	const serviceBuilder = new ServiceBuilder(
 		fs.readFileSync(CFT_DRIVER_PATH_FILE, "utf8").trim(),
 	);
+	serviceBuilder.setPort(await getFreePort());
 
 	const driver = (await new Builder()
 		.forBrowser("chrome")

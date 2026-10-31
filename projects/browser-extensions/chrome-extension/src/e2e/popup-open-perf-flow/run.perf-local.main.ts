@@ -12,6 +12,7 @@ import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-pro
 import { obtainAccessToken } from "browser-extension-core/e2e";
 import { runPerfSuite, SUITE_FAILSAFE_MS } from "browser-extension-core/e2e-actions";
 import { perfArtifactDirectory, perfSetting, summarizeLatency } from "browser-extension-core/perf";
+import { getFreePort } from "@packages/test-phase-runner";
 
 const EXTENSION_DIR = realpathSync(path.resolve(__dirname, "../../../dist-extension-compiled"));
 const EXTENSION_ID = createHash("sha256").update(EXTENSION_DIR).digest("hex").slice(0, 32)
@@ -121,6 +122,7 @@ async function launch(profile: string): Promise<WebDriver> {
 	if (getEnv("PERF_GPU") !== "true") options.addArguments("--disable-gpu");
 	options.setChromeBinaryPath(readFileSync(path.join(PROJECT_DIR, ".cache/chrome/binary-path"), "utf8").trim());
 	const service = new ServiceBuilder(readFileSync(path.join(PROJECT_DIR, ".cache/chrome/driver-path"), "utf8").trim());
+	service.setPort(await getFreePort());
 	return await new Builder().forBrowser("chrome").setChromeOptions(options).setChromeService(service).build();
 }
 

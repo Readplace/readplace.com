@@ -74,7 +74,7 @@ The disclosure is one component shared with the reader's article summary, so a d
 [research post about poisoning language models](/view/www.anthropic.com/research/small-samples-poison)
 ```
 
-The `/view/` path builder — the function that turns an article URL into that path, in the module that percent-encodes `?` and `#` (grep for `%3F` in TypeScript outside test files) — is the source of truth for the transformation: `https://` is dropped, `http://` is kept literally because it is the minority case, slashes stay unencoded, and `?` and `#` inside the article URL become `%3F` and `%23` so Express's query parser does not claim them. Use the relative form. One post uses an absolute `https://readplace.com/view/...` link and it is an outlier, not the convention.
+The `/view/` path builder — the function that turns an article URL into that path, in the module that percent-encodes `?` and `#` (grep TypeScript outside test files for `%2525`, the re-encoding of an already-encoded percent sign) — is the source of truth for the transformation: `https://` is dropped, `http://` is kept literally because it is the minority case, slashes stay unencoded, and `?` and `#` inside the article URL become `%3F` and `%23` so Express's query parser does not claim them. Use the relative form. One post uses an absolute `https://readplace.com/view/...` link and it is an outlier, not the convention.
 
 **Pull-quotes.** A single blockquoted bold line that compresses the surrounding claim, used by most posts:
 
@@ -111,11 +111,13 @@ For what the banner should *say*, see [Title, description, and banner state the 
 
 A post announcing a shipped change must make the problem it solves legible. Three fields carry that, and they reach the reader in different places, so all three have to work on their own:
 
-| Field | Where the reader meets it | Measured length across published posts |
-|---|---|---|
-| `banner` | The in-app banner, on every page, guests included | 26–69 characters, median 54 |
-| `title` | The post `<h1>`, the `<title>`, og/twitter titles, the JSON-LD headline | 21–88 characters, median 50 |
-| `description` | The blog index card, the meta description, og/twitter descriptions, JSON-LD | 115–416 characters, median 235 |
+| Field | Where the reader meets it |
+|---|---|
+| `banner` | The in-app banner, on every page, guests included |
+| `title` | The post `<h1>`, the `<title>`, og/twitter titles, the JSON-LD headline |
+| `description` | The blog index card, the meta description, og/twitter descriptions, JSON-LD |
+
+For typical lengths, measure the three fields across the last 8 posts during the lookback.
 
 The banner is the one an existing user sees first, and it is the only one of the three the banner renders. The banner markup carries the `banner:` hook and a literal "Learn more" link — it never renders `title` or `description`. Those two reach a reader who has already landed on the post or seen it in an index or a search result.
 
@@ -169,7 +171,7 @@ These describe the corpus as it stands, measured over the 67 published posts. Re
 - **Second and third sentences (axis b).** When the first sentence avoids direct address, do not let the paragraph snap back to "You …", "So you …", or "When you …" by the second or third sentence. Of the 56 posts that vary the first line, 15 bring "you" back inside the next two sentences. The whole opening paragraph carries the variation, not just its first word.
 - **TL;DR opener (axis c).** The TL;DR opens on the product name in 16 of 67 posts ("Readplace now …", "Readplace keeps …", "Readplace runs …"), and its first sentence names Readplace somewhere in 30. Do not lead the TL;DR with the product name if any of the last 8 did. Open on the reader's situation or the concrete change, then name Readplace in the second sentence.
 - **Section headers (axes d, e).** Two shapes are the most repeated in the corpus: "Why this matters" in every form ("Why it matters", "Why this matters to you", "Why this matters now", "Why this helps you") closes the argument in 7 posts, and "Try it" ("Try it on …", "Try this today") is the final header in 10. Name the closing section for what it actually argues, and name the action section for the specific action it asks for. Keep header casing consistent inside one post — all sentence case or all title case, never a mix.
-- **Closing call to action (axis f).** The sign-off recent posts share repeats almost word for word — "[Install the browser extension](https://readplace.com/install) or start at [readplace.com](/)." — and `[readplace.com](/)` appears in the closing of 38 of 67 posts. The links can stay. The sentence around them must not be a template.
+- **Closing call to action (axis f).** The sign-off recent posts share repeats almost word for word — an install link and then a site-root link, "Install the browser extension … or start at readplace.com." Search the lookback window for the link text `start at [readplace.com]` (link tagging does not change it) to see how many closings already use it. The links can stay. The sentence around them must not be a template.
 - **War-story closer (axis g).** Posts that reconstruct an incident tend to close on "The lesson I took from this …". Do not reuse that frame if a recent incident post used it. A war story can end on the fixed behaviour or the result and leave the lesson unstated.
 
 ### Two failure modes
@@ -470,7 +472,7 @@ Use sparingly, one per post at most, because the pattern loses force through rep
 > There's something worth clarifying: the workflows don't get it right every time.
 > I know this works, but TBH... It only works sometimes =/
 
-Calibration against what is published: **TBH** appears in 4 posts and is real house style. The **ellipsis pause** appears in 1 post. **=/** appears in none. Treat these as available, not expected. A marker force-inserted into every draft becomes its own tell.
+**TBH** is real house style; the **ellipsis pause** and **=/** are rare. Grep the posts directory for a marker when calibrating a draft. Treat these as available, not expected. A marker force-inserted into every draft becomes its own tell.
 
 **The "not every X" boundary** — closes a section that establishes a limit.
 

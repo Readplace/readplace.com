@@ -1,3 +1,5 @@
+import type { DeepseekFeature } from "./deepseek-feature";
+
 export type DocumentBlock = {
 	type: "document";
 	source: { type: "text"; media_type: "text/plain"; data: string };
@@ -6,6 +8,7 @@ export type DocumentBlock = {
 };
 
 export type CreateAiMessage = (params: {
+	feature: DeepseekFeature;
 	max_tokens: number;
 	system: string;
 	messages: Array<{

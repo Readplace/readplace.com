@@ -672,6 +672,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"reader-menu-downloads-slot",
 			"article-body-reader-notice",
 		]);
 	});
@@ -729,6 +730,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"reader-menu-downloads-slot",
 			"article-body-reader-notice",
 		]);
 	});

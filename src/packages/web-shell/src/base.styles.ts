@@ -489,6 +489,10 @@ export const BUTTON_STYLES = `
 		cursor: not-allowed;
 	}
 
+	.btn[aria-disabled="true"]:focus-visible {
+		opacity: 1;
+	}
+
 	:where(form.htmx-request) .btn:disabled {
 		opacity: 1;
 		cursor: progress;

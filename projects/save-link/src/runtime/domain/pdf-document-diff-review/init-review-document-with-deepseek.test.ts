@@ -26,7 +26,7 @@ describe("initReviewDocumentWithDeepseek", () => {
 		});
 	});
 
-	it("uses deepseek-flash in non-thinking mode with temperature 0 and JSON response_format", async () => {
+	it("sends the pdf_extraction feature with temperature 0 and JSON response_format", async () => {
 		let captured: Params | undefined;
 		const review = initReviewDocumentWithDeepseek({
 			createChatCompletion: async (params) => {
@@ -40,8 +40,7 @@ describe("initReviewDocumentWithDeepseek", () => {
 
 		await review({ systemPrompt: "s", userMessage: "u", maxTokens: 4096 });
 
-		expect(captured?.model).toBe("deepseek-flash");
-		expect(captured?.thinking).toEqual({ type: "disabled" });
+		expect(captured?.feature).toBe("pdf_extraction");
 		expect(captured?.temperature).toBe(0);
 		expect(captured?.response_format).toEqual({ type: "json_object" });
 	});

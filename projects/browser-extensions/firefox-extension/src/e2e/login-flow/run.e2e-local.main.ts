@@ -28,6 +28,7 @@ import {
 	createFirefoxBrowser,
 } from "browser-extension-core/e2e-actions";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
+import { getFreePort } from "@packages/test-phase-runner";
 
 const ADDON_ID = "hutch-extension@hutch-app.com";
 const ADDON_UUID = "d3b07384-d113-4ec6-a7b8-5f7e3b4c9a12";
@@ -141,6 +142,7 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 	armSuiteFailsafe(server);
 	try {
 		const { options, service } = createFirefoxBrowser({ ci: getEnv("CI") === "true" });
+		service.setPort(await getFreePort());
 		if (process.env.HEADLESS !== "false") {
 			options.addArguments("--headless");
 		}

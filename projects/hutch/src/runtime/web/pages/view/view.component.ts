@@ -113,7 +113,7 @@ export function viewEpubHref(articleUrl: string): string {
 }
 
 export function renderViewDownloadsOob(params: { articleUrl: string; guide: EpubDownloadGuide | undefined }): string {
-	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref(params.articleUrl), guide: params.guide });
+	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref(params.articleUrl), guide: params.guide, placements: ["toolbar"] });
 }
 
 export interface ViewPageInput {

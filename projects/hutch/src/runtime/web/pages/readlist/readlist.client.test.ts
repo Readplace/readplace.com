@@ -19,6 +19,7 @@ function dialogsMarkup(): string {
 		<div id="delete-article" popover data-test-dialog="card"><button type="button">Close</button></div>
 		<div id="orphan-dialog" popover data-test-dialog="orphan"><button type="button">Close</button></div>
 		<button type="button" popovertarget="create-readlist" data-test-row-trigger>Create a readlist</button>
+		<button type="button" popovertarget="create-readlist" data-test-second-row-trigger>Create another way</button>
 		<div id="create-readlist" popover data-test-dialog="row"><button type="button">Cancel</button></div>
 	`;
 }
@@ -460,6 +461,29 @@ describe("initReadlist", () => {
 	it("returns focus to a trigger outside every menu when its dialog closes with focus on the body", () => {
 		const app = init(dialogsMarkup());
 
+		app.closeDialog("row");
+
+		expect(app.activeElement()).toBe(app.document.querySelector("[data-test-row-trigger]"));
+	});
+
+	it("returns focus to the trigger that opened a dialog two triggers share", () => {
+		const app = init(dialogsMarkup());
+		const second = app.document.querySelector<HTMLElement>("[data-test-second-row-trigger]");
+		assert(second, "the second trigger must render");
+
+		second.click();
+		app.closeDialog("row");
+
+		expect(app.activeElement()).toBe(second);
+	});
+
+	it("falls back to the first trigger when the one that opened the dialog has left the page", () => {
+		const app = init(dialogsMarkup());
+		const second = app.document.querySelector<HTMLElement>("[data-test-second-row-trigger]");
+		assert(second, "the second trigger must render");
+
+		second.click();
+		second.remove();
 		app.closeDialog("row");
 
 		expect(app.activeElement()).toBe(app.document.querySelector("[data-test-row-trigger]"));

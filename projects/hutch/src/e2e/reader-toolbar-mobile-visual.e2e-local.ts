@@ -36,10 +36,12 @@ const MARK_READ = "[data-test-mark-read-slot] .article-body__mark-read:visible";
 const SHARE = '[data-test-action="share-open"]';
 const SHARE_FALLBACK = "[data-test-share-fallback]";
 const DOWNLOAD = "[data-test-download]";
+const MORE = '[data-test-action="reader-menu"]';
+const MENU_PANEL = "[data-test-reader-menu-panel]";
 const CHEVRON = `${PICKER} .article-body__readlists-chevron`;
 const TOP = "[data-test-reader-top]";
 const ACTION_LABEL = ".article-body__action-label";
-const CONTROLS = [BACK, PICKER, MARK_READ, SHARE, DOWNLOAD];
+const CONTROLS = [BACK, PICKER, MARK_READ, SHARE, DOWNLOAD, MORE];
 const TRAILING_GAP_PX = 8;
 const L_CONTROL_PX = 48;
 
@@ -116,12 +118,12 @@ async function visibleControls(page: Page): Promise<{ selector: string; box: Mea
 	const present = await Promise.all(
 		CONTROLS.map(async (selector) => ({
 			selector,
-			count: await page.locator(selector).count(),
+			visible: (await page.locator(selector).count()) > 0 && (await page.locator(selector).isVisible()),
 		})),
 	);
 	return Promise.all(
 		present
-			.filter((control) => control.count > 0)
+			.filter((control) => control.visible)
 			.map(async (control) => ({
 				selector: control.selector,
 				box: await measuredBox(page, control.selector),
@@ -135,7 +137,7 @@ async function everyControlOnOneRow(page: Page): Promise<void> {
 
 	const bar = await measuredBox(page, BAR);
 	const controls = await visibleControls(page);
-	assert.ok(controls.length >= 4, "the owner toolbar must offer back, mark-read, Share and Download");
+	assert.ok(controls.length >= 4, "the owner toolbar must offer back, mark-read and its menu");
 
 	for (const control of controls) {
 		assert.ok(
@@ -203,20 +205,46 @@ async function everyTargetIsTouchable(page: Page): Promise<void> {
 	}
 }
 
+async function compactRowMovesShareAndDownloadIntoTheMenu(page: Page): Promise<void> {
+	assert.deepEqual(
+		(await visibleControls(page)).map((control) => control.selector),
+		[BACK, PICKER, MARK_READ, MORE],
+		"the compact row shows Back, Add, Mark and the menu",
+	);
+	assert.deepEqual(
+		await page
+			.locator(`${MENU_PANEL} > *`)
+			.evaluateAll((items) =>
+				items
+					.filter((item) => getComputedStyle(item).display !== "none")
+					.map((item) =>
+						item.hasAttribute("data-test-menu-share-slot")
+							? "share"
+							: item.hasAttribute("data-test-menu-downloads-slot")
+								? "download"
+								: item.getAttribute("data-test-action"),
+					),
+			),
+		["share", "download", "delete"],
+		"the menu holds Share and Download ahead of Delete",
+	);
+}
+
 async function phoneGeometry(page: Page): Promise<void> {
 	await everyControlOnOneRow(page);
 	await fullLabelsStayInTheDocument(page);
 	await everyTargetIsTouchable(page);
+	await compactRowMovesShareAndDownloadIntoTheMenu(page);
 	const mark = await measuredBox(page, MARK_READ);
 	assert.ok(Math.abs(mark.width - 52) <= 0.5, `Mark shows only its icon here and is 52px wide, measured ${mark.width}`);
 }
 
 async function narrowPhoneGeometry(page: Page): Promise<void> {
 	await phoneGeometry(page);
-	assert.equal(
+	assert.notEqual(
 		await page.locator(CHEVRON).evaluate((chevron) => getComputedStyle(chevron).display),
 		"none",
-		"Add drops its chevron when the compact row no longer fits it",
+		"Add keeps its chevron while the compact row still fits it",
 	);
 }
 
@@ -229,14 +257,14 @@ async function desktopGeometry(page: Page): Promise<void> {
 			`"${CONTROLS[index + 1]}" must be an L control, ${L_CONTROL_PX}px tall, measured ${box.height}`,
 		);
 	}
-	for (const selector of [SHARE, DOWNLOAD]) {
+	for (const selector of [SHARE, DOWNLOAD, MORE]) {
 		const box = await measuredBox(page, selector);
 		assert.ok(
 			Math.abs(box.width - L_CONTROL_PX) <= 0.5,
 			`"${selector}" must be a ${L_CONTROL_PX}px square, measured ${box.width}`,
 		);
 	}
-	sitEightApart(trailing, "Add, Mark, Share and Download");
+	sitEightApart(trailing, "Add, Mark, Share, Download and the menu");
 	assert.notEqual(
 		await page.locator(`${PICKER} > svg`).evaluate((plus) => getComputedStyle(plus).display),
 		"none",
@@ -315,7 +343,7 @@ function checkpoint(name: string, geometry: (page: Page) => Promise<void>): Visu
 test.describe("Reader toolbar on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE, userAgent: MACOS_CHROME_USER_AGENT });
 
-	test("back, the picker, mark-read, Share and Download share one row", async ({ page }, testInfo) => {
+	test("back, the picker, mark-read and the menu share one row, with Share and Download in the menu", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openOwnerReader(page, {
 			stamp: `phone-${testInfo.workerIndex}-${Date.now()}`,
@@ -325,7 +353,7 @@ test.describe("Reader toolbar on a phone", () => {
 		await expect(page.locator("#reader-downloads-slot")).toHaveClass(
 			"article-body__downloads-slot article-body__downloads-slot--visible",
 		);
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await captureCheckpoint(page, checkpoint("reader-toolbar-phone", phoneGeometry));
 	});
 
@@ -356,7 +384,7 @@ test.describe("Reader toolbar above the breakpoint", () => {
 			query: "",
 			content: SHORT_BODY,
 		});
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await captureCheckpoint(page, checkpoint("reader-toolbar-desktop", desktopGeometry));
 	});
 });
@@ -391,14 +419,14 @@ test.describe("Chromeless reader toolbar on a tablet sheet", () => {
 test.describe("Reader toolbar on a 320px phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE_320, userAgent: MACOS_CHROME_USER_AGENT });
 
-	test("keeps one row by dropping Add's chevron", async ({ page }, testInfo) => {
+	test("keeps one row with Add's chevron beside the menu", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openOwnerReader(page, {
 			stamp: `phone-320-${testInfo.workerIndex}-${Date.now()}`,
 			query: "",
 			content: SHORT_BODY,
 		});
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await captureCheckpoint(page, checkpoint("reader-toolbar-phone-320", narrowPhoneGeometry));
 	});
 });
@@ -413,7 +441,7 @@ test.describe("Reader toolbar in the dark", () => {
 			query: "",
 			content: SHORT_BODY,
 		});
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await captureCheckpoint(page, checkpoint("reader-toolbar-desktop-dark", desktopGeometry));
 	});
 });
@@ -432,13 +460,13 @@ test.describe("Reader toolbar in the read state", () => {
 
 		await page.setViewportSize({ width: 620, height: 900 });
 		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await toolbarSettled(page);
 		await arrowOnlyRowGeometry(page);
 
 		await page.setViewportSize({ width: 1024, height: 900 });
 		await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await toolbarSettled(page);
 		await expect(page.locator("[data-test-reader-rail] > [data-test-article-history]")).toHaveCount(1);
 		await arrowOnlyRowGeometry(page);
@@ -446,7 +474,7 @@ test.describe("Reader toolbar in the read state", () => {
 		await page.setViewportSize(TABLET_SHEET);
 		await page.goto(`${BASE_URL}/queue/${articleId}/view?shell=app`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-reader--chromeless");
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await toolbarSettled(page);
 		await expect(page.locator('[data-test-reader-rail] > [data-test-table-of-contents="empty"]')).toHaveCount(1);
 		await arrowOnlyRowGeometry(page);
@@ -462,7 +490,7 @@ test.describe("Reader toolbar in the read state", () => {
 		await markRead(page, articleId);
 		await page.setViewportSize({ width: 700, height: 900 });
 		await page.reload({ waitUntil: "domcontentloaded" });
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await toolbarSettled(page);
 
 		async function atToolbarWidth(width: number): Promise<void> {
@@ -474,23 +502,26 @@ test.describe("Reader toolbar in the read state", () => {
 		}
 
 		const rows = [];
-		for (const width of [629, 628, 532, 531, 304, 303]) {
+		for (const width of [685, 684, 588, 587, 532, 531, 248, 247]) {
 			await atToolbarWidth(width);
 			await everyControlOnOneRow(page);
 			rows.push({
 				width,
 				back: (await labelWidth(page, BACK)) > 1,
+				share: await page.locator(SHARE).isVisible(),
 				add: (await labelWidth(page, PICKER)) > 1,
 				chevron: await page.locator(CHEVRON).evaluate((chevron) => getComputedStyle(chevron).display !== "none"),
 			});
 		}
 		expect(rows).toEqual([
-			{ width: 629, back: true, add: true, chevron: true },
-			{ width: 628, back: false, add: true, chevron: true },
-			{ width: 532, back: false, add: true, chevron: true },
-			{ width: 531, back: false, add: false, chevron: true },
-			{ width: 304, back: false, add: false, chevron: true },
-			{ width: 303, back: false, add: false, chevron: false },
+			{ width: 685, back: true, share: true, add: true, chevron: true },
+			{ width: 684, back: false, share: true, add: true, chevron: true },
+			{ width: 588, back: false, share: true, add: true, chevron: true },
+			{ width: 587, back: false, share: false, add: true, chevron: true },
+			{ width: 532, back: false, share: false, add: true, chevron: true },
+			{ width: 531, back: false, share: false, add: false, chevron: true },
+			{ width: 248, back: false, share: false, add: false, chevron: true },
+			{ width: 247, back: false, share: false, add: false, chevron: false },
 		]);
 	});
 });
@@ -498,7 +529,7 @@ test.describe("Reader toolbar in the read state", () => {
 test.describe("Reader toolbar without the Add control", () => {
 	test.use({ timezoneId: "UTC", viewport: DESKTOP, userAgent: MACOS_CHROME_USER_AGENT });
 
-	test("keeps Mark, Share and Download together at the trailing edge once the default copy is gone", async ({ page }, testInfo) => {
+	test("keeps Mark, Share, Download and the menu together at the trailing edge once the default copy is gone", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const articleId = await openOwnerReader(page, {
 			stamp: `no-add-${testInfo.workerIndex}-${Date.now()}`,
@@ -516,19 +547,19 @@ test.describe("Reader toolbar without the Add control", () => {
 		assert.ok(deleted.ok(), "deleting the default copy must succeed");
 
 		await page.goto(`${BASE_URL}/queue/${articleId}/view?queue=${work}`, { waitUntil: "domcontentloaded" });
-		await page.waitForSelector(DOWNLOAD);
+		await page.waitForSelector(DOWNLOAD, { state: "attached" });
 		await toolbarSettled(page);
 
 		assert.equal(await page.locator(PICKER).count(), 0, "a reader without the default copy offers no Add");
 		await everyControlOnOneRow(page);
-		const trailing = await controlsRunInOrder(page, [MARK_READ, SHARE, DOWNLOAD]);
-		sitEightApart(trailing, "Mark, Share and Download");
+		const trailing = await controlsRunInOrder(page, [MARK_READ, SHARE, DOWNLOAD, MORE]);
+		sitEightApart(trailing, "Mark, Share, Download and the menu");
 		const bar = await measuredBox(page, BAR);
-		const download = trailing.at(-1);
-		assert.ok(download, "Download ends the row");
+		const more = trailing.at(-1);
+		assert.ok(more, "the menu ends the row");
 		assert.ok(
-			Math.abs(download.x + download.width - (bar.x + bar.width)) <= 0.5,
-			"Download must end the row at the toolbar's trailing edge",
+			Math.abs(more.x + more.width - (bar.x + bar.width)) <= 0.5,
+			"the menu must end the row at the toolbar's trailing edge",
 		);
 	});
 });

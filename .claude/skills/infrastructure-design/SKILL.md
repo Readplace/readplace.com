@@ -100,7 +100,7 @@ Any change that adds, removes, renames, or re-wires a command or event declarati
 
 1. Show the **complete current state** of every flow that touches the changed command(s) or event(s) — not just the diff.
 2. **Visually highlight the new change** so a reader can see what shifted from the previous snapshot. Use a distinct `classDef` (e.g. `classDef new fill:#ffd24c,stroke:#a0660b,stroke-width:3px;`) and apply `:::new` to the changed nodes/edges. Mention the highlight convention in the snapshot's Legend block.
-3. Append a row to `.architecture/index.md` with the commit hash, date, branch, subject, and a flow-level (path-free) description.
+3. Add the snapshots-table row the prompt's Step 4 specifies.
 
 **Why:** Wire-format changes are deployment contracts that propagate across producer and consumer stacks. The pinned snapshot becomes the historical record of how the system *used to* look so reviewers can reason about migration steps. Skipping the snapshot makes the next "why does this event exist?" archaeology session orders of magnitude more expensive.
 
@@ -135,7 +135,7 @@ For env vars that carry an external credential with no AWS resource backing it (
 
 **Checklist when adding a required-env call for an external-secret variable:**
 - [ ] **GitHub Actions secrets** — `gh secret list --env staging --repo <org>/<repo>` and `gh secret list --env prod --repo <org>/<repo>` both show the variable. Secret values must be set via the GitHub UI — they can't be set from `gh` without a PAT with `secrets:write`. If missing, tell the user explicitly before creating the commit.
-- [ ] **CI deploy workflow `env:` block** — the reusable workflow under `.github/workflows/` that runs each project's `deploy-infra` target (grep for `:deploy-infra`) forwards the secret into **both** its staging and prod deploy jobs (the ones with `environment: staging` and `environment: prod`): `VAR_NAME: ${{ secrets.VAR_NAME }}`. **This is the most commonly missed step** — the GitHub secret can exist and still not reach the job unless the workflow forwards it explicitly.
+- [ ] No CI workflow edit — the reusable workflow that runs each project's `deploy-infra` target (grep `.github/workflows` for `:deploy-infra`) exports every repository and environment secret into both deploy jobs, so creating the secret in each environment (the item above) is all CI needs.
 - [ ] Lambda `environment:` block in the project's Pulumi program (the `main` its `package.json` names) sets `VAR_NAME` by reading it through the required-env helper, so the variable reaches the deployed runtime.
 - [ ] Runtime composition root reads the variable via the required-env helper and wires it into the provider.
 - [ ] Local `.env` (gitignored, auto-sourced by `.envrc`) has the variable so local dev and `pnpm check-infra` work.

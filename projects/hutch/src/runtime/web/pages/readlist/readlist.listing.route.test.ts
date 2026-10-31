@@ -301,7 +301,7 @@ describe("Readlist routes", () => {
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
 			const actionForms = doc.querySelectorAll(
-				".readlist-article__status-form, .readlist-article__menu-form",
+				".readlist-article__status-form, .article-delete__form",
 			);
 
 			expect(actionForms.length).toBe(2);

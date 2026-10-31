@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { CreateAiMessage } from "@packages/ai-message";
+import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
 import {
@@ -56,6 +56,7 @@ export function initTriageEmailLinks(deps: {
 		input: Parameters<TriageEmailLinks>[0],
 	): Promise<Map<EmailLinkOrdinal, EmailLinkTriageCategory> | undefined> => {
 		const response = await deps.createAiMessage({
+				feature: DEEPSEEK_FEATURES.newsletterLinkTriage,
 				max_tokens: TRIAGE_MAX_OUTPUT_TOKENS,
 				system: TRIAGE_PROMPT,
 				messages: [

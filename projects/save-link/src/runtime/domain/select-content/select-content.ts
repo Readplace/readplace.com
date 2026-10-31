@@ -9,7 +9,7 @@ import {
 	buildSelectContentUserMessage,
 	labelForIndex,
 } from "./select-content-prompt";
-import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
+import { type CreateDeepseekChatCompletion, DEEPSEEK_FEATURES, type DeepseekChatResponse } from "@packages/ai-message";
 import { DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 
 export type ContentDecision =
@@ -36,36 +36,17 @@ export type SelectMostCompleteContent = (params: {
 	candidates: readonly SelectorCandidate[];
 }) => Promise<ContentDecision & { readability: CandidateReadability; audit: SelectionAudit }>;
 
-type ChatCompletionResponse = {
-	choices: Array<{ message?: { content?: string | null } }>;
-	usage?: {
-		prompt_tokens: number;
-		completion_tokens: number;
-		prompt_cache_hit_tokens?: number;
-		prompt_cache_miss_tokens?: number;
-	} | null;
-};
-
-export type CreateSelectorChatCompletion = (params: {
-	model: string;
-	max_tokens: number;
-	thinking: { type: "disabled" };
-	temperature: number;
-	response_format: { type: "json_object" };
-	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-}) => Promise<ChatCompletionResponse>;
-
 const invalidResponse = (reason: string): never => assert.fail(`judge returned an invalid response: ${reason}`);
 
 const NonRetryableRejectionSchema = z.object({ status: z.literal(400) });
 
 export function initSelectMostCompleteContent(deps: {
-	createChatCompletion: CreateSelectorChatCompletion;
+	createChatCompletion: CreateDeepseekChatCompletion;
 	logger: HutchLogger;
 }): { selectMostCompleteContent: SelectMostCompleteContent } {
 	const { createChatCompletion, logger } = deps;
 	const selectMostCompleteContent: SelectMostCompleteContent = async (params) => {
-		const messages: Parameters<CreateSelectorChatCompletion>[0]["messages"] = [
+		const messages: Parameters<CreateDeepseekChatCompletion>[0]["messages"] = [
 			{ role: "system", content: SELECT_CONTENT_SYSTEM_PROMPT },
 			{ role: "user", content: buildSelectContentUserMessage({ ...params, logger }) },
 		];
@@ -78,11 +59,10 @@ export function initSelectMostCompleteContent(deps: {
 				responseStatus,
 			},
 		});
-		let response: ChatCompletionResponse;
+		let response: DeepseekChatResponse;
 		try {
 			response = await createChatCompletion({
-				model: DEEPSEEK_MODEL,
-				thinking: DEEPSEEK_NON_THINKING,
+				feature: DEEPSEEK_FEATURES.contentSelection,
 				temperature: 0,
 				max_tokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
 				response_format: { type: "json_object" },

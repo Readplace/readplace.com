@@ -17,7 +17,7 @@ import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.br
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
-const BASE_URL = `http://localhost:${E2E_PORT}`;
+const BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 const VIEWPORT = { width: 1280, height: 900 };
 const SETTLE_MS = 30000;
 const PASSWORD = "password123";
@@ -532,10 +532,10 @@ test.describe("Menu interaction states hold their WCAG contrast in both themes",
 			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator("[data-test-article]")).toHaveCount(1);
 			await page.locator('[data-test-action="article-menu"]').click();
-			const row = page.locator('[data-test-action="delete"].readlist-article__confirm-trigger');
+			const row = page.locator('[data-test-action="delete"].article-delete__trigger');
 			await expect(row).toBeVisible();
 			const client = await auditContext(page);
-			await stamp(page, { selector: '[data-test-action="delete"].readlist-article__confirm-trigger', auditId: "menu-delete" });
+			await stamp(page, { selector: '[data-test-action="delete"].article-delete__trigger', auditId: "menu-delete" });
 
 			const rest = await measure(page, client, "menu-delete", []);
 			const hover = await measure(page, client, "menu-delete", ["hover"]);

@@ -1,7 +1,7 @@
 import { ciArtifactPaths, createPlaywrightConfig } from '@packages/e2e-harness'
 
 // Fallback to port 0 because knip loads this file during lint when E2E_PORT is not set
-const serverUrl = `http://localhost:${process.env.E2E_PORT || '0'}`
+const serverUrl = `http://127.0.0.1:${process.env.E2E_PORT || '0'}`
 
 const artifacts = ciArtifactPaths({
 	root: process.env.CI_ARTIFACT_ROOT,

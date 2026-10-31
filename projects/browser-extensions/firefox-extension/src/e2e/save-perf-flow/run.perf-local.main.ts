@@ -23,6 +23,7 @@ import {
 } from "browser-extension-core/perf";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
+import { getFreePort } from "@packages/test-phase-runner";
 
 const BUDGET_MS = perfSetting("PERF_MEAN_SAVE_BUDGET_MS");
 
@@ -163,6 +164,7 @@ test(`a save paints the saved view in under ${BUDGET_MS}ms on average`, async (t
 
 async function runTest(t: { diagnostic: (message: string) => void }) {
 	const { options, service } = createFirefoxBrowser({ ci: getEnv("CI") === "true" });
+	service.setPort(await getFreePort());
 	if (getEnv("HEADLESS") !== "false") {
 		options.addArguments("--headless");
 	}

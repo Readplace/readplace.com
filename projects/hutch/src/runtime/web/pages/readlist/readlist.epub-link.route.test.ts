@@ -182,6 +182,7 @@ describe("GET /queue/:id/view Download", () => {
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"reader-menu-downloads-slot",
 			"article-body-reader-notice",
 		]);
 	});
@@ -271,6 +272,7 @@ describe("GET /queue/:id/view Download on a platform with no EPUB reader", () =>
 			"article-header",
 			"document-title",
 			"reader-downloads-slot",
+			"reader-menu-downloads-slot",
 			"article-body-reader-notice",
 		]);
 		expect(slotShape(document)).toEqual({ children: ["BUTTON", "DETAILS"], opener: "reader-download-guide" });

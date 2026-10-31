@@ -4,6 +4,7 @@ import { iconSvg } from "@packages/ui-icons";
 import type { DeviceClass } from "@packages/web-analytics";
 import { JSDOM } from "jsdom";
 import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
+import { buildArticleDeletion } from "./delete-confirm.component";
 import { type ArticleMoveViewModel, moveCreatePopoverId, moveDialogPopoverId } from "./move-dialog.component";
 import {
 	type ReadlistCardDisplayModel,
@@ -23,6 +24,7 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		readTime: { value: "3", label: "3 min read" },
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
+		deletion: CONFIRMED_DELETION,
 		readerHref: "/queue/abc123/view",
 		isStalePending: false,
 		...overrides,
@@ -59,17 +61,8 @@ const CONFIRMED_MARK_READ_ACTION: ArticleAction = {
 	...MARK_READ_ACTION,
 	confirmPopoverId: "readlist-mark-status-confirm-abc123",
 };
-const DELETE_ACTION: ArticleAction = {
-	method: "POST",
-	url: "/queue/abc123/delete",
-	text: "Delete",
-	iconName: "x",
-	title: "Delete",
-	testAction: "delete",
-	fields: [],
-	confirmPopoverId: "readlist-delete-confirm-abc123",
-};
-const { confirmPopoverId: _deletePopoverId, ...UNCONFIRMED_DELETE_ACTION } = DELETE_ACTION;
+const CONFIRMED_DELETION = buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false });
+const UNCONFIRMED_DELETION = buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: true });
 const MOVE: ArticleMoveViewModel = {
 	articleId: "abc123",
 	popoverId: moveDialogPopoverId("abc123"),
@@ -166,7 +159,7 @@ describe("renderReadlistCard", () => {
 		const doc = parse(
 			renderReadlistCard(
 				display(
-					makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1", actions: [MARK_READ_ACTION, DELETE_ACTION] }),
+					makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1", actions: [MARK_READ_ACTION] }),
 					{ isFirst: false },
 				),
 			),
@@ -227,7 +220,7 @@ describe("renderReadlistCard", () => {
 	it("deletes straight from the ••• menu once the reader has silenced the confirmation", () => {
 		const doc = parse(
 			renderReadlistCard(
-				display(makeViewModel({ actions: [UNCONFIRMED_DELETE_ACTION] }), { isFirst: false }),
+				display(makeViewModel({ deletion: UNCONFIRMED_DELETION }), { isFirst: false }),
 			),
 		);
 
@@ -239,7 +232,7 @@ describe("renderReadlistCard", () => {
 
 	it("opens a confirmation from the ••• menu and keeps a hidden plain-post fallback behind it", () => {
 		const doc = parse(
-			renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION] }), { isFirst: false })),
+			renderReadlistCard(display(makeViewModel({ deletion: CONFIRMED_DELETION }), { isFirst: false })),
 		);
 
 		const trigger = doc.querySelector('[data-test-action="delete"]');
@@ -254,12 +247,12 @@ describe("renderReadlistCard", () => {
 		expect(fallback.getAttribute("type")).toBe("submit");
 		const fallbackForm = fallback.closest("form");
 		assert(fallbackForm, "the fallback must submit through a form");
-		expect(fallbackForm.classList.contains("readlist-article__fallback")).toBe(true);
+		expect(fallbackForm.classList.contains("article-delete__form--fallback")).toBe(true);
 	});
 
 	it("lists the move item ahead of Delete when Delete asks first", () => {
 		const doc = parse(
-			renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION], move: MOVE }), { isFirst: false })),
+			renderReadlistCard(display(makeViewModel({ deletion: CONFIRMED_DELETION, move: MOVE }), { isFirst: false })),
 		);
 
 		expect(menuControls(doc)).toEqual(["move-fallback", "move", "delete-fallback", "delete"]);
@@ -268,7 +261,7 @@ describe("renderReadlistCard", () => {
 	it("lists the move item ahead of Delete when Delete posts straight away", () => {
 		const doc = parse(
 			renderReadlistCard(
-				display(makeViewModel({ actions: [UNCONFIRMED_DELETE_ACTION], move: MOVE }), { isFirst: false }),
+				display(makeViewModel({ deletion: UNCONFIRMED_DELETION, move: MOVE }), { isFirst: false }),
 			),
 		);
 
@@ -277,7 +270,7 @@ describe("renderReadlistCard", () => {
 
 	it("draws the move item with folder-input while Delete keeps its trash glyph", () => {
 		const doc = parse(
-			renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION], move: MOVE }), { isFirst: false })),
+			renderReadlistCard(display(makeViewModel({ deletion: CONFIRMED_DELETION, move: MOVE }), { isFirst: false })),
 		);
 
 		const move = menuPanel(doc).querySelector('[data-test-action="move"]');
@@ -290,7 +283,7 @@ describe("renderReadlistCard", () => {
 
 	it("points the move item at the dialog the page renders for the article", () => {
 		const doc = parse(
-			renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION], move: MOVE }), { isFirst: false })),
+			renderReadlistCard(display(makeViewModel({ deletion: CONFIRMED_DELETION, move: MOVE }), { isFirst: false })),
 		);
 
 		const move = menuPanel(doc).querySelector('[data-test-action="move"]');
@@ -300,7 +293,7 @@ describe("renderReadlistCard", () => {
 	});
 
 	it("offers only Delete when the article has nowhere to move to", () => {
-		const doc = parse(renderReadlistCard(display(makeViewModel({ actions: [DELETE_ACTION] }), { isFirst: false })));
+		const doc = parse(renderReadlistCard(display(makeViewModel({ deletion: CONFIRMED_DELETION }), { isFirst: false })));
 
 		expect(menuControls(doc)).toEqual(["delete-fallback", "delete"]);
 	});

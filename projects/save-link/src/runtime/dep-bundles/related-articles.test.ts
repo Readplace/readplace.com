@@ -24,14 +24,16 @@ const ownCopyPick = { index: 0, reason: "Kubernetes operator reconciliation agai
 
 function bundleAnswering(picks: readonly { index: number; reason: string }[]) {
 	const systems: string[] = [];
+	const features: string[] = [];
 	const createMessage: CreateAiMessage = async (params) => {
 		systems.push(params.system);
+		features.push(params.feature);
 		return {
 			content: [{ type: "text", text: JSON.stringify({ related: picks }) }],
 			usage: { input_tokens: 100, output_tokens: 10 },
 		};
 	};
-	return { ...initRelatedArticlesDepBundle({ createMessage, nowMs: () => 0, logger: noopLogger }), systems };
+	return { ...initRelatedArticlesDepBundle({ createMessage, nowMs: () => 0, logger: noopLogger }), systems, features };
 }
 
 describe("initRelatedArticlesDepBundle", () => {
@@ -85,6 +87,16 @@ describe("initRelatedArticlesDepBundle", () => {
 		expect(pastReads.systems).toHaveLength(1);
 		for (const system of pastReads.systems) expect(system).toBe(PAST_READS_PROMPT);
 		for (const system of nextRead.systems) expect(system).not.toBe(PAST_READS_PROMPT);
+	});
+
+	it("Next read names the next_read feature on both samples, and Already read names past_reads", async () => {
+		const nextRead = bundleAnswering([bandPick]);
+		await nextRead.selectRelatedArticles({ target, unreadCandidates: bandPool, readCandidates: [] });
+		const pastReads = bundleAnswering([ownCopyPick]);
+		await pastReads.selectPastReads({ target, unreadCandidates: [], readCandidates: ownCopyPool });
+
+		expect(nextRead.features).toEqual(["next_read", "next_read"]);
+		expect(pastReads.features).toEqual(["past_reads"]);
 	});
 
 	it("a shared-boilerplate target skips before the floor in both chains", async () => {

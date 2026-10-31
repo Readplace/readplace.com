@@ -3,7 +3,7 @@ import { test } from '@packages/e2e-harness'
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from './admin-e2e-user'
 import { runExtendTrialFlow } from './extend-trial-flow'
 
-const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
+const BASE_URL = `http://127.0.0.1:${requireEnv('E2E_PORT')}`
 
 test.describe('Admin extend-trial flow (local)', () => {
 	test('admin looks up unknown, founding, and trialing users, then extends and overrides a trial', async ({ page }) => {

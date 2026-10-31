@@ -14,6 +14,7 @@
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {
+    "openai": "6.39.1",
     "zod": "4.4.3"
   },
   "devDependencies": {

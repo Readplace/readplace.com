@@ -47,7 +47,7 @@ import {
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
-import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern, openAiScanToolsListedPattern } from "../runtime/observability/metric-filters";
+import { ANALYTICS_METRIC_FILTERS, ANALYTICS_METRIC_NAMESPACE, analyticsMetricFilterPattern, DEEPSEEK_COST_METRIC, DEEPSEEK_COST_METRIC_FILTER, deepseekCostMetricFilterPattern, firstPartyRefreshRefusedExceptDisconnectLogoutAllAndNonceRequiredPattern, openAiScanToolsListedPattern } from "../runtime/observability/metric-filters";
 import { buildAnalyticsDashboardBody } from "../runtime/observability/analytics-dashboard";
 import { assertExcludedUserIds, assertExcludedVisitorIds, EXCLUDED_IDENTITIES_PARAMETER_NAME } from "../runtime/observability/excluded-identities";
 import { buildRelatedPastReadsDashboardBody } from "../runtime/observability/related-past-reads-dashboard";
@@ -2000,6 +2000,18 @@ for (const [key, filter] of Object.entries(ANALYTICS_METRIC_FILTERS)) {
 		},
 	});
 }
+
+new aws.cloudwatch.LogMetricFilter("analytics-deepseek-cost-filter", {
+	name: `analytics-${DEEPSEEK_COST_METRIC_FILTER.event}`,
+	logGroupName: analyticsLogGroup.name,
+	pattern: deepseekCostMetricFilterPattern(),
+	metricTransformation: {
+		name: DEEPSEEK_COST_METRIC.name,
+		namespace: DEEPSEEK_COST_METRIC.namespace,
+		value: DEEPSEEK_COST_METRIC_FILTER.value,
+		dimensions: { [DEEPSEEK_COST_METRIC.dimension]: DEEPSEEK_COST_METRIC_FILTER.dimensionValue },
+	},
+});
 
 // The single group the dashboard's error widget reads. It exists because Logs
 // Insights caps a query at 50 log groups and the account already holds 71 —

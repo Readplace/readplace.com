@@ -21,4 +21,4 @@ The single source of truth is the client registry — the workspace package whos
 - Consumer maps stay in-place object literals under `satisfies Record<...>` — a spread, builder function, `Partial`, or index signature silently disables both the add and the remove checks.
 - Exhaustive switches over registry unions need an explicit return type that excludes `undefined` (`noImplicitReturns` is not set in this repo).
 - The auth-identity kind decides the OAuth work: a built-in client (fixed id shipped in a binary) is registered wherever the compiler demands it; a dynamically-registered client self-registers at runtime and must NOT be given a server-side identity.
-- Wire values (OAuth client ids, store URLs) are shipped contracts: data, never derived from the client's slug, never renamed.
+- The doc comment above the roster in the registry source says which values are shipped wire contracts and why renaming one breaks clients already shipped; read it in step 1.

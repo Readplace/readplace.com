@@ -1,6 +1,6 @@
 ---
 name: test-driven-design
-description: Software design and testing conventions that support testability. Use when writing tests, designing testable code, working with dependency injection, or when test coverage issues arise.
+description: Software design and testing conventions that support testability. Use when writing tests, designing testable code, working with dependency injection, or when test coverage issues arise; also when adding or changing a field on an event, command or DynamoDB row schema, or when tempted to make a field optional for backward compatibility.
 ---
 
 # Test Driven Design Guidelines
@@ -227,7 +227,7 @@ newClientCapability: z.string().optional(),
 
 Two clarifications:
 
-- A **semantically optional** field — genuinely absent in some valid case, e.g. a hash the 304-Not-Modified path never computes, or a `previousBodyHash` a first-ever save has no value for — stays optional regardless. That is modelling reality, not back-compat.
+- A **semantically optional** field — genuinely absent in some valid case, e.g. a hash the 304-Not-Modified path never computes, or the hash of the previous body, which a first-ever save does not have — stays optional regardless. That is modelling reality, not back-compat.
 - Making an internal EventBridge / SQS field required can reject messages already enqueued at deploy time. That is a brief, self-healing drain (DLQ + retry, or the next tick re-emits) — accept it rather than permanently weakening the schema.
 
 ### No Silent Fallbacks for Missing Values
@@ -242,37 +242,7 @@ const targets = toCustomerEmail ? [toCustomerEmail] : [];
 //           when the variable is unset (CLAUDE.md, Environment Variable Access)
 ```
 
-### No Default In-Memory Implementations
-
-Never default a dependency to an in-memory implementation in production code. All dependencies MUST be mandatory and the in-memory or production implementations are explicitly set at the entry point (composition root). In-memory implementations are for tests only.
-
-```typescript
-// ❌ BAD - Silent fallback to in-memory
-function createWidget(deps: { store?: Store }) {
-	const store = deps.store ?? initInMemoryStore();
-}
-
-// ✅ GOOD - Store is required
-function createWidget(deps: { store: Store }) {
-	const store = deps.store;
-}
-```
-
-### Named Parameters Over Positional When Types Repeat
-
-When a function signature has 2 or more consecutive parameters of the same type (e.g., `(string, string)` or `(number, number)`), use a named parameter object instead. Positional arguments of the same type are easy to swap by accident (connascence of position is weaker than connascence of name).
-
-```typescript
-// ❌ BAD - Two consecutive strings are easy to swap
-type BookFlight = (email: string, passportNumber: string) => Promise<BookingResult>;
-await bookings.book("user@example.com", "PA1234567");
-
-// ✅ GOOD - Named parameters prevent accidental swaps
-type BookFlight = (passenger: { email: string; passportNumber: string }) => Promise<BookingResult>;
-await bookings.book({ email: "user@example.com", passportNumber: "PA1234567" });
-```
-
-This does NOT apply when the types differ (e.g., `(string, number)`) or when there is only one parameter.
+See [No Default In-Memory Implementations](../../../CLAUDE.md#no-default-in-memory-implementations) and [Named Parameters Over Positional When Types Repeat](../../../CLAUDE.md#named-parameters-over-positional-when-types-repeat) in CLAUDE.md.
 
 ### No Unnecessary Runtime Validation
 
@@ -398,7 +368,7 @@ For files that wrap a single AWS SDK call (DynamoDB `update`, S3 `get`, EventBri
 - Use the `Partial<DynamoDBDocumentClient>` fake-client pattern. Capture the command in a closure and assert on `UpdateExpression`, `ConditionExpression`, and `ExpressionAttributeValues` shape with `toContain` (not `toBe`) so minor formatting changes don't break the test. To find current examples, grep for `Partial<DynamoDBDocumentClient>` in `*.test.ts`.
 - Reach 100% coverage with the fake client. Do NOT add a `.integration.ts` to plug coverage gaps — extract the mapping/parsing logic into a dedicated helper and unit-test the helper directly.
 - When the wrapper is truly trivial (3–5 lines, no branching), mark it `/* c8 ignore start -- thin AWS SDK wrapper, tested via production canaries */` and rely on production canaries for end-to-end verification. To find current canaries, list the GitHub workflows (`ls .github/workflows`) whose name says health or canary, and the health scripts in the crawler package's scripts directory (`ls` it).
-- Reserve `.integration.ts` files for cross-service flows that benefit from real-AWS sanity checking. Mark their phase `e2e: true` in the project's test-phase config (the file at the project root that lists its test phases; `git grep -l "e2e: true" -- '*.config.js'` finds the existing ones) so they don't gate CI on AWS credentials being present.
+- Reserve `.integration.ts` files for cross-service flows that benefit from real-AWS sanity checking. Mark their phase `e2e: true` in the project's test-phase config (the file at the project root that lists its test phases; `git grep -l "e2e: true" -- '*.config.js'` finds the existing ones). That flag skips the phase only when `CLAUDE_CODE_REMOTE=true`; everywhere else the phase is retried once after a failure, so CI runs it — fork-PR CI included, with no secrets. A suite that needs AWS credentials or a local binary must therefore skip itself when that prerequisite is missing (node:test's `t.skip` with a reason, as the existing `.integration.ts` suites do), so `pnpm check` stays credential-free.
 
 ## Code Coverage
 

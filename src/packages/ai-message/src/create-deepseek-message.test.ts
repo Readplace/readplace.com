@@ -1,7 +1,32 @@
-import {
-	initCreateDeepseekMessage,
-	initCreateDeepseekThinkingMessage,
-} from "./create-deepseek-message";
+import { initCreateDeepseekMessage, initCreateDeepseekThinkingMessage } from "./create-deepseek-message";
+import { initDeepseekClient } from "./deepseek-client";
+import { DEEPSEEK_FEATURES } from "./deepseek-feature";
+import type { DeepseekUsageLine } from "./deepseek-usage-line.types";
+
+type FetchCall = { url: string; init: RequestInit | undefined };
+
+function deepseekAnswering(body: unknown) {
+	const calls: FetchCall[] = [];
+	const lines: DeepseekUsageLine[] = [];
+	const client = initDeepseekClient({
+		apiKey: "test-key",
+		timeoutMs: 60_000,
+		maxRetries: 0,
+		logger: { error: () => {}, warn: () => {}, info: () => {}, debug: () => {} },
+		logLevel: "off",
+		callTimeoutMs: null,
+		fetch: async (input, init) => {
+			calls.push({ url: String(input), init });
+			return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+		},
+		logUsage: (line) => {
+			lines.push(line);
+		},
+		now: () => new Date("2026-10-26T02:15:00.000Z"),
+	});
+	const sentBody = () => JSON.parse(String(calls[0].init?.body));
+	return { client, calls, lines, sentBody };
+}
 
 describe("initCreateDeepseekMessage", () => {
 	it("should prepend system message and pass JSON content through unchanged", async () => {
@@ -9,19 +34,21 @@ describe("initCreateDeepseekMessage", () => {
 			summary: "Article explains quantum computing basics",
 			excerpt: "Quick primer on qubits.",
 		});
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
 			choices: [{ message: { content: jsonPayload } }],
 			usage: { prompt_tokens: 50, completion_tokens: 20, prompt_cache_hit_tokens: 32, prompt_cache_miss_tokens: 18 },
 		});
 
-		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
 		const result = await createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 1024,
 			system: "You are a summarizer.",
 			messages: [{ role: "user", content: "Summarize this article" }],
 		});
 
-		expect(createChatCompletion).toHaveBeenCalledWith({
+		expect(deepseek.sentBody()).toEqual({
 			model: "deepseek-flash",
 			thinking: { type: "disabled" },
 			max_tokens: 1024,
@@ -42,15 +69,37 @@ describe("initCreateDeepseekMessage", () => {
 		});
 	});
 
+	it("labels the usage line with the caller's feature and keeps it off the wire", async () => {
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
+			choices: [{ message: { content: "{}" } }],
+			usage: { prompt_tokens: 5, completion_tokens: 3 },
+		});
+
+		await initCreateDeepseekMessage({ client: deepseek.client })({
+			feature: DEEPSEEK_FEATURES.summary,
+			max_tokens: 100,
+			system: "system",
+			messages: [{ role: "user", content: "hello" }],
+		});
+
+		expect(deepseek.calls[0].init?.body).toBe(
+			'{"model":"deepseek-flash","thinking":{"type":"disabled"},"max_tokens":100,"response_format":{"type":"json_object"},"messages":[{"role":"system","content":"system"},{"role":"user","content":"hello"}]}',
+		);
+		expect(deepseek.lines.map((line) => line.feature)).toEqual(["summary"]);
+	});
+
 	it("should trim whitespace from response content", async () => {
 		const jsonPayload = JSON.stringify({ summary: "trimmed", excerpt: "blurb" });
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
 			choices: [{ message: { content: `  ${jsonPayload}  \n` } }],
 			usage: { prompt_tokens: 5, completion_tokens: 3, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 5 },
 		});
 
-		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
 		const result = await createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -60,14 +109,16 @@ describe("initCreateDeepseekMessage", () => {
 	});
 
 	it("should throw when response has no message content", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
 			choices: [{ message: { content: null } }],
 			usage: { prompt_tokens: 10, completion_tokens: 0, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 10 },
 		});
 
-		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
 
 		await expect(createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -75,13 +126,15 @@ describe("initCreateDeepseekMessage", () => {
 	});
 
 	it("should extract text from document content blocks", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
 			usage: { prompt_tokens: 60, completion_tokens: 15, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 60 },
 		});
 
-		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
 		await createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 1024,
 			system: "You are a summarizer.",
 			messages: [{
@@ -95,24 +148,24 @@ describe("initCreateDeepseekMessage", () => {
 			}],
 		});
 
-		expect(createChatCompletion).toHaveBeenCalledWith(
-			expect.objectContaining({
-				messages: [
-					{ role: "system", content: "You are a summarizer." },
-					{ role: "user", content: "Article text about quantum computing" },
-				],
-			}),
-		);
+		expect(deepseek.sentBody()).toMatchObject({
+			messages: [
+				{ role: "system", content: "You are a summarizer." },
+				{ role: "user", content: "Article text about quantum computing" },
+			],
+		});
 	});
 
 	it("should join multiple document blocks with newline", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
 			usage: { prompt_tokens: 80, completion_tokens: 10, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 80 },
 		});
 
-		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
 		await createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 1024,
 			system: "You are a summarizer.",
 			messages: [{
@@ -134,43 +187,43 @@ describe("initCreateDeepseekMessage", () => {
 			}],
 		});
 
-		expect(createChatCompletion).toHaveBeenCalledWith(
-			expect.objectContaining({
-				messages: [
-					{ role: "system", content: "You are a summarizer." },
-					{ role: "user", content: "First section of the article\nSecond section of the article" },
-				],
-			}),
-		);
+		expect(deepseek.sentBody()).toMatchObject({
+			messages: [
+				{ role: "system", content: "You are a summarizer." },
+				{ role: "user", content: "First section of the article\nSecond section of the article" },
+			],
+		});
 	});
 
 	it("should cap max_tokens to 8192", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
 			usage: { prompt_tokens: 10, completion_tokens: 5, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 10 },
 		});
 
-		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
 		await createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 10240,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
 		});
 
-		expect(createChatCompletion).toHaveBeenCalledWith(
-			expect.objectContaining({ max_tokens: 8192 }),
-		);
+		expect(deepseek.sentBody()).toMatchObject({ max_tokens: 8192 });
 	});
 
 	it("should throw when response has no usage data", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
 			usage: null,
 		});
 
-		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
 
 		await expect(createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -178,13 +231,15 @@ describe("initCreateDeepseekMessage", () => {
 	});
 
 	it("should answer without a cache split when usage omits one, rather than failing the call", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-flash",
 			choices: [{ message: { content: '{"summary":"s","excerpt":"e"}' } }],
 			usage: { prompt_tokens: 10, completion_tokens: 5 },
 		});
 
-		const createMessage = initCreateDeepseekMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekMessage({ client: deepseek.client });
 		const result = await createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -198,19 +253,21 @@ describe("initCreateDeepseekMessage", () => {
 
 describe("initCreateDeepseekThinkingMessage", () => {
 	it("should call deepseek-v4-pro with thinking enabled, json mode and no temperature", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-v4-pro",
 			choices: [{ message: { content: '{"links":[]}' } }],
 			usage: { prompt_tokens: 50, completion_tokens: 20 },
 		});
 
-		const createMessage = initCreateDeepseekThinkingMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekThinkingMessage({ client: deepseek.client });
 		await createMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: 32768,
 			system: "You are a filter.",
 			messages: [{ role: "user", content: "Filter these links" }],
 		});
 
-		expect(createChatCompletion.mock.calls[0][0]).toEqual({
+		expect(deepseek.sentBody()).toEqual({
 			model: "deepseek-v4-pro",
 			thinking: { type: "enabled" },
 			max_tokens: 32768,
@@ -223,43 +280,44 @@ describe("initCreateDeepseekThinkingMessage", () => {
 	});
 
 	it("should cap max_tokens to 65536", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-v4-pro",
 			choices: [{ message: { content: '{"links":[]}' } }],
 			usage: { prompt_tokens: 10, completion_tokens: 5 },
 		});
 
-		const createMessage = initCreateDeepseekThinkingMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekThinkingMessage({ client: deepseek.client });
 		await createMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: 100_000,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
 		});
 
-		expect(createChatCompletion).toHaveBeenCalledWith(
-			expect.objectContaining({ max_tokens: 65536 }),
-		);
+		expect(deepseek.sentBody()).toMatchObject({ max_tokens: 65536 });
 	});
 
 	it("should keep a max_tokens at the 65536 cap unchanged", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-v4-pro",
 			choices: [{ message: { content: '{"links":[]}' } }],
 			usage: { prompt_tokens: 10, completion_tokens: 5 },
 		});
 
-		const createMessage = initCreateDeepseekThinkingMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekThinkingMessage({ client: deepseek.client });
 		await createMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: 65536,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
 		});
 
-		expect(createChatCompletion).toHaveBeenCalledWith(
-			expect.objectContaining({ max_tokens: 65536 }),
-		);
+		expect(deepseek.sentBody()).toMatchObject({ max_tokens: 65536 });
 	});
 
 	it("should pass the answer through and ignore the reasoning content", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-v4-pro",
 			choices: [{ message: { content: ' {"links":[]} ', reasoning_content: "Let me think about each link." } }],
 			usage: {
 				prompt_tokens: 40,
@@ -270,8 +328,9 @@ describe("initCreateDeepseekThinkingMessage", () => {
 			},
 		});
 
-		const createMessage = initCreateDeepseekThinkingMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekThinkingMessage({ client: deepseek.client });
 		const result = await createMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: 1024,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -290,13 +349,15 @@ describe("initCreateDeepseekThinkingMessage", () => {
 	});
 
 	it("should leave reasoning_tokens undefined when usage has no completion details", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-v4-pro",
 			choices: [{ message: { content: '{"links":[]}' } }],
 			usage: { prompt_tokens: 10, completion_tokens: 5 },
 		});
 
-		const createMessage = initCreateDeepseekThinkingMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekThinkingMessage({ client: deepseek.client });
 		const result = await createMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -306,14 +367,16 @@ describe("initCreateDeepseekThinkingMessage", () => {
 	});
 
 	it("should throw when the thinking response has no message content", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-v4-pro",
 			choices: [{ message: { content: "", reasoning_content: "Thinking ran out of budget." } }],
 			usage: { prompt_tokens: 10, completion_tokens: 65536 },
 		});
 
-		const createMessage = initCreateDeepseekThinkingMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekThinkingMessage({ client: deepseek.client });
 
 		await expect(createMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
@@ -321,14 +384,16 @@ describe("initCreateDeepseekThinkingMessage", () => {
 	});
 
 	it("should throw when the thinking response has no usage data", async () => {
-		const createChatCompletion = jest.fn().mockResolvedValue({
+		const deepseek = deepseekAnswering({
+			model: "deepseek-v4-pro",
 			choices: [{ message: { content: '{"links":[]}' } }],
 			usage: null,
 		});
 
-		const createMessage = initCreateDeepseekThinkingMessage({ createChatCompletion });
+		const createMessage = initCreateDeepseekThinkingMessage({ client: deepseek.client });
 
 		await expect(createMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],

@@ -31,7 +31,7 @@ For the crawl pipeline, the chains are:
 | `/view` (new article) | `save-anonymous-link-command-handler` → `select-most-complete-content-handler` |
 | Save link command | `save-link-command-handler` → `select-most-complete-content-handler` |
 
-The `<handler>` names are the Lambda names the Pulumi program assigns — confirm against the program before pasting. Enumerate them from the workspace package that holds the save-link Lambda names in one place — grep the workspace packages for the map of Lambda names to log-group names — rather than typing them: an entry-point filename is not the Lambda name.
+The `<handler>` names are the Lambda names the Pulumi program assigns — read them off the program rather than typing them: an entry-point filename is not the Lambda name. For a hop, grep the Pulumi programs for the event-bus subscribe call that names the hop's event (e.g. `RecrawlContentExtracted`) and take the name its Lambda is built with; the shared Lambda component appends `-handler`. A workspace package also maps Lambda names to log-group names (grep the workspace packages for that map), but it holds only the workers that emit structured streams — use it for those streams, not as the full list.
 
 #### Querying a structured log stream
 
@@ -41,7 +41,7 @@ A handler that emits a structured stream (`crawl-legs`, `parse-errors`) is read 
 |---|---|---|
 | Backticks around the leaf of a nested field | The column is blank on **every** row while the rest of the query works normally | Enclose the *whole* dotted path in one pair of backticks |
 | No profile or region | Zero rows, because default credentials target staging (CLAUDE.md → AWS Accounts) | Name the production profile and region explicitly |
-| Log groups typed by hand | `ResourceNotFoundException` — and the start-query call is rejected **whole**, so one wrong name returns nothing for every group | Enumerate from the package named above |
+| Log groups typed by hand | `ResourceNotFoundException` — and the start-query call is rejected **whole**, so one wrong name returns nothing for every group | Enumerate structured-stream log groups from the package that maps Lambda names to log groups (above) |
 | Assuming a fixed number of rows per `@requestId` | Silent under- or over-counting of attempts | Count rows per id before pairing them |
 
 ```

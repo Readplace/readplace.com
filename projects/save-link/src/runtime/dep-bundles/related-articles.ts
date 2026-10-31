@@ -4,7 +4,6 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { initSelectAgreedPicks } from "../domain/related-articles/agreed-picks";
 import { NEXT_READ_SHARED_WORDS_FLOOR, PAST_READS_SHARED_WORDS_FLOOR } from "../domain/related-articles/related-articles-limits";
 import { initSelectRelatedArticles, type SelectRelatedArticles } from "../domain/related-articles/related-articles-selector";
-import { PAST_READS_PROMPT } from "../domain/related-articles/related-past-reads-prompt";
 import { initSelectRelatedArticlesWithoutSharedBoilerplate } from "../domain/related-articles/shared-boilerplate";
 import { initSelectRelatedArticlesAboveSharedWordsFloor } from "../domain/related-articles/shared-words-floor";
 
@@ -22,6 +21,7 @@ export function initRelatedArticlesDepBundle(deps: {
 		initSelectRelatedArticlesAboveSharedWordsFloor({
 			...initSelectAgreedPicks(initSelectRelatedArticles({
 				createMessage: deps.createMessage,
+				selection: "nextRead",
 				nowMs: deps.nowMs,
 				logger: deps.logger,
 			})),
@@ -37,7 +37,7 @@ export function initRelatedArticlesDepBundle(deps: {
 			...initSelectRelatedArticles({
 				createMessage: deps.createMessage,
 				logger: deps.logger,
-				system: PAST_READS_PROMPT,
+				selection: "pastReads",
 				nowMs: deps.nowMs,
 			}),
 			floor: PAST_READS_SHARED_WORDS_FLOOR,

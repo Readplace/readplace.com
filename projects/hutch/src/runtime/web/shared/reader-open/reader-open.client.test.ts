@@ -5,6 +5,7 @@ import {
 	renderReadlistCard,
 	toReadlistCardDisplayModel,
 } from "../../pages/readlist/readlist-card/readlist-card.component";
+import { buildArticleDeletion } from "../../pages/readlist/readlist-card/delete-confirm.component";
 import type { ReadlistArticleViewModel } from "../../pages/readlist/readlist.viewmodel";
 import { renderReaderSkeleton } from "../../pages/readlist/reader-skeleton/reader-skeleton.component";
 import { type HtmxHistoryEventName, initReaderOpen, type ReaderOpenDeps } from "./reader-open.client";
@@ -27,6 +28,7 @@ function realCard(overrides?: Partial<ReadlistArticleViewModel>): string {
 		readTime: { value: "3", label: "3 min read" },
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
+		deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
 		readerHref: READER_HREF,
 		isStalePending: false,
 		...overrides,

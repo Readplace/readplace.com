@@ -10,7 +10,8 @@ import { computeCanonicalContentHash } from "../../providers/article-store/compu
 import { candidateProvenance } from "../select-content/candidate-provenance";
 import { initListAvailableTierSources } from "../select-content/list-available-tier-sources";
 import { initPrepareContentSelection } from "../select-content/prepare-content-selection";
-import { type CreateSelectorChatCompletion, initSelectMostCompleteContent } from "../select-content/select-content";
+import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
+import { initSelectMostCompleteContent } from "../select-content/select-content";
 import type { VerifiedTierSource } from "../select-content/tier-source.types";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
 
@@ -82,7 +83,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 	assert(capture, "a received archive response must survive later transport failures as a candidate");
 	const fresh = stored.find((source) => source.metadata.id === capture.id);
 	assert(fresh);
-	const createChatCompletion = jest.fn<ReturnType<CreateSelectorChatCompletion>, Parameters<CreateSelectorChatCompletion>>()
+	const createChatCompletion = jest.fn<ReturnType<CreateDeepseekChatCompletion>, Parameters<CreateDeepseekChatCompletion>>()
 		.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({
 			kind: "winner", candidate: "B", reason: "The fresh archive response is a rate-limit page; the saved article is readable",
 			readability: [{ candidate: "A", readable: false }, { candidate: "B", readable: true }],

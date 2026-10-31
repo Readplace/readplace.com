@@ -3,7 +3,8 @@ import { noopLogger } from "@packages/hutch-logger";
 import { type Article, type TransitionAndPersist, promoteTier } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { SQSEvent } from "aws-lambda";
-import { type CreateSelectorChatCompletion, initSelectMostCompleteContent } from "./select-content";
+import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
+import { initSelectMostCompleteContent } from "./select-content";
 import { initSelectMostCompleteContentHandler } from "./select-most-complete-content-handler";
 import { candidateProvenance } from "./candidate-provenance";
 import { labelForIndex } from "./select-content-prompt";
@@ -43,7 +44,7 @@ function event(detail: unknown): SQSEvent {
 	return { Records: [{ messageId: "message-0", receiptHandle: "receipt", body: JSON.stringify({ detail }), attributes: { ApproximateReceiveCount: "1", SentTimestamp: "1", SenderId: "sender", ApproximateFirstReceiveTimestamp: "1" }, messageAttributes: {}, md5OfBody: "", eventSource: "aws:sqs", eventSourceARN: "arn:aws:sqs:ap-southeast-2:123:test", awsRegion: "ap-southeast-2" }] };
 }
 
-function reply(decision: object): CreateSelectorChatCompletion {
+function reply(decision: object): CreateDeepseekChatCompletion {
 	return async () => ({ choices: [{ message: { content: JSON.stringify(decision) } }] });
 }
 
@@ -77,9 +78,9 @@ const COMPANIONS = [
 
 const JUDGES = [
 	{ verdict: "finds nothing readable", whenJudged: "promoted", createChatCompletion: (labels: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((candidate) => ({ candidate, readable: false })) }) },
-	{ verdict: "is refused by its provider", whenJudged: "promoted", createChatCompletion: (): CreateSelectorChatCompletion => async () => { throw Object.assign(new Error("bad request"), { status: 400 }); } },
+	{ verdict: "is refused by its provider", whenJudged: "promoted", createChatCompletion: (): CreateDeepseekChatCompletion => async () => { throw Object.assign(new Error("bad request"), { status: 400 }); } },
 	{ verdict: "contradicts itself", whenJudged: "retried", createChatCompletion: (labels: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((candidate) => ({ candidate, readable: true })) }) },
-	{ verdict: "fails with HTTP 500", whenJudged: "retried", createChatCompletion: (): CreateSelectorChatCompletion => async () => { throw Object.assign(new Error("server error"), { status: 500 }); } },
+	{ verdict: "fails with HTTP 500", whenJudged: "retried", createChatCompletion: (): CreateDeepseekChatCompletion => async () => { throw Object.assign(new Error("server error"), { status: 500 }); } },
 ];
 
 const ROWS = ARTICLE_STATES.flatMap((state) => PRODUCERS.flatMap((producer) => COMPANIONS.flatMap((companions) => JUDGES.map((judge) => ({

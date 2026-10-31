@@ -46,11 +46,11 @@ App Review Guideline 2.3.1(a) requires every new feature to be described with sp
 | Note | Baseline to diff from |
 |---|---|
 | TestFlight "What to Test" | The previous build's `ios-readplace@v*` tag (`git tag --list 'ios-readplace@v*' --sort=-v:refname`) |
-| App Store release notes and App Review notes | The last build submitted for App Review, which is the build the last "prepare build N for store review" commit on the review notes names. The `whats_new` lane's `status:true` lists the App Store versions to confirm it. Most TestFlight builds never reach review, so the previous tag is the wrong baseline here |
+| App Store release notes and App Review notes | The last build submitted for App Review: the latest successful run of `gh run list --workflow "Submit iOS build for App Review" --status success` logs `Submitted 1.0.N (build N) for App Review`. The `whats_new` lane's `status:true` lists the App Store versions and their states to cross-check it. Most TestFlight builds never reach review, so the previous tag is the wrong baseline here |
 
 Read two scopes of history from the baseline to the build's tag:
 
-- **The app**: commits under the iOS project's directory (`pnpm nx show project ios` gives its root).
+- **The app**: commits under the directory of the project that defines the `whats_new` fastlane lane (grep for `lane :whats_new`).
 - **Server surfaces the app shows or obeys.** These ship without a new binary, so a reviewer sees them only if the notes name them. They are the Siren responses (the `save-article`, `save-content`, `update-status` actions and the `account` link), the reader page and its `readplaceReader` message bridge to the app, the pages rendered for the app (the app config names the query items it appends, `platform` and `shell`; the server branches on the same names), the OAuth sign-in and consent pages behind `/oauth/authorize`, and the shared nav and banners. Grep the main app for those wire values to find the files, then `git log` them.
 
 Sort every commit into user-visible feature, behaviour change, fix, or internal. Internal commits are left out. Every feature and behaviour change goes into:

@@ -7,11 +7,9 @@ import {
 	initEventBridgePublisher,
 	initSqsCommandDispatcher,
 } from "@packages/hutch-infra-components/runtime";
-import { consoleLogger } from "@packages/hutch-logger";
+import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import OpenAI from "openai";
-import { initDeepseekChatCompletion } from "./providers/deepseek/deepseek-chat-completion";
-import { initCreateDeepseekMessage } from "@packages/ai-message";
+import { type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { initDynamoDbMarkSummaryStage } from "./providers/article-crawl/mark-summary-stage";
@@ -31,16 +29,19 @@ const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
-const { createChatCompletion } = initDeepseekChatCompletion({
+const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
 	timeoutMs: GENERATE_SUMMARY_TIMEOUTS.deepseekMs,
+	maxRetries: 0,
 	logger: consoleLogger,
-	newClient: (options) => new OpenAI(options),
+	logLevel: "info",
+	callTimeoutMs: GENERATE_SUMMARY_TIMEOUTS.deepseekMs,
+	fetch: globalThis.fetch,
+	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	now: () => new Date(),
 });
 
-const createMessage = initCreateDeepseekMessage({
-	createChatCompletion,
-});
+const createMessage = initCreateDeepseekMessage({ client: deepseekClient });
 
 const { findArticleContent } = initFindArticleContent({
 	dynamoClient,

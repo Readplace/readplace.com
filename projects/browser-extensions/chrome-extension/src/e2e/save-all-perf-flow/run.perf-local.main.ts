@@ -32,6 +32,7 @@ import {
 } from "browser-extension-core/perf";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
+import { getFreePort } from "@packages/test-phase-runner";
 
 const BUDGET_MS = perfSetting("PERF_MEAN_SAVE_ALL_BUDGET_MS");
 const TABS_PER_SAVE_ALL = perfSetting("PERF_TABS_PER_SAVE_ALL");
@@ -209,6 +210,7 @@ async function runTest(t: { diagnostic: (message: string) => void }) {
 		const serviceBuilder = new ServiceBuilder(
 			fs.readFileSync(CFT_DRIVER_PATH_FILE, "utf8").trim(),
 		);
+		serviceBuilder.setPort(await getFreePort());
 
 		const driver = await new Builder()
 			.forBrowser("chrome")

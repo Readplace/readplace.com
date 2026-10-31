@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { CreateAiMessage } from "@packages/ai-message";
+import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import { type EmailLinkOrdinal, EmailLinkOrdinalSchema } from "@packages/domain/inbox";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
@@ -65,6 +65,7 @@ export function initDecideEmailLinks(deps: {
 }): { decideEmailLinks: DecideEmailLinks } {
 	const decideEmailLinks: DecideEmailLinks = async (input) => {
 		const response = await deps.createMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: FILTER_MAX_OUTPUT_TOKENS,
 			system: DECIDE_EMAIL_LINKS_PROMPT,
 			messages: [

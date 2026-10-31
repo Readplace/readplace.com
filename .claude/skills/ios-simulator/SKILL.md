@@ -10,7 +10,7 @@ cd "$(git rev-parse --show-toplevel)"        # pnpm dev resolves from the repo r
 pnpm dev &                                   # the build below talks to http://127.0.0.1:3000
 cd "$(dirname "$(git grep -l xcodebuild -- ':/*Makefile')")"   # the iOS app's directory: the one Makefile that drives xcodebuild (`:/` searches from the repo root whatever the cwd)
 make run-local                               # local-server build: boots the newest iPhone simulator, installs, launches
-D=$(xcrun simctl list devices booted | grep -m1 -oE '[0-9A-F-]{36}')   # the device make just booted
+D=$(make -n run-local | grep -m1 -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')   # the device make just booted (pass the same SIM= override, if any)
 ```
 
 Every Xcode/`swiftc`/`xcrun` invocation goes through the wrapper that Makefile prefixes onto each
@@ -50,5 +50,4 @@ Switch to a device that does not have it set. Confirm before spending time on it
 xcrun simctl io "$D" enumerate | grep -A4 "Class: Display" | grep "Default width"
 ```
 
-Two widths means the phantom is attached — one is the device (e.g. `1206`), the other is the
-external display (e.g. `720`). One width means the device is clean.
+Two widths means the phantom is attached; one width means the device is clean.

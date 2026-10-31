@@ -5,7 +5,7 @@ import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-
 import { openAddLink } from "./page-interactions";
 import { captureTransitionFrames } from "./transition-frames";
 
-const BASE_URL = `http://localhost:${requireEnv("E2E_PORT")}`;
+const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
 const VIEWPORT = { width: 1280, height: 900 };
 const SETTLE_MS = 45000;

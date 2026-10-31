@@ -76,6 +76,7 @@ describe("initDecideEmailLinks", () => {
 
 		const [call] = calls;
 		assert(call);
+		expect(call.feature).toBe("readlist_purpose_filter");
 		expect(call.system).not.toContain(INPUT.purpose);
 		expect(call.max_tokens).toBe(32_768);
 		expect(call.messages).toHaveLength(1);

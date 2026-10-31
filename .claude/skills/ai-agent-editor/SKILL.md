@@ -23,27 +23,27 @@ Say what the thing *is*, and when the agent must open it, say how to *find* it f
 
 | Anchor | Example |
 |---|---|
-| A behaviour or distinctive string the code must contain | "the handler that writes the `HX-Retarget` header — grep for it" |
+| A behaviour or distinctive string the code must contain | "the handler that writes the `X-Seat-Hold` header — grep for it" |
 | A command that lists it | `pnpm nx show projects`, `pnpm run`, `ls` |
 | A contract that names it | a route, a query parameter, an event name, a config key, an nx target |
 
 ```markdown
 <!-- ❌ BAD - a path and a symbol, both gone at the next rename -->
-See `pages/listing/listing.page.ts` (`respondRowSwap`).
+See `seating/seat-swap.ts` (`respondSeatSwap`).
 
 <!-- ✅ GOOD - the role, plus a rename-proof way to find it -->
-See the listing page's row-swap handler — the one that answers with the
-`HX-Retarget` header when the DOM has drifted.
+See the boarding page's seat-swap handler — the one that answers with the
+`X-Seat-Hold` header when the seat map has drifted.
 ```
 
 ```markdown
 <!-- ❌ BAD - a filename -->
-Local suites import `test` from `hermetic-fixture.ts`.
+Local suites import `test` from `fare-cache-fixture.ts`.
 
 <!-- ✅ GOOD - the role -->
-Local suites import `test` from the hermetic fixture — the module that
-answers third-party asset requests from pinned local files instead of the
-network; grep for the request-fulfilment call.
+Local suites import `test` from the fare-cache fixture — the module that
+answers airline fare requests from recorded fares instead of the network;
+grep for the fare host it intercepts, `fares.example-airline.test`.
 ```
 
 What a skill may still name, because these are contracts or documents rather than code identifiers, and changing one is a deliberate published change:
@@ -111,7 +111,7 @@ Examples use an invented domain — the skills here use flights and bookings —
 
 | Avoid | Reason |
 |-------|--------|
-| Real file paths, symbols, class names | Rot on rename and nothing catches it; describe the role and how to find it |
+| Real file paths, symbols, class names | See [Describe Code by Its Role, Never by Its Name](#describe-code-by-its-role-never-by-its-name) |
 | Directory structure diagrams | Stale when files change; use `ls` |
 | Command output examples | Stale with versions; just run the command |
 | ASCII workflow diagrams | Hard to maintain; use prose or link externally |

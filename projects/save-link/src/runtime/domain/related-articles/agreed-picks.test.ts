@@ -152,6 +152,7 @@ it("repeats identical grounded requests, preserves clipped reasons and records e
 	const { selectRelatedArticles } = initSelectAgreedPicks(
 		initSelectRelatedArticles({
 			logger: noopLogger,
+			selection: "nextRead",
 			nowMs: () => {
 				clock += 7;
 				return clock;

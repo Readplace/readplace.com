@@ -3,7 +3,7 @@ import { requireEnv } from '@packages/require-env'
 import { runDisconnectFlow } from './disconnect-flow'
 import { runOAuthRevokeFlow } from './oauth-revoke-flow'
 
-const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
+const BASE_URL = `http://127.0.0.1:${requireEnv('E2E_PORT')}`
 
 test.describe('OAuth revoke sign-out (local)', () => {
 	test('iOS sign-out ends only its own grant\'s sessions, keeping the web login and another iPhone signed in', async () => {

@@ -19,6 +19,7 @@ export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker
 const TOP_TEMPLATE = readFileSync(join(__dirname, "reader-actions-top.template.html"), "utf-8");
 const BOTTOM_TEMPLATE = readFileSync(join(__dirname, "reader-actions-bottom.template.html"), "utf-8");
 const DOWNLOADS_TEMPLATE = readFileSync(join(__dirname, "reader-downloads.template.html"), "utf-8");
+const SHARE_TEMPLATE = readFileSync(join(__dirname, "reader-share.template.html"), "utf-8");
 const MARK_READ_LOADER = renderInFlightDots("article-body__mark-read-loader in-flight-dots");
 
 export interface MarkReadAction {
@@ -40,14 +41,35 @@ export interface ReaderReadlistPicker {
 		| undefined;
 }
 
-export interface ActionButtons {
+type ReaderControlPlacement = "toolbar" | "menu";
+
+interface DialogTrigger {
+	popoverId: string;
+	fallbackHtml: string;
+}
+
+interface OfferedSharing {
+	share?: DialogTrigger;
+	epubDownloadHref?: string;
+	epubDownloadGuide?: EpubDownloadGuide;
+	withheld?: never;
+}
+
+interface WithheldSharing {
+	withheld: DialogTrigger;
+	share?: never;
+	epubDownloadHref?: never;
+	epubDownloadGuide?: never;
+}
+
+export type ReaderSharing = OfferedSharing | WithheldSharing;
+
+export type ActionButtons = {
 	backLink?: { topHref: string; bottomHref?: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
 	readlistPicker: ReaderReadlistPicker | undefined;
-	share?: { popoverId: string; fallbackHtml: string };
-	epubDownloadHref?: string;
-	epubDownloadGuide?: EpubDownloadGuide;
-}
+	menu?: { deleteItemsHtml: string };
+} & ReaderSharing;
 
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
 	top: Component;
@@ -90,15 +112,63 @@ function downloadsSlotView(params: { href: string | undefined; guide: EpubDownlo
 	if (params.guide === undefined) return { visible: true, link: { href: params.href } };
 	return {
 		visible: true,
-		guide: { popoverId: DOWNLOAD_GUIDE_POPOVER_ID, fallbackHtml: renderDownloadGuideFallback(params.guide) },
+		popover: {
+			popoverId: DOWNLOAD_GUIDE_POPOVER_ID,
+			fallbackHtml: renderDownloadGuideFallback(params.guide),
+			testAction: "download-open",
+			disabled: false,
+		},
 	};
+}
+
+function shareTriggerView(actionBtns: ActionButtons) {
+	if (actionBtns.withheld !== undefined) {
+		return { ...actionBtns.withheld, testAction: "share-withheld", disabled: true };
+	}
+	if (actionBtns.share === undefined) return undefined;
+	return { ...actionBtns.share, testAction: "share-open", disabled: false };
+}
+
+function downloadsView(actionBtns: ActionButtons) {
+	if (actionBtns.withheld !== undefined) {
+		return {
+			visible: true,
+			popover: { ...actionBtns.withheld, testAction: "download-withheld", disabled: true },
+		};
+	}
+	return downloadsSlotView({ href: actionBtns.epubDownloadHref, guide: actionBtns.epubDownloadGuide });
+}
+
+function renderReaderDownloads(params: {
+	view: ReturnType<typeof downloadsView>;
+	placement: ReaderControlPlacement;
+	oob: boolean;
+}): string {
+	return render(DOWNLOADS_TEMPLATE, { ...params.view, menu: params.placement === "menu", oob: params.oob });
+}
+
+function renderReaderShare(params: {
+	share: ReturnType<typeof shareTriggerView>;
+	placement: ReaderControlPlacement;
+}): string {
+	if (params.share === undefined) return "";
+	return render(SHARE_TEMPLATE, { ...params.share, menu: params.placement === "menu" });
 }
 
 export function renderReaderDownloadsSlotOob(params: {
 	downloadHref: string;
 	guide: EpubDownloadGuide | undefined;
+	placements: readonly ReaderControlPlacement[];
 }): string {
-	return render(DOWNLOADS_TEMPLATE, { ...downloadsSlotView({ href: params.downloadHref, guide: params.guide }), oob: true });
+	return params.placements
+		.map((placement) =>
+			renderReaderDownloads({
+				view: downloadsSlotView({ href: params.downloadHref, guide: params.guide }),
+				placement,
+				oob: true,
+			}),
+		)
+		.join("");
 }
 
 export function renderReaderDownloadsOob(params: {
@@ -109,20 +179,30 @@ export function renderReaderDownloadsOob(params: {
 	return renderReaderDownloadsSlotOob({
 		downloadHref: articleEpubHref({ articleUrl: params.articleUrl, utmSource: "reader", appClient: params.appClient }),
 		guide: params.guide,
+		placements: ["toolbar", "menu"],
 	});
 }
 
 function topBar(actionBtns: ActionButtons): string {
+	const share = shareTriggerView(actionBtns);
+	const downloads = downloadsView(actionBtns);
+	const downloadsAt = (placement: ReaderControlPlacement): string =>
+		renderReaderDownloads({ view: downloads, placement, oob: false });
 	return render(TOP_TEMPLATE, {
 		backLink: actionBtns.backLink
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
 		readlistPicker: actionBtns.readlistPicker,
-		share: actionBtns.share,
-		downloadsHtml: render(DOWNLOADS_TEMPLATE, {
-			...downloadsSlotView({ href: actionBtns.epubDownloadHref, guide: actionBtns.epubDownloadGuide }),
-			oob: false,
-		}),
+		shareHtml: renderReaderShare({ share, placement: "toolbar" }),
+		downloadsHtml: downloadsAt("toolbar"),
+		menu:
+			actionBtns.menu === undefined
+				? undefined
+				: {
+						shareHtml: renderReaderShare({ share, placement: "menu" }),
+						downloadsHtml: downloadsAt("menu"),
+						deleteItemsHtml: actionBtns.menu.deleteItemsHtml,
+					},
 		markRead: markReadFields(actionBtns.markReadActions?.find((action) => action.position === "top")),
 	});
 }
