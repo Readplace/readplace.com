@@ -17,7 +17,7 @@ import { type PlaceholderInk, collectPlaceholderInk } from "./placeholder-ink.br
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
-const BASE_URL = `http://localhost:${E2E_PORT}`;
+const BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 const VIEWPORT = { width: 1280, height: 900 };
 const SETTLE_MS = 30000;
 const PASSWORD = "password123";

@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 
-const BASE_URL = `http://localhost:${requireEnv("E2E_PORT")}`;
+const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
 const SETTLE_MS = 45000;
 

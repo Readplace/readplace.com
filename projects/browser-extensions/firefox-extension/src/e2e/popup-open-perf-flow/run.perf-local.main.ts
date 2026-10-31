@@ -24,6 +24,7 @@ import {
 } from "browser-extension-core/perf";
 import { Builder } from "selenium-webdriver";
 import { Context, Driver } from "selenium-webdriver/firefox";
+import { getFreePort } from "@packages/test-phase-runner";
 
 const EXTENSION_DIR = path.resolve(
 	__dirname,
@@ -147,6 +148,7 @@ async function launch(profile: string): Promise<Driver> {
 	const { options, service } = createFirefoxBrowser({
 		ci: getEnv("CI") === "true",
 	});
+	service.setPort(await getFreePort());
 	options.addArguments("-profile", profile);
 	if (getEnv("HEADLESS") !== "false") options.addArguments("--headless");
 	options.setPreference(

@@ -4,7 +4,7 @@ import { expect, test, waitForBrandFonts } from "@packages/e2e-harness";
 
 const E2E_PORT = process.env.E2E_PORT;
 assert(E2E_PORT, "E2E_PORT must be set by the Playwright webServer config");
-const BASE_URL = `http://localhost:${E2E_PORT}`;
+const BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 
 const IMAGES_READY =
 	"Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)";

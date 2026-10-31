@@ -14,7 +14,7 @@ import { runReadlistFlow } from './readlist-flow'
 import { visualCheckpoints } from './visual-checkpoints'
 import { requireEnv } from "@packages/require-env"
 
-const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
+const BASE_URL = `http://127.0.0.1:${requireEnv('E2E_PORT')}`
 const runStamp = Date.now()
 
 test.describe('Readlist management flow (local)', () => {

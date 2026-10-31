@@ -11,7 +11,7 @@ import { requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
 
 const PORT = Number(requireEnv("E2E_PORT"));
-const appOrigin = `http://localhost:${PORT}`;
+const appOrigin = `http://127.0.0.1:${PORT}`;
 const logger = HutchLogger.from(consoleLogger);
 
 /** Local/e2e composition root needs no AWS: the shell renders against an empty
@@ -52,4 +52,4 @@ app.use(
 process.on("SIGTERM", () => process.exit(0));
 process.on("SIGINT", () => process.exit(0));
 
-app.listen(PORT);
+app.listen(PORT, "127.0.0.1");
