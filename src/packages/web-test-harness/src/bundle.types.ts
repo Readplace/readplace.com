@@ -10,6 +10,7 @@ import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth
 import type { GmailMonitoringStore } from "@packages/provider-contracts/gmail-monitoring";
 import type {
 	ForwardableSender,
+	GmailAccountEmail,
 	GmailConnectionStore,
 	GmailCredentialsStore,
 	GmailDiscoveryStore,
@@ -18,6 +19,9 @@ import type {
 	GmailHistoryImportJobId,
 	GmailHistoryImportStore,
 	GmailMappingStore,
+	GmailMarkBackfillRef,
+	GmailMarkBackfillStore,
+	GmailMessageUpdateStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import type { NewsletterCatalogSeed } from "@packages/domain/newsletter-catalog";
@@ -621,6 +625,10 @@ export interface GmailIntegrationBundle {
 		reason: GmailHistoryImportCancelReason;
 	}) => Promise<GmailHistoryImportJob[]>;
 	publishStartGmailHistoryImport: (input: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }) => Promise<void>;
+	publishGmailModifyPermissionGranted: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<void>;
+	gmailMessageUpdateStore: GmailMessageUpdateStore;
+	gmailMarkBackfillStore: GmailMarkBackfillStore;
+	publishStartGmailMarkBackfill: (input: GmailMarkBackfillRef & { generation: number }) => Promise<void>;
 	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
 	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
 	newGmailHistoryImportGeneration: () => string;

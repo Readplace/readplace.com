@@ -1,5 +1,7 @@
 import assert from "node:assert";
+import type { GmailMessageOrigin } from "@packages/domain/gmail";
 import {
+	type EmailImportCompletionStore,
 	type InboxAddress,
 	InboxAddressSchema,
 	type InboxEmailEntry,
@@ -27,16 +29,18 @@ export type IngestParsedEmail = (input: {
 	downloadedImages: DownloadedEmailImage[];
 	origin: EmailReceivedDetail["origin"];
 	routing: EmailReceivedDetail["routing"];
+	gmailOrigin: GmailMessageOrigin | undefined;
 }) => Promise<"stored" | "duplicate" | "unparsed">;
 
 export function initIngestParsedEmail(deps: {
 	storeBody: StoreEmailBody;
 	putEmail: InboxEmailStore["putEmail"];
 	getEmail: InboxEmailStore["getEmail"];
+	addGmailOrigins: EmailImportCompletionStore["addGmailOrigins"];
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
 }): IngestParsedEmail {
-	const { storeBody, putEmail, getEmail, publishEvent, logger } = deps;
+	const { storeBody, putEmail, getEmail, addGmailOrigins, publishEvent, logger } = deps;
 
 	return async ({
 		userId,
@@ -48,6 +52,7 @@ export function initIngestParsedEmail(deps: {
 		downloadedImages,
 		origin,
 		routing,
+		gmailOrigin,
 	}) => {
 		const gmailSnapshot: Pick<InboxEmailEntry, "gmailDestinationAddresses" | "gmailDeliveryMode"> =
 			routing.kind === "gmail"
@@ -93,6 +98,7 @@ export function initIngestParsedEmail(deps: {
 				? row
 				: await getEmail({ userId, receivedAtMessageId });
 		assert(accepted, "duplicate accepted email row is present");
+		await addGmailOrigins({ userId, receivedAtMessageId, origins: gmailOrigin === undefined ? [] : [gmailOrigin] });
 		const acceptedRouting = acceptedGmailRouting(accepted) ?? routing;
 		await publishEvent(EmailReceivedEvent, {
 			userId,

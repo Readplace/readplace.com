@@ -3,7 +3,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { deriveEmailIssueMetadata, emailIssueArticleUrl, emailIssueReceivedAt } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import { SaveEmailIssueCommand, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { EmailOutputSavedToAllEvent, SaveEmailIssueCommand, TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
@@ -51,6 +51,10 @@ export function initSaveEmailIssueCommandHandler(deps: {
 					estimatedReadTime,
 					provenance: { kind: "email", senderEmail: detail.senderEmail },
 					readlists: detail.readlists.map((readlist) => ReadlistSlugSchema.parse(readlist)),
+					onSavedToAll: async () => {
+						if (detail.emailOutput === undefined) return;
+						await deps.publishEvent(EmailOutputSavedToAllEvent, { userId, ...detail.emailOutput });
+					},
 				});
 				if (contentPending) {
 					const extractedAt = deps.now().toISOString();

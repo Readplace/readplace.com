@@ -16,6 +16,8 @@ import type { AlarmedDeadLetterQueue } from "./hutch-shared-dlq";
  * change at the same callsite cannot regress without re-wiring infra.
  */
 export class HutchDLQEventHandler extends pulumi.ComponentResource {
+	public readonly logGroupName: pulumi.Output<string>;
+
 	constructor(
 		name: string,
 		args: {
@@ -54,6 +56,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 		}, { parent: this });
 
 		args.eventBus.grantPublish(lambda);
+		this.logGroupName = lambda.logGroupName;
 
 		attachDlqConsumer(name, {
 			deadLetterQueue: args.deadLetterQueue,

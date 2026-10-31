@@ -2,6 +2,7 @@ import assert from "node:assert";
 import {
 	ForwardableSenderSchema,
 	GmailAccountEmailSchema,
+	type GmailMessageOrigin,
 	GmailHistoryImportJobIdSchema,
 	type GmailHistoryImportStore,
 	GmailMessageIdSchema,
@@ -28,6 +29,7 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
+import type { RecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import type { DownloadEmailImages } from "./download-email-images";
 import type { IngestParsedEmail } from "./ingest-parsed-email";
 import type { ResumeAcceptedGmailEmail } from "./resume-accepted-gmail-email";
@@ -50,6 +52,7 @@ export function initIngestGmailImportHandler(deps: {
 	resolveIdentity: ResolveEmailIdentity;
 	ingest: IngestParsedEmail;
 	resumeAcceptedGmailEmail: ResumeAcceptedGmailEmail;
+	recordDuplicateGmailOrigin: RecordDuplicateGmailOrigin;
 	publishEvent: PublishEvent;
 	maxEmailBytes: number;
 	logger: HutchLogger;
@@ -63,6 +66,7 @@ export function initIngestGmailImportHandler(deps: {
 		resolveIdentity,
 		ingest,
 		resumeAcceptedGmailEmail,
+		recordDuplicateGmailOrigin,
 		publishEvent,
 		logger,
 	} = deps;
@@ -110,8 +114,14 @@ export function initIngestGmailImportHandler(deps: {
 			};
 		}
 
+		const gmailOrigin: GmailMessageOrigin = {
+			kind: "history",
+			accountEmail: GmailAccountEmailSchema.parse(detail.accountEmail),
+			gmailMessageId: GmailMessageIdSchema.parse(detail.gmailMessageId),
+			senderEmail: sender,
+		};
 		const proposedReceivedAtMessageId = `${detail.internalDate}#${parsed.email.messageId}`;
-		if (await resumeAcceptedGmailEmail({ userId, receivedAtMessageId: proposedReceivedAtMessageId, rawEmailS3Key: detail.rawEmailS3Key, origin: "gmail-import" })) {
+		if (await resumeAcceptedGmailEmail({ userId, receivedAtMessageId: proposedReceivedAtMessageId, rawEmailS3Key: detail.rawEmailS3Key, origin: "gmail-import", gmailOrigin })) {
 			return { outcome: "imported", receivedAtMessageId: proposedReceivedAtMessageId };
 		}
 		if (!mayIngest) return { outcome: "cancelled", receivedAtMessageId: undefined };
@@ -141,12 +151,14 @@ export function initIngestGmailImportHandler(deps: {
 			attempt: {
 				origin: "gmail-import",
 				jobId,
-				accountEmail: GmailAccountEmailSchema.parse(detail.accountEmail),
-				gmailMessageId: GmailMessageIdSchema.parse(detail.gmailMessageId),
+				accountEmail: gmailOrigin.accountEmail,
+				gmailMessageId: gmailOrigin.gmailMessageId,
 			},
 		});
-		if (!resolution.proceed)
+		if (!resolution.proceed) {
+			await recordDuplicateGmailOrigin({ userId, receivedAtMessageId: resolution.receivedAtMessageId, origin: gmailOrigin });
 			return { outcome: "already-imported", receivedAtMessageId: undefined };
+		}
 
 		await ingest({
 			userId,
@@ -162,6 +174,7 @@ export function initIngestGmailImportHandler(deps: {
 				destinationAddresses: [destinationAddress, ...additionalAddresses],
 				deliveryMode: detail.deliveryMode,
 			},
+			gmailOrigin,
 		});
 		return {
 			outcome: "imported",

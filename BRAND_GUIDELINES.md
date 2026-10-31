@@ -754,7 +754,7 @@ Below 600px a field-and-button row stacks when its field would otherwise clip it
 
 #### Checkboxes and radios
 
-`.form-choice` is an 18px box with a 1.5px `--foreground` edge — neutral ink, never amber. A checked checkbox fills `--foreground` under a `--background` check, and an indeterminate one carries a `--background` bar instead. A radio is a ring whose checked state is an 8px `--foreground` dot. Both draw the 2px `--ring` outline on `:focus-visible`. A pressed button that stands for one option of a choice draws the same ring as a `.form-choice--mark` inside it, and its `aria-pressed="true"` draws the dot.
+`.form-choice` is an 18px box with a 1.5px `--foreground` edge — neutral ink, never amber. A checked checkbox fills `--foreground` under a `--background` check, and an indeterminate one carries a `--background` bar instead. A radio is a ring whose checked state is an 8px `--foreground` dot. Both draw the 2px `--ring` outline on `:focus-visible`. A pressed button that stands for one option of a choice draws the same ring as a `.form-choice--mark` inside it, and its `aria-pressed="true"` draws the dot. A disabled choice takes the `--muted` fill with a `--muted-foreground` edge (a checked one fills `--muted-foreground`), at full opacity with the `not-allowed` cursor, and the label wrapping it greys to `--muted-foreground` with it — the same values as a disabled field.
 
 ### App Pages
 

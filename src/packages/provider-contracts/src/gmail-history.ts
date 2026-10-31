@@ -88,7 +88,7 @@ export interface GmailRawMessage {
 }
 
 export interface GmailHistory {
-	listUnreadMessageIds: (input: {
+	listMessageIds: (input: {
 		userId: UserId;
 		sender: ForwardableSender;
 		window: GmailHistoryImportWindow;

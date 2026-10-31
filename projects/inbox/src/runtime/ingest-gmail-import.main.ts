@@ -16,6 +16,7 @@ import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import {
 	initDynamoDbEmailIdentity,
+	initDynamoDbEmailImportCompletion,
 	initDynamoDbGmailHistoryImport,
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
@@ -23,6 +24,8 @@ import {
 	initS3WriteEmailContent,
 } from "@packages/inbox-store";
 import { getEnv, requireEnv } from "@packages/require-env";
+import { initEvaluateGmailImportCompletion } from "./domain/gmail-import-completion/evaluate-gmail-import-completion";
+import { initRecordDuplicateGmailOrigin } from "./domain/gmail-import-completion/record-gmail-origin";
 import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
 import { initIngestGmailImportHandler } from "./domain/inbox/ingest-gmail-import-handler";
 import { initIngestParsedEmail } from "./domain/inbox/ingest-parsed-email";
@@ -53,6 +56,10 @@ const inboxEmailStore = initDynamoDbInboxEmail({
 	client: dynamoClient,
 	tableName: inboxEmailsTable,
 });
+const emailImportCompletion = initDynamoDbEmailImportCompletion({
+	client: dynamoClient,
+	tableName: inboxEmailsTable,
+});
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
@@ -73,7 +80,18 @@ const { putImageObject } = initS3PutImageObject({
 });
 
 export const handler = initIngestGmailImportHandler({
-		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: inboxEmailStore.getEmail, publishEvent }),
+	resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({
+		getEmail: inboxEmailStore.getEmail,
+		addGmailOrigins: emailImportCompletion.addGmailOrigins,
+		publishEvent,
+	}),
+	recordDuplicateGmailOrigin: initRecordDuplicateGmailOrigin({
+		addGmailOrigins: emailImportCompletion.addGmailOrigins,
+		evaluate: initEvaluateGmailImportCompletion({
+			findCompletion: emailImportCompletion.findCompletion,
+			publishEvent,
+		}),
+	}),
 	readRawEmail: initS3ReadRawEmail({
 		client: s3Client,
 		bucketName: rawEmailBucketName,
@@ -110,6 +128,7 @@ export const handler = initIngestGmailImportHandler({
 		}),
 		putEmail: inboxEmailStore.putEmail,
 		getEmail: inboxEmailStore.getEmail,
+		addGmailOrigins: emailImportCompletion.addGmailOrigins,
 		publishEvent,
 		logger,
 	}),

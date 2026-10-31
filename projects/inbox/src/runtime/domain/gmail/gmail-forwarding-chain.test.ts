@@ -26,7 +26,9 @@ import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gma
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
 import { initInMemoryGmailSender } from "@packages/test-fixtures/providers/gmail-sender";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { initEvaluateGmailImportCompletion } from "../gmail-import-completion/evaluate-gmail-import-completion";
+import { initRecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type { z } from "zod";
 import { initIngestParsedEmail } from "../inbox/ingest-parsed-email";
@@ -54,6 +56,7 @@ function makeInbox() {
 	const now = () => new Date(RECEIVED_AT);
 	const addresses = initInMemoryInboxAddress({ now });
 	const emails = initInMemoryInboxEmail();
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail, listEmailsByUserId: emails.listEmailsByUserId });
 	const connections = initInMemoryGmailConnection({ now });
 	const mappings = initInMemoryGmailMapping({ now });
 	const senders = initInMemoryGmailSender({ now });
@@ -67,6 +70,8 @@ function makeInbox() {
 	const publishEvent = (async (event, detail) => {
 		published.push({ event, detail: event.detailSchema.parse(detail) });
 	}) as PublishEvent;
+	const evaluateCompletion = initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent });
+	const recordDuplicateGmailOrigin = initRecordDuplicateGmailOrigin({ addGmailOrigins: completion.addGmailOrigins, evaluate: evaluateCompletion });
 
 	const fetchCalls: {
 		url: string;
@@ -86,7 +91,8 @@ function makeInbox() {
 	};
 
 	const receive = initReceiveEmailHandler({
-		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, publishEvent }),
+		resumeAcceptedGmailEmail: initResumeAcceptedGmailEmail({ getEmail: emails.getEmail, addGmailOrigins: completion.addGmailOrigins, publishEvent }),
+		recordDuplicateGmailOrigin,
 		readRawEmail: async (key) => rawMap.get(key),
 		findByAddress: addresses.findByAddress,
 		putEmail: emails.putEmail,
@@ -102,6 +108,7 @@ function makeInbox() {
 			storeBody: async () => "content/email/content.html",
 			putEmail: emails.putEmail,
 			getEmail: emails.getEmail,
+			addGmailOrigins: completion.addGmailOrigins,
 			publishEvent,
 			logger,
 		}),
@@ -110,6 +117,7 @@ function makeInbox() {
 				publishEvent(ConfirmGmailForwardingCommand, detail),
 			logger,
 		}),
+		findConnectedGmailAccount: async (userId) => (await connections.findConnectionByUserId(userId))?.accountEmail,
 		routeGmailForwardedEmail: initRouteGmailForwardedEmail({
 			connections,
 			mappings,
@@ -134,6 +142,7 @@ function makeInbox() {
 	return {
 		addresses,
 		emails,
+		completion,
 		connections,
 		mappings,
 		senders,

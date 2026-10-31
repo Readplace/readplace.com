@@ -24,7 +24,6 @@ function listable(message: InMemoryGmailMessage, input: { userId: UserId; sender
 	return (
 		message.userId === input.userId &&
 		message.sender === input.sender &&
-		message.labelIds.includes("UNREAD") &&
 		!message.labelIds.some((label) => EXCLUDED_LABELS.has(label)) &&
 		message.internalDate >= input.window.start &&
 		message.internalDate < input.window.end
@@ -34,15 +33,15 @@ function listable(message: InMemoryGmailMessage, input: { userId: UserId; sender
 export function initInMemoryGmailHistory() {
 	const messages = new Map<GmailMessageId, InMemoryGmailMessage>();
 	const listRequests: { sender: ForwardableSender; window: GmailHistoryImportWindow; pageToken: string | undefined }[] = [];
-	const failures: { listUnreadMessageIds: GmailHistoryFailure[]; fetchRawMessage: GmailHistoryFailure[] } = {
-		listUnreadMessageIds: [],
+	const failures: { listMessageIds: GmailHistoryFailure[]; fetchRawMessage: GmailHistoryFailure[] } = {
+		listMessageIds: [],
 		fetchRawMessage: [],
 	};
 
 	const history: GmailHistory = {
-		listUnreadMessageIds: async (input) => {
+		listMessageIds: async (input) => {
 			listRequests.push({ sender: input.sender, window: input.window, pageToken: input.pageToken });
-			const failure = failures.listUnreadMessageIds.shift();
+			const failure = failures.listMessageIds.shift();
 			if (failure !== undefined) return failure;
 			const matching = [...messages.values()]
 				.filter((message) => listable(message, input))
@@ -71,6 +70,10 @@ export function initInMemoryGmailHistory() {
 		listRequests,
 		addMessage: (message: InMemoryGmailMessage) => {
 			messages.set(message.messageId, message);
+		},
+		markRead: (messageId: GmailMessageId) => {
+			const message = messages.get(messageId);
+			if (message !== undefined) messages.set(messageId, { ...message, labelIds: message.labelIds.filter((label) => label !== "UNREAD") });
 		},
 		failNext: (input: { method: keyof GmailHistory; failure: GmailHistoryFailure }) => {
 			failures[input.method].push(input.failure);

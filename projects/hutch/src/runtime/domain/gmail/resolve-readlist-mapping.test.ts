@@ -160,6 +160,7 @@ describe("initMapSenderToReadlist", () => {
 					mappedAddresses: [tech.address],
 					mappedAt: NOW.toISOString(),
 					deliveryMode: undefined,
+					markImportedAt: undefined,
 				}),
 				mapSenderToAddress: async (input) => {
 					rewrites.push(input);

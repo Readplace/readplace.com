@@ -14,6 +14,7 @@ describe("initInMemoryGmailCredentials", () => {
 
 		assert.equal(await store.findRefreshTokenByUserId(owner), "refresh-1");
 		assert.equal(await store.findGrantedScopeByUserId(owner), SCOPE);
+		assert.deepEqual(await store.findCredentialsByUserId(owner), { refreshToken: "refresh-1", grantedScope: SCOPE });
 	});
 
 	it("scopes credentials to their owner", async () => {
@@ -48,5 +49,6 @@ describe("initInMemoryGmailCredentials", () => {
 		const store = initInMemoryGmailCredentials({ now: () => new Date() });
 
 		assert.equal(await store.findRefreshTokenByUserId(owner), undefined);
+		assert.equal(await store.findCredentialsByUserId(owner), undefined);
 	});
 });

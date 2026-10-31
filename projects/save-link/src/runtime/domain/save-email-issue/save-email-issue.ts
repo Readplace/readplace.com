@@ -16,6 +16,7 @@ export type SaveEmailIssue = (params: {
 	estimatedReadTime: Minutes;
 	provenance: SaveProvenance;
 	readlists: readonly ReadlistSlug[];
+	onSavedToAll: () => Promise<void>;
 }) => Promise<{ contentPending: boolean }>;
 
 export function initSaveEmailIssue(deps: {
@@ -28,7 +29,7 @@ export function initSaveEmailIssue(deps: {
 	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 }): SaveEmailIssue {
-	return async ({ userId, url, displayUrl, metadata, estimatedReadTime, provenance, readlists }) => {
+	return async ({ userId, url, displayUrl, metadata, estimatedReadTime, provenance, readlists, onSavedToAll }) => {
 		const contentPending = (await deps.findArticleCrawlStatus(url))?.status !== "ready";
 		const { saved, createdUserArticle } = await deps.saveArticle({
 			userId,
@@ -43,6 +44,7 @@ export function initSaveEmailIssue(deps: {
 			await deps.markCrawlPending({ url });
 			await deps.markSummaryPending({ url });
 		}
+		await onSavedToAll();
 		for (const readlist of readlists) {
 			await deps.fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
 		}

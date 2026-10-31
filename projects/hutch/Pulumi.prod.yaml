@@ -80,6 +80,7 @@ config:
   hutch:analyticsSaltGeneration: 1
   hutch:mcpScanListingWindowHours: 26
   hutch:gmailFilterRewriteFailedThreshold: 1
+  hutch:gmailEmailUpdateFailedThreshold: 1
   hutch:readlistCapWarnThreshold: 1
   hutch:googleWorkspaceMail:
     domain: readplace.com

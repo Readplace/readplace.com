@@ -124,14 +124,14 @@ async function panelFitsViewport(page: Page): Promise<void> {
 	assert.ok(viewport, "import checkpoints run with an explicit viewport");
 	const panel = await measuredBox(page, DIALOG);
 	const footer = await measuredBox(page, DIALOG_FOOTER);
-	const importOption = await measuredBox(page, ".gmail__import-option");
+	const lastOption = await measuredBox(page, ".gmail__import-option >> nth=-1");
 	assert.ok(panel.x >= 0 && panel.x + panel.width <= viewport.width + 0.5, "the panel must fit the viewport sideways");
 	assert.ok(panel.y >= 0 && panel.y + panel.height <= viewport.height + 0.5, "the panel must fit the viewport");
 	assert.ok(
 		await page.locator(DIALOG).evaluate((element) => element.scrollWidth <= element.clientWidth),
 		"the panel must never scroll sideways",
 	);
-	assert.ok(importOption.y + importOption.height <= footer.y + 0.5, "the import option must sit above Cancel and Save");
+	assert.ok(lastOption.y + lastOption.height <= footer.y + 0.5, "the import and mark-read options must sit above Cancel and Save");
 	assert.ok(
 		footer.y >= panel.y && footer.y + footer.height <= panel.y + panel.height + 0.5,
 		"Cancel and Save must stay visible at the panel bottom",

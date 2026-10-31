@@ -148,6 +148,7 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 		},
 		getLink: async ({ userId, receivedAtMessageId, ordinal }) =>
 			links.get(linkKey(groupKey({ userId, receivedAtMessageId }), ordinal)),
+		findLinksMeta: async (input) => metas.get(groupKey(input)),
 		deleteLinksByEmail,
 		deleteAllLinksByUserId: async (userId, receivedAtMessageIds) => {
 			for (const receivedAtMessageId of receivedAtMessageIds) {

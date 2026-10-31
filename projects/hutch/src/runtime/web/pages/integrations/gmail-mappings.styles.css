@@ -113,6 +113,38 @@
   gap: 8px;
 }
 
+.gmail-mappings__mark-form {
+  margin: 0;
+}
+
+.gmail-mappings__mark-form.htmx-request {
+  opacity: 0.55;
+}
+
+.gmail-mappings__mark-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.gmail-mappings__mark-option .form-choice {
+  margin-top: 2px;
+}
+
+.gmail-mappings__mark-form.htmx-request,
+.gmail-mappings__mark-form.htmx-request .gmail-mappings__mark-option,
+.gmail-mappings__mark-form.htmx-request .form-choice {
+  cursor: progress;
+}
+
+.gmail-mappings__mark-detail {
+  margin-left: 26px;
+}
+
 .gmail-mappings__counts {
   display: flex;
   flex-wrap: wrap;

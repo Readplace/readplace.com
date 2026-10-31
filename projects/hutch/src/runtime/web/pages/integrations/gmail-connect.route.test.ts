@@ -6,7 +6,7 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import type { GmailAccountEmail, GmailHistoryImportJob } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
-import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -920,8 +920,12 @@ describe("Gmail read permission for an import", () => {
 			const started = await agent.post(CONNECT).type("form").send({ ...state, intent: "import", sender: TLDR });
 			return new URL(started.headers.location);
 		};
+		const askToMark = async () => {
+			const started = await agent.post(CONNECT).type("form").send({ intent: "mark", sender: TLDR });
+			return new URL(started.headers.location);
+		};
 		const findJob = () => gmail.bundle.gmailHistoryImportStore.findJob({ userId, jobId });
-		return { agent, gmail, gmailConnectionStore, userId, jobId, askForPermission, findJob };
+		return { agent, gmail, gmailConnectionStore, userId, jobId, askForPermission, askToMark, findJob };
 	}
 
 	it("asks Google for read access on top of the scopes already granted", async () => {
@@ -991,6 +995,25 @@ describe("Gmail read permission for an import", () => {
 		await withheld.askForPermission(pickerState);
 		expect((await withheld.agent.get(CALLBACK).query({ error: "access_denied" })).headers.location)
 			.toBe(`/newsletters/gmail?notice=import_permission_refused&${back}`);
+	});
+
+	it("resumes waiting imports when Google grants permission to change messages, which also reads them", async () => {
+		const { agent, gmail, userId, askForPermission, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		const url = await askForPermission();
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=import_started");
+		expect((await findJob())?.state).toBe("queued");
+		expect(gmail.modifyPermissionGrants).toEqual([{ userId, accountEmail: READER }]);
+	});
+
+	it("resumes every waiting import when the reader allows Readplace to mark imported emails read", async () => {
+		const { agent, gmail, userId, jobId, askToMark, findJob } = await awaitingImport(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		const url = await askToMark();
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=mark_permission_granted");
+		const job = await findJob();
+		expect(job?.state).toBe("queued");
+		expect(gmail.importStartRequests).toEqual([{ userId, jobId, generation: job?.generation }]);
 	});
 
 	it("keeps the import waiting when Google grants everything but read access", async () => {
@@ -1178,5 +1201,139 @@ describe("Gmail mappings across a disconnect and reconnect", () => {
 		const row = page.querySelector(`[data-test-gmail-mapping-row="${TLDR}"]`);
 		assert(row, "the kept newsletter must render its mapping row");
 		expect(row.querySelector("[data-test-gmail-import-state]")?.getAttribute("data-test-gmail-import-state")).toBe("none");
+	});
+});
+
+describe("Gmail permission to mark imported emails read", () => {
+	const READER = GmailAccountEmailSchema.parse("reader@gmail.com");
+	const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
+	const BYTES = ForwardableSenderSchema.parse("news@bytes.dev");
+
+	async function connectedReader(grantedScope: string) {
+		const { fixture, gmail, gmailConnectionStore } = fixtureWithGmail({
+			ok: true,
+			grant: { refreshToken: "refresh-value", accessToken: "access-value", grantedScope },
+		});
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+		await gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmailConnectionStore.recordAccountEmail({ userId, accountEmail: READER });
+		await gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "prior-grant", grantedScope: GMAIL_SCOPES });
+		const askToMark = async (state: Record<string, string> = {}) => {
+			const started = await agent.post(CONNECT).type("form").send({ ...state, intent: "mark", sender: TLDR });
+			return new URL(started.headers.location);
+		};
+		const mapToReadlist = async (senderEmail: typeof TLDR) => {
+			const destination = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
+			await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: READER, senderEmail, mappedAddresses: [destination.address], deliveryMode: "links" });
+			await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: READER, senderEmail });
+		};
+		const markImportedAt = async (senderEmail: typeof TLDR) =>
+			(await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: READER, senderEmail }))?.markImportedAt;
+		const approveMarking = async (senders: string[]) => {
+			const state = signState({
+				payload: JSON.stringify({ nonce: "n", createdAt: Date.now(), intent: { kind: "mark", senders, state: { search: "dan" } } }),
+				secret: "test-state-secret",
+			});
+			return agent
+				.get(CALLBACK)
+				.query({ code: "auth-code", state })
+				.set("Cookie", `hutch_gmail_state=${encodeURIComponent(state)}`);
+		};
+		return { agent, gmail, gmailConnectionStore, userId, askToMark, mapToReadlist, markImportedAt, approveMarking };
+	}
+
+	it("carries the newsletter the reader asked about in the signed state", async () => {
+		const { askToMark } = await connectedReader(GMAIL_SCOPES);
+
+		const url = await askToMark({ search: "dan" });
+
+		const state = url.searchParams.get("state");
+		assert(state, "the authorize URL must carry the signed state");
+		const payload = JSON.parse(state.slice(0, state.lastIndexOf(".")));
+		expect(payload.intent).toEqual({ kind: "mark", senders: [TLDR], state: { search: "dan" } });
+	});
+
+	it("turns the option on for each mapped newsletter in the state once Google grants permission to change messages", async () => {
+		const { mapToReadlist, markImportedAt, approveMarking } = await connectedReader(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		await mapToReadlist(TLDR);
+
+		const response = await approveMarking([TLDR, BYTES]);
+
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=mark_permission_granted&search=dan");
+		expect(await markImportedAt(TLDR)).toEqual(expect.any(String));
+		expect(await markImportedAt(BYTES)).toBeUndefined();
+	});
+
+	it("turns nothing on when Google returns without permission to change messages", async () => {
+		const { mapToReadlist, markImportedAt, approveMarking } = await connectedReader(GMAIL_SCOPES);
+		await mapToReadlist(TLDR);
+
+		const response = await approveMarking([TLDR]);
+
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=mark_permission_refused&search=dan");
+		expect(await markImportedAt(TLDR)).toBeUndefined();
+	});
+
+	it("keeps the time the option was first turned on when Google grants it again", async () => {
+		const { gmail, userId, mapToReadlist, markImportedAt, approveMarking } = await connectedReader(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		await mapToReadlist(TLDR);
+		await gmail.bundle.gmailMappingStore.setMarkImported({ userId, accountEmail: READER, senderEmail: TLDR });
+		const first = await markImportedAt(TLDR);
+
+		await approveMarking([TLDR]);
+
+		expect(await markImportedAt(TLDR)).toBe(first);
+	});
+
+	it("asks Google only for permission to change messages, on top of what was already granted", async () => {
+		const { askToMark } = await connectedReader(GMAIL_SCOPES);
+
+		const url = await askToMark();
+
+		expect(url.searchParams.get("scope")).toBe(GMAIL_MODIFY_SCOPE);
+		expect(url.searchParams.get("include_granted_scopes")).toBe("true");
+		expect(url.searchParams.get("login_hint")).toBe("reader@gmail.com");
+	});
+
+	it("stores the upgraded grant, then announces it so pending Gmail updates resume", async () => {
+		const { agent, gmail, gmailConnectionStore, userId, askToMark } = await connectedReader(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		const before = await gmailConnectionStore.findConnectionByUserId(userId);
+		const url = await askToMark({ search: "dan" });
+
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=mark_permission_granted&search=dan");
+		expect(await gmail.bundle.gmailCredentialsStore.findGrantedScopeByUserId(userId)).toBe(`${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`);
+		expect(gmail.modifyPermissionGrants).toEqual([{ userId, accountEmail: READER }]);
+		expect((await gmailConnectionStore.findConnectionByUserId(userId))?.connectedAt).toBe(before?.connectedAt);
+		const page = new JSDOM((await agent.get(response.headers.location)).text).window.document;
+		expect(page.querySelector('[data-test-alert="mark_permission_granted"]')?.textContent).toBe(
+			"Readplace can now mark imported emails as read and label them imported-to-readplace in Gmail.",
+		);
+	});
+
+	it("keeps updates waiting when Google returns without permission to change messages", async () => {
+		const { agent, gmail, askToMark } = await connectedReader(GMAIL_SCOPES);
+		const url = await askToMark({ search: "dan" });
+
+		const response = await agent.get(CALLBACK).query({ code: "auth-code", state: url.searchParams.get("state") });
+
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=mark_permission_refused&search=dan");
+		expect(gmail.modifyPermissionGrants).toEqual([]);
+	});
+
+	it("keeps updates waiting when the reader refuses on Google's screen", async () => {
+		const { agent, gmail, askToMark } = await connectedReader(GMAIL_SCOPES);
+		await askToMark();
+
+		const response = await agent.get(CALLBACK).query({ error: "access_denied" });
+
+		expect(response.headers.location).toBe("/newsletters/gmail?notice=mark_permission_refused");
+		expect(gmail.exchangedCodes).toEqual([]);
 	});
 });

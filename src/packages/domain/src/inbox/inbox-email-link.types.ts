@@ -124,6 +124,10 @@ export interface InboxEmailLinkStore {
 		receivedAtMessageId: string;
 		ordinal: EmailLinkOrdinal;
 	}) => Promise<InboxEmailLinkEntry | undefined>;
+	findLinksMeta: (input: {
+		userId: UserId;
+		receivedAtMessageId: string;
+	}) => Promise<InboxEmailLinksMeta | undefined>;
 	/** Account-deletion primitive: deletes every link row — and the reserved meta
 	 * row — in one email's partition. There is no userId GSI, so the caller
 	 * supplies the parent email's sort key to name the partition. */

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
@@ -17,6 +17,7 @@ interface CapturedCommand {
 	input: {
 		Key?: Record<string, unknown>;
 		UpdateExpression?: string;
+		ConditionExpression?: string;
 		KeyConditionExpression?: string;
 		ExpressionAttributeValues?: Record<string, unknown>;
 	};
@@ -120,6 +121,7 @@ describe("initDynamoDbGmailMapping", () => {
 			mappedAddresses: [TECH, TRAVEL],
 			mappedAt: NOW.toISOString(),
 			deliveryMode: "links",
+			markImportedAt: undefined,
 		});
 		assert.deepEqual(commands[0].input.Key, TLDR_KEY);
 	});
@@ -162,6 +164,59 @@ describe("initDynamoDbGmailMapping", () => {
 			[[ACCOUNT, TLDR], [WORK, BREW]],
 		);
 		assert.equal(commands[0].input.KeyConditionExpression, "userId = :uid");
+	});
+
+	it("reads when the mark-as-read option was turned on", async () => {
+		const { store } = harness(() => ({ Item: row({ markImportedAt: NOW.toISOString() }) }));
+
+		const mapping = await store.findMapping({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR });
+
+		assert.equal(mapping?.markImportedAt, NOW.toISOString());
+	});
+
+	it("turns the mark-as-read option on for an existing mapping, keeping the time it was first turned on", async () => {
+		const { store, commands } = harness();
+
+		assert.equal(await store.setMarkImported({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR }), true);
+
+		assert.deepEqual(commands[0].input.Key, TLDR_KEY);
+		assert.equal(commands[0].input.UpdateExpression, "SET markImportedAt = if_not_exists(markImportedAt, :now)");
+		assert.equal(commands[0].input.ConditionExpression, "attribute_exists(mappingKey)");
+		assert.deepEqual(commands[0].input.ExpressionAttributeValues, { ":now": NOW.toISOString() });
+	});
+
+	it("refuses to turn the mark-as-read option on for a mapping that does not exist", async () => {
+		const { store } = harness(() => {
+			throw new ConditionalCheckFailedException({ message: "condition", $metadata: {} });
+		});
+
+		assert.equal(await store.setMarkImported({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR }), false);
+	});
+
+	it("turns the mark-as-read option off and reports that it was on", async () => {
+		const { store, commands } = harness();
+
+		assert.equal(await store.clearMarkImported({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR }), true);
+
+		assert.deepEqual(commands[0].input.Key, TLDR_KEY);
+		assert.equal(commands[0].input.UpdateExpression, "REMOVE markImportedAt");
+		assert.equal(commands[0].input.ConditionExpression, "attribute_exists(markImportedAt)");
+	});
+
+	it("reports that the mark-as-read option was already off", async () => {
+		const { store } = harness(() => {
+			throw new ConditionalCheckFailedException({ message: "condition", $metadata: {} });
+		});
+
+		assert.equal(await store.clearMarkImported({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR }), false);
+	});
+
+	it("passes on a failure other than a refused condition", async () => {
+		const { store } = harness(() => {
+			throw new Error("throttled");
+		});
+
+		await assert.rejects(store.setMarkImported({ userId: USER, accountEmail: ACCOUNT, senderEmail: TLDR }), /throttled/);
 	});
 
 	it("removes one mapping by its key", async () => {

@@ -182,8 +182,8 @@ async function wiredHarness(options: { recordDiagnostic?: (now: () => Date) => R
 	const dispatched: GmailHistoryImportPage[] = [];
 	const publishEvent = (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent;
 	const history: GmailHistory = {
-		listUnreadMessageIds: async (input) => {
-			const listed = await gmail.history.listUnreadMessageIds({ ...input, pageToken: input.pageToken?.replace(SENTINEL_PAGE_TOKEN, "") });
+		listMessageIds: async (input) => {
+			const listed = await gmail.history.listMessageIds({ ...input, pageToken: input.pageToken?.replace(SENTINEL_PAGE_TOKEN, "") });
 			input.observe(attemptOf("messages.list", listed));
 			if (!listed.ok) return listed;
 			const nextPageToken = listed.value.nextPageToken === undefined ? undefined : `${SENTINEL_PAGE_TOKEN}${listed.value.nextPageToken}`;
@@ -494,7 +494,7 @@ describe("initGmailHistoryImportHandler", () => {
 			const w = await wiredHarness();
 			await w.addReader(READER_1);
 			w.addUnread({ userId: USER, ids: ["SentinelMessageA1"] });
-			w.gmail.failNext({ method: "listUnreadMessageIds", failure: { ok: false, reason: "unavailable", status: 503 } });
+			w.gmail.failNext({ method: "listMessageIds", failure: { ok: false, reason: "unavailable", status: 503 } });
 
 			const response = await runEvent(w.handler, sqsEvent([{ messageId: "sqs-retry", body: start(READER_1), receiveCount: "4" }]));
 
@@ -522,7 +522,7 @@ describe("initGmailHistoryImportHandler", () => {
 		it("traces a refused grant through the revoked connection, the failed job and its announcements", async () => {
 			const w = await wiredHarness();
 			await w.addReader(READER_1);
-			w.gmail.failNext({ method: "listUnreadMessageIds", failure: { ok: false, reason: "reauth-required" } });
+			w.gmail.failNext({ method: "listMessageIds", failure: { ok: false, reason: "reauth-required" } });
 
 			const response = await runEvent(w.handler, sqsEvent([{ messageId: "sqs-start", body: start(READER_1) }]));
 

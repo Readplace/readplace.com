@@ -14,6 +14,7 @@ import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
+	EmailOutputSavedToAllEvent,
 	LinkQueuedEvent,
 	QueueEntryCreatedEvent,
 	SubmitLinkCommand,
@@ -189,6 +190,9 @@ export function initSubmitLinkCommandHandler(deps: {
 					provenance,
 					saveAttemptId,
 				});
+				if ("emailOutput" in detail && detail.emailOutput !== undefined) {
+					await publishEvent(EmailOutputSavedToAllEvent, { userId, ...detail.emailOutput });
+				}
 				if (readlist !== DEFAULT_READLIST_SLUG) {
 					await deps.fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
 				}

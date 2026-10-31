@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { hasGmailScope } from "./gmail-scope";
+import { hasAnyGmailScope, hasGmailScope } from "./gmail-scope";
 
 const METADATA = "https://www.googleapis.com/auth/gmail.metadata";
 const READONLY = "https://www.googleapis.com/auth/gmail.readonly";
@@ -20,5 +20,15 @@ describe("hasGmailScope", () => {
 
 	it("does not mistake a scope that merely starts with another for a grant of it", () => {
 		assert.equal(hasGmailScope({ grantedScope: `${METADATA}.extra`, scope: METADATA }), false);
+	});
+});
+
+describe("hasAnyGmailScope", () => {
+	it("accepts a grant holding any one of the scopes", () => {
+		assert.equal(hasAnyGmailScope({ grantedScope: `${SETTINGS} ${READONLY}`, scopes: [METADATA, READONLY] }), true);
+	});
+
+	it("refuses a grant holding none of them", () => {
+		assert.equal(hasAnyGmailScope({ grantedScope: SETTINGS, scopes: [METADATA, READONLY] }), false);
 	});
 });

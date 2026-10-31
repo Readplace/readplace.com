@@ -7,7 +7,7 @@ import type {
 	ObserveGmailHttpAttempt,
 } from "@packages/provider-contracts/gmail-history";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
-import { GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import { initGmailAccessToken, initGmailReadonlyAccessToken } from "./gmail-access-token";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
@@ -308,6 +308,15 @@ describe("initGmailAccessToken", () => {
 });
 
 describe("initGmailReadonlyAccessToken", () => {
+	it("asks for a modify-scoped token when the reader granted modify permission instead of read-only", async () => {
+		const harness = makeHarness([json(200, { access_token: "modify-1", expires_in: 3600 })]);
+		await harness.credentials.saveCredentials({ userId: USER, refreshToken: "refresh-1", grantedScope: `${SCOPE} ${GMAIL_MODIFY_SCOPE}` });
+		const readonlyToken = initGmailReadonlyAccessToken(harness.deps);
+
+		assert.deepEqual(await readonlyToken({ userId: USER, forceRefresh: false, observe: harness.observe }), { ok: true, value: "modify-1" });
+		assert.equal(harness.requests[0].get("scope"), GMAIL_MODIFY_SCOPE);
+	});
+
 	it("asks Google for a token narrowed to read-only Gmail access, recording the refresh", async () => {
 		const body = { access_token: "readonly-1", expires_in: 3600 };
 		const harness = makeHarness([json(200, body)]);

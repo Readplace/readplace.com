@@ -16,6 +16,7 @@ import {
 	QueueEntryCreatedEvent,
 	SubmitLinkCommand,
 	TierContentExtractedEvent,
+	EmailOutputSavedToAllEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
@@ -53,6 +54,7 @@ function createSqsEvent(
 		rawHtml?: string;
 		provenance?: unknown;
 		readlist?: string;
+		emailOutput?: { receivedAtMessageId: string; outputKey: string };
 	}>,
 ): SQSEvent {
 	return {
@@ -516,6 +518,40 @@ describe("initSubmitLinkCommandHandler", () => {
 			"QueueEntryCreated",
 			"filed",
 		]);
+	});
+
+	it("confirms an email output in All after the save lands there and before filing or crawling", async () => {
+		const calls: string[] = [];
+		const publishEvent = jest.fn(async (event: { detailType: string }) => {
+			calls.push(event.detailType);
+		});
+		const handler = createHandler({
+			publishEvent,
+			fileArticleIntoReadlist: jest.fn(async () => {
+				calls.push("filed");
+				throw new Error("custom readlist write failed");
+			}),
+		});
+		const emailOutput = { receivedAtMessageId: "2026-10-27T00:00:00.000Z#<m@x>", outputKey: "link#0000" };
+
+		const response = await run(
+			handler,
+			createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, readlist: "a1b2c3d4", emailOutput }]),
+		);
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(calls).toEqual(["LinkQueued", "QueueEntryCreated", "EmailOutputSavedToAll", "filed"]);
+		expect(publishEvent).toHaveBeenCalledWith(EmailOutputSavedToAllEvent, { userId, ...emailOutput });
+	});
+
+	it("confirms an email output again when the same link is saved twice", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ publishEvent });
+		const emailOutput = { receivedAtMessageId: "2026-10-27T00:00:00.000Z#<m@x>", outputKey: "link#0000" };
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, emailOutput }, { url: exampleUrl, userId, emailOutput }]));
+
+		expect(publishedDetailTypes(publishEvent).filter((type) => type === "EmailOutputSavedToAll")).toHaveLength(2);
 	});
 
 	it("files nothing beyond All when the command names All", async () => {

@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { parseForwardableSender } from "@packages/domain/gmail";
+import { type ForwardableSender, type GmailAccountEmail, type GmailMessageOrigin, parseForwardableSender } from "@packages/domain/gmail";
 import {
 	type InboxAddress,
 	type InboxAddressEntry,
@@ -8,6 +8,7 @@ import {
 	type InboxEmailEntry,
 	type InboxEmailStore,
 	MessageIdSchema,
+	type NormalizedMessageId,
 	normalizeMessageId,
 	type ParseEmailResult,
 	UNROUTED_USER_ID,
@@ -22,6 +23,7 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import type { RouteGmailForwardedEmail } from "../gmail/route-gmail-forwarded-email";
+import type { RecordDuplicateGmailOrigin } from "../gmail-import-completion/record-gmail-origin";
 import type {
 	DownloadEmailImages,
 	DownloadedEmailImage,
@@ -56,6 +58,8 @@ export function initReceiveEmailHandler(deps: {
 	resumeAcceptedGmailEmail: ResumeAcceptedGmailEmail;
 	interceptGmailConfirmation: InterceptGmailConfirmation;
 	routeGmailForwardedEmail: RouteGmailForwardedEmail;
+	recordDuplicateGmailOrigin: RecordDuplicateGmailOrigin;
+	findConnectedGmailAccount: (userId: UserId) => Promise<GmailAccountEmail | undefined>;
 	logger: HutchLogger;
 	maxEmailBytes: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -70,8 +74,19 @@ export function initReceiveEmailHandler(deps: {
 		resumeAcceptedGmailEmail,
 		interceptGmailConfirmation,
 		routeGmailForwardedEmail,
+		recordDuplicateGmailOrigin,
+		findConnectedGmailAccount,
 		logger,
 	} = deps;
+
+	const forwardedGmailOrigin = async (input: {
+		userId: UserId;
+		senderEmail: ForwardableSender;
+		rfcMessageId: NormalizedMessageId;
+	}): Promise<GmailMessageOrigin | undefined> => {
+		const accountEmail = await findConnectedGmailAccount(input.userId);
+		return accountEmail === undefined ? undefined : { kind: "forwarded", accountEmail, senderEmail: input.senderEmail, rfcMessageId: input.rfcMessageId };
+	};
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -268,7 +283,10 @@ export function initReceiveEmailHandler(deps: {
 					const isGmail =
 						resolved.purpose === "gmail-forwarding" ||
 						resolved.purpose === "gmail-mapped";
-					if (isGmail && await resumeAcceptedGmailEmail({ userId, receivedAtMessageId, rawEmailS3Key: s3Key, origin: "receive" })) continue;
+					const gmailOrigin = isGmail && sender !== undefined && normalizedMessageId !== undefined
+						? await forwardedGmailOrigin({ userId, senderEmail: sender, rfcMessageId: normalizedMessageId })
+						: undefined;
+					if (isGmail && await resumeAcceptedGmailEmail({ userId, receivedAtMessageId, rawEmailS3Key: s3Key, origin: "receive", gmailOrigin })) continue;
 					const gmailDelivery =
 						resolved.purpose === "gmail-forwarding" ||
 						resolved.purpose === "gmail-mapped"
@@ -312,6 +330,7 @@ export function initReceiveEmailHandler(deps: {
 									attempt: { origin: "receive", sesMessageId },
 								});
 					if (!resolution.proceed) {
+						await recordDuplicateGmailOrigin({ userId, receivedAtMessageId: resolution.receivedAtMessageId, origin: gmailOrigin });
 						logger.info("[receive-email] already ingested", {
 							userId,
 							deliveryAddress,
@@ -338,6 +357,7 @@ export function initReceiveEmailHandler(deps: {
 									],
 									deliveryMode: gmailDelivery.deliveryMode,
 								},
+						gmailOrigin,
 					});
 				}
 			} catch (error) {

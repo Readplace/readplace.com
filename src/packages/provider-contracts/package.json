@@ -77,6 +77,10 @@
       "types": "./dist/gmail-history.d.ts",
       "default": "./dist/gmail-history.js"
     },
+    "./gmail-message-update": {
+      "types": "./dist/gmail-message-update.d.ts",
+      "default": "./dist/gmail-message-update.js"
+    },
     "./hosted-checkout": {
       "types": "./dist/hosted-checkout.d.ts",
       "default": "./dist/hosted-checkout.js"
@@ -177,6 +181,7 @@
       "gmail-monitoring": ["./dist/gmail-monitoring.d.ts"],
       "gmail-mailbox": ["./dist/gmail-mailbox.d.ts"],
       "gmail-history": ["./dist/gmail-history.d.ts"],
+      "gmail-message-update": ["./dist/gmail-message-update.d.ts"],
       "hosted-checkout": ["./dist/hosted-checkout.d.ts"],
       "newsletter-catalog": ["./dist/newsletter-catalog.d.ts"],
       "onboarding-signals": ["./dist/onboarding-signals.d.ts"],

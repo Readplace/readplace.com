@@ -6,6 +6,7 @@ import {
 	ForwardableSenderSchema,
 	GMAIL_HISTORY_IMPORT_MAX_POLLS,
 	gmailConnectionState,
+	hasAnyGmailScope,
 	hasGmailScope,
 } from "@packages/domain/gmail";
 import type { ForwardableSender, GmailConnection } from "@packages/domain/gmail";
@@ -13,7 +14,7 @@ import { type InboxAddress, InboxAddressSchema, isLiveAddress } from "@packages/
 import { READLIST_MAX_PER_USER, readerReadlists } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
-import { GMAIL_METADATA_SCOPE, GMAIL_READONLY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MESSAGE_READ_SCOPES, GMAIL_METADATA_SCOPE, GMAIL_MODIFY_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GetEffectiveAccess } from "@packages/subscription-access";
 import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
 import { Base } from "../../base.component";
@@ -36,6 +37,7 @@ import { canConnectGmail } from "./gmail-connection-access";
 import { initGmailImportActions } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import { registerGmailMappingRoutes } from "./gmail-mappings.page";
+import type { GmailOAuthConsent } from "./gmail-oauth-consent";
 import { discoveryMatchesConnection, initSaveGmailSenders } from "./gmail-save-senders";
 
 const SelectCommandSchema = z.enum(["all", "none"]);
@@ -49,6 +51,7 @@ export interface GmailPageContext {
 	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
 	now: () => Date;
+	consent: GmailOAuthConsent;
 }
 
 function queryValue(req: Request, key: string): string | undefined {
@@ -110,7 +113,7 @@ export function registerGmailPageRoutes(
 		const userId = ownerOf(req);
 		const connection = await gmail.gmailConnectionStore.findConnectionByUserId(userId);
 		assert(connection, "the connected middleware requires a Gmail connection");
-		const [senders, gateway, discoveredSenders, discovery, grantedScope, definitions, jobs, observedSenders, access] = await Promise.all([
+		const [senders, gateway, discoveredSenders, discovery, grantedScope, definitions, jobs, observedSenders, access, backfills] = await Promise.all([
 			connection.accountEmail === undefined ? [] : gmail.gmailMappingStore.listMappings({ userId, accountEmail: connection.accountEmail }),
 			gmail.findInboxAddress(connection.gatewayAddress),
 			gmail.gmailDiscoveryStore.listSendersByUserId(userId),
@@ -120,6 +123,7 @@ export function registerGmailPageRoutes(
 			gmail.gmailHistoryImportStore.listJobsByUserId(userId),
 			connection.accountEmail === undefined ? [] : gmail.gmailMonitoringStore.listObservedSenders({ userId, accountEmail: connection.accountEmail }),
 			context.getEffectiveAccess(userId),
+			gmail.gmailMarkBackfillStore.listBackfillsByUserId(userId),
 		]);
 		const sameMailbox = discoveryMatchesConnection(discovery, connection);
 		const discovered = [...new Map([...observedSenders, ...(sameMailbox ? discoveredSenders : [])].map((sender) => [sender.email, sender])).values()];
@@ -146,13 +150,15 @@ export function registerGmailPageRoutes(
 			readlistLimitReached: definitions.length >= READLIST_MAX_PER_USER,
 			gatewayLive: gateway !== undefined && isLiveAddress(gateway),
 			metadataScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_METADATA_SCOPE }),
-			readonlyScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_READONLY_SCOPE }),
+			readScopeGranted: hasAnyGmailScope({ grantedScope, scopes: GMAIL_MESSAGE_READ_SCOPES }),
+			modifyScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_MODIFY_SCOPE }),
 			discoveredSenders: discovered,
 			discovery: discovery === undefined || !sameMailbox
 				? { state: "idle", mode: "profile", checkedMessageCount: 0 }
 				: discovery,
 			detection,
 			imports: jobs,
+			backfills,
 			state: queryValue(req, "confirm_readlists") === "1"
 				? confirmGmailReadlists(parseGmailPickerState(req.query))
 				: parseGmailPickerState(req.query),
@@ -238,7 +244,16 @@ export function registerGmailPageRoutes(
 	});
 
 	router.post("/gmail/senders/add", write, connected, async (req: Request, res: Response) => {
-		res.redirect(303, await saveGmailSenders({ userId: ownerOf(req), body: req.body }));
+		const userId = ownerOf(req);
+		const outcome = await saveGmailSenders({ userId, body: req.body });
+		if (outcome.kind === "redirect") {
+			res.redirect(303, outcome.url);
+			return;
+		}
+		const { senders, state, savedNotice } = outcome;
+		const consent = await context.consent.beginMarkConsent({ req, res, route: "save", userId, senders, state });
+		if (consent === "no-access") res.redirect(303, buildGmailUrl({ ...state, ...savedNotice, discovery: "started" }));
+		if (consent === "state-too-large") res.redirect(303, buildGmailUrl({ ...state, notice: "mark_permission_needed", discovery: "started" }));
 	});
 
 	router.post("/gmail/filter/retry", write, connected, async (req: Request, res: Response) => {
@@ -266,5 +281,5 @@ export function registerGmailPageRoutes(
 		res.redirect(303, buildIntegrationsUrl({ notice: "gmail_disconnected" }));
 	});
 
-	registerGmailMappingRoutes(router, gmail, { write, teardown, connected, ownerOf, imports });
+	registerGmailMappingRoutes(router, gmail, { write, teardown, connected, ownerOf, imports, consent: context.consent, now: context.now });
 }

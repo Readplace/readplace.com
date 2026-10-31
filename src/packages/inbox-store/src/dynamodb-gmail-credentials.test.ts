@@ -88,6 +88,17 @@ describe("initDynamoDbGmailCredentials", () => {
 
 		assert.equal(await store.findRefreshTokenByUserId(USER), undefined);
 		assert.equal(await store.findGrantedScopeByUserId(USER), undefined);
+		assert.equal(await store.findCredentialsByUserId(USER), undefined);
+	});
+
+	it("reads the refresh token and its granted scope together with one consistent read", async () => {
+		const { store, commands } = harness(() => ({
+			Item: { userId: USER, refreshToken: "refresh", grantedScope: "scope-a scope-b", connectedAt: NOW.toISOString() },
+		}));
+
+		assert.deepEqual(await store.findCredentialsByUserId(USER), { refreshToken: "refresh", grantedScope: "scope-a scope-b" });
+		assert.equal(commands.length, 1);
+		assert.equal(commands[0].input.ConsistentRead, true);
 	});
 
 	it("deletes the credentials row by user id", async () => {
