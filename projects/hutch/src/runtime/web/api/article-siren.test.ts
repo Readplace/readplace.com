@@ -10,6 +10,8 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { computeArticleContentVersion } from "../shared/article-content-version";
 import { toArticleSubEntity, toArticleEntity, toSavedArticleEntity } from "./article-siren";
+import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
+import { type CollectionQueryParams, buildQueryString } from "./collection-query";
 
 const ARTICLE_URL = "https://example.com/article";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL).value;
@@ -43,21 +45,21 @@ describe("toArticleSubEntity", () => {
 		const crawl: ArticleCrawl = { status: "ready" };
 		const summary = { status: "ready" as const, summary: "A summary." };
 
-		expect(toArticleSubEntity(article, { crawl, summary }).properties?.contentVersion).toBe(
+		expect(toArticleSubEntity(article, { addToReadlist: "advertised", crawl, summary }).properties?.contentVersion).toBe(
 			computeArticleContentVersion({ article, crawl, summary }),
 		);
 	});
 
 	it("changes the content version when the article is crawled again, so a client's stored copy stops counting as current", () => {
-		const before = toArticleSubEntity(makeArticle({ contentFetchedAt: new Date("2026-03-05T10:00:00.000Z") }));
-		const after = toArticleSubEntity(makeArticle({ contentFetchedAt: new Date("2026-03-06T10:00:00.000Z") }));
+		const before = toArticleSubEntity(makeArticle({ contentFetchedAt: new Date("2026-03-05T10:00:00.000Z") }), { addToReadlist: "advertised" });
+		const after = toArticleSubEntity(makeArticle({ contentFetchedAt: new Date("2026-03-06T10:00:00.000Z") }), { addToReadlist: "advertised" });
 
 		expect(after.properties?.contentVersion).not.toBe(before.properties?.contentVersion);
 	});
 
 	it("maps sub-entity with exact properties (no content) and structure", () => {
 		const article = makeArticle({ content: "<p>Full text</p>" });
-		const subEntity = toArticleSubEntity(article);
+		const subEntity = toArticleSubEntity(article, { addToReadlist: "advertised" });
 
 		expect(subEntity).toEqual({
 			class: ["article"],
@@ -90,6 +92,13 @@ describe("toArticleSubEntity", () => {
 					type: "application/x-www-form-urlencoded",
 					fields: [{ name: "status", type: "text", value: "read" }],
 				},
+				{
+					name: "add-to-readlist",
+					href: `/queue/${ARTICLE_ID}/assign`,
+					method: "POST",
+					type: "application/json",
+					fields: [{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER }],
+				},
 			],
 		});
 	});
@@ -105,6 +114,7 @@ describe("toArticleSubEntity", () => {
 					publishedOn: "2025-10-08",
 				},
 			}),
+			{ addToReadlist: "advertised" },
 		);
 
 		expect(subEntity.properties?.publishedOn).toBe("2025-10-08");
@@ -121,6 +131,7 @@ describe("toArticleSubEntity", () => {
 				},
 				estimatedReadTime: 1 as Minutes,
 			}),
+			{ addToReadlist: "advertised" },
 		);
 
 		expect(subEntity.properties?.readTime).toBeNull();
@@ -137,28 +148,30 @@ describe("toArticleSubEntity", () => {
 				},
 				estimatedReadTime: 3 as Minutes,
 			}),
+			{ addToReadlist: "advertised" },
 		);
 
 		expect(subEntity.properties?.readTime).toEqual({ value: "3", label: "3 min read" });
 	});
 
 	it("does not advertise a delete action — deletion is website-only", () => {
-		const subEntity = toArticleSubEntity(makeArticle());
+		const subEntity = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised" });
 		const deleteAction = subEntity.actions?.find((a) => a.name === "delete");
 		expect(deleteAction).toBeUndefined();
 	});
 
 	it("emits isRead as an explicit boolean reflecting the read status", () => {
-		expect(toArticleSubEntity(makeArticle({ status: "unread" })).properties?.isRead).toBe(false);
+		expect(toArticleSubEntity(makeArticle({ status: "unread" }), { addToReadlist: "advertised" }).properties?.isRead).toBe(false);
 		expect(
 			toArticleSubEntity(
 				makeArticle({ status: "read", readAt: new Date("2026-03-04T12:00:00.000Z") }),
+				{ addToReadlist: "advertised" },
 			).properties?.isRead,
 		).toBe(true);
 	});
 
 	it("toggles an unread item to a server-driven Mark as read with the target value", () => {
-		const subEntity = toArticleSubEntity(makeArticle({ status: "unread" }));
+		const subEntity = toArticleSubEntity(makeArticle({ status: "unread" }), { addToReadlist: "advertised" });
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
 		expect(updateStatus).toEqual({
 			name: "update-status",
@@ -173,6 +186,7 @@ describe("toArticleSubEntity", () => {
 	it("toggles a read item to a server-driven Mark as unread with the target value", () => {
 		const subEntity = toArticleSubEntity(
 			makeArticle({ status: "read", readAt: new Date("2026-03-04T12:00:00.000Z") }),
+			{ addToReadlist: "advertised" },
 		);
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
 		expect(updateStatus).toEqual({
@@ -187,6 +201,7 @@ describe("toArticleSubEntity", () => {
 
 	it("bakes the collection query into the update-status href so the mutation's redirect returns to the tab it was invoked from", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
+			addToReadlist: "advertised",
 			collectionQuery: { status: "unread", order: "asc" },
 		});
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
@@ -194,14 +209,94 @@ describe("toArticleSubEntity", () => {
 	});
 
 	it("keeps a bare update-status href when the entity is emitted outside any collection", () => {
-		const subEntity = toArticleSubEntity(makeArticle());
+		const subEntity = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised" });
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
 		expect(updateStatus?.href).toBe(`/queue/${ARTICLE_ID}/status`);
 	});
 
+	describe("readlist actions", () => {
+		const NAMED_READLIST = ReadlistSlugSchema.parse("work");
+
+		it("bakes the collection query into the add-to-readlist href the way update-status carries it", () => {
+			const collectionQuery: CollectionQueryParams = { readlist: NAMED_READLIST, status: "unread", order: "asc" };
+
+			const addToReadlist = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", collectionQuery }).actions?.find(
+				(action) => action.name === "add-to-readlist",
+			);
+
+			expect(addToReadlist).toEqual({
+				name: "add-to-readlist",
+				href: `/queue/${ARTICLE_ID}/assign${buildQueryString(collectionQuery)}`,
+				method: "POST",
+				type: "application/json",
+				fields: [{ name: "readlists", type: "text", maxItems: READLIST_MAX_PER_USER }],
+			});
+		});
+
+		it("offers remove-from-readlist inside one of the reader's own readlists, with the collection query baked in", () => {
+			const collectionQuery: CollectionQueryParams = { readlist: NAMED_READLIST, status: "read" };
+
+			const removeFromReadlist = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", collectionQuery }).actions?.find(
+				(action) => action.name === "remove-from-readlist",
+			);
+
+			expect(removeFromReadlist).toEqual({
+				name: "remove-from-readlist",
+				href: `/queue/${ARTICLE_ID}/unassign${buildQueryString(collectionQuery)}`,
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+			});
+		});
+
+		it.each([
+			{
+				where: "outside any collection",
+				options: { addToReadlist: "advertised" },
+				names: ["update-status", "add-to-readlist"],
+			},
+			{
+				where: "in a collection that names no readlist",
+				options: { addToReadlist: "advertised", collectionQuery: { status: "unread" } },
+				names: ["update-status", "add-to-readlist"],
+			},
+			{
+				where: "in the default readlist",
+				options: { addToReadlist: "advertised", collectionQuery: { readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
+				names: ["update-status", "add-to-readlist"],
+			},
+			{
+				where: "in one of the reader's own readlists",
+				options: { addToReadlist: "advertised", collectionQuery: { readlist: NAMED_READLIST, status: "unread" } },
+				names: ["update-status", "add-to-readlist", "remove-from-readlist"],
+			},
+			{
+				where: "outside any collection when add-to-readlist is withheld",
+				options: { addToReadlist: "withheld" },
+				names: ["update-status"],
+			},
+			{
+				where: "in a collection that names no readlist when add-to-readlist is withheld",
+				options: { addToReadlist: "withheld", collectionQuery: { status: "unread" } },
+				names: ["update-status"],
+			},
+			{
+				where: "in the default readlist when add-to-readlist is withheld",
+				options: { addToReadlist: "withheld", collectionQuery: { readlist: DEFAULT_READLIST_SLUG, status: "unread" } },
+				names: ["update-status"],
+			},
+			{
+				where: "in one of the reader's own readlists when add-to-readlist is withheld",
+				options: { addToReadlist: "withheld", collectionQuery: { readlist: NAMED_READLIST, status: "unread" } },
+				names: ["update-status", "remove-from-readlist"],
+			},
+		] as const)("advertises exactly these item actions $where", ({ options, names }) => {
+			expect(toArticleSubEntity(makeArticle(), options).actions?.map((action) => action.name)).toEqual(names);
+		});
+	});
+
 	it("includes read link when article has no content", () => {
 		const article = makeArticle({ content: undefined });
-		const subEntity = toArticleSubEntity(article);
+		const subEntity = toArticleSubEntity(article, { addToReadlist: "advertised" });
 
 		expect(subEntity.links).toEqual([
 			{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
@@ -209,7 +304,7 @@ describe("toArticleSubEntity", () => {
 	});
 
 	it("titles the read link so looping clients use a server-authored label", () => {
-		const subEntity = toArticleSubEntity(makeArticle());
+		const subEntity = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised" });
 		const readLink = subEntity.links?.find((l) => l.rel.includes("read"));
 		expect(readLink).toEqual({
 			rel: ["read"],
@@ -221,12 +316,14 @@ describe("toArticleSubEntity", () => {
 	it("advertises the redirect destination as the url for a merged article", () => {
 		const subEntity = toArticleSubEntity(
 			makeArticle({ url: "https://example.com/article.html", destinationUrl: destinationUrl("https://example.com/article") }),
+			{ addToReadlist: "advertised" },
 		);
 		expect(subEntity.properties?.url).toBe("https://example.com/article");
 	});
 
 	it("asks for a browser capture when the crawl failed because an origin edge refused our servers", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
+			addToReadlist: "advertised",
 			crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
 		});
 
@@ -235,6 +332,7 @@ describe("toArticleSubEntity", () => {
 
 	it("asks for a browser capture on a rate-limited row too — the user's own connection is not the one the origin throttled", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
+			addToReadlist: "advertised",
 			crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "rate-limited" }) },
 		});
 
@@ -243,6 +341,7 @@ describe("toArticleSubEntity", () => {
 
 	it("asks for no browser capture when robots.txt is the blocker — the site asked us not to crawl it, and a capture would route around that", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
+			addToReadlist: "advertised",
 			crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "robots" }) },
 		});
 
@@ -277,7 +376,7 @@ describe("toArticleSubEntity", () => {
 		];
 
 		for (const [label, crawl] of cases) {
-			const subEntity = toArticleSubEntity(makeArticle(), { crawl });
+			const subEntity = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", crawl });
 			expect([label, subEntity.properties?.needsBrowserCapture]).toEqual([label, false]);
 		}
 	});
@@ -287,7 +386,7 @@ describe("toArticleSubEntity", () => {
 			status: "read",
 			readAt: new Date("2026-03-04T12:00:00.000Z"),
 		});
-		const subEntity = toArticleSubEntity(article);
+		const subEntity = toArticleSubEntity(article, { addToReadlist: "advertised" });
 
 		expect(subEntity.properties?.readAt).toBe("2026-03-04T12:00:00.000Z");
 	});
@@ -297,7 +396,7 @@ describe("toArticleEntity", () => {
 	it("returns same structure as sub-entity without rel", () => {
 		const article = makeArticle();
 		const entity = toArticleEntity(article);
-		const subEntity = toArticleSubEntity(article);
+		const subEntity = toArticleSubEntity(article, { addToReadlist: "advertised" });
 
 		expect(entity).not.toHaveProperty("rel");
 		expect(entity.class).toEqual(subEntity.class);
@@ -317,6 +416,21 @@ function messageBodies(entity: ReturnType<typeof toSavedArticleEntity>): unknown
 }
 
 describe("toSavedArticleEntity", () => {
+	it("offers the bare add-to-readlist and no remove-from-readlist on a save response, which no collection addresses", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			resurfacedFromRead: false,
+			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
+		});
+
+		expect(entity.actions?.map(({ name, href }) => ({ name, href }))).toEqual([
+			{ name: "update-status", href: `/queue/${ARTICLE_ID}/status` },
+			{ name: "add-to-readlist", href: `/queue/${ARTICLE_ID}/assign` },
+		]);
+	});
+
 	it("tells a reader who keeps one readlist that the article went to their reading list, naming no readlist", () => {
 		const entity = toSavedArticleEntity({
 			article: makeArticle(),

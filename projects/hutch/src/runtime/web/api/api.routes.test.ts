@@ -12,7 +12,8 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MinutesSchema } from "@packages/domain/article";
-import { READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, READLIST_LABEL_MAX_LENGTH, READLIST_MAX_PER_USER, type ReadlistSlug, ReadlistSlugSchema } from "@packages/domain/readlist";
+import type { UserId } from "@packages/domain/user";
 
 import { SIREN_MEDIA_TYPE } from "./siren";
 import { parseReadlistUrl } from "../pages/readlist/readlist.url";
@@ -23,6 +24,14 @@ import {
 	saveAccessTokenForClient,
 	saveAccessTokenForUser,
 } from "../test-helpers/oauth-token";
+import { readlistHref } from "./readlist-href";
+import {
+	READLIST_CREATE_REJECTIONS,
+	READLIST_LIMIT_MESSAGE,
+	READLIST_RENAME_REJECTIONS,
+	READLIST_UNKNOWN_ARTICLE_MESSAGE,
+} from "../pages/readlist/readlist.error";
+import { buildQueryString } from "./collection-query";
 
 const useApp = useTestServer();
 
@@ -1167,6 +1176,74 @@ describe("Article sub-entity actions", () => {
 			{ name: "status", type: "text", value: "read" },
 		]);
 	});
+
+	function itemActionNames(body: { entities?: { actions?: { name: string }[] }[] }): string[][] {
+		return (body.entities ?? []).map((entity) => (entity.actions ?? []).map((action) => action.name));
+	}
+
+	function saveWithBearer(harness: ReturnType<typeof useApp>, params: { accessToken: string; url: string }) {
+		return request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${params.accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: params.url });
+	}
+
+	it("withholds add-to-readlist from the Firefox extension's collection rows, which its AMO-signed build would render as a button that posts no readlists", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		await saveWithBearer(harness, { accessToken, url: "https://example.com/article" });
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.status).toBe(200);
+		expect(itemActionNames(response.body)).toEqual([["update-status"]]);
+	});
+
+	it("withholds add-to-readlist from the rows of the 422 collection a Firefox extension's rejected save returns", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+		await saveWithBearer(harness, { accessToken, url: "https://example.com/article" });
+
+		const response = await saveWithBearer(harness, { accessToken, url: "chrome://newtab/" });
+
+		expect(response.status).toBe(422);
+		expect(itemActionNames(response.body)).toEqual([["update-status"]]);
+	});
+
+	it("keeps add-to-readlist on the article a Firefox extension's save returns, whose saved view renders its messages and links but no actions", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await saveWithBearer(harness, { accessToken, url: "https://example.com/article" });
+
+		expect(response.status).toBe(201);
+		expect(response.body.actions.map((action: { name: string }) => action.name)).toEqual([
+			"update-status",
+			"add-to-readlist",
+		]);
+	});
+
+	it.each(["hutch-chrome-extension", "ios-app", "android-app"] as const)(
+		"advertises add-to-readlist on the collection rows %s reads",
+		async (clientId) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const userId = await loginAndSave(harness, { email: `${clientId}@example.com`, urlCount: 1 });
+			const accessToken = await saveAccessTokenForClient(harness, { userId, clientId });
+
+			const response = await request(harness.server)
+				.get("/queue")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect(response.status).toBe(200);
+			expect(itemActionNames(response.body)).toEqual([["update-status", "add-to-readlist"]]);
+		},
+	);
 });
 
 describe("needsBrowserCapture on the Siren collection", () => {
@@ -1328,7 +1405,7 @@ describe("Siren readlists", () => {
 			agent,
 			userId,
 			readlist,
-			accessToken: await saveAccessTokenForUser(harness, userId),
+			accessToken: await saveAccessTokenForClient(harness, { userId, clientId: "hutch-chrome-extension" }),
 		};
 	}
 
@@ -1929,5 +2006,533 @@ describe("Siren readlists", () => {
 		});
 
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'All'"]);
+	});
+
+	describe("readlist management actions", () => {
+		interface Action {
+			name: string;
+			href: string;
+			method: string;
+			type?: string;
+			fields?: { name: string; value?: string }[];
+		}
+
+		function actionNamed(entity: { actions?: Action[] }, name: string): Action {
+			const action = entity.actions?.find((candidate) => candidate.name === name);
+			assert(action, `expected a ${name} action`);
+			return action;
+		}
+
+		function submit(
+			harness: ReturnType<typeof useApp>,
+			params: { accessToken: string; action: Action; body?: Record<string, unknown> },
+		) {
+			assert.equal(params.action.method, "POST");
+			const submission = request(harness.server)
+				.post(params.action.href)
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${params.accessToken}`)
+				.redirects(0);
+			if (params.body === undefined) return submission;
+			return params.action.type === "application/json"
+				? submission.type("json").send(params.body)
+				: submission.type("form").send(params.body);
+		}
+
+		async function followToCollection(
+			harness: ReturnType<typeof useApp>,
+			params: { accessToken: string; response: request.Response },
+		): Promise<request.Response> {
+			let response = params.response;
+			while (response.status >= 300 && response.status < 400) {
+				response = await readCollection(harness, {
+					accessToken: params.accessToken,
+					path: response.headers.location,
+				});
+			}
+			return response;
+		}
+
+		function addressedBy(location: string) {
+			return parseReadlistUrl(Object.fromEntries(new URL(location, TEST_APP_ORIGIN).searchParams));
+		}
+
+		function answerOf(response: request.Response) {
+			return { status: response.status, type: response.type, body: response.body };
+		}
+
+		const UNKNOWN_READLIST = {
+			status: 404,
+			type: SIREN_MEDIA_TYPE,
+			body: {
+				class: ["error"],
+				properties: { code: "unknown-readlist", message: READLIST_RENAME_REJECTIONS["unknown-readlist"].message },
+			},
+		};
+
+		const LONG_LABEL = "L".repeat(READLIST_LABEL_MAX_LENGTH);
+
+		const UNKNOWN_ARTICLE = {
+			status: 404,
+			type: SIREN_MEDIA_TYPE,
+			body: {
+				class: ["error"],
+				properties: { code: "unknown-article", message: READLIST_UNKNOWN_ARTICLE_MESSAGE },
+			},
+		};
+
+		interface ArticleEntity {
+			properties: { url: string };
+			actions?: Action[];
+		}
+
+		async function entityListing(
+			harness: ReturnType<typeof useApp>,
+			params: { accessToken: string; path: string; url: string },
+		): Promise<ArticleEntity> {
+			const collection = await readCollection(harness, { accessToken: params.accessToken, path: params.path });
+			const entity = collection.body.entities.find((candidate: ArticleEntity) => candidate.properties.url === params.url);
+			assert(entity, `expected ${params.url} to be listed`);
+			return entity;
+		}
+
+		async function seedInReadlistOnly(
+			harness: ReturnType<typeof useApp>,
+			params: { userId: UserId; readlist: ReadlistSlug; url: string },
+		) {
+			await harness.articleStore.saveReadlistArticle({
+				userId: params.userId,
+				readlist: params.readlist,
+				url: params.url,
+				metadata: SEED_METADATA,
+				estimatedReadTime: MinutesSchema.parse(0),
+				provenance: { kind: "web" },
+				savedAt: new Date("2026-03-05T10:00:00.000Z"),
+			});
+		}
+
+		it("creates a readlist through create-readlist and answers 303 to the new readlist's collection", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { readlist, accessToken } = await readerWithReadlist(harness, {
+				email: "readlist-actions-create@example.com",
+				label: WORK_LABEL,
+			});
+			const all = await readCollection(harness, { accessToken, path: "/queue" });
+
+			const created = await submit(harness, {
+				accessToken,
+				action: actionNamed(all.body, "create-readlist"),
+				body: { label: RECIPES_LABEL },
+			});
+
+			expect(created.status).toBe(303);
+			const slug = addressedBy(created.headers.location).readlist;
+			const collection = await followToCollection(harness, { accessToken, response: created });
+			expect({
+				readlists: collection.body.properties.readlists,
+				rename: actionNamed(collection.body, "rename-readlist").href,
+				delete: actionNamed(collection.body, "delete-readlist").href,
+			}).toEqual({
+				readlists: [
+					{ label: "All", rel: "readlist", href: "/queue" },
+					{ label: WORK_LABEL, rel: "readlist", href: readlistHref(readlist) },
+					{ label: RECIPES_LABEL, rel: "current", href: readlistHref(slug) },
+				],
+				rename: `/queue/queues/${slug}/rename`,
+				delete: `/queue/queues/${slug}/delete`,
+			});
+		});
+
+		it.each([
+			{ code: "invalid-name", label: "" },
+			{ code: "reserved-name", label: "All" },
+			{ code: "name-taken", label: WORK_LABEL },
+		] as const)(
+			"refuses a create-readlist label with 422 $code and leaves the readlists as they were",
+			async ({ code, label }) => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const { accessToken } = await readerWithReadlist(harness, {
+					email: `readlist-actions-create-${code}@example.com`,
+					label: WORK_LABEL,
+				});
+				const all = await readCollection(harness, { accessToken, path: "/queue" });
+
+				const response = await submit(harness, {
+					accessToken,
+					action: actionNamed(all.body, "create-readlist"),
+					body: { label },
+				});
+
+				expect(answerOf(response)).toEqual({
+					status: 422,
+					type: SIREN_MEDIA_TYPE,
+					body: { class: ["error"], properties: { code, message: READLIST_CREATE_REJECTIONS[code].message } },
+				});
+				expect(Object.keys(await advertisedReadlistHrefs(harness, { accessToken }))).toEqual(["All", WORK_LABEL]);
+			},
+		);
+
+		it("refuses create-readlist with 422 limit-reached once the reader holds the most readlists allowed", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { userId, accessToken } = await readerWithReadlist(harness, {
+				email: "readlist-actions-create-limit@example.com",
+				label: WORK_LABEL,
+			});
+			for (let extra = 1; extra < READLIST_MAX_PER_USER; extra++) {
+				await harness.articleStore.createReadlistDefinition({
+					userId,
+					slug: ReadlistSlugSchema.parse(`extra-${extra}`),
+					label: `Extra ${extra}`,
+					createdAt: new Date("2026-03-04T12:00:00.000Z"),
+				});
+			}
+			const all = await readCollection(harness, { accessToken, path: "/queue" });
+
+			const response = await submit(harness, {
+				accessToken,
+				action: actionNamed(all.body, "create-readlist"),
+				body: { label: "One too many" },
+			});
+
+			expect(answerOf(response)).toEqual({
+				status: 422,
+				type: SIREN_MEDIA_TYPE,
+				body: { class: ["error"], properties: { code: "limit-reached", message: READLIST_LIMIT_MESSAGE } },
+			});
+		});
+
+		it("renames a readlist through rename-readlist and answers 303 to the renamed readlist's collection", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { readlist, accessToken } = await readerWithReadlist(harness, {
+				email: "readlist-actions-rename@example.com",
+				label: WORK_LABEL,
+			});
+			const hrefs = await advertisedReadlistHrefs(harness, { accessToken });
+			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
+
+			const renamed = await submit(harness, {
+				accessToken,
+				action: actionNamed(work.body, "rename-readlist"),
+				body: { label: "Office" },
+			});
+
+			expect(renamed.status).toBe(303);
+			expect(addressedBy(renamed.headers.location).readlist).toBe(readlist);
+			const collection = await followToCollection(harness, { accessToken, response: renamed });
+			expect(collection.body.properties.readlists).toEqual([
+				{ label: "All", rel: "readlist", href: "/queue" },
+				{ label: "Office", rel: "current", href: hrefs[WORK_LABEL] },
+			]);
+		});
+
+		it.each([
+			{ code: "invalid-name", label: "" },
+			{ code: "name-taken", label: LONG_LABEL },
+		] as const)("refuses a rename-readlist label with 422 $code", async ({ code, label }) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { userId, accessToken } = await readerWithReadlist(harness, {
+				email: `readlist-actions-rename-${code}@example.com`,
+				label: WORK_LABEL,
+			});
+			await harness.articleStore.createReadlistDefinition({
+				userId,
+				slug: ReadlistSlugSchema.parse("long"),
+				label: LONG_LABEL,
+				createdAt: new Date("2026-03-04T11:00:00.000Z"),
+			});
+			const hrefs = await advertisedReadlistHrefs(harness, { accessToken });
+			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
+
+			const response = await submit(harness, {
+				accessToken,
+				action: actionNamed(work.body, "rename-readlist"),
+				body: { label },
+			});
+
+			expect(answerOf(response)).toEqual({
+				status: 422,
+				type: SIREN_MEDIA_TYPE,
+				body: { class: ["error"], properties: { code, message: READLIST_RENAME_REJECTIONS[code].message } },
+			});
+			expect(Object.keys(await advertisedReadlistHrefs(harness, { accessToken }))).toEqual([
+				"All",
+				WORK_LABEL,
+				LONG_LABEL,
+			]);
+		});
+
+		it("answers 404 unknown-readlist to a rename or delete of a readlist that is gone", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { accessToken } = await readerWithReadlist(harness, {
+				email: "readlist-actions-gone@example.com",
+				label: WORK_LABEL,
+			});
+			const hrefs = await advertisedReadlistHrefs(harness, { accessToken });
+			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
+			const rename = actionNamed(work.body, "rename-readlist");
+			const remove = actionNamed(work.body, "delete-readlist");
+			expect((await submit(harness, { accessToken, action: remove })).status).toBe(303);
+
+			const renamed = await submit(harness, { accessToken, action: rename, body: { label: "Office" } });
+			const deleted = await submit(harness, { accessToken, action: remove });
+
+			expect([answerOf(renamed), answerOf(deleted)]).toEqual([UNKNOWN_READLIST, UNKNOWN_READLIST]);
+		});
+
+		it("answers 404 unknown-readlist to a rename or delete whose readlist name is malformed", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { accessToken } = await readerWithReadlist(harness, {
+				email: "readlist-actions-malformed@example.com",
+				label: WORK_LABEL,
+			});
+
+			const renamed = await request(harness.server)
+				.post("/queue/queues/Not_A_Slug/rename")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`)
+				.type("form")
+				.send({ label: "Office" });
+			const deleted = await request(harness.server)
+				.post("/queue/queues/Not_A_Slug/delete")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect([answerOf(renamed), answerOf(deleted)]).toEqual([UNKNOWN_READLIST, UNKNOWN_READLIST]);
+		});
+
+		it("deletes a readlist through delete-readlist and answers 303 to the default readlist's collection", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { accessToken } = await readerWithReadlist(harness, {
+				email: "readlist-actions-delete@example.com",
+				label: WORK_LABEL,
+			});
+			const hrefs = await advertisedReadlistHrefs(harness, { accessToken });
+			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
+
+			const deleted = await submit(harness, { accessToken, action: actionNamed(work.body, "delete-readlist") });
+
+			expect({ status: deleted.status, location: deleted.headers.location }).toEqual({
+				status: 303,
+				location: "/queue",
+			});
+			const collection = await followToCollection(harness, { accessToken, response: deleted });
+			expect(collection.body.properties.readlists).toEqual([{ label: "All", rel: "current", href: "/queue" }]);
+		});
+
+		it("files an article listed in All into every readlist add-to-readlist names and answers 303 to All", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-add-from-all@example.com",
+			});
+			const url = "https://example.com/file-from-all";
+			await saveThrough(harness, { accessToken, path: "/queue", url });
+			const entity = await entityListing(harness, { accessToken, path: "/queue", url });
+
+			const filed = await submit(harness, {
+				accessToken,
+				action: actionNamed(entity, "add-to-readlist"),
+				body: { readlists: [hrefs[WORK_LABEL], hrefs[RECIPES_LABEL]] },
+			});
+
+			expect(filed.status).toBe(303);
+			expect(addressedBy(filed.headers.location)).toEqual({
+				readlist: DEFAULT_READLIST_SLUG,
+				tab: "queue",
+				order: undefined,
+				page: 1,
+			});
+			expect((await followToCollection(harness, { accessToken, response: filed })).status).toBe(200);
+			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
+			const recipes = await readCollection(harness, { accessToken, path: hrefs[RECIPES_LABEL] });
+			expect([articleUrls(work.body), articleUrls(recipes.body)]).toEqual([[url], [url]]);
+		});
+
+		it("answers 303 again when the readlist already holds the article, keeping one copy", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-add-twice@example.com",
+			});
+			const url = "https://example.com/file-twice";
+			await saveThrough(harness, { accessToken, path: "/queue", url });
+			const action = actionNamed(await entityListing(harness, { accessToken, path: "/queue", url }), "add-to-readlist");
+
+			const first = await submit(harness, { accessToken, action, body: { readlists: [hrefs[WORK_LABEL]] } });
+			const second = await submit(harness, { accessToken, action, body: { readlists: [hrefs[WORK_LABEL]] } });
+
+			expect([first.status, second.status]).toEqual([303, 303]);
+			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
+			expect(articleUrls(work.body)).toEqual([url]);
+		});
+
+		it("files an article that lives only in a readlist from that readlist's collection and answers 303 back to it", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { userId, readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-add-from-readlist@example.com",
+			});
+			const url = "https://example.com/only-in-work-filed";
+			await seedInReadlistOnly(harness, { userId, readlist, url });
+			const entity = await entityListing(harness, { accessToken, path: hrefs[WORK_LABEL], url });
+
+			const filed = await submit(harness, {
+				accessToken,
+				action: actionNamed(entity, "add-to-readlist"),
+				body: { readlists: [hrefs[RECIPES_LABEL]] },
+			});
+
+			expect(filed.status).toBe(303);
+			expect(addressedBy(filed.headers.location).readlist).toBe(readlist);
+			const recipes = await readCollection(harness, { accessToken, path: hrefs[RECIPES_LABEL] });
+			expect(articleUrls(recipes.body)).toEqual([url]);
+		});
+
+		it("still files the readlist a legacy queue-keyed href names", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-add-legacy-href@example.com",
+			});
+			const url = "https://example.com/legacy-filed";
+			await saveThrough(harness, { accessToken, path: "/queue", url });
+			const entity = await entityListing(harness, { accessToken, path: "/queue", url });
+
+			const filed = await submit(harness, {
+				accessToken,
+				action: actionNamed(entity, "add-to-readlist"),
+				body: { readlists: [`/queue?queue=${readlist}`] },
+			});
+
+			expect(filed.status).toBe(303);
+			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
+			expect(articleUrls(work.body)).toEqual([url]);
+		});
+
+		it.each([
+			{
+				what: "names only All and a readlist the reader does not own",
+				body: { readlists: ["/queue", "/queue?queue=nobodys"] },
+			},
+			{ what: "sends readlists that are not a list", body: { readlists: "/queue" } },
+			{ what: "sends no body", body: undefined },
+		])("answers 404 unknown-readlist to an add-to-readlist that $what", async ({ body }) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { accessToken } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-add-unknown-readlist@example.com",
+			});
+			const url = "https://example.com/add-unknown-readlist";
+			await saveThrough(harness, { accessToken, path: "/queue", url });
+			const entity = await entityListing(harness, { accessToken, path: "/queue", url });
+
+			const response = await submit(harness, { accessToken, action: actionNamed(entity, "add-to-readlist"), body });
+
+			expect(answerOf(response)).toEqual(UNKNOWN_READLIST);
+		});
+
+		it("answers 404 unknown-article to an add-to-readlist whose readlist no longer holds the article", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { userId, readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-add-stale@example.com",
+			});
+			const url = "https://example.com/only-in-work-stale";
+			await seedInReadlistOnly(harness, { userId, readlist, url });
+			const entity = await entityListing(harness, { accessToken, path: hrefs[WORK_LABEL], url });
+			const removed = await submit(harness, { accessToken, action: actionNamed(entity, "remove-from-readlist") });
+			expect(removed.status).toBe(303);
+
+			const response = await submit(harness, {
+				accessToken,
+				action: actionNamed(entity, "add-to-readlist"),
+				body: { readlists: [hrefs[RECIPES_LABEL]] },
+			});
+
+			expect(answerOf(response)).toEqual(UNKNOWN_ARTICLE);
+		});
+
+		it("answers 404 unknown-article to an add-to-readlist or remove-from-readlist whose article id is malformed", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-malformed-id@example.com",
+			});
+
+			const filed = await submit(harness, {
+				accessToken,
+				action: { name: "add-to-readlist", href: "/queue/not-a-hash/assign", method: "POST", type: "application/json" },
+				body: { readlists: [hrefs[WORK_LABEL]] },
+			});
+			const removed = await submit(harness, {
+				accessToken,
+				action: {
+					name: "remove-from-readlist",
+					href: `/queue/not-a-hash/unassign${buildQueryString({ readlist })}`,
+					method: "POST",
+					type: "application/x-www-form-urlencoded",
+				},
+			});
+
+			expect([answerOf(filed), answerOf(removed)]).toEqual([UNKNOWN_ARTICLE, UNKNOWN_ARTICLE]);
+		});
+
+		it("removes an article from the readlist its collection lists and answers 303 to that readlist's first page, leaving it in All", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-remove@example.com",
+			});
+			const url = "https://example.com/remove-from-work";
+			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
+			const saved = await submit(harness, {
+				accessToken,
+				action: actionNamed(work.body, "save-article"),
+				body: { url },
+			});
+			expect(saved.status).toBe(201);
+			const entity = await entityListing(harness, { accessToken, path: hrefs[WORK_LABEL], url });
+
+			const removed = await submit(harness, { accessToken, action: actionNamed(entity, "remove-from-readlist") });
+
+			expect(removed.status).toBe(303);
+			expect(addressedBy(removed.headers.location)).toEqual({ readlist, tab: "queue", order: undefined, page: 1 });
+			const after = await followToCollection(harness, { accessToken, response: removed });
+			const all = await readCollection(harness, { accessToken, path: "/queue" });
+			expect([articleUrls(after.body), articleUrls(all.body)]).toEqual([[], [url]]);
+		});
+
+		it("answers 404 unknown-article to a second removal of the same article", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { userId, readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-remove-twice@example.com",
+			});
+			const url = "https://example.com/remove-twice";
+			await seedInReadlistOnly(harness, { userId, readlist, url });
+			const action = actionNamed(
+				await entityListing(harness, { accessToken, path: hrefs[WORK_LABEL], url }),
+				"remove-from-readlist",
+			);
+
+			const first = await submit(harness, { accessToken, action });
+			const second = await submit(harness, { accessToken, action });
+
+			expect([first.status, answerOf(second)]).toEqual([303, UNKNOWN_ARTICLE]);
+		});
+
+		it("answers 404 unknown-readlist to a remove-from-readlist addressed to All or to a readlist the reader does not own, and keeps the article in All", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { accessToken } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-remove-unknown-readlist@example.com",
+			});
+			const url = "https://example.com/remove-unknown-readlist";
+			const saved = await saveThrough(harness, { accessToken, path: "/queue", url });
+			const id = saved.body.properties.id;
+
+			const fromAll = await request(harness.server)
+				.post(`/queue/${id}/unassign`)
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`);
+			const fromUnowned = await request(harness.server)
+				.post(`/queue/${id}/unassign${buildQueryString({ readlist: ReadlistSlugSchema.parse("nobodys") })}`)
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect([answerOf(fromAll), answerOf(fromUnowned)]).toEqual([UNKNOWN_READLIST, UNKNOWN_READLIST]);
+			const all = await readCollection(harness, { accessToken, path: "/queue" });
+			expect(articleUrls(all.body)).toEqual([url]);
+		});
 	});
 });

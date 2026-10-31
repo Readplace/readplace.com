@@ -61,7 +61,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.class).toContain("collection");
 		expect(entity.class).toContain("articles");
@@ -77,9 +77,9 @@ describe("toArticleCollectionEntity", () => {
 		};
 
 		expect(
-			toArticleCollectionEntity(result, {}, { tabs, readlists, appearance: "dark" }).properties,
+			toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised", appearance: "dark" }).properties,
 		).toMatchObject({ appearance: "dark" });
-		expect(toArticleCollectionEntity(result, {}, { tabs, readlists }).properties?.appearance).toBeUndefined();
+		expect(toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" }).properties?.appearance).toBeUndefined();
 	});
 
 	it("includes pagination properties", () => {
@@ -91,7 +91,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.properties).toMatchObject({
 			pageSize: 20,
@@ -111,7 +111,7 @@ describe("toArticleCollectionEntity", () => {
 			status: "unread",
 			order: "desc",
 			page: 2,
-		}, { tabs, readlists });
+		}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.properties?.pages).toEqual([
 			{ label: "1", rel: "prev", href: "/queue?status=unread&order=desc&page=1" },
@@ -132,7 +132,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{ status: "unread", page: 2, url: "https://example.com/1" },
-			{ tabs, readlists },
+			{ tabs, readlists, addToReadlist: "advertised" },
 		);
 
 		expect(entity.properties?.tabs).toEqual([
@@ -150,7 +150,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { status: "read", order: "asc" }, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, { status: "read", order: "asc" }, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.properties?.tabs).toEqual([
 			{ label: "To Read", rel: "tab", href: "/queue?status=unread&order=asc" },
@@ -167,7 +167,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.properties?.tabs).toEqual([
 			{ label: "To Read", rel: "tab", href: "/queue?status=unread" },
@@ -181,8 +181,8 @@ describe("toArticleCollectionEntity", () => {
 		const readList: FindArticlesResult = { articles: [read], total: 1, hasMore: false, page: 1, pageSize: 20 };
 		const unreadList: FindArticlesResult = { articles: [unread], total: 1, hasMore: false, page: 1, pageSize: 20 };
 
-		const onReadTab = toArticleCollectionEntity(readList, { status: "read", order: "asc" }, { tabs, readlists });
-		const onUnreadTab = toArticleCollectionEntity(unreadList, { status: "unread" }, { tabs, readlists });
+		const onReadTab = toArticleCollectionEntity(readList, { status: "read", order: "asc" }, { tabs, readlists, addToReadlist: "advertised" });
+		const onUnreadTab = toArticleCollectionEntity(unreadList, { status: "unread" }, { tabs, readlists, addToReadlist: "advertised" });
 
 		const updateStatusHref = (entity: ReturnType<typeof toArticleCollectionEntity>) =>
 			entity.entities?.[0].actions?.find((a) => a.name === "update-status")?.href;
@@ -201,7 +201,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.properties?.pages).toEqual([
 			{ label: "1", rel: "current", href: "/queue?page=1" },
@@ -217,11 +217,28 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.entities).toHaveLength(2);
 		expect(entity.entities?.[0].rel).toContain("item");
 		expect(entity.entities?.[1].rel).toContain("item");
+	});
+
+	it.each([
+		{ addToReadlist: "advertised", names: ["update-status", "add-to-readlist"] },
+		{ addToReadlist: "withheld", names: ["update-status"] },
+	] as const)("gives every embedded article the item actions an add-to-readlist offer of $addToReadlist allows", ({ addToReadlist, names }) => {
+		const result: FindArticlesResult = {
+			articles: [makeArticle("1"), makeArticle("2")],
+			total: 2,
+			hasMore: false,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist });
+
+		expect((entity.entities ?? []).map((row) => row.actions?.map((action) => action.name))).toEqual([names, names]);
 	});
 
 	it("embedded articles have exact property keys without content", () => {
@@ -233,7 +250,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(Object.keys(entity.entities?.[0].properties ?? {})).toEqual([
 			"id",
@@ -270,6 +287,7 @@ describe("toArticleCollectionEntity", () => {
 			{
 				tabs,
 				readlists,
+				addToReadlist: "advertised",
 				crawlByUrl: new Map<string, ArticleCrawl | undefined>([
 					[
 						blocked.url,
@@ -300,7 +318,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(
 			(entity.entities ?? []).map((sub) => sub.properties?.needsBrowserCapture),
@@ -316,7 +334,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.links).toContainEqual({ rel: ["self"], href: "/queue" });
 		expect(entity.links).toContainEqual({ rel: ["root"], href: "/queue" });
@@ -332,7 +350,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, surfacePlatform: "ios" });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised", surfacePlatform: "ios" });
 
 		expect(entity.links).toContainEqual({
 			rel: ["account"],
@@ -350,7 +368,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.links).toContainEqual({
 			rel: ["add-links-help"],
@@ -368,7 +386,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const nextLink = entity.links?.find((l) => l.rel.includes("next"));
 		expect(nextLink?.href).toContain("page=2");
@@ -383,7 +401,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs, readlists, addToReadlist: "advertised" });
 
 		const prevLink = entity.links?.find((l) => l.rel.includes("prev"));
 		expect(prevLink?.href).toContain("page=1");
@@ -398,7 +416,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, { page: 2 }, { tabs, readlists, addToReadlist: "advertised" });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
 		expect(linkRels).toEqual(["self", "root", "account", "add-links-help", "prev"]);
@@ -413,7 +431,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
 		expect(linkRels).toEqual(["self", "root", "account", "add-links-help"]);
@@ -431,7 +449,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, {
 			status: "unread",
 			order: "desc",
-		}, { tabs, readlists });
+		}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const nextLink = entity.links?.find((l) => l.rel.includes("next"));
 		expect(nextLink?.href).toContain("status=unread");
@@ -447,7 +465,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const saveAction = entity.actions?.find((a) => a.name === "save-article");
 		expect(saveAction?.method).toBe("POST");
@@ -464,7 +482,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const titles = Object.fromEntries(
 			(entity.actions ?? []).map((a) => [a.name, a.title]),
@@ -485,7 +503,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const saveArticlesAction = entity.actions?.find((a) => a.name === "save-articles");
 		expect(saveArticlesAction?.href).toBe("/queue/save-articles");
@@ -505,7 +523,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const sessionAction = entity.actions?.find((a) => a.name === "create-session");
 		expect(sessionAction?.href).toBe("/auth/session");
@@ -521,12 +539,92 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const handoffAction = entity.actions?.find((a) => a.name === "create-browser-handoff");
 		expect(handoffAction?.href).toBe("/auth/handoff");
 		expect(handoffAction?.method).toBe("POST");
 		expect(handoffAction?.title).toBeUndefined();
+	});
+
+	describe("readlist management actions", () => {
+		const empty: FindArticlesResult = { articles: [], total: 0, hasMore: false, page: 1, pageSize: 20 };
+
+		it.each([
+			{ where: "a collection that names no readlist", queryParams: {}, owned: readlists },
+			{
+				where: "the default readlist",
+				queryParams: { readlist: DEFAULT_READLIST_SLUG, status: "unread" },
+				owned: readlists,
+			},
+			{ where: "one of the reader's own readlists", queryParams: { readlist: WORK, status: "unread" }, owned: twoReadlists },
+		] as const)("advertises a title-less create-readlist on $where", ({ queryParams, owned }) => {
+			const entity = toArticleCollectionEntity(empty, queryParams, { tabs, readlists: owned, addToReadlist: "advertised" });
+
+			expect(entity.actions?.find((action) => action.name === "create-readlist")).toEqual({
+				name: "create-readlist",
+				href: "/queue/queues",
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+				fields: [{ name: "label", type: "text" }],
+			});
+		});
+
+		const everyCollectionAction = [
+			"save-article",
+			"save-articles",
+			"save-content",
+			"search",
+			"create-session",
+			"create-browser-handoff",
+			"create-readlist",
+		];
+
+		it.each([
+			{ where: "unnamed collection", queryParams: {}, owned: readlists, names: everyCollectionAction },
+			{
+				where: "default readlist",
+				queryParams: { readlist: DEFAULT_READLIST_SLUG, status: "unread" },
+				owned: readlists,
+				names: everyCollectionAction,
+			},
+			{
+				where: "named readlist",
+				queryParams: { readlist: WORK, status: "unread" },
+				owned: twoReadlists,
+				names: [...everyCollectionAction, "rename-readlist", "delete-readlist"],
+			},
+		] as const)("advertises exactly the $where actions", ({ queryParams, owned, names }) => {
+			const entity = toArticleCollectionEntity(empty, queryParams, { tabs, readlists: owned, addToReadlist: "advertised" });
+
+			expect(entity.actions?.map((action) => action.name)).toEqual(names);
+		});
+
+		it("points rename-readlist and delete-readlist at the addressed readlist", () => {
+			const entity = toArticleCollectionEntity(
+				empty,
+				{ readlist: WORK, status: "unread" },
+				{ tabs, readlists: twoReadlists, addToReadlist: "advertised" },
+			);
+
+			expect(
+				entity.actions?.filter((action) => action.name === "rename-readlist" || action.name === "delete-readlist"),
+			).toEqual([
+				{
+					name: "rename-readlist",
+					href: "/queue/queues/work/rename",
+					method: "POST",
+					type: "application/x-www-form-urlencoded",
+					fields: [{ name: "label", type: "text" }],
+				},
+				{
+					name: "delete-readlist",
+					href: "/queue/queues/work/delete",
+					method: "POST",
+					type: "application/x-www-form-urlencoded",
+				},
+			]);
+		});
 	});
 
 	it("includes search action with filter fields", () => {
@@ -538,7 +636,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		const filterAction = entity.actions?.find(
 			(a) => a.name === "search",
@@ -564,7 +662,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{},
-			{ tabs, readlists, warning: { code: "unsupported_scheme", message: "Only http and https URLs can be saved" } },
+			{ tabs, readlists, addToReadlist: "advertised", warning: { code: "unsupported_scheme", message: "Only http and https URLs can be saved" } },
 		);
 
 		expect(entity.properties).toMatchObject({
@@ -584,7 +682,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		for (const sub of entity.entities ?? []) {
 			const readLink = sub.links?.find((l) => l.rel.includes("read"));
@@ -601,7 +699,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.properties).not.toHaveProperty("warning");
 	});
@@ -615,7 +713,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, showSaveInProgressNotice: true });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised", showSaveInProgressNotice: true });
 
 		expect(entity.properties).toMatchObject({
 			messages: [
@@ -636,7 +734,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(entity.properties).not.toHaveProperty("messages");
 	});
@@ -649,7 +747,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		expect(() => toArticleCollectionEntity(result, {}, { tabs, readlists })).toThrow(
+		expect(() => toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" })).toThrow(
 			"Siren collection requires a total",
 		);
 	});
@@ -667,7 +765,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{ readlist: WORK, status: "read", page: 1 },
-			{ tabs, readlists: twoReadlists },
+			{ tabs, readlists: twoReadlists, addToReadlist: "advertised" },
 		);
 
 		expect(entity.properties?.readlists).toEqual([
@@ -685,7 +783,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists: twoReadlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists: twoReadlists, addToReadlist: "advertised" });
 
 		expect(entity.properties?.readlists).toEqual([
 			{ label: "All", rel: "current", href: "/queue" },
@@ -706,7 +804,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{ readlist: WORK, status: "unread", page: 2 },
-			{ tabs, readlists: twoReadlists },
+			{ tabs, readlists: twoReadlists, addToReadlist: "advertised" },
 		);
 		const hrefFor = (rel: string) => entity.links?.find((link) => link.rel.includes(rel))?.href;
 		const sub = entity.entities?.[0];
@@ -748,7 +846,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{ status: "unread" },
-			{ tabs, readlists, totalLabel: ({ total }) => `${total} Saved Articles` },
+			{ tabs, readlists, addToReadlist: "advertised", totalLabel: ({ total }) => `${total} Saved Articles` },
 		);
 
 		expect(entity.properties?.total).toEqual({ label: "42 Saved Articles" });
@@ -766,7 +864,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{ status: "unread" },
-			{ tabs, readlists, sort: { options: sortOptions, current: "asc" } },
+			{ tabs, readlists, addToReadlist: "advertised", sort: { options: sortOptions, current: "asc" } },
 		);
 
 		expect(entity.properties?.sort).toEqual([
@@ -787,7 +885,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(
 			result,
 			{ readlist: WORK, status: "unread", order: "desc", page: 2, url: "https://example.com/1" },
-			{ tabs, readlists: twoReadlists, sort: { options: sortOptions, current: "desc" } },
+			{ tabs, readlists: twoReadlists, addToReadlist: "advertised", sort: { options: sortOptions, current: "desc" } },
 		);
 
 		expect(z.array(z.object({ href: z.string() })).parse(entity.properties?.sort).map((entry) => entry.href)).toEqual([
@@ -805,7 +903,7 @@ describe("toArticleCollectionEntity", () => {
 			pageSize: 20,
 		};
 
-		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists });
+		const entity = toArticleCollectionEntity(result, {}, { tabs, readlists, addToReadlist: "advertised" });
 
 		expect(Object.keys(entity.properties ?? {}).sort()).toEqual(["pageSize", "pages", "readlists", "tabs"]);
 	});
@@ -823,9 +921,9 @@ describe("toArticleCollectionEntity", () => {
 			toArticleCollectionEntity(
 				result,
 				{ readlist: DEFAULT_READLIST_SLUG, status: "unread" },
-				{ tabs, readlists },
+				{ tabs, readlists, addToReadlist: "advertised" },
 			),
-		).toEqual(toArticleCollectionEntity(result, { status: "unread" }, { tabs, readlists }));
+		).toEqual(toArticleCollectionEntity(result, { status: "unread" }, { tabs, readlists, addToReadlist: "advertised" }));
 	});
 
 });

@@ -168,9 +168,11 @@ import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
+import { buildQueryString } from "../../api/collection-query";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toSavedArticleEntity } from "../../api/article-siren";
-import { readlistsAtHrefs } from "../../api/readlist-href";
+import { readlistHref, readlistsAtHrefs } from "../../api/readlist-href";
+import { bytesToMb } from "../../shared/bytes-to-mb";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
 import { saveQueuedSirenNotice } from "../../api/save-queued-siren";
 import {
@@ -229,6 +231,7 @@ import { READLIST_TAB_STATUSES, tabQuery } from "./readlist.tabs";
 import { READLIST_SORT_OPTIONS } from "./readlist-sort";
 import { readlistTotalLabel } from "./readlist-tab-total.component";
 import { READLIST_PAGE_SIZE, readlistPageSizeForClient } from "./readlist-page-size";
+import { addToReadlistOfferForClient } from "./add-to-readlist-offer";
 import { resolveSaveProvenance } from "../../shared/save-provenance";
 import type { HttpErrorMessageMapping, MoveFlash, StatusFlash } from "./readlist.error";
 import { READLIST_CREATE_REJECTIONS, READLIST_ERROR_LIMIT, SAVE_FAILED_MESSAGE, READLIST_LIMIT_MESSAGE, type ReadlistCreateDialogRejection, READLIST_ERROR_UNKNOWN_READLIST, READLIST_NOTICE_SAVE_QUEUED, READLIST_RENAME_REJECTIONS, collectStatusFlashParams, importFlashMapping, moveFlashMapping, saveFormRejectionMessage, saveableUrlErrorCodeMapping, skippedLinkReasonLabel, statusFlashMapping, statusFlashFor } from "./readlist.error";
@@ -238,6 +241,7 @@ import { readlistRenamePopoverId, renderReadlistRenameForm } from "./readlist-re
 import { moveCreatePopoverId, renderMoveCreateForm } from "./readlist-card/move-dialog.component";
 import { type HxLocationScroll, hxLocationToMain } from "../../hx-location";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
+import { UNKNOWN_ARTICLE_REFUSAL, UNKNOWN_READLIST_REFUSAL, refuseOverSiren } from "./readlist-siren-refusal";
 import { renderReadlistMutationFragment } from "./readlist-mutation-fragments";
 import { HtmlPage } from "@packages/web-shell";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -382,10 +386,6 @@ function safeJsonParse(text: string): unknown {
 	} catch {
 		return undefined;
 	}
-}
-
-function bytesToMb(bytes: number): number {
-	return Math.round((bytes / (1024 * 1024)) * 10) / 10;
 }
 
 /** Minute-precision UTC id as recorded in the crawl-version log, e.g.
@@ -1892,6 +1892,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						surfacePlatform: nativeSurfaceOf(req),
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
 						appearance,
@@ -2053,6 +2054,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
+						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
 						warning: { code: validation.error.code, message: validation.error.message },
 						surfacePlatform: nativeSurfaceOf(req),
 						crawlByUrl,
@@ -2668,12 +2670,17 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					error: READLIST_CREATE_REJECTIONS[reason].message,
 					hiddenFields: [],
 				}),
+			siren: { code: reason, message: READLIST_CREATE_REJECTIONS[reason].message },
 		});
 		const naming = ((): ReadlistNaming => {
 			switch (outcome.status) {
 				case "ok":
 					if (!outcome.created) return refused("name-taken");
-					return { landing: buildReadlistUrl({ readlist: outcome.readlist.slug }), scroll: "top" };
+					return {
+						landing: buildReadlistUrl({ readlist: outcome.readlist.slug }),
+						scroll: "top",
+						siren: { location: readlistHref(outcome.readlist.slug) },
+					};
 				case "invalid-name":
 				case "reserved-name":
 					return refused(outcome.status);
@@ -2681,6 +2688,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					return {
 						landing: buildReadlistUrl(context.state, [["queue_error", READLIST_ERROR_LIMIT]]),
 						scroll: "top",
+						siren: { code: "limit-reached", message: READLIST_LIMIT_MESSAGE },
 					};
 			}
 		})();
@@ -2698,6 +2706,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const gone = buildReadlistUrl({}, [["queue_error", "rename_unknown-readlist"]]);
 			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
 			if (!requested.success) {
+				if (wantsSiren(req)) {
+					refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+					return;
+				}
 				res.redirect(303, gone);
 				return;
 			}
@@ -2710,7 +2722,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			if (!decision.ok) {
 				const { reason } = decision;
 				if (reason === "unknown-readlist") {
-					answer({ landing: gone, scroll: "top" });
+					answer({ landing: gone, scroll: "top", siren: UNKNOWN_READLIST_REFUSAL });
 					return;
 				}
 				answer({
@@ -2722,6 +2734,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 							value: label,
 							error: READLIST_RENAME_REJECTIONS[reason].message,
 						}),
+					siren: { code: reason, message: READLIST_RENAME_REJECTIONS[reason].message },
 				});
 				return;
 			}
@@ -2731,13 +2744,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				label: decision.label,
 			});
 			if (!renamed) {
-				answer({ landing: gone, scroll: "top" });
+				answer({ landing: gone, scroll: "top", siren: UNKNOWN_READLIST_REFUSAL });
 				return;
 			}
 			answer({
 				landing: buildReadlistUrl({ readlist: decision.slug }),
 				scroll: "top",
 				announcement: `Readlist renamed to ${decision.label}.`,
+				siren: { location: readlistHref(decision.slug) },
 			});
 		},
 	);
@@ -2751,6 +2765,10 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const userId = req.userId;
 			const context = await resolveReadlistContext(req, userId);
 			const unknownReadlist = () => {
+				if (wantsSiren(req)) {
+					refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+					return;
+				}
 				res.redirect(
 					303,
 					buildReadlistUrl({}, [["queue_error", READLIST_ERROR_UNKNOWN_READLIST]]),
@@ -2788,12 +2806,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				unknownReadlist();
 				return;
 			}
-			res.redirect(
-				303,
-				buildReadlistUrl({
-					readlist: readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug }),
-				}),
-			);
+			const after = readlistAfterDelete({ viewed: context.activeReadlist.slug, deleted: decision.slug });
+			res.redirect(303, wantsSiren(req) ? readlistHref(after) : buildReadlistUrl({ readlist: after }));
 		},
 	);
 
@@ -3285,10 +3299,37 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		"/:id/assign",
 		requireNotLocked,
 		deps.requireWriteAccess,
+		express.json(),
 		async (req: Request<{ id: string }>, res: Response) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
 			const userId = req.userId;
 			const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+			if (wantsSiren(req)) {
+				const context = await resolveReadlistContext(req, userId);
+				const targets = readlistsAtHrefs({
+					hrefs: SaveArticleReadlistsSchema.parse(req.body?.readlists) ?? [],
+					readlists: context.readlists,
+				}).filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
+				if (targets.length === 0) {
+					refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+					return;
+				}
+				const article = parsedId.success
+					? await storeFor(context.state.readlist).findArticleById(parsedId.data, userId)
+					: null;
+				if (!article) {
+					refuseOverSiren(res, UNKNOWN_ARTICLE_REFUSAL);
+					return;
+				}
+				for (const target of targets) {
+					await deps.addArticleToReadlist({ userId, readlist: target.slug, from: context.state.readlist, url: article.url });
+				}
+				res.redirect(
+					303,
+					`${READLIST_PATH}${buildQueryString({ readlist: context.state.readlist, status: tabQuery(context.state.tab).status, order: context.state.order })}`,
+				);
+				return;
+			}
 			const parsedReadlist = ReadlistSlugSchema.safeParse(req.body?.queue);
 			if (!parsedId.success || !parsedReadlist.success || parsedReadlist.data === DEFAULT_READLIST_SLUG) {
 				res.status(404).type("html").send("");
@@ -3384,6 +3425,26 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		if (wantsSiren(req)) {
+			const context = await resolveReadlistContext(req, userId);
+			const addressed = readlistToFileInto(context);
+			if (addressed === undefined) {
+				refuseOverSiren(res, UNKNOWN_READLIST_REFUSAL);
+				return;
+			}
+			const removed = parsedId.success
+				? await deleteArticleFromReadlistFor(addressed)({ articleId: parsedId.data, userId })
+				: false;
+			if (!removed) {
+				refuseOverSiren(res, UNKNOWN_ARTICLE_REFUSAL);
+				return;
+			}
+			res.redirect(
+				303,
+				`${READLIST_PATH}${buildQueryString({ readlist: addressed, status: tabQuery(context.state.tab).status, order: context.state.order })}`,
+			);
+			return;
+		}
 		const parsedReadlist = ReadlistSlugSchema.safeParse(req.body?.queue);
 		if (parsedId.success && parsedReadlist.success && parsedReadlist.data !== DEFAULT_READLIST_SLUG) {
 			await deleteArticleFromReadlistFor(parsedReadlist.data)({ articleId: parsedId.data, userId });

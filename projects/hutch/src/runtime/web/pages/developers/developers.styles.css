@@ -1,0 +1,109 @@
+.developers {
+  padding: 80px var(--page-gutter);
+}
+
+.developers__container {
+  max-width: var(--reader-max-width);
+  margin: 0 auto;
+}
+
+.developers__title {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.developers__lead {
+  font-size: var(--text-lg);
+  color: var(--muted-foreground);
+  margin-bottom: 32px;
+  text-wrap: pretty;
+}
+
+.developers__section {
+  margin-bottom: 40px;
+}
+
+.developers__heading {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.developers__text {
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--foreground);
+  margin-bottom: 12px;
+  text-wrap: pretty;
+}
+
+.developers__code {
+  overflow-x: auto;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.developers__code code {
+  font: inherit;
+}
+
+.developers__container :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  padding: 0.15em 0.3em;
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+.developers__subheading {
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 24px 0 8px;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.developers__list {
+  padding-left: 24px;
+  margin-bottom: 16px;
+}
+
+.developers__item {
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--foreground);
+  margin-bottom: 8px;
+  text-wrap: pretty;
+}
+
+.developers__steps {
+  padding-left: 24px;
+  margin-bottom: 16px;
+}
+
+.developers__step {
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--foreground);
+  margin-bottom: 8px;
+  text-wrap: pretty;
+}
+
+.developers__link {
+  color: var(--primary-text);
+}

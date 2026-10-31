@@ -528,6 +528,7 @@ describe("Collection-Siren advertises save-content action", () => {
 			"search",
 			"create-session",
 			"create-browser-handoff",
+			"create-readlist",
 		]);
 
 		const saveContentAction = response.body.actions.find((a: { name: string }) => a.name === "save-content");

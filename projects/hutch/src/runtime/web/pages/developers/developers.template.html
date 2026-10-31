@@ -1,0 +1,293 @@
+  <main class="developers" data-test-developers>
+    <div class="developers__container">
+      <h1 class="developers__title">Build on the Readplace API</h1>
+      <p class="developers__lead">The Readplace API lets an integration save links, list and read articles, and file them into readlists, for a reader who approves it.</p>
+
+      <section class="developers__section" data-test-section="overview">
+        <h2 class="developers__heading">What you can build</h2>
+        <p class="developers__text">The API speaks Siren (<code>{{sirenMediaType}}</code>), a hypermedia format: every answer carries the links and actions you can take next. Articles also come as Markdown documents (<code>{{markdownMediaType}}</code>).</p>
+        <p class="developers__text">An integration acts for one reader, who approves it with their Readplace account. <a class="developers__link" href="{{track '/signup' source='developers' content='signup'}}">Create an account</a> to try it.</p>
+        <p class="developers__text">A typical integration is a scheduled job that drains a readlist: it lists what's in it, reads each article as Markdown, hands it on, then takes it out of the readlist. The walkthrough at the end follows that flow. Nothing is pushed to you, so the job polls.</p>
+        <p class="developers__text">Readplace's own apps use the same API:</p>
+        <ul class="developers__list">
+          {{#each contentCaptureClients}}
+          <li class="developers__item" data-test-client>{{this}}</li>
+          {{/each}}
+        </ul>
+      </section>
+
+      <section class="developers__section" data-test-section="authentication">
+        <h2 class="developers__heading">Register your app and get a token</h2>
+        <p class="developers__text">Readplace is its own OAuth 2.0 authorization server. Its metadata is at <code>/.well-known/oauth-authorization-server</code>, and the protected resource metadata at <code>/.well-known/oauth-protected-resource</code> points to it.</p>
+
+        <h3 class="developers__subheading">Register</h3>
+        <p class="developers__text">Register once with Dynamic Client Registration (RFC 7591): send a <code>POST</code> with JSON to <code>/oauth/register</code>.</p>
+        <pre class="developers__code" data-test-sample="register"><code class="language-http">POST /oauth/register HTTP/1.1
+Host: readplace.com
+Content-Type: application/json
+
+{"redirect_uris": ["http://127.0.0.1:8765/callback"], "client_name": "Reading automator"}</code></pre>
+        <ul class="developers__list">
+          <li class="developers__item" data-test-copy="redirect-rules">Each redirect URI is https, on any host (<code>https://localhost</code> included), or plain http on <code>127.0.0.1</code> or <code>[::1]</code>. <code>http://localhost</code> and custom schemes are refused with <code>400 invalid_redirect_uri</code>.</li>
+          <li class="developers__item" data-test-copy="redirect-uris"><code>redirect_uris</code> holds 1 to 32 URIs of up to 2,048 characters each.</li>
+          <li class="developers__item" data-test-copy="client-name"><code>client_name</code> is optional and up to 120 characters, and the reader sees it when approving your app. Without it, Readplace names your app after the host of the first redirect URI, without its port.</li>
+          <li class="developers__item">There's no client secret. If you send <code>token_endpoint_auth_method</code>, it must be <code>none</code>.</li>
+          <li class="developers__item">The <code>201</code> answer carries your <code>client_id</code>. Sending the same registration again returns the same <code>client_id</code>.</li>
+          <li class="developers__item" data-test-copy="registration-lifetime">A registration that never gets a token expires after {{idleRegistrationHours}} hours. Once it has one, it stays registered until {{activeRegistrationDays}} days after its latest token, refreshes included.</li>
+          <li class="developers__item"><code>/oauth/register</code> and <code>/oauth/token</code> limit how often one IP address can call them. Over the limit, they answer <code>429</code> with a <code>Retry-After</code> header.</li>
+        </ul>
+
+        <h3 class="developers__subheading">Authorize</h3>
+        <p class="developers__text">Send the reader's browser to <code>/oauth/authorize</code> with a PKCE challenge, using <code>S256</code>. Readplace asks the reader to sign in if needed and to approve your app, then redirects to your redirect URI with <code>code</code> and <code>state</code>.</p>
+        <pre class="developers__code" data-test-sample="authorize"><code class="language-http">GET /oauth/authorize?response_type=code&amp;client_id=CLIENT_ID&amp;redirect_uri=REDIRECT_URI&amp;code_challenge=CODE_CHALLENGE&amp;code_challenge_method=S256&amp;state=STATE HTTP/1.1
+Host: readplace.com</code></pre>
+        <p class="developers__text" data-test-copy="exact-redirect"><code>redirect_uri</code> must match a registered URI exactly, port included, so register the exact loopback port your app listens on.</p>
+        <p class="developers__text" data-test-copy="scope">Leave out <code>scope</code>. Every token gets full access to the reader's account, and a refresh that sends <code>scope</code> is refused with <code>400 invalid_scope</code>. The protected resource metadata lists that one access level in <code>scopes_supported</code> as <code>{{scopeLabel}}</code>.</p>
+        <p class="developers__text"><code>resource</code> is optional, because Readplace is both the authorization server and the API, so every token it issues is already for this API.</p>
+
+        <h3 class="developers__subheading">Get tokens</h3>
+        <p class="developers__text">Exchange the code with your PKCE verifier:</p>
+        <pre class="developers__code" data-test-sample="token"><code class="language-http">POST /oauth/token HTTP/1.1
+Host: readplace.com
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&amp;code=AUTH_CODE&amp;redirect_uri=REDIRECT_URI&amp;client_id=CLIENT_ID&amp;code_verifier=CODE_VERIFIER</code></pre>
+        <p class="developers__text">The answer is JSON with <code>access_token</code>, <code>refresh_token</code>, <code>token_type</code> and <code>expires_in</code>.</p>
+        <p class="developers__text" data-test-copy="access-token">Access tokens are short-lived. Read <code>expires_in</code> from each token answer, and refresh when a request answers <code>401</code> with <code>invalid_token</code>.</p>
+        <pre class="developers__code" data-test-sample="refresh"><code class="language-http">POST /oauth/token HTTP/1.1
+Host: readplace.com
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&amp;refresh_token=REFRESH_TOKEN&amp;client_id=CLIENT_ID</code></pre>
+        <p class="developers__text" data-test-copy="refresh-token">Refresh tokens last {{refreshTokenDays}} days and rotate: every refresh returns a new pair and retires the refresh token you sent. Store the new pair before you use it.</p>
+        <ul class="developers__list">
+          <li class="developers__item">A refused refresh answers JSON with <code>error</code> and <code>readplace_reason</code>, with status <code>400</code>. A refused code exchange answers JSON with <code>error</code> and <code>error_description</code>.</li>
+          <li class="developers__item"><code>invalid_grant</code> means the grant is gone: the refresh token was already used, has expired or was revoked, or the reader signed your app out from all devices or changed or reset their password. Send the reader through authorize again.</li>
+          <li class="developers__item"><code>invalid_client</code> means no registration that allows refresh exists for your <code>client_id</code>: it expired, or it was registered without the <code>refresh_token</code> grant. Register again, leaving <code>grant_types</code> out.</li>
+          <li class="developers__item" data-test-copy="refresh-retry"><code>503</code> with <code>temporarily_unavailable</code> means try again later with the same refresh token.</li>
+        </ul>
+
+        <h3 class="developers__subheading">Disconnect</h3>
+        <pre class="developers__code" data-test-sample="revoke"><code class="language-http">POST /oauth/revoke HTTP/1.1
+Host: readplace.com
+Content-Type: application/json
+
+{"token": "REFRESH_TOKEN"}</code></pre>
+        <p class="developers__text"><code>/oauth/revoke</code> takes an access token or a refresh token, and revoking either drops the other too. Readers can also sign your app out from all devices under <a class="developers__link" href="{{track '/account#connected-apps' source='developers' content='connected-apps'}}">Connected apps</a> in their account.</p>
+        <p class="developers__text" data-test-copy="app-listing">Connected apps lists your app as AI assistant, connected from the host of your first redirect URI, or from an app on your computer when that URI is on <code>127.0.0.1</code> or <code>[::1]</code>. A <code>client_name</code> that matches a supported assistant's name, in any letter case, lists your app as that assistant instead.</p>
+        <p class="developers__text" data-test-copy="create-session"><code data-test-action>create-session</code>, on every collection, answers <code>204</code> with a browser session cookie, for an app that opens Readplace's reader in its own web view. Most integrations skip it. Revoking the token, or the reader signing your app out from all devices, doesn't end a session it made.</p>
+        <p class="developers__text"><code data-test-action>create-browser-handoff</code>, on every collection, answers <code>200</code> with a single-use, short-lived <code>code</code>. A browser that opens the handoff page with that code is signed in as the reader. Most integrations skip it.</p>
+      </section>
+
+      <section class="developers__section" data-test-section="discovery">
+        <h2 class="developers__heading">Start from one URL</h2>
+        <p class="developers__text">Every request carries the reader's access token and the Siren media type. Start at <code>/</code>.</p>
+        <pre class="developers__code" data-test-sample="discovery"><code class="language-http">GET / HTTP/1.1
+Host: readplace.com
+Authorization: Bearer ACCESS_TOKEN
+Accept: {{sirenMediaType}}</code></pre>
+        <p class="developers__text">It answers with a redirect to the reader's collection:</p>
+        <pre class="developers__code" data-test-sample="discovery-answer"><code class="language-http">HTTP/1.1 303 See Other
+Location: COLLECTION_HREF</code></pre>
+        <ul class="developers__list">
+          <li class="developers__item" data-test-copy="redirects">Follow every redirect yourself, sending the token and the <code>Accept</code> header again. Some HTTP clients drop <code>Authorization</code> when they follow a redirect, and the API then answers <code>401</code>.</li>
+          <li class="developers__item">Hard-code only <code>/</code>, the two media types, the action names you use, what the fields you fill in mean, the link rels you follow, and the frontmatter keys you read. Read everything else from the answers: every href, method and field list.</li>
+          <li class="developers__item">Treat every href as opaque. Follow it or submit to it as given, and never build or edit one.</li>
+          <li class="developers__item">Skip what you don't recognise. New actions, links and properties can appear at any time.</li>
+        </ul>
+      </section>
+
+      <section class="developers__section" data-test-section="collection">
+        <h2 class="developers__heading">Read a collection</h2>
+        <p class="developers__text">A collection is one page of a readlist's articles, in one tab. Its <code>entities</code> are the articles, and its properties link to the rest:</p>
+        <ul class="developers__list">
+          <li class="developers__item"><code>tabs</code>: the To Read and Read tabs, each a <code>{label, rel, href}</code>. The tab you're on has the rel <code>current</code>. A listing holds one tab only, so walk both to see everything.</li>
+          <li class="developers__item"><code>pages</code>: one <code>{label, rel, href}</code> per page, where the page you're on has the rel <code>current</code>. The <code>next</code> and <code>prev</code> links step one page at a time, and the <code>self</code> link is the page you're on.</li>
+          <li class="developers__item"><code>readlists</code>: All and each named readlist, each a <code>{label, rel, href}</code>. Follow an href to open that readlist, or send it in a save's <code>readlists</code> field.</li>
+          <li class="developers__item"><code>total</code>: a <code>{label}</code> to show the reader, not a number to compute with.</li>
+          <li class="developers__item"><code>sort</code>: one <code>{label, rel, order, href}</code> per order, where the order you're on has the rel <code>current</code>. Follow an href to change the order.</li>
+          <li class="developers__item"><code>pageSize</code> and <code>appearance</code>: presentation. The server picks the page size.</li>
+          <li class="developers__item"><code>warning</code>: appears only on a <code>422</code> answer to <code>save-article</code>.</li>
+          <li class="developers__item"><code>messages</code>: on a listing, these are only for Readplace's own apps.</li>
+        </ul>
+        <p class="developers__text">Other links serve Readplace's own apps, so ignore the ones you don't use.</p>
+        <p class="developers__text"><code data-test-action>search</code> lists articles with these fields:</p>
+        <ul class="developers__list">
+          <li class="developers__item"><code data-test-field>status</code>: <code>unread</code> or <code>read</code>.</li>
+          <li class="developers__item"><code data-test-field>order</code>: <code>asc</code> or <code>desc</code>.</li>
+          <li class="developers__item"><code data-test-field>page</code>: 1 or more.</li>
+          <li class="developers__item"><code data-test-field>url</code>: keeps only the article saved under that URL, if it's on the page you asked for.</li>
+        </ul>
+        <p class="developers__text">A value Readplace doesn't accept is dropped, not refused. <code>search</code> always lists All, so inside a named readlist, follow its <code>tabs</code> and <code>pages</code> hrefs instead.</p>
+      </section>
+
+      <section class="developers__section" data-test-section="articles">
+        <h2 class="developers__heading">Read an article</h2>
+        <p class="developers__text">Each article entity carries these properties:</p>
+        <ul class="developers__list">
+          <li class="developers__item"><code data-test-property>id</code>: the article's id.</li>
+          <li class="developers__item"><code data-test-property>url</code>: the article's URL. When the saved link redirected, it's the destination.</li>
+          <li class="developers__item"><code data-test-property>title</code>, <code data-test-property>siteName</code> and <code data-test-property>excerpt</code>: what to show.</li>
+          <li class="developers__item"><code data-test-property>imageUrl</code>: an image URL, or <code>null</code>.</li>
+          <li class="developers__item"><code data-test-property>readTime</code>: <code>{value, label}</code>, where <code>value</code> is the minutes as a string and <code>label</code> is display text such as <code>5 min read</code>, or <code>null</code> when Readplace has no word count for the article.</li>
+          <li class="developers__item"><code data-test-property>status</code>: <code>unread</code> or <code>read</code>. <code data-test-property>isRead</code> is the same fact as a boolean.</li>
+          <li class="developers__item"><code data-test-property>savedAt</code> and <code data-test-property>readAt</code>: ISO 8601 UTC timestamps. <code>readAt</code> is <code>null</code> until the article is read.</li>
+          <li class="developers__item"><code data-test-property>publishedOn</code>: the date the source published the article, as <code>YYYY-MM-DD</code>, or <code>null</code> when Readplace doesn't know it.</li>
+          <li class="developers__item"><code data-test-property>needsBrowserCapture</code>: <code>true</code> when the site blocked Readplace's fetch, so a capture from the reader's browser through <code>save-content</code> would get the article.</li>
+          <li class="developers__item"><code data-test-property>contentVersion</code>: changes when the article's content, metadata, crawl outcome or summary changes. Fetch the document again when it does.</li>
+        </ul>
+        <p class="developers__text">Follow an article's <code>read</code> link with the token and the Markdown media type to get the article as a document:</p>
+        <pre class="developers__code" data-test-sample="read"><code class="language-http">GET READ_HREF HTTP/1.1
+Host: readplace.com
+Authorization: Bearer ACCESS_TOKEN
+Accept: {{markdownMediaType}}</code></pre>
+        <p class="developers__text">Check the status first, then the <code>Content-Type</code>, because the <code>401</code> and <code>404</code> answers have Markdown bodies too. A <code>404</code> means the article isn't this reader's.</p>
+        <p class="developers__text">The document opens with YAML frontmatter. A key whose value is absent is left out, never <code>null</code>:</p>
+        <ul class="developers__list">
+          <li class="developers__item"><code data-test-frontmatter>title</code>, <code data-test-frontmatter>source</code> (the article's URL) and <code data-test-frontmatter>site</code>.</li>
+          <li class="developers__item"><code data-test-frontmatter>description</code> and <code data-test-frontmatter>words</code>, when Readplace has them.</li>
+          <li class="developers__item"><code data-test-frontmatter>created</code>: when the reader saved it.</li>
+          <li class="developers__item"><code data-test-frontmatter>published</code>: the date the source published the article, as <code>YYYY-MM-DD</code>, when Readplace knows it.</li>
+          <li class="developers__item"><code data-test-frontmatter>readplace_id</code>, and <code data-test-frontmatter>readplace_url</code>, a link to the article in Readplace. Treat the link as opaque.</li>
+          <li class="developers__item"><code data-test-frontmatter>readplace_status</code>, <code data-test-frontmatter>readplace_read_at</code> once it's read, and <code data-test-frontmatter>readplace_read_time</code> in minutes, when known.</li>
+          <li class="developers__item"><code data-test-frontmatter>readplace_readlists</code>: the labels of the readlists that hold it.</li>
+          <li class="developers__item"><code data-test-frontmatter>readplace_content_status</code>: <code>processing</code>, <code>ready</code>, <code>failed</code> or <code>not-an-article</code>.</li>
+          <li class="developers__item"><code data-test-frontmatter>readplace_summary_status</code> while the content is processing or ready: <code>pending</code>, <code>ready</code>, <code>failed</code> or <code>skipped</code>. <code data-test-frontmatter>readplace_summary</code> appears once the summary is ready.</li>
+        </ul>
+        <p class="developers__text">A document is final once <code>readplace_content_status</code> is <code>failed</code> or <code>not-an-article</code>, or it's <code>ready</code> and <code>readplace_summary_status</code> is <code>ready</code>, <code>failed</code> or <code>skipped</code>. Fetch an incomplete one again later. Final isn't frozen: read state, readlist membership and a re-crawl still change it.</p>
+      </section>
+
+      <section class="developers__section" data-test-section="saving">
+        <h2 class="developers__heading">Save links and pages</h2>
+        <p class="developers__text"><code data-test-action>save-article</code> saves a link, and every save lands in All. To file it in other readlists too, send their hrefs from <code>properties.readlists</code> in its <code>readlists</code> field, up to the field's <code>maxItems</code>. A save from a named readlist's collection also files it in that readlist.</p>
+        <pre class="developers__code" data-test-sample="save-article"><code class="language-http">POST SAVE_ARTICLE_HREF HTTP/1.1
+Host: readplace.com
+Authorization: Bearer ACCESS_TOKEN
+Accept: {{sirenMediaType}}
+Content-Type: application/json
+
+{"url": "https://example.com/article", "readlists": ["READLIST_HREF"]}</code></pre>
+        <ul class="developers__list">
+          <li class="developers__item"><code>201</code>: the saved article, with <code>messages</code> to show and a <code>collection</code> link. Saving a link again answers <code>201</code> too, with a message that it was already saved.</li>
+          <li class="developers__item" data-test-copy="conflict"><code>409</code>: Readplace accepted the save and is still finding the original article behind a wrapper link, such as a redirect or tracking link. The article appears later. Show the message and don't send the save again: each resubmission starts another save.</li>
+          <li class="developers__item"><code>422</code> with an error entity whose code is <code>invalid-url</code>: the URL is malformed.</li>
+          <li class="developers__item"><code>422</code> with the collection and a <code>warning</code> of <code>{code, message}</code>: Readplace can't reach that URL, such as a <code>file:</code> link or a local address. That collection isn't scoped to a tab and isn't meant for paging.</li>
+          <li class="developers__item"><code>500</code> with <code>save-failed</code>: try again later.</li>
+        </ul>
+        <p class="developers__text"><code data-test-action>save-articles</code> saves up to {{bulkPageCount}} pages in one multipart request. Its <code>manifest</code> field holds a JSON array of <code>{url, title, mediaType}</code>, where <code>title</code> and <code>mediaType</code> are optional, and each page whose entry has a <code>mediaType</code> sends its bytes in a <code>content-N</code> file part, where N is the entry's index. It answers <code>200</code> with counts and a result for each page. It answers <code>422</code> with an error entity when the manifest is malformed, lists more than {{bulkPageCount}} pages, or the request is over {{requestLimit}}.</p>
+        <p class="developers__text" data-test-copy="save-articles"><code>save-articles</code> files every page into All and records each one as a page the reader chose, so send only pages a reader picked.</p>
+        <p class="developers__text"><code data-test-action>save-content</code> saves a page or file you already hold, so Readplace keeps what the reader saw. It's a multipart request with <code>url</code>, <code>content</code> (the file), <code>mediaType</code> (<code>text/html</code> or <code>application/pdf</code>), an optional <code>title</code>, and <code>captureTrigger</code>. It files into All only, and answers <code>201</code> with the saved article, or <code>409</code> as <code>save-article</code> does.</p>
+        <p class="developers__text" data-test-copy="capture-trigger">Send <code>captureTrigger=automatic</code> with <code>save-content</code> for any capture no reader tapped. A capture sent without it counts as one the reader chose.</p>
+        <p class="developers__text">For a file over the <code>content</code> field's <code>maxBytes</code>, send <code>size</code> in bytes instead of <code>content</code>. The answer is an upload slot with an <code>expiresAt</code> and two actions:</p>
+        <ol class="developers__steps">
+          <li class="developers__step"><code data-test-action>upload-content</code>: <code>PUT</code> the file, exactly the size you declared, to its href, with the action's <code>type</code> as the <code>Content-Type</code>, before <code>expiresAt</code>. The href is a signed upload address, so it needs no token.</li>
+          <li class="developers__step"><code data-test-action>save-uploaded-content</code>: submit it with the values its fields carry.</li>
+        </ol>
+        <p class="developers__text" data-test-copy="upload-slot">A file saved through an upload slot counts as a capture the reader chose, whatever <code>captureTrigger</code> the <code>save-content</code> request sent, so use one only for a file a reader picked.</p>
+        <p class="developers__text">A refused <code>save-content</code> answers <code>422</code> with an error entity and a fallback <code>save-article</code> action that saves the link alone. The codes are <code>invalid-save-content</code>, <code>capture-not-allowed</code>, <code>unsupported-media-type</code>, <code>content-too-large</code>, <code>original-unresolved</code>, <code>upload-not-found</code> and <code>not-a-pdf</code>, which <code>save-uploaded-content</code> answers when the uploaded file isn't a PDF.</p>
+        <p class="developers__text">A <code>201</code> save answer, a <code>409</code>, and the <code>402</code> and <code>403</code> refusals carry <code>messages</code> for the reader. Show each one as given, because its body is HTML. Every other refusal is an error entity with a <code>code</code> to key off and a plain-text <code>message</code>, except the <code>422</code> collection with a <code>warning</code> above, and the <code>406</code> and <code>429</code> under Errors.</p>
+      </section>
+
+      <section class="developers__section" data-test-section="status">
+        <h2 class="developers__heading">Mark as read or unread</h2>
+        <p class="developers__text"><code data-test-action>update-status</code> has one field, <code>status</code>, whose value the server sets to <code>read</code> or <code>unread</code>, so send it as given. It answers <code>303</code> back to the collection, which you follow yourself, and it changes the article in every readlist that holds it. It answers <code>303</code> even when the article no longer exists, so re-read the collection to confirm.</p>
+      </section>
+
+      <section class="developers__section" data-test-section="readlists">
+        <h2 class="developers__heading">Manage readlists</h2>
+        <p class="developers__text">A readlist is a named list of the reader's articles. All holds every save, and the reader can create up to {{readlistLimit}} named readlists besides it.</p>
+        <ul class="developers__list">
+          <li class="developers__item"><code data-test-action>create-readlist</code>, on every collection: a form with <code>label</code>. It answers <code>303</code> to the new readlist's collection, which is where you learn the new readlist's href.</li>
+          <li class="developers__item"><code data-test-action>rename-readlist</code>, on a named readlist's collection: a form with <code>label</code>. It answers <code>303</code> to the renamed readlist's collection. A label another readlist already has gets a number added.</li>
+          <li class="developers__item"><code data-test-action>delete-readlist</code>, on a named readlist's collection: a form with no fields. It answers <code>303</code> to All, and it takes nothing out of All.</li>
+          <li class="developers__item"><code data-test-action>add-to-readlist</code>, on every article, including the one a save answers with: JSON with <code>readlists</code>, hrefs from <code>properties.readlists</code>. It answers <code>303</code> to page 1 of the readlist and tab its href was built for: the listing the article came from, or All's To Read tab for the article a save answers with. Filing an article where it already is succeeds.</li>
+          <li class="developers__item"><code data-test-action>remove-from-readlist</code>, on an article listed in a named readlist: a form with no fields. It answers <code>303</code> to the first page of the same readlist and tab, and it takes nothing out of All.</li>
+        </ul>
+        <pre class="developers__code" data-test-sample="create-readlist"><code class="language-http">POST CREATE_READLIST_HREF HTTP/1.1
+Host: readplace.com
+Authorization: Bearer ACCESS_TOKEN
+Accept: {{sirenMediaType}}
+Content-Type: application/x-www-form-urlencoded
+
+label=To%20process</code></pre>
+        <p class="developers__text">Apart from the <code>402</code> and <code>403</code> under Errors, which carry <code>messages</code>, a refusal is an error entity with a <code>code</code> and a <code>message</code>:</p>
+        <ul class="developers__list">
+          <li class="developers__item"><code>404 unknown-readlist</code>: the readlist no longer exists, or <code>add-to-readlist</code> named none of the reader's named readlists.</li>
+          <li class="developers__item"><code>404 unknown-article</code>: the article isn't in that readlist any more, for example because it was already removed.</li>
+          <li class="developers__item"><code>422 invalid-name</code>: the label is empty or longer than {{readlistNameLimit}} characters.</li>
+          <li class="developers__item"><code>422 reserved-name</code>: <code>create-readlist</code> was sent the label All, in any letter case.</li>
+          <li class="developers__item"><code>422 name-taken</code>: for <code>create-readlist</code>, the reader already has a readlist with that label. For <code>rename-readlist</code>, the numbered label would be longer than {{readlistNameLimit}} characters.</li>
+          <li class="developers__item"><code>422 limit-reached</code>: the reader already has {{readlistLimit}} named readlists.</li>
+        </ul>
+        <p class="developers__text">To drain a readlist, take each tab in turn. Open page 1, invoke <code>remove-from-readlist</code> on each article, follow the <code>303</code> back to page 1, and repeat until the tab is empty. Removing moves later articles onto page 1, so always start again from page 1 rather than following <code>next</code>.</p>
+      </section>
+
+      <section class="developers__section" data-test-section="caching">
+        <h2 class="developers__heading">Caching</h2>
+        <ul class="developers__list">
+          <li class="developers__item">Collections and Markdown documents answer <code>Cache-Control: private, no-cache</code>. Keep a copy if you like, but revalidate it before you reuse it.</li>
+          <li class="developers__item">The redirect from <code>/</code> says in its own <code>Cache-Control</code> how long you may reuse it.</li>
+          <li class="developers__item">An answer may carry an <code>ETag</code> and answer <code>304</code> to a matching <code>If-None-Match</code>. That isn't promised, so use it when it's there and don't depend on it.</li>
+          <li class="developers__item">Don't send <code>X-Readplace-Client</code>. It marks Readplace's own apps, and their listings are cached differently.</li>
+        </ul>
+      </section>
+
+      <section class="developers__section" data-test-section="errors">
+        <h2 class="developers__heading">Errors</h2>
+        <p class="developers__text">Key off the status code, and show any <code>messages</code> as given.</p>
+        <pre class="developers__code" data-test-sample="unauthorized"><code class="language-http">HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer error="invalid_token", resource_metadata="https://readplace.com/.well-known/oauth-protected-resource"</code></pre>
+        <ul class="developers__list">
+          <li class="developers__item"><code>401</code> on a Siren request: the token is missing, expired or revoked, and the body is a Siren error entity. <code>WWW-Authenticate</code> points to the protected resource metadata with <code>resource_metadata</code>, and adds <code>error="invalid_token"</code> when a token was sent. Refresh the token and try again.</li>
+          <li class="developers__item"><code>401</code> on a Markdown read: <code>WWW-Authenticate: Bearer error="invalid_token"</code>, with no <code>resource_metadata</code>. Refresh and try again. To find the authorization server from scratch, start from a Siren request.</li>
+          <li class="developers__item"><code>303</code> to <code>/login</code>: the request has no Siren <code>Accept</code> header, so Readplace treats it as a browser.</li>
+          <li class="developers__item"><code>402</code>: the reader's subscription isn't active. Saving is refused, and so are creating, renaming and deleting readlists and adding articles to them. Reading, listing, marking as read and removing from a readlist still work.</li>
+          <li class="developers__item"><code>403</code>: the reader's account is locked. The same actions are refused.</li>
+          <li class="developers__item"><code>404</code>: the article isn't the reader's, or a readlist action names a readlist that no longer exists. A <code>GET</code> of a deleted readlist's href lists All instead.</li>
+          <li class="developers__item"><code>406</code>: a save sent without the Siren <code>Accept</code> header by a client signed in with a browser session, such as one <code>create-session</code> made.</li>
+          <li class="developers__item"><code>409</code>: the save was accepted and is still being resolved. Don't send it again.</li>
+          <li class="developers__item"><code>422</code>: a refusal. The saving and readlists sections list its shapes.</li>
+          <li class="developers__item"><code>429</code>: too many requests. A shared throttle covers every route, with no per-client quota, and <code>/oauth/register</code> and <code>/oauth/token</code> also limit each IP address. Back off and try again, after <code>Retry-After</code> when it's sent.</li>
+          <li class="developers__item"><code>500</code>: something failed on Readplace's side. Try again later.</li>
+        </ul>
+      </section>
+
+      <section class="developers__section" data-test-section="limits">
+        <h2 class="developers__heading">Limits</h2>
+        <ul class="developers__list">
+          <li class="developers__item" data-test-limit>Up to {{readlistLimit}} named readlists, besides All.</li>
+          <li class="developers__item" data-test-limit>Readlist names up to {{readlistNameLimit}} characters.</li>
+          <li class="developers__item" data-test-limit>Up to {{inlineFileLimit}} per file sent with <code>save-content</code>. A larger file goes through an upload slot.</li>
+          <li class="developers__item" data-test-limit>Up to {{pdfUploadLimit}} per PDF and {{htmlUploadLimit}} per HTML page through an upload slot.</li>
+          <li class="developers__item" data-test-limit>Up to {{requestLimit}} per <code>save-content</code> or <code>save-articles</code> request.</li>
+          <li class="developers__item" data-test-limit>Up to {{bulkPageCount}} pages per <code>save-articles</code> request, each up to {{bulkPageLimit}}.</li>
+        </ul>
+        <p class="developers__text">Each action also states its limits in its fields, as <code>maxItems</code>, <code>maxBytes</code> and <code>maxRequestBytes</code>. Read them from the answer rather than hard-coding these numbers.</p>
+      </section>
+
+      <section class="developers__section" data-test-section="not-in-the-api">
+        <h2 class="developers__heading">Not in the API</h2>
+        <ul class="developers__list">
+          <li class="developers__item" data-test-copy="delete">Deleting an article stays in the Readplace app. The API advertises no delete action, and <code>remove-from-readlist</code> takes nothing out of All.</li>
+          <li class="developers__item">No webhooks or feeds. Poll the collection to see what changed.</li>
+          <li class="developers__item">No full-text search. <code>search</code> narrows by status, order, page and URL only.</li>
+          <li class="developers__item">No page-size control. The server picks the page size.</li>
+        </ul>
+      </section>
+
+      <section class="developers__section" data-test-section="walkthrough">
+        <h2 class="developers__heading">Walkthrough: drain a readlist</h2>
+        <p class="developers__text">A job that files links into a readlist and later works through them, end to end:</p>
+        <ol class="developers__steps">
+          <li class="developers__step">Register once, with a loopback redirect URI on the port your job listens on.</li>
+          <li class="developers__step">Send the reader to authorize with a PKCE challenge, catch the code on your redirect URI, and exchange it for tokens. Store both.</li>
+          <li class="developers__step">Request <code>/</code> with the token and the Siren media type, and follow the <code>303</code> to the collection yourself.</li>
+          <li class="developers__step">Invoke <code>create-readlist</code> with a label, once, and follow its <code>303</code>. On the collection it lands on, the new readlist is the <code>properties.readlists</code> entry with the rel <code>current</code>. Keep its href.</li>
+          <li class="developers__step">Save each link with <code>save-article</code>, sending that href in <code>readlists</code>.</li>
+          <li class="developers__step">Later, follow the readlist's href. For each entry in its <code>properties.tabs</code>, open that tab's page 1. For each article, follow <code>read</code> with the Markdown media type, hand the document on, and invoke <code>remove-from-readlist</code>. Follow the <code>303</code> back to page 1, and repeat until the tab is empty.</li>
+          <li class="developers__step">All still holds every article you saved.</li>
+          <li class="developers__step">When a request answers <code>401</code>, refresh the token, store the new pair, and send the request again.</li>
+        </ol>
+      </section>
+    </div>
+  </main>
