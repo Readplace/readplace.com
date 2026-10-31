@@ -36,11 +36,13 @@ function groundedCandidates(count: number): RelatedCandidate[] {
 interface Captured {
 	prompts: string[];
 	systems: string[];
+	features: string[];
 }
 
-function selectorReturning(text: string, captured: Captured = { prompts: [], systems: [] }) {
+function selectorReturning(text: string, captured: Captured = { prompts: [], systems: [], features: [] }) {
 	const createMessage: CreateAiMessage = async (params) => {
 		captured.systems.push(params.system);
+		captured.features.push(params.feature);
 		for (const message of params.messages) {
 			if (typeof message.content === "string") continue;
 			for (const block of message.content) {
@@ -55,6 +57,7 @@ function selectorReturning(text: string, captured: Captured = { prompts: [], sys
 	const { selectRelatedArticles } = initSelectRelatedArticles({
 		nowMs: () => 100,
 		createMessage,
+		selection: "nextRead",
 		logger: noopLogger,
 	});
 	return { selectRelatedArticles, captured };
@@ -132,10 +135,11 @@ describe("initSelectRelatedArticles", () => {
 		expect(prompt).not.toContain("https://example.com/earlier-0");
 	});
 
-	it("sends an overriding system prompt when one is provided, for an independent selection", async () => {
-		const captured: Captured = { prompts: [], systems: [] };
+	it("sends the past-reads prompt and the past_reads feature for the pastReads selection", async () => {
+		const captured: Captured = { prompts: [], systems: [], features: [] };
 		const createMessage: CreateAiMessage = async (params) => {
 			captured.systems.push(params.system);
+			captured.features.push(params.feature);
 			return {
 				content: [{ type: "text", text: JSON.stringify({ related: [] }) }],
 				usage: { input_tokens: 1, output_tokens: 1 },
@@ -145,7 +149,7 @@ describe("initSelectRelatedArticles", () => {
 		nowMs: () => 100,
 			createMessage,
 			logger: noopLogger,
-			system: "STRICTER PAST-READS PROMPT",
+			selection: "pastReads",
 		});
 
 		await selectRelatedArticles({
@@ -154,7 +158,21 @@ describe("initSelectRelatedArticles", () => {
 			readCandidates: candidates(1),
 		});
 
-		expect(captured.systems[0]).toBe("STRICTER PAST-READS PROMPT");
+		expect(captured.systems[0]).toContain("Pick at most 3 past reads");
+		expect(captured.features).toEqual(["past_reads"]);
+	});
+
+	it("sends the next_read feature with the Next-read prompt for the nextRead selection", async () => {
+		const { selectRelatedArticles, captured } = selectorReturning(JSON.stringify({ related: [] }));
+
+		await selectRelatedArticles({
+			target,
+			unreadCandidates: candidates(1),
+			readCandidates: [],
+		});
+
+		expect(captured.features).toEqual(["next_read"]);
+		expect(captured.systems[0]).toContain("List every related unread candidate before any past read.");
 	});
 
 	it("repeats the saved article after the candidates so a long list cannot bury it", async () => {
@@ -464,6 +482,7 @@ describe("initSelectRelatedArticles", () => {
 		nowMs: () => 100,
 			createMessage,
 			logger: noopLogger,
+			selection: "nextRead",
 		});
 
 		expect(await selectRelatedArticles({

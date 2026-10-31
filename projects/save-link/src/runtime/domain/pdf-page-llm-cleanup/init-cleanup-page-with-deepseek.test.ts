@@ -23,7 +23,7 @@ describe("initCleanupPageWithDeepseek", () => {
 		});
 	});
 
-	it("uses deepseek-flash in non-thinking mode with temperature 0", async () => {
+	it("sends the pdf_extraction feature with temperature 0", async () => {
 		let captured: Params | undefined;
 		const cleanup = initCleanupPageWithDeepseek({
 			createChatCompletion: async (params) => {
@@ -37,8 +37,7 @@ describe("initCleanupPageWithDeepseek", () => {
 
 		await cleanup({ systemPrompt: "sys", userText: "u", maxTokens: 256 });
 
-		expect(captured?.model).toBe("deepseek-flash");
-		expect(captured?.thinking).toEqual({ type: "disabled" });
+		expect(captured?.feature).toBe("pdf_extraction");
 		expect(captured?.temperature).toBe(0);
 		expect(captured?.messages).toEqual([
 			{ role: "system", content: "sys" },

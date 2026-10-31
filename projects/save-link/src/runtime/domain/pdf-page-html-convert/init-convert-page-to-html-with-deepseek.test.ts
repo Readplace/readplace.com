@@ -23,7 +23,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 		});
 	});
 
-	it("uses deepseek-flash in non-thinking mode with temperature 0 and no response_format", async () => {
+	it("sends the pdf_extraction feature with temperature 0 and no response_format", async () => {
 		let captured: Params | undefined;
 		const convert = initConvertPageToHtmlWithDeepseek({
 			createChatCompletion: async (params) => {
@@ -34,8 +34,7 @@ describe("initConvertPageToHtmlWithDeepseek", () => {
 
 		await convert({ systemPrompt: "s", userText: "u", maxTokens: 1024 });
 
-		expect(captured?.model).toBe("deepseek-flash");
-		expect(captured?.thinking).toEqual({ type: "disabled" });
+		expect(captured?.feature).toBe("pdf_extraction");
 		expect(captured?.temperature).toBe(0);
 		expect("response_format" in (captured ?? {})).toBe(false);
 	});

@@ -1,4 +1,4 @@
-import { initCreateDeepseekMessage } from "@packages/ai-message";
+import { type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
 import {
 	initDynamoDbPastReads,
 	initDynamoDbRelatedArticles,
@@ -7,11 +7,9 @@ import {
 	EventBridgeClient,
 	initEventBridgePublisher,
 } from "@packages/hutch-infra-components/runtime";
-import { consoleLogger } from "@packages/hutch-logger";
+import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
-import OpenAI from "openai";
-import { initDeepseekChatCompletion } from "./providers/deepseek/deepseek-chat-completion";
 import { initRelatedArticlesDepBundle } from "./dep-bundles/related-articles";
 import { initComputeRelatedPasses } from "./domain/related-articles/compute-related-passes";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
@@ -26,16 +24,19 @@ const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
 const dynamoClient = createDynamoDocumentClient();
-const { createChatCompletion } = initDeepseekChatCompletion({
+const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
 	timeoutMs: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
+	maxRetries: 0,
 	logger: consoleLogger,
-	newClient: (options) => new OpenAI(options),
+	logLevel: "info",
+	callTimeoutMs: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
+	fetch: globalThis.fetch,
+	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	now: () => new Date(),
 });
 
-const createMessage = initCreateDeepseekMessage({
-	createChatCompletion,
-});
+const createMessage = initCreateDeepseekMessage({ client: deepseekClient });
 
 const { selectRelatedArticles, selectPastReads } = initRelatedArticlesDepBundle({
 	createMessage,

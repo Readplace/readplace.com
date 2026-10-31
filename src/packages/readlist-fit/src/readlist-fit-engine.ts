@@ -1,6 +1,7 @@
 import {
 	type CreateAiMessage,
 	DEEPSEEK_MODEL,
+	type DeepseekClient,
 	DEEPSEEK_THINKING_MODEL,
 	initCreateDeepseekMessage,
 	initCreateDeepseekThinkingMessage,
@@ -10,11 +11,9 @@ import { z } from "zod";
 export const ReadlistFitEngineSchema = z.enum(["deepseek-flash", "deepseek-v4-pro-thinking"]);
 export type ReadlistFitEngine = z.infer<typeof ReadlistFitEngineSchema>;
 
-type CreateChatCompletion = Parameters<typeof initCreateDeepseekMessage>[0]["createChatCompletion"];
-
 export const READLIST_FIT_ENGINES: Record<
 	ReadlistFitEngine,
-	{ init: (deps: { createChatCompletion: CreateChatCompletion }) => CreateAiMessage; model: string }
+	{ init: (deps: { client: DeepseekClient }) => CreateAiMessage; model: string }
 > = {
 	"deepseek-flash": { init: initCreateDeepseekMessage, model: DEEPSEEK_MODEL },
 	"deepseek-v4-pro-thinking": { init: initCreateDeepseekThinkingMessage, model: DEEPSEEK_THINKING_MODEL },
@@ -22,7 +21,7 @@ export const READLIST_FIT_ENGINES: Record<
 
 export function createAiMessageForEngine(input: {
 	engine: ReadlistFitEngine;
-	createChatCompletion: CreateChatCompletion;
+	client: DeepseekClient;
 }): CreateAiMessage {
-	return READLIST_FIT_ENGINES[input.engine].init({ createChatCompletion: input.createChatCompletion });
+	return READLIST_FIT_ENGINES[input.engine].init({ client: input.client });
 }

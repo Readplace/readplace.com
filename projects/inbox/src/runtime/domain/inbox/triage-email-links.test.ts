@@ -130,6 +130,25 @@ describe("initTriageEmailLinks", () => {
 		expect(calls).toBe(2);
 	});
 
+	it("names the newsletter_link_triage feature on both attempts", async () => {
+		const features: string[] = [];
+		const { triageEmailLinks } = initTriageEmailLinks({
+			createAiMessage: async (params) => {
+				features.push(params.feature);
+				if (features.length === 1) throw new Error("transient blip");
+				return {
+					content: [{ type: "text", text: JSON.stringify({ links: [] }) }],
+					usage: { input_tokens: 1, output_tokens: 1 },
+				};
+			},
+			logger,
+		});
+
+		await triageEmailLinks(linkInput());
+
+		expect(features).toEqual(["newsletter_link_triage", "newsletter_link_triage"]);
+	});
+
 	it("returns unavailable once both attempts fail", async () => {
 		let calls = 0;
 		const { triageEmailLinks } = initTriageEmailLinks({

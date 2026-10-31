@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { CreateAiMessage } from "@packages/ai-message";
+import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import { z } from "zod";
 import type { ReadlistFitEngine } from "./readlist-fit-engine";
 import { READLIST_FIT_ENGINES } from "./readlist-fit-engine";
@@ -43,6 +43,7 @@ export function initDecideReadlistFitWithDeepseek(deps: {
 }): DecideReadlistFit {
 	return async (input) => {
 		const response = await deps.createAiMessage({
+			feature: DEEPSEEK_FEATURES.readlistPurposeFilter,
 			max_tokens: READLIST_FIT_MAX_OUTPUT_TOKENS[deps.engine],
 			system: READLIST_FIT_PROMPT,
 			messages: [

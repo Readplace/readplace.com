@@ -12,7 +12,7 @@ const ThrownProviderErrorSchema = z.object({
 
 type ThrownProviderError = z.infer<typeof ThrownProviderErrorSchema>;
 
-export type DeepseekFeature =
+export type DeepseekCallSite =
 	| "select-content"
 	| "select-most-complete-content"
 	| "recrawl-content-extracted"
@@ -68,7 +68,7 @@ export function describeAiProviderError(thrown: unknown): AiProviderError | { ki
 export type DeepseekCallFailedLogLine = {
 	level: "ERROR";
 	event: "deepseek-call-failed";
-	feature: DeepseekFeature;
+	feature: DeepseekCallSite;
 	kind: AiProviderError["kind"];
 	status?: number;
 	code?: string | number;
@@ -85,7 +85,7 @@ export type DeepseekCallFailedLogLine = {
 };
 
 export function deepseekCallFailedLogLine(input: {
-	feature: DeepseekFeature;
+	feature: DeepseekCallSite;
 	failure: AiProviderError;
 	receiveCount?: number;
 	messageId?: string;

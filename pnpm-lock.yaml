@@ -679,9 +679,6 @@ importers:
       linkedom:
         specifier: 0.18.12
         version: 0.18.12
-      openai:
-        specifier: 6.39.1
-        version: 6.39.1(ws@8.22.0)(zod@4.4.3)
       serverless-http:
         specifier: 4.0.0
         version: 4.0.0
@@ -873,9 +870,6 @@ importers:
       linkedom:
         specifier: 0.18.12
         version: 0.18.12
-      openai:
-        specifier: 6.39.1
-        version: 6.39.1(ws@8.22.0)(zod@4.4.3)
       parse-srcset:
         specifier: 1.0.2
         version: 1.0.2
@@ -1031,6 +1025,9 @@ importers:
 
   src/packages/ai-message:
     dependencies:
+      openai:
+        specifier: 6.39.1
+        version: 6.39.1(ws@8.22.0)(zod@4.4.3)
       zod:
         specifier: 4.4.3
         version: 4.4.3

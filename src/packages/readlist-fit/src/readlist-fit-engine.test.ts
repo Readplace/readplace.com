@@ -1,22 +1,26 @@
+import type { DeepseekClient } from "@packages/ai-message";
 import { createAiMessageForEngine, ReadlistFitEngineSchema } from "./readlist-fit-engine";
 
-function capturingCompletion() {
+function capturingClient() {
 	const calls: { model: string; thinking: { type: string } }[] = [];
-	const createChatCompletion = async (params: { model: string; thinking: { type: "enabled" } | { type: "disabled" } }) => {
-		calls.push({ model: params.model, thinking: params.thinking });
-		return {
-			choices: [{ message: { content: '{"links": []}' } }],
-			usage: { prompt_tokens: 1, completion_tokens: 1 },
-		};
+	const client: DeepseekClient = {
+		createChatCompletion: async (params) => {
+			calls.push({ model: params.model, thinking: params.thinking });
+			return {
+				choices: [{ message: { content: '{"links": []}' } }],
+				usage: { prompt_tokens: 1, completion_tokens: 1 },
+			};
+		},
 	};
-	return { calls, createChatCompletion };
+	return { calls, client };
 }
 
 describe("createAiMessageForEngine", () => {
 	it("calls deepseek-flash with thinking disabled", async () => {
-		const { calls, createChatCompletion } = capturingCompletion();
+		const { calls, client } = capturingClient();
 
-		await createAiMessageForEngine({ engine: "deepseek-flash", createChatCompletion })({
+		await createAiMessageForEngine({ engine: "deepseek-flash", client })({
+			feature: "readlist_purpose_filter",
 			max_tokens: 10,
 			system: "s",
 			messages: [{ role: "user", content: "u" }],
@@ -26,9 +30,10 @@ describe("createAiMessageForEngine", () => {
 	});
 
 	it("calls deepseek-v4-pro with thinking enabled on the rollback engine", async () => {
-		const { calls, createChatCompletion } = capturingCompletion();
+		const { calls, client } = capturingClient();
 
-		await createAiMessageForEngine({ engine: "deepseek-v4-pro-thinking", createChatCompletion })({
+		await createAiMessageForEngine({ engine: "deepseek-v4-pro-thinking", client })({
+			feature: "readlist_purpose_filter",
 			max_tokens: 10,
 			system: "s",
 			messages: [{ role: "user", content: "u" }],

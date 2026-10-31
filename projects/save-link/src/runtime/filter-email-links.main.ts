@@ -1,4 +1,4 @@
-import { initCreateDeepseekThinkingMessage } from "@packages/ai-message";
+import { type DeepseekUsageLine, initCreateDeepseekThinkingMessage, initDeepseekClient } from "@packages/ai-message";
 import { initDynamoDbReadlistDefinitions } from "@packages/article-store";
 import {
 	EventBridgeClient,
@@ -7,7 +7,6 @@ import {
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
-import OpenAI from "openai";
 import { initDecideEmailLinks } from "./domain/filter-email-links/decide-email-links";
 import { initFilterEmailLinksHandler } from "./domain/filter-email-links/filter-email-links-handler";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "./domain/filter-email-links/timeouts";
@@ -18,17 +17,20 @@ const eventBusName = requireEnv("EVENT_BUS_NAME");
 
 const logger = HutchLogger.from(consoleLogger);
 
-const deepseekClient = new OpenAI({
+const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
-	baseURL: "https://api.deepseek.com",
-	timeout: FILTER_EMAIL_LINKS_TIMEOUTS.deepseekMs,
+	timeoutMs: FILTER_EMAIL_LINKS_TIMEOUTS.deepseekMs,
 	maxRetries: 0,
+	logger: consoleLogger,
+	logLevel: "warn",
+	callTimeoutMs: null,
+	fetch: globalThis.fetch,
+	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	now: () => new Date(),
 });
 
 const { decideEmailLinks } = initDecideEmailLinks({
-	createMessage: initCreateDeepseekThinkingMessage({
-		createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
-	}),
+	createMessage: initCreateDeepseekThinkingMessage({ client: deepseekClient }),
 	logger,
 });
 

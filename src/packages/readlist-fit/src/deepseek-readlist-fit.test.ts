@@ -51,6 +51,13 @@ const ALL_THREE = {
 };
 
 describe("initDecideReadlistFitWithDeepseek", () => {
+	it("bills the call to the readlist purpose filter", async () => {
+		const { result, calls } = decide({ body: ALL_THREE });
+		await result;
+
+		expect(calls[0]?.feature).toBe("readlist_purpose_filter");
+	});
+
 	it("returns every verdict in candidate order", async () => {
 		const { result } = decide({ body: ALL_THREE });
 

@@ -358,6 +358,22 @@ describe("initLinkSummariser", () => {
 		expect(system).toContain(`Do not exceed ${MAX_EXCERPT_LENGTH} characters under any circumstances.`);
 	});
 
+	it("names the summary feature on the DeepSeek request", async () => {
+		const createMessage = jest.fn(createStubCreateMessage({ summary: "S.", excerpt: "E." }));
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: identity,
+			isTooShortToSummarize: () => false,
+		});
+
+		await summarizeArticle({ url: "https://example.com/x", textContent: "Long content." });
+
+		expect(createMessage.mock.calls[0][0].feature).toBe("summary");
+	});
+
 	it("flattens paragraph breaks out of a derived excerpt, which must be a single blurb", async () => {
 		const createMessage = createStubCreateMessage({ summary: "First point.\n\nSecond point." });
 

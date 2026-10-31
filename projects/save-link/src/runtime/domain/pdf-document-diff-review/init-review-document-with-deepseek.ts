@@ -1,25 +1,6 @@
 import assert from "node:assert";
-import { DEEPSEEK_MODEL, DEEPSEEK_NON_THINKING } from "@packages/ai-message";
+import { type CreateDeepseekChatCompletion, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { ReviewDocumentWithLlm } from "./pdf-document-diff-review-handler.types";
-
-type ChatCompletionResponse = {
-	choices: Array<{ message?: { content?: string | null } }>;
-	usage?: {
-		prompt_tokens: number;
-		completion_tokens: number;
-		prompt_cache_hit_tokens?: number;
-		prompt_cache_miss_tokens?: number;
-	} | null;
-};
-
-type CreateChatCompletion = (params: {
-	model: string;
-	max_tokens: number;
-	thinking: { type: "disabled" };
-	temperature: number;
-	response_format: { type: "json_object" };
-	messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-}) => Promise<ChatCompletionResponse>;
 
 const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
 
@@ -31,12 +12,11 @@ const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
  * when parsing fails.
  */
 export function initReviewDocumentWithDeepseek(deps: {
-	createChatCompletion: CreateChatCompletion;
+	createChatCompletion: CreateDeepseekChatCompletion;
 }): ReviewDocumentWithLlm {
 	return async ({ systemPrompt, userMessage, maxTokens }) => {
 		const response = await deps.createChatCompletion({
-			model: DEEPSEEK_MODEL,
-			thinking: DEEPSEEK_NON_THINKING,
+			feature: DEEPSEEK_FEATURES.pdfExtraction,
 			max_tokens: Math.min(maxTokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
 			temperature: 0,
 			response_format: { type: "json_object" },

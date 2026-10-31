@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
-import { initCreateDeepseekMessage } from "@packages/ai-message";
+import { type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
 import { initDynamoDbReadlistDefinitions } from "@packages/article-store";
 import {
 	deriveSanitizedBody,
@@ -30,7 +30,6 @@ import {
 } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
-import OpenAI from "openai";
 import { initExtractEmailLinksHandler } from "./domain/inbox/extract-email-links-handler";
 import { initTriageEmailLinks } from "./domain/inbox/triage-email-links";
 
@@ -60,18 +59,20 @@ const dynamoClient = createDynamoDocumentClient();
 const eventBridgeClient = new EventBridgeClient({});
 const logger = HutchLogger.from(consoleLogger);
 const TRIAGE_DEEPSEEK_TIMEOUT_MS = 60_000;
-const deepseekClient = new OpenAI({
+const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
-	baseURL: "https://api.deepseek.com",
-	timeout: TRIAGE_DEEPSEEK_TIMEOUT_MS,
+	timeoutMs: TRIAGE_DEEPSEEK_TIMEOUT_MS,
 	// The SDK would retry timeouts invisibly and stack attempts past the Lambda
 	// budget; retrying is the triage loop's bounded, logged decision instead.
 	maxRetries: 0,
+	logger: consoleLogger,
+	logLevel: "warn",
+	callTimeoutMs: null,
+	fetch: globalThis.fetch,
+	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	now: () => new Date(),
 });
-const createAiMessage = initCreateDeepseekMessage({
-	createChatCompletion: (params) =>
-		deepseekClient.chat.completions.create(params),
-});
+const createAiMessage = initCreateDeepseekMessage({ client: deepseekClient });
 const { triageEmailLinks } = initTriageEmailLinks({ createAiMessage, logger });
 
 const inboxAddressStore = initDynamoDbInboxAddress({

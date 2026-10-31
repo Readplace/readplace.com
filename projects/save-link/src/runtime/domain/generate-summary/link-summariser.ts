@@ -3,7 +3,7 @@ import { join } from "node:path";
 import assert from "node:assert";
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { CreateAiMessage } from "@packages/ai-message";
+import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import { DEEPSEEK_CONTEXT_TOKENS } from "../select-content/deepseek-limits";
@@ -78,6 +78,7 @@ export function initLinkSummariser(deps: {
 
 		await deps.markSummaryStage({ url: params.url, stage: "summary-generating" });
 		const response = await deps.createMessage({
+			feature: DEEPSEEK_FEATURES.summary,
 			max_tokens: 10240,
 			system: SUMMARIZE_PROMPT,
 			messages: [{

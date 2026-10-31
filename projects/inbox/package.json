@@ -44,7 +44,6 @@
     "express": "5.2.1",
     "helmet": "8.2.0",
     "linkedom": "0.18.12",
-    "openai": "6.39.1",
     "serverless-http": "4.0.0",
     "zod": "4.4.3"
   },
