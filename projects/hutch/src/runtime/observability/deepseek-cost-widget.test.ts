@@ -15,7 +15,7 @@ describe("DeepSeek cost widget", () => {
 		]);
 	});
 
-	it("draws one full-width time series summed per UTC day, with the USD axis starting at zero and the legend under the plot, under a title that dates the series from its filter's first day and says internal usage is included, because a metric filter never backfills and a model call carries no identity to prune", () => {
+	it("draws one full-width time series summed per UTC day, with the USD axis starting at zero and the legend under the plot, under a title that dates the series from its filter's first day, says only answered calls are counted and says internal usage is included, because a metric filter never backfills, the usage line is written only after DeepSeek answers, and a model call carries no identity to prune", () => {
 		expect(deepseekCostWidget({ region: "ap-southeast-2", y: 230 })).toMatchObject({
 			type: "metric",
 			x: 0,
@@ -25,7 +25,7 @@ describe("DeepSeek cost widget", () => {
 			properties: {
 				region: "ap-southeast-2",
 				title: expect.stringMatching(
-					/^DeepSeek cost by feature — USD per day, legend totals follow the selected range \(CloudWatch metric since \d{4}-\d{2}-\d{2}, internal usage included\)$/,
+					/^DeepSeek cost by feature — USD per day, legend totals follow the selected range \(CloudWatch metric since \d{4}-\d{2}-\d{2}, answered calls only, internal usage included\)$/,
 				),
 				period: 86400,
 				stat: "Sum",

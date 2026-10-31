@@ -12,7 +12,7 @@ const DEEPSEEK_FEATURE_LABELS = {
 } as const;
 
 const DEEPSEEK_COST_WIDGET_TITLE =
-	"DeepSeek cost by feature — USD per day, legend totals follow the selected range (CloudWatch metric since 2026-10-27, internal usage included)";
+	"DeepSeek cost by feature — USD per day, legend totals follow the selected range (CloudWatch metric since 2026-10-27, answered calls only, internal usage included)";
 
 export function deepseekCostWidget(params: { region: string; y: number }): DashboardWidget {
 	return {

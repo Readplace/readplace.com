@@ -108,7 +108,7 @@ const ANALYTICS_UNFILTERED_WIDGETS: readonly UnfilteredWidget[] = [
 		reason: STARTER_REPORT_REASON,
 	},
 	{
-		title: "DeepSeek cost by feature — USD per day, legend totals follow the selected range (CloudWatch metric since 2026-10-27, internal usage included)",
+		title: "DeepSeek cost by feature — USD per day, legend totals follow the selected range (CloudWatch metric since 2026-10-27, answered calls only, internal usage included)",
 		reason:
 			"Renders a CloudWatch metric filled by a LogMetricFilter over deepseek_usage lines, and a datapoint has no field a Logs Insights clause could filter on. A model call carries neither visitor_id nor user_id, so there is no identity anywhere in that chain to prune: the number is what each priced call's token counts cost at DeepSeek's published rates, internal accounts' calls included, and the title says so on the widget's face.",
 	},
