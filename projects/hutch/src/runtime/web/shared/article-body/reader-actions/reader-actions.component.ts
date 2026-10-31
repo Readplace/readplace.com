@@ -43,20 +43,33 @@ export interface ReaderReadlistPicker {
 
 type ReaderControlPlacement = "toolbar" | "menu";
 
-interface ReaderShare {
+interface DialogTrigger {
 	popoverId: string;
 	fallbackHtml: string;
 }
 
-export interface ActionButtons {
+interface OfferedSharing {
+	share?: DialogTrigger;
+	epubDownloadHref?: string;
+	epubDownloadGuide?: EpubDownloadGuide;
+	withheld?: never;
+}
+
+interface WithheldSharing {
+	withheld: DialogTrigger;
+	share?: never;
+	epubDownloadHref?: never;
+	epubDownloadGuide?: never;
+}
+
+export type ReaderSharing = OfferedSharing | WithheldSharing;
+
+export type ActionButtons = {
 	backLink?: { topHref: string; bottomHref?: string; label: string };
 	markReadActions?: ReadonlyArray<MarkReadAction>;
 	readlistPicker: ReaderReadlistPicker | undefined;
-	share?: ReaderShare;
-	epubDownloadHref?: string;
-	epubDownloadGuide?: EpubDownloadGuide;
 	menu?: { deleteItemsHtml: string };
-}
+} & ReaderSharing;
 
 export type RenderReaderActions = (params: { actionBtns: ActionButtons }) => {
 	top: Component;
@@ -99,24 +112,45 @@ function downloadsSlotView(params: { href: string | undefined; guide: EpubDownlo
 	if (params.guide === undefined) return { visible: true, link: { href: params.href } };
 	return {
 		visible: true,
-		guide: { popoverId: DOWNLOAD_GUIDE_POPOVER_ID, fallbackHtml: renderDownloadGuideFallback(params.guide) },
+		popover: {
+			popoverId: DOWNLOAD_GUIDE_POPOVER_ID,
+			fallbackHtml: renderDownloadGuideFallback(params.guide),
+			testAction: "download-open",
+			disabled: false,
+		},
 	};
 }
 
+function shareTriggerView(actionBtns: ActionButtons) {
+	if (actionBtns.withheld !== undefined) {
+		return { ...actionBtns.withheld, testAction: "share-withheld", disabled: true };
+	}
+	if (actionBtns.share === undefined) return undefined;
+	return { ...actionBtns.share, testAction: "share-open", disabled: false };
+}
+
+function downloadsView(actionBtns: ActionButtons) {
+	if (actionBtns.withheld !== undefined) {
+		return {
+			visible: true,
+			popover: { ...actionBtns.withheld, testAction: "download-withheld", disabled: true },
+		};
+	}
+	return downloadsSlotView({ href: actionBtns.epubDownloadHref, guide: actionBtns.epubDownloadGuide });
+}
+
 function renderReaderDownloads(params: {
-	href: string | undefined;
-	guide: EpubDownloadGuide | undefined;
+	view: ReturnType<typeof downloadsView>;
 	placement: ReaderControlPlacement;
 	oob: boolean;
 }): string {
-	return render(DOWNLOADS_TEMPLATE, {
-		...downloadsSlotView({ href: params.href, guide: params.guide }),
-		menu: params.placement === "menu",
-		oob: params.oob,
-	});
+	return render(DOWNLOADS_TEMPLATE, { ...params.view, menu: params.placement === "menu", oob: params.oob });
 }
 
-function renderReaderShare(params: { share: ReaderShare | undefined; placement: ReaderControlPlacement }): string {
+function renderReaderShare(params: {
+	share: ReturnType<typeof shareTriggerView>;
+	placement: ReaderControlPlacement;
+}): string {
 	if (params.share === undefined) return "";
 	return render(SHARE_TEMPLATE, { ...params.share, menu: params.placement === "menu" });
 }
@@ -127,7 +161,13 @@ export function renderReaderDownloadsSlotOob(params: {
 	placements: readonly ReaderControlPlacement[];
 }): string {
 	return params.placements
-		.map((placement) => renderReaderDownloads({ href: params.downloadHref, guide: params.guide, placement, oob: true }))
+		.map((placement) =>
+			renderReaderDownloads({
+				view: downloadsSlotView({ href: params.downloadHref, guide: params.guide }),
+				placement,
+				oob: true,
+			}),
+		)
 		.join("");
 }
 
@@ -144,25 +184,22 @@ export function renderReaderDownloadsOob(params: {
 }
 
 function topBar(actionBtns: ActionButtons): string {
+	const share = shareTriggerView(actionBtns);
+	const downloads = downloadsView(actionBtns);
 	const downloadsAt = (placement: ReaderControlPlacement): string =>
-		renderReaderDownloads({
-			href: actionBtns.epubDownloadHref,
-			guide: actionBtns.epubDownloadGuide,
-			placement,
-			oob: false,
-		});
+		renderReaderDownloads({ view: downloads, placement, oob: false });
 	return render(TOP_TEMPLATE, {
 		backLink: actionBtns.backLink
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
 		readlistPicker: actionBtns.readlistPicker,
-		shareHtml: renderReaderShare({ share: actionBtns.share, placement: "toolbar" }),
+		shareHtml: renderReaderShare({ share, placement: "toolbar" }),
 		downloadsHtml: downloadsAt("toolbar"),
 		menu:
 			actionBtns.menu === undefined
 				? undefined
 				: {
-						shareHtml: renderReaderShare({ share: actionBtns.share, placement: "menu" }),
+						shareHtml: renderReaderShare({ share, placement: "menu" }),
 						downloadsHtml: downloadsAt("menu"),
 						deleteItemsHtml: actionBtns.menu.deleteItemsHtml,
 					},

@@ -26,6 +26,7 @@ import type { ReaderReadlistFiling } from "../readlist/reader-readlist-filing";
 import { buildArticleDeletion } from "../readlist/readlist-card/delete-confirm.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
 import { articleBody } from "@packages/test-fixtures";
+import { epubDownloadGuideFor } from "../../shared/epub/epub-download-guide";
 
 const NO_QUEUE_FILING: ReaderReadlistFiling = {
 	tags: undefined,
@@ -399,19 +400,29 @@ describe("ReaderPage", () => {
 		]).toEqual([true, true, 0]);
 	});
 
-	it("withholds Share from a private newsletter issue, whose public link would leak it", () => {
+	it.each([
+		["WebReader", WebReader],
+		["ChromelessReader", ChromelessReader],
+	])("dims Share and Download on a private newsletter issue in the %s, opening one dialog that says why", (_name, renderActions) => {
+		const downloadHref = "/view/inbox/owner?format=epub";
 		const html = Base(
 			ReaderPage(makeArticle({ url: "email://inbox/owner/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E" }), {
 				content: articleBody("<p>Issue body</p>"),
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
-				renderActions: WebReader,
+				renderActions,
 				readlistFiling: NO_QUEUE_FILING,
 				provenance: undefined,
 				now: NOW,
 				currentPath: TEST_CURRENT_PATH,
 				readerPathFor: TEST_READER_PATH,
 				deletion: TEST_DELETION,
+				epubDownloadHref: downloadHref,
+				epubDownloadGuide: epubDownloadGuideFor({
+					osFamily: "windows",
+					downloadHref,
+					learnMoreHref: "/blog/read-your-saved-articles-on-a-kindle-or-kobo",
+				}),
 			}),
 			{ isAuthenticated: true, emailVerified: undefined, cspNonce: CSP_NONCE },
 		).to("text/html").body;
@@ -423,15 +434,50 @@ describe("ReaderPage", () => {
 			"article-body__back-slot",
 			"article-body__readlists-slot",
 			"article-body__mark-read-slot",
+			"article-body__share-slot",
 			"article-body__downloads-slot",
 			"article-body__more-slot",
 		]);
-		expect(doc.querySelectorAll("[data-test-reader-menu-panel] [data-test-menu-share-slot]").length).toBe(0);
 		expect(
-			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (popover) =>
-				popover.getAttribute("data-test-confirm-popover"),
+			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (dialog) =>
+				dialog.getAttribute("data-test-confirm-popover"),
 			),
-		).toEqual(["delete"]);
+		).toEqual(["delete", "sharing-off"]);
+		const triggers = Array.from(
+			doc.querySelectorAll(
+				'[data-test-action="share-withheld"], [data-test-action="download-withheld"], [data-test-action="menu-share-withheld"], [data-test-action="menu-download-withheld"]',
+			),
+		);
+		expect(
+			triggers.map((trigger) => [
+				trigger.getAttribute("data-test-action"),
+				trigger.getAttribute("popovertarget"),
+				trigger.getAttribute("aria-disabled"),
+			]),
+		).toEqual([
+			["share-withheld", "reader-sharing-off", "true"],
+			["download-withheld", "reader-sharing-off", "true"],
+			["menu-share-withheld", "reader-sharing-off", "true"],
+			["menu-download-withheld", "reader-sharing-off", "true"],
+		]);
+		expect(
+			Array.from(
+				doc.querySelectorAll(
+					".article-body__share-fallback-panel, .article-body__download-fallback-panel, .article-body__menu-fallback-panel",
+				),
+				(panel) => panel.querySelector(".confirm-popover__body")?.textContent,
+			),
+		).toEqual([
+			"This issue is an email sent to you, so only you can open it. It has no public link to share or download.",
+			"This issue is an email sent to you, so only you can open it. It has no public link to share or download.",
+			"This issue is an email sent to you, so only you can open it. It has no public link to share or download.",
+			"This issue is an email sent to you, so only you can open it. It has no public link to share or download.",
+		]);
+		expect([html.includes("/view/inbox/"), html.includes("format=epub"), doc.querySelectorAll("[data-share-url]").length]).toEqual([
+			false,
+			false,
+			0,
+		]);
 		const report = doc.querySelector("[data-test-report-article]");
 		assert(report, "the reader must render the report slot");
 		expect(report.classList.contains("article-body__report--withheld")).toBe(true);

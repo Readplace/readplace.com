@@ -144,11 +144,7 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 		assert.equal(panelOf(response.text).state, "absent");
 	});
 
-	it("withholds Share and the EPUB download from a private newsletter issue", async () => {
-		const { agent, issueId } = await buildHarness();
-
-		const doc = parse((await agent.get(`/queue/${issueId}/view`)).text);
-
+	function assertSharingOff(doc: Document, popovers: readonly string[]) {
 		assert.deepEqual(
 			Array.from(doc.querySelectorAll(".article-body__actions--top > *"), (slot) => {
 				const block = slot.classList.item(0);
@@ -158,7 +154,8 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 				"article-body__back-slot",
 				"article-body__readlists-slot",
 				"article-body__mark-read-slot",
-				"article-body__downloads-slot (hidden)",
+				"article-body__share-slot",
+				"article-body__downloads-slot",
 				"article-body__more-slot",
 			],
 		);
@@ -167,14 +164,54 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 				const block = item.classList.item(0);
 				return item.classList.contains(`${block}--hidden`) ? `${block} (hidden)` : block;
 			}),
-			["article-body__menu-slot (hidden)", "article-delete__form", "menu__item"],
+			["article-body__menu-slot", "article-body__menu-slot", "article-delete__form", "menu__item"],
 		);
 		assert.deepEqual(
 			Array.from(doc.querySelectorAll("[data-test-confirm-popover]"), (popover) =>
 				popover.getAttribute("data-test-confirm-popover"),
 			),
-			["exit-confirm", "delete", "readlist-create"],
+			popovers,
 		);
+		assert.deepEqual(
+			Array.from(
+				doc.querySelectorAll(
+					'[data-test-action="share-withheld"], [data-test-action="download-withheld"], [data-test-action="menu-share-withheld"], [data-test-action="menu-download-withheld"]',
+				),
+				(trigger) => [
+					trigger.getAttribute("data-test-action"),
+					trigger.getAttribute("popovertarget"),
+					trigger.getAttribute("aria-disabled"),
+				],
+			),
+			[
+				["share-withheld", "reader-sharing-off", "true"],
+				["download-withheld", "reader-sharing-off", "true"],
+				["menu-share-withheld", "reader-sharing-off", "true"],
+				["menu-download-withheld", "reader-sharing-off", "true"],
+			],
+		);
+		const html = doc.documentElement.outerHTML;
+		assert.deepEqual(
+			[html.includes("/view/inbox/"), html.includes("format=epub"), doc.querySelectorAll("[data-share-url]").length],
+			[false, false, 0],
+		);
+	}
+
+	it("dims Share and the EPUB download on a private newsletter issue, both opening the dialog that says why", async () => {
+		const { agent, issueId } = await buildHarness();
+
+		const doc = parse((await agent.get(`/queue/${issueId}/view`)).text);
+
+		assertSharingOff(doc, ["exit-confirm", "delete", "sharing-off", "readlist-create"]);
+	});
+
+	it("dims Share and the EPUB download on a private newsletter issue in the app's chromeless reader", async () => {
+		const { agent, issueId } = await buildHarness();
+
+		const doc = parse((await agent.get(`/queue/${issueId}/view?shell=app`)).text);
+
+		assert.equal(doc.body.classList.contains("page-reader--chromeless"), true);
+		assertSharingOff(doc, ["exit-confirm", "delete", "sharing-off", "readlist-create"]);
 	});
 
 	it("swaps no EPUB download in when a reader poll for an issue settles", async () => {
