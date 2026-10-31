@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { NextFunction, Request, Response } from "express";
 import express from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import {
 	createViewerIdentityMiddleware,
@@ -9,6 +10,8 @@ import {
 	VIEWER_IP_HEADER,
 } from "@packages/viewer-identity";
 import { createRateLimitMiddleware, rateLimitKeyFromRequest } from "./rate-limit";
+
+const serve = useLoopbackServer();
 
 const PROBE_RULE = { limit: 5, windowSeconds: 60 };
 
@@ -69,7 +72,7 @@ describe("createRateLimitMiddleware", () => {
 			return { allowed: true };
 		});
 
-		const response = await request(app).post("/probe");
+		const response = await request(serve(app)).post("/probe");
 
 		assert.equal(response.status, 200);
 		assert.equal(response.text, "through");
@@ -82,7 +85,7 @@ describe("createRateLimitMiddleware", () => {
 	it("responds 429 with Retry-After when the limiter denies", async () => {
 		const app = probeAppWith(async () => ({ allowed: false, retryAfterSeconds: 42 }));
 
-		const response = await request(app).post("/probe");
+		const response = await request(serve(app)).post("/probe");
 
 		assert.equal(response.status, 429);
 		assert.equal(response.headers["retry-after"], "42");
@@ -94,7 +97,7 @@ describe("createRateLimitMiddleware", () => {
 			throw new Error("store unavailable");
 		});
 
-		const response = await request(app).post("/probe");
+		const response = await request(serve(app)).post("/probe");
 
 		assert.equal(response.status, 500);
 		assert.equal(response.text, "handled: store unavailable");

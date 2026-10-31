@@ -3,15 +3,10 @@ import express from "express";
 import request from "supertest";
 import { GlobalNav, HtmxOmitted, initBase } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
-import { describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-harness";
+import { describeUntrackedCtas, findUntrackedCtas, useLoopbackServer } from "@packages/web-test-harness";
 import { initEmbedRoutes } from "./embed.page";
 
-const servers: Server[] = [];
-afterEach(async () => {
-	await Promise.all(
-		servers.splice(0).map((s) => new Promise<void>((resolve) => s.close(() => resolve()))),
-	);
-});
+const serve = useLoopbackServer();
 
 const APP_ORIGIN = "https://readplace.com";
 
@@ -33,9 +28,7 @@ function makeServer(): Server {
 			resolveLogin: guestResolver,
 		}),
 	);
-	const server = app.listen(0);
-	servers.push(server);
-	return server;
+	return serve(app);
 }
 
 describe("every same-origin CTA carries its own utm_source", () => {

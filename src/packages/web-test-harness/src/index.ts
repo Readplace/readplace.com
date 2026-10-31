@@ -42,7 +42,7 @@ export type {
 	WrapperTargetBundle,
 } from "./bundle.types";
 export type { RunningServer } from "./harness";
-export { BROWSER_USER_AGENT, buildHarness, loginAgent, useTestServer } from "./harness";
+export { BROWSER_USER_AGENT, buildHarness, loginAgent, useLoopbackServer, useTestServer } from "./harness";
 export type { FindUntrackedCtasOptions, UntrackedCta } from "./cta-tracking";
 export { BACKGROUND_REQUEST_ATTRIBUTE, describeUntrackedCtas, findUntrackedCtas } from "./cta-tracking";
 export type { PopoverFocusGap } from "./popover-focus";

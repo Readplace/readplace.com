@@ -4,8 +4,10 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsClick, AnalyticsEvent } from "@packages/web-analytics";
 import { GlobalNav, HtmxOmitted, type NavItem, buildGuestNavGroups, buildNavGroups } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
-import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
+import { BROWSER_USER_AGENT, useLoopbackServer } from "@packages/web-test-harness";
 import { createBlogApp } from "./app";
+
+const serve = useLoopbackServer();
 
 const OWN_ORIGIN = "https://readplace.com";
 
@@ -70,7 +72,7 @@ describe("every header nav destination the blog serves records the click its tag
 		const events: AnalyticsEvent[] = [];
 		const url = new URL(item.href, OWN_ORIGIN);
 
-		const response = await request(makeApp(events)).get(`${url.pathname}${url.search}`).set(BROWSER_HEADERS);
+		const response = await request(serve(makeApp(events))).get(`${url.pathname}${url.search}`).set(BROWSER_HEADERS);
 
 		expect(response.status).toBe(200);
 		expect(clicksFor(events, item)).toHaveLength(1);

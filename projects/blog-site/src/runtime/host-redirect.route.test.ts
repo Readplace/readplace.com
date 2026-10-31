@@ -1,6 +1,9 @@
 import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { createBlogApp } from "./app";
+
+const serve = useLoopbackServer();
 
 const app = createBlogApp(
 	{ staticBaseUrl: "", liveReload: false, renderNav: GlobalNav, htmx: HtmxOmitted },
@@ -19,7 +22,7 @@ const app = createBlogApp(
 
 describe("hutch-app.com → readplace.com host redirect on the blog", () => {
 	it("redirects a blog request on hutch-app.com to readplace.com", async () => {
-		const response = await request(app)
+		const response = await request(serve(app))
 			.get("/blog/best-read-it-later-apps-2026?ref=x")
 			.set("Host", "hutch-app.com");
 		expect(response.status).toBe(301);
@@ -29,7 +32,7 @@ describe("hutch-app.com → readplace.com host redirect on the blog", () => {
 	});
 
 	it("serves a blog request on its own host", async () => {
-		const response = await request(app).get("/blog").set("Host", "readplace.com");
+		const response = await request(serve(app)).get("/blog").set("Host", "readplace.com");
 		expect(response.status).toBe(200);
 	});
 });

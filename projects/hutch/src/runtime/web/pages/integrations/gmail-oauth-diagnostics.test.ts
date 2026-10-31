@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import express, { type RequestHandler } from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { z } from "zod";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { GmailDiagnosticEvent } from "../../../observability/gmail-diagnostics";
@@ -13,6 +14,8 @@ import {
 	inspectGmailOAuthCallback,
 	toGmailOAuthStateInspection,
 } from "./gmail-oauth-diagnostics";
+
+const serve = useLoopbackServer();
 
 const SECRET = "unit-state-secret";
 const NOW_MS = Date.parse("2026-10-05T12:00:00.000Z");
@@ -311,7 +314,7 @@ describe("initGmailOAuthTrace", () => {
 			res.redirect(303, "/newsletters?error=oauth_exchange");
 		});
 
-		const response = await request(app).post("/connect");
+		const response = await request(serve(app)).post("/connect");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/newsletters?error=oauth_exchange");
@@ -355,7 +358,7 @@ describe("initGmailOAuthTrace", () => {
 			trace.guard({ stage: "requireAuth", handler: pass }),
 		);
 
-		await request(app).get("/callback");
+		await request(serve(app)).get("/callback");
 
 		expect(events.at(-1)).toEqual({
 			route: "callback",
@@ -396,7 +399,7 @@ describe("initGmailOAuthTrace", () => {
 			res.status(303).set("Location", target).end();
 		});
 
-		const response = await request(app).get("/callback");
+		const response = await request(serve(app)).get("/callback");
 
 		expect(response.headers.location).toBe(target);
 		expect(events.at(-1)).toEqual({
@@ -428,7 +431,7 @@ describe("initGmailOAuthTrace", () => {
 			res.status(200).set("HX-Redirect", target).end();
 		});
 
-		const response = await request(app).post("/connect").set("HX-Request", "true");
+		const response = await request(serve(app)).post("/connect").set("HX-Request", "true");
 
 		expect(response.headers["hx-redirect"]).toBe(target);
 		expect(events.at(-1)).toEqual({
@@ -465,7 +468,7 @@ describe("initGmailOAuthTrace", () => {
 			res.redirect(303, "/newsletters?error=oauth_exchange");
 		});
 
-		await request(app).get("/callback");
+		await request(serve(app)).get("/callback");
 
 		expect(events.at(-1)).toEqual({
 			route: "callback",
@@ -493,7 +496,7 @@ describe("initGmailOAuthTrace", () => {
 			res.status(200).send("");
 		});
 
-		await request(app).post("/connect").set("HX-Request", "true");
+		await request(serve(app)).post("/connect").set("HX-Request", "true");
 
 		expect(events).toMatchObject([
 			{ event: "gmail.oauth.request.received", hxRequest: true },
@@ -513,8 +516,8 @@ describe("initGmailOAuthTrace", () => {
 			res.status(200).send("locked");
 		});
 
-		await request(app).get("/failing");
-		await request(app).get("/locked");
+		await request(serve(app)).get("/failing");
+		await request(serve(app)).get("/locked");
 
 		const completion = {
 			route: "callback",
@@ -544,7 +547,7 @@ describe("initGmailOAuthTrace", () => {
 		const completed = recorded("gmail.oauth.request.completed");
 
 		await assert.rejects(async () => {
-			await request(app).get("/callback");
+			await request(serve(app)).get("/callback");
 		});
 		await completed;
 		await new Promise((resolve) => setImmediate(resolve));
@@ -572,7 +575,7 @@ describe("initGmailOAuthTrace", () => {
 			res.redirect(303, "/newsletters/gmail?notice=connected");
 		});
 
-		const response = await request(app).get("/callback");
+		const response = await request(serve(app)).get("/callback");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/newsletters/gmail?notice=connected");
@@ -591,7 +594,7 @@ describe("initGmailOAuthTrace", () => {
 			res.redirect(303, "/newsletters?error=oauth_state");
 		});
 
-		const response = await request(app).get("/callback");
+		const response = await request(serve(app)).get("/callback");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/newsletters?error=oauth_state");

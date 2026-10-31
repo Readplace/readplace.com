@@ -1,8 +1,11 @@
 import { createHmac, randomUUID } from "node:crypto";
 import express, { type ErrorRequestHandler } from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { initAuthDiagnosticPermits } from "./permit";
 import { initIngestAuthDiagnostics } from "./ingest";
+
+const serve = useLoopbackServer();
 
 const at = new Date("2026-10-16T00:00:00Z");
 const ownership = { userId: "account-private", grantId: "grant-1", client: "chrome" as const, installationId: randomUUID() };
@@ -28,7 +31,7 @@ function create(overrides: { allowed?: boolean; record?: (event: Record<string, 
 describe("authentication diagnostic upload", () => {
 	it("accepts a post-logout checkpoint using its upload-only permit and derives ownership", async () => {
 		const { app, events } = create();
-		const response = await request(app).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`)
+		const response = await request(serve(app)).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`)
 			.send({ schema_version: 1, events: [checkpoint, checkpoint] });
 		expect(response.status).toBe(202);
 		expect(response.body).toEqual({ accepted_event_ids: [checkpoint.event_id] });
@@ -39,7 +42,7 @@ describe("authentication diagnostic upload", () => {
 
 	it.each([undefined, "Basic secret", "Bearer forged"])("refuses unauthenticated ingestion (%s)", async authorization => {
 		const { app, events } = create();
-		const call = request(app).post("/diagnostics/auth");
+		const call = request(serve(app)).post("/diagnostics/auth");
 		if (authorization) call.set("Authorization", authorization);
 		expect((await call.send({ schema_version: 1, events: [checkpoint] })).status).toBe(401);
 		expect(events).toEqual([]);
@@ -51,30 +54,30 @@ describe("authentication diagnostic upload", () => {
 		{ ...checkpoint, subject_ref: "forged-owner" },
 	])("rejects foreign attribution or unapproved fields without logging the payload", async event => {
 		const { app, events } = create();
-		expect((await request(app).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`).send({ schema_version: 1, events: [event] })).status).toBe(400);
+		expect((await request(serve(app)).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`).send({ schema_version: 1, events: [event] })).status).toBe(400);
 		expect(events).toEqual([]);
 	});
 
 	it("rejects an oversized batch before logging", async () => {
 		const { app, events } = create();
-		expect((await request(app).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`).send({ extra: "x".repeat(33 * 1_024) })).status).toBe(413);
+		expect((await request(serve(app)).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`).send({ extra: "x".repeat(33 * 1_024) })).status).toBe(413);
 		expect(events).toEqual([]);
 	});
 
 	it("rejects an empty authenticated request without recording a checkpoint", async () => {
 		const { app, events } = create();
-		expect((await request(app).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`)).status).toBe(400);
+		expect((await request(serve(app)).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`)).status).toBe(400);
 		expect(events).toEqual([]);
 	});
 
 	it("does not acknowledge throttled or failed delivery", async () => {
 		const throttled = create({ allowed: false });
-		const response = await request(throttled.app).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`).send({ schema_version: 1, events: [checkpoint] });
+		const response = await request(serve(throttled.app)).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`).send({ schema_version: 1, events: [checkpoint] });
 		expect(response.status).toBe(429);
 		expect(response.headers["retry-after"]).toBe("12");
 		expect(throttled.events).toEqual([]);
 		const failed = create({ record: () => { throw new Error("delivery unavailable"); } });
-		expect((await request(failed.app).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`).send({ schema_version: 1, events: [checkpoint] })).status).toBe(500);
+		expect((await request(serve(failed.app)).post("/diagnostics/auth").set("Authorization", `Bearer ${permit}`).send({ schema_version: 1, events: [checkpoint] })).status).toBe(500);
 	});
 });
 

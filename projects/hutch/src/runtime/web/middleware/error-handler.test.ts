@@ -1,8 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 import express from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { logAndRespondOnError } from "./error-handler";
+
+const serve = useLoopbackServer();
 
 const NOW = new Date("2026-08-31T22:14:33.000Z");
 const REQUEST_PATH = "/client-dist/htmx.client.js.map";
@@ -110,7 +113,7 @@ describe("logAndRespondOnError over a real request", () => {
 	it("logs the path alone, so a reset token in the query string never reaches the log", async () => {
 		const errorCalls: string[] = [];
 
-		const response = await request(probeApp(errorCalls)).get("/reset-password?token=s3cret");
+		const response = await request(serve(probeApp(errorCalls))).get("/reset-password?token=s3cret");
 
 		expect(response.status).toBe(500);
 		expect(JSON.parse(errorCalls[0]).url).toBe("/reset-password");

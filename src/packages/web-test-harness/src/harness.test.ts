@@ -5,7 +5,7 @@ import express from "express";
 import request from "supertest";
 import type { CreateUser } from "@packages/provider-contracts/auth";
 import { UserIdSchema } from "@packages/domain/user";
-import { buildHarness, loginAgent, useTestServer } from "./harness";
+import { buildHarness, loginAgent, useLoopbackServer, useTestServer } from "./harness";
 
 function createPingApp() {
 	const app = express();
@@ -83,6 +83,34 @@ describe("useTestServer", () => {
 		});
 		assert.equal(new Set(ports).size, 9);
 		assert.throws(() => useApp({ label: "extra" }), { message: /binds 9 servers in its beforeEach/ });
+	});
+});
+
+describe("useLoopbackServer", () => {
+	const serve = useLoopbackServer();
+	let previous: Server | undefined;
+
+	it("hands out a server already bound to 127.0.0.1 that serves the given app", async () => {
+		const server = serve(createPingApp());
+		const address = boundAddress(server);
+		assert.equal(address.address, "127.0.0.1");
+		assert.equal(address.family, "IPv4");
+		assert.equal((await request(server).get("/ping")).status, 200);
+		previous = server;
+	});
+
+	it("closes the previous test's server via its afterEach", () => {
+		assert(previous, "the previous test must have stored its server");
+		assert.equal(previous.listening, false);
+	});
+
+	it("serves one app from a separate port on every call", async () => {
+		const app = createPingApp();
+		const firstServer = serve(app);
+		const secondServer = serve(app);
+		assert.notEqual(boundAddress(firstServer).port, boundAddress(secondServer).port);
+		assert.equal((await request(firstServer).get("/ping")).status, 200);
+		assert.equal((await request(secondServer).get("/ping")).status, 200);
 	});
 });
 

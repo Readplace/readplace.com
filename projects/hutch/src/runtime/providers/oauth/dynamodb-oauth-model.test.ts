@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import OAuthServer from "@node-oauth/oauth2-server";
 import { z } from "zod";
 import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
@@ -16,6 +17,8 @@ import { captureOAuthBody } from "../../oauth-refresh/request-body";
 import { initEvaluateRefreshOutcomes, RefreshRefusal } from "../../oauth-refresh/outcomes";
 import { initTokenExchange } from "../../web/oauth/token-exchange";
 import { initObserveTokenOutcome } from "../../web/oauth/token-refusal";
+
+const serve = useLoopbackServer();
 
 const commandSchema = z.object({
 	Key: z.object({ pk: z.string() }).optional(),
@@ -635,7 +638,8 @@ function tokenEndpoint(model: ReturnType<typeof setup>["model"]) {
 		initObserveTokenOutcome({ recordUngatedAnalyticsEvent: event => { recorded.push(event); }, now, salt: "secret" }),
 		initTokenExchange({ model, server: new OAuthServer({ model, requireClientAuthentication: { authorization_code: false, refresh_token: false } }),
 			findClient: async id => getBuiltInClient(id), baseUrl: "https://readplace.com", salt: "secret", now }));
-	const refreshAs = (input: { clientId: string; refreshToken: string }) => request(app).post("/oauth/token").type("form").send({ grant_type: "refresh_token", client_id: input.clientId, refresh_token: input.refreshToken });
+	const server = serve(app);
+	const refreshAs = (input: { clientId: string; refreshToken: string }) => request(server).post("/oauth/token").type("form").send({ grant_type: "refresh_token", client_id: input.clientId, refresh_token: input.refreshToken });
 	return {
 		refresh: (refreshToken: string) => refreshAs({ clientId: client.id, refreshToken }),
 		refreshAs,

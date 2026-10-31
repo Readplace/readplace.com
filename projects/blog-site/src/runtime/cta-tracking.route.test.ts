@@ -3,11 +3,13 @@ import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsEvent } from "@packages/web-analytics";
-import { describeUntrackedCtas, findUntrackedCtas } from "@packages/web-test-harness";
+import { describeUntrackedCtas, findUntrackedCtas, useLoopbackServer } from "@packages/web-test-harness";
 import { createBlogApp } from "./app";
 import { drawFigure } from "./web/pages/blog/blog-figure";
 import { labelTableCells } from "./web/pages/blog/blog-table-labels";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
+
+const serve = useLoopbackServer();
 
 const discard: HutchLogger.Typed<AnalyticsEvent> = {
 	info: () => {},
@@ -56,7 +58,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 
 	for (const path of paths) {
 		it(`holds across ${path}`, async () => {
-			const response = await request(app).get(path).set(BROWSER_HEADERS);
+			const response = await request(serve(app)).get(path).set(BROWSER_HEADERS);
 			const found = findUntrackedCtas(response.text, { skipSelectors: [], ownOrigin: `https://${OWN_HOST}` });
 			const untracked: string[] = [];
 			for (const line of describeUntrackedCtas(found)) untracked.push(`${path}  ${line}`);

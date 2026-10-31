@@ -1,8 +1,11 @@
 import express, { type Request, type RequestHandler } from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { authenticatedUserIdFrom, type AuthenticatedUserId } from "@packages/domain/user";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { initRequireWriteAccess } from "./require-write-access.middleware";
+
+const serve = useLoopbackServer();
 
 const TEST_USER_ID = authenticatedUserIdFrom("11112222333344445555666677778888");
 const NOW = new Date("2026-05-23T12:00:00.000Z");
@@ -30,7 +33,7 @@ describe("requireWriteAccess middleware", () => {
 	it("calls next() and allows a founding member (no subscription row) through", async () => {
 		const { app } = buildApp(TEST_USER_ID);
 
-		const response = await request(app).post("/protected").set("Accept", "text/html");
+		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(200);
 		expect(response.text).toBe("ok");
@@ -44,7 +47,7 @@ describe("requireWriteAccess middleware", () => {
 			customerId: "cus_active",
 		});
 
-		const response = await request(app).post("/protected").set("Accept", "text/html");
+		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(200);
 	});
@@ -61,7 +64,7 @@ describe("requireWriteAccess middleware", () => {
 			cancellationEffectiveAt: new Date(NOW.getTime() + 5 * ONE_DAY_MS).toISOString(),
 		});
 
-		const response = await request(app).post("/protected").set("Accept", "text/html");
+		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(200);
 		expect(response.text).toBe("ok");
@@ -79,7 +82,7 @@ describe("requireWriteAccess middleware", () => {
 			cancellationEffectiveAt: new Date(NOW.getTime() - ONE_DAY_MS).toISOString(),
 		});
 
-		const response = await request(app).post("/protected").set("Accept", "text/html");
+		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?inactive=1");
@@ -92,7 +95,7 @@ describe("requireWriteAccess middleware", () => {
 			trialEndsAt: new Date(NOW.getTime() + 7 * ONE_DAY_MS).toISOString(),
 		});
 
-		const response = await request(app).post("/protected").set("Accept", "text/html");
+		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(200);
 	});
@@ -104,7 +107,7 @@ describe("requireWriteAccess middleware", () => {
 			trialEndsAt: new Date(NOW.getTime() - ONE_DAY_MS).toISOString(),
 		});
 
-		const response = await request(app).post("/protected").set("Accept", "text/html");
+		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?inactive=1");
@@ -119,7 +122,7 @@ describe("requireWriteAccess middleware", () => {
 		});
 		await providers.markCancelledByUserId({ userId: TEST_USER_ID });
 
-		const response = await request(app).post("/protected").set("Accept", "text/html");
+		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue?inactive=1");
@@ -134,7 +137,7 @@ describe("requireWriteAccess middleware", () => {
 		});
 		await providers.markCancelledByUserId({ userId: TEST_USER_ID });
 
-		const response = await request(app)
+		const response = await request(serve(app))
 			.post("/protected")
 			.set("Accept", "application/vnd.siren+json");
 

@@ -5,17 +5,12 @@ import { initBase, GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import express from "express";
 import { initEmbedRoutes } from "./embed.page";
 import { PAGE_URL_PLACEHOLDER, SNIPPET_VARIANTS, byteLength, renderCanonicalSnippet } from "./snippet.component";
 
-const servers: Server[] = [];
-afterEach(async () => {
-	/** server.close only errors when the socket was never bound, which can't
-	 * happen here because makeServer always returns from listen(0). Ignore the
-	 * err arg so coverage doesn't carry a phantom reject branch. */
-	await Promise.all(servers.splice(0).map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
-});
+const serve = useLoopbackServer();
 
 /** Every reader resolves to guest unless a test injects a different resolver. */
 const guestResolver: ResolveLogin = async () => ({ isAuthenticated: false });
@@ -39,9 +34,7 @@ function makeServer(overrides?: { appOrigin?: string; resolveLogin?: ResolveLogi
 			resolveLogin: overrides?.resolveLogin ?? guestResolver,
 		}),
 	);
-	const server = app.listen(0);
-	servers.push(server);
-	return server;
+	return serve(app);
 }
 
 describe("GET /embed", () => {

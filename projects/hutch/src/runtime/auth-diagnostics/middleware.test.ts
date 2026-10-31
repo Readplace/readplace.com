@@ -2,10 +2,13 @@ import { randomUUID } from "node:crypto";
 import cookieParser from "cookie-parser";
 import express from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { UserIdSchema } from "@packages/domain/user";
 import { initAuthDiagnosticMiddleware } from "./middleware";
 import { authDiagnosticContext, initAuthDiagnosticRecorder } from "./record";
 import { buildAuthDiagnosticsDashboard } from "./dashboard";
+
+const serve = useLoopbackServer();
 
 const at = new Date("2026-10-16T00:00:00Z");
 
@@ -24,7 +27,7 @@ describe("authentication request diagnostics", () => {
 		const { app, events, diagnostics } = create();
 		const permit = diagnostics.permits.issue({ userId: "private-user", grantId: "new-grant", client: "ios", installationId: randomUUID() });
 		app.post("/oauth/token", (_req, res) => res.json({ access_token: "private-access", diagnostics_permit: permit }));
-		await request(app).post("/oauth/token").send({ client_id: "ios-app", grant_type: "authorization_code", code: "private-code" });
+		await request(serve(app)).post("/oauth/token").send({ client_id: "ios-app", grant_type: "authorization_code", code: "private-code" });
 		expect(events[0]).toMatchObject({ event: "oauth_exchange_finished", outcome: "success", grant_id: "new-grant", subject_ref: diagnostics.permits.reference({ kind: "subject", value: "private-user" }) });
 		expect(JSON.stringify(events).includes("private-")).toBe(false);
 		expect(JSON.stringify(events).includes(permit)).toBe(false);
@@ -40,7 +43,7 @@ describe("authentication request diagnostics", () => {
 			grant_id: "grant", generation: 2, recovered: true, diagnostics_permit: permit,
 		} }));
 		for (let i = 0; i < 2; i++) {
-			await request(app).post("/oauth/token").set("X-Readplace-Auth-Attempt-Id", attempt)
+			await request(serve(app)).post("/oauth/token").set("X-Readplace-Auth-Attempt-Id", attempt)
 				.set("X-Readplace-Auth-Context-Id", context).set("X-Readplace-Client-Version", "1.0.680")
 				.set("X-Readplace-Installation-Id", installation)
 				.send({ client_id: "hutch-chrome-extension", readplace_refresh_operation_id: operation, refresh_token: "private-refresh" });
@@ -60,7 +63,7 @@ describe("authentication request diagnostics", () => {
 	])("classifies %s without logging the supplied client identifier", async (clientId, client, surface) => {
 		const { app, events } = create();
 		app.post("/oauth/token", (_req, res) => res.status(400).json({ error: "invalid_grant", readplace_reason: "revoked" }));
-		await request(app).post("/oauth/token").send({ client_id: clientId });
+		await request(serve(app)).post("/oauth/token").send({ client_id: clientId });
 		expect(events).toEqual([expect.objectContaining({ event: "oauth_exchange_finished", client, surface, reason: "revoked", outcome: "failure" })]);
 	});
 
@@ -68,7 +71,7 @@ describe("authentication request diagnostics", () => {
 		for (const body of [{ error: "use_dpop_nonce" }, { error: 42 }]) {
 			const { app, events } = create();
 			app.post("/oauth/token", (_req, res) => res.status(400).json(body));
-			await request(app).post("/oauth/token").send({});
+			await request(serve(app)).post("/oauth/token").send({});
 			expect(events[0].reason).toBe(body.error === "use_dpop_nonce" ? "nonce_required" : "unknown");
 		}
 	});
@@ -78,7 +81,7 @@ describe("authentication request diagnostics", () => {
 		app.get("/login", (_req, res) => res.send("login"));
 		app.get("/auth/google", (_req, res) => res.redirect("/provider"));
 		app.get("/auth/google/callback", (_req, res) => res.redirect("/login"));
-		const agent = request.agent(app);
+		const agent = request.agent(serve(app));
 		await agent.get("/login");
 		await agent.get("/auth/google");
 		await agent.get("/auth/google/callback");
@@ -90,7 +93,7 @@ describe("authentication request diagnostics", () => {
 	it("records completed login without exposing its issued session cookie", async () => {
 		const { app, events } = create();
 		app.post("/login", (_req, res) => res.cookie("hutch_sid", "private-cookie").redirect("/queue"));
-		await request(app).post("/login").set("Cookie", "hutch_sid=previous").send({});
+		await request(serve(app)).post("/login").set("Cookie", "hutch_sid=previous").send({});
 		expect(events.map(event => event.event)).toEqual(["login_started", "login_finished"]);
 		expect(events[1].outcome).toBe("success");
 	});
@@ -98,7 +101,7 @@ describe("authentication request diagnostics", () => {
 	it.each(["user_cancelled", "callback_invalid", "expired", "provider_rejected", "unapproved-private-detail"])("records a validated callback outcome: %s", async reason => {
 		const { app, events } = create();
 		app.post("/auth/apple/callback", (_req, res) => { res.locals.authDiagnosticReason = reason; res.redirect(303, "/login"); });
-		await request(app).post("/auth/apple/callback").send({});
+		await request(serve(app)).post("/auth/apple/callback").send({});
 		expect(events.at(-1)).toMatchObject({ event: "login_finished", reason: reason === "unapproved-private-detail" ? "login" : reason, outcome: reason === "user_cancelled" ? "cancelled" : "failure" });
 	});
 
@@ -119,7 +122,7 @@ describe("authentication request diagnostics", () => {
 			diagnostics.observeSession({ event: "session_deleted", sessionId: "private-cookie", userId: UserIdSchema.parse("private-user") });
 			res.status(status).end();
 		});
-		await request(app).post(path).set("Cookie", "hutch_sid=private-cookie").send({});
+		await request(serve(app)).post(path).set("Cookie", "hutch_sid=private-cookie").send({});
 		expect(events[0]).toMatchObject({ event: "session_deleted", reason: cause });
 		expect(events.at(-1)).toMatchObject({ event, ...(outcome ? { outcome } : {}) });
 	});
@@ -130,7 +133,7 @@ describe("authentication request diagnostics", () => {
 	])("records a browser handoff redeem that %s as %s", async (_label, outcome, respond) => {
 		const { app, events } = create();
 		app.get("/auth/handoff", (_req, res) => { respond(res); });
-		await request(app).get("/auth/handoff").query({ code: "private-code" });
+		await request(serve(app)).get("/auth/handoff").query({ code: "private-code" });
 		expect(events.at(-1)).toMatchObject({ event: "session_bridge_completed", reason: "browser_handoff", outcome, http_status: 303 });
 		expect(JSON.stringify(events)).not.toContain("private-code");
 	});
@@ -143,9 +146,9 @@ describe("authentication request diagnostics", () => {
 		});
 		app.get("/queue", (_req, res) => res.status(401).end());
 		app.post("/diagnostics/auth", (_req, res) => res.status(401).end());
-		await request(app).post("/oauth/authorize").set("Cookie", "hutch_sid=cookie").send({ action: "switch" });
-		await request(app).get("/queue");
-		await request(app).post("/diagnostics/auth");
+		await request(serve(app)).post("/oauth/authorize").set("Cookie", "hutch_sid=cookie").send({ action: "switch" });
+		await request(serve(app)).get("/queue");
+		await request(serve(app)).post("/diagnostics/auth");
 		expect(events.map(event => [event.event, event.reason])).toEqual([["session_deleted", "oauth_account_switch"], ["authentication_refused", "unknown"]]);
 	});
 
@@ -158,7 +161,7 @@ describe("authentication request diagnostics", () => {
 			context.subject_ref = "verified-owner";
 			res.status(401).end();
 		});
-		await request(app).post(path).set("Cookie", "hutch_sid=cookie").send({});
+		await request(serve(app)).post(path).set("Cookie", "hutch_sid=cookie").send({});
 		expect(events.at(-1)).toMatchObject({ reason: "expired", subject_ref: "verified-owner", http_status: 401 });
 	});
 

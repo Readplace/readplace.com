@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import express from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { initFinalizeArticle } from "@packages/finalize-article";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { initInMemoryArticleImages } from "./in-memory-article-images";
+
+const serve = useLoopbackServer();
 
 const ORIGIN = "http://localhost:3000";
 const URL = "https://example.com/a/b.png?variant=a%2Fb&size=2";
@@ -35,7 +38,7 @@ describe("in-memory article image hosting", () => {
 		expect(filename).toMatch(scoped ? /^attempts\/[a-f0-9]{64}\/[a-f0-9]{64}\.png$/ : /^[a-f0-9]{16}\.png$/);
 		expect(result.article.metadata.directResourceKind).toBe("image");
 
-		const response = await request(app).get(imageUrl.slice(ORIGIN.length));
+		const response = await request(serve(app)).get(imageUrl.slice(ORIGIN.length));
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("image/png");
@@ -46,7 +49,7 @@ describe("in-memory article image hosting", () => {
 		const images = initInMemoryArticleImages();
 		const app = express().use(images.router);
 
-		const response = await request(app).get(`${RESOURCE_PATH}missing.png`);
+		const response = await request(serve(app)).get(`${RESOURCE_PATH}missing.png`);
 
 		expect(response.status).toBe(404);
 	});

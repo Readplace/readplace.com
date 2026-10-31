@@ -2,6 +2,7 @@ import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import assert from "node:assert/strict";
 import express from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import OAuthServer from "@node-oauth/oauth2-server";
 import { getBuiltInClient } from "@packages/domain/oauth";
 import { createOAuthModel, initInMemoryOAuthModel } from "@packages/test-fixtures/providers/oauth";
@@ -10,6 +11,8 @@ import { captureOAuthBody } from "../../oauth-refresh/request-body";
 import { initDPoP } from "../../oauth-refresh/dpop";
 import { refreshContext } from "../../oauth-refresh/evidence";
 import { initAuthDiagnosticPermits } from "../../auth-diagnostics/permit";
+
+const serve = useLoopbackServer();
 
 async function create(enrollmentEnabled = true) {
 	const now = () => new Date();
@@ -44,7 +47,7 @@ it("accepts a valid proof on a PKCE exchange and keeps its diagnostic permit sep
 	const operation = randomUUID();
 	const body = new URLSearchParams({ grant_type: "authorization_code", code: "code", client_id: s.client.id, redirect_uri: s.client.redirectUris[0], code_verifier: verifier, readplace_refresh_operation_id: operation }).toString();
 	const installation = randomUUID();
-	const response = await request(s.app).post("/oauth/token").type("form").set("DPoP", s.proof({ body, operation })).set("X-Readplace-Installation-Id", installation).send(body);
+	const response = await request(serve(s.app)).post("/oauth/token").type("form").set("DPoP", s.proof({ body, operation })).set("X-Readplace-Installation-Id", installation).send(body);
 	const permit = initAuthDiagnosticPermits({ salt: "test-only", now: s.now }).verify(response.body.diagnostics_permit);
 	expect(response.status).toBe(200);
 	expect(permit).toMatchObject({ scope: "append", client: "chrome", installation_ref: installation });
@@ -53,13 +56,13 @@ it("accepts a valid proof on a PKCE exchange and keeps its diagnostic permit sep
 
 it("retains legacy scope narrowing while issuing an additive diagnostic permit", async () => {
 	const s = await create();
-	const response = await request(s.app).post("/oauth/token").type("form").set("X-Readplace-Installation-Id", randomUUID())
+	const response = await request(serve(s.app)).post("/oauth/token").type("form").set("X-Readplace-Installation-Id", randomUUID())
 		.send({ grant_type: "refresh_token", client_id: s.client.id, refresh_token: "parent", scope: "  read  " });
 	expect(response.status).toBe(200);
 	expect(response.body.scope).toBe("read");
 	expect(typeof response.body.diagnostics_permit).toBe("string");
 	expect(response.body.readplace).toBeUndefined();
-	const escalation = await request(s.app).post("/oauth/token").type("form")
+	const escalation = await request(serve(s.app)).post("/oauth/token").type("form")
 		.send({ grant_type: "refresh_token", client_id: s.client.id, refresh_token: response.body.refresh_token, scope: "write" });
 	expect(escalation.body).toMatchObject({ error: "invalid_scope", readplace_reason: "invalid_scope" });
 });
@@ -68,7 +71,7 @@ it("rotates a proof-bound request without an upload installation header", async 
 	const s = await create();
 	const operation = randomUUID();
 	const body = new URLSearchParams({ grant_type: "refresh_token", client_id: s.client.id, refresh_token: "parent", readplace_refresh_protocol: "1", readplace_refresh_operation_id: operation }).toString();
-	const response = await request(s.app).post("/oauth/token").type("form").set("DPoP", s.proof({ body, operation })).send(body);
+	const response = await request(serve(s.app)).post("/oauth/token").type("form").set("DPoP", s.proof({ body, operation })).send(body);
 	expect(response.status).toBe(200);
 	expect(response.body.readplace).toMatchObject({ protocol: 1, recovered: false });
 	expect(response.body.readplace.diagnostics_permit).toBeUndefined();
@@ -78,7 +81,7 @@ it("refuses first enrollment during rollback without invalidating the legacy cre
 	const s = await create(false);
 	const operation = randomUUID();
 	const body = new URLSearchParams({ grant_type: "refresh_token", client_id: s.client.id, refresh_token: "parent", readplace_refresh_protocol: "1", readplace_refresh_operation_id: operation }).toString();
-	const response = await request(s.app).post("/oauth/token").type("form").set("DPoP", s.proof({ body, operation })).send(body);
+	const response = await request(serve(s.app)).post("/oauth/token").type("form").set("DPoP", s.proof({ body, operation })).send(body);
 	expect(response.status).toBe(503);
 	expect(response.body).toEqual({ error: "temporarily_unavailable", readplace_reason: "enrollment_disabled" });
 	const parent = await s.model.getAccessToken("access");
@@ -89,14 +92,14 @@ it("refuses first enrollment during rollback without invalidating the legacy cre
 it("reports authorization-code storage errors as retryable without exposing the failure text", async () => {
 	const s = await create();
 	s.model.getClient = async () => { throw new Error("private storage detail"); };
-	const response = await request(s.app).post("/oauth/token").type("form").send({ grant_type: "authorization_code", code: "code", client_id: s.client.id, code_verifier: "x".repeat(43) });
+	const response = await request(serve(s.app)).post("/oauth/token").type("form").send({ grant_type: "authorization_code", code: "code", client_id: s.client.id, code_verifier: "x".repeat(43) });
 	expect(response.status).toBe(503);
 	expect(response.body).toEqual({ error: "temporarily_unavailable", readplace_reason: "storage_unavailable" });
 });
 
 it("rejects a bodyless proof request without consuming credentials", async () => {
 	const s = await create();
-	const response = await request(s.app).post("/oauth/token").set("DPoP", "invalid");
+	const response = await request(serve(s.app)).post("/oauth/token").set("DPoP", "invalid");
 	expect(response.status).toBe(400);
 	expect(response.body).toEqual({ error: "invalid_request", readplace_reason: "operation_mismatch" });
 	const parent = await s.model.getAccessToken("access");

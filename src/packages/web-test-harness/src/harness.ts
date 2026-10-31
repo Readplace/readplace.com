@@ -72,6 +72,11 @@ export function useTestServer<Fixture, Result extends { app: Express }>(
 	};
 }
 
+export function useLoopbackServer(): (app: Express) => Server {
+	const serve = useTestServer((app: Express) => ({ app }));
+	return (app) => serve(app).server;
+}
+
 export const BROWSER_USER_AGENT =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
 

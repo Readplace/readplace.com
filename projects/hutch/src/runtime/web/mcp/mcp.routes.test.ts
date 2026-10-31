@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
@@ -8,6 +9,8 @@ import type { AnalyticsEvent } from "@packages/web-analytics";
 import { initMcpRoutes } from "./mcp.routes";
 import { initMcpServer, type McpHandshakeRecord, type McpServerDeps } from "./mcp-server";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
+
+const serve = useLoopbackServer();
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
@@ -66,7 +69,7 @@ function buildApp(): Express {
 }
 
 function post(app: Express, body: unknown) {
-	return request(app)
+	return request(serve(app))
 		.post("/mcp")
 		.set("Authorization", "Bearer good-token")
 		.set("Content-Type", "application/json")
@@ -75,7 +78,7 @@ function post(app: Express, body: unknown) {
 
 describe("MCP transport routes", () => {
 	it("returns 401 with a protected-resource pointer when the bearer token is absent", async () => {
-		const response = await request(buildApp())
+		const response = await request(serve(buildApp()))
 			.post("/mcp")
 			.set("Content-Type", "application/json")
 			.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
@@ -87,7 +90,7 @@ describe("MCP transport routes", () => {
 	});
 
 	it("returns 401 when the Authorization header is not a Bearer token", async () => {
-		const response = await request(buildApp())
+		const response = await request(serve(buildApp()))
 			.post("/mcp")
 			.set("Authorization", "Basic abc")
 			.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
@@ -95,7 +98,7 @@ describe("MCP transport routes", () => {
 	});
 
 	it("returns 401 when the bearer token is invalid", async () => {
-		const response = await request(buildApp())
+		const response = await request(serve(buildApp()))
 			.post("/mcp")
 			.set("Authorization", "Bearer nope")
 			.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
@@ -130,7 +133,7 @@ describe("MCP transport routes", () => {
 	});
 
 	it("dispatches a request carrying the protocol version it negotiated", async () => {
-		const response = await request(buildApp())
+		const response = await request(serve(buildApp()))
 			.post("/mcp")
 			.set("Authorization", "Bearer good-token")
 			.set("MCP-Protocol-Version", MCP_PROTOCOL_VERSION)
@@ -141,7 +144,7 @@ describe("MCP transport routes", () => {
 	});
 
 	it("rejects a protocol version it does not speak, naming the one it does", async () => {
-		const response = await request(buildApp())
+		const response = await request(serve(buildApp()))
 			.post("/mcp")
 			.set("Authorization", "Bearer good-token")
 			.set("MCP-Protocol-Version", "2024-11-05")
@@ -153,7 +156,7 @@ describe("MCP transport routes", () => {
 	});
 
 	it("returns 401 before the protocol version is judged, so an anonymous caller learns how to authenticate", async () => {
-		const response = await request(buildApp())
+		const response = await request(serve(buildApp()))
 			.post("/mcp")
 			.set("MCP-Protocol-Version", "2024-11-05")
 			.set("Content-Type", "application/json")
@@ -171,7 +174,7 @@ describe("MCP transport routes", () => {
 	});
 
 	it("returns a JSON-RPC parse error for a malformed body", async () => {
-		const response = await request(buildApp())
+		const response = await request(serve(buildApp()))
 			.post("/mcp")
 			.set("Authorization", "Bearer good-token")
 			.set("Content-Type", "application/json")
@@ -185,13 +188,13 @@ describe("MCP transport routes", () => {
 	});
 
 	it("rejects GET with 405 POST-only", async () => {
-		const response = await request(buildApp()).get("/mcp");
+		const response = await request(serve(buildApp())).get("/mcp");
 		expect(response.status).toBe(405);
 		expect(response.headers.allow).toBe("POST");
 	});
 
 	it("rejects DELETE with 405 POST-only", async () => {
-		const response = await request(buildApp()).delete("/mcp");
+		const response = await request(serve(buildApp())).delete("/mcp");
 		expect(response.status).toBe(405);
 		expect(response.headers.allow).toBe("POST");
 	});
@@ -199,7 +202,7 @@ describe("MCP transport routes", () => {
 	describe("refusal analytics", () => {
 		it("records a missing bearer with the classified client and never the raw User-Agent", async () => {
 			const { app, captured } = buildObservedApp();
-			await request(app)
+			await request(serve(app))
 				.post("/mcp")
 				.set("User-Agent", "openai-mcp/1.0.0")
 				.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
@@ -222,7 +225,7 @@ describe("MCP transport routes", () => {
 
 		it("records a non-Bearer Authorization header as a missing bearer", async () => {
 			const { app, captured } = buildObservedApp();
-			await request(app)
+			await request(serve(app))
 				.post("/mcp")
 				.set("Authorization", "Basic abc")
 				.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
@@ -233,7 +236,7 @@ describe("MCP transport routes", () => {
 			"records %j as an invalid token without identity",
 			async (authorization) => {
 				const { app, captured } = buildObservedApp();
-				const response = await request(app)
+				const response = await request(serve(app))
 					.post("/mcp")
 					.set("Authorization", authorization)
 					.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }));
@@ -254,7 +257,7 @@ describe("MCP transport routes", () => {
 
 		it("records an unsupported protocol version with the caller and the version it offered", async () => {
 			const { app, captured } = buildObservedApp();
-			await request(app)
+			await request(serve(app))
 				.post("/mcp")
 				.set("Authorization", "Bearer good-token")
 				.set("User-Agent", "openai-mcp/1.0.0 (Codex)")
@@ -274,7 +277,7 @@ describe("MCP transport routes", () => {
 
 		it("records a protocol version that is not a date as malformed", async () => {
 			const { app, captured } = buildObservedApp();
-			await request(app)
+			await request(serve(app))
 				.post("/mcp")
 				.set("Authorization", "Bearer good-token")
 				.set("MCP-Protocol-Version", "nope")
@@ -284,7 +287,7 @@ describe("MCP transport routes", () => {
 
 		it("records a parse error with the caller", async () => {
 			const { app, captured } = buildObservedApp();
-			await request(app)
+			await request(serve(app))
 				.post("/mcp")
 				.set("Authorization", "Bearer good-token")
 				.send("{");
@@ -315,7 +318,7 @@ describe("MCP transport routes", () => {
 			[{}, "{"],
 		])("never writes the bearer token into an authenticated refusal (%j)", async (headers, body) => {
 			const { app, captured } = buildObservedApp();
-			await request(app)
+			await request(serve(app))
 				.post("/mcp")
 				.set("Authorization", "Bearer good-token")
 				.set(headers)

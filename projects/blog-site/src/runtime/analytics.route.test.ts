@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import type { Response as SupertestResponse } from "supertest";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { GlobalNav, HtmxOmitted } from "@packages/web-shell";
@@ -10,6 +11,8 @@ import { createBlogApp } from "./app";
 import { drawFigure } from "./web/pages/blog/blog-figure";
 import { labelTableCells } from "./web/pages/blog/blog-table-labels";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
+
+const serve = useLoopbackServer();
 
 const events: AnalyticsEvent[] = [];
 const capture: HutchLogger.Typed<AnalyticsEvent> = {
@@ -56,7 +59,7 @@ const BROWSER_HEADERS: Record<string, string> = {
 };
 
 function browserGet(resolveLogin: ResolveLogin, path: string) {
-	return request(makeApp(resolveLogin)).get(path).set(BROWSER_HEADERS);
+	return request(serve(makeApp(resolveLogin))).get(path).set(BROWSER_HEADERS);
 }
 
 function setCookieHeaders(res: SupertestResponse): string[] {
@@ -140,7 +143,7 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("emits nothing for a crawler user-agent", async () => {
-		const res = await request(makeApp(guestResolver))
+		const res = await request(serve(makeApp(guestResolver)))
 			.get("/blog?utm_source=hn")
 			.set("User-Agent", "Googlebot/2.1 (+http://www.google.com/bot.html)");
 
@@ -149,7 +152,7 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("serves the real page to a curl-shaped client while counting nothing — dropping a request from the analytics stream must never drop it from the response", async () => {
-		const res = await request(makeApp(guestResolver)).get("/blog").set("User-Agent", "curl/8.7.1");
+		const res = await request(serve(makeApp(guestResolver))).get("/blog").set("User-Agent", "curl/8.7.1");
 
 		expect(res.status).toBe(200);
 		expect(res.text).toContain("<html lang=");
@@ -158,7 +161,7 @@ describe("blog analytics instrumentation", () => {
 
 	it("serves the real page to the spoofed-desktop-Chrome swarm shape — an otherwise complete desktop Chrome navigation presenting no Sec-CH-UA — while counting nothing", async () => {
 		const { "Sec-CH-UA": _clientHints, ...spoofedChrome } = BROWSER_HEADERS;
-		const res = await request(makeApp(guestResolver)).get("/blog").set(spoofedChrome);
+		const res = await request(serve(makeApp(guestResolver))).get("/blog").set(spoofedChrome);
 
 		expect(res.status).toBe(200);
 		expect(res.text).toContain("<html lang=");
@@ -166,7 +169,7 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("serves the real page while counting nothing when the Referer names our own host — every response sets Referrer-Policy: no-referrer, so a conforming browser navigating our own links cannot send one", async () => {
-		const res = await request(makeApp(guestResolver))
+		const res = await request(serve(makeApp(guestResolver)))
 			.get("/blog")
 			.set({ ...BROWSER_HEADERS, Referer: `https://${OWN_HOST}/queue` });
 
@@ -176,7 +179,7 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("still counts a genuine inbound referral from another host, whose Referer that host's own policy governs", async () => {
-		const res = await request(makeApp(guestResolver))
+		const res = await request(serve(makeApp(guestResolver)))
 			.get("/blog")
 			.set({ ...BROWSER_HEADERS, Referer: "https://news.ycombinator.com/item?id=1" });
 
@@ -186,14 +189,14 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("skips the blog sitemap and the changelog-banner endpoint so machine and background requests are not counted", async () => {
-		await request(makeApp(guestResolver)).get("/blog/sitemap.xml");
-		await request(makeApp(guestResolver)).get("/blog/changelog-banner");
+		await request(serve(makeApp(guestResolver))).get("/blog/sitemap.xml");
+		await request(serve(makeApp(guestResolver))).get("/blog/changelog-banner");
 
 		expect(events).toHaveLength(0);
 	});
 
 	it("400s a utm value carrying an apostrophe and records nothing — neither a pageview nor the hutch_click cookie", async () => {
-		const res = await request(makeApp(guestResolver)).get("/blog?utm_source='");
+		const res = await request(serve(makeApp(guestResolver))).get("/blog?utm_source='");
 
 		expect(res.status).toBe(400);
 		expect(events).toHaveLength(0);
@@ -201,15 +204,15 @@ describe("blog analytics instrumentation", () => {
 	});
 
 	it("captures an external referrer in hutch_click but drops a same-host referrer", async () => {
-		const external = await request(makeApp(guestResolver)).get("/blog").set("Referer", "https://www.google.com/");
+		const external = await request(serve(makeApp(guestResolver))).get("/blog").set("Referer", "https://www.google.com/");
 		expect(parseClickCookie(setCookieHeaders(external)).referrer_host).toBe("www.google.com");
 
-		const sameHost = await request(makeApp(guestResolver)).get("/blog").set("Referer", `https://${OWN_HOST}/x`);
+		const sameHost = await request(serve(makeApp(guestResolver))).get("/blog").set("Referer", `https://${OWN_HOST}/x`);
 		expect(parseClickCookie(setCookieHeaders(sameHost)).referrer_host).toBeUndefined();
 	});
 
 	it("serves /blog and records nothing for a signed-in request that sends no User-Agent — the header-less path the bot gate no longer owns must still resolve inside res.on(\"finish\"), where a throw would escape Express", async () => {
-		const res = await request(makeApp(authedResolver)).get("/blog").set("Cookie", "hutch_sid=valid");
+		const res = await request(serve(makeApp(authedResolver))).get("/blog").set("Cookie", "hutch_sid=valid");
 
 		expect(res.status).toBe(200);
 		expect(res.text).toContain("<html lang=");

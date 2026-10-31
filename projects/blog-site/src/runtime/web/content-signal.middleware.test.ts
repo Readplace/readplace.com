@@ -1,9 +1,12 @@
 import express from "express";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import {
 	CONTENT_SIGNAL_VALUE,
 	contentSignalMiddleware,
 } from "./content-signal.middleware";
+
+const serve = useLoopbackServer();
 
 function appUnderTest() {
 	const app = express();
@@ -17,25 +20,25 @@ function appUnderTest() {
 
 describe("contentSignalMiddleware", () => {
 	it("sets Content-Signal and Vary: Accept on a GET page request", async () => {
-		const response = await request(appUnderTest()).get("/blog");
+		const response = await request(serve(appUnderTest())).get("/blog");
 		expect(response.headers["content-signal"]).toBe(CONTENT_SIGNAL_VALUE);
 		expect(response.headers.vary).toBe("Accept");
 	});
 
 	it("skips the sitemap (machine metadata, not a page)", async () => {
-		const response = await request(appUnderTest()).get("/blog/sitemap.xml");
+		const response = await request(serve(appUnderTest())).get("/blog/sitemap.xml");
 		expect(response.headers["content-signal"]).toBeUndefined();
 		expect(response.headers.vary).toBeUndefined();
 	});
 
 	it("skips non-GET requests", async () => {
-		const response = await request(appUnderTest()).post("/blog");
+		const response = await request(serve(appUnderTest())).post("/blog");
 		expect(response.headers["content-signal"]).toBeUndefined();
 	});
 
 	it("always calls next", async () => {
-		const page = await request(appUnderTest()).get("/blog");
-		const sitemap = await request(appUnderTest()).get("/blog/sitemap.xml");
+		const page = await request(serve(appUnderTest())).get("/blog");
+		const sitemap = await request(serve(appUnderTest())).get("/blog/sitemap.xml");
 		expect(page.status).toBe(200);
 		expect(sitemap.status).toBe(200);
 	});

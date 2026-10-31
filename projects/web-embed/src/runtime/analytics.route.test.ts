@@ -1,9 +1,12 @@
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { GlobalNav, HtmxOmitted, initBase } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsClick, AnalyticsEvent, AnalyticsPageview } from "@packages/web-analytics";
 import { createEmbedApp } from "./app";
+
+const serve = useLoopbackServer();
 
 const events: AnalyticsEvent[] = [];
 const capture: HutchLogger.Typed<AnalyticsEvent> = {
@@ -55,7 +58,7 @@ beforeEach(() => {
 
 describe("embed analytics instrumentation", () => {
 	it("emits exactly one click event carrying source and content for an internal-tagged GET /embed", async () => {
-		const res = await request(makeApp())
+		const res = await request(serve(makeApp()))
 			.get("/embed?utm_source=header-nav&utm_medium=internal&utm_content=embed")
 			.set(BROWSER_HEADERS);
 
@@ -71,7 +74,7 @@ describe("embed analytics instrumentation", () => {
 	});
 
 	it("emits one pageview for an untagged browser GET /embed", async () => {
-		const res = await request(makeApp()).get("/embed").set(BROWSER_HEADERS);
+		const res = await request(serve(makeApp())).get("/embed").set(BROWSER_HEADERS);
 
 		expect(res.status).toBe(200);
 		expect(pageviews()).toHaveLength(1);

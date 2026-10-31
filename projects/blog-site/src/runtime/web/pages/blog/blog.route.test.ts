@@ -16,11 +16,14 @@ import {
 import type { ResolveLogin } from "@packages/web-session";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { useLoopbackServer } from "@packages/web-test-harness";
 import { createBlogApp } from "../../../app";
 import { drawFigure } from "./blog-figure";
 import { labelTableCells } from "./blog-table-labels";
 import { initBlogRoutes } from "./blog.page";
 import { type BlogPosts, initBlogPosts } from "./blog.posts";
+
+const serve = useLoopbackServer();
 
 /** Every reader resolves to guest unless a test injects a different resolver —
  * the default that public crawler traffic hits. */
@@ -95,19 +98,19 @@ function appWithResolver(resolveLogin: ResolveLogin) {
 
 describe("GET /blog", () => {
 	it("should return 200 and HTML content", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
 	it("should render blog page title", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector(".blog__title")?.textContent).toBe("Blog");
 	});
 
 	it("should render links to blog posts, each tagged so the click is attributable", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		const card = doc.querySelector(".blog-card__link");
 		assert(card, "the listing renders a card link per post");
@@ -117,20 +120,20 @@ describe("GET /blog", () => {
 	});
 
 	it("should render post titles in the listing", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		const texts = Array.from(doc.querySelectorAll(".blog-card__title")).map((el) => el.textContent);
 		expect(texts).toContain(firstPost.title);
 	});
 
 	it("should have correct SEO title", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.title).toBe("Blog — Readplace");
 	});
 
 	it("should have canonical URL", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
 			"https://readplace.com/blog",
@@ -138,13 +141,13 @@ describe("GET /blog", () => {
 	});
 
 	it("should have the page-blog body class", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.body.classList.contains("page-blog")).toBe(true);
 	});
 
 	it("should have Blog and BreadcrumbList structured data", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		const schemas = Array.from(
 			doc.querySelectorAll('script[type="application/ld+json"]'),
@@ -165,7 +168,7 @@ describe("GET /blog", () => {
 	});
 
 	it("renders the guest header nav when no session cookie resolves to a user", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		const nav = doc.querySelector("[data-test-nav-variant]");
 		assert(nav, "nav must be rendered");
@@ -173,7 +176,7 @@ describe("GET /blog", () => {
 	});
 
 	it("renders the authenticated header nav when the session cookie resolves to a user", async () => {
-		const response = await request(appWithResolver(authedResolver))
+		const response = await request(serve(appWithResolver(authedResolver)))
 			.get("/blog")
 			.set("Cookie", "hutch_sid=valid");
 		const doc = new JSDOM(response.text).window.document;
@@ -189,25 +192,25 @@ describe("GET /blog", () => {
 
 describe("GET /blog/:slug", () => {
 	it("should return 200 for a valid post slug", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
 	it("should render the post title as h1", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector(".blog-post__title")?.textContent).toBe(firstPost.title);
 	});
 
 	it("should render the post content as HTML", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector(".blog-post__content")?.innerHTML.length ?? 0).toBeGreaterThan(0);
 	});
 
 	it("renders the shared TL;DR disclosure before the body", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		const tldr = doc.querySelector("[data-test-tldr]");
 		assert(tldr, "the post must render the TL;DR disclosure");
@@ -225,20 +228,20 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should render post metadata", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector(".blog-post__author")?.textContent).toContain(firstPost.author);
 		expect(doc.querySelector(".blog-post__date")?.getAttribute("datetime")).toBe(firstPost.date);
 	});
 
 	it("should have og:type set to article", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector('meta[property="og:type"]')?.getAttribute("content")).toBe("article");
 	});
 
 	it("should have BlogPosting structured data", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		const data = JSON.parse(
 			doc.querySelector('script[type="application/ld+json"]')?.textContent ?? "{}",
@@ -255,7 +258,7 @@ describe("GET /blog/:slug", () => {
 		assert(untouched, "at least one post must have no revision date");
 
 		async function publishedAndModified(slug: string) {
-			const response = await request(app).get(`/blog/${slug}`);
+			const response = await request(serve(app)).get(`/blog/${slug}`);
 			const doc = new JSDOM(response.text).window.document;
 			const posting = JSON.parse(
 				doc.querySelector('script[type="application/ld+json"]')?.textContent ?? "{}",
@@ -268,7 +271,7 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should have correct canonical URL", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
 			`https://readplace.com/blog/${firstPost.slug}`,
@@ -276,18 +279,18 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should have the page-blog-post body class", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.body.classList.contains("page-blog-post")).toBe(true);
 	});
 
 	it("should return 404 for an unknown slug", async () => {
-		const response = await request(app).get("/blog/nonexistent-post");
+		const response = await request(serve(app)).get("/blog/nonexistent-post");
 		expect(response.status).toBe(404);
 	});
 
 	it("renders the not-found copy for an unknown slug", async () => {
-		const response = await request(app).get("/blog/no-such-post");
+		const response = await request(serve(app)).get("/blog/no-such-post");
 		expect(response.status).toBe(404);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector(".not-found__title")?.textContent).toBe("Page not found");
@@ -297,7 +300,7 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("labels a post table's cells with their column header so they stack on a phone", async () => {
-		const response = await request(app).get("/blog/pocket-migration");
+		const response = await request(serve(app)).get("/blog/pocket-migration");
 		expect(response.status).toBe(200);
 		const doc = new JSDOM(response.text).window.document;
 		const labelled = doc.querySelector("td[data-label]");
@@ -313,7 +316,7 @@ describe("share image", () => {
 	for (const post of blogPosts.getAllPosts()) {
 		it(`gives ${post.slug} a share image`, async () => {
 			const expected = `${STATIC_BASE_URL}/og-image-1200x630.png`;
-			const response = await request(app).get(`/blog/${post.slug}`);
+			const response = await request(serve(app)).get(`/blog/${post.slug}`);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(expected);
 			const blogPosting = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'))
@@ -326,37 +329,37 @@ describe("share image", () => {
 
 describe("old hutch-vs-* slug redirects", () => {
 	it("should 301 redirect hutch-vs-readwise-reader to readplace-vs-readwise-reader", async () => {
-		const response = await request(app).get("/blog/hutch-vs-readwise-reader");
+		const response = await request(serve(app)).get("/blog/hutch-vs-readwise-reader");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-vs-readwise-reader");
 	});
 
 	it("should 301 redirect hutch-vs-instapaper to readplace-vs-instapaper", async () => {
-		const response = await request(app).get("/blog/hutch-vs-instapaper");
+		const response = await request(serve(app)).get("/blog/hutch-vs-instapaper");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-vs-instapaper");
 	});
 
 	it("should 301 redirect hutch-vs-karakeep to readplace-vs-karakeep", async () => {
-		const response = await request(app).get("/blog/hutch-vs-karakeep-hosted-vs-self-hosted-read-it-later");
+		const response = await request(serve(app)).get("/blog/hutch-vs-karakeep-hosted-vs-self-hosted-read-it-later");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later");
 	});
 
 	it("should 301 redirect why-i-built-readplace to why-readplace-exists", async () => {
-		const response = await request(app).get("/blog/why-i-built-readplace");
+		const response = await request(serve(app)).get("/blog/why-i-built-readplace");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/why-readplace-exists");
 	});
 
 	it("should 301 redirect the deleted pdf-ocr-pipeline post to the post that replaced it", async () => {
-		const response = await request(app).get("/blog/pdf-ocr-pipeline-tesseract-llm-hybrid");
+		const response = await request(serve(app)).get("/blog/pdf-ocr-pipeline-tesseract-llm-hybrid");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-now-reads-scans-in-15-languages");
 	});
 
 	it("should 301 redirect the truncated karakeep slug to the full one", async () => {
-		const response = await request(app).get("/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it");
+		const response = await request(serve(app)).get("/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later");
 	});
@@ -388,15 +391,16 @@ describe("slugs removed from the posts directory", () => {
 		async () => {
 			const removed = postSlugsRemovedFromGitHistory();
 			expect(removed).toContain("why-i-built-readplace");
+			const server = serve(app);
 
 			for (const slug of removed) {
-				const response = await request(app).get(`/blog/${slug}`);
+				const response = await request(server).get(`/blog/${slug}`);
 				if (SLUGS_REMOVED_WITHOUT_A_SUCCESSOR.has(slug)) {
 					expect({ slug, status: response.status }).toEqual({ slug, status: 404 });
 					continue;
 				}
 				expect({ slug, status: response.status }).toEqual({ slug, status: 301 });
-				const target = await request(app).get(response.headers.location);
+				const target = await request(server).get(response.headers.location);
 				expect({ slug, target: response.headers.location, status: target.status }).toEqual({
 					slug,
 					target: response.headers.location,
@@ -409,7 +413,7 @@ describe("slugs removed from the posts directory", () => {
 
 describe("GET /blog/sitemap.xml", () => {
 	it("lists /blog and every post URL as absolute readplace.com URLs", async () => {
-		const response = await request(app).get("/blog/sitemap.xml");
+		const response = await request(serve(app)).get("/blog/sitemap.xml");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/application\/xml/);
 		expect(response.text).toContain("<loc>https://readplace.com/blog</loc>");
@@ -419,12 +423,12 @@ describe("GET /blog/sitemap.xml", () => {
 	});
 
 	it("carries no Content-Signal header (machine metadata, not a page)", async () => {
-		const response = await request(app).get("/blog/sitemap.xml");
+		const response = await request(serve(app)).get("/blog/sitemap.xml");
 		expect(response.headers["content-signal"]).toBeUndefined();
 	});
 
 	async function sitemapLastmodFor(path: string): Promise<string | undefined> {
-		const response = await request(app).get("/blog/sitemap.xml");
+		const response = await request(serve(app)).get("/blog/sitemap.xml");
 		const doc = new JSDOM(response.text, { contentType: "text/xml" }).window.document;
 		const url = Array.from(doc.querySelectorAll("url")).find(
 			(entry) => entry.querySelector("loc")?.textContent === `https://readplace.com${path}`,
@@ -456,26 +460,26 @@ describe("GET /blog/sitemap.xml", () => {
 
 describe("GET /blog with Accept: text/markdown", () => {
 	it("returns 200 with text/markdown content-type and an x-markdown-tokens header", async () => {
-		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+		const response = await request(serve(app)).get("/blog").set("Accept", "text/markdown");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 		expect(Number(response.headers["x-markdown-tokens"])).toBeGreaterThan(0);
 	});
 
 	it("emits the Content-Signal policy and Vary: Accept", async () => {
-		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+		const response = await request(serve(app)).get("/blog").set("Accept", "text/markdown");
 		expect(response.headers["content-signal"]).toBe("search=yes, ai-input=yes, ai-train=yes");
 		expect(response.headers.vary).toMatch(/\bAccept\b/);
 	});
 
 	it("renders the page heading as the markdown h1 and lists the first post title", async () => {
-		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+		const response = await request(serve(app)).get("/blog").set("Accept", "text/markdown");
 		expect(response.text.startsWith("# Blog")).toBe(true);
 		expect(response.text).toContain(firstPost.title);
 	});
 
 	it("does not include the rendered HTML chrome", async () => {
-		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+		const response = await request(serve(app)).get("/blog").set("Accept", "text/markdown");
 		expect(response.text).not.toContain("<script");
 		expect(response.text).not.toContain("data-test-");
 	});
@@ -483,7 +487,7 @@ describe("GET /blog with Accept: text/markdown", () => {
 
 describe("GET /blog/:slug with Accept: text/markdown", () => {
 	it("returns 200 with text/markdown and the canonical URL in frontmatter", async () => {
-		const response = await request(app)
+		const response = await request(serve(app))
 			.get(`/blog/${firstPost.slug}`)
 			.set("Accept", "text/markdown");
 		expect(response.status).toBe(200);
@@ -494,14 +498,14 @@ describe("GET /blog/:slug with Accept: text/markdown", () => {
 	});
 
 	it("opens the post body with the TL;DR as a summary callout", async () => {
-		const response = await request(app)
+		const response = await request(serve(app))
 			.get(`/blog/${firstPost.slug}`)
 			.set("Accept", "text/markdown");
 		expect(response.text).toContain("\n\n> [!summary] Summary (TL;DR)\n> ");
 	});
 
 	it("serves the raw markdown source verbatim, without HTML conversion", async () => {
-		const response = await request(app)
+		const response = await request(serve(app))
 			.get(`/blog/${firstPost.slug}`)
 			.set("Accept", "text/markdown");
 		expect(response.text).toContain(firstPost.markdownContent.trim().split("\n")[0]);
@@ -510,7 +514,7 @@ describe("GET /blog/:slug with Accept: text/markdown", () => {
 
 describe("GET /blog/changelog-banner", () => {
 	async function fetchBanner(query = "", cookie?: string) {
-		const pending = request(appWithChangelogBanner(FAKE_BANNER)).get(`/blog/changelog-banner${query}`);
+		const pending = request(serve(appWithChangelogBanner(FAKE_BANNER))).get(`/blog/changelog-banner${query}`);
 		const response = await (cookie === undefined ? pending : pending.set("Cookie", cookie));
 		return { response, doc: new JSDOM(response.text).window.document };
 	}
@@ -550,7 +554,7 @@ describe("GET /blog/changelog-banner", () => {
 	});
 
 	it("returns 204 with no body when there is nothing to announce", async () => {
-		const response = await request(appWithChangelogBanner(undefined)).get(
+		const response = await request(serve(appWithChangelogBanner(undefined))).get(
 			"/blog/changelog-banner",
 		);
 		expect(response.status).toBe(204);
@@ -566,7 +570,7 @@ describe("GET /blog/changelog-banner", () => {
 
 describe("changelog banner on /blog pages", () => {
 	it("renders the visible banner on the index when one exists and is not dismissed", async () => {
-		const response = await request(appWithChangelogBanner(FAKE_BANNER)).get("/blog");
+		const response = await request(serve(appWithChangelogBanner(FAKE_BANNER))).get("/blog");
 		const banner = new JSDOM(response.text).window.document.querySelector(
 			"[data-test-changelog-banner]",
 		);
@@ -575,7 +579,7 @@ describe("changelog banner on /blog pages", () => {
 	});
 
 	it("renders the hidden shell on the index when there is nothing to announce", async () => {
-		const response = await request(appWithChangelogBanner(undefined)).get("/blog");
+		const response = await request(serve(appWithChangelogBanner(undefined))).get("/blog");
 		const banner = new JSDOM(response.text).window.document.querySelector(
 			"[data-test-changelog-banner]",
 		);
@@ -583,7 +587,7 @@ describe("changelog banner on /blog pages", () => {
 	});
 
 	it("hides the banner when the dismissal cookie matches the banner version", async () => {
-		const response = await request(appWithChangelogBanner(FAKE_BANNER))
+		const response = await request(serve(appWithChangelogBanner(FAKE_BANNER)))
 			.get("/blog")
 			.set("Cookie", `rp_changelog_dismissed=${FAKE_BANNER.version}`);
 		const banner = new JSDOM(response.text).window.document.querySelector(
@@ -593,7 +597,7 @@ describe("changelog banner on /blog pages", () => {
 	});
 
 	it("keeps showing the banner when the dismissal cookie is for a different version", async () => {
-		const response = await request(appWithChangelogBanner(FAKE_BANNER))
+		const response = await request(serve(appWithChangelogBanner(FAKE_BANNER)))
 			.get("/blog")
 			.set("Cookie", "rp_changelog_dismissed=00000000");
 		const banner = new JSDOM(response.text).window.document.querySelector(
@@ -603,7 +607,7 @@ describe("changelog banner on /blog pages", () => {
 	});
 
 	it("shows the banner with 200 (not 500) when the dismissal cookie is a malformed percent-escape", async () => {
-		const response = await request(appWithChangelogBanner(FAKE_BANNER))
+		const response = await request(serve(appWithChangelogBanner(FAKE_BANNER)))
 			.get("/blog")
 			.set("Cookie", "rp_changelog_dismissed=%");
 		expect(response.status).toBe(200);
@@ -631,7 +635,7 @@ describe("changelog banner on /blog pages", () => {
 			initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver, staticBaseUrl: "" }),
 		);
 
-		const response = await request(expressApp).get(`/blog/${slug}`);
+		const response = await request(serve(expressApp)).get(`/blog/${slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-changelog-banner]");
 		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
@@ -642,7 +646,7 @@ describe("changelog banner on /blog pages", () => {
 
 describe("robots directives", () => {
 	it("pins the blog index to index, follow so the blog is always indexable", async () => {
-		const response = await request(app).get("/blog");
+		const response = await request(serve(app)).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 			"index, follow",
@@ -650,7 +654,7 @@ describe("robots directives", () => {
 	});
 
 	it("pins every post to index, follow so the blog is always indexable", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 			"index, follow",
@@ -660,7 +664,7 @@ describe("robots directives", () => {
 
 describe("HTML responses carry the Content-Signal header", () => {
 	it("sets Content-Signal and Vary: Accept on a plain HTML GET", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const response = await request(serve(app)).get(`/blog/${firstPost.slug}`);
 		expect(response.headers["content-signal"]).toBe("search=yes, ai-input=yes, ai-train=yes");
 		expect(response.headers.vary).toMatch(/\bAccept\b/);
 	});
