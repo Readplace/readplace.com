@@ -84,7 +84,7 @@ function makeHarness(opts?: {
 	const imports = initInMemoryGmailHistoryImport();
 	const addresses = initInMemoryInboxAddress({ now });
 	const emails = initInMemoryInboxEmail();
-	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail });
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail, listEmailsByUserId: emails.listEmailsByUserId });
 	const identities = initInMemoryEmailIdentity();
 	const rawBucket = initInMemoryRawEmailBucket();
 	const imageDownloads: string[] = [];
@@ -301,7 +301,7 @@ describe("initIngestGmailImportHandler", () => {
 		assert.equal(row?.rawEmailS3Key, detail.rawEmailS3Key);
 		assert.equal(imageDownloads.length, 1);
 		assert.deepEqual((await completion.findCompletion({ userId: READER, receivedAtMessageId: IMPORTED_ROW }))?.origins, [
-			{ kind: "history", accountEmail: "reader@gmail.com", gmailMessageId: GMAIL_MESSAGE_ID },
+			{ kind: "history", accountEmail: "reader@gmail.com", gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: "dan@tldr.tech" },
 		]);
 		assert.deepEqual(published, [
 			{
@@ -705,7 +705,7 @@ describe("initIngestGmailImportHandler", () => {
 			ingested({ jobId: FIRST_JOB, outcome: "already-imported" }),
 		]);
 		assert.deepEqual((await completion.findCompletion({ userId: READER, receivedAtMessageId: forwardedRow }))?.origins, [
-			{ kind: "history", accountEmail: "reader@gmail.com", gmailMessageId: GMAIL_MESSAGE_ID },
+			{ kind: "history", accountEmail: "reader@gmail.com", gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: "dan@tldr.tech" },
 		]);
 	});
 });

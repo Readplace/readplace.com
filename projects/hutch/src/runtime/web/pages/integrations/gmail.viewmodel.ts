@@ -8,9 +8,10 @@ import type {
 	GmailDeliveryMode,
 	GmailDiscovery,
 	GmailHistoryImportJob,
+	GmailMarkBackfillJob,
 	GmailMapping,
 } from "@packages/domain/gmail";
-import { gmailConnectionState, pickerDeliveryMode } from "@packages/domain/gmail";
+import { GMAIL_IMPORTED_LABEL_NAME, gmailConnectionState, pickerDeliveryMode } from "@packages/domain/gmail";
 import type { InboxAddressEntry } from "@packages/domain/inbox";
 import type { NewsletterDetection } from "@packages/domain/newsletter-catalog";
 import {
@@ -26,7 +27,7 @@ import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, type GmailFormAction, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
-import { gmailMappingDestination, type GmailMappingsViewModel, toGmailMappingsViewModel } from "./gmail-mappings.viewmodel";
+import { GMAIL_MARK_OPTION_LABEL, gmailMappingDestination, type GmailMappingsViewModel, toGmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import { type GmailChecklistCommand, type GmailChecklistGroup, type GmailSenderChecklist, toGmailSenderChecklist } from "./gmail-sender-checklist.viewmodel";
 import {
 	type GmailSenderCandidate,
@@ -71,6 +72,7 @@ export interface GmailPageInput {
 	metadataScopeGranted: boolean;
 	readScopeGranted: boolean;
 	modifyScopeGranted: boolean;
+	backfills: readonly GmailMarkBackfillJob[];
 	discoveredSenders: readonly DiscoveredGmailSender[];
 	discovery: {
 		state: "idle" | GmailDiscovery["state"];
@@ -135,6 +137,9 @@ interface GmailSaveViewModel {
 	action: string;
 	offerImport: boolean;
 	importChecked: boolean;
+	markChecked: boolean;
+	markDisabled: boolean;
+	markLabel: string;
 	disabled: boolean;
 	autofocus: boolean;
 }
@@ -185,7 +190,6 @@ export interface GmailPageViewModel {
 	disconnectAction: string;
 	reconnect: GmailConnectionPrompt;
 	metadataReconnect: GmailConnectionPrompt;
-	labelPermission: GmailConnectionPrompt | undefined;
 	showStep: boolean;
 	showSenders: boolean;
 	showReconnect: boolean;
@@ -239,6 +243,7 @@ export const GMAIL_PAGE_ERRORS: Record<GmailPageError, string> = {
 	import_unavailable: "Unread messages can't be imported for this newsletter yet. Choose a readlist for it, then try again.",
 	import_reconnect_required: "Readplace doesn't know which Gmail account this connection belongs to, so it can't import unread messages. Disconnect Gmail below and connect it again to import them.",
 	import_revoked: "Google ended the connection, so Readplace can't import unread messages. Reconnect Gmail to import them.",
+	mark_revoked: "Google ended the connection, so Readplace can't mark imported emails as read yet. Reconnect Gmail, then turn the option on for this newsletter.",
 };
 
 export const GMAIL_GATEWAY_DISABLED_MESSAGE =
@@ -275,11 +280,15 @@ export const GMAIL_PAGE_NOTICES: Record<GmailPageNotice, { message: string; awai
 	readlist_created: { message: "Readlist created. Save the newsletter to use it.", variant: "success" },
 	readlist_reused: { message: "You already have a readlist with that name, so I chose it.", variant: "info" },
 	import_started: { message: "Importing unread messages from the last 30 days.", variant: "success" },
-	import_permission_needed: { message: "To import unread messages, give Readplace permission to read them in Gmail and to label and mark read the ones it saves.", variant: "info" },
+	import_permission_needed: { message: "To import unread messages, give Readplace permission to read them in Gmail.", variant: "info" },
 	import_permission_refused: { message: "Google didn't grant permission to read your messages, so the import is waiting. New mail still forwards.", variant: "warning" },
-	import_permission_granted: { message: "Readplace can now read your Gmail messages and label the ones it saves. Start the import from the newsletter below.", variant: "success" },
-	label_permission_granted: { message: "Readplace will now label saved newsletters imported-to-readplace and mark them read in Gmail, including the ones already waiting.", variant: "success" },
-	label_permission_refused: { message: "Google didn't grant permission to label your messages. Newsletters still save to Readplace, and the labelling waits until you allow it.", variant: "warning" },
+	import_permission_granted: { message: "Readplace can now read your Gmail messages. Start the import from the newsletter below.", variant: "success" },
+	mark_permission_needed: { message: "To mark imported emails as read, Readplace needs permission to change your Gmail messages.", variant: "info" },
+	mark_permission_refused: { message: "Google didn't grant permission to change your Gmail messages, so imported emails stay unread. Newsletters still save to Readplace.", variant: "warning" },
+	mark_permission_granted: { message: `Readplace can now mark imported emails as read and label them ${GMAIL_IMPORTED_LABEL_NAME} in Gmail.`, variant: "success" },
+	mark_on: { message: `Imported emails will now be marked as read and labelled ${GMAIL_IMPORTED_LABEL_NAME} in Gmail.`, variant: "success" },
+	mark_off: { message: "Readplace stopped marking emails from this newsletter as read. Emails it already marked stay as they are.", variant: "success" },
+	mark_backfill_started: { message: "Readplace is marking earlier emails from this newsletter as read. This can take a while for a long-running newsletter.", variant: "success" },
 	import_cancelled: { message: "Import cancelled. Messages already imported stay in your readlists.", variant: "success" },
 	filter_retry_requested: { message: "Updating Gmail. Refresh in a moment.", variant: "info" },
 };
@@ -300,6 +309,7 @@ const GMAIL_ERROR_SURFACES: Record<GmailPageError, GmailBannerSurface> = {
 	import_unavailable: "page",
 	import_reconnect_required: "page",
 	import_revoked: "page",
+	mark_revoked: "page",
 };
 
 const GMAIL_NOTICE_SURFACES: Record<GmailPageNotice, GmailBannerSurface> = {
@@ -316,8 +326,12 @@ const GMAIL_NOTICE_SURFACES: Record<GmailPageNotice, GmailBannerSurface> = {
 	import_permission_refused: "page",
 	import_permission_granted: "page",
 	import_cancelled: "page",
-	label_permission_granted: "page",
-	label_permission_refused: "page",
+	mark_permission_needed: "page",
+	mark_permission_refused: "page",
+	mark_permission_granted: "page",
+	mark_on: "page",
+	mark_off: "page",
+	mark_backfill_started: "page",
 	filter_retry_requested: "page",
 };
 
@@ -423,7 +437,7 @@ function readlistPicker(input: {
 	selected: readonly ReadlistRef[];
 	pending: boolean;
 }): GmailReadlistPickerViewModel {
-	const { readlist: _readlist, import: _import, readlist_name: _name, delivery: _delivery, sender: _sender, added: _added, search: _search, ...fieldsState } = input.state;
+	const { readlist: _readlist, import: _import, mark: _mark, readlist_name: _name, delivery: _delivery, sender: _sender, added: _added, search: _search, ...fieldsState } = input.state;
 	return {
 		open: input.page.error !== undefined && READLIST_PICKER_ERRORS.has(input.page.error),
 		choiceLabel: input.selected.map((readlist) => readlist.label).join(", "),
@@ -446,15 +460,21 @@ function readlistPicker(input: {
 
 function saveFor(input: {
 	state: GmailPickerState;
+	modifyScopeGranted: boolean;
+	canConnectGmail: boolean;
 	offerImport: boolean;
 	pending: boolean;
 	invalid: boolean;
 	autofocus: boolean;
 }): GmailSaveViewModel {
+	const markDisabled = !input.modifyScopeGranted && !input.canConnectGmail;
 	return {
 		action: trackGmail(GMAIL_SENDER_ADD_PATH, "save-mapping"),
 		offerImport: input.offerImport,
 		importChecked: input.state.import === "1",
+		markChecked: !markDisabled && (input.state.mark === undefined ? input.modifyScopeGranted : input.state.mark === "1"),
+		markDisabled,
+		markLabel: GMAIL_MARK_OPTION_LABEL,
 		disabled: input.pending || input.invalid,
 		autofocus: input.autofocus,
 	};
@@ -547,7 +567,7 @@ function refreshActions(input: { listed: number | undefined; knownCount: number 
 	return [{ label: `Show ${found.toLocaleString("en")} newly found ${found === 1 ? "newsletter" : "newsletters"}` }];
 }
 
-const TICK_FIELDS: ReadonlySet<string> = new Set(["sender", "added"]);
+const LIVE_FIELDS: ReadonlySet<string> = new Set(["sender", "added", "mark"]);
 
 export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel {
 	const state = gmailConnectionState(input.connection);
@@ -571,7 +591,6 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const pending = choiceFor !== undefined && ticked.some((email) => email === choiceFor) && entryFor(choiceFor)?.mappedAddresses === undefined && input.readlists.some((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	const invalid = gmailSelectedReadlists(input.state).some((slug) => !input.readlists.some((readlist) => readlist.slug === slug));
 	const showSenders = !revoked && input.metadataScopeGranted && !input.discovery.requiresReconnect;
-	const showMetadataReconnect = !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true);
 	const mode = dialogMode({ page: input, showSenders, ticked });
 	const focus = openingFocus({ mode, focusOnOpen: input.focusOnOpen, checklist });
 	const banners = bannerKeys({ error: input.error, notice: input.notice, mode });
@@ -597,7 +616,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 	const showStep = pollState !== undefined && input.gatewayLive;
 	const commitVariant = showStep ? "neutral" : "primary";
 	const offerImport = ticked.length === 0 || ticked.some((email) => !tickedMapped.some((sender) => sender.senderEmail === email));
-	const save = saveFor({ state: pickerState, offerImport, pending, invalid, autofocus: focus === "save" });
+	const save = saveFor({ state: pickerState, modifyScopeGranted: input.modifyScopeGranted, canConnectGmail: input.canConnectGmail, offerImport, pending, invalid, autofocus: focus === "save" });
 	const searchFields = gmailGetFields(pickerState, "search-senders");
 	return {
 		state, stateModifier: `gmail__status--${state}`, statusLabel: STATUS_LABELS[state], accountEmail: input.connection.accountEmail, pollState,
@@ -617,20 +636,15 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			message: "Reconnect Gmail to choose senders from your mailbox. The newsletters you set up stay in place.",
 			content: "grant-sender-access", label: "Reconnect Gmail", variant: commitVariant, fields: [],
 		}),
-		labelPermission: revoked || showMetadataReconnect || input.modifyScopeGranted ? undefined : gmailConnectionPrompt({
-			canConnectGmail: input.canConnectGmail,
-			message: "Let Readplace tidy Gmail: once a newsletter is saved, it adds the label imported-to-readplace to the original email and marks it read. Your other labels stay as they are, and nothing is archived or deleted.",
-			content: "grant-label-permission", label: "Allow labelling", variant: "neutral", fields: [{ name: "intent", value: "label" }],
-		}),
 		showStep,
 		showSenders,
 		showReconnect: revoked,
-		showMetadataReconnect,
+		showMetadataReconnect: !revoked && (!input.metadataScopeGranted || input.discovery.requiresReconnect === true),
 		autoDiscoverAction: input.discoveryStarted ? undefined : GMAIL_DISCOVERY_START_PATH,
 		dialog: dialogFor({ mode, state: pickerState, ticked, banners, saved: input.saved, awaitingConfirmation: pollState !== undefined, candidates }),
 		senderPicker: { open: focus === "search", searchAutofocus: focus === "search" },
 		search: pickerState.search ?? "",
-		searchFields: searchFields.filter((field) => field.name !== "search" && field.name !== "discovery_after" && !TICK_FIELDS.has(field.name)),
+		searchFields: searchFields.filter((field) => field.name !== "search" && field.name !== "discovery_after" && !LIVE_FIELDS.has(field.name)),
 		notificationSender: notified,
 		status: {
 			discoveryState: input.discovery.state,
@@ -666,7 +680,10 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			readlists: input.readlists,
 			candidates,
 			imports: input.imports,
+			backfills: input.backfills,
 			readScopeGranted: input.readScopeGranted,
+			modifyScopeGranted: input.modifyScopeGranted,
+			metadataScopeGranted: input.metadataScopeGranted,
 			readlistChoiceShown: showSenders,
 			state: pickerState,
 			importsPollCount: input.importsPollCount,

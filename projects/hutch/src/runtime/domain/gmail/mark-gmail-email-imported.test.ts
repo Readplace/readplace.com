@@ -19,7 +19,7 @@ const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
 const RAM = "2026-10-27T00:00:00.000Z#<issue@news.test>";
 const NOW = new Date("2026-10-27T01:00:00.000Z");
 const MESSAGE = GmailMessageIdSchema.parse("18c2f0a1b2c3d4e5");
-const HISTORY: GmailMessageOrigin = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: MESSAGE };
+const HISTORY: GmailMessageOrigin = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: MESSAGE, senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 const FORWARDED: GmailMessageOrigin = {
 	kind: "forwarded",
 	accountEmail: ACCOUNT,
@@ -90,7 +90,15 @@ function fakeMailbox(): FakeMailbox & { mailbox: OpenedGmailMailbox } {
 	return Object.assign(state, { mailbox });
 }
 
-async function harness(opts: { open?: (fake: ReturnType<typeof fakeMailbox>) => OpenGmailMailboxResult; connectedAs?: typeof ACCOUNT | undefined } = {}) {
+const OPTION_ON_SINCE = "2026-10-26T00:00:00.000Z";
+
+async function harness(
+	opts: {
+		open?: (fake: ReturnType<typeof fakeMailbox>) => OpenGmailMailboxResult;
+		connectedAs?: typeof ACCOUNT | undefined;
+		markImportedAt?: string | undefined;
+	} = {},
+) {
 	const updates = initInMemoryGmailMessageUpdate();
 	const connections = initInMemoryGmailConnection({ now: () => NOW });
 	const connectedAs = "connectedAs" in opts ? opts.connectedAs : ACCOUNT;
@@ -100,8 +108,14 @@ async function harness(opts: { open?: (fake: ReturnType<typeof fakeMailbox>) => 
 	}
 	const fake = fakeMailbox();
 	const opened: { accountEmail: string }[] = [];
+	const gateChecks: unknown[] = [];
+	const markImportedAt = "markImportedAt" in opts ? opts.markImportedAt : OPTION_ON_SINCE;
 	const mark = initMarkGmailEmailImported({
 		updates,
+		findMarkImportedSince: async (input) => {
+			gateChecks.push(input);
+			return markImportedAt;
+		},
 		connections,
 		openMailbox: async (input) => {
 			opened.push({ accountEmail: input.accountEmail });
@@ -109,10 +123,42 @@ async function harness(opts: { open?: (fake: ReturnType<typeof fakeMailbox>) => 
 		},
 		now: () => NOW,
 	});
-	return { updates, connections, fake, opened, mark: (origin: GmailMessageOrigin = HISTORY) => mark({ userId: USER, receivedAtMessageId: RAM, origin }) };
+	return { updates, connections, fake, opened, gateChecks, mark: (origin: GmailMessageOrigin = HISTORY) => mark({ userId: USER, receivedAtMessageId: RAM, origin }) };
 }
 
 describe("initMarkGmailEmailImported", () => {
+	it("asks the mapping of the email's account and sender whether marking is on", async () => {
+		const h = await harness();
+
+		await h.mark(FORWARDED);
+
+		assert.deepEqual(h.gateChecks, [{ userId: USER, accountEmail: ACCOUNT, senderEmail: FORWARDED.senderEmail }]);
+	});
+
+	it("skips the email without recording or touching Gmail while marking is off for its sender", async () => {
+		const h = await harness({ markImportedAt: undefined });
+
+		assert.deepEqual(await h.mark(), { kind: "skipped" });
+
+		assert.deepEqual({ records: h.updates.all(), opened: h.opened, calls: h.fake.calls }, { records: [], opened: [], calls: [] });
+	});
+
+	it("discards a pending update left from before marking was turned off", async () => {
+		const updates = initInMemoryGmailMessageUpdate();
+		await updates.recordPending({ userId: USER, receivedAtMessageId: RAM, origin: HISTORY, now: NOW });
+		const mark = initMarkGmailEmailImported({
+			updates,
+			findMarkImportedSince: async () => undefined,
+			connections: initInMemoryGmailConnection({ now: () => NOW }),
+			openMailbox: async () => ({ ok: false, reason: "not-connected" }),
+			now: () => NOW,
+		});
+
+		assert.deepEqual(await mark({ userId: USER, receivedAtMessageId: RAM, origin: HISTORY }), { kind: "skipped" });
+
+		assert.deepEqual(updates.all(), []);
+	});
+
 	it("creates the label on first use, adds it and removes UNREAD in one request, then records completion", async () => {
 		const h = await harness();
 
@@ -220,7 +266,7 @@ describe("initMarkGmailEmailImported", () => {
 
 		assert.deepEqual(await h.mark(), { kind: "failed", reason: "original-not-found" });
 		assert.equal((await h.updates.find({ userId: USER, origin: HISTORY }))?.status, "failed");
-		assert.deepEqual(h.fake.calls, []);
+		assert.equal(h.fake.calls.some((call) => call.startsWith("modify")), false);
 	});
 
 	it("answers a failed update as already failed without touching Gmail again", async () => {

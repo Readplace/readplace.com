@@ -8,7 +8,7 @@ export const GMAIL_DIAGNOSTIC_VERSION = 1;
 type GmailDiagnosticLevel = "INFO" | "ERROR";
 
 export interface GmailOAuthCorrelation {
-	route: "connect" | "callback";
+	route: "connect" | "callback" | "save" | "mark";
 	traceId: string;
 	requestId: string | undefined;
 	userId: string | undefined;
@@ -21,7 +21,7 @@ export interface GmailOAuthStateInspection {
 	payload: "valid" | "malformed-json" | "schema-rejected" | undefined;
 	createdAtMs: number | undefined;
 	ageMs: number | undefined;
-	intentKind: "connect" | "import" | "label" | undefined;
+	intentKind: "connect" | "import" | "mark" | undefined;
 }
 
 export type GmailOAuthCallbackDecision =
@@ -65,7 +65,7 @@ export type GmailDiagnosticEvent =
 		level: "INFO";
 		issuedStateFingerprint: string;
 		previousCookie: GmailOAuthStateInspection;
-		intentKind: "connect" | "import" | "label";
+		intentKind: "connect" | "import" | "mark";
 	})
 	| (GmailOAuthCorrelation & {
 		event: "gmail.oauth.callback.inspected";

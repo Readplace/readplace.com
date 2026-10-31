@@ -716,6 +716,21 @@ export const FORM_CONTROL_STYLES = `
 		background: radial-gradient(circle, var(--foreground) 0 4px, transparent 4.5px);
 	}
 
+	.form-choice:disabled {
+		border-color: var(--muted-foreground);
+		background: var(--muted);
+		cursor: not-allowed;
+	}
+
+	.form-choice[type="checkbox"]:checked:disabled {
+		background: var(--muted-foreground);
+	}
+
+	label:has(> .form-choice:disabled) {
+		color: var(--muted-foreground);
+		cursor: not-allowed;
+	}
+
 	.form-choice:focus-visible {
 		outline: 2px solid var(--ring);
 		outline-offset: 2px;

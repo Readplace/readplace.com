@@ -35,6 +35,7 @@ type GmailOAuthHandlerStage =
 	| "record-account-email"
 	| "reconnect"
 	| "import-intent"
+	| "mark-intent"
 	| "done";
 
 type GmailOAuthStage = "received" | GmailOAuthGuardStage | GmailOAuthHandlerStage;
@@ -59,7 +60,7 @@ type GmailOAuthCallbackInspectedFields = WithoutCorrelation<
 
 interface GmailOAuthStatePayload {
 	createdAt: number;
-	intent: { kind: "connect" | "import" | "label" };
+	intent: { kind: "connect" | "import" | "mark" };
 }
 
 type GmailOAuthStateReading =
@@ -68,7 +69,7 @@ type GmailOAuthStateReading =
 	| { kind: "invalid-signature"; fingerprint: string }
 	| { kind: "malformed-json"; fingerprint: string }
 	| { kind: "schema-rejected"; fingerprint: string }
-	| { kind: "valid"; fingerprint: string; createdAtMs: number; ageMs: number; intentKind: "connect" | "import" | "label" };
+	| { kind: "valid"; fingerprint: string; createdAtMs: number; ageMs: number; intentKind: "connect" | "import" | "mark" };
 
 type ReadGmailOAuthState = (input: { value: unknown; checkedAtMs: number }) => GmailOAuthStateReading;
 
@@ -272,8 +273,9 @@ interface GmailOAuthTraceState {
 	completed: boolean;
 }
 
-interface GmailOAuthTrace {
+export interface GmailOAuthTrace {
 	begin: (route: GmailOAuthCorrelation["route"]) => RequestHandler;
+	open: (input: { route: GmailOAuthCorrelation["route"]; req: Request; res: Response }) => void;
 	guard: (input: { stage: GmailOAuthGuardStage; handler: RequestHandler }) => RequestHandler;
 	enter: (req: Request, stage: GmailOAuthHandlerStage) => void;
 	fail: (req: Request, reason: GmailOAuthFailureReason) => void;
@@ -345,6 +347,7 @@ export function initGmailOAuthTrace(deps: { record: RecordGmailDiagnostic; now: 
 			start({ route, req, res });
 			next();
 		},
+		open: start,
 		guard: ({ stage, handler }) => (req, res, next) => {
 			mark(req, stage);
 			return handler(req, res, next);

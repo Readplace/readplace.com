@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { GmailAccountEmailSchema, type GmailMessageOrigin, GmailMessageIdSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema, type GmailMessageOrigin, GmailMessageIdSchema } from "@packages/domain/gmail";
 import {
 	InboxAddressSchema,
 	MessageIdSchema,
@@ -22,6 +22,7 @@ const ORIGIN: GmailMessageOrigin = {
 	kind: "history",
 	accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
 	gmailMessageId: GmailMessageIdSchema.parse("18c2f0a1b2c3d4e5"),
+	senderEmail: ForwardableSenderSchema.parse("dan@tldr.tech"),
 };
 
 const tldrIssue: ParsedEmail = {
@@ -39,7 +40,7 @@ const tldrIssue: ParsedEmail = {
 
 function makeIngest(storeBody: StoreEmailBody) {
 	const emails = initInMemoryInboxEmail();
-	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail });
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail, listEmailsByUserId: emails.listEmailsByUserId });
 	const published: { event: unknown; detail: unknown }[] = [];
 	const ingest = initIngestParsedEmail({
 		storeBody,

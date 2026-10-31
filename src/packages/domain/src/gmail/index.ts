@@ -86,3 +86,21 @@ export {
 	gmailMessageOriginKey,
 	sameGmailAccount,
 } from "./gmail-message-update";
+export {
+	GMAIL_MARK_BACKFILL_COUNT_FIELDS,
+	GmailMarkBackfillCancelReasonSchema,
+	type GmailMarkBackfillCancelReason,
+	GmailMarkBackfillCountsSchema,
+	type GmailMarkBackfillCounts,
+	GmailMarkBackfillFailureReasonSchema,
+	type GmailMarkBackfillFailureReason,
+	type GmailMarkBackfillJob,
+	type GmailMarkBackfillRef,
+	type GmailMarkBackfillStart,
+	GmailMarkBackfillStateSchema,
+	type GmailMarkBackfillState,
+	type GmailMarkBackfillStore,
+	ZERO_GMAIL_MARK_BACKFILL_COUNTS,
+	addGmailMarkBackfillCounts,
+	planGmailMarkBackfillStart,
+} from "./gmail-mark-backfill";

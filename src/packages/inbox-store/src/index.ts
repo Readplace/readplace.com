@@ -14,6 +14,7 @@ export { initS3DeleteObjects } from "./s3-delete-objects";
 export { initS3DeleteObjectsByPrefix } from "./s3-delete-objects-by-prefix";
 export { initDynamoDbEmailIdentity } from "./dynamodb-email-identity";
 export { initDynamoDbGmailHistoryImport } from "./dynamodb-gmail-history-import";
+export { initDynamoDbGmailMarkBackfill } from "./dynamodb-gmail-mark-backfill";
 export { initS3WriteRawEmail } from "./s3-write-raw-email";
 export { initDynamoDbGmailMonitoring } from "./dynamodb-gmail-monitoring";
 export { initDynamoDbEmailImportCompletion } from "./dynamodb-email-import-completion";

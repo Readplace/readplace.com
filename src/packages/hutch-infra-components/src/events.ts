@@ -1376,7 +1376,7 @@ export const GmailHistoryImportFailedEvent = defineEvent({
 export type GmailHistoryImportFailedDetail = z.infer<typeof GmailHistoryImportFailedEvent.detailSchema>;
 
 const GmailMessageOriginDetail = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("history"), accountEmail: z.string(), gmailMessageId: z.string() }),
+	z.object({ kind: z.literal("history"), accountEmail: z.string(), gmailMessageId: z.string(), senderEmail: z.string() }),
 	z.object({ kind: z.literal("forwarded"), accountEmail: z.string(), rfcMessageId: z.string(), senderEmail: z.string() }),
 ]);
 
@@ -1462,6 +1462,37 @@ export const GmailModifyPermissionGrantedEvent = defineEvent({
 	detailSchema: z.object({ userId: z.string(), accountEmail: z.string() }),
 });
 export type GmailModifyPermissionGrantedDetail = z.infer<typeof GmailModifyPermissionGrantedEvent.detailSchema>;
+
+const GmailMarkBackfillRefSchema = z.object({ userId: z.string(), accountEmail: z.string(), senderEmail: z.string() });
+
+export const StartGmailMarkBackfillCommand = defineEvent({
+	name: "start-gmail-mark-backfill",
+	source: "hutch.app",
+	detailType: "StartGmailMarkBackfill",
+	detailSchema: GmailMarkBackfillRefSchema.extend({ generation: z.number().int().positive() }),
+});
+export type StartGmailMarkBackfillDetail = z.infer<typeof StartGmailMarkBackfillCommand.detailSchema>;
+
+export const ProcessGmailMarkBackfillPageCommand = defineEvent({
+	name: "process-gmail-mark-backfill-page",
+	source: "hutch.app",
+	detailType: "ProcessGmailMarkBackfillPage",
+	detailSchema: GmailMarkBackfillRefSchema.extend({
+		generation: z.number().int().positive(),
+		page: z.number().int().nonnegative(),
+	}),
+});
+export type ProcessGmailMarkBackfillPageDetail = z.infer<typeof ProcessGmailMarkBackfillPageCommand.detailSchema>;
+
+export const GmailMarkBackfillPageProcessedEvent = defineEvent({
+	name: "gmail-mark-backfill-page-processed",
+	source: "hutch.app",
+	detailType: "GmailMarkBackfillPageProcessed",
+	detailSchema: GmailMarkBackfillRefSchema.extend({
+		nextPage: z.object({ generation: z.number().int().positive(), page: z.number().int().nonnegative() }),
+	}),
+});
+export type GmailMarkBackfillPageProcessedDetail = z.infer<typeof GmailMarkBackfillPageProcessedEvent.detailSchema>;
 
 export type { HutchEvent, HutchCommand };
 

@@ -9,6 +9,9 @@ import type {
 	GmailHistoryImportJobId,
 	GmailHistoryImportStore,
 	GmailMappingStore,
+	GmailMarkBackfillRef,
+	GmailMarkBackfillStore,
+	GmailMessageUpdateStore,
 	GmailSenderStore,
 } from "@packages/domain/gmail";
 import type { InboxAddress, InboxAddressEntry } from "@packages/domain/inbox";
@@ -52,6 +55,9 @@ export interface GmailIntegrationProviders {
 	}) => Promise<GmailHistoryImportJob[]>;
 	publishStartGmailHistoryImport: (input: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }) => Promise<void>;
 	publishGmailModifyPermissionGranted: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<void>;
+	gmailMessageUpdateStore: GmailMessageUpdateStore;
+	gmailMarkBackfillStore: GmailMarkBackfillStore;
+	publishStartGmailMarkBackfill: (input: GmailMarkBackfillRef & { generation: number }) => Promise<void>;
 	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
 	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
 	newGmailHistoryImportGeneration: () => string;

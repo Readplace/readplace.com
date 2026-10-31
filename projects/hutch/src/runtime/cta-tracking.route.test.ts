@@ -5,7 +5,7 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { AliasNameSchema } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
-import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE, GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
 import { InvoiceIdSchema } from "@packages/provider-contracts/subscription-billing";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
@@ -286,6 +286,7 @@ describe("every same-origin CTA carries its own utm_source", () => {
 			await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: accountEmail, senderEmail, mappedAddresses: [destination.address], deliveryMode: "links" });
 			await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: accountEmail, senderEmail });
 		}
+		await gmail.bundle.gmailMappingStore.setMarkImported({ userId, accountEmail, senderEmail: waiting });
 		await gmail.bundle.gmailHistoryImportStore.createJob({
 			userId,
 			jobId: gmail.bundle.newGmailHistoryImportJobId(),
@@ -311,14 +312,14 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		for (const path of [pickerOpen, editOpen, "/newsletters/gmail?advanced=1", "/newsletters/gmail"]) {
 			pages.push([path, (await agent.get(path).set(BROWSER_REQUEST_HEADERS)).text]);
 		}
-		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: `${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}` });
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: `${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE} ${GMAIL_MODIFY_SCOPE}` });
 		pages.push([pickerOpen, (await agent.get(pickerOpen).set(BROWSER_REQUEST_HEADERS)).text]);
 
 		const rendered = pages.map(([, html]) => new JSDOM(html).window.document);
 		const actionKeys = new Set(rendered.flatMap((doc) =>
 			Array.from(doc.querySelectorAll("[data-test-gmail-mapping-action]"), (el) => el.getAttribute("data-test-gmail-mapping-action")),
 		));
-		expect([...actionKeys].sort()).toEqual(["cancel-import", "edit", "grant-import-permission", "remove", "retry-import", "start-import"]);
+		expect([...actionKeys].sort()).toEqual(["cancel-import", "edit", "grant-import-permission", "grant-mark-permission", "mark-read-backfill", "mark-read-start", "mark-read-stop", "remove", "retry-import", "start-import"]);
 		expect(["[data-test-gmail-readlist-picker]", "[data-test-gmail-sender-picker]"].map((picker) => rendered[0]?.querySelector(picker)?.hasAttribute("open"))).toEqual([true, true]);
 		const dialogLinks = rendered.slice(0, 2).map((doc) => Array.from(doc.querySelectorAll("#gmail-dialog a[data-test-action]"), (link) => [link.getAttribute("data-test-action"), new URL(link.getAttribute("href") ?? "", TEST_APP_ORIGIN).searchParams.get("utm_content")]));
 		expect(dialogLinks).toEqual([

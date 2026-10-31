@@ -56,7 +56,7 @@ function makeInbox() {
 	const now = () => new Date(RECEIVED_AT);
 	const addresses = initInMemoryInboxAddress({ now });
 	const emails = initInMemoryInboxEmail();
-	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail });
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail, listEmailsByUserId: emails.listEmailsByUserId });
 	const connections = initInMemoryGmailConnection({ now });
 	const mappings = initInMemoryGmailMapping({ now });
 	const senders = initInMemoryGmailSender({ now });

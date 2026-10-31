@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import { GmailAccountEmailSchema, GmailMessageIdSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailMessageIdSchema } from "@packages/domain/gmail";
 import { ISSUE_OUTPUT_KEY, linkOutputKey, formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbEmailImportCompletion } from "./dynamodb-email-import-completion";
@@ -14,7 +14,7 @@ interface Sent {
 const USER = UserIdSchema.parse("user-1");
 const RAM = "2026-10-27T00:00:00.000Z#<id@example.com>";
 const KEY = { userId: USER, receivedAtMessageId: RAM };
-const ORIGIN = { kind: "history" as const, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gmailMessageId: GmailMessageIdSchema.parse("m1") };
+const ORIGIN = { kind: "history" as const, accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gmailMessageId: GmailMessageIdSchema.parse("m1"), senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 const SELECTION = { outputs: [ISSUE_OUTPUT_KEY], truncated: false, selectedAt: "2026-10-27T00:00:01.000Z" };
 
 function conditionFailed(): ConditionalCheckFailedException {
@@ -111,5 +111,73 @@ describe("initDynamoDbEmailImportCompletion", () => {
 	it("reads a missing email as no completion", async () => {
 		const { completion } = store(() => ({}));
 		assert.equal(await completion.findCompletion(KEY), undefined);
+	});
+
+	it("lists the emails received before a point, newest first, at most 100 at a time", async () => {
+		const tracked = {
+			...KEY,
+			messageId: "<id@example.com>",
+			senderEmail: "Dan <dan@news.test>",
+			status: "received",
+			gmailDestinationAddresses: ["reader-abc123@readplace.com"],
+			gmailDeliveryMode: "issue",
+			outputSelection: SELECTION,
+			savedOutputs: new Set(["issue"]),
+			gmailOrigins: new Set([JSON.stringify(ORIGIN), JSON.stringify(ORIGIN)]),
+		};
+		const untracked = { userId: USER, receivedAtMessageId: "2026-10-26T00:00:00.000Z#<old@example.com>", messageId: "<old@example.com>", senderEmail: "dan@news.test", status: "rejected" };
+		const { completion, sent } = store(() => ({ Items: [tracked, untracked], LastEvaluatedKey: { userId: USER } }));
+
+		const listed = await completion.listCompletionsBefore({ userId: USER, before: "2026-10-28T00:00:00.000Z", limit: 500 });
+
+		assert.deepEqual(listed, {
+			emails: [
+				{
+					receivedAtMessageId: RAM,
+					messageId: "<id@example.com>",
+					senderEmail: "Dan <dan@news.test>",
+					status: "received",
+					gmailDestinationAddresses: ["reader-abc123@readplace.com"],
+					gmailDeliveryMode: "issue",
+					selection: SELECTION,
+					savedOutputs: new Set(["issue"]),
+					origins: [ORIGIN],
+				},
+				{
+					receivedAtMessageId: "2026-10-26T00:00:00.000Z#<old@example.com>",
+					messageId: "<old@example.com>",
+					senderEmail: "dan@news.test",
+					status: "rejected",
+					gmailDestinationAddresses: undefined,
+					gmailDeliveryMode: undefined,
+					selection: undefined,
+					savedOutputs: new Set(),
+					origins: [],
+				},
+			],
+			exhausted: false,
+		});
+		assert.deepEqual(
+			{
+				key: sent[0].input.KeyConditionExpression,
+				values: sent[0].input.ExpressionAttributeValues,
+				forward: sent[0].input.ScanIndexForward,
+				limit: sent[0].input.Limit,
+				projection: sent[0].input.ProjectionExpression,
+			},
+			{
+				key: "userId = :uid AND receivedAtMessageId < :before",
+				values: { ":uid": USER, ":before": "2026-10-28T00:00:00.000Z" },
+				forward: false,
+				limit: 100,
+				projection: "#messageId, #receivedAtMessageId, #senderEmail, #status, #gmailDestinationAddresses, #gmailDeliveryMode, #outputSelection, #savedOutputs, #gmailOrigins",
+			},
+		);
+	});
+
+	it("reports the list exhausted when no rows remain past the read", async () => {
+		const { completion, sent } = store(() => ({ Items: [] }));
+		assert.deepEqual(await completion.listCompletionsBefore({ userId: USER, before: RAM, limit: 30 }), { emails: [], exhausted: true });
+		assert.equal(sent[0].input.Limit, 30);
 	});
 });

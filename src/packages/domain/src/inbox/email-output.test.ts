@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ForwardableSenderSchema } from "../gmail/build-forwarding-filter-query";
 import { GmailAccountEmailSchema } from "../gmail/gmail-account-email.schema";
 import { GmailMessageIdSchema } from "../gmail/gmail-history-import.schema";
 import {
@@ -48,7 +49,7 @@ describe("isEmailSavedToAll", () => {
 
 describe("uniqueGmailOrigins", () => {
 	it("collapses origins that name the same Gmail message", () => {
-		const origin = { kind: "history" as const, accountEmail: GmailAccountEmailSchema.parse("a@gmail.com"), gmailMessageId: GmailMessageIdSchema.parse("m1") };
+		const origin = { kind: "history" as const, accountEmail: GmailAccountEmailSchema.parse("a@gmail.com"), gmailMessageId: GmailMessageIdSchema.parse("m1"), senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 		assert.deepEqual(uniqueGmailOrigins([origin, { ...origin, accountEmail: GmailAccountEmailSchema.parse("A@gmail.com") }]), [{ ...origin, accountEmail: "A@gmail.com" }]);
 	});
 });

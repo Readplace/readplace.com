@@ -107,7 +107,7 @@ function makePipeline() {
 	const logger = HutchLogger.from(noopLogger);
 	const addresses = initInMemoryInboxAddress({ now });
 	const emails = initInMemoryInboxEmail();
-	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail });
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail, listEmailsByUserId: emails.listEmailsByUserId });
 	const links = initInMemoryInboxEmailLink();
 	const identities = initInMemoryEmailIdentity();
 	const imports = initInMemoryGmailHistoryImport();
@@ -669,7 +669,7 @@ describe("gmail history import chain (inbox half)", () => {
 		assert.equal(pipeline.publishedOf(EmailReceivedEvent).length, 1);
 	});
 
-	const HISTORY_ORIGIN = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: GMAIL_MESSAGE_ID };
+	const HISTORY_ORIGIN = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: GMAIL_MESSAGE_ID, senderEmail: TLDR };
 	const FORWARDED_ORIGIN = { kind: "forwarded", accountEmail: ACCOUNT, senderEmail: TLDR, rfcMessageId: "issue-42@tldr.tech" };
 
 	it("asks for the imported Gmail message to be marked only after its saves are confirmed in All", async () => {

@@ -31,6 +31,7 @@ function mapped(senderEmail: typeof TLDR): GmailMapping {
 		accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), senderEmail,
 		addedToFilterAt: "2026-08-27T00:06:00.000Z", mappedAddresses: [ALL_ADDRESS], mappedAt: "2026-08-27T00:06:00.000Z",
 		deliveryMode: "links",
+		markImportedAt: undefined,
 	};
 }
 
@@ -64,6 +65,7 @@ function input(overrides: Partial<GmailPageInput> = {}): GmailPageInput {
 		discovery: { state: "complete", mode: "history", checkedMessageCount: 6 },
 		detection: recognised([]),
 		imports: [],
+		backfills: [],
 		state: {},
 		command: { pick: undefined, select: undefined, dismiss: undefined },
 		listed: undefined,
@@ -329,6 +331,23 @@ describe("GMail Newsletters shared choice for ticked senders", () => {
 		assert.deepEqual(vm.searchFields.map((field) => field.name), ["readlist", "discovery", "utm_source", "utm_medium", "utm_content"]);
 		assert.equal(vm.status.pollUrl, "/newsletters/gmail/senders?search=tl&readlist=default&discovery=started&poll=1");
 	});
+
+	it("leaves the reader's mark answer out of the search fields, which read it live from the box", () => {
+		const vm = toGmailPageViewModel(input({ state: { sender: [TLDR], mark: "0" } }));
+		assert.deepEqual(vm.searchFields.map((field) => field.name), ["readlist", "discovery", "utm_source", "utm_medium", "utm_content"]);
+	});
+
+	it.each<[string, Partial<GmailPageInput>, "0" | "1" | undefined, boolean, boolean]>([
+		["ticks the box once permission to change messages is granted", { modifyScopeGranted: true }, undefined, true, false],
+		["leaves the box unticked until permission to change messages is granted", { modifyScopeGranted: false }, undefined, false, false],
+		["keeps the box unticked when the reader unticked it", { modifyScopeGranted: true }, "0", false, false],
+		["keeps the box ticked when the reader ticked it", { modifyScopeGranted: false }, "1", true, false],
+		["disables the box for a reader who can neither change messages nor connect Gmail", { modifyScopeGranted: false, canConnectGmail: false }, "1", false, true],
+		["keeps the box available to a reader who already granted permission but cannot connect again", { modifyScopeGranted: true, canConnectGmail: false }, undefined, true, false],
+	])("%s", (_label, overrides, mark, checked, disabled) => {
+		const vm = toGmailPageViewModel(input({ ...overrides, state: { sender: [TLDR], mark } }));
+		assert.deepEqual([vm.save.markChecked, vm.save.markDisabled], [checked, disabled]);
+	});
 });
 
 describe("GMail Newsletters newly found newsletters", () => {
@@ -458,6 +477,7 @@ describe("GMail Newsletters popup", () => {
 			assert.deepEqual(banners(input({ state: { add: "1" }, notice })), { page: [], dialog: [notice] });
 		}
 		assert.deepEqual(banners(input({ state: { add: "1" }, error: "import_in_progress", notice: "sender_mapped" })), { page: ["import_in_progress", "sender_mapped"], dialog: [] });
+		assert.deepEqual(banners(input({ state: { add: "1" }, error: "mark_revoked", notice: "sender_mapped" })), { page: ["mark_revoked", "sender_mapped"], dialog: [] });
 	});
 
 	it("opens on exactly one control, and on none when the request only refreshes the popup", () => {
@@ -494,39 +514,5 @@ describe("GMail Newsletters popup", () => {
 			toGmailPageViewModel(pageInput).mappings.emptyActions.flatMap((action) => action.fields.map((field) => `${field.name}=${field.value}`));
 		assert.deepEqual(fields(input({ state: { search: "tl", sender: [TLDR] } })), ["search=tl", "add=1", "utm_source=integrations-gmail", "utm_medium=internal", "utm_content=add-newsletters"]);
 		assert.deepEqual(fields(input({ state: { discovery_after: "none" }, discoveryStarted: true })), ["add=1", "discovery=started", "discovery_after=none", "utm_source=integrations-gmail", "utm_medium=internal", "utm_content=add-newsletters"]);
-	});
-});
-
-describe("GMail Newsletters labelling permission", () => {
-	it("asks a connected reader without modify permission to allow labelling and marking saved mail read", () => {
-		const model = toGmailPageViewModel(input({ modifyScopeGranted: false }));
-
-		expect(model.labelPermission?.message).toContain("imported-to-readplace");
-		expect(model.labelPermission?.actions.map(({ label, fields }) => ({ label, fields }))).toEqual([
-			{ label: "Allow labelling", fields: [{ name: "intent", value: "label" }] },
-		]);
-	});
-
-	it("asks nothing once the reader has allowed it", () => {
-		expect(toGmailPageViewModel(input({ modifyScopeGranted: true })).labelPermission).toBeUndefined();
-	});
-
-	it("asks nothing while the connection itself must be reconnected", () => {
-		const model = toGmailPageViewModel(input({ modifyScopeGranted: false, connection: connection({ revokedAt: "2026-10-01T00:00:00.000Z" }) }));
-
-		expect(model.labelPermission).toBeUndefined();
-	});
-
-	it("asks nothing while the reader must reconnect to grant sender access", () => {
-		const model = toGmailPageViewModel(input({ modifyScopeGranted: false, metadataScopeGranted: false }));
-
-		expect(model.showMetadataReconnect).toBe(true);
-		expect(model.labelPermission).toBeUndefined();
-	});
-
-	it("offers an upgrade instead of the grant to a reader whose plan cannot use Gmail", () => {
-		const model = toGmailPageViewModel(input({ modifyScopeGranted: false, canConnectGmail: false }));
-
-		expect(model.labelPermission?.actions.map(({ label }) => label)).toEqual(["Upgrade"]);
 	});
 });

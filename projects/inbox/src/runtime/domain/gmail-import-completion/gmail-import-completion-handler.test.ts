@@ -24,7 +24,7 @@ const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const receivedAtMessageId = "2026-10-27T00:00:00.000Z#<issue@news.test>";
 const LINK = linkOutputKey(formatEmailLinkOrdinal(0));
 const OTHER_LINK = linkOutputKey(formatEmailLinkOrdinal(1));
-const HISTORY: GmailMessageOrigin = { kind: "history", accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gmailMessageId: GmailMessageIdSchema.parse("m1") };
+const HISTORY: GmailMessageOrigin = { kind: "history", accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"), gmailMessageId: GmailMessageIdSchema.parse("m1"), senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 const FORWARDED: GmailMessageOrigin = {
 	kind: "forwarded",
 	accountEmail: GmailAccountEmailSchema.parse("reader@gmail.com"),
@@ -57,7 +57,7 @@ async function setup(input: { origins?: GmailMessageOrigin[]; emailExists?: bool
 			linkCounts: undefined,
 		});
 	}
-	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail });
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emails.getEmail, listEmailsByUserId: emails.listEmailsByUserId });
 	if (input.emailExists !== false) await completion.addGmailOrigins({ userId, receivedAtMessageId, origins: input.origins ?? [HISTORY] });
 	const marks: unknown[] = [];
 	const publishEvent = (async (event, detail) => {

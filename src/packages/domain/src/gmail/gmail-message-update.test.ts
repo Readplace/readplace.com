@@ -10,7 +10,7 @@ const account = GmailAccountEmailSchema.parse("Reader@Gmail.com");
 describe("gmailMessageOriginKey", () => {
 	it("keys a history origin by its account and Gmail message id", () => {
 		assert.equal(
-			gmailMessageOriginKey({ kind: "history", accountEmail: account, gmailMessageId: GmailMessageIdSchema.parse("abc123") }),
+			gmailMessageOriginKey({ kind: "history", accountEmail: account, gmailMessageId: GmailMessageIdSchema.parse("abc123"), senderEmail: ForwardableSenderSchema.parse("news@example.com") }),
 			"history#reader@gmail.com#abc123",
 		);
 	});

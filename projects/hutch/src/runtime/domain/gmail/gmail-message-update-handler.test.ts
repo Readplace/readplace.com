@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { GmailAccountEmailSchema, GmailMessageIdSchema, type GmailMessageOrigin } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailMessageIdSchema, type GmailMessageOrigin } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
 import type { GmailEmailUpdateFailedLine } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -14,7 +14,7 @@ const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const ACCOUNT = GmailAccountEmailSchema.parse("reader@gmail.com");
 const RAM = "2026-10-27T00:00:00.000Z#<issue@news.test>";
 const NOW = new Date("2026-10-27T01:00:00.000Z");
-const ORIGIN: GmailMessageOrigin = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: GmailMessageIdSchema.parse("m1") };
+const ORIGIN: GmailMessageOrigin = { kind: "history", accountEmail: ACCOUNT, gmailMessageId: GmailMessageIdSchema.parse("m1"), senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 
 const markBody = JSON.stringify({ "detail-type": "MarkGmailEmailImported", detail: { userId: USER, receivedAtMessageId: RAM, origin: ORIGIN } });
 const grantedBody = JSON.stringify({ "detail-type": "GmailModifyPermissionGranted", detail: { userId: USER, accountEmail: ACCOUNT } });
@@ -35,14 +35,18 @@ function handlerWith(outcome: () => Promise<MarkGmailEmailImportedOutcome>) {
 	const metricLines: GmailEmailUpdateFailedLine[] = [];
 	const updates = initInMemoryGmailMessageUpdate();
 	const { published, publishEvent } = capture();
+	const logs: { level: string; message: string }[] = [];
+	const record = (level: string) => (...args: unknown[]) => {
+		logs.push({ level, message: String(args[0]) });
+	};
 	const handler = initGmailMessageUpdateHandler({
 		markImported: outcome,
 		listPendingByAccount: updates.listPendingByAccount,
 		publishEvent,
 		metricLog: { info: () => {}, warn: () => {}, debug: () => {}, error: (line) => { metricLines.push(line); } },
-		logger: HutchLogger.from(noopLogger),
+		logger: HutchLogger.from({ info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") }),
 	});
-	return { updates, published, metricLines, handler };
+	return { updates, published, metricLines, logs, handler };
 }
 
 describe("initGmailMessageUpdateHandler", () => {
@@ -75,6 +79,30 @@ describe("initGmailMessageUpdateHandler", () => {
 			originKind: "history",
 			userId: USER,
 		}]);
+	});
+
+	it("acknowledges an email whose sender has marking off, publishing nothing", async () => {
+		const h = handlerWith(async () => ({ kind: "skipped" }));
+
+		assert.deepEqual(await run(h.handler, [markBody]), { batchItemFailures: [] });
+		assert.deepEqual(
+			{ published: h.published, metricLines: h.metricLines, logs: h.logs },
+			{ published: [], metricLines: [], logs: [{ level: "info", message: "[gmail-message-update] marking is off for the sender" }] },
+		);
+	});
+
+	it("publishes a missing original as a failure but warns instead of metering it", async () => {
+		const h = handlerWith(async () => ({ kind: "failed", reason: "original-not-found" }));
+
+		await run(h.handler, [markBody]);
+		assert.deepEqual(
+			{ published: h.published, metricLines: h.metricLines, warnings: h.logs.filter((log) => log.level === "warn") },
+			{
+				published: [{ detailType: "GmailEmailUpdateFailed", detail: { ...fact, reason: "original-not-found" } }],
+				metricLines: [],
+				warnings: [{ level: "warn", message: "[gmail-message-update] Gmail original not found" }],
+			},
+		);
 	});
 
 	it("publishes nothing and logs no failure metric for an update that already failed", async () => {

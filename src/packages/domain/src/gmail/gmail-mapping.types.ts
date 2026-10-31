@@ -11,6 +11,7 @@ export interface GmailMapping {
 	mappedAddresses: [InboxAddress, ...InboxAddress[]] | undefined;
 	mappedAt: string | undefined;
 	deliveryMode: GmailDeliveryMode | undefined;
+	markImportedAt: string | undefined;
 }
 
 export interface GmailMappingStore {
@@ -36,6 +37,16 @@ export interface GmailMappingStore {
 		accountEmail: GmailAccountEmail;
 	}) => Promise<GmailMapping[]>;
 	listMappingsByUserId: (userId: UserId) => Promise<GmailMapping[]>;
+	setMarkImported: (input: {
+		userId: UserId;
+		accountEmail: GmailAccountEmail;
+		senderEmail: ForwardableSender;
+	}) => Promise<boolean>;
+	clearMarkImported: (input: {
+		userId: UserId;
+		accountEmail: GmailAccountEmail;
+		senderEmail: ForwardableSender;
+	}) => Promise<boolean>;
 	removeMapping: (input: {
 		userId: UserId;
 		accountEmail: GmailAccountEmail;

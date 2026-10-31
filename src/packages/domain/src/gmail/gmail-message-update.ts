@@ -12,6 +12,7 @@ export const GmailMessageOriginSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("history"),
 		accountEmail: GmailAccountEmailSchema,
 		gmailMessageId: GmailMessageIdSchema,
+		senderEmail: ForwardableSenderSchema,
 	}),
 	z.object({
 		kind: z.literal("forwarded"),
@@ -74,4 +75,5 @@ export interface GmailMessageUpdateStore {
 		now: Date;
 	}) => Promise<"failed" | "unchanged">;
 	listPendingByAccount: (input: { userId: UserId; accountEmail: GmailAccountEmail }) => Promise<GmailMessageUpdate[]>;
+	discardPending: (input: { userId: UserId; origin: GmailMessageOrigin }) => Promise<"discarded" | "unchanged">;
 }

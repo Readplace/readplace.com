@@ -6,11 +6,14 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { GmailMessageOriginSchema } from "@packages/domain/gmail";
+import { GmailDeliveryModeSchema, GmailMessageOriginSchema } from "@packages/domain/gmail";
 import {
 	type EmailImportCompletionStore,
 	EmailOutputKeySchema,
 	type EmailOutputSelection,
+	InboxAddressSchema,
+	InboxEmailStatusSchema,
+	MessageIdSchema,
 	uniqueGmailOrigins,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
@@ -29,6 +32,32 @@ const CompletionRow = z.object({
 	gmailOrigins: dynamoField(z.set(z.string())),
 });
 
+const CandidateRow = CompletionRow.extend({
+	messageId: MessageIdSchema,
+	senderEmail: z.string(),
+	status: InboxEmailStatusSchema,
+	gmailDestinationAddresses: dynamoField(z.array(InboxAddressSchema)),
+	gmailDeliveryMode: dynamoField(GmailDeliveryModeSchema),
+});
+
+const CANDIDATE_FIELDS = [
+	"messageId",
+	"receivedAtMessageId",
+	"senderEmail",
+	"status",
+	"gmailDestinationAddresses",
+	"gmailDeliveryMode",
+	"outputSelection",
+	"savedOutputs",
+	"gmailOrigins",
+] as const;
+
+const MAX_CANDIDATES_PER_READ = 100;
+
+function parseOrigins(origins: ReadonlySet<string> | undefined) {
+	return uniqueGmailOrigins([...(origins ?? [])].map((origin) => GmailMessageOriginSchema.parse(JSON.parse(origin))));
+}
+
 const ROW_EXISTS = "attribute_exists(receivedAtMessageId)";
 
 export function initDynamoDbEmailImportCompletion(deps: {
@@ -36,6 +65,7 @@ export function initDynamoDbEmailImportCompletion(deps: {
 	tableName: string;
 }): EmailImportCompletionStore {
 	const table = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: CompletionRow });
+	const candidates = defineDynamoTable({ client: deps.client, tableName: deps.tableName, schema: CandidateRow });
 
 	const findSelection = async (key: { userId: string; receivedAtMessageId: string }): Promise<EmailOutputSelection> => {
 		const row = await table.get(key, { consistentRead: true });
@@ -85,9 +115,31 @@ export function initDynamoDbEmailImportCompletion(deps: {
 			return {
 				selection: row.outputSelection,
 				savedOutputs: row.savedOutputs ?? new Set(),
-				origins: uniqueGmailOrigins(
-					[...(row.gmailOrigins ?? [])].map((origin) => GmailMessageOriginSchema.parse(JSON.parse(origin))),
-				),
+				origins: parseOrigins(row.gmailOrigins),
+			};
+		},
+		listCompletionsBefore: async ({ userId, before, limit }) => {
+			const { items, lastEvaluatedKey } = await candidates.query({
+				KeyConditionExpression: "userId = :uid AND receivedAtMessageId < :before",
+				ExpressionAttributeValues: { ":uid": userId, ":before": before },
+				ProjectionExpression: CANDIDATE_FIELDS.map((field) => `#${field}`).join(", "),
+				ExpressionAttributeNames: Object.fromEntries(CANDIDATE_FIELDS.map((field) => [`#${field}`, field])),
+				ScanIndexForward: false,
+				Limit: Math.min(limit, MAX_CANDIDATES_PER_READ),
+			});
+			return {
+				emails: items.map((row) => ({
+					receivedAtMessageId: row.receivedAtMessageId,
+					messageId: row.messageId,
+					senderEmail: row.senderEmail,
+					status: row.status,
+					gmailDestinationAddresses: row.gmailDestinationAddresses,
+					gmailDeliveryMode: row.gmailDeliveryMode,
+					selection: row.outputSelection,
+					savedOutputs: row.savedOutputs ?? new Set(),
+					origins: parseOrigins(row.gmailOrigins),
+				})),
+				exhausted: lastEvaluatedKey === undefined,
 			};
 		},
 	};

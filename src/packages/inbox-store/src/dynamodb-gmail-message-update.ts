@@ -95,13 +95,15 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 		},
 		find,
 		markCompleted: async ({ userId, origin, now }) => {
-			await table.update({
-				Key: updateKey({ userId, origin }),
-				UpdateExpression: "SET #status = :completed, completedAt = :now REMOVE failedAt, failureReason",
-				ConditionExpression: "attribute_exists(recordKey)",
-				ExpressionAttributeNames: { "#status": "status" },
-				ExpressionAttributeValues: { ":completed": "completed", ":now": now.toISOString() },
-			});
+			await unlessConditionFails(() =>
+				table.update({
+					Key: updateKey({ userId, origin }),
+					UpdateExpression: "SET #status = :completed, completedAt = :now REMOVE failedAt, failureReason",
+					ConditionExpression: "attribute_exists(recordKey)",
+					ExpressionAttributeNames: { "#status": "status" },
+					ExpressionAttributeValues: { ":completed": "completed", ":now": now.toISOString() },
+				}),
+			);
 		},
 		markFailed: async ({ userId, origin, reason, now }) => {
 			const written = await unlessConditionFails(() =>
@@ -131,6 +133,17 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 				},
 			);
 			return pending;
+		},
+		discardPending: async ({ userId, origin }) => {
+			const written = await unlessConditionFails(() =>
+				table.delete({
+					Key: updateKey({ userId, origin }),
+					ConditionExpression: "#status = :pending",
+					ExpressionAttributeNames: { "#status": "status" },
+					ExpressionAttributeValues: { ":pending": "pending" },
+				}),
+			);
+			return written === "written" ? "discarded" : "unchanged";
 		},
 	};
 }

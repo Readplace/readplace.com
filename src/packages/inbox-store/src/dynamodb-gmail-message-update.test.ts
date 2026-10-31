@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import { GmailAccountEmailSchema, GmailMessageIdSchema } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailMessageIdSchema } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbGmailMessageUpdate } from "./dynamodb-gmail-message-update";
 
@@ -13,7 +13,7 @@ interface Sent {
 const USER = UserIdSchema.parse("user-1");
 const RAM = "2026-10-27T00:00:00.000Z#<id@example.com>";
 const ACCOUNT = GmailAccountEmailSchema.parse("Reader@gmail.com");
-const ORIGIN = { kind: "history" as const, accountEmail: ACCOUNT, gmailMessageId: GmailMessageIdSchema.parse("m1") };
+const ORIGIN = { kind: "history" as const, accountEmail: ACCOUNT, gmailMessageId: GmailMessageIdSchema.parse("m1"), senderEmail: ForwardableSenderSchema.parse("dan@news.test") };
 const NOW = new Date("2026-10-27T01:00:00.000Z");
 const KEY = { userId: USER, recordKey: "GMAIL_UPDATE#reader@gmail.com#history#reader@gmail.com#m1" };
 const PENDING_ROW = { ...KEY, receivedAtMessageId: RAM, origin: ORIGIN, status: "pending", requestedAt: NOW.toISOString() };
@@ -77,6 +77,13 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 		assert.equal(sent[0].input.ExpressionAttributeValues?.[":completed"], "completed");
 	});
 
+	it("ignores completion of an update that was discarded", async () => {
+		const { updates } = store(() => {
+			throw conditionFailed();
+		});
+		await assert.doesNotReject(updates.markCompleted({ userId: USER, origin: ORIGIN, now: NOW }));
+	});
+
 	it("marks only a pending record failed and reports the transition", async () => {
 		const { updates, sent } = store();
 		assert.equal(await updates.markFailed({ userId: USER, origin: ORIGIN, reason: "dead-lettered", now: NOW }), "failed");
@@ -90,6 +97,28 @@ describe("initDynamoDbGmailMessageUpdate", () => {
 			throw conditionFailed();
 		});
 		assert.equal(await updates.markFailed({ userId: USER, origin: ORIGIN, reason: "dead-lettered", now: NOW }), "unchanged");
+	});
+
+	it("stores a history origin together with its sender", async () => {
+		const { updates, sent } = store((command) => (command.name === "GetCommand" ? { Item: PENDING_ROW } : {}));
+		await updates.recordPending({ userId: USER, receivedAtMessageId: RAM, origin: ORIGIN, now: NOW });
+		assert.deepEqual(sent[0].input.Item, { ...PENDING_ROW, origin: { kind: "history", accountEmail: ACCOUNT, gmailMessageId: "m1", senderEmail: "dan@news.test" } });
+	});
+
+	it("deletes a pending record only while it is still pending", async () => {
+		const { updates, sent } = store();
+		assert.equal(await updates.discardPending({ userId: USER, origin: ORIGIN }), "discarded");
+		assert.equal(sent[0].name, "DeleteCommand");
+		assert.deepEqual(sent[0].input.Key, KEY);
+		assert.equal(sent[0].input.ConditionExpression, "#status = :pending");
+		assert.equal(sent[0].input.ExpressionAttributeValues?.[":pending"], "pending");
+	});
+
+	it("leaves a completed, failed or missing record in place", async () => {
+		const { updates } = store(() => {
+			throw conditionFailed();
+		});
+		assert.equal(await updates.discardPending({ userId: USER, origin: ORIGIN }), "unchanged");
 	});
 
 	it("lists one account's pending updates with consistent, paginated key queries", async () => {

@@ -106,7 +106,7 @@ function makeHarness(opts?: {
 	let publishError = opts?.publishErrorOnce === true;
 	const addressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const emailStore = initInMemoryInboxEmail();
-	const completion = initInMemoryEmailImportCompletion({ getEmail: emailStore.getEmail });
+	const completion = initInMemoryEmailImportCompletion({ getEmail: emailStore.getEmail, listEmailsByUserId: emailStore.listEmailsByUserId });
 	const marks: unknown[] = [];
 	const identities = initInMemoryEmailIdentity();
 	const rawMap = new Map<string, Buffer>();

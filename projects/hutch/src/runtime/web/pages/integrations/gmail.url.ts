@@ -13,6 +13,9 @@ export const GMAIL_READLIST_CREATE_PATH = "/newsletters/gmail/readlists/create";
 export const GMAIL_IMPORT_START_PATH = "/newsletters/gmail/imports/start";
 export const GMAIL_IMPORT_RETRY_PATH = "/newsletters/gmail/imports/retry";
 export const GMAIL_IMPORT_CANCEL_PATH = "/newsletters/gmail/imports/cancel";
+export const GMAIL_MARK_START_PATH = "/newsletters/gmail/mark-read/start";
+export const GMAIL_MARK_STOP_PATH = "/newsletters/gmail/mark-read/stop";
+export const GMAIL_MARK_BACKFILL_PATH = "/newsletters/gmail/mark-read/backfill";
 
 const GMAIL_MAIL_URL = "https://mail.google.com/mail/u/0/";
 
@@ -41,7 +44,8 @@ export type GmailPageError =
 	| "import_in_progress"
 	| "import_unavailable"
 	| "import_reconnect_required"
-	| "import_revoked";
+	| "import_revoked"
+	| "mark_revoked";
 
 export type GmailPageNotice =
 	| "connected"
@@ -57,8 +61,12 @@ export type GmailPageNotice =
 	| "import_permission_refused"
 	| "import_permission_granted"
 	| "import_cancelled"
-	| "label_permission_granted"
-	| "label_permission_refused"
+	| "mark_permission_needed"
+	| "mark_permission_refused"
+	| "mark_permission_granted"
+	| "mark_on"
+	| "mark_off"
+	| "mark_backfill_started"
 	| "filter_retry_requested";
 
 export interface GmailPickerState {
@@ -70,6 +78,7 @@ export interface GmailPickerState {
 	readlist_name?: string;
 	delivery?: GmailDeliveryMode;
 	import?: "1";
+	mark?: GmailMarkChoice;
 	edit?: "1";
 	add?: "1";
 	discovery_after?: string;
@@ -94,6 +103,7 @@ const GMAIL_URL_PARAM_ORDER = [
 	"readlist_name",
 	"delivery",
 	"import",
+	"mark",
 	"edit",
 	"add",
 	"discovery",
@@ -114,6 +124,14 @@ export function buildGmailUrl(params: GmailUrlParams = {}): string {
 
 const optionalText = z.string().optional().catch(undefined);
 
+export type GmailMarkChoice = "0" | "1";
+
+export const GmailMarkChoiceSchema = z
+	.union([z.enum(["0", "1"]), z.array(z.enum(["0", "1"]))])
+	.transform((value): GmailMarkChoice => ((typeof value === "string" ? [value] : value).includes("1") ? "1" : "0"))
+	.optional()
+	.catch(undefined);
+
 const optionalTextList = z.union([z.string(), z.array(z.string())]).transform((value) => [...new Set(typeof value === "string" ? [value] : value)]).optional().catch(undefined);
 
 export const GmailPickerStateSchema = z.object({
@@ -125,6 +143,7 @@ export const GmailPickerStateSchema = z.object({
 	readlist_name: optionalText,
 	delivery: GmailDeliveryModeSchema.optional().catch(undefined),
 	import: z.literal("1").optional().catch(undefined),
+	mark: GmailMarkChoiceSchema,
 	edit: z.literal("1").optional().catch(undefined),
 	add: z.literal("1").optional().catch(undefined),
 	discovery_after: optionalText,

@@ -189,6 +189,7 @@ export {
 	GMAIL_METRIC_NAMESPACE,
 	GMAIL_FILTER_REWRITE_FAILED_METRIC,
 	GMAIL_FORWARDING_CONFIRM_FAILED_METRIC,
+	METERED_GMAIL_EMAIL_UPDATE_FAILURE_REASONS,
 	METERED_GMAIL_FILTER_REWRITE_REASONS,
 	METERED_GMAIL_FORWARDING_CONFIRM_REASONS,
 	type GmailFilterRewriteFailedLine,
@@ -214,4 +215,10 @@ export {
 	type GmailEmailUpdateFailedDetail,
 	GmailModifyPermissionGrantedEvent,
 	type GmailModifyPermissionGrantedDetail,
+	StartGmailMarkBackfillCommand,
+	type StartGmailMarkBackfillDetail,
+	ProcessGmailMarkBackfillPageCommand,
+	type ProcessGmailMarkBackfillPageDetail,
+	GmailMarkBackfillPageProcessedEvent,
+	type GmailMarkBackfillPageProcessedDetail,
 } from "./events";

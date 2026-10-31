@@ -125,6 +125,7 @@ export {
 	linkOutputKey,
 	outputLinkOrdinal,
 	type EmailOutputSelection,
+	type EmailImportCandidate,
 	type EmailImportCompletion,
 	type EmailImportCompletionStore,
 	isEmailSavedToAll,

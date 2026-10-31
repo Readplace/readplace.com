@@ -111,6 +111,22 @@ function toEntry(row: InboxEmailLinkRowType): InboxEmailLinkEntry {
 	};
 }
 
+function toMeta(item: InboxEmailLinkRowType): InboxEmailLinksMeta {
+	// Coerced rather than parsed: rows written before the give-up marker
+	// existed carry no such column, and their absence means the extraction
+	// that wrote them succeeded.
+	return {
+		truncated: Boolean(item.truncated),
+		extractionFailed: Boolean(item.extractionFailed),
+		...(item.eligibleArticleCount === undefined ? {} : { eligibleArticleCount: item.eligibleArticleCount }),
+		...(item.savesHeld === undefined ? {} : { savesHeld: item.savesHeld }),
+		...(item.issueSave === undefined ? {} : { issueSave: item.issueSave }),
+		...(item.selectedReadlists === undefined
+			? {}
+			: { selectedReadlists: item.selectedReadlists }),
+	};
+}
+
 export function initDynamoDbInboxEmailLink(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -361,19 +377,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 					continue;
 				}
 				if (item.ordinal === META_SORT_KEY) {
-					// Coerced rather than parsed: rows written before the give-up marker
-					// existed carry no such column, and their absence means the extraction
-					// that wrote them succeeded.
-					meta = {
-						truncated: Boolean(item.truncated),
-						extractionFailed: Boolean(item.extractionFailed),
-						...(item.eligibleArticleCount === undefined ? {} : { eligibleArticleCount: item.eligibleArticleCount }),
-						...(item.savesHeld === undefined ? {} : { savesHeld: item.savesHeld }),
-						...(item.issueSave === undefined ? {} : { issueSave: item.issueSave }),
-						...(item.selectedReadlists === undefined
-							? {}
-							: { selectedReadlists: item.selectedReadlists }),
-					};
+					meta = toMeta(item);
 					continue;
 				}
 				links.push(toEntry(item));
@@ -393,6 +397,13 @@ export function initDynamoDbInboxEmailLink(deps: {
 			});
 			if (row === undefined) return undefined;
 			return toEntry(row);
+		},
+		findLinksMeta: async ({ userId, receivedAtMessageId }) => {
+			const row = await table.get({
+				userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+				ordinal: META_SORT_KEY,
+			});
+			return row === undefined ? undefined : toMeta(row);
 		},
 		deleteLinksByEmail,
 		deleteAllLinksByUserId: async (userId, receivedAtMessageIds) => {

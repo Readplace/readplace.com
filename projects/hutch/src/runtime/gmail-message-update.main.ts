@@ -2,10 +2,16 @@ import type { GmailEmailUpdateFailedLine } from "@packages/hutch-infra-component
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailMessageUpdate } from "@packages/inbox-store";
+import {
+	initDynamoDbGmailConnection,
+	initDynamoDbGmailCredentials,
+	initDynamoDbGmailMapping,
+	initDynamoDbGmailMessageUpdate,
+} from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import { initGmailMessageUpdateHandler } from "./domain/gmail/gmail-message-update-handler";
 import { initMarkGmailEmailImported } from "./domain/gmail/mark-gmail-email-imported";
+import { initFindMarkImportedSince } from "./domain/gmail/mark-imported-gate";
 import { initOpenGmailMailboxForUpdate } from "./providers/gmail-api/gmail-message-update";
 
 const client = createDynamoDocumentClient();
@@ -16,6 +22,9 @@ const updates = initDynamoDbGmailMessageUpdate({ client, tableName: requireEnv("
 export const handler = initGmailMessageUpdateHandler({
 	markImported: initMarkGmailEmailImported({
 		updates,
+		findMarkImportedSince: initFindMarkImportedSince({
+			findMapping: initDynamoDbGmailMapping({ client, tableName: requireEnv("DYNAMODB_GMAIL_MAPPINGS_TABLE"), now }).findMapping,
+		}),
 		connections: initDynamoDbGmailConnection({ client, tableName: requireEnv("DYNAMODB_GMAIL_CONNECTIONS_TABLE"), now }),
 		openMailbox: initOpenGmailMailboxForUpdate({
 			clientId: requireEnv("GMAIL_INTEGRATION_CLIENT_ID"),

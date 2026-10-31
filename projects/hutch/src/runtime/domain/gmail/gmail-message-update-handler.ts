@@ -9,6 +9,7 @@ import {
 	GmailEmailUpdateDeferredEvent,
 	GmailEmailUpdateFailedEvent,
 	GmailModifyPermissionGrantedEvent,
+	METERED_GMAIL_EMAIL_UPDATE_FAILURE_REASONS,
 	MarkGmailEmailImportedCommand,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -61,18 +62,27 @@ export function initGmailMessageUpdateHandler(deps: {
 				}
 				const outcome = await deps.markImported(envelope);
 				const fact = { userId: envelope.userId, receivedAtMessageId: envelope.receivedAtMessageId, originKind: envelope.origin.kind };
+				if (outcome.kind === "skipped") {
+					logger.info("[gmail-message-update] marking is off for the sender", fact);
+					continue;
+				}
 				if (outcome.kind === "deferred") {
 					await publishEvent(GmailEmailUpdateDeferredEvent, { ...fact, reason: outcome.reason });
 				} else if (outcome.kind === "failed") {
 					await publishEvent(GmailEmailUpdateFailedEvent, { ...fact, reason: outcome.reason });
-					metricLog.error({
-						level: "ERROR",
-						message: "[gmail-message-update] Gmail original not updated",
-						event: GMAIL_EMAIL_UPDATE_FAILED_EVENT,
-						reason: outcome.reason,
-						originKind: envelope.origin.kind,
-						userId: envelope.userId,
-					});
+					const meteredReason = METERED_GMAIL_EMAIL_UPDATE_FAILURE_REASONS.find((reason) => reason === outcome.reason);
+					if (meteredReason) {
+						metricLog.error({
+							level: "ERROR",
+							message: "[gmail-message-update] Gmail original not updated",
+							event: GMAIL_EMAIL_UPDATE_FAILED_EVENT,
+							reason: meteredReason,
+							originKind: envelope.origin.kind,
+							userId: envelope.userId,
+						});
+					} else {
+						logger.warn("[gmail-message-update] Gmail original not found", { ...fact, reason: outcome.reason });
+					}
 				} else if (outcome.kind !== "already-failed") {
 					await publishEvent(GmailEmailMarkedImportedEvent, { ...fact, outcome: outcome.kind });
 				}

@@ -23,6 +23,12 @@ export const METERED_GMAIL_FORWARDING_CONFIRM_REASONS = [
 	"invalid-url",
 ] as const satisfies readonly GmailForwardingConfirmFailedDetail["reason"][];
 
+export const METERED_GMAIL_EMAIL_UPDATE_FAILURE_REASONS = [
+	"ambiguous-original",
+	"gmail-rejected",
+	"dead-lettered",
+] as const satisfies readonly GmailEmailUpdateFailedDetail["reason"][];
+
 export interface GmailFilterRewriteFailedLine {
 	level: "ERROR";
 	message: string;
@@ -43,7 +49,7 @@ export interface GmailEmailUpdateFailedLine {
 	level: "ERROR";
 	message: string;
 	event: typeof GMAIL_EMAIL_UPDATE_FAILED_EVENT;
-	reason: GmailEmailUpdateFailedDetail["reason"];
+	reason: (typeof METERED_GMAIL_EMAIL_UPDATE_FAILURE_REASONS)[number];
 	originKind: GmailEmailUpdateFailedDetail["originKind"];
 	userId: string;
 }

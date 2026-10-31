@@ -1,22 +1,17 @@
 import {
-	GMAIL_IMPORTED_LABEL_NAME,
 	type GmailConnectionStore,
-	type GmailMessageId,
 	type GmailMessageOrigin,
 	type GmailMessageUpdateFailureReason,
 	type GmailMessageUpdateStore,
-	parseGmailFrom,
 	sameGmailAccount,
 } from "@packages/domain/gmail";
-import { MessageIdSchema, normalizeMessageId } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
-import type { OpenedGmailMailbox, OpenGmailMailboxForUpdate } from "@packages/provider-contracts/gmail-message-update";
-
-const UNREAD_LABEL = "UNREAD";
+import type { OpenGmailMailboxForUpdate } from "@packages/provider-contracts/gmail-message-update";
+import { GmailUnavailableError, type GmailOriginalUpdateFailure, importedLabelId, markOriginal } from "./gmail-original-update";
+import type { FindMarkImportedSince } from "./mark-imported-gate";
 
 export type MarkGmailEmailImportedOutcome =
-	| { kind: "marked" | "already-marked" }
+	| { kind: "marked" | "already-marked" | "skipped" }
 	| { kind: "deferred"; reason: "permission-required" | "account-unavailable" }
 	| { kind: "failed" | "already-failed"; reason: GmailMessageUpdateFailureReason };
 
@@ -26,58 +21,9 @@ export type MarkGmailEmailImported = (input: {
 	origin: GmailMessageOrigin;
 }) => Promise<MarkGmailEmailImportedOutcome>;
 
-class GmailUnavailableError extends Error {}
-
-type Step<T> = { ok: true; value: T } | { ok: false; outcome: MarkGmailEmailImportedOutcome };
-
-function settle<T>(result: GmailApiResult<T>): Step<T> {
-	if (result.ok) return { ok: true, value: result.value };
-	if (result.reason === "unavailable") throw new GmailUnavailableError(`Gmail unavailable (${result.status})`);
-	if (result.reason === "reauth-required") return { ok: false, outcome: { kind: "deferred", reason: "account-unavailable" } };
-	return { ok: false, outcome: { kind: "failed", reason: "gmail-rejected" } };
-}
-
-async function locateOriginal(mailbox: OpenedGmailMailbox, origin: GmailMessageOrigin): Promise<Step<GmailMessageId>> {
-	if (origin.kind === "history") {
-		const found = settle(await mailbox.findMessage({ messageId: origin.gmailMessageId }));
-		if (!found.ok) return found;
-		return found.value.found
-			? { ok: true, value: origin.gmailMessageId }
-			: { ok: false, outcome: { kind: "failed", reason: "original-not-found" } };
-	}
-	const searched = settle(await mailbox.searchByRfcMessageId({ rfcMessageId: origin.rfcMessageId, senderEmail: origin.senderEmail }));
-	if (!searched.ok) return searched;
-	const matches = searched.value.filter((candidate) => {
-		const header = MessageIdSchema.safeParse(candidate.messageIdHeader);
-		const senders = parseGmailFrom(candidate.fromHeader ?? "");
-		return (
-			header.success &&
-			normalizeMessageId(header.data) === origin.rfcMessageId &&
-			senders.length === 1 &&
-			senders[0]?.email === origin.senderEmail
-		);
-	});
-	const [match, ...others] = matches;
-	if (match === undefined) return { ok: false, outcome: { kind: "failed", reason: "original-not-found" } };
-	if (others.length > 0) return { ok: false, outcome: { kind: "failed", reason: "ambiguous-original" } };
-	return { ok: true, value: match.id };
-}
-
-async function importedLabelId(mailbox: OpenedGmailMailbox): Promise<Step<string>> {
-	const existing = settle(await mailbox.findLabelId({ name: GMAIL_IMPORTED_LABEL_NAME }));
-	if (!existing.ok) return existing;
-	if (existing.value !== undefined) return { ok: true, value: existing.value };
-	const created = settle(await mailbox.createLabel({ name: GMAIL_IMPORTED_LABEL_NAME }));
-	if (!created.ok) return created;
-	if ("created" in created.value) return { ok: true, value: created.value.created };
-	const raced = settle(await mailbox.findLabelId({ name: GMAIL_IMPORTED_LABEL_NAME }));
-	if (!raced.ok) return raced;
-	if (raced.value === undefined) throw new GmailUnavailableError("the imported label was reported to exist but is not listed");
-	return { ok: true, value: raced.value };
-}
-
 export function initMarkGmailEmailImported(deps: {
 	updates: GmailMessageUpdateStore;
+	findMarkImportedSince: FindMarkImportedSince;
 	connections: Pick<GmailConnectionStore, "findConnectionByUserId">;
 	openMailbox: OpenGmailMailboxForUpdate;
 	now: () => Date;
@@ -85,6 +31,10 @@ export function initMarkGmailEmailImported(deps: {
 	const { updates } = deps;
 
 	return async ({ userId, receivedAtMessageId, origin }) => {
+		if ((await deps.findMarkImportedSince({ userId, accountEmail: origin.accountEmail, senderEmail: origin.senderEmail })) === undefined) {
+			await updates.discardPending({ userId, origin });
+			return { kind: "skipped" };
+		}
 		const recorded = await updates.recordPending({ userId, receivedAtMessageId, origin, now: deps.now() });
 		if (recorded.status === "completed") return { kind: "already-marked" };
 		if (recorded.status === "failed") return { kind: "already-failed", reason: recorded.failureReason };
@@ -106,17 +56,15 @@ export function initMarkGmailEmailImported(deps: {
 		}
 		const { mailbox } = opened;
 
-		const fail = async (outcome: MarkGmailEmailImportedOutcome): Promise<MarkGmailEmailImportedOutcome> => {
-			if (outcome.kind !== "failed") return outcome;
+		const fail = async (outcome: GmailOriginalUpdateFailure): Promise<MarkGmailEmailImportedOutcome> => {
+			if (outcome.kind === "reauth-required") return { kind: "deferred", reason: "account-unavailable" };
 			const marked = await updates.markFailed({ userId, origin, reason: outcome.reason, now: deps.now() });
 			return marked === "failed" ? outcome : { kind: "already-failed", reason: outcome.reason };
 		};
-		const original = await locateOriginal(mailbox, origin);
-		if (!original.ok) return fail(original.outcome);
 		const labelId = await importedLabelId(mailbox);
 		if (!labelId.ok) return fail(labelId.outcome);
-		const modified = settle(await mailbox.modifyMessage({ messageId: original.value, addLabelIds: [labelId.value], removeLabelIds: [UNREAD_LABEL] }));
-		if (!modified.ok) return fail(modified.outcome);
+		const marked = await markOriginal({ mailbox, origin, labelId: labelId.value });
+		if (marked.kind !== "marked") return fail(marked);
 
 		await updates.markCompleted({ userId, origin, now: deps.now() });
 		return { kind: "marked" };

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import request from "supertest";
-import { GmailAccountEmailSchema } from "@packages/domain/gmail";
-import type { GmailAccountEmail } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailAccountEmail } from "@packages/domain/gmail";
+import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
@@ -766,6 +767,84 @@ describe("Gmail OAuth diagnostics", () => {
 			expect(response.headers.location).toBe("/newsletters/gmail?notice=import_permission_refused");
 			expect(only(lines, INSPECTED)).toMatchObject({ cookieState: { intentKind: "import" }, decision: "provider-error" });
 			expect(only(lines, COMPLETED)).toMatchObject({ stage: "provider-error", redirect: "gmail", outcome: "import_permission_refused" });
+		});
+	});
+
+	describe("a consent asked for to mark imported emails read", () => {
+		const READER = GmailAccountEmailSchema.parse("reader@gmail.com");
+		const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
+
+		async function connectedReader(senders: ForwardableSender[]) {
+			const { fixture, gmail } = fixtureWithGmail();
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = await readerId(harness);
+			const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+			await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
+			await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail: READER });
+			await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
+			await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: GMAIL_SCOPES });
+			const discovery = gmail.bundle.gmailDiscoveryStore;
+			await discovery.startDiscovery({ checkedMessageCount: 0, userId, accountEmail: READER, gatewayAddress, generation: "run-1", mode: "full", historyId: "100" });
+			await discovery.claimPage({ userId, generation: "run-1", page: 0 });
+			const previous = await discovery.findDiscoveryByUserId(userId);
+			assert(previous, "the seeded discovery must exist");
+			await discovery.savePage({
+				previous,
+				senders: senders.map((email) => ({ email, name: email })),
+				mode: "full",
+				pageToken: undefined,
+				historyId: "100",
+				state: "complete",
+				scannedMessages: senders.length,
+				estimatedTotalMessages: undefined,
+				oldestScannedAt: undefined,
+			});
+			return { agent, gmail, userId };
+		}
+
+		const saveBody = ({ senders, marks }: { senders: readonly string[]; marks: readonly string[] }) =>
+			new URLSearchParams([...senders.map((sender) => ["sender", sender]), ["readlist", "default"], ...marks.map((mark) => ["mark", mark])]).toString();
+
+		it("records a ticked card's consent as issued for a mark intent on its way to Google", async () => {
+			const { agent, gmail, userId } = await connectedReader([TLDR]);
+			const destination = await gmail.bundle.getOrCreateReadlistAddress({ userId, readlist: DEFAULT_READLIST_SLUG });
+			await gmail.bundle.gmailMappingStore.mapSenderToAddress({ userId, accountEmail: READER, senderEmail: TLDR, mappedAddresses: [destination.address], deliveryMode: "links" });
+			await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: READER, senderEmail: TLDR });
+
+			const { lines } = await traced(gmail, () => agent.post("/newsletters/gmail/mark-read/start").type("form").send({ sender: TLDR, option: "on" }));
+
+			expect(lines.map((line) => line.event)).toEqual([RECEIVED, ISSUED, COMPLETED]);
+			expect(only(lines, ISSUED)).toMatchObject({ route: "mark", intentKind: "mark" });
+			expect(only(lines, COMPLETED)).toMatchObject({ route: "mark", status: 303, redirect: "google-authorize" });
+		});
+
+		it("records a ticked save's consent as issued for a mark intent on its way to Google", async () => {
+			const { agent, gmail } = await connectedReader([TLDR]);
+
+			const { lines } = await traced(gmail, () => agent.post("/newsletters/gmail/senders/add").type("form").send(saveBody({ senders: [TLDR], marks: ["0", "1"] })));
+
+			expect(lines.map((line) => line.event)).toEqual([RECEIVED, ISSUED, COMPLETED]);
+			expect(only(lines, ISSUED)).toMatchObject({ route: "save", intentKind: "mark" });
+			expect(only(lines, COMPLETED)).toMatchObject({ route: "save", status: 303, redirect: "google-authorize" });
+		});
+
+		it("records nothing for a save that asks Google for nothing", async () => {
+			const { agent, gmail } = await connectedReader([TLDR]);
+
+			const { lines } = await traced(gmail, () => agent.post("/newsletters/gmail/senders/add").type("form").send(saveBody({ senders: [TLDR], marks: ["0"] })));
+
+			expect(lines).toEqual([]);
+		});
+
+		it("records a save too large to carry back from Google as returned to the Gmail page with no state issued", async () => {
+			const many = Array.from({ length: 120 }, (_unused, index) => ForwardableSenderSchema.parse(`newsletter${String(index).padStart(4, "0")}@example.com`));
+			const { agent, gmail } = await connectedReader(many);
+
+			const { lines } = await traced(gmail, () => agent.post("/newsletters/gmail/senders/add").type("form").send(saveBody({ senders: many, marks: ["0", "1"] })));
+
+			expect(lines.map((line) => line.event)).toEqual([RECEIVED, COMPLETED]);
+			expect(only(lines, COMPLETED)).toMatchObject({ route: "save", status: 303, redirect: "gmail", outcome: "mark_permission_needed" });
 		});
 	});
 

@@ -13,7 +13,7 @@
                 <span id="gmail-sender-choice">Search all senders</span>{{icon "chevron-down"}}
               </summary>
               <div class="gmail__picker-menu">
-                <form id="gmail-sender-search-form" class="gmail__search" method="GET" action="{{pagePath}}" hx-get="{{searchPath}}" hx-trigger="click from:#gmail-sender-search-submit, input changed delay:300ms" hx-target="#gmail-sender-results" hx-swap="outerHTML show:none" hx-sync="this:queue last" hx-include="#gmail-sender-search, input[form='gmail-readlist-selection'][name='sender'], input[form='gmail-readlist-selection'][name='added']">
+                <form id="gmail-sender-search-form" class="gmail__search" method="GET" action="{{pagePath}}" hx-get="{{searchPath}}" hx-trigger="click from:#gmail-sender-search-submit, input changed delay:300ms" hx-target="#gmail-sender-results" hx-swap="outerHTML show:none" hx-sync="this:queue last" hx-include="#gmail-sender-search, input[form='gmail-readlist-selection'][name='sender'], input[form='gmail-readlist-selection'][name='added'], #gmail-readlist-selection input[name='mark']">
                   {{#each searchFields}}
                   <input type="hidden" name="{{name}}" value="{{value}}">
                   {{/each}}

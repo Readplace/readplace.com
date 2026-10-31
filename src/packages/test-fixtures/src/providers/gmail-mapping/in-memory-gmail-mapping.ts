@@ -25,6 +25,7 @@ export function initInMemoryGmailMapping(deps: { now: () => Date }): GmailMappin
 			mappedAddresses: undefined,
 			mappedAt: undefined,
 			deliveryMode: undefined,
+			markImportedAt: undefined,
 		};
 		rows.set(key, { userId: input.userId, mapping: patch(existing) });
 	};
@@ -54,6 +55,18 @@ export function initInMemoryGmailMapping(deps: { now: () => Date }): GmailMappin
 		listMappings: async ({ userId, accountEmail }) =>
 			listWhere((row) => row.userId === userId && row.mapping.accountEmail === accountEmail),
 		listMappingsByUserId: async (userId) => listWhere((row) => row.userId === userId),
+		setMarkImported: async (input) => {
+			const row = rows.get(rowKey(input));
+			if (row === undefined) return false;
+			row.mapping = { ...row.mapping, markImportedAt: row.mapping.markImportedAt ?? deps.now().toISOString() };
+			return true;
+		},
+		clearMarkImported: async (input) => {
+			const row = rows.get(rowKey(input));
+			if (row?.mapping.markImportedAt === undefined) return false;
+			row.mapping = { ...row.mapping, markImportedAt: undefined };
+			return true;
+		},
 		removeMapping: async (input) => {
 			rows.delete(rowKey(input));
 		},

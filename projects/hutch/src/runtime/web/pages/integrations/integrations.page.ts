@@ -12,6 +12,7 @@ import type { BuildBannerState } from "../../banner-state";
 import { type GmailConnectContext, registerGmailConnectRoutes } from "./gmail-connect.page";
 import { canConnectGmail } from "./gmail-connection-access";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
+import { initGmailOAuthConsent } from "./gmail-oauth-consent";
 import { registerGmailPageRoutes } from "./gmail.page";
 import { IntegrationsIndexPage } from "./integrations-index.component";
 import { toIntegrationsIndexViewModel } from "./integrations-index.viewmodel";
@@ -40,15 +41,21 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 	const gmail = deps.gmail;
 
 	if (gmail !== undefined) {
-		const context: GmailConnectContext = {
+		const consent = initGmailOAuthConsent({
+			gmail,
 			appOrigin: deps.appOrigin,
 			secureCookies: deps.secureCookies,
+			now: deps.now,
+			getEffectiveAccess: deps.getEffectiveAccess,
+		});
+		const context: GmailConnectContext = {
 			logError: deps.logError,
 			now: deps.now,
 			requireAuth: deps.requireAuth,
 			requireNotLocked: deps.requireNotLocked,
 			requireWriteAccess: deps.requireWriteAccess,
 			getEffectiveAccess: deps.getEffectiveAccess,
+			consent,
 		};
 		registerGmailConnectRoutes({ router, callbackRouter }, gmail, context);
 		registerGmailPageRoutes(router, gmail, {
@@ -58,6 +65,7 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 			requireWriteAccess: deps.requireWriteAccess,
 			getEffectiveAccess: deps.getEffectiveAccess,
 			now: deps.now,
+			consent,
 		});
 	}
 

@@ -16,6 +16,47 @@
                 </ul>
                 {{{consentHtml}}}
               </div>
+              {{#if mark}}
+              <div class="gmail-mappings__import" data-test-gmail-mark-state="{{mark.state}}">
+                <form class="gmail-mappings__mark-form" method="POST" action="{{mark.action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+                  {{#each mark.fields}}
+                  <input type="hidden" name="{{name}}" value="{{value}}">
+                  {{/each}}
+                  <label class="gmail-mappings__mark-option">
+                    <input id="gmail-mark-{{sender}}" class="form-choice" type="checkbox" name="option" value="on"{{#if mark.checked}} checked{{/if}}{{#if mark.disabled}} disabled{{/if}}{{#if mark.hint}} aria-describedby="gmail-mark-hint-{{sender}}"{{/if}} onclick="this.form.requestSubmit()" data-test-gmail-mark-checkbox="card" data-test-gmail-mapping-action="{{mark.key}}">
+                    <span>{{mark.label}}</span>
+                  </label>
+                  <noscript><button class="btn btn--neutral btn--s" type="submit" data-test-gmail-mark-submit>Apply</button></noscript>
+                </form>
+                {{#if mark.hint}}<p class="gmail-mappings__import-message gmail-mappings__mark-detail" id="gmail-mark-hint-{{sender}}" data-test-gmail-mark-hint>{{mark.hint}}</p>{{/if}}
+                {{#each mark.prompt}}
+                <form class="gmail-mappings__mark-detail" method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+                  {{#each fields}}
+                  <input type="hidden" name="{{name}}" value="{{value}}">
+                  {{/each}}
+                  <button class="btn btn--{{variant}} btn--s" type="submit" data-test-gmail-mapping-action="{{key}}">{{label}}</button>
+                </form>
+                {{/each}}
+                {{#if mark.backfill}}
+                <div class="gmail-mappings__import gmail-mappings__mark-detail" data-test-gmail-mark-backfill="{{mark.backfill.state}}">
+                  <p class="gmail-mappings__import-message" role="status">{{mark.backfill.message}}</p>
+                  <ul class="gmail-mappings__counts">
+                    {{#each mark.backfill.counts}}
+                    <li class="gmail-mappings__count" data-test-gmail-mark-backfill-count="{{key}}">{{label}}</li>
+                    {{/each}}
+                  </ul>
+                  {{#each mark.backfill.actions}}
+                  <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+                    {{#each fields}}
+                    <input type="hidden" name="{{name}}" value="{{value}}">
+                    {{/each}}
+                    <button class="btn btn--{{variant}} btn--s" type="submit" data-test-gmail-mapping-action="{{key}}">{{label}}</button>
+                  </form>
+                  {{/each}}
+                </div>
+                {{/if}}
+              </div>
+              {{/if}}
               <div class="gmail-mappings__actions">
                 {{#each actions}}
                 <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">

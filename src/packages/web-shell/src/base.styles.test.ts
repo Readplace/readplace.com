@@ -322,6 +322,17 @@ describe("FORM_CONTROL_STYLES", () => {
 		);
 	});
 
+	it("greys a disabled choice and its wrapping label with the disabled field's muted values", () => {
+		const box = formControlRule(".form-choice:disabled");
+		expect(box).toContain("border-color: var(--muted-foreground);");
+		expect(box).toContain("background: var(--muted);");
+		expect(box).toContain("cursor: not-allowed;");
+		expect(formControlRule('.form-choice[type="checkbox"]:checked:disabled')).toContain("background: var(--muted-foreground);");
+		const label = formControlRule("label:has(> .form-choice:disabled)");
+		expect(label).toContain("color: var(--muted-foreground);");
+		expect(label).toContain("cursor: not-allowed;");
+	});
+
 	it("insets a field's text past a leading glyph", () => {
 		expect(formControlRule(".form-input--leading-icon")).toContain("padding-inline-start: 40px;");
 	});

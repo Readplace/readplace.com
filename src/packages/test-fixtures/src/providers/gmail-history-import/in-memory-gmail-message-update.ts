@@ -49,6 +49,11 @@ export function initInMemoryGmailMessageUpdate(): GmailMessageUpdateStore & {
 			[...records.values()].filter(
 				(record) => record.userId === userId && record.status === "pending" && gmailAccountKey(record.origin.accountEmail) === gmailAccountKey(accountEmail),
 			),
+		discardPending: async (input) => {
+			if (records.get(keyOf(input))?.status !== "pending") return "unchanged";
+			records.delete(keyOf(input));
+			return "discarded";
+		},
 		all: () => [...records.values()],
 	};
 }

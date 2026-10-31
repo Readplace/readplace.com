@@ -125,6 +125,8 @@ describe("initInMemoryInboxEmailLink", () => {
 			truncated: true,
 			extractionFailed: false,
 		});
+		expect(await store.findLinksMeta({ userId: owner, receivedAtMessageId: RAM })).toEqual(meta);
+		expect(await store.findLinksMeta({ userId: otherUser, receivedAtMessageId: RAM })).toBeUndefined();
 	});
 
 	it("writes a give-up barrier when extraction has not already reported", async () => {

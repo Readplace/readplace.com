@@ -19,7 +19,11 @@ import { initRunGmailDiscoveryLocally } from "../domain/gmail/run-gmail-discover
 import type { GmailIntegrationProviders } from "../web/pages/integrations/gmail-integration.types";
 import { initCancelGmailHistoryImports } from "../domain/gmail/cancel-gmail-history-imports";
 import { initUpdateNewsletterCatalog } from "../domain/newsletter-catalog/update-newsletter-catalog";
-import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
+import {
+	initInMemoryGmailHistoryImport,
+	initInMemoryGmailMarkBackfill,
+	initInMemoryGmailMessageUpdate,
+} from "@packages/test-fixtures/providers/gmail-history-import";
 import { initInMemoryNewsletterCatalog } from "@packages/test-fixtures/providers/newsletter-catalog";
 import { initInMemoryCanaryReports } from "@packages/test-fixtures/providers/canary-report";
 import { initInMemoryLogsInsights } from "@packages/test-fixtures/providers/logs-insights";
@@ -216,6 +220,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const gmailDiscoveryStore = initInMemoryGmailDiscovery({ now: () => new Date() });
 	const gmailMonitoringStore = initInMemoryGmailMonitoring({ now: () => new Date() });
 	const gmailHistoryImportStore = initInMemoryGmailHistoryImport();
+	const gmailMessageUpdateStore = initInMemoryGmailMessageUpdate();
+	const gmailMarkBackfillStore = initInMemoryGmailMarkBackfill();
 	const cancelGmailHistoryImports = initCancelGmailHistoryImports({ imports: gmailHistoryImportStore, now: () => new Date() });
 	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
 	const updateNewsletterCatalog = initUpdateNewsletterCatalog({
@@ -306,6 +312,11 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 			},
 			publishGmailModifyPermissionGranted: async (detail) => {
 				logger.info("[gmail-message-update] permission granted; pending Gmail updates wait without a local runner", detail);
+			},
+			gmailMessageUpdateStore,
+			gmailMarkBackfillStore,
+			publishStartGmailMarkBackfill: async (detail) => {
+				logger.info("[gmail-mark-backfill] start requested; the backfill stays queued without a local runner", detail);
 			},
 			publishSubmitNewsletterSender: async ({ senderEmail }) => {
 				await updateNewsletterCatalog((document) => mergeSubmittedSender(document, { from: senderEmail, now: new Date() }));

@@ -9,8 +9,16 @@ import type {
 	GmailHistoryImportJob,
 	GmailHistoryImportSummary,
 	GmailMapping,
+	GmailMarkBackfillCounts,
+	GmailMarkBackfillFailureReason,
+	GmailMarkBackfillJob,
 } from "@packages/domain/gmail";
-import { GMAIL_HISTORY_IMPORT_MAX_POLLS, resolveGmailDeliveryMode, summarizeGmailHistoryImport } from "@packages/domain/gmail";
+import {
+	GMAIL_HISTORY_IMPORT_MAX_POLLS,
+	GMAIL_IMPORTED_LABEL_NAME,
+	resolveGmailDeliveryMode,
+	summarizeGmailHistoryImport,
+} from "@packages/domain/gmail";
 import { type InboxAddressEntry, isLiveAddress } from "@packages/domain/inbox";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -27,6 +35,9 @@ import {
 	GMAIL_IMPORT_CANCEL_PATH,
 	GMAIL_IMPORT_RETRY_PATH,
 	GMAIL_IMPORT_START_PATH,
+	GMAIL_MARK_BACKFILL_PATH,
+	GMAIL_MARK_START_PATH,
+	GMAIL_MARK_STOP_PATH,
 	GMAIL_PATH,
 	GMAIL_SENDER_REMOVE_PATH,
 	type GmailPickerState,
@@ -45,6 +56,37 @@ export interface GmailImportCount {
 	label: string;
 }
 
+export type GmailMarkState = "off" | "on" | "permission-lost";
+
+export const GMAIL_MARK_OPTION_LABEL = `Mark imported emails as read and label them ${GMAIL_IMPORTED_LABEL_NAME}`;
+
+export type GmailMarkBackfillState = "offer" | "running" | "done" | "failed";
+
+export interface GmailMarkBackfillCount {
+	key: "marked" | "not-found" | "not-saved" | "failed";
+	label: string;
+}
+
+export interface GmailMarkBackfillViewModel {
+	state: GmailMarkBackfillState;
+	message: string;
+	counts: GmailMarkBackfillCount[];
+	actions: GmailFormAction[];
+}
+
+export interface GmailMarkViewModel {
+	state: GmailMarkState;
+	key: "mark-read-start" | "mark-read-stop";
+	action: string;
+	fields: FormField[];
+	label: string;
+	checked: boolean;
+	disabled: boolean;
+	hint: string | undefined;
+	prompt: GmailFormAction[];
+	backfill: GmailMarkBackfillViewModel | undefined;
+}
+
 export interface GmailMappingRow {
 	sender: ForwardableSender;
 	newsletterName: string | undefined;
@@ -60,6 +102,7 @@ export interface GmailMappingRow {
 	importMessage: string;
 	importCounts: GmailImportCount[];
 	consent: GmailConnectionPrompt | undefined;
+	mark: GmailMarkViewModel | undefined;
 	actions: GmailFormAction[];
 }
 
@@ -100,7 +143,10 @@ export interface GmailMappingsInput {
 	readlists: readonly ReadlistRef[];
 	candidates: ReadonlyMap<ForwardableSender, GmailSenderCandidate>;
 	imports: readonly GmailHistoryImportJob[];
+	backfills: readonly GmailMarkBackfillJob[];
 	readScopeGranted: boolean;
+	modifyScopeGranted: boolean;
+	metadataScopeGranted: boolean;
 	readlistChoiceShown: boolean;
 	state: GmailPickerState;
 	importsPollCount: number;
@@ -283,18 +329,121 @@ function consentFor(input: {
 	importable: boolean;
 	importState: GmailImportState;
 	readScopeGranted: boolean;
+	markOn: boolean;
 	state: GmailPickerState;
 }): GmailMappingRow["consent"] {
 	if (!input.importable || input.readScopeGranted || !RESTARTABLE.has(input.importState)) return undefined;
 	const { sender: _picked, ...listState } = closeGmailDialog(input.state);
 	return gmailConnectionPrompt({
 		canConnectGmail: input.canConnectGmail,
-		message: "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender, and once a message is saved it labels it imported-to-readplace and marks it read.",
+		message: input.markOn
+			? "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender."
+			: "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender and leaves it unread.",
 		content: "grant-import-permission",
 		label: "Grant permission",
 		variant: "neutral",
 		fields: [...gmailBodyFields(listState), { name: "intent", value: "import" }, { name: "sender", value: input.sender }],
 	});
+}
+
+const MARK_BACKFILL_OFFER = "Mark emails from this sender that Readplace already saved. Emails from before Oct 4, 2026, and whole issues saved before Oct 13, 2026, stay as they are.";
+
+const MARK_BACKFILL_FAILURES: Record<GmailMarkBackfillFailureReason, string> = {
+	"permission-revoked": "Readplace lost permission to change your Gmail messages, so earlier emails weren't all updated.",
+	"gmail-rejected": "Gmail refused to update earlier emails.",
+	"dead-lettered": "Updating earlier emails stopped after repeated errors.",
+};
+
+function markBackfillCounts(counts: GmailMarkBackfillCounts): GmailMarkBackfillCount[] {
+	const notSaved = counts.notSaved;
+	const lines: [GmailMarkBackfillCount["key"], number, string][] = [
+		["marked", counts.marked + counts.alreadyMarked, "marked as read"],
+		["not-found", counts.notFound + counts.unlocatable, "not found in Gmail"],
+		["not-saved", notSaved, notSaved === 1 ? "not fully saved to Readplace, left as it is" : "not fully saved to Readplace, left as they are"],
+		["failed", counts.failed, "couldn't be updated"],
+	];
+	return lines.filter(([, count]) => count > 0).map(([key, count, label]) => ({ key, label: `${count.toLocaleString("en")} ${label}` }));
+}
+
+function markBackfill(input: {
+	job: GmailMarkBackfillJob | undefined;
+	revoked: boolean;
+	senderFields: FormField[];
+}): GmailMarkBackfillViewModel {
+	const { job } = input;
+	const apply = (action: { content: string; label: string }): GmailFormAction[] => input.revoked
+		? []
+		: [postAction({ key: action.content, content: action.content, path: GMAIL_MARK_BACKFILL_PATH, label: action.label, variant: "neutral", fields: input.senderFields })];
+	if (job === undefined || job.state === "cancelled") {
+		return { state: "offer", message: MARK_BACKFILL_OFFER, counts: [], actions: apply({ content: "mark-read-backfill", label: "Apply to earlier emails" }) };
+	}
+	const counts = markBackfillCounts(job.counts);
+	switch (job.state) {
+		case "queued":
+		case "running":
+			return { state: "running", message: "Updating earlier emails in Gmail…", counts, actions: [] };
+		case "complete":
+			return counts.length === 0
+				? { state: "done", message: "No earlier emails from this sender to update.", counts, actions: [] }
+				: { state: "done", message: "Earlier emails updated in Gmail.", counts, actions: [] };
+		case "failed":
+			assert(job.failureReason, "a failed backfill records why it failed");
+			return { state: "failed", message: MARK_BACKFILL_FAILURES[job.failureReason], counts, actions: apply({ content: "mark-read-retry", label: "Try again" }) };
+	}
+}
+
+const PERMISSION_LOST_MESSAGE = "Readplace lost permission to change your Gmail messages, so imported emails stay unread until you allow it again.";
+
+function markState(input: { checked: boolean; modifyScopeGranted: boolean }): GmailMarkState {
+	if (!input.checked) return "off";
+	return input.modifyScopeGranted ? "on" : "permission-lost";
+}
+
+function markFor(input: {
+	sender: GmailMapping;
+	destination: GmailMappingDestination;
+	connection: GmailConnection;
+	canConnectGmail: boolean;
+	modifyScopeGranted: boolean;
+	metadataScopeGranted: boolean;
+	backfills: readonly GmailMarkBackfillJob[];
+	state: GmailPickerState;
+}): GmailMarkViewModel | undefined {
+	const optionEnabledAt = input.sender.markImportedAt;
+	const checked = optionEnabledAt !== undefined;
+	if (input.destination.kind !== "readlist" && !checked) return undefined;
+	const { sender: _picked, ...listState } = closeGmailDialog(input.state);
+	const senderFields = [...gmailBodyFields(listState), { name: "sender", value: input.sender.senderEmail }];
+	const revoked = input.connection.revokedAt !== undefined;
+	const state = markState({ checked, modifyScopeGranted: input.modifyScopeGranted });
+	const unavailable = !input.modifyScopeGranted && !input.canConnectGmail;
+	const consent = state === "permission-lost" || (state === "off" && unavailable)
+		? gmailConnectionPrompt({
+			canConnectGmail: input.canConnectGmail,
+			message: PERMISSION_LOST_MESSAGE,
+			content: "grant-mark-permission",
+			label: "Allow in Gmail",
+			variant: "neutral",
+			fields: [...gmailBodyFields(listState), { name: "intent", value: "mark" }, { name: "sender", value: input.sender.senderEmail }],
+		})
+		: { message: undefined, actions: [] };
+	const key = checked ? "mark-read-stop" : "mark-read-start";
+	const job = input.backfills.find((candidate) =>
+		candidate.senderEmail === input.sender.senderEmail
+		&& candidate.accountEmail === input.sender.accountEmail
+		&& candidate.optionEnabledAt === optionEnabledAt);
+	return {
+		state,
+		key,
+		action: trackGmail(checked ? GMAIL_MARK_STOP_PATH : GMAIL_MARK_START_PATH, key),
+		fields: senderFields,
+		label: GMAIL_MARK_OPTION_LABEL,
+		checked,
+		disabled: !checked && (revoked || unavailable || !input.metadataScopeGranted),
+		hint: consent.message,
+		prompt: revoked ? [] : consent.actions,
+		backfill: state === "on" ? markBackfill({ job, revoked, senderFields }) : undefined,
+	};
 }
 
 function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHistoryImportJob | undefined }): GmailMappingRow {
@@ -325,6 +474,17 @@ function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHis
 			importable,
 			importState,
 			readScopeGranted: input.readScopeGranted,
+			markOn: input.sender.markImportedAt !== undefined,
+			state: input.state,
+		}),
+		mark: markFor({
+			sender: input.sender,
+			destination,
+			connection: input.connection,
+			canConnectGmail: input.canConnectGmail,
+			modifyScopeGranted: input.modifyScopeGranted,
+			metadataScopeGranted: input.metadataScopeGranted,
+			backfills: input.backfills,
 			state: input.state,
 		}),
 		actions: rowActions({
@@ -425,7 +585,7 @@ export function toGmailMappingsViewModel(input: GmailMappingsInput): GmailMappin
 	const mapped = input.senders.filter((sender) => sender.addedToFilterAt !== undefined);
 	const latest = latestGmailImportsBySender(input.imports);
 	const rows = mapped.map((sender) => toRow({ ...input, sender, job: latest.get(sender.senderEmail) })).sort(rowOrder);
-	const importing = rows.some((row) => row.importState === "queued" || row.importState === "running");
+	const importing = rows.some((row) => row.importState === "queued" || row.importState === "running" || row.mark?.backfill?.state === "running");
 	const polling = importing && input.importsPollCount < GMAIL_HISTORY_IMPORT_MAX_POLLS;
 	const state = filterState(input, mapped);
 	const addActions = addNewslettersActions(input);

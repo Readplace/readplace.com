@@ -22,6 +22,11 @@
                   <input class="gmail__import-checkbox" type="checkbox" name="import" value="1"{{#if save.importChecked}} checked{{/if}}>
                   <span>Import unread messages from the last 30 days</span>
                 </label>
+                <label class="gmail__import-option">
+                  <input type="hidden" name="mark" value="0">
+                  <input class="gmail__import-checkbox" type="checkbox" name="mark" value="1"{{#if save.markChecked}} checked{{/if}}{{#if save.markDisabled}} disabled{{/if}} data-test-gmail-mark-checkbox="dialog">
+                  <span>{{save.markLabel}}</span>
+                </label>
                 {{/if}}
                 <div class="confirm-popover__buttons gmail__save" data-test-gmail-dialog-footer>
                   <a class="btn btn--neutral" href="{{dialog.cancelHref}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-gmail-dialog-cancel data-test-action="{{dialog.key}}-cancel">Cancel</a>

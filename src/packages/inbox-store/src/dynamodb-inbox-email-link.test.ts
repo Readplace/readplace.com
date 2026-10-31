@@ -694,6 +694,34 @@ describe("initDynamoDbInboxEmailLink", () => {
 		});
 	});
 
+	describe("findLinksMeta", () => {
+		it("gets the email's meta item by its reserved sort key", async () => {
+			let captured: CapturedCommand | undefined;
+			const meta = await store((cmd) => {
+				captured = cmd as CapturedCommand;
+				return {
+					Item: {
+						userLinkGroup: GROUP,
+						ordinal: "meta",
+						userId: USER,
+						receivedAtMessageId: RAM,
+						truncated: false,
+						savesHeld: false,
+					},
+				};
+			}).findLinksMeta({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "meta" });
+			expect(meta).toEqual({ truncated: false, extractionFailed: false, savesHeld: false });
+		});
+
+		it("returns undefined when extraction never wrote a meta item", async () => {
+			const meta = await store(() => ({})).findLinksMeta({ userId: USER, receivedAtMessageId: RAM });
+
+			expect(meta).toBeUndefined();
+		});
+	});
+
 	describe("deleteLinksByEmail", () => {
 		it("queries the email's partition and deletes every link row and the meta row", async () => {
 			const { client, commands } = createPaginatedClient([

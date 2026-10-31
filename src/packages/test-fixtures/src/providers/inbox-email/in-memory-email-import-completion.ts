@@ -17,6 +17,7 @@ interface CompletionAttributes {
 
 export function initInMemoryEmailImportCompletion(deps: {
 	getEmail: InboxEmailStore["getEmail"];
+	listEmailsByUserId: InboxEmailStore["listEmailsByUserId"];
 }): EmailImportCompletionStore {
 	const attributes = new Map<string, CompletionAttributes>();
 	const existing = async (input: { userId: UserId; receivedAtMessageId: string }): Promise<CompletionAttributes | undefined> => {
@@ -48,6 +49,30 @@ export function initInMemoryEmailImportCompletion(deps: {
 			const current = await existing(input);
 			if (current === undefined) return undefined;
 			return { selection: current.selection, savedOutputs: new Set(current.savedOutputs), origins: [...current.origins] };
+		},
+		listCompletionsBefore: async ({ userId, before, limit }) => {
+			const page = await deps.listEmailsByUserId({
+				userId,
+				cursor: { direction: "older", receivedAtMessageId: before },
+				pageSize: limit,
+			});
+			const emails = [];
+			for (const email of page.emails) {
+				const current = await existing(email);
+				assert(current, "a listed email row exists");
+				emails.push({
+					receivedAtMessageId: email.receivedAtMessageId,
+					messageId: email.messageId,
+					senderEmail: email.senderEmail,
+					status: email.status,
+					gmailDestinationAddresses: email.gmailDestinationAddresses,
+					gmailDeliveryMode: email.gmailDeliveryMode,
+					selection: current.selection,
+					savedOutputs: new Set(current.savedOutputs),
+					origins: [...current.origins],
+				});
+			}
+			return { emails, exhausted: !page.hasOlder };
 		},
 	};
 }

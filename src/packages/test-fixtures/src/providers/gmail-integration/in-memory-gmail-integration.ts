@@ -1,4 +1,4 @@
-import type { ForwardableSender, GmailAccountEmail, GmailHistoryImportJobId } from "@packages/domain/gmail";
+import type { ForwardableSender, GmailAccountEmail, GmailHistoryImportJobId, GmailMarkBackfillRef } from "@packages/domain/gmail";
 import { GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import type { InboxAddressStore } from "@packages/domain/inbox";
@@ -12,7 +12,7 @@ import { initInMemoryGmailSender } from "../gmail-sender";
 import { initInMemoryGmailMapping } from "../gmail-mapping";
 import { initInMemoryGmailDiscovery } from "../gmail-discovery";
 import { initInMemoryGmailMonitoring } from "../gmail-monitoring";
-import { initInMemoryGmailHistoryImport } from "../gmail-history-import";
+import { initInMemoryGmailHistoryImport, initInMemoryGmailMarkBackfill, initInMemoryGmailMessageUpdate } from "../gmail-history-import";
 
 export interface InMemoryGmailIntegration {
 	bundle: GmailIntegrationBundle;
@@ -23,6 +23,7 @@ export interface InMemoryGmailIntegration {
 	discoveryRequests: { userId: UserId }[];
 	importStartRequests: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }[];
 	modifyPermissionGrants: { userId: UserId; accountEmail: GmailAccountEmail }[];
+	markBackfillStartRequests: (GmailMarkBackfillRef & { generation: number })[];
 	newsletterSenderSubmissions: { senderEmail: ForwardableSender }[];
 	diagnosticLines: string[];
 }
@@ -45,6 +46,7 @@ export function initInMemoryGmailIntegration(input: {
 	const importStartRequests: { userId: UserId; jobId: GmailHistoryImportJobId; generation: string }[] = [];
 	const newsletterSenderSubmissions: { senderEmail: ForwardableSender }[] = [];
 	const modifyPermissionGrants: { userId: UserId; accountEmail: GmailAccountEmail }[] = [];
+	const markBackfillStartRequests: (GmailMarkBackfillRef & { generation: number })[] = [];
 	let jobSequence = 0;
 	let generationSequence = 0;
 	const exchangedCodes: string[] = [];
@@ -64,6 +66,7 @@ export function initInMemoryGmailIntegration(input: {
 		discoveryRequests,
 		importStartRequests,
 		modifyPermissionGrants,
+		markBackfillStartRequests,
 		newsletterSenderSubmissions,
 		diagnosticLines,
 		bundle: {
@@ -110,6 +113,11 @@ export function initInMemoryGmailIntegration(input: {
 			},
 			publishGmailModifyPermissionGranted: async (detail) => {
 				modifyPermissionGrants.push(detail);
+			},
+			gmailMessageUpdateStore: initInMemoryGmailMessageUpdate(),
+			gmailMarkBackfillStore: initInMemoryGmailMarkBackfill(),
+			publishStartGmailMarkBackfill: async (detail) => {
+				markBackfillStartRequests.push(detail);
 			},
 			publishSubmitNewsletterSender: async (detail) => {
 				newsletterSenderSubmissions.push(detail);

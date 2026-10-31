@@ -28,6 +28,7 @@ export const GMAIL_HISTORY_IMPORT_DLQ_SOURCES = {
 	pages: "gmail-history-import",
 	outcomes: "gmail-history-import-outcomes",
 	messageUpdates: "gmail-message-updates",
+	markBackfill: "gmail-mark-backfill",
 } as const;
 
 type SqsQueueName<T extends string> = `${T}-q`;
@@ -64,4 +65,5 @@ export const GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES = {
 	pages: `${GMAIL_HISTORY_IMPORT_DLQ_SOURCES.pages}-q`,
 	outcomes: `${GMAIL_HISTORY_IMPORT_DLQ_SOURCES.outcomes}-q`,
 	messageUpdates: `${GMAIL_HISTORY_IMPORT_DLQ_SOURCES.messageUpdates}-q`,
+	markBackfill: `${GMAIL_HISTORY_IMPORT_DLQ_SOURCES.markBackfill}-q`,
 } as const satisfies QueueNamesFor<typeof GMAIL_HISTORY_IMPORT_DLQ_SOURCES>;

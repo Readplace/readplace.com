@@ -33,6 +33,7 @@ describe("initInMemoryGmailMapping", () => {
 			mappedAddresses: undefined,
 			mappedAt: undefined,
 			deliveryMode: undefined,
+			markImportedAt: undefined,
 		});
 	});
 
@@ -52,7 +53,37 @@ describe("initInMemoryGmailMapping", () => {
 			mappedAddresses: [travel],
 			mappedAt: "2026-08-28T00:00:00.000Z",
 			deliveryMode: "links",
+			markImportedAt: undefined,
 		});
+	});
+
+	it("turns the mark-as-read option on once, keeping the time it was first turned on, and keeps it when the destination moves", async () => {
+		let clock = new Date("2026-08-27T00:00:00.000Z");
+		const mappings = store(() => clock);
+		await mappings.mapSenderToAddress({ userId: owner, accountEmail: personal, senderEmail: tldr, mappedAddresses: [tech], deliveryMode: "links" });
+
+		assert.equal(await mappings.setMarkImported({ userId: owner, accountEmail: personal, senderEmail: tldr }), true);
+		clock = new Date("2026-08-28T00:00:00.000Z");
+		assert.equal(await mappings.setMarkImported({ userId: owner, accountEmail: personal, senderEmail: tldr }), true);
+		await mappings.mapSenderToAddress({ userId: owner, accountEmail: personal, senderEmail: tldr, mappedAddresses: [travel], deliveryMode: "links" });
+
+		assert.equal((await mappings.findMapping({ userId: owner, accountEmail: personal, senderEmail: tldr }))?.markImportedAt, "2026-08-27T00:00:00.000Z");
+	});
+
+	it("refuses to turn the mark-as-read option on for a sender without a mapping", async () => {
+		const mappings = store();
+
+		assert.equal(await mappings.setMarkImported({ userId: owner, accountEmail: personal, senderEmail: tldr }), false);
+	});
+
+	it("turns the mark-as-read option off and reports whether it was on", async () => {
+		const mappings = store();
+		await mappings.addSenderToFilter({ userId: owner, accountEmail: personal, senderEmail: tldr });
+		await mappings.setMarkImported({ userId: owner, accountEmail: personal, senderEmail: tldr });
+
+		assert.equal(await mappings.clearMarkImported({ userId: owner, accountEmail: personal, senderEmail: tldr }), true);
+		assert.equal(await mappings.clearMarkImported({ userId: owner, accountEmail: personal, senderEmail: tldr }), false);
+		assert.equal((await mappings.findMapping({ userId: owner, accountEmail: personal, senderEmail: tldr }))?.markImportedAt, undefined);
 	});
 
 	it("returns undefined for a sender the Gmail account has no mapping for", async () => {

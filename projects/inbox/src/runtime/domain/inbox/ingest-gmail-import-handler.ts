@@ -118,6 +118,7 @@ export function initIngestGmailImportHandler(deps: {
 			kind: "history",
 			accountEmail: GmailAccountEmailSchema.parse(detail.accountEmail),
 			gmailMessageId: GmailMessageIdSchema.parse(detail.gmailMessageId),
+			senderEmail: sender,
 		};
 		const proposedReceivedAtMessageId = `${detail.internalDate}#${parsed.email.messageId}`;
 		if (await resumeAcceptedGmailEmail({ userId, receivedAtMessageId: proposedReceivedAtMessageId, rawEmailS3Key: detail.rawEmailS3Key, origin: "gmail-import", gmailOrigin })) {

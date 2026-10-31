@@ -11,13 +11,17 @@ import {
 	type GmailHistoryImportFailureReason,
 	type GmailHistoryImportJobId,
 	type GmailHistoryImportState,
+	type GmailMarkBackfillCounts,
+	type GmailMarkBackfillFailureReason,
+	GmailMessageIdSchema,
+	ZERO_GMAIL_MARK_BACKFILL_COUNTS,
 } from "@packages/domain/gmail";
 import { AliasNameSchema, type InboxAddress, InboxAddressSchema } from "@packages/domain/inbox";
 import { type NewsletterCatalogDocument, NewsletterCatalogDocumentSchema } from "@packages/domain/newsletter-catalog";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
+import { GMAIL_MODIFY_SCOPE, GMAIL_READONLY_SCOPE, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "@packages/provider-contracts/gmail-oauth";
 import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
@@ -36,11 +40,15 @@ const CREATE_READLIST = `${GMAIL}/readlists/create`;
 const IMPORT_START = `${GMAIL}/imports/start`;
 const IMPORT_RETRY = `${GMAIL}/imports/retry`;
 const IMPORT_CANCEL = `${GMAIL}/imports/cancel`;
+const MARK_START = `${GMAIL}/mark-read/start`;
+const MARK_STOP = `${GMAIL}/mark-read/stop`;
+const MARK_BACKFILL = `${GMAIL}/mark-read/backfill`;
 const TLDR = ForwardableSenderSchema.parse("dan@tldr.tech");
 const MORNING = ForwardableSenderSchema.parse("crew@morningbrew.com");
 const EMAIL = GmailAccountEmailSchema.parse("reader@gmail.com");
 const TECH = ReadlistSlugSchema.parse("tech");
 const READONLY_SCOPES = `${GMAIL_SCOPES} ${GMAIL_READONLY_SCOPE}`;
+const MODIFY_SCOPES = `${GMAIL_SCOPES} ${GMAIL_MODIFY_SCOPE}`;
 const ONE_DAY_MS = 86_400_000;
 const AT = "2026-09-30T00:00:00.000Z";
 const DISCOVERED: DiscoveredGmailSender[] = [
@@ -320,7 +328,7 @@ describe("GMail Newsletters page", () => {
 		for (const path of [`${GMAIL}/senders`, `${GMAIL}/status`]) {
 			expect((await request(harness.server).get(path)).headers.location).toBe(`/login?return=${encodeURIComponent(path)}`);
 		}
-		for (const path of [ADD, REMOVE, RETRY, DISCOVER, CREATE_READLIST, IMPORT_START, IMPORT_RETRY, IMPORT_CANCEL, `${GMAIL}/disconnect`]) {
+		for (const path of [ADD, REMOVE, RETRY, DISCOVER, CREATE_READLIST, IMPORT_START, IMPORT_RETRY, IMPORT_CANCEL, MARK_START, MARK_STOP, MARK_BACKFILL, `${GMAIL}/disconnect`]) {
 			expect((await request(harness.server).post(path)).headers.location).toBe(`/login?return=${encodeURIComponent(path)}`);
 		}
 	});
@@ -592,6 +600,7 @@ describe("GMail Newsletters page", () => {
 			"utm_medium",
 			"utm_content",
 			"readlist",
+			"mark",
 		]);
 	});
 
@@ -647,6 +656,7 @@ describe("GMail Newsletters page", () => {
 			utm_medium: "internal",
 			utm_content: "choose-readlists",
 			readlist: "default",
+			mark: "0",
 		});
 	});
 
@@ -671,7 +681,7 @@ describe("GMail Newsletters page", () => {
 		expect(doc.querySelector("#gmail-sender-choice")?.textContent).toBe("Search all senders");
 		const search = doc.querySelector("#gmail-sender-search-form");
 		assert(search, "the sender search form must render");
-		expect(search.getAttribute("hx-include")).toBe("#gmail-sender-search, input[form='gmail-readlist-selection'][name='sender'], input[form='gmail-readlist-selection'][name='added']");
+		expect(search.getAttribute("hx-include")).toBe("#gmail-sender-search, input[form='gmail-readlist-selection'][name='sender'], input[form='gmail-readlist-selection'][name='added'], #gmail-readlist-selection input[name='mark']");
 		expect(Array.from(search.querySelectorAll<HTMLInputElement>(':scope > input[type="hidden"]'), (input) => [input.name, input.value])).toEqual([
 			["readlist", "default"],
 			["add", "1"],
@@ -822,6 +832,7 @@ describe("GMail Newsletters page", () => {
 			utm_medium: "internal",
 			utm_content: "choose-readlists",
 			readlist: "default",
+			mark: "0",
 		});
 		expect(hiddenFields(rowAction(row(typed, MORNING), "remove")).search).toBe("dan");
 		const unticked = load((await agent.get(`${GMAIL}/senders?search=dan&discovery=started`).set("HX-Request", "true")).text);
@@ -1155,6 +1166,7 @@ describe("Choose a readlist", () => {
 			utm_medium: "internal",
 			utm_content: "choose-readlists",
 			readlist: "default",
+			mark: "0",
 		});
 		expect(checklistRows(doc)).toEqual([
 			["known", MORNING, "Morning Brew", false],
@@ -1294,6 +1306,25 @@ describe("Save a newsletter to a readlist", () => {
 		expect(gmail.newsletterSenderSubmissions).toEqual([{ senderEmail: TLDR }]);
 	});
 
+	it("offers marking imported emails as read unchecked until the reader granted permission, and keeps the reader's own answer", async () => {
+		const dialogBox = async (options: { scope?: string; query: string; trial?: boolean }) => {
+			const { agent, userId, harness } = await connectedAgent({ scope: options.scope });
+			if (options.trial) await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
+			const doc = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default&add=1${options.query}`)).text);
+			const checkbox = doc.querySelector<HTMLInputElement>('[data-test-gmail-save-mapping] [data-test-gmail-mark-checkbox="dialog"]');
+			assert(checkbox, "the mapping dialog must render the mark checkbox");
+			return checkbox;
+		};
+		const fresh = await dialogBox({ query: "" });
+		expect([fresh.name, fresh.value, fresh.checked, fresh.disabled, fresh.closest("label")?.textContent?.trim()]).toEqual(["mark", "1", false, false, "Mark imported emails as read and label them imported-to-readplace"]);
+		expect(fresh.previousElementSibling?.outerHTML).toBe('<input type="hidden" name="mark" value="0">');
+		expect((await dialogBox({ query: "&mark=1" })).checked).toBe(true);
+		expect((await dialogBox({ scope: MODIFY_SCOPES, query: "" })).checked).toBe(true);
+		expect((await dialogBox({ scope: MODIFY_SCOPES, query: "&mark=0" })).checked).toBe(false);
+		const unavailable = await dialogBox({ query: "&mark=1", trial: true });
+		expect([unavailable.checked, unavailable.disabled]).toEqual([false, true]);
+	});
+
 	it("offers the import unchecked, and only for a newsletter not yet mapped", async () => {
 		const { agent, mapSender } = await connectedAgent();
 		const fresh = load((await agent.get(`${GMAIL}?sender=${encodeURIComponent(TLDR)}&readlist=default&add=1`)).text);
@@ -1335,6 +1366,7 @@ describe("Save a newsletter to a readlist", () => {
 			utm_source: "integrations-gmail",
 			utm_medium: "internal",
 			utm_content: "choose-readlists",
+			mark: "0",
 		});
 	});
 
@@ -1753,7 +1785,7 @@ describe("Your newsletters", () => {
 		const section = doc.querySelector("#gmail-mappings");
 		assert(section);
 		const targets = Array.from(section.querySelectorAll("form"), (form) => new URL(form.getAttribute("action") ?? "", "https://readplace.com").pathname);
-		expect([...new Set(targets)].sort()).toEqual([GMAIL, IMPORT_START, REMOVE, RETRY].sort());
+		expect([...new Set(targets)].sort()).toEqual([GMAIL, IMPORT_START, MARK_START, REMOVE, RETRY].sort());
 		expect(Array.from(section.querySelectorAll("a"), (link) => link.getAttribute("href"))).toEqual(["/queue?utm_source=integrations-gmail&utm_medium=internal&utm_content=open-readlist"]);
 		const edit = rowAction(row(doc, TLDR), "edit");
 		expect(hiddenFields(edit)).toMatchObject({ sender: TLDR, readlist: "default", edit: "1" });
@@ -2002,6 +2034,7 @@ describe("Import unread messages", () => {
 		const jobId = await seedJob({ sender: TLDR, destination: previous, state: "failed", failureReason: "permission-revoked" });
 		expect(Array.from(row(load((await agent.get(GMAIL)).text), TLDR).querySelectorAll("[data-test-gmail-mapping-action]"), (el) => el.getAttribute("data-test-gmail-mapping-action"))).toEqual([
 			"grant-import-permission",
+			"mark-read-start",
 			"edit",
 			"remove",
 		]);
@@ -2009,6 +2042,7 @@ describe("Import unread messages", () => {
 		const moved = row(load((await agent.get(GMAIL)).text), TLDR);
 		expect(moved.querySelector("[data-test-gmail-import-state]")?.getAttribute("data-test-gmail-import-state")).toBe("none");
 		expect(Array.from(moved.querySelectorAll("[data-test-gmail-mapping-action]"), (el) => el.getAttribute("data-test-gmail-mapping-action"))).toEqual([
+			"mark-read-start",
 			"edit",
 			"start-import",
 			"remove",
@@ -2113,6 +2147,545 @@ describe("Remove a newsletter", () => {
 		expect((await agent.post(`${GMAIL}/disconnect`)).headers.location).toBe("/newsletters?notice=gmail_disconnected");
 		expect(gmail.disconnectRequests).toEqual([{ userId }]);
 		expect(attempts).toBe(2);
+	});
+});
+
+describe("Mark imported emails as read", () => {
+	const OFFER = "Mark emails from this sender that Readplace already saved. Emails from before Oct 4, 2026, and whole issues saved before Oct 13, 2026, stay as they are.";
+	const LABEL = "Mark imported emails as read and label them imported-to-readplace";
+	const PERMISSION_LOST = "Readplace lost permission to change your Gmail messages, so imported emails stay unread until you allow it again.";
+	const UPGRADE = "Gmail integration is only available with an active paid subscription.";
+
+	function markBox(element: Element): { state: string | null; checked: boolean; disabled: boolean; key: string | null; hint: string | null; prompt: (string | null | undefined)[]; backfill: string | null } {
+		const block = element.querySelector("[data-test-gmail-mark-state]");
+		assert(block, "the mapping row must render its mark summary");
+		const box = block.querySelector<HTMLInputElement>('[data-test-gmail-mark-checkbox="card"]');
+		assert(box, "the mark summary must render its checkbox");
+		const hint = block.querySelector("[data-test-gmail-mark-hint]");
+		const backfill = block.querySelector("[data-test-gmail-mark-backfill]");
+		expect(box.getAttribute("aria-describedby")).toBe(hint === null ? null : hint.id);
+		return {
+			state: block.getAttribute("data-test-gmail-mark-state"),
+			checked: box.checked,
+			disabled: box.disabled,
+			key: box.getAttribute("data-test-gmail-mapping-action"),
+			hint: hint === null ? null : hint.textContent,
+			backfill: backfill === null ? null : backfill.getAttribute("data-test-gmail-mark-backfill"),
+			prompt: Array.from(block.children).filter((el) => el.matches("form:not(.gmail-mappings__mark-form)")).map((form) => form.querySelector("button")?.getAttribute("data-test-gmail-mapping-action")),
+		};
+	}
+
+	function markForm(element: Element): HTMLFormElement {
+		const form = element.querySelector('[data-test-gmail-mark-checkbox="card"]')?.closest("form");
+		assert(form, "the mark checkbox must submit a form");
+		return form;
+	}
+
+	function markPrompt(element: Element, key: string): HTMLFormElement {
+		const form = element.querySelector(`[data-test-gmail-mark-state] > form > [data-test-gmail-mapping-action="${key}"]`)?.closest("form");
+		assert(form, `the ${key} mark prompt must submit a form`);
+		return form;
+	}
+
+	function markAction(element: Element, key: string): HTMLFormElement {
+		const form = element.querySelector(`[data-test-gmail-mark-state] [data-test-gmail-mapping-action="${key}"]`)?.closest("form");
+		assert(form, `the ${key} mark action must submit a form`);
+		return form;
+	}
+
+	function backfillBlock(element: Element): { state: string | null; message: string | null | undefined; counts: [string | null, string | null][]; actions: (string | null)[] } {
+		const block = element.querySelector("[data-test-gmail-mark-backfill]");
+		assert(block, "a marked mapping must render its earlier-emails summary");
+		return {
+			state: block.getAttribute("data-test-gmail-mark-backfill"),
+			message: block.querySelector(".gmail-mappings__import-message")?.textContent,
+			counts: Array.from(block.querySelectorAll("[data-test-gmail-mark-backfill-count]"), (el) => [el.getAttribute("data-test-gmail-mark-backfill-count"), el.textContent]),
+			actions: Array.from(block.querySelectorAll("[data-test-gmail-mapping-action]"), (el) => el.getAttribute("data-test-gmail-mapping-action")),
+		};
+	}
+
+	function markConsent(response: request.Response): { authorize: URL; intent: unknown } {
+		const target = response.headers.location ?? response.headers["hx-redirect"];
+		assert(typeof target === "string", "a mark consent must send the reader to Google");
+		const raw = response.headers["set-cookie"];
+		const cookies: string[] = Array.isArray(raw) ? raw : [];
+		const written = cookies.find((cookie) => cookie.startsWith("hutch_gmail_state="));
+		assert(written, "a mark consent must set the state cookie");
+		const signed = decodeURIComponent(written.split(";")[0].slice("hutch_gmail_state=".length));
+		return { authorize: new URL(target), intent: JSON.parse(signed.slice(0, signed.lastIndexOf("."))).intent };
+	}
+
+	function stateCookies(response: request.Response): string[] {
+		const raw = response.headers["set-cookie"];
+		const cookies: string[] = Array.isArray(raw) ? raw : [];
+		return cookies.filter((cookie) => cookie.startsWith("hutch_gmail_state="));
+	}
+
+	async function markedAgent(options: { scope?: string } = {}) {
+		const connected = await connectedAgent({ scope: options.scope ?? MODIFY_SCOPES });
+		const destination = await connected.mapSender(TLDR, "default");
+		await connected.gmail.bundle.gmailMappingStore.setMarkImported({ userId: connected.userId, accountEmail: EMAIL, senderEmail: TLDR });
+		const mapping = await connected.gmail.bundle.gmailMappingStore.findMapping({ userId: connected.userId, accountEmail: EMAIL, senderEmail: TLDR });
+		const optionEnabledAt = mapping?.markImportedAt;
+		assert(optionEnabledAt, "the seeded mapping must have marking on");
+		const ref = { userId: connected.userId, accountEmail: EMAIL, senderEmail: TLDR };
+		const startBackfill = async () => {
+			const start = await connected.gmail.bundle.gmailMarkBackfillStore.startBackfill({ ...ref, optionEnabledAt, now: new Date() });
+			assert(start.started, "the seeded backfill must start");
+			return start.job;
+		};
+		const pendingOrigin = { kind: "history" as const, accountEmail: EMAIL, gmailMessageId: GmailMessageIdSchema.parse("18f0a1"), senderEmail: TLDR };
+		const recordPending = () => connected.gmail.bundle.gmailMessageUpdateStore.recordPending({ userId: connected.userId, receivedAtMessageId: `${AT}#<issue@tldr.tech>`, origin: pendingOrigin, now: new Date(AT) });
+		return { ...connected, destination, ref, startBackfill, pendingOrigin, recordPending };
+	}
+
+	it("offers marking as read on a newsletter that saves to a readlist and leaves a legacy one without it", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: MORNING });
+		const doc = load((await agent.get(`${GMAIL}?search=dan`)).text);
+		expect(markBox(row(doc, TLDR))).toEqual({ state: "off", checked: false, disabled: false, key: "mark-read-start", hint: null, prompt: [], backfill: null });
+		const box = row(doc, TLDR).querySelector<HTMLInputElement>('[data-test-gmail-mark-checkbox="card"]');
+		assert(box, "the mark checkbox must render");
+		expect([box.id, box.className, box.type, box.name, box.value, box.getAttribute("onclick"), box.closest("label")?.textContent?.trim()]).toEqual([
+			`gmail-mark-${TLDR}`,
+			"form-choice",
+			"checkbox",
+			"option",
+			"on",
+			"this.form.requestSubmit()",
+			LABEL,
+		]);
+		const start = markForm(row(doc, TLDR));
+		expect(["method", "action", "hx-boost", "hx-target", "hx-select", "hx-post", "hx-trigger"].map((name) => start.getAttribute(name))).toEqual([
+			"POST",
+			`${MARK_START}?utm_source=integrations-gmail&utm_medium=internal&utm_content=mark-read-start`,
+			"true",
+			"main",
+			"main",
+			null,
+			null,
+		]);
+		expect(hiddenFields(start)).toEqual({ search: "dan", sender: TLDR });
+		expect(start.querySelector("noscript")?.innerHTML).toContain("Apply");
+		expect(Array.from(row(doc, MORNING).querySelectorAll("[data-test-gmail-mark-state]"))).toEqual([]);
+	});
+
+	it("keeps an unticked dialog box unticked when a typed search swaps the dialog in", async () => {
+		const { agent } = await connectedAgent({ scope: MODIFY_SCOPES });
+		const typed = await agent.get(`${GMAIL}/senders?search=dan&sender=${encodeURIComponent(TLDR)}&readlist=default&mark=0&discovery=started`).set("HX-Request", "true");
+		expect(typed.headers["hx-push-url"]).toContain("mark=0");
+		const doc = load(typed.text);
+		const choice = doc.querySelector('#gmail-mapping-choice[hx-swap-oob="outerHTML"]');
+		assert(choice, "the mapping choice must be swapped in out of band");
+		expect(choice.querySelector<HTMLInputElement>('[data-test-gmail-mark-checkbox="dialog"]')?.checked).toBe(false);
+		const page = load((await agent.get(`${GMAIL}?search=dan&sender=${encodeURIComponent(TLDR)}&readlist=default&mark=0&add=1`)).text);
+		const search = page.querySelector("#gmail-sender-search-form");
+		assert(search, "the sender search form must render");
+		expect(Array.from(search.querySelectorAll<HTMLInputElement>(':scope > input[type="hidden"]'), (input) => [input.name, input.value])).toEqual([
+			["readlist", "default"],
+			["add", "1"],
+			["discovery", "started"],
+			["utm_source", "integrations-gmail"],
+			["utm_medium", "internal"],
+			["utm_content", "search-senders"],
+		]);
+		expect(search.getAttribute("hx-include")).toContain("#gmail-readlist-selection input[name='mark']");
+	});
+
+	it("gives each newsletter's mark checkbox its own id, so focus returns to the one the reader ticked", async () => {
+		const { agent, mapSender } = await connectedAgent();
+		await mapSender(MORNING, "default");
+		const rendered = (doc: Document) => ({
+			rows: Array.from(doc.querySelectorAll("[data-test-gmail-mapping-row]"), (mappingRow) => mappingRow.getAttribute("data-test-gmail-mapping-row")),
+			boxes: Array.from(doc.querySelectorAll('[data-test-gmail-mark-checkbox="card"]'), (box) => box.id),
+			ticked: row(doc, MORNING).querySelector('[data-test-gmail-mark-checkbox="card"]')?.id,
+		});
+		const before = rendered(load((await agent.get(GMAIL)).text));
+		await mapSender(TLDR, "default");
+		const after = rendered(load((await agent.get(GMAIL)).text));
+		expect([before, after]).toEqual([
+			{ rows: [MORNING], boxes: [`gmail-mark-${MORNING}`], ticked: `gmail-mark-${MORNING}` },
+			{ rows: [TLDR, MORNING], boxes: [`gmail-mark-${TLDR}`, `gmail-mark-${MORNING}`], ticked: `gmail-mark-${MORNING}` },
+		]);
+	});
+
+	it("disables the mark checkbox with an upgrade offer for a reader without Gmail access", async () => {
+		const { agent, userId, harness, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
+		const mapped = row(load((await agent.get(GMAIL)).text), TLDR);
+		expect(markBox(mapped)).toEqual({ state: "off", checked: false, disabled: true, key: "mark-read-start", hint: UPGRADE, prompt: ["upgrade-gmail"], backfill: null });
+		expect(markPrompt(mapped, "upgrade-gmail").getAttribute("action")).toBe("/account/plans?utm_source=integrations-gmail&utm_medium=internal&utm_content=upgrade-gmail");
+	});
+
+	it("disables an unticked mark checkbox on a revoked connection", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent({ scope: MODIFY_SCOPES });
+		await mapSender(TLDR, "default");
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		expect(markBox(row(load((await agent.get(GMAIL)).text), TLDR))).toEqual({ state: "off", checked: false, disabled: true, key: "mark-read-start", hint: null, prompt: [], backfill: null });
+	});
+
+	it("disables an unticked mark checkbox while Gmail needs reconnecting to choose senders", async () => {
+		const { agent, mapSender } = await connectedAgent({ discovered: false, scope: GMAIL_SETTINGS_SCOPE });
+		await mapSender(TLDR, "default");
+		expect(markBox(row(load((await agent.get(GMAIL)).text), TLDR))).toEqual({ state: "off", checked: false, disabled: true, key: "mark-read-start", hint: null, prompt: [], backfill: null });
+	});
+
+	it("disables an unticked box on a revoked connection for a reader without Gmail access, showing the upgrade hint without a button", async () => {
+		const { agent, gmail, userId, harness, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		expect(markBox(row(load((await agent.get(GMAIL)).text), TLDR))).toEqual({ state: "off", checked: false, disabled: true, key: "mark-read-start", hint: UPGRADE, prompt: [], backfill: null });
+	});
+
+	it("keeps the box ticked and offers to allow it again when Readplace lost permission to change messages", async () => {
+		const { agent, gmail, userId, ref } = await markedAgent({ scope: GMAIL_SCOPES });
+		const mapped = row(load((await agent.get(`${GMAIL}?search=dan`)).text), TLDR);
+		expect(markBox(mapped)).toEqual({ state: "permission-lost", checked: true, disabled: false, key: "mark-read-stop", hint: PERMISSION_LOST, prompt: ["grant-mark-permission"], backfill: null });
+		const allow = markPrompt(mapped, "grant-mark-permission");
+		expect([allow.getAttribute("method"), allow.getAttribute("action"), allow.querySelector("button")?.textContent]).toEqual([
+			"POST",
+			"/newsletters/gmail/connect?utm_source=integrations-gmail&utm_medium=internal&utm_content=grant-mark-permission",
+			"Allow in Gmail",
+		]);
+		expect(hiddenFields(allow)).toEqual({ search: "dan", intent: "mark", sender: TLDR });
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		expect(markBox(row(load((await agent.get(GMAIL)).text), TLDR))).toEqual({ state: "permission-lost", checked: true, disabled: false, key: "mark-read-stop", hint: PERMISSION_LOST, prompt: [], backfill: null });
+		expect((await agent.post(MARK_STOP).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=mark_off&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping(ref))?.markImportedAt).toBeUndefined();
+	});
+
+	it("keeps a ticked box enabled and offers an upgrade when permission was lost and the reader has no Gmail access", async () => {
+		const { agent, gmail, userId, harness, ref } = await markedAgent({ scope: GMAIL_SCOPES });
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
+		const mapped = row(load((await agent.get(GMAIL)).text), TLDR);
+		expect(markBox(mapped)).toEqual({ state: "permission-lost", checked: true, disabled: false, key: "mark-read-stop", hint: UPGRADE, prompt: ["upgrade-gmail"], backfill: null });
+		expect(markPrompt(mapped, "upgrade-gmail").getAttribute("action")).toBe("/account/plans?utm_source=integrations-gmail&utm_medium=internal&utm_content=upgrade-gmail");
+		expect((await agent.post(MARK_STOP).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=mark_off&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping(ref))?.markImportedAt).toBeUndefined();
+	});
+
+	it("asks Google for permission to change messages before turning marking on, writing nothing yet", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		const started = await agent.post(MARK_START).type("form").send({ sender: TLDR, search: "dan", option: "on" });
+		expect(started.status).toBe(303);
+		const { authorize, intent } = markConsent(started);
+		expect(authorize.origin + authorize.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+		expect(authorize.searchParams.get("scope")).toBe(GMAIL_MODIFY_SCOPE);
+		expect(authorize.searchParams.get("include_granted_scopes")).toBe("true");
+		expect(authorize.searchParams.get("login_hint")).toBe(EMAIL);
+		expect(intent).toEqual({ kind: "mark", senders: [TLDR], state: { search: "dan" } });
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+	});
+
+	it("hands an htmx tick Google's consent screen through hx-redirect", async () => {
+		const { agent, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		const started = await agent.post(MARK_START).set("HX-Request", "true").type("form").send({ sender: TLDR, option: "on" });
+		expect(started.status).toBe(200);
+		expect(markConsent(started).authorize.searchParams.get("scope")).toBe(GMAIL_MODIFY_SCOPE);
+	});
+
+	it("writes nothing when the box was not ticked, and keeps marking when the box was not unticked", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent({ scope: MODIFY_SCOPES });
+		await mapSender(TLDR, "default");
+		const ref = { userId, accountEmail: EMAIL, senderEmail: TLDR };
+		const unticked = await agent.post(MARK_START).type("form").send({ sender: TLDR, search: "dan" });
+		expect(unticked.headers.location).toBe(`${GMAIL}?search=dan&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping(ref))?.markImportedAt).toBeUndefined();
+		await gmail.bundle.gmailMappingStore.setMarkImported(ref);
+		const kept = await agent.post(MARK_STOP).type("form").send({ sender: TLDR, search: "dan", option: "on" });
+		expect(kept.headers.location).toBe(`${GMAIL}?search=dan&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping(ref))?.markImportedAt).toEqual(expect.any(String));
+	});
+
+	it("returns a reader without Gmail access to the page without asking Google", async () => {
+		const { agent, gmail, userId, harness, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
+		const started = await agent.post(MARK_START).type("form").send({ sender: TLDR, search: "dan", option: "on" });
+		expect(started.headers.location).toBe(`${GMAIL}?search=dan&discovery=started`);
+		expect(stateCookies(started)).toEqual([]);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+	});
+
+	it("tells the reader to reconnect instead of asking Google when the connection was revoked", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		const started = await agent.post(MARK_START).type("form").send({ sender: TLDR, search: "dan", option: "on" });
+		expect(started.headers.location).toBe(`${GMAIL}?error=mark_revoked&search=dan&discovery=started`);
+		expect(stateCookies(started)).toEqual([]);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+		const alert = load((await agent.get(started.headers.location)).text).querySelector('[data-test-alert="mark_revoked"]');
+		assert(alert, "the page must say why the option stayed off");
+		expect([alert.getAttribute("data-test-alert-variant"), alert.textContent]).toEqual([
+			"error",
+			"Google ended the connection, so Readplace can't mark imported emails as read yet. Reconnect Gmail, then turn the option on for this newsletter.",
+		]);
+	});
+
+	it("asks for permission on the page when the state Google would carry back is too large", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		const search = "d".repeat(4_000);
+		const started = await agent.post(MARK_START).type("form").send({ sender: TLDR, search, option: "on" });
+		expect(started.headers.location).toBe(`${GMAIL}?notice=mark_permission_needed&search=${search}&discovery=started`);
+		expect(stateCookies(started)).toEqual([]);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+	});
+
+	it("turns marking on and offers to apply it to earlier emails once the reader granted permission", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent({ scope: MODIFY_SCOPES });
+		await mapSender(TLDR, "default");
+		const started = await agent.post(MARK_START).type("form").send({ sender: TLDR, option: "on" });
+		expect(started.headers.location).toBe(`${GMAIL}?notice=mark_on&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toEqual(expect.any(String));
+		const doc = load((await agent.get(started.headers.location)).text);
+		expect(doc.querySelector('[data-test-alert="mark_on"]')?.textContent).toBe("Imported emails will now be marked as read and labelled imported-to-readplace in Gmail.");
+		expect(markBox(row(doc, TLDR))).toEqual({ state: "on", checked: true, disabled: false, key: "mark-read-stop", hint: null, prompt: [], backfill: "offer" });
+		expect(markForm(row(doc, TLDR)).getAttribute("action")).toBe(`${MARK_STOP}?utm_source=integrations-gmail&utm_medium=internal&utm_content=mark-read-stop`);
+		expect(backfillBlock(row(doc, TLDR))).toEqual({ state: "offer", message: OFFER, counts: [], actions: ["mark-read-backfill"] });
+		const apply = markAction(row(doc, TLDR), "mark-read-backfill");
+		expect([apply.getAttribute("action"), apply.querySelector("button")?.textContent]).toEqual([`${MARK_BACKFILL}?utm_source=integrations-gmail&utm_medium=internal&utm_content=mark-read-backfill`, "Apply to earlier emails"]);
+		expect(hiddenFields(apply)).toEqual({ sender: TLDR });
+	});
+
+	it("leaves marking off for a newsletter that does not save to a readlist", async () => {
+		const { agent, gmail, userId } = await connectedAgent({ scope: MODIFY_SCOPES });
+		await gmail.bundle.gmailMappingStore.addSenderToFilter({ userId, accountEmail: EMAIL, senderEmail: TLDR });
+		expect((await agent.post(MARK_START).type("form").send({ sender: TLDR, search: "dan", option: "on" })).headers.location).toBe(`${GMAIL}?search=dan&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+	});
+
+	it.each([MARK_START, MARK_STOP, MARK_BACKFILL])("rejects a malformed sender on %s", async (path) => {
+		const { agent } = await connectedAgent();
+		expect((await agent.post(path).type("form").send({ sender: "bad", search: "dan" })).headers.location).toBe(`${GMAIL}?error=sender_invalid&search=dan&discovery=started`);
+	});
+
+	it.each([MARK_START, MARK_STOP, MARK_BACKFILL])("returns to the page from %s while the Gmail account is still unknown", async (path) => {
+		const { agent, gmail, userId } = await connectedAgent({ accountEmail: false, scope: MODIFY_SCOPES });
+		expect((await agent.post(path).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?discovery=started`);
+		expect(await gmail.bundle.gmailMarkBackfillStore.listBackfillsByUserId(userId)).toEqual([]);
+	});
+
+	it("stops marking, discards the updates still waiting and cancels the earlier-emails run", async () => {
+		const { agent, gmail, userId, ref, startBackfill, recordPending, pendingOrigin } = await markedAgent();
+		await startBackfill();
+		await recordPending();
+		const stopped = await agent.post(MARK_STOP).type("form").send({ sender: TLDR, search: "dan" });
+		expect(stopped.headers.location).toBe(`${GMAIL}?notice=mark_off&search=dan&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping(ref))?.markImportedAt).toBeUndefined();
+		expect(await gmail.bundle.gmailMessageUpdateStore.listPendingByAccount({ userId, accountEmail: EMAIL })).toEqual([]);
+		expect(await gmail.bundle.gmailMessageUpdateStore.find({ userId, origin: pendingOrigin })).toBeUndefined();
+		const backfill = await gmail.bundle.gmailMarkBackfillStore.findBackfill(ref);
+		expect({ state: backfill?.state, reason: backfill?.cancelReason }).toEqual({ state: "cancelled", reason: "option-off" });
+		const doc = load((await agent.get(stopped.headers.location)).text);
+		expect(doc.querySelector('[data-test-alert="mark_off"]')?.textContent).toBe("Readplace stopped marking emails from this newsletter as read. Emails it already marked stay as they are.");
+		expect(markBox(row(doc, TLDR))).toEqual({ state: "off", checked: false, disabled: false, key: "mark-read-start", hint: null, prompt: [], backfill: null });
+	});
+
+	it("stops marking and cancels the earlier-emails run when the newsletter is removed", async () => {
+		const { agent, gmail, userId, ref, startBackfill, recordPending } = await markedAgent();
+		await startBackfill();
+		await recordPending();
+		expect((await agent.post(REMOVE).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=sender_removed&discovery=started`);
+		expect(await gmail.bundle.gmailMessageUpdateStore.listPendingByAccount({ userId, accountEmail: EMAIL })).toEqual([]);
+		const backfill = await gmail.bundle.gmailMarkBackfillStore.findBackfill(ref);
+		expect({ state: backfill?.state, reason: backfill?.cancelReason }).toEqual({ state: "cancelled", reason: "mapping-removed" });
+	});
+
+	it("starts applying marking to earlier emails once, while a run is already underway", async () => {
+		const { agent, gmail, userId, ref } = await markedAgent();
+		const started = await agent.post(MARK_BACKFILL).type("form").send({ sender: TLDR, search: "dan" });
+		expect(started.headers.location).toBe(`${GMAIL}?notice=mark_backfill_started&search=dan&discovery=started`);
+		expect(gmail.markBackfillStartRequests).toEqual([{ ...ref, generation: 1 }]);
+		expect((await gmail.bundle.gmailMarkBackfillStore.findBackfill(ref))?.state).toBe("queued");
+		expect((await agent.post(MARK_BACKFILL).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=mark_backfill_started&discovery=started`);
+		expect(gmail.markBackfillStartRequests).toEqual([{ userId, accountEmail: EMAIL, senderEmail: TLDR, generation: 1 }]);
+		const doc = load((await agent.get(started.headers.location)).text);
+		expect(doc.querySelector('[data-test-alert="mark_backfill_started"]')?.textContent).toBe("Readplace is marking earlier emails from this newsletter as read. This can take a while for a long-running newsletter.");
+	});
+
+	it("asks for permission instead of applying marking to earlier emails without it", async () => {
+		const { agent, gmail } = await markedAgent({ scope: GMAIL_SCOPES });
+		expect((await agent.post(MARK_BACKFILL).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=mark_permission_needed&discovery=started`);
+		expect(gmail.markBackfillStartRequests).toEqual([]);
+	});
+
+	it("does not apply marking to earlier emails while marking is off", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent({ scope: MODIFY_SCOPES });
+		await mapSender(TLDR, "default");
+		expect((await agent.post(MARK_BACKFILL).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?discovery=started`);
+		expect(await gmail.bundle.gmailMarkBackfillStore.listBackfillsByUserId(userId)).toEqual([]);
+		expect(gmail.markBackfillStartRequests).toEqual([]);
+	});
+
+	it("polls the mappings while earlier emails are being updated and reports what the run has counted", async () => {
+		const { agent, gmail, ref, startBackfill } = await markedAgent();
+		const job = await startBackfill();
+		await gmail.bundle.gmailMarkBackfillStore.claimPage({ ...ref, generation: job.generation, page: 0, now: new Date() });
+		await gmail.bundle.gmailMarkBackfillStore.savePage({ ...ref, generation: job.generation, page: 0, cursor: "next", counts: { ...ZERO_GMAIL_MARK_BACKFILL_COUNTS, marked: 2, alreadyMarked: 1 }, now: new Date() });
+		const doc = load((await agent.get(GMAIL)).text);
+		expect(backfillBlock(row(doc, TLDR))).toEqual({ state: "running", message: "Updating earlier emails in Gmail…", counts: [["marked", "3 marked as read"]], actions: [] });
+		expect(doc.querySelector("#gmail-mappings")?.getAttribute("data-imports-polling")).toBe("true");
+	});
+
+	it.each<[string, Partial<GmailMarkBackfillCounts>, string, [string, string][]]>([
+		["counts", { marked: 1, notFound: 1, unlocatable: 1, notSaved: 1, failed: 2 }, "Earlier emails updated in Gmail.", [["marked", "1 marked as read"], ["not-found", "2 not found in Gmail"], ["not-saved", "1 not fully saved to Readplace, left as it is"], ["failed", "2 couldn't be updated"]]],
+		["several unsaved emails", { notSaved: 1200 }, "Earlier emails updated in Gmail.", [["not-saved", "1,200 not fully saved to Readplace, left as they are"]]],
+		["nothing to update", {}, "No earlier emails from this sender to update.", []],
+	])("reports a finished earlier-emails run with %s", async (_label, counts, message, lines) => {
+		const { agent, gmail, ref, startBackfill } = await markedAgent();
+		const job = await startBackfill();
+		await gmail.bundle.gmailMarkBackfillStore.claimPage({ ...ref, generation: job.generation, page: 0, now: new Date() });
+		await gmail.bundle.gmailMarkBackfillStore.complete({ ...ref, generation: job.generation, page: 0, counts: { ...ZERO_GMAIL_MARK_BACKFILL_COUNTS, ...counts }, now: new Date() });
+		const doc = load((await agent.get(GMAIL)).text);
+		expect(backfillBlock(row(doc, TLDR))).toEqual({ state: "done", message, counts: lines, actions: [] });
+		expect(doc.querySelector("#gmail-mappings")?.getAttribute("data-imports-polling")).toBe("false");
+	});
+
+	it.each<[GmailMarkBackfillFailureReason, string]>([
+		["permission-revoked", "Readplace lost permission to change your Gmail messages, so earlier emails weren't all updated."],
+		["gmail-rejected", "Gmail refused to update earlier emails."],
+		["dead-lettered", "Updating earlier emails stopped after repeated errors."],
+	])("offers to retry an earlier-emails run that failed as %s", async (reason, message) => {
+		const { agent, gmail, ref, startBackfill } = await markedAgent();
+		const job = await startBackfill();
+		await gmail.bundle.gmailMarkBackfillStore.failBackfill({ ...ref, generation: job.generation, reason, now: new Date() });
+		const mapped = row(load((await agent.get(GMAIL)).text), TLDR);
+		expect(backfillBlock(mapped)).toEqual({ state: "failed", message, counts: [], actions: ["mark-read-retry"] });
+		expect(markAction(mapped, "mark-read-retry").getAttribute("action")).toBe(`${MARK_BACKFILL}?utm_source=integrations-gmail&utm_medium=internal&utm_content=mark-read-retry`);
+		expect((await agent.post(MARK_BACKFILL).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=mark_backfill_started&discovery=started`);
+		expect(gmail.markBackfillStartRequests).toEqual([{ ...ref, generation: job.generation + 1 }]);
+	});
+
+	it("offers the earlier-emails run again once a cancelled run's marking is turned back on", async () => {
+		const { agent, gmail, ref, startBackfill } = await markedAgent();
+		await startBackfill();
+		await gmail.bundle.gmailMarkBackfillStore.cancelBackfill({ ...ref, generation: undefined, reason: "option-off", now: new Date() });
+		expect(backfillBlock(row(load((await agent.get(GMAIL)).text), TLDR))).toEqual({ state: "offer", message: OFFER, counts: [], actions: ["mark-read-backfill"] });
+	});
+
+	it("keeps a ticked box enabled on a revoked connection so the reader can still untick it", async () => {
+		const { agent, gmail, userId } = await markedAgent();
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		const mapped = row(load((await agent.get(GMAIL)).text), TLDR);
+		expect(markBox(mapped)).toEqual({ state: "on", checked: true, disabled: false, key: "mark-read-stop", hint: null, prompt: [], backfill: "offer" });
+		expect(backfillBlock(mapped).actions).toEqual([]);
+	});
+
+	it.each<[string, boolean, string]>([
+		["leaves imported emails unread", false, "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender and leaves it unread."],
+		["says nothing about leaving emails unread once marking is on", true, "To import unread messages, Readplace needs permission to read your Gmail messages. It reads only mail from this sender."],
+	])("asks for read access in words that %s", async (_label, markOn, copy) => {
+		const { agent, gmail, userId, mapSender, seedJob } = await connectedAgent();
+		const destination = await mapSender(TLDR, "default");
+		if (markOn) await gmail.bundle.gmailMappingStore.setMarkImported({ userId, accountEmail: EMAIL, senderEmail: TLDR });
+		await seedJob({ sender: TLDR, destination, state: "awaiting-permission" });
+		expect(row(load((await agent.get(GMAIL)).text), TLDR).querySelector("[data-test-gmail-import-consent] .gmail-mappings__consent-copy")?.textContent).toBe(copy);
+	});
+
+	it("asks Google for permission to change messages for the newly saved newsletters only, after creating their imports", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent();
+		await mapSender(MORNING, "default");
+		const save = await agent.post(ADD).type("form").send(
+			new URLSearchParams([["sender", TLDR], ["sender", MORNING], ["readlist", "default"], ["import", "1"], ["mark", "0"], ["mark", "1"], ["search", "dan"]]).toString(),
+		);
+		expect(save.status).toBe(303);
+		const { authorize, intent } = markConsent(save);
+		expect(authorize.searchParams.get("scope")).toBe(GMAIL_MODIFY_SCOPE);
+		expect(intent).toEqual({ kind: "mark", senders: [TLDR], state: { search: "dan" } });
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+		expect((await gmail.bundle.gmailHistoryImportStore.listJobsByUserId(userId)).map((job) => [job.senderEmail, job.state])).toEqual([[TLDR, "awaiting-permission"]]);
+	});
+
+	it("hands an htmx save Google's consent screen through hx-redirect", async () => {
+		const { agent } = await connectedAgent();
+		const save = await agent.post(ADD).set("HX-Request", "true").type("form").send("sender=dan%40tldr.tech&readlist=default&mark=0&mark=1");
+		expect(save.status).toBe(200);
+		expect(markConsent(save).intent).toEqual({ kind: "mark", senders: [TLDR], state: {} });
+	});
+
+	it("turns marking on for a newly saved newsletter when the reader already granted permission", async () => {
+		const { agent, gmail, userId } = await connectedAgent({ scope: MODIFY_SCOPES });
+		expect((await agent.post(ADD).type("form").send("sender=dan%40tldr.tech&readlist=default&mark=0&mark=1")).headers.location).toBe(`${GMAIL}?notice=mark_on&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toEqual(expect.any(String));
+	});
+
+	it("leaves marking off for a newly saved newsletter whose box was unticked", async () => {
+		const { agent, gmail, userId } = await connectedAgent({ scope: MODIFY_SCOPES });
+		const save = await agent.post(ADD).type("form").send("sender=dan%40tldr.tech&readlist=default&mark=0");
+		expect(save.headers.location).toBe(`${GMAIL}?notice=sender_mapped&discovery=started`);
+		expect(stateCookies(save)).toEqual([]);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+	});
+
+	it("reports the import when a newly saved newsletter both imports and marks", async () => {
+		const { agent, gmail, userId } = await connectedAgent({ scope: `${READONLY_SCOPES} ${GMAIL_MODIFY_SCOPE}` });
+		expect((await agent.post(ADD).type("form").send("sender=dan%40tldr.tech&readlist=default&import=1&mark=0&mark=1")).headers.location).toBe(`${GMAIL}?notice=import_started&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toEqual(expect.any(String));
+	});
+
+	it.each<[string, string, string]>([
+		["the import's revoked connection, asking nothing of Google", "&import=1", "error=import_revoked&notice=sender_mapped"],
+		["that marking needs a reconnect, asking nothing of Google", "", "error=mark_revoked&notice=sender_mapped"],
+	])("saves a ticked newsletter on a revoked connection and reports %s", async (_label, extra, outcome) => {
+		const { agent, gmail, userId } = await connectedAgent();
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		const save = await agent.post(ADD).type("form").send(`sender=dan%40tldr.tech&readlist=default&mark=0&mark=1${extra}`);
+		expect(save.headers.location).toBe(`${GMAIL}?${outcome}&discovery=started`);
+		expect(stateCookies(save)).toEqual([]);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+	});
+
+	it("asks for permission on the page when too many newsletters were saved for Google to carry them back", async () => {
+		const many = Array.from({ length: 120 }, (_unused, index) => ForwardableSenderSchema.parse(`newsletter${String(index).padStart(4, "0")}@example.com`));
+		const { agent, gmail, userId, gatewayAddress } = await connectedAgent({ discovered: false });
+		await seedDiscovery({ gmail, userId, gatewayAddress, senders: many.map((email) => ({ email, name: email })), generation: "many", state: "complete" });
+		const save = await agent.post(ADD).type("form").send(
+			new URLSearchParams([...many.map((sender) => ["sender", sender]), ["readlist", "default"], ["mark", "0"], ["mark", "1"]]).toString(),
+		);
+		expect(save.headers.location).toBe(`${GMAIL}?notice=mark_permission_needed&discovery=started`);
+		expect(stateCookies(save)).toEqual([]);
+		const saved = await gmail.bundle.gmailMappingStore.listMappingsByUserId(userId);
+		expect(saved.length).toBe(120);
+		expect(saved.filter((mapping) => mapping.markImportedAt !== undefined)).toEqual([]);
+	});
+
+	it("saves a ticked newsletter for a reader without Gmail access, leaving marking off", async () => {
+		const { agent, gmail, userId, harness } = await connectedAgent();
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
+		const save = await agent.post(ADD).type("form").send("sender=dan%40tldr.tech&readlist=default&mark=0&mark=1");
+		expect(save.headers.location).toBe(`${GMAIL}?notice=sender_mapped&discovery=started`);
+		expect(stateCookies(save)).toEqual([]);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+	});
+
+	it("leaves marking as it was when an existing newsletter is saved again", async () => {
+		const { agent, gmail, userId, mapSender } = await connectedAgent({ scope: MODIFY_SCOPES });
+		await mapSender(TLDR, "default");
+		expect((await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "default", mark: "1" })).headers.location).toBe(`${GMAIL}?notice=sender_remapped&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping({ userId, accountEmail: EMAIL, senderEmail: TLDR }))?.markImportedAt).toBeUndefined();
+	});
+
+	it("keeps the mark choice when a save is rejected", async () => {
+		const { agent } = await connectedAgent();
+		expect((await agent.post(ADD).type("form").send({ sender: TLDR, readlist: "nope", mark: "1", add: "1" })).headers.location).toBe(`${GMAIL}?error=readlist_invalid&sender=dan%40tldr.tech&readlist=nope&mark=1&add=1&discovery=started`);
+	});
+
+	it("lets a read-only reader stop marking but not start it or apply it to earlier emails", async () => {
+		const { agent, gmail, userId, harness, ref } = await markedAgent();
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString() });
+		for (const path of [MARK_START, MARK_BACKFILL]) {
+			expect((await agent.post(path).set("Accept", "text/html").type("form").send({ sender: TLDR, option: "on" })).headers.location).toBe("/queue?inactive=1");
+		}
+		expect(gmail.markBackfillStartRequests).toEqual([]);
+		expect((await agent.post(MARK_STOP).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=mark_off&discovery=started`);
+		expect((await gmail.bundle.gmailMappingStore.findMapping(ref))?.markImportedAt).toBeUndefined();
 	});
 });
 

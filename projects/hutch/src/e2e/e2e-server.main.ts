@@ -21,7 +21,10 @@ import {
 	GmailHistoryImportFailureReasonSchema,
 	type GmailHistoryImportJobId,
 	GmailHistoryImportMessageOutcomeSchema,
+	GmailMarkBackfillCountsSchema,
+	GmailMarkBackfillFailureReasonSchema,
 	GmailMessageIdSchema,
+	ZERO_GMAIL_MARK_BACKFILL_COUNTS,
 	gmailHistoryImportRawKey,
 	settledCount,
 } from '@packages/domain/gmail'
@@ -30,6 +33,7 @@ import { NewsletterCatalogDocumentSchema, NewsletterCatalogRecordSchema } from '
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema, generateReadlistSlug } from '@packages/domain/readlist'
 import {
 	GMAIL_METADATA_SCOPE,
+	GMAIL_MODIFY_SCOPE,
 	GMAIL_READONLY_SCOPE,
 	GMAIL_SCOPES,
 	GMAIL_SETTINGS_SCOPE,
@@ -686,6 +690,7 @@ const GMAIL_SCOPE_GRANTS = {
 	settings: GMAIL_SETTINGS_SCOPE,
 	metadata: GMAIL_METADATA_SCOPE,
 	readonly: GMAIL_READONLY_SCOPE,
+	modify: GMAIL_MODIFY_SCOPE,
 } as const
 
 const SeedGmailConnectionSchema = z.enum([
@@ -763,6 +768,7 @@ const SeedGmailMappingBody = z.discriminatedUnion('destination', [
 		readlist: z.string().min(1),
 		additionalReadlists: z.array(z.string().min(1)).default([]),
 		pending: z.boolean().default(false),
+		mark: z.boolean().default(false),
 	}),
 	z.object({
 		destination: z.literal('legacy-inbox'),
@@ -822,12 +828,21 @@ const SeedGmailImportBody = z.union([
 	z.object({ ...SeedGmailImportCommon, state: z.literal('cancelled'), cancelReason: GmailHistoryImportCancelReasonSchema }),
 ])
 
+const SeedGmailMarkBackfillCommon = {
+	sender: ForwardableSenderSchema,
+	counts: GmailMarkBackfillCountsSchema.partial().default({}),
+}
+const SeedGmailMarkBackfillBody = z.union([
+	z.object({ ...SeedGmailMarkBackfillCommon, state: z.enum(['running', 'complete']) }),
+	z.object({ ...SeedGmailMarkBackfillCommon, state: z.literal('failed'), failureReason: GmailMarkBackfillFailureReasonSchema }),
+])
+
 const SeedGmailStateBody = z
 	.object({
 		userId: UserIdSchema,
 		connection: SeedGmailConnectionSchema.default('connected'),
 		grantedScopes: z
-			.array(z.enum(['settings', 'metadata', 'readonly']))
+			.array(z.enum(['settings', 'metadata', 'readonly', 'modify']))
 			.default(['settings', 'metadata']),
 		discoveredSenders: z.array(z.object({ email: ForwardableSenderSchema, name: z.string().optional() })).default([]),
 		discoveryState: z.enum(['idle', 'running', 'complete', 'failed']).default('complete'),
@@ -851,6 +866,7 @@ const SeedGmailStateBody = z
 			.default([]),
 		mappings: z.array(SeedGmailMappingBody).default([]),
 		imports: z.array(SeedGmailImportBody).default([]),
+		backfills: z.array(SeedGmailMarkBackfillBody).default([]),
 		completeImportsOnStart: GmailImportOutcomeCountsSchema.optional(),
 	})
 	.superRefine((body, context) => {
@@ -960,6 +976,9 @@ async function seedGmailMappings(input: {
 			: []
 		await gmailMappingStore.mapSenderToAddress({ userId, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL, senderEmail: mapping.email, mappedAddresses: [mappedAddress, ...additional], deliveryMode: 'links' })
 		await gmailMappingStore.addSenderToFilter({ userId, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL, senderEmail: mapping.email })
+		if (mapping.destination === 'readlist' && mapping.mark) {
+			await gmailMappingStore.setMarkImported({ userId, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL, senderEmail: mapping.email })
+		}
 		destinations.push(mappedAddress)
 		destinations.push(...additional)
 	}
@@ -1014,6 +1033,32 @@ async function seedGmailImports(input: {
 	}
 }
 
+async function seedGmailMarkBackfills(input: {
+	userId: UserId
+	backfills: SeedGmailState['backfills']
+}): Promise<void> {
+	const { userId } = input
+	const { gmailMappingStore, gmailMarkBackfillStore } = gmailIntegration.bundle
+	for (const entry of input.backfills) {
+		const ref = { userId, accountEmail: SEEDED_GMAIL_ACCOUNT_EMAIL, senderEmail: entry.sender }
+		const mapping = await gmailMappingStore.findMapping(ref)
+		assert(mapping?.markImportedAt, `a seeded backfill for ${entry.sender} needs that sender mapped with mark in the same seed`)
+		const start = await gmailMarkBackfillStore.startBackfill({ ...ref, optionEnabledAt: mapping.markImportedAt, now: gmailNow() })
+		assert(start.started, `the backfill for ${entry.sender} must start`)
+		const { generation } = start.job
+		const counts = { ...ZERO_GMAIL_MARK_BACKFILL_COUNTS, ...entry.counts }
+		assert(await gmailMarkBackfillStore.claimPage({ ...ref, generation, page: 0, now: gmailNow() }))
+		if (entry.state === 'complete') {
+			assert(await gmailMarkBackfillStore.complete({ ...ref, generation, page: 0, counts, now: gmailNow() }))
+			continue
+		}
+		assert(await gmailMarkBackfillStore.savePage({ ...ref, generation, page: 0, cursor: 'e2e-next', counts, now: gmailNow() }))
+		if (entry.state === 'failed') {
+			assert.equal(await gmailMarkBackfillStore.failBackfill({ ...ref, generation, reason: entry.failureReason, now: gmailNow() }), 'failed')
+		}
+	}
+}
+
 server.post('/e2e/seed-gmail-state', async (req, res) => {
 	const parsed = SeedGmailStateBody.safeParse(req.body)
 	if (!parsed.success) {
@@ -1051,6 +1096,7 @@ server.post('/e2e/seed-gmail-state', async (req, res) => {
 		senderCount: filterSenderCount,
 	})
 	await seedGmailImports({ userId, gatewayAddress, imports: body.imports })
+	await seedGmailMarkBackfills({ userId, backfills: body.backfills })
 	await connection.afterSenders(userId)
 	res.status(201).json({ ok: true, gatewayAddress })
 })

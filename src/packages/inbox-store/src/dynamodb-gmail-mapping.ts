@@ -1,4 +1,5 @@
 import {
+	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -20,7 +21,18 @@ const GmailMappingRow = z.object({
 	additionalMappedAddresses: dynamoField(z.array(InboxAddressSchema)),
 	mappedAt: dynamoField(z.string()),
 	deliveryMode: dynamoField(GmailDeliveryModeSchema),
+	markImportedAt: dynamoField(z.string()),
 });
+
+async function unlessConditionFails(write: () => Promise<unknown>): Promise<boolean> {
+	try {
+		await write();
+		return true;
+	} catch (error) {
+		if (!(error instanceof ConditionalCheckFailedException)) throw error;
+		return false;
+	}
+}
 
 function accountPrefix(accountEmail: GmailAccountEmail) {
 	return `${accountEmail}#`;
@@ -30,6 +42,7 @@ function toMapping(row: z.infer<typeof GmailMappingRow>): GmailMapping {
 	const { userId: _userId, mappingKey: _mappingKey, mappedAddress, additionalMappedAddresses, ...mapping } = row;
 	return {
 		...mapping,
+		markImportedAt: mapping.markImportedAt,
 		mappedAddresses: mappedAddress === undefined ? undefined : [mappedAddress, ...(additionalMappedAddresses ?? [])],
 	};
 }
@@ -98,6 +111,23 @@ export function initDynamoDbGmailMapping(deps: {
 				ExpressionAttributeValues: { ":uid": userId, ":account": accountPrefix(accountEmail) },
 			}),
 		listMappingsByUserId: (userId) => list(byUser(userId)),
+		setMarkImported: (input) =>
+			unlessConditionFails(() =>
+				table.update({
+					Key: keyOf(input),
+					UpdateExpression: "SET markImportedAt = if_not_exists(markImportedAt, :now)",
+					ConditionExpression: "attribute_exists(mappingKey)",
+					ExpressionAttributeValues: { ":now": deps.now().toISOString() },
+				}),
+			),
+		clearMarkImported: (input) =>
+			unlessConditionFails(() =>
+				table.update({
+					Key: keyOf(input),
+					UpdateExpression: "REMOVE markImportedAt",
+					ConditionExpression: "attribute_exists(markImportedAt)",
+				}),
+			),
 		removeMapping: async ({ userId, accountEmail, senderEmail }) => {
 			await table.delete({ Key: keyOf({ userId, accountEmail, senderEmail }) });
 		},
