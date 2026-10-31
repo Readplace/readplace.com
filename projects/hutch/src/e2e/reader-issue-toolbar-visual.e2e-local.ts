@@ -154,6 +154,7 @@ test.describe("Newsletter issue reader toolbar on a phone", () => {
 });
 
 async function openSharingOff(page: Page, trigger: string): Promise<void> {
+	// Playwright's actionability check treats aria-disabled="true" as disabled, so force the click to open the explanation dialog.
 	if (await page.locator(trigger).isVisible()) {
 		await page.locator(trigger).click({ force: true });
 	} else {
