@@ -386,6 +386,38 @@ describe("initComputeRelatedArticlesHandler", () => {
 		]);
 	});
 
+	it("skips on the final receive when the crawl is still pending", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, skipped, published } = createHandler({
+			targetLookup: {
+				state: "found",
+				article: crawledTarget({ crawlStatus: "pending", hasStubMetadata: true }),
+			},
+			logger,
+		});
+
+		const result = await handler(finalReceiveEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			url: TARGET_URL,
+			reason: "crawl still pending after the wait",
+			receiveCount: 3,
+			crawlStatus: "pending",
+		});
+		expect(skipped).toEqual([{ url: TARGET_URL, at: NOW }]);
+		expect(published).toEqual([
+			{
+				url: TARGET_URL,
+				userId: USER_ID,
+				outcome: "skipped",
+				relatedCount: 0,
+				inputTokens: 0,
+				outputTokens: 0,
+			},
+		]);
+	});
+
 	it.each([1, 2])("waits on receive %i for the reader's capture when the crawl failed with nothing to compare", async (receiveCount) => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const { handler, skipped, published } = createHandler({
