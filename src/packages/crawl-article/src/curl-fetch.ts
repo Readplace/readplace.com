@@ -116,12 +116,30 @@ export function createCurlFetch(deps: {
 	execCurl: ExecCurl;
 	resolvePinnedAddress: ResolvePinnedAddress;
 }): CurlFetch {
+	const fetchOnce = createCurlHop(deps);
+
+	return function fetchCurl(url, init) {
+		/* One budget spans the whole redirect chain — a fresh timeout per hop
+		 * would let a slow 5-hop origin consume 6x the intended ceiling — so the
+		 * signal is fixed here and shared by every `fetchOnce` hop. Each hop still
+		 * re-runs resolvePinnedAddress on its own target host (curl stays at
+		 * --max-redirs 0 and is never allowed to chase a redirect unguarded). */
+		const { signal } = init;
+		const followCurl = redirectable(
+			(hopUrl, hopInit) => fetchOnce(hopUrl, { headers: hopInit?.headers, signal }),
+			"fetchCurl",
+		);
+		return followCurl(url, { headers: init.headers });
+	};
+}
+
+export function createCurlHop(deps: {
+	execCurl: ExecCurl;
+	resolvePinnedAddress: ResolvePinnedAddress;
+}): CurlFetch {
 	const { execCurl, resolvePinnedAddress } = deps;
 
-	async function fetchOnce(
-		url: string,
-		init: { headers?: Record<string, string>; signal: AbortSignal },
-	): Promise<Response> {
+	return async function fetchOnce(url, init) {
 		const parsed = new URL(url);
 		const port = Number(parsed.port || DEFAULT_PORTS.get(parsed.protocol));
 		const pinnedAddress = await resolvePinnedAddress({ hostname: parsed.hostname });
@@ -157,20 +175,6 @@ export function createCurlFetch(deps: {
 			signal.addEventListener("abort", onAbort, { once: true });
 			child.onClose(() => signal.removeEventListener("abort", onAbort));
 		});
-	}
-
-	return function fetchCurl(url, init) {
-		/* One budget spans the whole redirect chain — a fresh timeout per hop
-		 * would let a slow 5-hop origin consume 6x the intended ceiling — so the
-		 * signal is fixed here and shared by every `fetchOnce` hop. Each hop still
-		 * re-runs resolvePinnedAddress on its own target host (curl stays at
-		 * --max-redirs 0 and is never allowed to chase a redirect unguarded). */
-		const { signal } = init;
-		const followCurl = redirectable(
-			(hopUrl, hopInit) => fetchOnce(hopUrl, { headers: hopInit?.headers, signal }),
-			"fetchCurl",
-		);
-		return followCurl(url, { headers: init.headers });
 	};
 }
 
@@ -182,6 +186,13 @@ export function createCurlFetch(deps: {
  */
 export function initGuardedCurlFetch(deps: { resolve: ResolveAll; isBlocked: IsBlockedAddress }): CurlFetch {
 	return createCurlFetch({
+		execCurl: defaultExecCurl,
+		resolvePinnedAddress: createPinnedAddressResolver({ resolve: deps.resolve, isBlocked: deps.isBlocked }),
+	});
+}
+
+export function initGuardedCurlHop(deps: { resolve: ResolveAll; isBlocked: IsBlockedAddress }): CurlFetch {
+	return createCurlHop({
 		execCurl: defaultExecCurl,
 		resolvePinnedAddress: createPinnedAddressResolver({ resolve: deps.resolve, isBlocked: deps.isBlocked }),
 	});

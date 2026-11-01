@@ -12,7 +12,7 @@ import { isHardCrawlFailure, TransportLadderFailure } from "./transport-ladder-f
  * linkedin.com from Lambda egress, hours apart, so not a real rate limit).
  * Neither is reliably what its status says.
  */
-const ESCALATE_STATUS_CODES = new Set([400, 402, 403, 419, 429]);
+export const ESCALATE_STATUS_CODES = new Set([400, 402, 403, 419, 429]);
 
 export const TERMINAL_NETWORK_CODES = new Set([
 	"ENOTFOUND",
