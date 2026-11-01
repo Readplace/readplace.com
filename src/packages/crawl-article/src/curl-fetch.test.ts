@@ -1,4 +1,6 @@
+import assert from "node:assert/strict";
 import type { ResolvePinnedAddress } from "./blocked-address-lookup";
+import { CRAWL_PERSONAS } from "./crawl-article";
 import {
 	type CurlImpersonateProbe,
 	type ExecCurl,
@@ -234,21 +236,60 @@ describe("fetchCurl argument construction", () => {
 		);
 	});
 
-	it("title-cases header names per Cloudflare JA3 fingerprinting", async () => {
+	it("title-cases pass-through header names per Cloudflare JA3 fingerprinting", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
 		await fetchCurl("https://example.com", {
 			signal: live(),
 			headers: {
-				"user-agent": "Test/1.0",
-				"accept-language": "en-US",
-				accept: "text/html",
+				referer: "https://example.com/",
+				"if-none-match": '"abc"',
+				"cache-control": "no-cache",
 			},
 		});
 		const args = fake.calls[0].args;
-		expect(args).toContain("User-Agent: Test/1.0");
-		expect(args).toContain("Accept-Language: en-US");
-		expect(args).toContain("Accept: text/html");
+		expect(args).toContain("Referer: https://example.com/");
+		expect(args).toContain('If-None-Match: "abc"');
+		expect(args).toContain("Cache-Control: no-cache");
+	});
+
+	it("omits the browser headers the curl_chrome131 wrapper already sends, because origins answer a duplicated User-Agent with HTTP 400", async () => {
+		const wrapperOwnedHeaders = new Set([
+			"sec-ch-ua",
+			"sec-ch-ua-mobile",
+			"sec-ch-ua-platform",
+			"upgrade-insecure-requests",
+			"user-agent",
+			"accept",
+			"sec-fetch-site",
+			"sec-fetch-mode",
+			"sec-fetch-user",
+			"sec-fetch-dest",
+			"accept-encoding",
+			"accept-language",
+			"priority",
+		]);
+		const defaultBrowser = CRAWL_PERSONAS.find((persona) => persona.name === "default-browser");
+		assert(defaultBrowser, "default-browser persona must exist");
+		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl, resolvePinnedAddress });
+		await fetchCurl("https://example.com", {
+			signal: live(),
+			headers: {
+				...defaultBrowser.headers,
+				"Accept-Encoding": "gzip",
+				priority: "u=0, i",
+				referer: "https://example.com/from",
+				"if-none-match": '"etag-1"',
+			},
+		});
+		const args = fake.calls[0].args;
+		const sentHeaderNames = args
+			.filter((_, index) => index > 0 && args[index - 1] === "--header")
+			.map((header) => header.substring(0, header.indexOf(":")).toLowerCase());
+		expect(sentHeaderNames.filter((name) => wrapperOwnedHeaders.has(name))).toEqual([]);
+		expect(args).toContain("Referer: https://example.com/from");
+		expect(args).toContain('If-None-Match: "etag-1"');
 	});
 
 	it("uses the caller's signal instead of creating a timeout budget when one is provided", async () => {
@@ -454,7 +495,6 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 				authorization: "Bearer token",
 				"proxy-authorization": "Basic abc",
 				referer: "https://example.com/start",
-				"user-agent": "Persona/1.0",
 			},
 		});
 
@@ -463,7 +503,6 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		expect(secondArgs).not.toContain("Authorization: Bearer token");
 		expect(secondArgs).not.toContain("Proxy-Authorization: Basic abc");
 		expect(secondArgs).toContain("Referer: https://example.com/start");
-		expect(secondArgs).toContain("User-Agent: Persona/1.0");
 	});
 
 	it("keeps sensitive headers when a redirect stays on the same origin", async () => {
@@ -475,12 +514,12 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 
 		await fetchCurl("https://example.com/start", {
 			signal: live(),
-			headers: { cookie: "session=secret", "user-agent": "Persona/1.0" },
+			headers: { cookie: "session=secret", referer: "https://example.com/start" },
 		});
 
 		const secondArgs = seq.calls[1].args;
 		expect(secondArgs).toContain("Cookie: session=secret");
-		expect(secondArgs).toContain("User-Agent: Persona/1.0");
+		expect(secondArgs).toContain("Referer: https://example.com/start");
 	});
 });
 

@@ -187,6 +187,22 @@ export function initGuardedCurlFetch(deps: { resolve: ResolveAll; isBlocked: IsB
 	});
 }
 
+const CURL_CHROME131_WRAPPER_HEADERS: ReadonlySet<string> = new Set([
+	"sec-ch-ua",
+	"sec-ch-ua-mobile",
+	"sec-ch-ua-platform",
+	"upgrade-insecure-requests",
+	"user-agent",
+	"accept",
+	"sec-fetch-site",
+	"sec-fetch-mode",
+	"sec-fetch-user",
+	"sec-fetch-dest",
+	"accept-encoding",
+	"accept-language",
+	"priority",
+]);
+
 function buildCurlArgs(params: {
 	url: string;
 	hostname: string;
@@ -228,7 +244,9 @@ function buildCurlArgs(params: {
 	}
 	if (params.headers) {
 		for (const [key, value] of Object.entries(params.headers)) {
-			args.push("--header", `${toTitleCase(key)}: ${value}`);
+			if (!CURL_CHROME131_WRAPPER_HEADERS.has(key.toLowerCase())) {
+				args.push("--header", `${toTitleCase(key)}: ${value}`);
+			}
 		}
 	}
 	// Re-encode through WHATWG URL so callers that hand us a partially decoded
