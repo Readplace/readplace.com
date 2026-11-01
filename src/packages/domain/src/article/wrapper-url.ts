@@ -28,6 +28,8 @@ const MAILCHIMP_HOST = /^us\d*\.list-manage\.com$/;
 const MAILCHIMP_CLICK_PATH = /^\/track\/click$/;
 const WEEKLYFILET_LINK_PATH = /^\/r\/[0-9a-f]+$/i;
 const SUBSTACK_SHARE_PATH = /^\/pub\/[^/]+\/p\/[^/]+$/;
+const SUBSTACK_APP_LINK_PATH = /^\/app-link\/post$/;
+const SUBSTACK_COMMENTS_PATH = /^(\/p\/[^/]+)\/comments\/?$/;
 const SUBSTACK_REDIRECT_PATH = /^\/redirect\/[^/]+$/;
 const OPAQUE_TOKEN_PATH = /^\/[A-Za-z0-9_-]+$/;
 const GOOGLE_SHARE_HOP_PATH = /^\/share\.google$/;
@@ -57,6 +59,8 @@ const SUBSTACK_REDIRECT_PARAMS: readonly string[] = ["r", "publication_id", "pos
 
 type TrackerRule = { host: string | RegExp; path: RegExp; requiresParam?: string };
 
+const SUBSTACK_APP_LINK: TrackerRule = { host: "substack.com", path: SUBSTACK_APP_LINK_PATH };
+
 const NEWSLETTER_TRACKERS: readonly TrackerRule[] = [
 	{ host: "leadershipintech.com", path: BONOBO_LINK_PATH },
 	{ host: "csharpdigest.net", path: BONOBO_LINK_PATH },
@@ -65,6 +69,7 @@ const NEWSLETTER_TRACKERS: readonly TrackerRule[] = [
 	{ host: MAILCHIMP_HOST, path: OPAQUE_TOKEN_PATH, requiresParam: "c2id" },
 	{ host: "newsletter.weeklyfilet.com", path: WEEKLYFILET_LINK_PATH },
 	{ host: "open.substack.com", path: SUBSTACK_SHARE_PATH },
+	SUBSTACK_APP_LINK,
 	{ host: "substack.com", path: SUBSTACK_REDIRECT_PATH },
 	{ host: "share.google", path: OPAQUE_TOKEN_PATH },
 	{ host: "www.google.com", path: GOOGLE_SHARE_HOP_PATH, requiresParam: "q" },
@@ -235,5 +240,8 @@ export function stripRedirectAddedParams(params: { wrapperUrl: string; targetUrl
 	const target = parseHttpUrl(params.targetUrl);
 	if (target === undefined) return params.targetUrl;
 	for (const name of SUBSTACK_REDIRECT_PARAMS) target.searchParams.delete(name);
+	if (matchesTracker(SUBSTACK_APP_LINK, hostnameOf(wrapper), wrapper)) {
+		target.pathname = target.pathname.replace(SUBSTACK_COMMENTS_PATH, "$1");
+	}
 	return target.href;
 }

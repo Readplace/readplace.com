@@ -132,6 +132,16 @@ describe("save identity", () => {
 		expect(await h.resolve(wrapper)).toEqual(resolved({ url: `${ORIGINAL}?utm_source=email`, source: wrapper }));
 	});
 
+	it("resolves a Substack comment-button link to the post rather than its comments view", async () => {
+		const appLink = "https://substack.com/app-link/post?publication_id=1&post_id=2&comments=true&action=post-comment&token=abc";
+		const h = harness({
+			targets: { [appLink]: { url: "https://person.substack.com/p/article/comments?comments=true&action=post-comment&r=reader&utm_source=substack" } },
+		});
+		expect(await h.resolve(appLink)).toEqual(
+			resolved({ url: "https://person.substack.com/p/article?comments=true&action=post-comment&utm_source=substack", source: appLink }),
+		);
+	});
+
 	it("reuses a verified alias binding for a repeated short-link save without network", async () => {
 		const h = harness({ targets: { [ARCHIVE]: { url: ORIGINAL, contentSourceUrl: ARCHIVE } } });
 		expect(await h.resolve(ARCHIVE)).toEqual(resolved({ url: ORIGINAL, source: ARCHIVE }));
