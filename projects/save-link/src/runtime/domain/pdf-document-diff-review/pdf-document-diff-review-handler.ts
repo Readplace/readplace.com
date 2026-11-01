@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { applyDecisions } from "./apply-decisions";
 import { buildDiffEntries } from "./build-diff-entries";
@@ -8,7 +9,6 @@ import {
 	evaluateGuardrails,
 	type GuardrailRejection,
 } from "../pdf-page-llm-cleanup/guardrails";
-import { httpStatusTag } from "../pdf-page-llm-cleanup/http-status-tag";
 import type {
 	DiffDecision,
 	DiffEntry,
@@ -57,8 +57,9 @@ const ResponseSchema = z.object({
 export function initPdfDocumentDiffReviewHandler(deps: {
 	reviewDocumentWithLlm: ReviewDocumentWithLlm;
 	logger: HutchLogger;
+	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }): (rawInput: unknown) => Promise<PdfDocumentDiffReviewOutput> {
-	const { reviewDocumentWithLlm, logger } = deps;
+	const { reviewDocumentWithLlm, logger, deepseekCallFailedLog } = deps;
 
 	return async (rawInput) => {
 		const input: PdfDocumentDiffReviewInput = InputSchema.parse(rawInput);
@@ -102,8 +103,15 @@ export function initPdfDocumentDiffReviewHandler(deps: {
 				totalCacheMissInputTokens = sumTokens(totalCacheMissInputTokens, result.tokens.cacheMissInput);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				const statusTag = httpStatusTag(error);
-				logger.warn(`[pdf-document-diff-review] LLM call failed${statusTag} reason=${message} — falling back to cleanedText`);
+				logger.warn(`[pdf-document-diff-review] LLM call failed reason=${message} — falling back to cleanedText`);
+				const failure = describeAiProviderError(error);
+				if (failure.kind !== "unknown") {
+					deepseekCallFailedLog.error(deepseekCallFailedLogLine({
+						feature: "pdf-document-diff-review",
+						failure,
+						ids: {},
+					}));
+				}
 				return fallbackToCleanedText(input);
 			}
 		}

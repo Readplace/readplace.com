@@ -57,7 +57,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	};
 	const selectMostCompleteContent: SelectMostCompleteContent = async (params) => {
 		const decision = await deps.selectMostCompleteContent(params);
-		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger }).selectMostCompleteContent(params);
+		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent(params);
 	};
 	return { work: initSelectContentWork({ ...deps, selectMostCompleteContent }), deps, commit, events };
 }
@@ -290,7 +290,7 @@ describe("initSelectContentWork", () => {
 		const live = source();
 		live.metadata.httpStatus = 200;
 		const { deps } = setup({ listAvailableTierSources: async () => [live] });
-		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger }).selectMostCompleteContent;
+		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		await initSelectContentWork({ ...deps, selectMostCompleteContent: rejectingJudge })({ ...request, candidates: [{ id: cid("tier-1"), tier: "tier-1" }] });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalledWith(markNoReadableArticle, expect.anything());
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, expect.objectContaining({ input: expect.objectContaining({ tier: "tier-1" }) }));

@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { estimateOutputTokens } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine, estimateOutputTokens } from "@packages/ai-message";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { evaluateGuardrails } from "./guardrails";
-import { httpStatusTag } from "./http-status-tag";
 import type {
 	CleanupPageWithLlm,
 	PdfPageLlmCleanupInput,
@@ -26,8 +25,9 @@ const CLEANUP_TOKEN_HEADROOM = 2;
 export function initPdfPageLlmCleanupHandler(deps: {
 	cleanupPageWithLlm: CleanupPageWithLlm;
 	logger: HutchLogger;
+	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }): (rawInput: unknown) => Promise<PdfPageLlmCleanupOutput> {
-	const { cleanupPageWithLlm, logger } = deps;
+	const { cleanupPageWithLlm, logger, deepseekCallFailedLog } = deps;
 
 	return async (rawInput) => {
 		const input: PdfPageLlmCleanupInput = InputSchema.parse(rawInput);
@@ -51,8 +51,15 @@ export function initPdfPageLlmCleanupHandler(deps: {
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			const statusTag = httpStatusTag(error);
-			logger.warn(`[pdf-page-llm-cleanup] LLM call failed page=${input.pageIndex}${statusTag} reason=${message} dt=${Date.now() - t0}ms — passing through`);
+			logger.warn(`[pdf-page-llm-cleanup] LLM call failed page=${input.pageIndex} reason=${message} dt=${Date.now() - t0}ms — passing through`);
+			const failure = describeAiProviderError(error);
+			if (failure.kind !== "unknown") {
+				deepseekCallFailedLog.error(deepseekCallFailedLogLine({
+					feature: "pdf-page-llm-cleanup",
+					failure,
+					ids: { pageIndex: input.pageIndex },
+				}));
+			}
 			return { pageIndex: input.pageIndex, cleanedText: input.ocrText, applied: false };
 		}
 

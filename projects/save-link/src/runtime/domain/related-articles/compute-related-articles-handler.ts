@@ -6,6 +6,7 @@ import type {
 } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type {
 	FindRelatedArticles,
@@ -29,6 +30,7 @@ interface ComputeRelatedArticlesHandlerDeps {
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
+	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
@@ -45,6 +47,7 @@ export function initComputeRelatedArticlesHandler(
 		publishEvent,
 		now,
 		logger,
+		deepseekCallFailedLog,
 	} = deps;
 	const { skipNextRead, computeNextRead } = initNextReadComputation({
 		gatherRelatedCandidatePools,
@@ -123,6 +126,16 @@ export function initComputeRelatedArticlesHandler(
 						messageId: record.messageId,
 						error,
 					});
+					const failure = describeAiProviderError(error);
+					if (failure.kind !== "unknown") {
+						deepseekCallFailedLog.error(deepseekCallFailedLogLine({
+							feature: "compute-related-articles",
+							failure,
+							receiveCount,
+							messageId: record.messageId,
+							ids: {},
+						}));
+					}
 				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });
 			}

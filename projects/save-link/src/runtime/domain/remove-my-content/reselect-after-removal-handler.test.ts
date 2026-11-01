@@ -23,10 +23,10 @@ function setup(overrides: Partial<Parameters<typeof initReselectAfterRemovalHand
 		if (transition === promoteTier) savedInputs.push(params.input);
 	};
 	const handler = initReselectAfterRemovalHandler({
-		listAvailableTierSources: async () => [source], selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "surviving original", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
+		listAvailableTierSources: async () => [source], selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "surviving original", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
 		writeCanonicalContent: async () => ({ contentLocation: "s3://content/survivor.html", candidateId: source.metadata.id, tier: source.tier }),
 		recordCrawlVersion: async () => {}, readCanonicalContent: async () => undefined, loadArticle: async () => article,
-		transitionAndPersist, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined, now: () => NOW, logger: noopLogger, ...overrides,
+		transitionAndPersist, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined, now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger, ...overrides,
 	});
 	return { handler, savedInputs };
 }
@@ -42,5 +42,18 @@ describe("content reselection after erasure", () => {
 		const { handler } = setup({ listAvailableTierSources });
 		expect(await handler(event({ url: 1 }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [{ itemIdentifier: "message" }] });
 		expect(listAvailableTierSources).not.toHaveBeenCalled();
+	});
+	it("writes one deepseek-call-failed line naming reselection when the judge's provider fails", async () => {
+		const deepseekCallFailed = jest.fn();
+		const deepseekCallFailedLog = { ...noopLogger, error: deepseekCallFailed };
+		const createChatCompletion = jest.fn(async () => { throw Object.assign(new Error("402 Insufficient Balance"), { status: 402, requestID: null }); });
+		const { handler } = setup({
+			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog, createChatCompletion }).selectMostCompleteContent,
+			deepseekCallFailedLog,
+		});
+		expect(await handler(event({ url: URL }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [{ itemIdentifier: "message" }] });
+		expect(createChatCompletion).toHaveBeenCalledTimes(1);
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		expect(deepseekCallFailed.mock.calls[0][0]).toMatchObject({ feature: "reselect-after-removal", status: 402, kind: "http", messageId: "message", receiveCount: 1 });
 	});
 });

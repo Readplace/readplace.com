@@ -9,7 +9,7 @@ import {
 } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { initDynamoDbMarkSummaryStage } from "./providers/article-crawl/mark-summary-stage";
@@ -100,4 +100,5 @@ export const handler = initGenerateSummaryHandler({
 	transitionAndPersist,
 	now: () => new Date(),
 	logger: consoleLogger,
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
 });

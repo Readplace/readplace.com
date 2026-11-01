@@ -7,6 +7,7 @@ import type {
 } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type {
 	FindReadCandidatesAcrossReadlists,
@@ -33,6 +34,7 @@ interface ComputeRelatedPastReadsHandlerDeps {
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
+	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }
 
 class MetadataNotReadyError extends Error {
@@ -56,6 +58,7 @@ export function initComputeRelatedPastReadsHandler(
 		publishEvent,
 		now,
 		logger,
+		deepseekCallFailedLog,
 	} = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
@@ -220,6 +223,16 @@ export function initComputeRelatedPastReadsHandler(
 						messageId: record.messageId,
 						error,
 					});
+					const failure = describeAiProviderError(error);
+					if (failure.kind !== "unknown") {
+						deepseekCallFailedLog.error(deepseekCallFailedLogLine({
+							feature: "compute-related-past-reads",
+							failure,
+							receiveCount: Number(record.attributes.ApproximateReceiveCount),
+							messageId: record.messageId,
+							ids: {},
+						}));
+					}
 				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });
 			}

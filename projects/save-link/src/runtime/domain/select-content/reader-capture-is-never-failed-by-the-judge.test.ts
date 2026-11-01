@@ -95,12 +95,12 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 	const transitionAndPersist: TransitionAndPersist = async (transition, params) => { persisted.push({ transition, input: params.input }); };
 	const handler = initSelectMostCompleteContentHandler({
 		listAvailableTierSources: async () => sources,
-		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + fresh.length }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
+		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + fresh.length }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
 		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, tier: source.tier }),
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => canonicalContent, loadArticle: async () => article, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
-		now: () => new Date(NOW), logger: noopLogger,
+		now: () => new Date(NOW), logger: noopLogger, deepseekCallFailedLog: noopLogger,
 	});
 
 	const result = await handler(event({ url: URL, saveAttemptId: ATTEMPT, userId: "reader", candidates: fresh.map((source) => ({ id: source.metadata.id, tier: source.tier })) }), buildLambdaContext(), () => {});

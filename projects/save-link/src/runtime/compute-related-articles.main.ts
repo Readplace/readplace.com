@@ -1,4 +1,4 @@
-import { type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
 import {
 	initDynamoDbPastReads,
 	initDynamoDbRelatedArticles,
@@ -87,6 +87,7 @@ const nextReadHandler = initComputeRelatedArticlesHandler({
 	publishEvent,
 	now: () => new Date(),
 	logger: consoleLogger,
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 const pastReadsHandler = initComputeRelatedPastReadsHandler({
@@ -98,6 +99,7 @@ const pastReadsHandler = initComputeRelatedPastReadsHandler({
 	publishEvent,
 	now: () => new Date(),
 	logger: consoleLogger,
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 const recomputeNextReadHandler = initRecomputeSkippedNextReadHandler({

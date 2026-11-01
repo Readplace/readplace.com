@@ -1,4 +1,4 @@
-import { type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { initPdfDocumentDiffReviewHandler } from "./domain/pdf-document-diff-review/pdf-document-diff-review-handler";
 import { initReviewDocumentWithDeepseek } from "./domain/pdf-document-diff-review/init-review-document-with-deepseek";
@@ -26,4 +26,5 @@ const reviewDocumentWithLlm = initReviewDocumentWithDeepseek({
 export const handler = initPdfDocumentDiffReviewHandler({
 	reviewDocumentWithLlm,
 	logger: consoleLogger,
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
 });

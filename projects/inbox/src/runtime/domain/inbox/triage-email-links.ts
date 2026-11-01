@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
+import {
+	type CreateAiMessage,
+	DEEPSEEK_FEATURES,
+	type DeepseekCallFailedLogLine,
+	deepseekCallFailedLogLine,
+	describeAiProviderError,
+} from "@packages/ai-message";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
 import {
@@ -8,6 +14,7 @@ import {
 	EmailLinkOrdinalSchema,
 	type EmailLinkSkipReason,
 } from "@packages/domain/inbox";
+import type { UserId } from "@packages/domain/user";
 
 const TRIAGE_PROMPT = readFileSync(join(__dirname, "triage-email-links-prompt.md"), "utf-8");
 
@@ -40,6 +47,8 @@ const TriagePayload = z.object({
 });
 
 export type TriageEmailLinks = (input: {
+	userId: UserId;
+	receivedAtMessageId: string;
 	subject: string;
 	from: string;
 	links: { ordinal: EmailLinkOrdinal; url: string; anchorText: string }[];
@@ -51,6 +60,7 @@ export type TriageEmailLinks = (input: {
 export function initTriageEmailLinks(deps: {
 	createAiMessage: CreateAiMessage;
 	logger: HutchLogger;
+	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }): { triageEmailLinks: TriageEmailLinks } {
 	const requestVerdicts = async (
 		input: Parameters<TriageEmailLinks>[0],
@@ -128,6 +138,20 @@ export function initTriageEmailLinks(deps: {
 				if (categories !== undefined) return { status: "triaged", categories };
 			} catch (error) {
 				deps.logger.warn("[triage-email-links] attempt failed", { attempt, error });
+				const failure = describeAiProviderError(error);
+				if (failure.kind !== "unknown") {
+					deps.deepseekCallFailedLog.error(
+						deepseekCallFailedLogLine({
+							feature: "triage-email-links",
+							failure,
+							ids: {
+								attempt,
+								userId: input.userId,
+								receivedAtMessageId: input.receivedAtMessageId,
+							},
+						}),
+					);
+				}
 			}
 		}
 		deps.logger.error("[triage-email-links] unavailable, remaining links crawl unfiltered");

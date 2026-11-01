@@ -1,6 +1,6 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
@@ -45,6 +45,7 @@ const selectContent = initSelectContentDepBundle({
 	articlesTable,
 	createChatCompletion: initCreateDeepseekChatCompletion({ client: deepseekClient }),
 	logger: consoleLogger,
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 const { store } = initDynamoDbArticleStore({

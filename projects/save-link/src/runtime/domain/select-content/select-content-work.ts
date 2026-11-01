@@ -3,6 +3,7 @@ import type { SaveAttemptId } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import { isBlockClassStatus } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import {
 	type LoadArticle,
@@ -111,8 +112,9 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 
 export function initSelectionQueueHandler(queue: {
 	tag: string;
+	feature: "select-most-complete-content" | "recrawl-content-extracted" | "refresh-content-extracted" | "reselect-after-removal";
 	toRequest: (detail: unknown, record: SQSRecord) => SelectContentRequest;
-}): (deps: SelectContentDependencies) => Handler<SQSEvent, SQSBatchResponse> {
+}): (deps: SelectContentDependencies & { deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine> }) => Handler<SQSEvent, SQSBatchResponse> {
 	return (deps) => {
 		const selectContent = initSelectContentWork(deps);
 		return async (event) => {
@@ -123,6 +125,16 @@ export function initSelectionQueueHandler(queue: {
 				} catch (error) {
 					deps.logger.error(`[${queue.tag}] record failed`, { messageId: record.messageId, error });
 					batchItemFailures.push({ itemIdentifier: record.messageId });
+					const failure = describeAiProviderError(error);
+					if (failure.kind !== "unknown") {
+						deps.deepseekCallFailedLog.error(deepseekCallFailedLogLine({
+							feature: queue.feature,
+							failure,
+							receiveCount: Number(record.attributes.ApproximateReceiveCount),
+							messageId: record.messageId,
+							ids: {},
+						}));
+					}
 				}
 			}
 			return { batchItemFailures };

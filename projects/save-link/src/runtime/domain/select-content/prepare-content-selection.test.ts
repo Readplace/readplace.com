@@ -93,7 +93,7 @@ function setup(overrides: Partial<Dependencies> = {}) {
 	};
 	const selectMostCompleteContent: SelectMostCompleteContent = async (params) => {
 		const decision = await deps.selectMostCompleteContent(params);
-		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger }).selectMostCompleteContent(params);
+		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent(params);
 	};
 	const prepare = initPrepareContentSelection({ ...deps, selectMostCompleteContent });
 	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId">) => prepare({ ...params, saveAttemptId: FRESH }), deps };
@@ -715,7 +715,7 @@ describe("initPrepareContentSelection", () => {
 	])("falls back on a judge-provider rejection to $label", async ({ httpStatus, expected }) => {
 		const live = source("tier-1", "live");
 		live.metadata.httpStatus = httpStatus;
-		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger }).selectMostCompleteContent;
+		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [live],
 			selectMostCompleteContent: rejectingJudge, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
@@ -731,7 +731,7 @@ describe("initPrepareContentSelection", () => {
 		const blank = source("tier-1", "blank", { html: "<div></div>" });
 		blank.metadata.wordCount = 0;
 		blank.metadata.httpStatus = 200;
-		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger }).selectMostCompleteContent;
+		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [blank],
 			selectMostCompleteContent: rejectingJudge, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,

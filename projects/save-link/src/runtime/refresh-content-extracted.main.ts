@@ -1,6 +1,6 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { type CrawlSettledEvent, initLogCrawlSettled } from "@packages/hutch-infra-components";
@@ -44,6 +44,7 @@ const selectContent = initSelectContentDepBundle({
 	articlesTable,
 	createChatCompletion: initCreateDeepseekChatCompletion({ client: deepseekClient }),
 	logger: consoleLogger,
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 export const handler = initRefreshContentExtractedHandler({

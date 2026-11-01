@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type {
@@ -82,6 +83,7 @@ interface Overrides {
 	selectPastReads?: SelectRelatedArticles;
 	markOutcome?: Awaited<ReturnType<MarkPastReadsReady>>;
 	logger?: HutchLogger;
+	deepseekCallFailedLog?: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }
 
 function createHandler(overrides: Overrides = {}) {
@@ -124,6 +126,7 @@ function createHandler(overrides: Overrides = {}) {
 		publishEvent,
 		now: () => NOW,
 		logger: overrides.logger ?? noopLogger,
+		deepseekCallFailedLog: overrides.deepseekCallFailedLog ?? noopLogger,
 	});
 
 	return { handler, marked, published, storedTokens };
@@ -253,12 +256,17 @@ describe("initComputeRelatedPastReadsHandler", () => {
 		["absent", { state: "absent" } as RelatedTargetLookup],
 		["still crawling", { state: "found", article: crawledTarget({ crawlStatus: "pending" }) } as RelatedTargetLookup],
 	])("retries the message while the article metadata is %s", async (_label, targetLookup) => {
-		const { handler, marked } = createHandler({ targetLookup });
+		const deepseekCallFailed = jest.fn();
+		const { handler, marked } = createHandler({
+			targetLookup,
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+		});
 
 		const result = await handler(command, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(marked).toEqual([]);
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
 	});
 
 	it("gives up without a retry when the crawl is still pending on the final receive", async () => {
@@ -287,13 +295,35 @@ describe("initComputeRelatedPastReadsHandler", () => {
 	});
 
 	it("retries the message when the model returns no text block", async () => {
+		const deepseekCallFailed = jest.fn();
 		const { handler } = createHandler({
 			selectPastReads: async () => ({ kind: "no-text-block" }),
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 		});
 
 		const result = await handler(command, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
+	});
+
+	it("writes one deepseek-call-failed line for a provider error and still fails the record", async () => {
+		const deepseekCallFailed = jest.fn();
+		const providerError = Object.assign(new Error("402 Insufficient Balance"), { status: 402, requestID: null });
+		const { handler } = createHandler({
+			selectPastReads: async () => {
+				throw providerError;
+			},
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+		});
+
+		const result = await handler(command, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		const line = deepseekCallFailed.mock.calls[0][0];
+		expect(line).toMatchObject({ feature: "compute-related-past-reads", status: 402, kind: "http", receiveCount: 1, messageId: "msg-1" });
+		expect(line).not.toHaveProperty("url");
 	});
 
 	it("announces nothing when a newer computation already settled the row", async () => {

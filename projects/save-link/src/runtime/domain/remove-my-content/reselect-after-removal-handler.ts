@@ -4,6 +4,7 @@ import { initSelectionQueueHandler } from "../select-content/select-content-work
 
 export const initReselectAfterRemovalHandler = initSelectionQueueHandler({
 	tag: "ReselectAfterRemoval",
+	feature: "reselect-after-removal",
 	toRequest: (detail, record) => ({
 		url: ReselectAfterRemovalEvent.detailSchema.parse(detail).url,
 		saveAttemptId: SaveAttemptIdSchema.parse(record.messageId),

@@ -21,6 +21,7 @@ function capturingLogger(): { logger: HutchLogger; messages: string[] } {
 describe("initPdfPageLlmCleanupHandler", () => {
 	it("returns the cleaned text with applied=true when guardrails pass", async () => {
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("Repository of the Reading Room."),
 			logger: noopLogger,
 		});
@@ -38,6 +39,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("logs the cache hit/miss split of the input tokens it spent", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("Repository of the Reading Room."),
 			logger,
 		});
@@ -53,6 +55,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("logs the cache split as unknown when the provider reports no split", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("Repository of the Reading Room.", { input: 100, output: 50 }),
 			logger,
 		});
@@ -69,6 +72,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		const original = "x".repeat(200);
 		const tooShort = "x".repeat(50);
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm(tooShort),
 			logger: noopLogger,
 		});
@@ -83,6 +87,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 
 	it("returns the original text with applied=false when the model mutated a digit", async () => {
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("year 1986 was important"),
 			logger: noopLogger,
 		});
@@ -95,6 +100,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 
 	it("returns the original text with applied=false when the model collapsed a paragraph break", async () => {
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("alpha beta"),
 			logger: noopLogger,
 		});
@@ -108,6 +114,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("logs the rejection reason when guardrails reject", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("year 1986"),
 			logger,
 		});
@@ -121,7 +128,9 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	});
 
 	it("returns the original text with applied=false when the LLM call throws (no rethrow)", async () => {
+		const deepseekCallFailed = jest.fn();
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 			cleanupPageWithLlm: async () => { throw new Error("DeepSeek 5xx"); },
 			logger: noopLogger,
 		});
@@ -129,11 +138,35 @@ describe("initPdfPageLlmCleanupHandler", () => {
 		const result = await handler({ pageIndex: 4, ocrText: "the original page text" });
 
 		expect(result).toEqual({ pageIndex: 4, cleanedText: "the original page text", applied: false });
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
+	});
+
+	it("writes one deepseek-call-failed line for a provider error and still passes the text through", async () => {
+		const { logger, messages } = capturingLogger();
+		const deepseekCallFailed = jest.fn();
+		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+			cleanupPageWithLlm: async () => { throw Object.assign(new Error("503 Service Unavailable"), { status: 503 }); },
+			logger,
+		});
+
+		const result = await handler({ pageIndex: 4, ocrText: "the original page text" });
+
+		expect(result).toEqual({ pageIndex: 4, cleanedText: "the original page text", applied: false });
+		expect(messages.some((m) => m.includes("LLM call failed") && m.includes("503 Service Unavailable"))).toBe(true);
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		const line = deepseekCallFailed.mock.calls[0][0];
+		expect(line).toMatchObject({ event: "deepseek-call-failed", feature: "pdf-page-llm-cleanup", status: 503, kind: "http", pageIndex: 4 });
+		expect(line.receiveCount).toBeUndefined();
+		expect(line.messageId).toBeUndefined();
+		expect(line).not.toHaveProperty("url");
+		expect(line).not.toHaveProperty("requestId");
 	});
 
 	it("stringifies a non-Error throw from the LLM call", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: async () => { throw "raw string"; },
 			logger,
 		});
@@ -147,6 +180,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("short-circuits empty input without calling the LLM", async () => {
 		let calls = 0;
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: async () => { calls += 1; return { text: "anything", tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } }; },
 			logger: noopLogger,
 		});
@@ -160,6 +194,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("short-circuits whitespace-only input without calling the LLM", async () => {
 		let calls = 0;
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: async () => { calls += 1; return { text: "anything", tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } }; },
 			logger: noopLogger,
 		});
@@ -172,6 +207,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 
 	it("rejects malformed payloads (missing pageIndex) via Zod", async () => {
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("ok"),
 			logger: noopLogger,
 		});
@@ -181,6 +217,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 
 	it("rejects malformed payloads (negative pageIndex) via Zod", async () => {
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("ok"),
 			logger: noopLogger,
 		});
@@ -190,6 +227,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 
 	it("rejects malformed payloads (missing ocrText) via Zod", async () => {
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: stubLlm("ok"),
 			logger: noopLogger,
 		});
@@ -200,6 +238,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("computes maxTokens from the weighted character estimate, with a 256-token floor", async () => {
 		const captured: number[] = [];
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: async ({ userText, maxTokens }) => {
 				captured.push(maxTokens);
 				return { text: userText, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
@@ -217,6 +256,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("budgets a CJK page above an ASCII page of the same length, which the old flat estimate did not", async () => {
 		const captured: number[] = [];
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: async ({ userText, maxTokens }) => {
 				captured.push(maxTokens);
 				return { text: userText, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
@@ -233,6 +273,7 @@ describe("initPdfPageLlmCleanupHandler", () => {
 	it("passes the loaded prompt to the LLM call as the system prompt", async () => {
 		let captured: string | undefined;
 		const handler = initPdfPageLlmCleanupHandler({
+			deepseekCallFailedLog: noopLogger,
 			cleanupPageWithLlm: async ({ systemPrompt, userText }) => {
 				captured = systemPrompt;
 				return { text: userText, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };

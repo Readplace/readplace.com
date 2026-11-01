@@ -2,9 +2,22 @@ import assert from "node:assert/strict";
 import type { CreateAiMessage } from "@packages/ai-message";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { EmailLinkOrdinalSchema } from "@packages/domain/inbox";
+import { UserIdSchema } from "@packages/domain/user";
 import { initTriageEmailLinks } from "./triage-email-links";
 
 const logger = HutchLogger.from(noopLogger);
+
+const USER = UserIdSchema.parse("00000000000000000000000000000001");
+const RECEIVED_AT_MESSAGE_ID = "2026-11-02T00:00:00.000Z#<m@x>";
+
+function providerError(status: number): Error {
+	return Object.assign(new Error(String(status)), { status });
+}
+
+function recordingLog() {
+	const lines: unknown[] = [];
+	return { lines, log: { ...noopLogger, error: (line: unknown) => lines.push(line) } };
+}
 
 function respondingWith(text: string): CreateAiMessage {
 	return async () => ({
@@ -15,6 +28,8 @@ function respondingWith(text: string): CreateAiMessage {
 
 function linkInput(overrides: { url?: string; anchorText?: string } = {}) {
 	return {
+		userId: USER,
+		receivedAtMessageId: RECEIVED_AT_MESSAGE_ID,
 		subject: "Digest",
 		from: "news@example.com",
 		links: [
@@ -40,6 +55,7 @@ describe("initTriageEmailLinks", () => {
 				}),
 			),
 			logger,
+			deepseekCallFailedLog: noopLogger,
 		});
 
 		const result = await triageEmailLinks(linkInput());
@@ -59,6 +75,7 @@ describe("initTriageEmailLinks", () => {
 				};
 			},
 			logger,
+			deepseekCallFailedLog: noopLogger,
 		});
 
 		await triageEmailLinks(linkInput({ url: `https://a.test/${"p".repeat(400)}` }));
@@ -81,6 +98,7 @@ describe("initTriageEmailLinks", () => {
 				usage: { input_tokens: 1, output_tokens: 1 },
 			}),
 			logger,
+			deepseekCallFailedLog: noopLogger,
 		});
 
 		expect(await triageEmailLinks(linkInput())).toEqual({ status: "unavailable" });
@@ -90,6 +108,7 @@ describe("initTriageEmailLinks", () => {
 		const { triageEmailLinks } = initTriageEmailLinks({
 			createAiMessage: respondingWith("not json"),
 			logger,
+			deepseekCallFailedLog: noopLogger,
 		});
 
 		expect(await triageEmailLinks(linkInput())).toEqual({ status: "unavailable" });
@@ -99,12 +118,14 @@ describe("initTriageEmailLinks", () => {
 		const { triageEmailLinks } = initTriageEmailLinks({
 			createAiMessage: respondingWith(JSON.stringify({ links: "not-an-array" })),
 			logger,
+			deepseekCallFailedLog: noopLogger,
 		});
 
 		expect(await triageEmailLinks(linkInput())).toEqual({ status: "unavailable" });
 	});
 
 	it("recovers on the second attempt after a transient failure", async () => {
+		const deepseekLog = recordingLog();
 		let calls = 0;
 		const { triageEmailLinks } = initTriageEmailLinks({
 			createAiMessage: async () => {
@@ -121,6 +142,7 @@ describe("initTriageEmailLinks", () => {
 				};
 			},
 			logger,
+			deepseekCallFailedLog: deepseekLog.log,
 		});
 
 		const result = await triageEmailLinks(linkInput());
@@ -128,6 +150,48 @@ describe("initTriageEmailLinks", () => {
 		assert(result.status === "triaged");
 		expect([...result.categories.entries()]).toEqual([["0000", "ad"]]);
 		expect(calls).toBe(2);
+		expect(deepseekLog.lines).toEqual([]);
+	});
+
+	it("writes one deepseek-call-failed line for a provider error and still recovers", async () => {
+		const deepseekLog = recordingLog();
+		let calls = 0;
+		const { triageEmailLinks } = initTriageEmailLinks({
+			createAiMessage: async () => {
+				calls += 1;
+				if (calls === 1) throw providerError(402);
+				return {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify({ links: [{ ordinal: "0000", category: "ad" }] }),
+						},
+					],
+					usage: { input_tokens: 1, output_tokens: 1 },
+				};
+			},
+			logger,
+			deepseekCallFailedLog: deepseekLog.log,
+		});
+
+		const result = await triageEmailLinks(linkInput());
+
+		assert(result.status === "triaged");
+		expect(deepseekLog.lines).toEqual([
+			expect.objectContaining({
+				level: "ERROR",
+				event: "deepseek-call-failed",
+				feature: "triage-email-links",
+				kind: "http",
+				status: 402,
+				attempt: 1,
+				userId: USER,
+				receivedAtMessageId: RECEIVED_AT_MESSAGE_ID,
+				receiveCount: undefined,
+				messageId: undefined,
+			}),
+		]);
+		expect(deepseekLog.lines[0]).not.toHaveProperty("url");
 	});
 
 	it("names the newsletter_link_triage feature on both attempts", async () => {
@@ -142,6 +206,7 @@ describe("initTriageEmailLinks", () => {
 				};
 			},
 			logger,
+			deepseekCallFailedLog: noopLogger,
 		});
 
 		await triageEmailLinks(linkInput());
@@ -150,16 +215,22 @@ describe("initTriageEmailLinks", () => {
 	});
 
 	it("returns unavailable once both attempts fail", async () => {
+		const deepseekLog = recordingLog();
 		let calls = 0;
 		const { triageEmailLinks } = initTriageEmailLinks({
 			createAiMessage: async () => {
 				calls += 1;
-				throw new Error("deepseek down");
+				throw providerError(402);
 			},
 			logger,
+			deepseekCallFailedLog: deepseekLog.log,
 		});
 
 		expect(await triageEmailLinks(linkInput())).toEqual({ status: "unavailable" });
 		expect(calls).toBe(2);
+		expect(deepseekLog.lines).toEqual([
+			expect.objectContaining({ feature: "triage-email-links", status: 402, attempt: 1 }),
+			expect.objectContaining({ feature: "triage-email-links", status: 402, attempt: 2 }),
+		]);
 	});
 });

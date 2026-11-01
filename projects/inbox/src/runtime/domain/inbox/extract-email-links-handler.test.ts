@@ -871,6 +871,8 @@ describe("initExtractEmailLinksHandler", () => {
 
 		expect(harness.triageCalls).toEqual([
 			{
+				userId: USER,
+				receivedAtMessageId: RAM,
 				subject: "Digest",
 				from: "news@example.com",
 				links: [

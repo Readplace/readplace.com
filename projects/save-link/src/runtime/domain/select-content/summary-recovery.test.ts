@@ -122,7 +122,7 @@ describe("summary recovery on canonical content change", () => {
 			}
 		};
 		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect, logCrawlSettled: () => {} });
-		summaryHandler = initGenerateSummaryHandler({ summarizeArticle, findArticleContent, loadArticle: store.load, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger });
+		summaryHandler = initGenerateSummaryHandler({ summarizeArticle, findArticleContent, loadArticle: store.load, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger });
 		canonicalChangedHandler = initCanonicalContentChangedHandler({ findArticleContent, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger });
 		const judge = jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>();
 		const recordCrawlVersion = jest.fn(async () => {});
@@ -202,6 +202,7 @@ describe("summary recovery on canonical content change", () => {
 			transitionAndPersist,
 			now: () => FIXED_NOW,
 			logger: noopLogger,
+			deepseekCallFailedLog: noopLogger,
 		});
 		canonicalContentChangedHandler = initCanonicalContentChangedHandler({
 			findArticleContent,
@@ -213,7 +214,7 @@ describe("summary recovery on canonical content change", () => {
 		const selectHandler = initSelectMostCompleteContentHandler({
 			readCanonicalContent: async () => undefined,
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
-			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "readable article", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
+			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "readable article", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
 			writeCanonicalContent: async () => ({ contentLocation: "s3://content/current.html", candidateId: tier1.metadata.id, tier: "tier-1" }),
 			resolveOriginalUrl: async () => URL,
 			verifyWrapperSource: async () => undefined,
@@ -222,6 +223,7 @@ describe("summary recovery on canonical content change", () => {
 			transitionAndPersist,
 			now: () => FIXED_NOW,
 			logger: noopLogger,
+			deepseekCallFailedLog: noopLogger,
 		});
 
 		const seeded = await store.load(URL);

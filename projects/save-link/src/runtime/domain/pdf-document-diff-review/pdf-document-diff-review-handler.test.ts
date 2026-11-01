@@ -22,6 +22,7 @@ function capturingLogger(): { logger: HutchLogger; messages: string[] } {
 describe("initPdfDocumentDiffReviewHandler", () => {
 	it("returns cleanedText untouched when there are no diffs to review", async () => {
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(decisionsJson([])),
 			logger: noopLogger,
 		});
@@ -38,6 +39,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 
 	it("applies APPROVE decisions to the original text", async () => {
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(decisionsJson([
 				{ diff_id: 1, decision: "APPROVE" },
 			])),
@@ -54,6 +56,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 
 	it("reverts REJECT decisions back to the original text", async () => {
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(decisionsJson([
 				{ diff_id: 1, decision: "REJECT" },
 			])),
@@ -71,6 +74,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 	it("logs the cache hit/miss split of the input tokens it spent", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(decisionsJson([{ diff_id: 1, decision: "APPROVE" }])),
 			logger,
 		});
@@ -88,6 +92,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 	it("logs the cache split as unknown when the provider reports no split", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(
 				decisionsJson([{ diff_id: 1, decision: "APPROVE" }]),
 				{ input: 200, output: 100 },
@@ -108,6 +113,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 	it("falls back to cleanedText when the model response is malformed JSON", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning("not json at all"),
 			logger,
 		});
@@ -123,6 +129,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 
 	it("falls back to cleanedText when the model response is JSON but the schema fails", async () => {
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(JSON.stringify({ decisions: [{ wrong: "shape" }] })),
 			logger: noopLogger,
 		});
@@ -137,7 +144,9 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 
 	it("falls back to cleanedText when the LLM call throws (no rethrow)", async () => {
 		const { logger, messages } = capturingLogger();
+		const deepseekCallFailed = jest.fn();
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 			reviewDocumentWithLlm: async () => { throw new Error("DeepSeek 5xx"); },
 			logger,
 		});
@@ -149,11 +158,37 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		expect(result.applied).toBe(false);
 		expect(result.pages[0].finalText).toBe("beta");
 		expect(messages.some((m) => m.includes("LLM call failed") && m.includes("DeepSeek 5xx"))).toBe(true);
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
+	});
+
+	it("writes one deepseek-call-failed line for a provider error and still falls back to cleanedText", async () => {
+		const { logger, messages } = capturingLogger();
+		const deepseekCallFailed = jest.fn();
+		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+			reviewDocumentWithLlm: async () => { throw Object.assign(new Error("503 Service Unavailable"), { status: 503 }); },
+			logger,
+		});
+
+		const result = await handler({
+			pages: [{ pageIndex: 0, originalText: "alpha", cleanedText: "beta" }],
+		});
+
+		expect(result.applied).toBe(false);
+		expect(result.pages[0].finalText).toBe("beta");
+		expect(messages.some((m) => m.includes("LLM call failed") && m.includes("503 Service Unavailable"))).toBe(true);
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		const line = deepseekCallFailed.mock.calls[0][0];
+		expect(line).toMatchObject({ event: "deepseek-call-failed", feature: "pdf-document-diff-review", status: 503, kind: "http" });
+		expect(line.receiveCount).toBeUndefined();
+		expect(line.messageId).toBeUndefined();
+		expect(line).not.toHaveProperty("url");
 	});
 
 	it("stringifies non-Error throws from the LLM call", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: async () => { throw "raw string thrown"; },
 			logger,
 		});
@@ -173,6 +208,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		// the `skippedReasons` log rather than mutating the page.
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(decisionsJson([
 				{ diff_id: 1, decision: "APPROVE" },
 			])),
@@ -199,6 +235,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		// 100% length drop blows the 30% cap — handler bails to cleanedText.
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(decisionsJson([
 				{ diff_id: 1, decision: "APPROVE" },
 			])),
@@ -220,6 +257,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 
 	it("rejects malformed payloads via Zod", async () => {
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(decisionsJson([])),
 			logger: noopLogger,
 		});
@@ -229,6 +267,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 
 	it("rejects malformed payloads via Zod (page entry missing fields)", async () => {
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: llmReturning(decisionsJson([])),
 			logger: noopLogger,
 		});
@@ -241,6 +280,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 	it("includes precedingTail and followingHead for middle pages but not for edges", async () => {
 		let capturedMessage = "";
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: async ({ userMessage }) => {
 				capturedMessage = userMessage;
 				return { text: decisionsJson([]), tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
@@ -273,6 +313,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		// chunkPagesByPayloadSize.
 		const calls: number[] = [];
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: async () => {
 				calls.push(1);
 				return { text: decisionsJson([]), tokens: { input: 1000, output: 200, cacheHitInput: 640, cacheMissInput: 360 } };
@@ -302,6 +343,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 		let call = 0;
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: async () => {
 				call += 1;
 				const tokens = call === 1
@@ -333,6 +375,7 @@ describe("initPdfDocumentDiffReviewHandler", () => {
 	it("emits a single chunk containing an oversize page rather than dropping it", async () => {
 		let chunkCount = 0;
 		const handler = initPdfDocumentDiffReviewHandler({
+			deepseekCallFailedLog: noopLogger,
 			reviewDocumentWithLlm: async () => {
 				chunkCount += 1;
 				return { text: decisionsJson([]), tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };

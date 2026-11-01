@@ -9,7 +9,14 @@ import {
 	buildSelectContentUserMessage,
 	labelForIndex,
 } from "./select-content-prompt";
-import { type CreateDeepseekChatCompletion, DEEPSEEK_FEATURES, type DeepseekChatResponse } from "@packages/ai-message";
+import {
+	type CreateDeepseekChatCompletion,
+	DEEPSEEK_FEATURES,
+	type DeepseekCallFailedLogLine,
+	type DeepseekChatResponse,
+	describeAiProviderError,
+	deepseekCallFailedLogLine,
+} from "@packages/ai-message";
 import { DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 
 export type ContentDecision =
@@ -43,8 +50,9 @@ const NonRetryableRejectionSchema = z.object({ status: z.literal(400) });
 export function initSelectMostCompleteContent(deps: {
 	createChatCompletion: CreateDeepseekChatCompletion;
 	logger: HutchLogger;
+	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }): { selectMostCompleteContent: SelectMostCompleteContent } {
-	const { createChatCompletion, logger } = deps;
+	const { createChatCompletion, logger, deepseekCallFailedLog } = deps;
 	const selectMostCompleteContent: SelectMostCompleteContent = async (params) => {
 		const messages: Parameters<CreateDeepseekChatCompletion>[0]["messages"] = [
 			{ role: "system", content: SELECT_CONTENT_SYSTEM_PROMPT },
@@ -70,7 +78,9 @@ export function initSelectMostCompleteContent(deps: {
 			});
 		} catch (error) {
 			if (!NonRetryableRejectionSchema.safeParse(error).success) throw error;
-			logger.error("[SelectContent] provider rejected the request", { url: params.url, error });
+			const failure = describeAiProviderError(error);
+			assert(failure.kind !== "unknown", "a 400 rejection is an http provider error");
+			deepseekCallFailedLog.error(deepseekCallFailedLogLine({ feature: "select-content", failure, ids: {} }));
 			return audited({ kind: "none", reason: "provider rejected request" }, "rejected");
 		}
 		logger.info("[SelectContent] completed", {

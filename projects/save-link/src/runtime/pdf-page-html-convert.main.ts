@@ -1,4 +1,4 @@
-import { type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { initConvertPageToHtmlWithDeepseek } from "./domain/pdf-page-html-convert/init-convert-page-to-html-with-deepseek";
 import { initPdfPageHtmlConvertHandler } from "./domain/pdf-page-html-convert/pdf-page-html-convert-handler";
@@ -26,4 +26,5 @@ const convertPageToHtmlWithLlm = initConvertPageToHtmlWithDeepseek({
 export const handler = initPdfPageHtmlConvertHandler({
 	convertPageToHtmlWithLlm,
 	logger: consoleLogger,
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
 });

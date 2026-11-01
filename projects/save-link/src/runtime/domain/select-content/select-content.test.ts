@@ -30,7 +30,7 @@ function fakeChat(content: string | null | undefined): CreateDeepseekChatComplet
 }
 
 function judge(content: string | null | undefined) {
-	return initSelectMostCompleteContent({ createChatCompletion: fakeChat(content), logger: noopLogger }).selectMostCompleteContent;
+	return initSelectMostCompleteContent({ createChatCompletion: fakeChat(content), logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 }
 
 describe("initSelectMostCompleteContent", () => {
@@ -70,7 +70,7 @@ describe("initSelectMostCompleteContent", () => {
 
 	it("still judges a single candidate, which can be unreadable", async () => {
 		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "none", reason: "CAPTCHA" }, { readable: [], assessed: ["A"] })));
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger });
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger, deepseekCallFailedLog: noopLogger });
 		expect(await selectMostCompleteContent({ ...request, candidates: [candidates[2]] })).toMatchObject({ kind: "none", reason: "CAPTCHA" });
 		expect(createChatCompletion).toHaveBeenCalledTimes(1);
 	});
@@ -78,7 +78,7 @@ describe("initSelectMostCompleteContent", () => {
 	it("sends candidate labels and content hashes, never candidate ids, with the actual challenge body under the content_selection feature in JSON mode at temperature 0", async () => {
 		const createChatCompletion = jest.fn(fakeChat(modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] })));
 		const info = jest.fn();
-		const result = await initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, info } }).selectMostCompleteContent(request);
+		const result = await initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, info }, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent(request);
 		expect(createChatCompletion).toHaveBeenCalledWith(expect.objectContaining({
 			feature: "content_selection", temperature: 0, response_format: { type: "json_object" },
 			messages: expect.arrayContaining([expect.objectContaining({ role: "user", content: expect.stringContaining("Verify you are human") })]),
@@ -113,7 +113,7 @@ describe("initSelectMostCompleteContent", () => {
 	});
 
 	it.each([{ choices: [] }, { choices: [{}] }])("fails closed when the provider omits response content: %j", async (response) => {
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion: async () => response, logger: noopLogger });
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion: async () => response, logger: noopLogger, deepseekCallFailedLog: noopLogger });
 		await expect(selectMostCompleteContent(request)).rejects.toThrow("empty response");
 	});
 
@@ -126,6 +126,7 @@ describe("initSelectMostCompleteContent", () => {
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
 			createChatCompletion: async () => ({ choices: [{ message: { content: modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] }) } }], usage }),
 			logger: { ...noopLogger, info },
+			deepseekCallFailedLog: noopLogger,
 		});
 		await selectMostCompleteContent(request);
 		expect(info).toHaveBeenCalledWith("[SelectContent] completed", {
@@ -137,17 +138,27 @@ describe("initSelectMostCompleteContent", () => {
 		const rejection = Object.assign(new Error("bad request"), { status: 400 });
 		const info = jest.fn();
 		const error = jest.fn();
+		const deepseekCallFailed = jest.fn();
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: async () => { throw rejection; }, logger: { ...noopLogger, info, error },
+			createChatCompletion: async () => { throw rejection; }, logger: { ...noopLogger, info, error }, deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 		});
 		expect(await selectMostCompleteContent(request)).toMatchObject({ kind: "none", reason: "provider rejected request", audit: { responseStatus: "rejected", judgedCandidates: expect.arrayContaining([{ id: "archive", contentHash: createHash("sha256").update(candidates[2].html).digest("hex") }]) } });
 		expect(info).not.toHaveBeenCalledWith("[SelectContent] completed", expect.anything());
-		expect(error).toHaveBeenCalledWith("[SelectContent] provider rejected the request", { url: request.url, error: rejection });
+		expect(error).not.toHaveBeenCalled();
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		const line = deepseekCallFailed.mock.calls[0][0];
+		expect(line).toMatchObject({ level: "ERROR", event: "deepseek-call-failed", feature: "select-content", status: 400, kind: "http" });
+		expect(line).not.toHaveProperty("url");
+		expect(line).not.toHaveProperty("requestId");
+		expect(line.receiveCount).toBeUndefined();
+		expect(line.messageId).toBeUndefined();
 	});
 
 	it("rethrows a transient provider failure so the queue can retry", async () => {
 		const failure = Object.assign(new Error("internal error"), { status: 500 });
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion: async () => { throw failure; }, logger: noopLogger });
+		const deepseekCallFailed = jest.fn();
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion: async () => { throw failure; }, logger: noopLogger, deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed } });
 		await expect(selectMostCompleteContent(request)).rejects.toBe(failure);
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
 	});
 });

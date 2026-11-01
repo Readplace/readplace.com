@@ -14,6 +14,7 @@ describe("initSelectContentDepBundle", () => {
 				choices: [{ message: { content: '{"tier":"tier-0"}' } }],
 			}),
 			logger: noopLogger,
+			deepseekCallFailedLog: noopLogger,
 		});
 
 		expect(typeof bundle.readTierSource).toBe("function");
@@ -21,5 +22,6 @@ describe("initSelectContentDepBundle", () => {
 		expect(typeof bundle.selectMostCompleteContent).toBe("function");
 		expect(typeof bundle.writeCanonicalContent).toBe("function");
 		expect(typeof bundle.recordCrawlVersion).toBe("function");
+		expect(bundle.deepseekCallFailedLog).toBe(noopLogger);
 	});
 });

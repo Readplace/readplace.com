@@ -103,7 +103,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 		...initListAvailableTierSources({ readTierSource: async ({ tier, candidateId }) => stored.find((source) => source.tier === tier && source.metadata.id === candidateId) }),
 		resolveOriginalUrl: async () => ORIGINAL,
 		verifyWrapperSource,
-		...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger }),
+		...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger, deepseekCallFailedLog: noopLogger }),
 	})({ url: ORIGINAL, saveAttemptId: ATTEMPT, candidates: [capture] });
 
 	expect(primaryCalls).toBe(3);

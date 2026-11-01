@@ -1,5 +1,6 @@
 import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
+import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type {
@@ -82,6 +83,7 @@ interface HandlerOverrides {
 	selectRelatedArticles?: SelectRelatedArticles;
 	markOutcome?: MarkRelatedArticlesOutcome;
 	logger?: HutchLogger;
+	deepseekCallFailedLog?: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -127,6 +129,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
 		publishEvent,
 		now: () => NOW,
 		logger: overrides.logger ?? noopLogger,
+		deepseekCallFailedLog: overrides.deepseekCallFailedLog ?? noopLogger,
 	});
 
 	return { handler, ready, skipped, published, selected };
@@ -290,9 +293,11 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 	it("logs the wait at info while the crawl is still filling in the article's metadata, so a redelivery that is working as designed stays off the errors dashboard, and still retries", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const deepseekCallFailed = jest.fn();
 		const { handler, ready, skipped } = createHandler({
 			targetLookup: { state: "found", article: crawledTarget({ crawlStatus: "pending" }) },
 			logger,
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 		});
 
 		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
@@ -303,12 +308,18 @@ describe("initComputeRelatedArticlesHandler", () => {
 			{ url: TARGET_URL, messageId: "msg-1", receiveCount: 1, crawlStatus: "pending" },
 		);
 		expect(logger.error).not.toHaveBeenCalled();
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
 		expect({ ready, skipped }).toEqual({ ready: [], skipped: [] });
 	});
 
 	it("logs the same info wait while the article row has not appeared yet, and still retries", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-		const { handler } = createHandler({ targetLookup: { state: "absent" }, logger });
+		const deepseekCallFailed = jest.fn();
+		const { handler } = createHandler({
+			targetLookup: { state: "absent" },
+			logger,
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+		});
 
 		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
 
@@ -318,6 +329,7 @@ describe("initComputeRelatedArticlesHandler", () => {
 			{ url: TARGET_URL, messageId: "msg-1", receiveCount: 1, crawlStatus: undefined },
 		);
 		expect(logger.error).not.toHaveBeenCalled();
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
 	});
 
 	it("skips terminally when the article was purged before its related links were computed, so the message never dead-letters", async () => {
@@ -530,9 +542,11 @@ describe("initComputeRelatedArticlesHandler", () => {
 
 	it("retries at error when the model answers with nothing readable, so a genuine failure still reaches the errors dashboard", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const deepseekCallFailed = jest.fn();
 		const { handler, ready } = createHandler({
 			selectRelatedArticles: async () => ({ kind: "no-text-block" }),
 			logger,
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 		});
 
 		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
@@ -543,7 +557,27 @@ describe("initComputeRelatedArticlesHandler", () => {
 			expect.objectContaining({ messageId: "msg-1" }),
 		);
 		expect(logger.info).not.toHaveBeenCalled();
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
 		expect(ready).toEqual([]);
+	});
+
+	it("writes one deepseek-call-failed line for a provider error and still fails the record", async () => {
+		const deepseekCallFailed = jest.fn();
+		const providerError = Object.assign(new Error("402 Insufficient Balance"), { status: 402, requestID: null });
+		const { handler } = createHandler({
+			selectRelatedArticles: async () => {
+				throw providerError;
+			},
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+		});
+
+		const result = await handler(queueEntryEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		const line = deepseekCallFailed.mock.calls[0][0];
+		expect(line).toMatchObject({ feature: "compute-related-articles", status: 402, kind: "http", receiveCount: 1, messageId: "msg-1" });
+		expect(line).not.toHaveProperty("url");
 	});
 
 	it("skips a save whose text turned out to be a block page shared across sites", async () => {

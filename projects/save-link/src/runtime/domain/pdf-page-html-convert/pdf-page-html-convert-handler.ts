@@ -1,11 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { estimateOutputTokens } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine, estimateOutputTokens } from "@packages/ai-message";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { escapeHtmlText } from "@packages/crawl-article";
 import { sanitizeFragment } from "../article-parser/sanitize-fragment";
-import { httpStatusTag } from "../pdf-page-llm-cleanup/http-status-tag";
 import type {
 	ConvertPageToHtmlWithLlm,
 	PdfPageHtmlConvertInput,
@@ -36,8 +35,9 @@ const MIN_TEXT_RETENTION = 0.7;
 export function initPdfPageHtmlConvertHandler(deps: {
 	convertPageToHtmlWithLlm: ConvertPageToHtmlWithLlm;
 	logger: HutchLogger;
+	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }): (rawInput: unknown) => Promise<PdfPageHtmlConvertOutput> {
-	const { convertPageToHtmlWithLlm, logger } = deps;
+	const { convertPageToHtmlWithLlm, logger, deepseekCallFailedLog } = deps;
 
 	return async (rawInput) => {
 		const input: PdfPageHtmlConvertInput = InputSchema.parse(rawInput);
@@ -58,8 +58,15 @@ export function initPdfPageHtmlConvertHandler(deps: {
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			const statusTag = httpStatusTag(error);
-			logger.warn(`[pdf-page-html-convert] LLM call failed page=${input.pageIndex}${statusTag} reason=${message} dt=${Date.now() - t0}ms — falling back to <p> wrap`);
+			logger.warn(`[pdf-page-html-convert] LLM call failed page=${input.pageIndex} reason=${message} dt=${Date.now() - t0}ms — falling back to <p> wrap`);
+			const failure = describeAiProviderError(error);
+			if (failure.kind !== "unknown") {
+				deepseekCallFailedLog.error(deepseekCallFailedLogLine({
+					feature: "pdf-page-html-convert",
+					failure,
+					ids: { pageIndex: input.pageIndex },
+				}));
+			}
 			return paragraphFallback(input);
 		}
 

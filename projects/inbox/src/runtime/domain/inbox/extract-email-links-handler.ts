@@ -299,6 +299,8 @@ export function initExtractEmailLinksHandler(deps: {
 				let triage: Awaited<ReturnType<TriageEmailLinks>> | undefined;
 				if (crawlCandidates.length > 0 && frozenSelection === undefined) {
 					triage = await triageEmailLinks({
+						userId,
+						receivedAtMessageId,
 						subject: email.subject,
 						from: email.senderEmail,
 						links: crawlCandidates.map((link) => ({

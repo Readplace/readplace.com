@@ -95,6 +95,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		now: () => NOW,
 		logger: noopLogger,
+		deepseekCallFailedLog: noopLogger,
 		...overrides,
 	};
 	return { handler: initGenerateSummaryHandler(deps), deps };
@@ -464,13 +465,35 @@ describe("initGenerateSummaryHandler", () => {
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 	});
 
+	it("writes one deepseek-call-failed line for a provider error and still fails the record", async () => {
+		const URL = "https://example.com/provider-error";
+		const deepseekCallFailed = jest.fn();
+		const providerError = Object.assign(new Error("402 Insufficient Balance"), { status: 402, requestID: null });
+		const { handler } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockRejectedValue(providerError),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+		});
+
+		const result = await handler(createSqsEventOnReceive({ url: URL }, 1), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		const line = deepseekCallFailed.mock.calls[0][0];
+		expect(line).toMatchObject({ feature: "generate-summary", status: 402, kind: "http", receiveCount: 1, messageId: "msg-1" });
+		expect(line).not.toHaveProperty("url");
+		expect(line).not.toHaveProperty("requestId");
+	});
+
 	it("reports batchItemFailures when article content is not found (assert in handler)", async () => {
 		const URL = "https://example.com/missing";
 		const error = jest.fn();
+		const deepseekCallFailed = jest.fn();
 		const { handler, deps } = createHandler({
 			findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue(undefined),
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
 			logger: { ...noopLogger, error },
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 		});
 
 		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
@@ -478,6 +501,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
 		expect(error).toHaveBeenCalledWith(
 			"[GenerateSummary] record failed",
 			expect.objectContaining({

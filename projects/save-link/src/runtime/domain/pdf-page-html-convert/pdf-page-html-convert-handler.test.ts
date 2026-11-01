@@ -21,6 +21,7 @@ function capturingLogger(): { logger: HutchLogger; messages: string[] } {
 describe("initPdfPageHtmlConvertHandler", () => {
 	it("returns the sanitised semantic HTML with applied=true when guardrails pass", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("<h2>Section</h2><p>Body prose here that is long enough to retain content.</p>"),
 			logger: noopLogger,
 		});
@@ -38,6 +39,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("logs the cache hit/miss split of the input tokens it spent", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("<h2>Section</h2><p>Body prose here that is long enough to retain content.</p>"),
 			logger,
 		});
@@ -56,6 +58,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("logs the cache split as unknown when the provider reports no split", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm(
 				"<h2>Section</h2><p>Body prose here that is long enough to retain content.</p>",
 				{ input: 100, output: 50 },
@@ -76,6 +79,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("strips ```html fences the model occasionally emits despite the prompt rule", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("```html\n<h2>Section</h2><p>Body prose here that is long enough to retain content.</p>\n```"),
 			logger: noopLogger,
 		});
@@ -92,6 +96,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("strips bare ``` fences (no language tag)", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("```\n<p>Body prose here that is long enough to retain content.</p>\n```"),
 			logger: noopLogger,
 		});
@@ -107,7 +112,9 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("falls back to <p class=\"ocr-tesseract\"> wrap when the LLM call throws", async () => {
 		const { logger, messages } = capturingLogger();
+		const deepseekCallFailed = jest.fn();
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 			convertPageToHtmlWithLlm: async () => { throw new Error("DeepSeek 5xx"); },
 			logger,
 		});
@@ -123,26 +130,49 @@ describe("initPdfPageHtmlConvertHandler", () => {
 			+ '<p class="ocr-tesseract">second paragraph here</p>',
 		);
 		expect(messages.some((m) => m.includes("LLM call failed") && m.includes("DeepSeek 5xx"))).toBe(true);
+		expect(deepseekCallFailed).not.toHaveBeenCalled();
+	});
+
+	it("writes one deepseek-call-failed line for a provider error and still falls back to <p> wrap", async () => {
+		const deepseekCallFailed = jest.fn();
+		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+			convertPageToHtmlWithLlm: async () => { throw Object.assign(new Error("503 Service Unavailable"), { status: 503 }); },
+			logger: noopLogger,
+		});
+
+		const result = await handler({ pageIndex: 7, pageText: "some text" });
+
+		expect(result.applied).toBe(false);
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		const line = deepseekCallFailed.mock.calls[0][0];
+		expect(line).toMatchObject({ event: "deepseek-call-failed", feature: "pdf-page-html-convert", status: 503, kind: "http", pageIndex: 7 });
+		expect(line.receiveCount).toBeUndefined();
+		expect(line.messageId).toBeUndefined();
+		expect(line).not.toHaveProperty("url");
 	});
 
 	it("falls back when the LLM throws an OpenAI-shape 429 (status surfaced in the log)", async () => {
-		const { logger, messages } = capturingLogger();
+		const deepseekCallFailed = jest.fn();
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 			convertPageToHtmlWithLlm: async () => {
 				throw Object.assign(new Error("Too Many Requests"), { status: 429 });
 			},
-			logger,
+			logger: noopLogger,
 		});
 
 		const result = await handler({ pageIndex: 2, pageText: "some text" });
 
 		expect(result.applied).toBe(false);
-		expect(messages.some((m) => m.includes("status=429"))).toBe(true);
+		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		expect(deepseekCallFailed.mock.calls[0][0]).toMatchObject({ feature: "pdf-page-html-convert", status: 429, pageIndex: 2 });
 	});
 
 	it("stringifies non-Error throws in the log fallback", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: async () => { throw "raw string"; },
 			logger,
 		});
@@ -155,6 +185,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("rejects when the model output is empty and falls back to paragraph wrap", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm(""),
 			logger,
 		});
@@ -169,6 +200,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("rejects when the model dropped more than 30% of the page's visible text", async () => {
 		const { logger, messages } = capturingLogger();
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("<h2>tl;dr</h2>"),
 			logger,
 		});
@@ -182,6 +214,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("surfaces tokens even when guardrails reject the model output", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("<h2>tl;dr</h2>", { input: 80, output: 5, cacheHitInput: 48, cacheMissInput: 32 }),
 			logger: noopLogger,
 		});
@@ -196,6 +229,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("short-circuits empty input without invoking the LLM", async () => {
 		let calls = 0;
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: async () => { calls += 1; return { text: "x", tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } }; },
 			logger: noopLogger,
 		});
@@ -209,6 +243,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("short-circuits whitespace-only input", async () => {
 		let calls = 0;
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: async () => { calls += 1; return { text: "x", tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } }; },
 			logger: noopLogger,
 		});
@@ -221,6 +256,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("rejects malformed payloads (missing pageIndex) via Zod", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("<p>x</p>"),
 			logger: noopLogger,
 		});
@@ -229,6 +265,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("rejects malformed payloads (negative pageIndex) via Zod", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("<p>x</p>"),
 			logger: noopLogger,
 		});
@@ -237,6 +274,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("rejects malformed payloads (missing pageText) via Zod", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm("<p>x</p>"),
 			logger: noopLogger,
 		});
@@ -246,6 +284,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("passes the loaded prompt to the LLM call as the system prompt", async () => {
 		let captured: string | undefined;
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: async ({ systemPrompt, userText }) => {
 				captured = systemPrompt;
 				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
@@ -263,6 +302,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("computes maxTokens from the weighted character estimate, with extra headroom for markup", async () => {
 		const captured: number[] = [];
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: async ({ userText, maxTokens }) => {
 				captured.push(maxTokens);
 				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
@@ -280,6 +320,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 	it("budgets 931 tokens for the 1,034-character page that truncated at a 517-token cap", async () => {
 		const captured: number[] = [];
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: async ({ userText, maxTokens }) => {
 				captured.push(maxTokens);
 				return { text: `<p>${userText}</p>`, tokens: { input: 1, output: 1, cacheHitInput: 0, cacheMissInput: 1 } };
@@ -294,6 +335,7 @@ describe("initPdfPageHtmlConvertHandler", () => {
 
 	it("strips dangerous tags via the shared sanitiser before the guardrail runs", async () => {
 		const handler = initPdfPageHtmlConvertHandler({
+			deepseekCallFailedLog: noopLogger,
 			convertPageToHtmlWithLlm: stubLlm('<h2>Title</h2><script>alert(1)</script><p>Body prose that is long enough to retain content.</p>'),
 			logger: noopLogger,
 		});

@@ -69,12 +69,12 @@ async function selectContent(params: { article: Article; capture: VerifiedTierSo
 	const info = jest.fn();
 	const handler = initSelectMostCompleteContentHandler({
 		listAvailableTierSources: async () => [params.capture, ...params.others],
-		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, createChatCompletion: params.createChatCompletion }).selectMostCompleteContent,
+		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: params.createChatCompletion }).selectMostCompleteContent,
 		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, originalUrl: URL, tier: source.tier }),
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => undefined, loadArticle: async () => params.article, transitionAndPersist,
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
-		now: () => new Date(NOW), logger: { ...noopLogger, info },
+		now: () => new Date(NOW), logger: { ...noopLogger, info }, deepseekCallFailedLog: noopLogger,
 	});
 
 	const result = await handler(event({ url: URL, saveAttemptId: RESCUE, userId: "reader", candidates: [{ id: params.capture.metadata.id, tier: params.capture.tier }] }), buildLambdaContext(), () => {});

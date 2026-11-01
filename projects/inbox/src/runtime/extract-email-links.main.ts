@@ -1,7 +1,12 @@
 import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
-import { type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
+import {
+	type DeepseekCallFailedLogLine,
+	type DeepseekUsageLine,
+	initCreateDeepseekMessage,
+	initDeepseekClient,
+} from "@packages/ai-message";
 import { initDynamoDbReadlistDefinitions } from "@packages/article-store";
 import {
 	deriveSanitizedBody,
@@ -75,7 +80,11 @@ const deepseekClient = initDeepseekClient({
 	now: () => new Date(),
 });
 const createAiMessage = initCreateDeepseekMessage({ client: deepseekClient });
-const { triageEmailLinks } = initTriageEmailLinks({ createAiMessage, logger });
+const { triageEmailLinks } = initTriageEmailLinks({
+	createAiMessage,
+	logger,
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+});
 
 const inboxAddressStore = initDynamoDbInboxAddress({
 	client: dynamoClient,

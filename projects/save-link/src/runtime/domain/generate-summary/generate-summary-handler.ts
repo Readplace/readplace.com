@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import {
 	isCanonicalCandidateRevoked,
 	markSummaryReady,
@@ -23,11 +24,12 @@ interface GenerateSummaryHandlerDeps {
 	transitionAndPersist: TransitionAndPersist;
 	now: () => Date;
 	logger: HutchLogger;
+	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Handler<SQSEvent, SQSBatchResponse> {
-	const { summarizeArticle, findArticleContent, loadArticle, transitionAndPersist, now, logger } = deps;
+	const { summarizeArticle, findArticleContent, loadArticle, transitionAndPersist, now, logger, deepseekCallFailedLog } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -170,6 +172,18 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 					url,
 					error,
 				});
+				const failure = describeAiProviderError(error);
+				if (failure.kind !== "unknown") {
+					deepseekCallFailedLog.error(
+						deepseekCallFailedLogLine({
+							feature: "generate-summary",
+							failure,
+							receiveCount: Number(record.attributes.ApproximateReceiveCount),
+							messageId: record.messageId,
+							ids: {},
+						}),
+					);
+				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });
 			}
 		}
