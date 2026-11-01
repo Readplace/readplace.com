@@ -2536,6 +2536,44 @@ describe("Siren readlists", () => {
 			expect(articleUrls(work.body)).toEqual([url]);
 		});
 
+		it("answers an iPhone before 134 with add-to-readlist and create-readlist Locations that key the readlist as queue", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { userId, readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-old-ios-locations@example.com",
+			});
+			const url = "https://example.com/old-ios-filed";
+			await seedInReadlistOnly(harness, { userId, readlist, url });
+			const listing = await readCollection(harness, { accessToken, path: `/queue?queue=${readlist}` }).set(
+				"User-Agent",
+				IOS_BUILD_133,
+			);
+			const entity = listing.body.entities.find((candidate: ArticleEntity) => candidate.properties.url === url);
+			assert(entity, `expected ${url} to be listed`);
+
+			const filed = await submit(harness, {
+				accessToken,
+				action: actionNamed(entity, "add-to-readlist"),
+				body: { readlists: [hrefs[RECIPES_LABEL]] },
+			}).set("User-Agent", IOS_BUILD_133);
+			const created = await submit(harness, {
+				accessToken,
+				action: actionNamed(listing.body, "create-readlist"),
+				body: { label: "Travel" },
+			}).set("User-Agent", IOS_BUILD_133);
+
+			const keysOf = (location: string) => {
+				const query = new URL(location, TEST_APP_ORIGIN).searchParams;
+				return { queue: query.has("queue"), readlist: query.has("readlist") };
+			};
+			expect({
+				filed: [filed.status, keysOf(filed.headers.location), addressedBy(filed.headers.location).readlist],
+				created: [created.status, keysOf(created.headers.location)],
+			}).toEqual({
+				filed: [303, { queue: true, readlist: false }, readlist],
+				created: [303, { queue: true, readlist: false }],
+			});
+		});
+
 		it.each([
 			{
 				what: "names only All and a readlist the reader does not own",

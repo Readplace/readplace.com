@@ -248,6 +248,23 @@ describe("toArticleSubEntity", () => {
 			});
 		});
 
+		it("keys the readlist as queue on add-to-readlist and remove-from-readlist hrefs when the collection query is keyed for an iPhone before 134", () => {
+			const collectionQuery: CollectionQueryParams = { readlistKey: "queue", readlist: NAMED_READLIST, status: "unread" };
+
+			const hrefs = Object.fromEntries(
+				(toArticleSubEntity(makeArticle(), { addToReadlist: "advertised", collectionQuery }).actions ?? []).map((action) => [
+					action.name,
+					action.href,
+				]),
+			);
+
+			expect(hrefs).toEqual({
+				"update-status": `/queue/${ARTICLE_ID}/status?queue=work&status=unread`,
+				"add-to-readlist": `/queue/${ARTICLE_ID}/assign?queue=work&status=unread`,
+				"remove-from-readlist": `/queue/${ARTICLE_ID}/unassign?queue=work&status=unread`,
+			});
+		});
+
 		it.each([
 			{
 				where: "outside any collection",
