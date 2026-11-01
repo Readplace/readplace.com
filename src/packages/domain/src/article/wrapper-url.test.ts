@@ -222,9 +222,9 @@ describe("stripRedirectAddedParams", () => {
 		expect(
 			stripRedirectAddedParams({
 				wrapperUrl: "https://substack.com/app-link/post?publication_id=1&post_id=2&comments=true&action=post-comment",
-				targetUrl: "https://pub.example/p/foo/comments",
+				targetUrl: "https://open.substack.com/pub/foo/p/bar?comments=true&action=post-comment&utm_source=substack",
 			}),
-		).toBe("https://pub.example/p/foo");
+		).toBe("https://open.substack.com/pub/foo/p/bar?utm_source=substack");
 	});
 
 	it("keeps a comments segment that is not the comments view of a post", () => {

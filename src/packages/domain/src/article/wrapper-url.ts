@@ -29,7 +29,6 @@ const MAILCHIMP_CLICK_PATH = /^\/track\/click$/;
 const WEEKLYFILET_LINK_PATH = /^\/r\/[0-9a-f]+$/i;
 const SUBSTACK_SHARE_PATH = /^\/pub\/[^/]+\/p\/[^/]+$/;
 const SUBSTACK_APP_LINK_PATH = /^\/app-link\/post$/;
-const SUBSTACK_COMMENTS_PATH = /^(\/p\/[^/]+)\/comments\/?$/;
 const SUBSTACK_REDIRECT_PATH = /^\/redirect\/[^/]+$/;
 const OPAQUE_TOKEN_PATH = /^\/[A-Za-z0-9_-]+$/;
 const GOOGLE_SHARE_HOP_PATH = /^\/share\.google$/;
@@ -55,6 +54,7 @@ const ENCODED_SCHEME = /^https?%3a/i;
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PREFIX_WILDCARD = /(?:\*|%2a)$/i;
 
+const SUBSTACK_COMMENT_VIEW_PARAMS: readonly string[] = ["action", "comments"];
 const SUBSTACK_REDIRECT_PARAMS: readonly string[] = ["r", "publication_id", "post_id", "isFreemail", "triedRedirect"];
 
 type TrackerRule = { host: string | RegExp; path: RegExp; requiresParam?: string };
@@ -241,7 +241,7 @@ export function stripRedirectAddedParams(params: { wrapperUrl: string; targetUrl
 	if (target === undefined) return params.targetUrl;
 	for (const name of SUBSTACK_REDIRECT_PARAMS) target.searchParams.delete(name);
 	if (matchesTracker(SUBSTACK_APP_LINK, hostnameOf(wrapper), wrapper)) {
-		target.pathname = target.pathname.replace(SUBSTACK_COMMENTS_PATH, "$1");
+		for (const name of SUBSTACK_COMMENT_VIEW_PARAMS) target.searchParams.delete(name);
 	}
 	return target.href;
 }

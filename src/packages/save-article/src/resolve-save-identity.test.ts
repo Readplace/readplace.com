@@ -134,11 +134,18 @@ describe("save identity", () => {
 
 	it("resolves a Substack comment-button link to the post rather than its comments view", async () => {
 		const appLink = "https://substack.com/app-link/post?publication_id=1&post_id=2&comments=true&action=post-comment&token=abc";
+		const share = "https://open.substack.com/pub/person/p/article";
 		const h = harness({
-			targets: { [appLink]: { url: "https://person.substack.com/p/article/comments?comments=true&action=post-comment&r=reader&utm_source=substack" } },
+			targets: {
+				[appLink]: { url: `${share}?comments=true&action=post-comment&r=reader&utm_source=substack` },
+				[`${share}?comments=true&action=post-comment&utm_source=substack`]: {
+					url: "https://person.example/p/article/comments?comments=true&action=post-comment&utm_source=substack",
+				},
+				[`${share}?utm_source=substack`]: { url: "https://person.example/p/article?utm_source=substack" },
+			},
 		});
 		expect(await h.resolve(appLink)).toEqual(
-			resolved({ url: "https://person.substack.com/p/article?comments=true&action=post-comment&utm_source=substack", source: appLink }),
+			resolved({ url: "https://person.example/p/article?utm_source=substack", source: appLink }),
 		);
 	});
 
