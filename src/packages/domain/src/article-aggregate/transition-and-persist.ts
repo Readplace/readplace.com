@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { Article } from "./article.types";
+import type { Article, CrawlState } from "./article.types";
 import type { DispatchEffect } from "./effect-dispatcher.types";
 import type { Effect } from "./effects.types";
 import type { AggregateField, ArticleStore } from "./storage.types";
@@ -28,6 +28,11 @@ export type TransitionAndPersist = <TInput>(
 	params: { url: string; input: TInput; canonicalCommit?: CanonicalCommit; selectionExpected?: SelectionExpected },
 ) => Promise<void>;
 
+export type LogCrawlSettled = (params: {
+	startedAt: string;
+	outcome: "ready" | "failed" | "unsupported";
+}) => void;
+
 export type UpsertAndPersist = <TInput>(
 	transition: UpsertTransition<TInput>,
 	params: { url: string; input: TInput },
@@ -54,13 +59,15 @@ export type UpsertAndPersist = <TInput>(
 export function initTransitionAndPersist(deps: {
 	store: ArticleStore;
 	dispatchEffect: DispatchEffect;
+	logCrawlSettled: LogCrawlSettled;
 }): {
 	transitionAndPersist: TransitionAndPersist;
 	upsertAndPersist: UpsertAndPersist;
 } {
-	const { store, dispatchEffect } = deps;
+	const { store, dispatchEffect, logCrawlSettled } = deps;
 
 	async function persistAndDispatch(params: {
+		previousCrawl: CrawlState | undefined;
 		article: Article;
 		effects: readonly Effect[];
 		writes: readonly AggregateField[];
@@ -74,6 +81,15 @@ export function initTransitionAndPersist(deps: {
 				canonicalCommit: params.canonicalCommit,
 				selectionExpected: params.selectionExpected,
 			});
+			const settled = params.article.crawl;
+			if (
+				params.writes.includes("crawl") &&
+				params.previousCrawl?.kind === "pending" &&
+				params.previousCrawl.startedAt !== undefined &&
+				settled.kind !== "pending"
+			) {
+				logCrawlSettled({ startedAt: params.previousCrawl.startedAt, outcome: settled.kind });
+			}
 		}
 		for (const effect of params.effects) {
 			await dispatchEffect(effect);
@@ -88,6 +104,7 @@ export function initTransitionAndPersist(deps: {
 		assert(existing, `Article aggregate not found for url: ${params.url}`);
 		const { article, effects, writes } = transition(existing, params.input);
 		await persistAndDispatch({
+			previousCrawl: existing.crawl,
 			article,
 			effects,
 			writes,
@@ -100,6 +117,7 @@ export function initTransitionAndPersist(deps: {
 		const existing = await store.load(params.url);
 		const { article, effects, writes } = transition(existing, params.input);
 		await persistAndDispatch({
+			previousCrawl: existing?.crawl,
 			article,
 			effects,
 			writes,

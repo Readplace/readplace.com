@@ -47,6 +47,7 @@ import {
 	ReselectAfterRemovalEvent,
 	SAVE_LINK_DLQ_SOURCES,
 	SAVE_LINK_LAMBDA_NAMES,
+	CRAWL_SETTLED_METRIC,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
@@ -1240,6 +1241,31 @@ new aws.cloudwatch.MetricAlarm("select-content-own-capture-failed-alarm", {
 	treatMissingData: "notBreaching",
 	alarmDescription: "Content selection failed a reader's own readable capture (CLAUDE.md: a reader's own capture is never failed by the judge)",
 	alarmActions: [ownCaptureFailedTopic.arn],
+});
+
+const crawlSettledLatencyTopic = new aws.sns.Topic("crawl-settled-latency-topic", {
+	name: "crawl-settled-latency-topic",
+});
+
+new aws.sns.TopicSubscription("crawl-settled-latency-alert-email", {
+	topic: crawlSettledLatencyTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("crawl-settled-latency-alarm", {
+	name: "crawl-settled-latency-alarm",
+	comparisonOperator: "GreaterThanThreshold",
+	evaluationPeriods: 1,
+	metricName: CRAWL_SETTLED_METRIC.name,
+	namespace: CRAWL_SETTLED_METRIC.namespace,
+	period: 900,
+	extendedStatistic: "p95",
+	evaluateLowSampleCountPercentiles: "evaluate",
+	threshold: config.requireNumber("crawlSettledLatencyP95ThresholdSeconds"),
+	treatMissingData: "notBreaching",
+	alarmDescription: "The p95 time for a save to settle its crawl, over 15 minutes, is above the threshold",
+	alarmActions: [crawlSettledLatencyTopic.arn],
 });
 
 // --- RemoveMyContentCommand handler ---

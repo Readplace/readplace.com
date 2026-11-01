@@ -50,6 +50,7 @@ const ArticleAggregateRow = z.object({
 	crawlFailureReason: dynamoField(z.string()),
 	crawlUnsupportedReason: dynamoField(z.string()),
 	crawlPendingSince: dynamoField(z.string()),
+	crawlStartedAt: dynamoField(z.string()),
 	summaryStatus: dynamoField(SummaryStatusSchema),
 	summaryPendingSince: dynamoField(z.string()),
 	summary: dynamoField(z.string()),
@@ -121,6 +122,7 @@ function rowToCrawlState(row: RowShape): CrawlState {
 	return {
 		kind: "pending",
 		pendingSince: row.crawlPendingSince ?? LEGACY_PENDING_SINCE /* 1 */,
+		startedAt: row.crawlStartedAt,
 	};
 }
 
@@ -328,14 +330,14 @@ function appendCrawlClauses(
 		sets.push("crawlFailureReason = :crawlFailureReason");
 		values[":crawlStatus"] = "failed";
 		values[":crawlFailureReason"] = JSON.stringify(article.crawl.reason);
-		removes.push("crawlUnsupportedReason", "crawlPendingSince");
+		removes.push("crawlUnsupportedReason", "crawlPendingSince", "crawlStartedAt");
 		return;
 	}
 	if (article.crawl.kind === "unsupported") {
 		sets.push("crawlUnsupportedReason = :crawlUnsupportedReason");
 		values[":crawlStatus"] = "unsupported";
 		values[":crawlUnsupportedReason"] = JSON.stringify(article.crawl.reason);
-		removes.push("crawlFailureReason", "crawlPendingSince");
+		removes.push("crawlFailureReason", "crawlPendingSince", "crawlStartedAt");
 		return;
 	}
 	if (article.crawl.kind === "ready") {
@@ -345,6 +347,7 @@ function appendCrawlClauses(
 			"crawlUnsupportedReason",
 			"crawlFailedAt",
 			"crawlPendingSince",
+			"crawlStartedAt",
 		);
 		return;
 	}

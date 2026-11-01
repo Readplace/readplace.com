@@ -17,6 +17,7 @@ describe("initArticleAggregateDepBundle", () => {
 			dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),
 			articlesTable: "articles-table",
 			events,
+			logCrawlSettled: () => {},
 		});
 
 		expect(typeof bundle.store).toBe("object");

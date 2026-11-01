@@ -2,7 +2,7 @@ import { noopLogger } from "@packages/hutch-logger";
 import { initObservabilityDepBundle } from "./observability";
 
 describe("initObservabilityDepBundle", () => {
-	it("returns a bundle with logger, logParseError, logCrawlOutcome, logError, logInfo, logThumbnailNotDelivered, and logImageLeftAtOrigin fields", () => {
+	it("returns a bundle with logger, logParseError, logCrawlOutcome, logCrawlSettled, logError, logInfo, logThumbnailNotDelivered, and logImageLeftAtOrigin fields", () => {
 		const bundle = initObservabilityDepBundle({
 			logger: noopLogger,
 			source: "save-link",
@@ -12,6 +12,7 @@ describe("initObservabilityDepBundle", () => {
 		expect(bundle.logger).toBe(noopLogger);
 		expect(typeof bundle.logParseError).toBe("function");
 		expect(typeof bundle.logCrawlOutcome).toBe("function");
+		expect(typeof bundle.logCrawlSettled).toBe("function");
 		expect(typeof bundle.logError).toBe("function");
 		expect(typeof bundle.logInfo).toBe("function");
 		expect(typeof bundle.logThumbnailNotDelivered).toBe("function");

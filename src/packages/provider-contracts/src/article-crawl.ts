@@ -23,7 +23,7 @@ export type FindArticleCrawlStatuses = (
 	urls: readonly string[],
 ) => Promise<ReadonlyMap<string, ArticleCrawl | undefined>>;
 
-export type MarkCrawlPending = (params: { url: string }) => Promise<void>;
+export type MarkCrawlPending = (params: { url: string; measured: boolean }) => Promise<void>;
 
 /**
  * Unconditionally moves a row to crawlStatus=pending, even if it is already

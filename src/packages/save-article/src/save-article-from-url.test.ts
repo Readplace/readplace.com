@@ -46,12 +46,14 @@ interface CallTracker {
 		pinContentSource: number;
 	};
 	queueEntryCreated: Array<{ url: string; userId: string }>;
+	crawlPendingMarks: Array<{ url: string; measured: boolean }>;
 	deps: SaveArticleFromUrlDependencies;
 }
 
 function makeTracker(savedOverride?: SavedArticle): CallTracker {
 	const saved = savedOverride ?? makeSaved();
 	const queueEntryCreated: Array<{ url: string; userId: string }> = [];
+	const crawlPendingMarks: Array<{ url: string; measured: boolean }> = [];
 	const calls = {
 		markCrawlPending: 0,
 		markSummaryPending: 0,
@@ -68,8 +70,9 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 			if (status === "unread") calls.updateArticleStatusUnread += 1;
 			return { ...saved, status, readAt: undefined };
 		},
-		markCrawlPending: async () => {
+		markCrawlPending: async (params) => {
 			calls.markCrawlPending += 1;
+			crawlPendingMarks.push(params);
 		},
 		markSummaryPending: async () => {
 			calls.markSummaryPending += 1;
@@ -91,7 +94,7 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 			calls.pinContentSource += 1;
 		},
 	};
-	return { saved, calls, queueEntryCreated, deps };
+	return { saved, calls, queueEntryCreated, crawlPendingMarks, deps };
 }
 
 describe("saveArticleFromUrl", () => {
@@ -207,15 +210,16 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
 
 		expect(tracker.queueEntryCreated).toEqual([]);
+		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured: false }]);
 	});
 
-	it.each<{ provenance: SaveProvenance; asks: number }>([
-		{ provenance: { kind: "web" }, asks: 1 },
-		{ provenance: { kind: "client", clientName: "hutch-chrome-extension" }, asks: 1 },
-		{ provenance: { kind: "email", senderEmail: "letter@example.com" }, asks: 1 },
-		{ provenance: { kind: "mcp", registeredName: "claude" }, asks: 1 },
-		{ provenance: { kind: "import" }, asks: 0 },
-	])("asks $asks time(s) to resurface earlier saves for a $provenance.kind save", async ({ provenance: saveProvenance, asks }) => {
+	it.each<{ provenance: SaveProvenance; asks: number; measured: boolean }>([
+		{ provenance: { kind: "web" }, asks: 1, measured: true },
+		{ provenance: { kind: "client", clientName: "hutch-chrome-extension" }, asks: 1, measured: true },
+		{ provenance: { kind: "email", senderEmail: "letter@example.com" }, asks: 1, measured: true },
+		{ provenance: { kind: "mcp", registeredName: "claude" }, asks: 1, measured: true },
+		{ provenance: { kind: "import" }, asks: 0, measured: false },
+	])("asks $asks time(s) to resurface earlier saves for a $provenance.kind save, and marks the crawl pending with measured=$measured", async ({ provenance: saveProvenance, asks, measured }) => {
 		const tracker = makeTracker();
 
 		await initSaveArticleFromUrl(tracker.deps)({
@@ -227,6 +231,7 @@ describe("saveArticleFromUrl", () => {
 		});
 
 		expect(tracker.calls.publishQueueEntryCreated).toBe(asks);
+		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured }]);
 	});
 
 	it("announces the accepted save before asking to resurface earlier ones", async () => {

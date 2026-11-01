@@ -121,7 +121,7 @@ describe("summary recovery on canonical content change", () => {
 				await summaryHandler(sqsEvent({ url: effect.url }), buildLambdaContext(), () => {});
 			}
 		};
-		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect });
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect, logCrawlSettled: () => {} });
 		summaryHandler = initGenerateSummaryHandler({ summarizeArticle, findArticleContent, loadArticle: store.load, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger });
 		canonicalChangedHandler = initCanonicalContentChangedHandler({ findArticleContent, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger });
 		const judge = jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>();
@@ -193,7 +193,7 @@ describe("summary recovery on canonical content change", () => {
 			}
 		};
 
-		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect });
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect, logCrawlSettled: () => {} });
 
 		generateSummaryHandler = initGenerateSummaryHandler({
 			summarizeArticle,

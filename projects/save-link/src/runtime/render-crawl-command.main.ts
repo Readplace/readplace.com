@@ -71,7 +71,12 @@ const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
-const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
+const articleAggregate = initArticleAggregateDepBundle({
+	dynamoClient,
+	articlesTable,
+	events,
+	logCrawlSettled: observability.logCrawlSettled,
+});
 const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 const { consumePaidCrawlBudget: consumeRenderCrawlBudget } = initDynamoDbPaidCrawlBudget({
 	client: dynamoClient,

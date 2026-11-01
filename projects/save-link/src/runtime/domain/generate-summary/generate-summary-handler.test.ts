@@ -580,7 +580,7 @@ describe("initGenerateSummaryHandler", () => {
 		const store = initInMemoryArticleStore();
 		store.seed({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(original) }, contentSelection: { revision: 1, candidateId: cid("old"), contentLocation: "s3://bucket/old.html" } });
 		const effects: unknown[] = [];
-		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { effects.push(effect); } });
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { effects.push(effect); }, logCrawlSettled: () => {} });
 		const { handler } = createHandler({ loadArticle: store.load, transitionAndPersist, findArticleContent: async () => ({ content: original }), summarizeArticle: async () => {
 			store.seed({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(replacement) }, contentSelection: { revision: 2, candidateId: cid("new"), contentLocation: "s3://bucket/new.html", revokedCandidateIds: [cid("old")] } });
 			return { kind: "ready", summary: "Private erased summary", excerpt: "Private excerpt", inputTokens: 1, outputTokens: 1 };
@@ -596,7 +596,7 @@ describe("initGenerateSummaryHandler", () => {
 		const canonical = { candidateId: cid("same"), contentLocation: "s3://bucket/same.html" };
 		const store = initInMemoryArticleStore();
 		store.seed({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(content) }, contentSelection: { revision: 1, ...canonical } });
-		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {} });
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {}, logCrawlSettled: () => {} });
 		const { handler } = createHandler({ loadArticle: store.load, transitionAndPersist, findArticleContent: async () => ({ content }), summarizeArticle: async () => {
 			store.seed({ ...pendingArticle(url), freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: computeCanonicalContentHash(content) }, contentSelection: { revision: 2, ...canonical } });
 			return { kind: "ready", summary: "Summary", excerpt: "Excerpt", inputTokens: 1, outputTokens: 1 };

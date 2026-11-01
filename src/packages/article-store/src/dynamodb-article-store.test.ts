@@ -558,6 +558,31 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				pendingSince: "2026-05-10T12:00:00.000Z",
 			});
 		});
+
+		it("hydrates startedAt on the crawl axis when the row carries crawlStartedAt", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "pending",
+					crawlPendingSince: "2026-05-10T12:05:00.000Z",
+					crawlStartedAt: "2026-05-10T12:00:00.000Z",
+					summaryStatus: "pending",
+					summaryPendingSince: "2026-05-10T12:00:00.000Z",
+					contentFetchedAt: "2026-05-10T12:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.crawl).toEqual({
+				kind: "pending",
+				pendingSince: "2026-05-10T12:05:00.000Z",
+				startedAt: "2026-05-10T12:00:00.000Z",
+			});
+		});
 	});
 
 	describe("save (refresh-content shape: writes metadata, freshness, summary)", () => {
@@ -1392,6 +1417,39 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			const input = await updateFor({ kind: "pending", pendingSince: PENDING_SINCE });
 
 			expect(input.UpdateExpression?.includes("crawlOutcomeRevision")).toBe(false);
+		});
+	});
+
+	describe("save (crawl start)", () => {
+		async function updateFor(crawl: Article["crawl"]) {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
+			await store.save({ article: buildArticle({ crawl }), writes: ["crawl"] });
+			return capturedCommand(received).input;
+		}
+
+		it.each([
+			["failed", { kind: "failed", reason: { kind: "capture-unreadable", detail: "none" } } as const],
+			["unsupported", { kind: "unsupported", reason: { kind: "paywall" } } as const],
+			["ready", { kind: "ready" } as const],
+		])("removes crawlStartedAt on a %s write so the next save's crawl records its own start", async (_label, crawl) => {
+			const input = await updateFor(crawl);
+
+			expect(input.UpdateExpression).toMatch(/REMOVE.*crawlStartedAt/);
+		});
+
+		it("leaves crawlStartedAt as it is on a pending write so a pending-to-pending save keeps the start", async () => {
+			const input = await updateFor({
+				kind: "pending",
+				pendingSince: PENDING_SINCE,
+				startedAt: "2026-05-10T12:00:00.000Z",
+			});
+
+			expect(input.UpdateExpression?.includes("crawlStartedAt")).toBe(false);
 		});
 	});
 

@@ -3,6 +3,7 @@ import {
 	initTransitionAndPersist,
 	type ArticleStore,
 	type DispatchEffect,
+	type LogCrawlSettled,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import { initDynamoDbArticleStore } from "@packages/article-store";
@@ -19,6 +20,7 @@ export function initArticleAggregateDepBundle(deps: {
 	dynamoClient: DynamoDBDocumentClient;
 	articlesTable: string;
 	events: EventsDepBundle;
+	logCrawlSettled: LogCrawlSettled;
 }): ArticleAggregateDepBundle {
 	const { store } = initDynamoDbArticleStore({
 		client: deps.dynamoClient,
@@ -28,6 +30,10 @@ export function initArticleAggregateDepBundle(deps: {
 		dispatchGenerateSummary: deps.events.dispatchGenerateSummary,
 		publishEvent: deps.events.publishEvent,
 	});
-	const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect });
+	const { transitionAndPersist } = initTransitionAndPersist({
+		store,
+		dispatchEffect,
+		logCrawlSettled: deps.logCrawlSettled,
+	});
 	return { store, dispatchEffect, transitionAndPersist };
 }

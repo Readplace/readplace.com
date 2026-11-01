@@ -26,7 +26,7 @@ export interface ArticleFreshness {
 }
 
 export type CrawlState =
-	| { kind: "pending"; pendingSince: string; stage?: CrawlStage }
+	| { kind: "pending"; pendingSince: string; startedAt?: string; stage?: CrawlStage }
 	| { kind: "ready" }
 	| { kind: "failed"; reason: CrawlFailureReason }
 	| { kind: "unsupported"; reason: CrawlUnsupportedReason };

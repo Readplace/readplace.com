@@ -30,6 +30,7 @@ export const CONTENT_BEARING_COLUMNS = [
 	"crawlFailureReason",
 	"crawlUnsupportedReason",
 	"crawlPendingSince",
+	"crawlStartedAt",
 	"crawlFailedAt",
 	"crawlStage",
 	"crawlPartCurrent",

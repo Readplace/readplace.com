@@ -79,23 +79,12 @@ async function saveByFreshness(
 		source?: WrapperSourceBinding;
 		saveAttemptId: SaveAttemptId;
 		freshness: ResolvedFreshnessResult;
-		provenance: SaveProvenance;
-		savedAt: Date;
+		written: { saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean };
+		createsQueueEntry: boolean;
 	},
 ): Promise<SaveOutcome> {
-	const { userId, url, source, saveAttemptId, freshness, provenance, savedAt } = params;
+	const { userId, url, source, saveAttemptId, freshness, written, createsQueueEntry } = params;
 
-	const written = await deps.saveArticle({
-		userId,
-		url,
-		metadata:
-			freshness.action === "new"
-				? { ...stubMetadataFor(new URL(url).hostname), wordCount: 0 }
-				: { title: "", siteName: "", excerpt: "", wordCount: 0 },
-		estimatedReadTime: calculateReadTime(0),
-		provenance,
-		savedAt,
-	});
 	if (source !== undefined && isArchiveHost(source.contentSourceUrl)) {
 		await deps.pinContentSource({ articleUrl: url, ...source });
 	}
@@ -104,7 +93,7 @@ async function saveByFreshness(
 		if (isNonArticleHost(url)) {
 			return markUnreadIfRead(deps.updateArticleStatus, written);
 		}
-		await deps.markCrawlPending({ url });
+		await deps.markCrawlPending({ url, measured: createsQueueEntry });
 		await deps.markSummaryPending({ url });
 		const [outcome] = await Promise.all([
 			markUnreadIfRead(deps.updateArticleStatus, written),
@@ -139,20 +128,32 @@ export function initSaveArticleFromUrl(
 			identity.contentSourceUrl === undefined
 				? undefined
 				: { contentSourceUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl };
+		const written = await deps.saveArticle({
+			userId: params.userId,
+			url,
+			metadata:
+				params.freshness.action === "new"
+					? { ...stubMetadataFor(new URL(url).hostname), wordCount: 0 }
+					: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+			estimatedReadTime: calculateReadTime(0),
+			provenance: params.provenance,
+			savedAt: params.savedAt,
+		});
+		const createsQueueEntry = written.createdUserArticle && RESURFACES_EARLIER_SAVES[params.provenance.kind];
 		const result = await saveByFreshness(deps, {
 			userId: params.userId,
 			url,
 			source,
 			saveAttemptId: params.saveAttemptId,
 			freshness: params.freshness,
-			provenance: params.provenance,
-			savedAt: params.savedAt,
+			written,
+			createsQueueEntry,
 		});
 		// The row is committed, so the save is accepted on every freshness branch —
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,
 		// not the canonical one a consumer never saw.
 		await deps.publishLinkQueued({ url: params.url, userId: params.userId });
-		if (result.createdUserArticle && RESURFACES_EARLIER_SAVES[params.provenance.kind]) {
+		if (createsQueueEntry) {
 			await deps.publishQueueEntryCreated({ url, userId: params.userId });
 		}
 		return { ...result, canonicalUrl: url };

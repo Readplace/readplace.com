@@ -248,7 +248,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(saveArticle).toHaveBeenCalledWith(
 			expect.objectContaining({ userId, url: exampleUrl, savedAt: allocatedSavedAt }),
 		);
-		expect(markCrawlPending).toHaveBeenCalledWith({ url: exampleUrl });
+		expect(markCrawlPending).toHaveBeenCalledWith({ url: exampleUrl, measured: true });
 		expect(putTierSource).toHaveBeenCalledWith(
 			expect.objectContaining({ url: exampleUrl, tier: "tier-1" }),
 		);

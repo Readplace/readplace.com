@@ -224,7 +224,7 @@ describe("shared HN preparation", () => {
 			reason: "content-too-short",
 		});
 		await app.crawled("https://publisher.com/summary-failed");
-		await app.crawl.markCrawlPending({ url: "https://publisher.com/in-flight" });
+		await app.crawl.markCrawlPending({ url: "https://publisher.com/in-flight", measured: false });
 		await app.prepareSnapshot();
 		expect(await app.statuses()).toEqual(["skipped", "skipped", "skipped", "skipped", "pending"]);
 		expect(app.published).toEqual([]);

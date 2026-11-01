@@ -85,7 +85,12 @@ const media = initMediaDepBundle({
 	imagesCdnBaseUrl,
 });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
-const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
+const articleAggregate = initArticleAggregateDepBundle({
+	dynamoClient,
+	articlesTable,
+	events,
+	logCrawlSettled: observability.logCrawlSettled,
+});
 
 const { readPendingPdf } = initReadPendingPdf({ client: s3Client, bucketName: pendingPdfBucketName });
 

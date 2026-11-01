@@ -52,6 +52,7 @@ describe("initTombstoneArticle", () => {
 			"canonicalContentHash",
 			"bodyHash",
 			"etag",
+			"crawlStartedAt",
 			"lastModified",
 			"contentFetchedAt",
 			"imageUrl",
