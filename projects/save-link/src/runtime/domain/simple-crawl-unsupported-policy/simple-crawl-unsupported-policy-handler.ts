@@ -8,20 +8,9 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
 	SimpleCrawlUnsupportedEvent,
-	type SimpleCrawlUnsupportedDetail,
 	ComprehensiveCrawlCommand,
 	RenderCrawlCommand,
 } from "@packages/hutch-infra-components";
-
-const DEFERRED_CRAWL_COMMANDS = {
-	"non-html-content": ComprehensiveCrawlCommand,
-	paywall: ComprehensiveCrawlCommand,
-	"javascript-required": RenderCrawlCommand,
-	unspecified: ComprehensiveCrawlCommand,
-} satisfies Record<
-	NonNullable<SimpleCrawlUnsupportedDetail["unsupportedReason"]> | "unspecified",
-	typeof ComprehensiveCrawlCommand | typeof RenderCrawlCommand
->;
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
@@ -39,9 +28,9 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 				const envelope = JSON.parse(record.body);
 				const detail = SimpleCrawlUnsupportedEvent.detailSchema.parse(envelope.detail);
 
-				const command = DEFERRED_CRAWL_COMMANDS[detail.unsupportedReason ?? "unspecified"];
-
-				await publishEvent(command, {
+				const { unsupportedReason } = detail;
+				const needsRender = unsupportedReason === "javascript-required" || unsupportedReason === "blocked";
+				const forwarded = {
 					url: detail.url,
 					userId: detail.userId,
 					recrawl: detail.recrawl,
@@ -49,11 +38,14 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 					previousBodyHash: detail.previousBodyHash,
 					saveAttemptId: detail.saveAttemptId,
 					candidates: detail.candidates,
-				});
+				};
+				if (needsRender) await publishEvent(RenderCrawlCommand, { ...forwarded, unsupportedReason });
+				else await publishEvent(ComprehensiveCrawlCommand, forwarded);
+				const command = needsRender ? RenderCrawlCommand : ComprehensiveCrawlCommand;
 
 				logger.info(`${logPrefix} dispatched ${command.detailType}`, {
 					url: detail.url,
-					unsupportedReason: detail.unsupportedReason,
+					unsupportedReason,
 					recrawl: detail.recrawl ? 1 : 0,
 					refresh: detail.refresh ? 1 : 0,
 				});

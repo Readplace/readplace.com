@@ -28,7 +28,8 @@ export type {
 export { resolveDocumentUrl } from "./resolve-document-url";
 export { initCrawlFetch } from "./crawl-fetch";
 export { initFetchPinnedCrawl } from "./fetch-pinned-crawl";
-export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
+export type { CrawlEgress, CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
+export { isProxyWorthyError, isProxyWorthyResponse } from "./proxied-ladder-fallback";
 export { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "./curl-fetch";
 export type { CurlImpersonateProbe, CurlImpersonateProbeResult } from "./curl-fetch";
 export { readBodyWithCap, BodyTooLargeError } from "./read-capped-body";

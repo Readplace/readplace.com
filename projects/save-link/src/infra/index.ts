@@ -391,7 +391,6 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -465,7 +464,6 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
@@ -569,7 +567,6 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
@@ -617,7 +614,6 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -956,7 +952,7 @@ const renderCrawlCommandDynamodb = new HutchDynamoDBAccess("render-crawl-command
 const renderCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCommand, {
 	memorySize: 3008,
 	ephemeralStorageSize: 1024,
-	timeout: 300,
+	timeout: 420,
 	containerImage: { imageUri: ocrImageTags["render-crawl-command"] },
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -1054,7 +1050,6 @@ const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveL
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["save-link-raw-pdf-command"] },
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
@@ -1118,7 +1113,6 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1674,7 +1668,6 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,

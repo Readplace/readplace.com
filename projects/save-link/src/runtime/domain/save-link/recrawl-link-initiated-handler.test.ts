@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlExhausted, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlExhausted, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import type {
@@ -155,12 +155,13 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("terminalises an edge-blocked recrawl (HTTP 403) via markCrawlBlocked and reports no batch failure — dead-lettering would let the DLQ handler relabel the block as exhausted-retries", async () => {
+	it("defers an edge-blocked recrawl (HTTP 403) to the render ladder and reports no batch failure", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
 
-		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist, publishEvent });
+		const handler = createHandler({ emitSimpleCrawlUnsupported, crawlAndFinalizeArticle, transitionAndPersist, publishEvent });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/walled" }),
@@ -169,10 +170,8 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
-			url: "https://example.com/walled",
-			input: { reason: { kind: "blocked", cause: "edge-block" } },
-		});
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked" }));
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 

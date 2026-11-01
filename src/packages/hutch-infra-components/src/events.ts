@@ -30,7 +30,7 @@ function defineCommand<T extends z.ZodTypeAny>(definition: {
 const SaveAttemptId = z.string().min(1).brand<"SaveAttemptId">();
 const CandidateReferences = z.array(z.object({ id: z.string().min(1).brand<"CandidateId">(), tier: z.enum(["tier-0", "tier-1", "tier-2"]) }));
 const LiveAttempt = z.object({ outcome: z.enum(["body", "no-body", "deferred"]), failureReason: CrawlFailureReasonSchema.optional() });
-const DeferredCrawlDetailSchema = z.object({
+const DeferredCrawlFields = z.object({
 	url: z.string(),
 	saveAttemptId: SaveAttemptId,
 	candidates: CandidateReferences.optional(),
@@ -38,10 +38,10 @@ const DeferredCrawlDetailSchema = z.object({
 	recrawl: z.boolean().optional(),
 	refresh: z.boolean().optional(),
 	previousBodyHash: z.string().optional(),
-}).refine(
-	(d) => !(d.recrawl && d.refresh),
-	{ message: "recrawl and refresh are mutually exclusive" },
-);
+});
+const isRecrawlOrRefresh = (d: { recrawl?: boolean; refresh?: boolean }) => !(d.recrawl && d.refresh);
+const RECRAWL_OR_REFRESH = { message: "recrawl and refresh are mutually exclusive" };
+const DeferredCrawlDetailSchema = DeferredCrawlFields.refine(isRecrawlOrRefresh, RECRAWL_OR_REFRESH);
 
 export const SaveLinkCommand = defineEvent({
 	name: "save-link-command",
@@ -211,7 +211,7 @@ export const SimpleCrawlUnsupportedEvent = defineEvent({
 		recrawl: z.boolean().optional(),
 		refresh: z.boolean().optional(),
 		previousBodyHash: z.string().optional(),
-		unsupportedReason: z.enum(["non-html-content", "paywall", "javascript-required"]).optional(),
+		unsupportedReason: z.enum(["non-html-content", "paywall", "javascript-required", "blocked"]).optional(),
 	}).refine(
 		(d) => !(d.recrawl && d.refresh),
 		{ message: "recrawl and refresh are mutually exclusive" },
@@ -250,7 +250,9 @@ export const RenderCrawlCommand = defineEvent({
 	name: "render-crawl-command",
 	source: "hutch.save-link",
 	detailType: "RenderCrawlCommand",
-	detailSchema: DeferredCrawlDetailSchema,
+	detailSchema: DeferredCrawlFields.extend({
+		unsupportedReason: z.enum(["javascript-required", "blocked"]),
+	}).refine(isRecrawlOrRefresh, RECRAWL_OR_REFRESH),
 });
 export type RenderCrawlDetail = z.infer<
 	typeof RenderCrawlCommand.detailSchema

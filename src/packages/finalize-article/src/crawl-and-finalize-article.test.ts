@@ -70,7 +70,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 
 		await crawlAndFinalize({ url: URL_UNDER_TEST, fetchUrl: capture });
 
-		expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({ url: capture, skipFetchPin: true }));
+		expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({ url: capture, skipFetchPin: true, retainBlockedResponse: true }));
 		expect(finalizeArticle).toHaveBeenCalledWith(expect.objectContaining({ url: URL_UNDER_TEST, documentUrl: capture }));
 	});
 

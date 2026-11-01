@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveLinkCommandHandler } from "./save-link-command-handler";
 import type {
@@ -252,13 +252,14 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
-	it("terminalises an edge-blocked link (HTTP 403) via markCrawlBlocked and reports no batch failure — dead-lettering would let the DLQ handler relabel the block as exhausted-retries", async () => {
+	it("defers an edge-blocked link (HTTP 403) to the render ladder and reports no batch failure", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403 });
 
-		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist, publishEvent, putTierSource });
+		const handler = createHandler({ emitSimpleCrawlUnsupported, crawlAndFinalizeArticle, transitionAndPersist, publishEvent, putTierSource });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/walled", userId: "user-1" }),
@@ -267,10 +268,8 @@ describe("initSaveLinkCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
-			url: "https://example.com/walled",
-			input: { reason: { kind: "blocked", cause: "edge-block" } },
-		});
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked" }));
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
 	});

@@ -6,7 +6,7 @@ import chromium from "@sparticuz/chromium";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { defaultResolveAll } from "@packages/crawl-article";
+import { CRAWL_PERSONAS, PROXIED_FETCH_TIMEOUTS, defaultResolveAll, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { requireEnv } from "@packages/require-env";
@@ -15,7 +15,7 @@ import { initRenderCrawlHandler } from "./domain/render-crawl/render-crawl-handl
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initPuppeteerRenderPage } from "./providers/render-page/puppeteer-render-page";
-import { initShouldAbortRequest } from "./providers/render-page/render-request-filter";
+import { initRenderRequestFilter, initShouldAbortRequest } from "./providers/render-page/render-request-filter";
 import { classifyRenderedDocument } from "./providers/render-page/classify-rendered-document";
 import { parseRenderProxy } from "./providers/render-page/parse-render-proxy";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
@@ -46,7 +46,6 @@ const now = () => new Date();
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const parser = initParserDepBundle({
-	proxyUrl: crawlEgressProxyUrl,
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
@@ -99,13 +98,31 @@ const renderPage = initPuppeteerRenderPage({
 	executablePath: () => chromium.executablePath(join(__dirname, "chromium-bin")),
 	launchArgs: chromium.args.filter((arg) => !RELAXED_ORIGIN_ARGS.has(arg)),
 	headless: "shell",
-	shouldAbortRequest: initShouldAbortRequest({ resolve: defaultResolveAll, isBlocked: isBlockedIpAddress }),
+	createRenderRequestFilter: initRenderRequestFilter({
+		shouldAbortRequest: initShouldAbortRequest({ resolve: defaultResolveAll, isBlocked: isBlockedIpAddress }),
+	}),
 	classifyRenderedDocument,
+});
+
+const proxiedCrawlArticle = initCrawlArticle({
+	crawlFetch: initCrawlFetch({
+		fetch: globalThis.fetch,
+		personas: CRAWL_PERSONAS,
+		isBlocked: isBlockedIpAddress,
+		logInfo: observability.logInfo,
+		egress: { kind: "proxy-only", proxyUrl: crawlEgressProxyUrl },
+	}),
+	siteRules: [],
+	logError: observability.logError,
+	logInfo: observability.logInfo,
+	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
+	fetchTimeouts: { headersMs: 100_000, bodyMs: PROXIED_FETCH_TIMEOUTS.bodyMs },
 });
 
 export const handler = initRenderCrawlHandler({
 	...sourceIdentity,
 	crawlArticle: parser.crawlArticle,
+	proxiedCrawlArticle,
 	finalizeArticle: crawlAndFinalize.finalizeArticle,
 	...articleStore,
 	...events,

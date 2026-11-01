@@ -47,7 +47,7 @@ export type CrawlArticleResult =
 	/* A failure carries the terminal too: the redirect chain's own `Location` is
 	 * the strongest available evidence of where a link lands, so a destination
 	 * that blocks or never answers can still claim its identity. */
-	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification }
+	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification; cause?: unknown }
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
 	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason };
@@ -86,5 +86,6 @@ export type CrawlArticle = (params: {
 	fetchThumbnail?: boolean;
 	onProgress?: ComprehensiveCrawlProgress;
 	retainResponseBody?: boolean;
+	retainBlockedResponse?: boolean;
 	skipFetchPin?: boolean;
 }) => Promise<CrawlArticleResult>;

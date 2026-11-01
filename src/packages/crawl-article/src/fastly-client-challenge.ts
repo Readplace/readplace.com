@@ -9,6 +9,13 @@ export async function isFastlyClientChallenge(response: Response): Promise<boole
 	return hasFastlyChallengeMarkers(await readLeadingText(body));
 }
 
+export function isBufferedFastlyClientChallenge(params: { response: Response; buffer: Buffer }): boolean {
+	const { response, buffer } = params;
+	if (!response.ok) return false;
+	if (!response.headers.get("content-type")?.includes("text/html")) return false;
+	return hasFastlyChallengeMarkers(buffer.subarray(0, INSPECTED_LEADING_BYTES).toString("utf8"));
+}
+
 export function hasFastlyChallengeMarkers(html: string): boolean {
 	return CHALLENGE_PAGE_MARKERS.every((marker) => html.includes(marker));
 }

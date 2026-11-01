@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlExhausted } from "@packages/domain/article-aggregate";
+import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	MinutesSchema,
 	ReaderArticleHashIdSchema,
@@ -680,10 +680,11 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 
-	it("acks an edge-blocked import (HTTP 403) after markCrawlBlocked and emits no tier event — dead-lettering would let the DLQ handler relabel the block as exhausted-retries", async () => {
+	it("defers an edge-blocked import (HTTP 403) to the render ladder and reports no batch failure", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const handler = createHandler({
+		const handler = createHandler({ emitSimpleCrawlUnsupported,
 			transitionAndPersist,
 			publishEvent,
 			crawlAndFinalizeArticle: (async () => ({
@@ -695,10 +696,8 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
-			url: exampleUrl,
-			input: { reason: { kind: "blocked", cause: "edge-block" } },
-		});
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked" }));
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 

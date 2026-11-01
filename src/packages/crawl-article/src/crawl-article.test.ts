@@ -7,7 +7,7 @@ import {
 	parsePdfFromBuffer,
 } from "./crawl-article";
 import type { CrawlArticleResult } from "./crawl-article.types";
-import type { CrawlFetch } from "./crawl-fetch";
+import type { CrawlEgress, CrawlFetch } from "./crawl-fetch";
 import type { LogThumbnailNotDelivered } from "./extract-thumbnail";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { CurlFetch } from "./curl-fetch";
@@ -17,6 +17,7 @@ import type { ExtractPdf } from "./pdf-extract.types";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { TransportLadderFailure } from "./transport-ladder-failure";
 import type { Persona } from "./persona-fallback";
+import { isProxyWorthyError } from "./proxied-ladder-fallback";
 import { initXTwitterSiteRules } from "./x-twitter-site-rules";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
@@ -66,14 +67,14 @@ function buildCrawlFetch(overrides: {
 	fetchH2?: typeof fetchH2;
 	personas?: ReadonlyArray<Persona>;
 	rateLimitRetryDelaysMs?: readonly number[];
-	proxyUrl?: string;
+	egress?: CrawlEgress;
 }): CrawlFetch {
 	return initCrawlFetch({
 		fetch: overrides.fetch,
 		personas: overrides.personas ?? [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
 		isBlocked: () => false,
 		logInfo: () => {},
-		proxyUrl: overrides.proxyUrl,
+		egress: overrides.egress ?? { kind: "direct" },
 		fetchCurl: overrides.fetchCurl ?? stubFetchCurl,
 		fetchH2: overrides.fetchH2 ?? stubFetchH2,
 		rateLimitRetryDelaysMs: overrides.rateLimitRetryDelaysMs,
@@ -91,7 +92,7 @@ function initCrawl(overrides: {
 	siteRules?: readonly SiteRules[];
 	fetchTimeouts?: { headersMs: number; bodyMs: number };
 	rateLimitRetryDelaysMs?: readonly number[];
-	proxyUrl?: string;
+	egress?: CrawlEgress;
 }) {
 	const crawlFetch = buildCrawlFetch(overrides);
 	const logError = overrides.logError ?? noopLogError;
@@ -803,7 +804,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			status: "failed",
 			failure: { kind: "origin-unreachable", code: "ECONNREFUSED" },
 		});
@@ -931,7 +932,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			fetch: originAndUnlocker,
 			fetchH2: blocked,
 			fetchCurl: blocked,
-			proxyUrl: "http://proxy.example:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		});
 
 		const result = await crawlArticle({ url: WRAPPER_URL });
@@ -1017,7 +1018,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		const result = await crawlArticle({ url: WRAPPER_URL });
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			status: "failed",
 			finalUrl: DESTINATION_URL,
 			failure: { kind: "fetch-failed" },
@@ -1279,7 +1280,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 		const startedAt = Date.now();
 		const result = await crawlArticle({ url: "https://example.com/huge.pdf" });
 
-		expect(result).toEqual({ status: "failed", failure: { kind: "fetch-failed" } });
+		expect(result).toMatchObject({ status: "failed", failure: { kind: "fetch-failed" } });
 		expect(curlCalls).toEqual(["https://example.com/huge.pdf"]);
 		expect(Date.now() - startedAt).toBeLessThan(1000);
 		expect(logError).toHaveBeenCalledTimes(1);
@@ -1309,7 +1310,7 @@ describe("initCrawlArticle — split fetch budgets (headers vs body)", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed", failure: { kind: "fetch-failed" } });
+		expect(result).toMatchObject({ status: "failed", failure: { kind: "fetch-failed" } });
 		expect(logError).toHaveBeenCalledTimes(1);
 		const loggedError = logError.mock.calls[0][1];
 		assert(loggedError instanceof Error, "Expected the body timeout to be logged as an Error");
@@ -2085,6 +2086,10 @@ describe("bounded wrapper response candidates", () => {
 		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status: 200, headers: { "content-type": "text/html", etag: '"capture-v1"' } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
 		expect(await crawlArticle({ url: "https://example.com/article", previousBodyHash: bodyHash, retainResponseBody: true })).toEqual({ status: "fetched", html, bodyHash, httpStatus: 200, finalUrl: undefined, etag: '"capture-v1"' });
 	});
+	it.each([403, 429, 451])("reports a retained %i as blocked rather than a body for the judge", async (status) => {
+		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response("<html><body>Access denied</body></html>", { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
+		expect(await crawlArticle({ url: "https://example.com/article", retainResponseBody: true })).toEqual({ status: "blocked", httpStatus: status, finalUrl: undefined });
+	});
 	it("retains an error response without Content-Type for the article judge", async () => {
 		const html = "<html><body><article>Article returned without a media declaration.</article></body></html>";
 		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(Buffer.from(html), { status: 503 }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
@@ -2105,7 +2110,7 @@ describe("bounded wrapper response candidates", () => {
 	it.each([200, 403, 404, 410, 429, 500])("retains HTTP %i body for the article judge", async (status) => {
 		const html = "<html><body><h1>Verify you are human</h1></body></html>";
 		const crawlArticle = initCrawlArticle({ crawlFetch: async () => new Response(html, { status, headers: { "content-type": "text/html" } }), siteRules: [], logError: noopLogError, logInfo: noopLogInfo, logThumbnailNotDelivered: () => {} });
-		const result = await crawlArticle({ url: "https://archive.ph/abcde", retainResponseBody: true });
+		const result = await crawlArticle({ url: "https://archive.ph/abcde", retainResponseBody: true, retainBlockedResponse: true });
 		expect(result).toEqual({ status: "fetched", html, bodyHash: createHash("sha256").update(html).digest("hex"), httpStatus: status, finalUrl: undefined });
 	});
 });
@@ -2293,7 +2298,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			},
 			fetchH2: blocked,
 			fetchCurl: blocked,
-			proxyUrl: "http://proxy.example:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 			logInfo,
 		});
 
@@ -2389,7 +2394,7 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 			fetchTimeouts: { headersMs: 15, bodyMs: 5000 },
 		});
 
-		expect(await crawlArticle({ url: ALIAS_URL })).toEqual({
+		expect(await crawlArticle({ url: ALIAS_URL })).toMatchObject({
 			status: "failed",
 			finalUrl: ARTICLE_URL,
 			failure: { kind: "fetch-failed" },
@@ -2473,5 +2478,53 @@ describe("initCrawlArticle — a page that only refreshes to another URL", () =>
 		expect(result.html).toBe(ALIAS_HTML);
 		expect(result.httpStatus).toBe(503);
 		expect(requested).toEqual([ALIAS_URL]);
+	});
+});
+
+describe("initCrawlArticle block classification on the direct ladder", () => {
+	const CHALLENGE_PAGE = "<html><head><title>Client Challenge</title></head><body><script src=\"/_fs-ch-1T1wmsGaOgGaSxcX/script.js\"></script></body></html>";
+
+	it("returns blocked with the terminal URL for a Fastly client-challenge 200", async () => {
+		const crawlArticle = initCrawl({
+			fetch: async () => new Response(CHALLENGE_PAGE, { status: 200, headers: { "content-type": "text/html" } }),
+		});
+
+		const result = await crawlArticle({ url: "https://example.com/challenged" });
+
+		expect(result).toEqual({ status: "blocked", httpStatus: 200, finalUrl: "https://example.com/challenged" });
+	});
+
+	it("returns blocked for a Fastly client-challenge 200 when the response body is retained", async () => {
+		const crawlArticle = initCrawl({
+			fetch: async () => new Response(CHALLENGE_PAGE, { status: 200, headers: { "content-type": "text/html" } }),
+		});
+
+		const result = await crawlArticle({ url: "https://example.com/challenged", retainResponseBody: true });
+
+		expect(result.status).toBe("blocked");
+	});
+
+	it("keeps a plain-text body that quotes the challenge markers", async () => {
+		const crawlArticle = initCrawl({
+			fetch: async () => new Response(CHALLENGE_PAGE, { status: 200, headers: { "content-type": "text/plain" } }),
+		});
+
+		const result = await crawlArticle({ url: "https://example.com/notes.txt" });
+
+		expect(result.status).toBe("fetched");
+	});
+
+	it("carries the underlying error on a failed fetch so a caller can tell a block from a hard failure", async () => {
+		const reset = Object.assign(new Error("no response headers"), { name: "TimeoutError" });
+		const crawlArticle = initCrawl({
+			fetch: async () => { throw reset; },
+			fetchH2: async () => { throw reset; },
+			fetchCurl: async () => { throw reset; },
+		});
+
+		const result = await crawlArticle({ url: "https://example.com/reset" });
+
+		assert(result.status === "failed");
+		expect(isProxyWorthyError(result.cause)).toBe(true);
 	});
 });

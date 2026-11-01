@@ -1,9 +1,8 @@
 import assert from "node:assert";
 import type { CandidateId, SaveAttemptId } from "@packages/domain/article";
-import { blockedCauseForStatus, type CrawlFailureReason, type CrawlUnsupportedReason } from "@packages/article-state-types";
+import type { CrawlFailureReason, CrawlUnsupportedReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
-	markCrawlBlocked,
 	markCrawlFailed,
 	markCrawlNotFound,
 	markCrawlUnsupported,
@@ -17,6 +16,7 @@ import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { DeferredUnsupportedKind, EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
+import { isProxyWorthyError } from "@packages/crawl-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
 import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
@@ -134,6 +134,14 @@ export function initSaveLinkWork(deps: {
 		logPrefix,
 	});
 
+	const deferBlocked = async (params: { url: string; options: SaveLinkWorkOptions; reason: string }): Promise<SaveLinkWorkResult> => {
+		const { url, options, reason } = params;
+		await markCrawlStage({ url, stage: "comprehensive-fetching" });
+		if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason: "blocked", userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId });
+		logger.info(`${logPrefix} tier-1 deferred to render crawl`, { url, reason });
+		return { deferred: "blocked" };
+	};
+
 	const saveLinkWork = async (url: string, options: SaveLinkWorkOptions): Promise<SaveLinkWorkResult> => {
 		const originalUrl = await deps.resolveOriginalUrl(url);
 		const attemptId = options.saveAttemptId;
@@ -183,24 +191,25 @@ export function initSaveLinkWork(deps: {
 		}
 
 		if (result.status === "blocked") {
-			logParseError({ url, reason: `crawl-blocked: HTTP ${result.httpStatus}` });
-			await emitTier1FailureOutcome({ url });
-			await transitionAndPersist(markCrawlBlocked, {
-				url,
-				input: {
-					reason: { kind: "blocked", cause: blockedCauseForStatus(result.httpStatus) },
-				},
-			});
 			await adoptCanonicalIdentity({
 				url,
 				finalUrl: result.finalUrl,
 				outcome: { kind: "crawl-failed" },
 				recrawl: options.recrawl,
 			});
-			return "tier-1-terminal";
+			return deferBlocked({ url, options, reason: `HTTP ${result.httpStatus}` });
 		}
 
 		if (result.status === "failed") {
+			if (result.reason === CRAWL_FAILED_REASON && isProxyWorthyError(result.cause)) {
+				await adoptCanonicalIdentity({
+					url,
+					finalUrl: result.finalUrl,
+					outcome: { kind: "crawl-failed" },
+					recrawl: options.recrawl,
+				});
+				return deferBlocked({ url, options, reason: "transport failure" });
+			}
 			if (result.reason !== CRAWL_FAILED_REASON) {
 				logParseError({ url, reason: result.reason });
 			}

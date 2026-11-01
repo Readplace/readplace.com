@@ -8,7 +8,7 @@ import { type OnRedirect, redirectable } from "./follow-redirects";
 import { createGuardedDispatcher } from "./guarded-dispatcher";
 import { type FetchH2, initFetchH2 } from "./h2-fetch";
 import { type Persona, withPersonaFallback } from "./persona-fallback";
-import { withProxiedLadderFallback } from "./proxied-ladder-fallback";
+import { withProxiedLadderFallback, withProxyOnlyLadder } from "./proxied-ladder-fallback";
 import { RATE_LIMIT_RETRY_DELAYS_MS, withRateLimitRetry } from "./rate-limit-retry";
 import { type LadderFetch, type Leg, type LegAttempt, runTransportLadder } from "./transport-ladder";
 
@@ -48,6 +48,11 @@ export type CrawlFetchInit = {
 
 export type CrawlFetch = (url: string, init: CrawlFetchInit) => Promise<Response>;
 
+export type CrawlEgress =
+	| { kind: "direct" }
+	| { kind: "direct-then-proxy"; proxyUrl: string }
+	| { kind: "proxy-only"; proxyUrl: string };
+
 export function initCrawlFetch(deps: {
 	fetch: typeof globalThis.fetch;
 	personas: ReadonlyArray<Persona>;
@@ -56,7 +61,7 @@ export function initCrawlFetch(deps: {
 	resolve?: ResolveAll;
 	fetchH2?: FetchH2;
 	fetchCurl?: CurlFetch;
-	proxyUrl: string | undefined;
+	egress: CrawlEgress;
 	rateLimitRetryDelaysMs?: readonly number[];
 }): CrawlFetch {
 	const resolve = deps.resolve ?? defaultResolveAll;
@@ -113,9 +118,7 @@ export function initCrawlFetch(deps: {
 		{ delaysMs: deps.rateLimitRetryDelaysMs ?? RATE_LIMIT_RETRY_DELAYS_MS },
 	);
 	/* Node's http2 has no proxy path, so the proxied pass omits the h2 leg. */
-	function buildProxyPipeline(): LadderFetch | undefined {
-		const proxyUrl = deps.proxyUrl;
-		if (proxyUrl === undefined) return undefined;
+	function buildProxyPipeline(proxyUrl: string): LadderFetch {
 		const proxyDispatcher = new ProxyAgent({ uri: proxyUrl, requestTls: { rejectUnauthorized: false } });
 		const proxyLegs: readonly Leg[] = [
 			primaryLeg(buildPrimaryFetch(proxyDispatcher, { chaseAia: false }), PROXY_PRIMARY_MAX_MILLISECONDS),
@@ -127,16 +130,18 @@ export function initCrawlFetch(deps: {
 			deps.personas,
 		);
 	}
-	const proxyPipeline = buildProxyPipeline();
-	const fetchWithFallback =
-		proxyPipeline === undefined
-			? directPipeline
-			: withProxiedLadderFallback({
-					directFetch: directPipeline,
-					proxyFetch: proxyPipeline,
-					proxyReserveMilliseconds: PROXY_RESERVE_MILLISECONDS,
-					now: Date.now,
-				});
+	function buildLadder(egress: CrawlEgress): LadderFetch {
+		if (egress.kind === "direct") return directPipeline;
+		const proxyFetch = buildProxyPipeline(egress.proxyUrl);
+		if (egress.kind === "proxy-only") return withProxyOnlyLadder({ proxyFetch, now: Date.now });
+		return withProxiedLadderFallback({
+			directFetch: directPipeline,
+			proxyFetch,
+			proxyReserveMilliseconds: PROXY_RESERVE_MILLISECONDS,
+			now: Date.now,
+		});
+	}
+	const fetchThroughEgress = buildLadder(deps.egress);
 	return async (url, init) => {
 		assert(
 			!(init.referer && init.headers?.referer),
@@ -158,7 +163,7 @@ export function initCrawlFetch(deps: {
 			else external.addEventListener("abort", forwardExternalAbort, { once: true });
 		}
 		const budget = createCrawlBudget({ signal: controller.signal, totalMs: init.budgetMs, now: Date.now });
-		return fetchWithFallback(url, { headers, budget, onRedirect: init.onRedirect })
+		return fetchThroughEgress(url, { headers, budget, onRedirect: init.onRedirect })
 			.catch((error) => {
 				if (controller.signal.aborted) throw controller.signal.reason;
 				throw error;

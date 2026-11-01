@@ -1,4 +1,4 @@
-import { createCrawlBudget } from "./crawl-budget";
+import { createCrawlBudget, deadlineReason } from "./crawl-budget";
 import { isFastlyClientChallenge } from "./fastly-client-challenge";
 import type { OnRedirect } from "./follow-redirects";
 import { isBlockClassError, isBlockClassResponse } from "./persona-fallback";
@@ -105,6 +105,38 @@ export function withProxiedLadderFallback(deps: {
 	};
 }
 
+export function withProxyOnlyLadder(deps: { proxyFetch: LadderFetch; now: () => number }): LadderFetch {
+	const { proxyFetch, now } = deps;
+	return async (url, init) => {
+		const { budget, headers, onRedirect } = init;
+		let lastError: unknown = deadlineReason(`budget under the ${PROXY_ATTEMPT_FLOOR_MILLISECONDS}ms proxied attempt floor`);
+		for (let attempt = 1; attempt <= PROXY_ATTEMPTS; attempt++) {
+			budget.deadline.signal.throwIfAborted();
+			if (budget.remainingMs() < PROXY_ATTEMPT_FLOOR_MILLISECONDS) break;
+			const proxyBudget = createCrawlBudget({
+				signal: budget.deadline.signal,
+				totalMs: budget.remainingMs(),
+				now,
+			});
+			try {
+				const response = await proxyFetch(url, { headers, onRedirect, budget: proxyBudget });
+				budget.deadline.signal.throwIfAborted();
+				const worthRetrying =
+					PROXY_GATEWAY_STATUSES.has(response.status) &&
+					attempt < PROXY_ATTEMPTS &&
+					budget.remainingMs() >= PROXY_ATTEMPT_FLOOR_MILLISECONDS;
+				if (!worthRetrying) return response;
+				await response.text();
+			} catch (error) {
+				budget.deadline.signal.throwIfAborted();
+				if (!isTimeout(error)) throw error;
+				lastError = error;
+			}
+		}
+		throw lastError;
+	};
+}
+
 function frozenProxyTarget(params: {
 	entryUrl: string;
 	directOutcome: DirectOutcome;
@@ -123,7 +155,7 @@ function surface(directOutcome: DirectOutcome): Response {
 	throw directOutcome.thrown;
 }
 
-function isProxyWorthyResponse(response: Response): boolean {
+export function isProxyWorthyResponse(response: Response): boolean {
 	return isBlockClassResponse(response) || response.status === 429;
 }
 
@@ -132,7 +164,7 @@ function isTimeout(error: unknown): boolean {
 	return error instanceof Error && error.name === "TimeoutError";
 }
 
-function isProxyWorthyError(error: unknown): boolean {
+export function isProxyWorthyError(error: unknown): boolean {
 	if (isHardCrawlFailure(error)) return false;
 	if (isBlockClassError(error)) return true;
 	return isTimeout(error);

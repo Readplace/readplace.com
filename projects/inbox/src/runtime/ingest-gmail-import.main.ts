@@ -69,7 +69,7 @@ const crawlFetch = initCrawlFetch({
 	personas: CRAWL_PERSONAS,
 	isBlocked: isBlockedIpAddress,
 	logInfo: (message) => logger.info(message),
-	proxyUrl: undefined,
+	egress: { kind: "direct" },
 });
 if (getEnv("AWS_LAMBDA_FUNCTION_NAME")) {
 	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
