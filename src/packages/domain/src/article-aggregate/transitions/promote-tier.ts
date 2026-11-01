@@ -51,9 +51,16 @@ export function promoteTier(
 	const writes: AggregateField[] = ["metadata", "freshness", "crawl", ...available.writes];
 	const effects: Effect[] = [];
 	const summaryInvalidated = input.canonicalChanged || contentChanged || isCanonicalCandidateRevoked(article.contentSelection);
+	const crawlFailedSummary =
+		!summaryInvalidated &&
+		article.summary.kind === "failed" &&
+		article.summary.reason.kind === "crawl-failed";
 	if (summaryInvalidated) {
 		writes.push("summary");
 		effects.push({ kind: "publish-canonical-content-changed", url: article.url });
+	} else if (crawlFailedSummary) {
+		writes.push("summary");
+		effects.push({ kind: "generate-summary", url: article.url });
 	}
 	effects.push({ kind: "publish-crawl-article-completed", url: article.url });
 
@@ -69,7 +76,7 @@ export function promoteTier(
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,
 		crawl: { kind: "ready" },
-		summary: summaryInvalidated ? pendingSummary(article, input.now) : article.summary,
+		summary: summaryInvalidated || crawlFailedSummary ? pendingSummary(article, input.now) : article.summary,
 	};
 
 	return { article: next, effects, writes };

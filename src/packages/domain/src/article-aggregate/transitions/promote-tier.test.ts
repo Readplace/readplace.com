@@ -298,6 +298,124 @@ describe("promoteTier", () => {
 		]);
 	});
 
+	it("re-primes a crawl-failed summary when the content is unchanged", () => {
+		const before = buildArticle({
+			url: "https://example.com/post",
+			freshness: {
+				etag: '"old-etag"',
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: { kind: "failed", reason: { kind: "crawl-failed" } },
+		});
+
+		const { article, effects, writes } = promoteTier(
+			before,
+			buildInput({
+				metadata: canonicalMetadata(before.metadata),
+				estimatedReadTime: 1,
+				canonicalChanged: false,
+				canonicalContentHash: HASH_A,
+			}),
+		);
+
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
+		assert.ok(writes.includes("summary"));
+		assert.deepEqual(effects, [
+			{ kind: "generate-summary", url: "https://example.com/post" },
+			{ kind: "publish-crawl-article-completed", url: "https://example.com/post" },
+		]);
+	});
+
+	it("leaves a ready summary alone when the content is unchanged", () => {
+		const readySummary = { kind: "ready" as const, summary: "kept" };
+		const before = buildArticle({
+			url: "https://example.com/post",
+			freshness: {
+				etag: '"old-etag"',
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: readySummary,
+		});
+
+		const { article, effects, writes } = promoteTier(
+			before,
+			buildInput({
+				metadata: canonicalMetadata(before.metadata),
+				estimatedReadTime: 1,
+				canonicalChanged: false,
+				canonicalContentHash: HASH_A,
+			}),
+		);
+
+		assert.deepEqual(article.summary, readySummary);
+		assert.ok(!writes.includes("summary"));
+		assert.deepEqual(effects, [
+			{ kind: "publish-crawl-article-completed", url: "https://example.com/post" },
+		]);
+	});
+
+	it("keeps an exhausted-retries summary failed", () => {
+		const exhaustedSummary = {
+			kind: "failed" as const,
+			reason: { kind: "exhausted-retries" as const, receiveCount: 3 },
+		};
+		const before = buildArticle({
+			url: "https://example.com/post",
+			freshness: {
+				etag: '"old-etag"',
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: exhaustedSummary,
+		});
+
+		const { article, effects, writes } = promoteTier(
+			before,
+			buildInput({
+				metadata: canonicalMetadata(before.metadata),
+				estimatedReadTime: 1,
+				canonicalChanged: false,
+				canonicalContentHash: HASH_A,
+			}),
+		);
+
+		assert.deepEqual(article.summary, exhaustedSummary);
+		assert.ok(!writes.includes("summary"));
+		assert.deepEqual(effects, [
+			{ kind: "publish-crawl-article-completed", url: "https://example.com/post" },
+		]);
+	});
+
+	it("an invalidated summary keeps the canonical-content-changed path and no generate-summary effect", () => {
+		const before = buildArticle({
+			url: "https://example.com/post",
+			freshness: {
+				etag: '"old-etag"',
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: { kind: "failed", reason: { kind: "crawl-failed" } },
+		});
+
+		const { article, effects } = promoteTier(
+			before,
+			buildInput({
+				metadata: canonicalMetadata(before.metadata),
+				estimatedReadTime: 1,
+				canonicalChanged: false,
+				canonicalContentHash: HASH_B,
+			}),
+		);
+
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
+		assert.deepEqual(effects, [
+			{ kind: "publish-canonical-content-changed", url: "https://example.com/post" },
+			{ kind: "publish-crawl-article-completed", url: "https://example.com/post" },
+		]);
+	});
+
 	it("treats a missing previous canonicalContentHash as content-changed and announces it (lazy backfill on first run after deploy)", () => {
 		const before = buildArticle({
 			freshness: {
