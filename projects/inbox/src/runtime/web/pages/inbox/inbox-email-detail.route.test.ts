@@ -1314,8 +1314,12 @@ describe("Inbox email detail for a Gmail newsletter kept as an issue", () => {
 describe("Inbox email detail for an inbox routed to a readlist", () => {
 	const DECIDED: InboxReadlistOutcome = {
 		readlist: WORK,
-		decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
-		dropped: [{ ordinal: EmailLinkOrdinalSchema.parse("0001"), reason: "A product launch, not engineering" }],
+		readlistLabel: "Work",
+		decision: "filtered",
+		fit: [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep", reason: "Engineering practice" },
+			{ ordinal: EmailLinkOrdinalSchema.parse("0001"), verdict: "drop", reason: "A product launch, not engineering" },
+		],
 	};
 
 	function noticeTexts(doc: ReturnType<typeof parseDoc>): (string | null)[] {
@@ -1362,6 +1366,33 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		).toEqual(["0000", "0001"]);
 	});
 
+	it("renders an unsure link like a drop, with no marker", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, ROUTED_LINKS);
+		await seedRoutedSnapshot(fixture, {
+			eligibleArticleCount: 2,
+			outcome: {
+				...DECIDED,
+				fit: [
+					{ ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep", reason: "Engineering practice" },
+					{ ordinal: EmailLinkOrdinalSchema.parse("0001"), verdict: "unsure", reason: "The page gives too little to tell" },
+				],
+			},
+		});
+
+		const doc = parseDoc((await agent.get(articlesTabPath)).text);
+
+		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
+		assert(panel, "the Articles panel must render");
+		expect(noticeTexts(doc)).toEqual(["Saved to All.", "1 article saved to Work; 1 didn't fit."]);
+		expect(panel.outerHTML).not.toMatch(/unsure/i);
+		expect(panel.outerHTML).not.toContain("The page gives too little to tell");
+		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(2);
+	});
+
 	it("lists only triage rows on the Skipped tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
@@ -1388,7 +1419,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		await seedLinks(fixture, ROUTED_LINKS);
 		await seedRoutedSnapshot(fixture, {
 			eligibleArticleCount: 2,
-			outcome: { readlist: WORK, decision: { state: "failed", readlist: WORK }, dropped: [] },
+			outcome: { readlist: WORK, readlistLabel: "Work", decision: "failed", fit: [] },
 		});
 
 		const doc = parseDoc((await agent.get(articlesTabPath)).text);

@@ -837,6 +837,9 @@ importers:
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../../src/packages/provider-contracts
+      '@packages/readlist-fit':
+        specifier: workspace:*
+        version: link:../../src/packages/readlist-fit
       '@packages/refresh-article-content':
         specifier: workspace:*
         version: link:../../src/packages/refresh-article-content

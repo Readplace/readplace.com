@@ -3,7 +3,7 @@ import {
 	EmailLinkOrdinalSchema,
 	type InboxEmailLinkEntry,
 } from "@packages/domain/inbox";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { ReadlistPurposeVersionSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryInboxEmailLink } from "./in-memory-inbox-email-link";
 
@@ -353,8 +353,9 @@ it("keeps Gmail list results independent, preserves the first selection, and rem
 	const key = { userId: owner, receivedAtMessageId: RAM };
 	const outcome = {
 		readlist: WORK,
-		decision: { state: "failed" as const, readlist: WORK },
-		dropped: [],
+		readlistLabel: "Work",
+		decision: "failed" as const,
+		fit: [],
 	};
 	await store.putLinksMeta({
 		...key,
@@ -392,6 +393,41 @@ it("keeps Gmail list results independent, preserves the first selection, and rem
 	expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual(
 		[],
 	);
+});
+
+it("round-trips a Gmail list result with every verdict, and one without a purpose version, engine or model", async () => {
+	const store = initInMemoryInboxEmailLink();
+	const key = { userId: owner, receivedAtMessageId: RAM };
+	const decided = {
+		readlist: WORK,
+		readlistLabel: "Work",
+		decision: "filtered" as const,
+		fit: [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep" as const, reason: "On topic" },
+			{ ordinal: EmailLinkOrdinalSchema.parse("0001"), verdict: "drop" as const, reason: "Outside this list" },
+			{ ordinal: EmailLinkOrdinalSchema.parse("0002"), verdict: "unsure" as const, reason: "Could go either way" },
+		],
+		purposeVersion: ReadlistPurposeVersionSchema.parse("0123456789ab"),
+		engine: "deepseek-flash",
+		model: "deepseek-v4-flash",
+	};
+	const noPurpose = {
+		readlist: ReadlistSlugSchema.parse("science"),
+		readlistLabel: "Science",
+		decision: "no-purpose" as const,
+		fit: [],
+	};
+	await store.putLinksMeta({
+		...key,
+		meta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }] },
+	});
+	await store.putReadlistOutcome({ ...key, outcome: decided });
+	await store.putReadlistOutcome({ ...key, outcome: noPurpose });
+	const outcomes = (await store.listLinksByEmail(key)).meta?.readlistOutcomes;
+	expect(outcomes).toEqual([decided, noPurpose]);
+	expect(outcomes?.[1]).not.toHaveProperty("purposeVersion");
+	expect(outcomes?.[1]).not.toHaveProperty("engine");
+	expect(outcomes?.[1]).not.toHaveProperty("model");
 });
 
 it("preserves the accepted Gmail eligibility count and held flag when extraction retries", async () => {

@@ -1,4 +1,5 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { initFindSavedArticleForLink } from "@packages/article-store";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	MinutesSchema,
@@ -13,15 +14,16 @@ import { UserIdSchema } from "@packages/domain/user";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
 	EmailLinksFilteredEvent,
+	FileArticleIntoReadlistCommand,
 	QueueEntryCreatedEvent,
-	SubmitLinkCommand,
 	TierContentExtractedEvent,
 	EmailOutputSavedToAllEvent,
 	LinkQueueFailedEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
-import { initFileArticleIntoReadlist } from "@packages/save-article";
+import type { DecideReadlistFit } from "@packages/readlist-fit";
+import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type {
@@ -34,6 +36,7 @@ import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initSubmitLinkCommandHandler } from "./submit-link-command-handler";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
+import { initFileArticleIntoReadlistCommandHandler } from "../file-article-into-readlist/file-article-into-readlist-command-handler";
 import { initFilterEmailLinksHandler } from "../filter-email-links/filter-email-links-handler";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
@@ -197,26 +200,53 @@ describe("initSubmitLinkCommandHandler", () => {
 		const initial = createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letter@example.com" } }]);
 		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
 		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
+		await store.claimAlias({ aliasUrl: exampleUrl, targetOriginalUrl: canonical, now: fixedNow() });
+		const fileIntoReadlist = initFileArticleIntoReadlistCommandHandler({
+			findSavedArticleForLink: initFindSavedArticleForLink({
+				resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: store.findIdentityRow }),
+				findArticleById: store.findArticleById,
+			}),
+			fileArticleIntoReadlist: initFileArticleIntoReadlist(store),
+			publishEvent: async () => {},
+			logger: noopLogger,
+			now: fixedNow,
+		});
 		const terminal: unknown[] = [];
 		const publishEvent: PublishEvent = async (event, detail) => {
-			if (event.detailType === SubmitLinkCommand.detailType) {
-				const result = await run(submit, buildSqsEvent([{ messageId: "save", body: JSON.stringify({ detail }) }]));
+			if (event.detailType === FileArticleIntoReadlistCommand.detailType) {
+				const result = await run(fileIntoReadlist, buildSqsEvent([{ messageId: "file", body: JSON.stringify({ detail }) }]));
 				expect(result.batchItemFailures).toEqual([]);
 			}
 			if (event.detailType === EmailLinksFilteredEvent.detailType) terminal.push(detail);
 		};
+		const decideReadlistFit: DecideReadlistFit = async ({ purpose, candidates }) => {
+			if (purpose.keep === unavailable) throw new Error("Custom filtering unavailable");
+			return {
+				decisions: candidates.map(({ id }) => ({
+					id,
+					verdict: purpose.keep === accepted ? "keep" : "drop",
+					reason: "Judged against this readlist's purpose",
+				})),
+				engine: "deepseek-flash",
+				model: "deepseek-chat",
+				usage: { inputTokens: 10, outputTokens: 10, reasoningTokens: 0 },
+			};
+		};
+		const discardLines: HutchLogger.Typed<unknown> = {
+			info: () => {},
+			error: () => {},
+			warn: () => {},
+			debug: () => {},
+		};
 		const filter = initFilterEmailLinksHandler({
 			listReadlistDefinitions: store.listReadlistDefinitions,
-			decideEmailLinks: async ({ purpose, links }) => {
-				if (purpose === unavailable) throw new Error("Custom filtering unavailable");
-				return {
-					kept: purpose === accepted ? links.map((link) => link.ordinal) : [],
-					dropped: purpose === rejected ? links.map((link) => ({ ordinal: link.ordinal, reason: "Outside this readlist's purpose" })) : [],
-					inputTokens: 10, outputTokens: 10, reasoningTokens: 0,
-				};
-			},
+			decideReadlistFit,
 			publishEvent,
 			logger: noopLogger,
+			fitDecidedLog: discardLines,
+			fitUnsureLog: discardLines,
+			deepseekCallFailedLog: discardLines,
+			now: fixedNow,
 		});
 		const deliveries = buildSqsEvent([accepted, rejected, unavailable].map((readlist) => ({
 			messageId: readlist,

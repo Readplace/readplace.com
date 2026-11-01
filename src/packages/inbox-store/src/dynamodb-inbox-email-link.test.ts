@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { EmailLinkOrdinalSchema } from "@packages/domain/inbox";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { ReadlistPurposeVersionSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
@@ -820,12 +820,15 @@ describe("initDynamoDbInboxEmailLink", () => {
 describe("Gmail readlist outcomes", () => {
 	const outcome = {
 		readlist: WORK,
-		decision: {
-			state: "decided" as const,
-			readlist: WORK,
-			readlistLabel: "Work",
-		},
-		dropped: [{ ordinal: ORDINAL, reason: "Outside this list" }],
+		readlistLabel: "Work",
+		decision: "filtered" as const,
+		fit: [
+			{ ordinal: ORDINAL, verdict: "drop" as const, reason: "Outside this list" },
+			{ ordinal: EmailLinkOrdinalSchema.parse("0001"), verdict: "unsure" as const, reason: "Could go either way" },
+		],
+		purposeVersion: ReadlistPurposeVersionSchema.parse("0123456789ab"),
+		engine: "deepseek-flash",
+		model: "deepseek-v4-flash",
 	};
 	it("conditionally inserts a reserved result row and retains the first terminal outcome", async () => {
 		let captured: CapturedCommand | undefined;
@@ -866,6 +869,37 @@ describe("Gmail readlist outcomes", () => {
 				outcome,
 			}),
 		).rejects.toThrow("unavailable");
+	});
+	it("writes no purpose version, engine or model key when the outcome has none", async () => {
+		let captured: CapturedCommand | undefined;
+		await store((command) => {
+			captured = command as CapturedCommand;
+			return {};
+		}).putReadlistOutcome({
+			userId: USER,
+			receivedAtMessageId: RAM,
+			outcome: {
+				readlist: WORK,
+				readlistLabel: "Work",
+				decision: "no-purpose",
+				fit: [],
+				purposeVersion: undefined,
+				engine: undefined,
+				model: undefined,
+			},
+		});
+		expect(captured?.input.Item).toStrictEqual({
+			userLinkGroup: GROUP,
+			ordinal: `readlist#${WORK}`,
+			userId: USER,
+			receivedAtMessageId: RAM,
+			readlistOutcome: {
+				readlist: WORK,
+				readlistLabel: "Work",
+				decision: "no-purpose",
+				fit: [],
+			},
+		});
 	});
 	it("loads result rows beside links and the preserved destination snapshot", async () => {
 		const { client } = createPaginatedClient([

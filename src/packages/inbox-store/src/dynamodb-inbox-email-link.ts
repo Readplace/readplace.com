@@ -340,6 +340,12 @@ export function initDynamoDbInboxEmailLink(deps: {
 			}
 		},
 		putReadlistOutcome: async ({ userId, receivedAtMessageId, outcome }) => {
+			const { purposeVersion, engine, model, ...decided } = outcome;
+			const readlistOutcome: Record<string, unknown> = { ...decided };
+			if (purposeVersion !== undefined)
+				readlistOutcome.purposeVersion = purposeVersion;
+			if (engine !== undefined) readlistOutcome.engine = engine;
+			if (model !== undefined) readlistOutcome.model = model;
 			try {
 				await table.put({
 					Item: {
@@ -347,7 +353,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 						ordinal: `${READLIST_OUTCOME_PREFIX}${outcome.readlist}`,
 						userId,
 						receivedAtMessageId,
-						readlistOutcome: outcome,
+						readlistOutcome,
 					},
 					ConditionExpression: "attribute_not_exists(ordinal)",
 				});

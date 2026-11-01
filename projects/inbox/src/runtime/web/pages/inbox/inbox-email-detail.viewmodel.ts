@@ -126,18 +126,18 @@ function readlistSaveNotices(input: {
 					: `Still choosing articles for ${label}. Reload later to see the result.`,
 				iconName: input.withinPollBudget ? "loader" : undefined,
 			});
-		} else if (outcome.decision.state === "failed") {
+		} else if (outcome.decision === "failed") {
 			notices.push({
 				key: "decided",
 				text: `Couldn't choose articles for ${label}. Articles remain in All.`,
 				iconName: undefined,
 			});
 		} else {
-			const dropped = outcome.dropped.length;
+			const dropped = outcome.fit.filter(({ verdict }) => verdict !== "keep").length;
 			const saved = Math.max(0, input.articles - dropped);
 			notices.push({
 				key: "decided",
-				text: `${saved} ${saved === 1 ? "article" : "articles"} saved to ${outcome.decision.readlistLabel}; ${dropped} didn't fit.`,
+				text: `${saved} ${saved === 1 ? "article" : "articles"} saved to ${outcome.readlistLabel}; ${dropped} didn't fit.`,
 				iconName: undefined,
 			});
 		}

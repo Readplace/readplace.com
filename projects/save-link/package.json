@@ -35,6 +35,7 @@
     "@packages/hutch-storage-client": "workspace:*",
     "@packages/onboarding-signals": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
+    "@packages/readlist-fit": "workspace:*",
     "@packages/refresh-article-content": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/retriable": "workspace:*",
