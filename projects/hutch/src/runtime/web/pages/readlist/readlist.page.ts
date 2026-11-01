@@ -168,6 +168,7 @@ import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
+import { buildQueryString } from "../../api/collection-query";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toSavedArticleEntity } from "../../api/article-siren";
 import { readlistsAtHrefs } from "../../api/readlist-href";
@@ -272,15 +273,17 @@ import {
 } from "../../onboarding/extension-install";
 import {
 	hasBackgroundSaveContinuity,
+	isIosBuildBeforeRekeyedShareTargets,
 	isNativeClient,
 	isNativeSurface,
 	nativeClientOf,
 	nativeSurfaceOf,
 	nativeSurfaceQuery,
+	readlistQueryKeyOf,
 } from "../../onboarding/native-client";
 import { EXIT_CONFIRM_SCOPE } from "../reader/reader-exit-confirm.component";
 import { MARKED_READ_EVENT } from "../reader/reader-exit-confirm.client";
-import { setSirenCollectionCaching } from "../../siren-discovery-cache";
+import { setSirenCanonicalRedirectCaching, setSirenCollectionCaching } from "../../siren-discovery-cache";
 import { APP_BACK_LINK } from "../../shared/native-app-links";
 import type {
 	GetOnboardingSignals,
@@ -1849,6 +1852,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const store = storeFor(urlState.readlist);
 		const tab = tabQuery(urlState.tab);
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
+		const readlistKey = readlistQueryKeyOf(req);
+		const canonicalQuery = { readlistKey, readlist: urlState.readlist, status: tab.status, order: urlState.order, page: urlState.page, url: filterUrl };
+		if (siren && readlistKey === "readlist" && req.query.queue !== undefined && req.query.readlist === undefined) {
+			setSirenCanonicalRedirectCaching(res);
+			res.redirect(303, `${READLIST_PATH}${buildQueryString(canonicalQuery)}`);
+			return;
+		}
 
 		tagPageviewSortOrder(res, urlState.order);
 		const order = urlState.order ?? tab.defaultOrder;
@@ -1882,13 +1892,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			res.type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
 					filtered,
-					{
-						readlist: urlState.readlist,
-						status: tab.status,
-						order: urlState.order,
-						page: urlState.page,
-						url: filterUrl,
-					},
+					canonicalQuery,
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
@@ -2049,7 +2053,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
 					collection,
-					{ page: collection.page },
+					{ readlistKey: readlistQueryKeyOf(req), page: collection.page },
 					{
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
@@ -2068,7 +2072,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const ticked = readlistsAtHrefs({
 				hrefs: [
 					...(SaveArticleReadlistsSchema.parse(req.body?.readlists) ?? []),
-					...(SaveArticleReadlistsSchema.parse(req.body?.queues) ?? []),
+					...(isIosBuildBeforeRekeyedShareTargets(req) ? (SaveArticleReadlistsSchema.parse(req.body?.queues) ?? []) : []),
 				],
 				readlists: context.readlists,
 			});
@@ -2122,6 +2126,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						filedInto: destinations.length > 0 ? destinations : [context.activeReadlist],
 						readlists: context.readlists,
 					},
+					readlistKey: readlistQueryKeyOf(req),
 				}),
 			);
 		} catch (error) {
@@ -2457,6 +2462,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						wroteUserArticle: result.wroteUserArticle,
 						resurfacedFromRead: result.resurfacedFromRead,
 						destination: { filedInto: [DEFAULT_READLIST], readlists: context.readlists },
+						readlistKey: readlistQueryKeyOf(req),
 					}),
 				);
 			};

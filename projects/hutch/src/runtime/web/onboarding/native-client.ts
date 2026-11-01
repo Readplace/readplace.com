@@ -1,5 +1,6 @@
 import type { BuiltInOAuthClientId } from "@packages/supported-clients";
 import type { Request } from "express";
+import type { ReadlistQueryKey } from "../api/collection-query";
 
 /** Header a native app sets on every authenticated Siren request. A browser on
  * the same phone can't read the app's cookies, so the server tells an app
@@ -94,4 +95,18 @@ export function nativeSurfaceQuery(req: Request): string {
 		...(surface === undefined ? [] : [`${PLATFORM_QUERY}=${surface}`]),
 		...(isAppShell(req) ? [`${APP_SHELL_QUERY}=${APP_SHELL_VALUE}`] : []),
 	].join("&");
+}
+
+const IOS_USER_AGENT = /^(?:Readplace|ShareExtension)\/(?:(\d+) CFNetwork\/[\d.]+ Darwin\/[\d.]+|build-(\d+) iOS\/[\w.]+)$/;
+
+const IOS_BUILD_WITH_REKEYED_SHARE_TARGETS = 134; // iOS builds before 134 match share targets by exact href, so a flipped key unticks every readlist a reader chose
+
+export function isIosBuildBeforeRekeyedShareTargets(req: Request): boolean {
+	const match = IOS_USER_AGENT.exec(req.get("user-agent") ?? "");
+	if (match === null) return false;
+	return Number(match[1] ?? match[2]) < IOS_BUILD_WITH_REKEYED_SHARE_TARGETS;
+}
+
+export function readlistQueryKeyOf(req: Request): ReadlistQueryKey {
+	return isIosBuildBeforeRekeyedShareTargets(req) ? "queue" : "readlist";
 }

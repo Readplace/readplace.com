@@ -1,12 +1,12 @@
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
 import { READLIST_PATH } from "../pages/readlist/readlist.url";
-import { buildQueryString } from "./collection-query";
+import { type ReadlistQueryKey, buildQueryString } from "./collection-query";
 import type { ReadlistOption } from "./readlist-list";
 
 const HREF_BASE = "https://readlist.invalid";
 
-export function readlistHref(readlist: ReadlistSlug): string {
-	return `/queue${buildQueryString({ readlist })}`;
+export function readlistHref(params: { readlist: ReadlistSlug; readlistKey: ReadlistQueryKey }): string {
+	return `/queue${buildQueryString(params)}`;
 }
 
 function slugAtHref(href: string): ReadlistSlug | undefined {

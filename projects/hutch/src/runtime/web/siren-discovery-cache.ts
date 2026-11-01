@@ -13,12 +13,18 @@ const REVALIDATE_DIRECTIVE = "private, no-cache";
 const COLLECTION_VARY = [
 	"Accept",
 	"Authorization",
+	"User-Agent",
 	NATIVE_CLIENT_HEADER,
 	SAVE_CONTINUITY_HEADER,
 ].join(", ");
 
 export function setSirenCollectionCaching(req: Request, res: Response): void {
 	res.set("Cache-Control", isNativeClient(req) ? MAX_AGE_DIRECTIVE : REVALIDATE_DIRECTIVE);
+	res.vary(COLLECTION_VARY);
+}
+
+export function setSirenCanonicalRedirectCaching(res: Response): void {
+	res.set("Cache-Control", REVALIDATE_DIRECTIVE);
 	res.vary(COLLECTION_VARY);
 }
 

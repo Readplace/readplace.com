@@ -6,7 +6,7 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { computeArticleContentVersion } from "../shared/article-content-version";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
-import { type CollectionQueryParams, buildQueryString } from "./collection-query";
+import { type CollectionQueryParams, type ReadlistQueryKey, buildQueryString } from "./collection-query";
 import type { ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
 
@@ -23,7 +23,7 @@ export function toArticleSubEntity(
 ): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
-		{ rel: ["read"], title: "Read", href: `/queue/${id}/view${buildQueryString({ readlist: options.collectionQuery?.readlist })}` },
+		{ rel: ["read"], title: "Read", href: `/queue/${id}/view${options.collectionQuery ? buildQueryString({ readlistKey: options.collectionQuery.readlistKey, readlist: options.collectionQuery.readlist }) : ""}` },
 	];
 
 	const isRead = article.status === "read";
@@ -63,7 +63,7 @@ export function toArticleSubEntity(
 			{
 				name: "update-status",
 				title: isRead ? "Mark as unread" : "Mark as read",
-				href: `/queue/${id}/status${buildQueryString(options.collectionQuery ?? {})}`,
+				href: `/queue/${id}/status${options.collectionQuery ? buildQueryString(options.collectionQuery) : ""}`,
 				method: "POST",
 				type: "application/x-www-form-urlencoded",
 				fields: [{ name: "status", type: "text", value: targetStatus }],
@@ -108,6 +108,7 @@ export function toSavedArticleEntity(params: {
 	wroteUserArticle: boolean;
 	resurfacedFromRead: boolean;
 	destination: SaveDestination;
+	readlistKey: ReadlistQueryKey;
 }): SirenEntity {
 	const [collectionReadlist] = params.destination.filedInto;
 	assert(collectionReadlist, "a save always lands in at least one readlist");
@@ -136,7 +137,7 @@ export function toSavedArticleEntity(params: {
 			{
 				rel: ["collection"],
 				title: "View Readlist",
-				href: readlistHref(collectionReadlist.slug),
+				href: readlistHref({ readlist: collectionReadlist.slug, readlistKey: params.readlistKey }),
 			},
 		],
 	};

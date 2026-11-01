@@ -330,23 +330,38 @@ describe("GET /queue (Siren content negotiation)", () => {
 		]);
 	});
 
-	it("answers a queue the web page names in its URL with the byte-identical collection a shipped client already reads", async () => {
+	it("sends a Siren client that names a readlist under the retired queue key to the same listing under the readlist key", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.get("/queue?queue=default&status=read&order=asc&page=2&url=https%3A%2F%2Fexample.com%2Farticle")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect([response.status, response.headers.location]).toEqual([
+			303,
+			"/queue?status=read&order=asc&page=2&url=https%3A%2F%2Fexample.com%2Farticle",
+		]);
+	});
+
+	it("answers the mainline named under the readlist key with the byte-identical collection a shipped client already reads", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const userId = await loginAndSave(harness, { email: "queue-param@example.com", urlCount: 1 });
 		const accessToken = await saveAccessTokenForUser(harness, userId);
 
-		const withoutQueue = await request(harness.server)
+		const withoutReadlist = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
-		const withQueue = await request(harness.server)
-			.get("/queue?queue=default")
+		const withReadlist = await request(harness.server)
+			.get("/queue?readlist=default")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
 
-		expect(withQueue.status).toBe(200);
-		expect(withoutQueue.body.entities).toHaveLength(1);
-		expect(withQueue.body).toEqual(withoutQueue.body);
+		expect(withReadlist.status).toBe(200);
+		expect(withoutReadlist.body.entities).toHaveLength(1);
+		expect(withReadlist.body).toEqual(withoutReadlist.body);
 	});
 });
 
@@ -1393,6 +1408,104 @@ describe("Siren readlists", () => {
 		return body.properties.messages.map((message) => message.content.body);
 	}
 
+	const IOS_BUILD_133 = "Readplace/133 CFNetwork/3860.700.1 Darwin/25.6.0";
+
+	it("redirects a retired-key address of a readlist the reader does not own to the mainline listing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-redirect-unowned@example.com",
+			label: WORK_LABEL,
+		});
+
+		const response = await readCollection(harness, {
+			accessToken,
+			path: "/queue?queue=nobodys&status=read",
+		});
+
+		expect([response.status, response.headers.location]).toEqual([303, "/queue?status=read&page=1"]);
+	});
+
+	it("serves an address naming the readlist under both keys without a redirect", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-both-keys@example.com",
+			label: WORK_LABEL,
+		});
+
+		const response = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}&readlist=${readlist}`,
+		});
+
+		expect([
+			response.status,
+			response.body.links.find((link: { rel: string[] }) => link.rel.includes("self")).href,
+		]).toEqual([200, `/queue?readlist=${readlist}&status=unread&page=1`]);
+	});
+
+	it("keeps serving the browser's retired-key readlist page without a redirect", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, readlist } = await readerWithReadlist(harness, {
+			email: "readlists-html-retired-key@example.com",
+			label: WORK_LABEL,
+		});
+
+		const response = await agent.get(`/queue?queue=${readlist}`).set("Accept", "text/html");
+
+		expect(response.status).toBe(200);
+	});
+
+	it("serves an iPhone build before 134 its readlist under the retired key on every href, without a redirect", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-old-ios-listing@example.com",
+			label: WORK_LABEL,
+		});
+
+		const response = await readCollection(harness, {
+			accessToken,
+			path: `/queue?queue=${readlist}`,
+		}).set("User-Agent", IOS_BUILD_133);
+
+		expect({
+			status: response.status,
+			readlists: response.body.properties.readlists,
+			self: response.body.links.find((link: { rel: string[] }) => link.rel.includes("self")).href,
+			saveArticle: response.body.actions.find(
+				(action: { name: string }) => action.name === "save-article",
+			).href,
+		}).toEqual({
+			status: 200,
+			readlists: [
+				{ label: "All", rel: "readlist", href: "/queue" },
+				{ label: WORK_LABEL, rel: "current", href: `/queue?queue=${readlist}` },
+			],
+			self: `/queue?queue=${readlist}&status=unread&page=1`,
+			saveArticle: `/queue?queue=${readlist}`,
+		});
+	});
+
+	it("points an iPhone build before 134 back to the readlist it saved into under the retired key", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { readlist, accessToken } = await readerWithReadlist(harness, {
+			email: "readlists-old-ios-save@example.com",
+			label: WORK_LABEL,
+		});
+
+		const saved = await request(harness.server)
+			.post(`/queue?queue=${readlist}`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("User-Agent", IOS_BUILD_133)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/old-ios-save" });
+
+		expect([
+			saved.status,
+			saved.body.links.find((link: { rel: string[] }) => link.rel.includes("collection")).href,
+		]).toEqual([201, `/queue?queue=${readlist}`]);
+	});
+
 	it("advertises every readlist the reader owns on the default listing, with the mainline current", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { readlist, accessToken } = await readerWithReadlist(harness, {
@@ -1404,7 +1517,7 @@ describe("Siren readlists", () => {
 
 		expect(response.body.properties.readlists).toEqual([
 			{ label: "All", rel: "current", href: "/queue" },
-			{ label: WORK_LABEL, rel: "readlist", href: `/queue?queue=${readlist}` },
+			{ label: WORK_LABEL, rel: "readlist", href: `/queue?readlist=${readlist}` },
 		]);
 	});
 
@@ -1427,7 +1540,7 @@ describe("Siren readlists", () => {
 
 		const response = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		const article = response.body.entities[0];
 
@@ -1447,17 +1560,17 @@ describe("Siren readlists", () => {
 			urls: ["https://example.com/in-work"],
 			readlists: [
 				{ label: "All", rel: "readlist", href: "/queue" },
-				{ label: WORK_LABEL, rel: "current", href: `/queue?queue=${readlist}` },
+				{ label: WORK_LABEL, rel: "current", href: `/queue?readlist=${readlist}` },
 			],
-			self: `/queue?queue=${readlist}&status=unread&page=1`,
-			tabs: [`/queue?queue=${readlist}&status=unread`, `/queue?queue=${readlist}&status=read`],
+			self: `/queue?readlist=${readlist}&status=unread&page=1`,
+			tabs: [`/queue?readlist=${readlist}&status=unread`, `/queue?readlist=${readlist}&status=read`],
 			sort: [
-				`/queue?queue=${readlist}&status=unread&order=desc`,
-				`/queue?queue=${readlist}&status=unread&order=asc`,
+				`/queue?readlist=${readlist}&status=unread&order=desc`,
+				`/queue?readlist=${readlist}&status=unread&order=asc`,
 			],
-			read: `/queue/${article.properties.id}/view?queue=${readlist}`,
-			updateStatus: `/queue/${article.properties.id}/status?queue=${readlist}&status=unread`,
-			saveArticle: `/queue?queue=${readlist}`,
+			read: `/queue/${article.properties.id}/view?readlist=${readlist}`,
+			updateStatus: `/queue/${article.properties.id}/status?readlist=${readlist}&status=unread`,
+			saveArticle: `/queue?readlist=${readlist}`,
 		});
 	});
 
@@ -1470,7 +1583,7 @@ describe("Siren readlists", () => {
 		await saveThrough(harness, { accessToken, path: "/queue", url: "https://example.com/in-all" });
 
 		const mainline = await readCollection(harness, { accessToken, path: "/queue" });
-		const unowned = await readCollection(harness, { accessToken, path: "/queue?queue=nobodys" });
+		const unowned = await readCollection(harness, { accessToken, path: "/queue?readlist=nobodys" });
 
 		expect(unowned.status).toBe(200);
 		expect(unowned.body).toEqual(mainline.body);
@@ -1495,7 +1608,7 @@ describe("Siren readlists", () => {
 			.send({ status: "read" });
 		const onRead = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}&status=read`,
+			path: `/queue?readlist=${readlist}&status=read`,
 		});
 		const updateStatus = onRead.body.entities[0].actions.find(
 			(action: { name: string }) => action.name === "update-status",
@@ -1543,7 +1656,7 @@ describe("Siren readlists", () => {
 		});
 		const collection = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		const readHref = collection.body.entities[0].links.find((link: { rel: string[] }) =>
 			link.rel.includes("read"),
@@ -1571,11 +1684,11 @@ describe("Siren readlists", () => {
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
 		expect(
 			saved.body.links.find((link: { rel: string[] }) => link.rel.includes("collection")).href,
-		).toBe(`/queue?queue=${readlist}`);
+		).toBe(`/queue?readlist=${readlist}`);
 		const inAll = await readCollection(harness, { accessToken, path: "/queue" });
 		const inWork = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		expect([articleUrls(inAll.body), articleUrls(inWork.body)]).toEqual([
 			["https://example.com/filed-into-work"],
@@ -1599,7 +1712,7 @@ describe("Siren readlists", () => {
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'All'"]);
 		const inWork = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		expect(articleUrls(inWork.body)).toEqual([]);
 	});
@@ -1658,7 +1771,7 @@ describe("Siren readlists", () => {
 		]);
 		const inWork = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		expect(articleUrls(inWork.body)).toEqual([
 			"https://example.com/first",
@@ -1685,7 +1798,7 @@ describe("Siren readlists", () => {
 
 		const unread = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}&status=unread`,
+			path: `/queue?readlist=${readlist}&status=unread`,
 		});
 		expect(articleUrls(unread.body)).toEqual(["https://example.com/read-again"]);
 	});
@@ -1706,14 +1819,14 @@ describe("Siren readlists", () => {
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work' and 'Recipes'"]);
 		expect(
 			saved.body.links.find((link: { rel: string[] }) => link.rel.includes("collection")).href,
-		).toBe(`/queue?queue=${readlist}`);
+		).toBe(`/queue?readlist=${readlist}`);
 		const inWork = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		const inRecipes = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${recipes}`,
+			path: `/queue?readlist=${recipes}`,
 		});
 		expect([articleUrls(inWork.body), articleUrls(inRecipes.body)]).toEqual([
 			["https://example.com/filed-into-both"],
@@ -1758,11 +1871,11 @@ describe("Siren readlists", () => {
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
 		const inWork = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		const inRecipes = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${recipes}`,
+			path: `/queue?readlist=${recipes}`,
 		});
 		expect([articleUrls(inWork.body), articleUrls(inRecipes.body)]).toEqual([
 			["https://example.com/only-where-addressed"],
@@ -1787,7 +1900,7 @@ describe("Siren readlists", () => {
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
 		const inWork = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		expect(articleUrls(inWork.body)).toEqual(["https://example.com/one-owned-queue"]);
 	});
@@ -1826,7 +1939,7 @@ describe("Siren readlists", () => {
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
 		const inWork = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		expect(articleUrls(inWork.body)).toEqual(["https://example.com/ticked-twice"]);
 	});
@@ -1852,7 +1965,7 @@ describe("Siren readlists", () => {
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Recipes'"]);
 		const inRecipes = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${recipes}`,
+			path: `/queue?readlist=${recipes}`,
 		});
 		expect(articleUrls(inRecipes.body)).toEqual(["https://example.com/already-held"]);
 	});
@@ -1878,7 +1991,7 @@ describe("Siren readlists", () => {
 		]);
 	});
 
-	it("still files the readlists a save names under the retired queues key, which shipped iOS and Android builds send", async () => {
+	it("still files the readlists an iPhone build before 134 names under the retired queues key", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
 			email: "readlists-save-legacy-key@example.com",
@@ -1888,15 +2001,33 @@ describe("Siren readlists", () => {
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
+			.set("User-Agent", IOS_BUILD_133)
 			.set("Content-Type", "application/json")
 			.send({ url: "https://example.com/legacy-key", queues: [hrefs[WORK_LABEL]] });
 
 		expect(messageBodies(saved.body)).toEqual(["Article saved", "Saved to 'Work'"]);
 		const inWork = await readCollection(harness, {
 			accessToken,
-			path: `/queue?queue=${readlist}`,
+			path: `/queue?readlist=${readlist}`,
 		});
 		expect(articleUrls(inWork.body)).toEqual(["https://example.com/legacy-key"]);
+	});
+
+	it("files a save from any client but an iPhone build before 134 into All alone, whatever it names under the retired queues key", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+			email: "readlists-save-retired-key-ignored@example.com",
+		});
+
+		const saved = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("User-Agent", "Readplace/134 CFNetwork/3860.700.1 Darwin/25.6.0")
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/retired-key-ignored", queues: [hrefs[WORK_LABEL]] });
+
+		expect([saved.status, messageBodies(saved.body)]).toEqual([201, ["Article saved", "Saved to 'All'"]]);
 	});
 
 	it("files a readlist whose href names it under either query key", async () => {

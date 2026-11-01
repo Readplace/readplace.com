@@ -2,7 +2,10 @@ import type { ArticleStatus } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
 
+export type ReadlistQueryKey = "queue" | "readlist";
+
 export interface CollectionQueryParams {
+	readlistKey: ReadlistQueryKey;
 	readlist?: ReadlistSlug;
 	status?: ArticleStatus;
 	order?: SortOrder;
@@ -12,7 +15,7 @@ export interface CollectionQueryParams {
 
 export function buildQueryString(params: CollectionQueryParams): string {
 	const search = new URLSearchParams();
-	if (params.readlist && params.readlist !== DEFAULT_READLIST_SLUG) search.set("queue", params.readlist);
+	if (params.readlist && params.readlist !== DEFAULT_READLIST_SLUG) search.set(params.readlistKey, params.readlist);
 	if (params.status) search.set("status", params.status);
 	if (params.order) search.set("order", params.order);
 	if (params.page) search.set("page", String(params.page));

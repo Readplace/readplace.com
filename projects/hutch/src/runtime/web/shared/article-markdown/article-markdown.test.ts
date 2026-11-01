@@ -907,7 +907,7 @@ describe("articleMarkdown", () => {
 					{ slug: ReadlistSlugSchema.parse("reading-backlog"), label: "Reading backlog" },
 				],
 				frontmatter: {
-					readplace_url: `${APP_ORIGIN}/queue/${ARTICLE_ID}/view?queue=reading-backlog`,
+					readplace_url: `${APP_ORIGIN}/queue/${ARTICLE_ID}/view?readlist=reading-backlog`,
 					readplace_readlists: ["Reading backlog"],
 				},
 			},

@@ -77,7 +77,7 @@ export function articleMarkdown(input: ArticleMarkdownInput): string {
 		...(metadata.publishedOn === undefined ? {} : { published: metadata.publishedOn }),
 		...(metadata.wordCount > 0 ? { words: metadata.wordCount } : {}),
 		readplace_id: article.id.value,
-		readplace_url: `${appOrigin}/queue/${article.id.value}/view${buildQueryString({ readlist })}`,
+		readplace_url: `${appOrigin}/queue/${article.id.value}/view${buildQueryString({ readlistKey: "readlist", readlist })}`,
 		readplace_status: article.status,
 		...(article.readAt === undefined ? {} : { readplace_read_at: article.readAt.toISOString() }),
 		...(readTime === undefined ? {} : { readplace_read_time: article.estimatedReadTime }),

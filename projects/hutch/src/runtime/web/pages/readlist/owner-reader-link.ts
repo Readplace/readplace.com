@@ -78,6 +78,7 @@ export function readerPermalinkPathInReadlist(
 	target: { query: Request["query"]; readlist: ReadlistSlug | undefined },
 ): string {
 	const params = scalarQueryParams(target.query);
+	params.delete("readlist");
 	if (target.readlist === undefined) {
 		params.delete("queue");
 	} else {

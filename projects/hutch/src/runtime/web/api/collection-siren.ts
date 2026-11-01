@@ -90,20 +90,20 @@ export function toArticleCollectionEntity(
 		tabs: buildTabList({
 			tabs: options.tabs,
 			currentStatus: queryParams.status,
-			hrefForStatus: (status) => `/queue${buildQueryString({ readlist: queryParams.readlist, status, order: queryParams.order })}`,
+			hrefForStatus: (status) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status, order: queryParams.order })}`,
 		}),
 	};
 	properties.readlists = buildReadlistList({
 		readlists: options.readlists,
 		currentReadlist: queryParams.readlist ?? DEFAULT_READLIST_SLUG,
-		hrefForReadlist: readlistHref,
+		hrefForReadlist: (readlist) => readlistHref({ readlist, readlistKey: queryParams.readlistKey }),
 	});
 	if (options.totalLabel) properties.total = { label: options.totalLabel({ total }) };
 	if (options.sort) {
 		properties.sort = buildSortList({
 			options: options.sort.options,
 			currentOrder: options.sort.current,
-			hrefForOrder: (order) => `/queue${buildQueryString({ readlist: queryParams.readlist, status: queryParams.status, order })}`,
+			hrefForOrder: (order) => `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status: queryParams.status, order })}`,
 		});
 	}
 	if (options.appearance) properties.appearance = options.appearance;
@@ -121,7 +121,7 @@ export function toArticleCollectionEntity(
 			toArticleSubEntity(article, {
 				crawl: options.crawlByUrl?.get(article.url),
 				summary: options.summaryByUrl?.get(article.url),
-				collectionQuery: { readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },
+				collectionQuery: { readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },
 			}),
 		),
 		links,
@@ -129,7 +129,7 @@ export function toArticleCollectionEntity(
 			{
 				name: "save-article",
 				title: "Save a link",
-				href: `/queue${buildQueryString({ readlist: queryParams.readlist })}`,
+				href: `/queue${buildQueryString({ readlistKey: queryParams.readlistKey, readlist: queryParams.readlist })}`,
 				method: "POST",
 				type: "application/json",
 				fields: [

@@ -374,14 +374,14 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 		const token = await createAccessToken(harness);
 
 		const allCollection = await sirenGet(harness, { path: "/queue", token });
-		const workCollection = await sirenGet(harness, { path: "/queue?queue=work&status=read", token });
+		const workCollection = await sirenGet(harness, { path: "/queue?readlist=work&status=read", token });
 		const allHref = firstReadHref(allCollection);
 		const workHref = firstReadHref(workCollection);
 		const viaAll = await markdownGet(harness, { path: allHref, token });
 		const viaWork = await markdownGet(harness, { path: workHref, token });
 
 		expect(allHref).toBe(`/queue/${id.value}/view`);
-		expect(workHref).toBe(`/queue/${id.value}/view?queue=work`);
+		expect(workHref).toBe(`/queue/${id.value}/view?readlist=work`);
 		expect(viaWork.status).toBe(200);
 		expect(viaWork.text).toBe(viaAll.text);
 		expect(matter(viaAll.text).data).toEqual({
@@ -426,11 +426,11 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 		await harness.articleCrawl.markCrawlReady({ url });
 		const token = await createAccessToken(harness);
 
-		const collection = await sirenGet(harness, { path: "/queue?queue=work", token });
+		const collection = await sirenGet(harness, { path: "/queue?readlist=work", token });
 		const readHref = firstReadHref(collection);
 		const response = await markdownGet(harness, { path: readHref, token });
 
-		expect(readHref).toBe(`/queue/${id}/view?queue=work`);
+		expect(readHref).toBe(`/queue/${id}/view?readlist=work`);
 		expect(response.status).toBe(200);
 		expect(matter(response.text).data).toEqual({
 			title: "Only In Work",

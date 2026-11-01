@@ -7,7 +7,11 @@ const RECIPES = { slug: ReadlistSlugSchema.parse("recipes"), label: "Recipes" };
 
 describe("readlistHref", () => {
 	it("addresses the mainline readlist with the bare collection and every other by its own query", () => {
-		expect([readlistHref(ALL.slug), readlistHref(WORK.slug)]).toEqual(["/queue", "/queue?queue=work"]);
+		expect([readlistHref({ readlist: ALL.slug, readlistKey: "readlist" }), readlistHref({ readlist: WORK.slug, readlistKey: "readlist" })]).toEqual(["/queue", "/queue?readlist=work"]);
+	});
+
+	it("names the readlist under the key the caller asks for, so an old iPhone build keeps the href it matches its share targets by", () => {
+		expect(readlistHref({ readlist: WORK.slug, readlistKey: "queue" })).toEqual("/queue?queue=work");
 	});
 });
 
@@ -15,14 +19,14 @@ describe("readlistsAtHrefs", () => {
 	it("resolves the hrefs the collection advertised back to the reader's own readlists, in the order they were sent", () => {
 		expect(
 			readlistsAtHrefs({
-				hrefs: [readlistHref(RECIPES.slug), readlistHref(WORK.slug)],
+				hrefs: [readlistHref({ readlist: RECIPES.slug, readlistKey: "readlist" }), readlistHref({ readlist: WORK.slug, readlistKey: "readlist" })],
 				readlists: [ALL, WORK, RECIPES],
 			}),
 		).toEqual([RECIPES, WORK]);
 	});
 
 	it("resolves the mainline readlist's bare href too, so the caller decides what it means", () => {
-		expect(readlistsAtHrefs({ hrefs: [readlistHref(ALL.slug)], readlists: [ALL, WORK] })).toEqual([
+		expect(readlistsAtHrefs({ hrefs: [readlistHref({ readlist: ALL.slug, readlistKey: "readlist" })], readlists: [ALL, WORK] })).toEqual([
 			ALL,
 		]);
 	});
@@ -30,7 +34,7 @@ describe("readlistsAtHrefs", () => {
 	it("ignores an href that names no readlist at all", () => {
 		expect(
 			readlistsAtHrefs({
-				hrefs: ["/help/add-links", readlistHref(WORK.slug)],
+				hrefs: ["/help/add-links", readlistHref({ readlist: WORK.slug, readlistKey: "readlist" })],
 				readlists: [ALL, WORK],
 			}),
 		).toEqual([WORK]);
@@ -39,7 +43,7 @@ describe("readlistsAtHrefs", () => {
 	it("ignores an href for a readlist the reader does not own", () => {
 		expect(
 			readlistsAtHrefs({
-				hrefs: [readlistHref(RECIPES.slug), readlistHref(WORK.slug)],
+				hrefs: [readlistHref({ readlist: RECIPES.slug, readlistKey: "readlist" }), readlistHref({ readlist: WORK.slug, readlistKey: "readlist" })],
 				readlists: [ALL, WORK],
 			}),
 		).toEqual([WORK]);
@@ -93,7 +97,7 @@ describe("readlistsAtHrefs", () => {
 	it("resolves a duplicated href to a single readlist", () => {
 		expect(
 			readlistsAtHrefs({
-				hrefs: [readlistHref(WORK.slug), readlistHref(WORK.slug)],
+				hrefs: [readlistHref({ readlist: WORK.slug, readlistKey: "readlist" }), readlistHref({ readlist: WORK.slug, readlistKey: "readlist" })],
 				readlists: [ALL, WORK],
 			}),
 		).toEqual([WORK]);

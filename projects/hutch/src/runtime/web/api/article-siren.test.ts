@@ -187,7 +187,7 @@ describe("toArticleSubEntity", () => {
 
 	it("bakes the collection query into the update-status href so the mutation's redirect returns to the tab it was invoked from", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), {
-			collectionQuery: { status: "unread", order: "asc" },
+			collectionQuery: { readlistKey: "readlist", status: "unread", order: "asc" },
 		});
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
 		expect(updateStatus?.href).toBe(`/queue/${ARTICLE_ID}/status?status=unread&order=asc`);
@@ -324,6 +324,7 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: true,
 			resurfacedFromRead: false,
 			destination: { filedInto: [ALL], readlists: [ALL] },
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -339,6 +340,7 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: true,
 			resurfacedFromRead: false,
 			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -354,6 +356,7 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: true,
 			resurfacedFromRead: false,
 			destination: { filedInto: [WORK, RECIPES], readlists: [ALL, WORK, RECIPES] },
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -372,6 +375,7 @@ describe("toSavedArticleEntity", () => {
 				filedInto: [WORK, RECIPES, WEEKEND],
 				readlists: [ALL, WORK, RECIPES, WEEKEND],
 			},
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -390,6 +394,7 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: true,
 			resurfacedFromRead: false,
 			destination: { filedInto: [ALL], readlists: [ALL, WORK] },
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -408,6 +413,7 @@ describe("toSavedArticleEntity", () => {
 				filedInto: [{ slug: ReadlistSlugSchema.parse("risky"), label: "<b>&'x" }],
 				readlists: [ALL, WORK],
 			},
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -432,6 +438,7 @@ describe("toSavedArticleEntity", () => {
 				],
 				readlists: [ALL, WORK],
 			},
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -450,6 +457,7 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: true,
 			resurfacedFromRead: false,
 			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -465,6 +473,7 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: false,
 			resurfacedFromRead: false,
 			destination: { filedInto: [ALL], readlists: [ALL] },
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
@@ -479,12 +488,30 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: true,
 			resurfacedFromRead: true,
 			destination: { filedInto: [ALL], readlists: [ALL] },
+			readlistKey: "readlist",
 		});
 
 		expect(messageBodies(entity)).toEqual([
 			{ type: "success", content: { type: "text/html", body: "Article saved" } },
 			{ type: "success", content: { type: "text/html", body: "Saved to your reading list" } },
 		]);
+	});
+
+	it("names the onward collection link's readlist under the retired queue key for an old iPhone build", () => {
+		const entity = toSavedArticleEntity({
+			article: makeArticle(),
+			createdUserArticle: true,
+			wroteUserArticle: true,
+			resurfacedFromRead: false,
+			destination: { filedInto: [WORK], readlists: [ALL, WORK] },
+			readlistKey: "queue",
+		});
+
+		expect(entity.links?.find((link) => link.rel.includes("collection"))).toEqual({
+			rel: ["collection"],
+			title: "View Readlist",
+			href: "/queue?queue=work",
+		});
 	});
 
 	it("points the onward collection link at the readlist the save was filed into", () => {
@@ -494,6 +521,7 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: true,
 			resurfacedFromRead: false,
 			destination: { filedInto: [WORK, RECIPES], readlists: [ALL, WORK, RECIPES] },
+			readlistKey: "readlist",
 		});
 		const intoAll = toSavedArticleEntity({
 			article: makeArticle(),
@@ -501,12 +529,13 @@ describe("toSavedArticleEntity", () => {
 			wroteUserArticle: true,
 			resurfacedFromRead: false,
 			destination: { filedInto: [ALL], readlists: [ALL, WORK] },
+			readlistKey: "readlist",
 		});
 		const collectionHref = (entity: ReturnType<typeof toSavedArticleEntity>) =>
 			entity.links?.find((link) => link.rel.includes("collection"));
 
 		expect([collectionHref(intoWork), collectionHref(intoAll)]).toEqual([
-			{ rel: ["collection"], title: "View Readlist", href: "/queue?queue=work" },
+			{ rel: ["collection"], title: "View Readlist", href: "/queue?readlist=work" },
 			{ rel: ["collection"], title: "View Readlist", href: "/queue" },
 		]);
 	});

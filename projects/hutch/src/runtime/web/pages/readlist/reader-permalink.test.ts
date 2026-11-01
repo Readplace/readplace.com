@@ -165,6 +165,25 @@ describe("resolveReaderPermalink", () => {
 		expect(location.searchParams.get("campaign")).toBe("hn-starter-v1");
 	});
 
+	it.each([
+		{ heldIn: "All", saves: [{}], search: "from=reader-ready-email&campaign=hn-starter-v1" },
+		{ heldIn: "another readlist", saves: [{ readlist: ReadlistSlugSchema.parse("work") }], search: "from=reader-ready-email&campaign=hn-starter-v1&queue=work" },
+	])("drops the readlist key when it sends a signed-in reader to $heldIn, so the redirect never names the readlist that no longer holds the article", async ({ saves, search }) => {
+		const resolve = initReaderPermalink(createDeps({
+			readlist: ReadlistSlugSchema.parse("hn-picks"),
+			findArticleUrlById: async (id) => (id.value === ARTICLE_ID.value ? ARTICLE_URL : null),
+			listUserSavesForUrl: async ({ userId, url }) => (userId === OWNER_ID && url === ARTICLE_URL ? saves : []),
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: OWNER_ID,
+			query: { from: "reader-ready-email", readlist: "hn-picks", campaign: "hn-starter-v1" },
+		});
+
+		expect(result).toEqual({ kind: "redirect", redirect: { statusCode: 303, location: `/queue/${ARTICLE_ID.value}/view?${search}` } });
+	});
+
 	it("keeps the public /view redirect when the reader holds the article only where it was looked up, or nowhere", async () => {
 		const deps = createDeps({
 			readlist: ReadlistSlugSchema.parse("hn-picks"),

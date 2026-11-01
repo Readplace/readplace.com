@@ -41,6 +41,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 			"accept",
 			"origin",
 			"authorization",
+			"user-agent",
 			NATIVE_CLIENT_HEADER,
 			SAVE_CONTINUITY_HEADER,
 		]);
@@ -67,7 +68,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 				.set(NATIVE_CLIENT_HEADER, "ios");
 
 		const mainline = await readCollection("/queue");
-		const scoped = await readCollection(`/queue?queue=${readlist}`);
+		const scoped = await readCollection(`/queue?readlist=${readlist}`);
 
 		expect(scoped.status).toBe(200);
 		expect(scoped.headers["cache-control"]).toBe(mainline.headers["cache-control"]);
@@ -76,6 +77,38 @@ describe("Siren discovery caching (GET /queue)", () => {
 		assert(etag, "the readlist collection must carry an ETag so a stale copy can revalidate");
 		expect(etag.startsWith('W/"')).toBe(true);
 		expect(new Set([mainline.headers.etag, etag]).size).toBe(2);
+	});
+
+	it("holds the iOS app to revalidation on the redirect that canonicalises a retired-key readlist URL, instead of the collection's lifetime", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const token = await createAccessToken(harness);
+		const readlist = ReadlistSlugSchema.parse("work");
+		await harness.articleStore.createReadlistDefinition({
+			userId: UserIdSchema.parse("test-user-123"),
+			slug: readlist,
+			label: "Work",
+			createdAt: new Date("2026-03-04T10:00:00.000Z"),
+		});
+
+		const response = await request(harness.server)
+			.get(`/queue?queue=${readlist}`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(NATIVE_CLIENT_HEADER, "ios");
+
+		expect([response.status, response.headers.location, response.headers["cache-control"]]).toEqual([
+			303,
+			`/queue?readlist=${readlist}&status=unread&page=1`,
+			"private, no-cache",
+		]);
+		expect(varyFields(response.headers.vary)).toEqual([
+			"accept",
+			"origin",
+			"authorization",
+			"user-agent",
+			NATIVE_CLIENT_HEADER,
+			SAVE_CONTINUITY_HEADER,
+		]);
 	});
 
 	it("makes every other Siren client revalidate, so only the app trades freshness for the one-round-trip save", async () => {
@@ -93,6 +126,7 @@ describe("Siren discovery caching (GET /queue)", () => {
 			"accept",
 			"origin",
 			"authorization",
+			"user-agent",
 			NATIVE_CLIENT_HEADER,
 			SAVE_CONTINUITY_HEADER,
 		]);
