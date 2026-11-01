@@ -1,7 +1,10 @@
 import assert from "node:assert";
 import {
 	DEFAULT_CRAWL_HEADERS,
+	defaultResolveAll,
+	escalateBlockedHop,
 	initFetchRedirectHop,
+	initGuardedCurlHop,
 	initResolveAppleNewsStoryUrl,
 	type CrawlFetch,
 } from "@packages/crawl-article";
@@ -24,7 +27,10 @@ export function initSourceIdentityDepBundle(deps: {
 	logger: HutchLogger;
 }) {
 	const resolveWrapperTarget = initResolveWrapperTarget({
-		fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
+		fetchRedirectHop: escalateBlockedHop({
+			direct: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
+			curl: initGuardedCurlHop({ resolve: defaultResolveAll, isBlocked: isBlockedIpAddress }),
+		}),
 		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch: deps.crawlFetch, logError: deps.logger.error.bind(deps.logger) }),
 		headers: DEFAULT_CRAWL_HEADERS,
 		...WRAPPER_RESOLVE_BUDGETS,

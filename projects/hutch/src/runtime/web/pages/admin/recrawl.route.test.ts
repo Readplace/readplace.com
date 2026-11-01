@@ -933,7 +933,7 @@ describe("Admin recrawl routes", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				savedAt: new Date(),
 			});
-			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL });
+			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL, measured: false });
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 
 			const response = await agent.get(
@@ -961,7 +961,7 @@ describe("Admin recrawl routes", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				savedAt: new Date(),
 			});
-			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL });
+			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL, measured: false });
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 
 			const response = await agent.get(
@@ -989,7 +989,7 @@ describe("Admin recrawl routes", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				savedAt: new Date(),
 			});
-			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL });
+			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL, measured: false });
 
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 

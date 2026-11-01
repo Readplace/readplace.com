@@ -9,6 +9,7 @@ import {
 	FORWARD_ANALYTICS_FUNCTION_NAME,
 	FORWARD_ANALYTICS_LAMBDA_NAME,
 } from "../forward-analytics-lambda";
+import { CRAWL_SETTLED_METRIC } from "../crawl-settled";
 import { buildObservabilityFilterPattern } from "../observability-filter";
 import { assertLambdaEnvironmentFits, LAMBDA_ENVIRONMENT_SIZE_QUOTA_CODE } from "./lambda-environment-size";
 
@@ -315,6 +316,17 @@ export class HutchLambda extends pulumi.ComponentResource {
 				destinationArn: pulumi.interpolate`arn:aws:lambda:${aws.config.requireRegion()}:${pulumi.output(identity).accountId}:function:${FORWARD_ANALYTICS_FUNCTION_NAME}`,
 			}, { parent: this, dependsOn: [logGroup] });
 		}
+
+		new aws.cloudwatch.LogMetricFilter(`${lambdaName}-crawl-settled`, {
+			logGroupName: logGroup.name,
+			pattern: CRAWL_SETTLED_METRIC.filterPattern,
+			metricTransformation: {
+				namespace: CRAWL_SETTLED_METRIC.namespace,
+				name: CRAWL_SETTLED_METRIC.name,
+				value: CRAWL_SETTLED_METRIC.value,
+				unit: "Seconds",
+			},
+		}, { parent: this, dependsOn: [logGroup] });
 
 		const hasEnvironment = Object.keys(args.environment).length > 0;
 		const environmentArg = hasEnvironment

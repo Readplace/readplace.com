@@ -809,9 +809,9 @@ for (const delivery of ["forward", "import"] as const) {
 					userId: READER,
 					receivedAtMessageId: row.receivedAtMessageId,
 					readlist: WORK,
-					savedTo: WORK,
 					readlistLabel: "Work",
-					dropped: [],
+					decision: "filtered",
+					fit: [{ ordinal: "0000", verdict: "keep", reason: "Fits this list" }],
 				},
 			},
 			{
@@ -820,9 +820,9 @@ for (const delivery of ["forward", "import"] as const) {
 					userId: READER,
 					receivedAtMessageId: row.receivedAtMessageId,
 					readlist: LATER,
-					savedTo: LATER,
 					readlistLabel: "Later",
-					dropped: [{ ordinal: "0000", reason: "Outside this list" }],
+					decision: "filtered",
+					fit: [{ ordinal: "0000", verdict: "drop", reason: "Outside this list" }],
 				},
 			},
 			{
@@ -851,15 +851,15 @@ for (const delivery of ["forward", "import"] as const) {
 		});
 		assert.equal(links.length, 1);
 		assert.deepEqual(
-			meta?.readlistOutcomes?.map(({ readlist, decision, dropped }) => ({
+			meta?.readlistOutcomes?.map(({ readlist, decision, fit }) => ({
 				readlist,
-				state: decision.state,
-				dropped: dropped.length,
+				decision,
+				verdicts: fit.map(({ verdict }) => verdict),
 			})),
 			[
-				{ readlist: WORK, state: "decided", dropped: 0 },
-				{ readlist: LATER, state: "decided", dropped: 1 },
-				{ readlist: failed, state: "failed", dropped: 0 },
+				{ readlist: WORK, decision: "filtered", verdicts: ["keep"] },
+				{ readlist: LATER, decision: "filtered", verdicts: ["drop"] },
+				{ readlist: failed, decision: "failed", verdicts: [] },
 			],
 		);
 	});

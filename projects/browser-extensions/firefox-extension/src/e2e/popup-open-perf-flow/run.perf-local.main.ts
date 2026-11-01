@@ -176,7 +176,7 @@ async function prepareProfile(driver: Driver, tokens?: Tokens): Promise<void> {
 			await storage.clear();
 			for (let attempt = 0; attempt < 200; attempt++) {
 				if ((await content.wrappedJSObject.indexedDB.databases()).some(database => database.name === 'hutch-auth')) break;
-				await new Promise(resolve => setTimeout(resolve, 25));
+				await new Promise(resolve => content.setTimeout(resolve, 25));
 			}
 			const db = await new Promise((resolve, reject) => {
 				const request = content.wrappedJSObject.indexedDB.open('hutch-auth', 1);
@@ -196,7 +196,7 @@ async function prepareProfile(driver: Driver, tokens?: Tokens): Promise<void> {
 						};
 						tx.oncomplete = () => resolve(saved); tx.onabort = () => reject(tx.error);
 					});
-					if (!prepared) await new Promise(resolve => setTimeout(resolve, 25));
+					if (!prepared) await new Promise(resolve => content.setTimeout(resolve, 25));
 				}
 				if (!prepared) throw new Error('Durable auth preparation timed out');
 			} finally { db.close(); }

@@ -17,8 +17,8 @@ describe("embeddableImageFilename", () => {
 		).toBe("abcdef0123456789.jpg");
 	});
 
-	it.each(["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"])("accepts an owned image with the supported %s extension", (extension) => {
-		const filename = `attempts/${"a".repeat(64)}/${"b".repeat(64)}.${extension}`;
+	it.each(["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"].flatMap((extension) => [64, 32].map((digestLength) => ({ extension, digestLength }))))("accepts an owned image with the supported $extension extension and $digestLength-character digests", ({ extension, digestLength }) => {
+		const filename = `attempts/${"a".repeat(digestLength)}/${"b".repeat(digestLength)}.${extension}`;
 		expect(embeddableImageFilename({ src: embeddedSrc(filename), imagePrefix: IMAGE_PREFIX })).toBe(filename);
 		const otherSrc = ArticleResourceUniqueId.parse("https://example.com/other").toImageCdnUrl({ baseUrl: "https://cdn.readplace.test", filename });
 		expect(embeddableImageFilename({ src: otherSrc, imagePrefix: IMAGE_PREFIX })).toBeUndefined();
@@ -27,6 +27,10 @@ describe("embeddableImageFilename", () => {
 	it.each([
 		`attempts/short/${"b".repeat(64)}.png`,
 		`attempts/${"a".repeat(64)}/short.png`,
+		`attempts/${"a".repeat(64)}/${"b".repeat(32)}.png`,
+		`attempts/${"a".repeat(32)}/${"b".repeat(64)}.png`,
+		`attempts/${"a".repeat(36)}/${"b".repeat(36)}.png`,
+		`attempts/${"a".repeat(32)}/${"b".repeat(32)}.png.metadata.json`,
 		`attempts/${"a".repeat(64)}/${"b".repeat(64)}.png.metadata.json`,
 		`attempts/${"a".repeat(64)}/${"b".repeat(64)}.html`,
 		`attempts/${"a".repeat(64)}/../${"b".repeat(64)}.png`,

@@ -7,11 +7,6 @@ import { initReadabilityParser, readabilityAdditions } from "@packages/article-p
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import { noopLogger } from "@packages/hutch-logger";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
-import { createHash } from "node:crypto";
-import assert from "node:assert/strict";
-import { initSelectMostCompleteContent } from "../select-content/select-content";
-import { labelForIndex } from "../select-content/select-content-prompt";
-import { initLogContentSelection, initPrepareContentSelection } from "../select-content/prepare-content-selection";
 import type { TierSource } from "../select-content/tier-source.types";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
@@ -23,7 +18,7 @@ const wrapper = { id: cid("archive"), tier: "tier-2" as const };
 const live = { candidate: { id: cid("live"), tier: "tier-1" as const } };
 
 describe("archive attempt orchestration", () => {
-	it("judges the complete HTTP 403 live response against the archive and keeps the readable losing archive in its audit", async () => {
+	it("defers a live 403 to the render ladder with the archive as the candidate it carries", async () => {
 		const article = `<p>${"A real article contains important facts and readable paragraphs. ".repeat(30)}</p>`;
 		const wrapperBody = `<html><head><title>Archived report</title></head><body><article>${article}</article></body></html>`;
 		const liveBody = `<html><head><title>Full report</title></head><body><nav>Fresh raw response navigation</nav><article>${article}<p>${"The original has an additional detailed section missing from the archive. ".repeat(20)}</p></article></body></html>`;
@@ -44,28 +39,11 @@ describe("archive attempt orchestration", () => {
 		const verifyWrapperSource = async () => ({ originalUrl: url, sourceUrl: captureUrl });
 		const crawlArchiveCapture = initCrawlArchiveCapture({ ...shared, verifyWrapperSource, publishEvent: async () => {} });
 		const attempt = await initCrawlSaveCandidates({ saveLinkWork, crawlArchiveCapture, emitSimpleCrawlUnsupported })(params);
-		expect(attempt.liveAttempt).toEqual({ outcome: "body" });
-		expect(attempt.candidates).toHaveLength(2);
+		expect(attempt.liveAttempt).toEqual({ outcome: "deferred" });
+		expect(attempt.candidates).toHaveLength(1);
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked", candidates: attempt.candidates }));
 		expect(transitionAndPersist).not.toHaveBeenCalled();
-		const liveSource = stored.find((source) => source.metadata.kind === "live");
-		assert(liveSource);
-		expect(liveSource.evaluationHtml).toBe(liveBody);
-		expect(liveSource.metadata.contentHash).toBe(createHash("sha256").update(liveBody).digest("hex"));
-		expect(liveSource.metadata.httpStatus).toBe(403);
-		expect(liveSource.html).toContain("The original has an additional detailed section missing from the archive.");
-		const createChatCompletion = jest.fn(async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: labelForIndex(stored.indexOf(liveSource)), reason: "Live includes the additional article section", readability: stored.map((_source, index) => ({ candidate: labelForIndex(index), readable: true })) }) } }] }));
-		const selection = await initPrepareContentSelection({
-			readCanonicalContent: async () => undefined,
-			loadArticle: async () => ({ url, metadata: liveSource.metadata, freshness: { contentFetchedAt: now().toISOString() }, estimatedReadTime: 1, crawl: { kind: "ready" }, summary: { kind: "ready", summary: "Existing summary" }, summaryAutoHeal: { attempts: 0 } }),
-			listAvailableTierSources: async () => stored, resolveOriginalUrl: async () => url, verifyWrapperSource,
-			...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger }),
-		})({ url, saveAttemptId: params.saveAttemptId, candidates: attempt.candidates });
-		expect(selection.selected?.metadata.kind).toBe("live");
-		const info = jest.fn();
-		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: params.saveAttemptId, selection, liveAttempt: attempt.liveAttempt });
-		expect(info).toHaveBeenCalledWith(expect.stringContaining('"kind":"wrapper"'));
-		const logged = JSON.parse(String(info.mock.calls[0]?.[0]).split("comparison completed ")[1]);
-		expect(logged.candidates.find((candidate: { kind: string }) => candidate.kind === "wrapper")).toMatchObject({ readable: true, fresh: true });
+		expect(stored.map((source) => source.metadata.kind)).toEqual(["wrapper"]);
 	});
 	it.each([true, false])("waits for both arrivals with wrapper first=%s", async (wrapperFirst) => {
 		let finishLive: (() => void) | undefined;

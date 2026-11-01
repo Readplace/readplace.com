@@ -11,16 +11,18 @@ import type {
 	CrawlArticleResult,
 } from "./crawl-article.types";
 import { type CrawlFetch, PROXIED_CRAWL_HEADERS_MILLISECONDS } from "./crawl-fetch";
+import { isBufferedFastlyClientChallenge } from "./fastly-client-challenge";
 import { extractThumbnailCandidates, initFetchThumbnailImage, type LogThumbnailNotDelivered } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { MAX_HTML_BYTES } from "./html-body-limit";
 import { initLogFetchFailure } from "./log-fetch-failure";
 import { classifyMediaType, type SupportedMediaType } from "./media-type";
 import { metaRefreshTarget } from "./meta-refresh";
+import { isLocationlessRedirect, scriptRedirectTarget } from "./script-redirect";
 import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
-import { isBlockClassResponse } from "./persona-fallback";
+import { isProxyWorthyResponse } from "./proxied-ladder-fallback";
 import { readBodyWithCap } from "./read-capped-body";
 import { resolveDocumentUrl } from "./resolve-document-url";
 import type { ExtractPdf } from "./pdf-extract.types";
@@ -53,10 +55,7 @@ export const PROXIED_FETCH_TIMEOUTS = {
 
 const MAX_SITE_RULE_REDIRECTS = 3;
 
-type RefusedTerminal = Exclude<
-	Awaited<ReturnType<ReturnType<typeof initConditionalGet>>>,
-	{ status: "ok" }
->;
+type RefusedTerminal = Exclude<FetchOutcome, { status: "ok" }>;
 
 async function recoverRefusedTerminal(params: {
 	fetched: RefusedTerminal;
@@ -189,6 +188,23 @@ const HTML_PARSE_BYTE_CAP = {
 	image: Number.POSITIVE_INFINITY,
 } satisfies Record<SupportedMediaType, number>;
 
+type ConditionalGetParams = {
+	url: string;
+	etag?: string;
+	lastModified?: string;
+	retainResponseBody?: boolean;
+	retainBlockedResponse?: boolean;
+};
+
+type FetchOutcome =
+	| { status: "ok"; response: Response; buffer: Buffer }
+	| { status: "not-modified" }
+	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification; cause?: unknown }
+	| { status: "blocked"; httpStatus: number; finalUrl?: string }
+	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string };
+
+type ScriptRedirect = { status: "script-redirect"; httpStatus: number; documentUrl: string; target: string };
+
 /**
  * One conditional GET against the origin, with the body materialised into a
  * Buffer so the orchestrator can dispatch on content-type without a second
@@ -201,18 +217,7 @@ function initConditionalGet(deps: {
 	logError: (message: string, error?: Error) => void;
 	logInfo: (message: string) => void;
 	fetchTimeouts: FetchTimeouts;
-}): (params: {
-	url: string;
-	etag?: string;
-	lastModified?: string;
-	retainResponseBody?: boolean;
-}) => Promise<
-	| { status: "ok"; response: Response; buffer: Buffer }
-	| { status: "not-modified" }
-	| { status: "failed"; finalUrl?: string; failure?: FetchFailureClassification }
-	| { status: "blocked"; httpStatus: number; finalUrl?: string }
-	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
-> {
+}): (params: ConditionalGetParams) => Promise<FetchOutcome | ScriptRedirect> {
 	const { crawlFetch, logError, logInfo, fetchTimeouts } = deps;
 	const logFetchFailure = initLogFetchFailure({ logError, logInfo });
 	return async (params) => {
@@ -252,14 +257,28 @@ function initConditionalGet(deps: {
 				});
 				return { status: "not-found", httpStatus: response.status, finalUrl };
 			}
-			if (!response.ok && !params.retainResponseBody) {
+			if (isProxyWorthyResponse(response) && !params.retainBlockedResponse) {
 				logFetchFailure({
 					status: response.status,
 					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`,
 				});
-				if (isBlockClassResponse(response) || response.status === 429) {
-					return { status: "blocked", httpStatus: response.status, finalUrl };
+				return { status: "blocked", httpStatus: response.status, finalUrl };
+			}
+			if (!response.ok && !params.retainResponseBody) {
+				if (isLocationlessRedirect(response)) {
+					const documentUrl = resolveDocumentUrl({ requestedUrl: params.url, finalUrl });
+					budgetTimer = setTimeout(() => {
+						controller.abort(fetchTimeoutReason(`body not fully read within ${fetchTimeouts.bodyMs}ms`));
+					}, fetchTimeouts.bodyMs);
+					const buffer = await readBodyWithCap(response, MAX_HTML_BYTES.bytes).catch(() => undefined);
+					clearTimeout(budgetTimer);
+					const target = buffer && scriptRedirectTarget({ response, buffer, documentUrl });
+					if (target) return { status: "script-redirect", httpStatus: response.status, documentUrl, target };
 				}
+				logFetchFailure({
+					status: response.status,
+					message: `[CrawlArticle] HTTP ${response.status} for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`,
+				});
 				return { status: "failed", finalUrl, failure: classifyFailedResponse({ httpStatus: response.status }) };
 			}
 			budgetTimer = setTimeout(() => {
@@ -268,6 +287,10 @@ function initConditionalGet(deps: {
 			const buffer = await readBodyWithCap(response, MAX_PDF_BYTES.bytes);
 			/* c8 ignore next -- V8 async continuation phantom on the await above, see bcoe/c8#319 */
 			clearTimeout(budgetTimer);
+			if (isBufferedFastlyClientChallenge({ response, buffer })) {
+				logInfo(`[CrawlArticle] Fastly client challenge for ${params.url}${suffix}${describeEdgeHeaders(response.headers)}`);
+				return { status: "blocked", httpStatus: response.status, finalUrl };
+			}
 			return { status: "ok", response, buffer };
 		} catch (error) {
 			clearTimeout(budgetTimer);
@@ -277,29 +300,43 @@ function initConditionalGet(deps: {
 				status: "failed",
 				finalUrl: lastRedirectHop,
 				failure: classifyFetchError(error),
+				cause: error,
 			};
 		}
 	};
 }
 
-type ConditionalGet = ReturnType<typeof initConditionalGet>;
-
-function withMetaRefreshHop(deps: {
-	conditionalGet: ConditionalGet;
+function withRedirectStubHop(deps: {
+	conditionalGet: ReturnType<typeof initConditionalGet>;
 	logInfo: (message: string) => void;
-}): ConditionalGet {
+}): (params: ConditionalGetParams) => Promise<FetchOutcome> {
 	const { conditionalGet, logInfo } = deps;
+	const follow = async (hop: {
+		params: ConditionalGetParams;
+		kind: "meta refresh" | "script redirect";
+		documentUrl: string;
+		target: string;
+	}): Promise<FetchOutcome> => {
+		const { params, kind, documentUrl, target } = hop;
+		logInfo(`[CrawlArticle] Following ${kind} from ${documentUrl} to ${target}`);
+		const followed = await conditionalGet({ ...params, url: target });
+		if (followed.status === "ok") return followed;
+		if (followed.status === "not-modified") return followed;
+		if (followed.status === "script-redirect") {
+			return { status: "failed", finalUrl: target, failure: classifyFailedResponse({ httpStatus: followed.httpStatus }) };
+		}
+		return { ...followed, finalUrl: followed.finalUrl ?? target };
+	};
 	return async (params) => {
 		const fetched = await conditionalGet(params);
+		if (fetched.status === "script-redirect") {
+			return follow({ params, kind: "script redirect", documentUrl: fetched.documentUrl, target: fetched.target });
+		}
 		if (fetched.status !== "ok") return fetched;
 		const documentUrl = resolveDocumentUrl({ requestedUrl: params.url, finalUrl: terminalUrl(fetched.response) });
 		const target = metaRefreshTarget({ response: fetched.response, buffer: fetched.buffer, documentUrl });
 		if (target === undefined) return fetched;
-		logInfo(`[CrawlArticle] Following meta refresh from ${documentUrl} to ${target}`);
-		const followed = await conditionalGet({ ...params, url: target });
-		if (followed.status === "ok") return followed;
-		if (followed.status === "not-modified") return followed;
-		return { ...followed, finalUrl: followed.finalUrl ?? target };
+		return follow({ params, kind: "meta refresh", documentUrl, target });
 	};
 }
 
@@ -424,7 +461,7 @@ export function initCrawlArticle(deps: {
 }): CrawlArticle {
 	const { crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered } = deps;
 	const fetchTimeouts = deps.fetchTimeouts ?? DEFAULT_FETCH_TIMEOUTS;
-	const conditionalGet = withMetaRefreshHop({
+	const conditionalGet = withRedirectStubHop({
 		conditionalGet: initConditionalGet({ crawlFetch, logError, logInfo, fetchTimeouts }),
 		logInfo,
 	});

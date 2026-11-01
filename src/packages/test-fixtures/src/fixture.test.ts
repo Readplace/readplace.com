@@ -244,7 +244,7 @@ describe("createFakeApplyParseResult", () => {
 		const url = "https://example.com/x";
 
 		await seedGlobalArticle(articleStore, url);
-		await articleCrawl.markCrawlPending({ url });
+		await articleCrawl.markCrawlPending({ url, measured: false });
 		await apply(url);
 
 		const status = await articleCrawl.findArticleCrawlStatus(url);
@@ -259,7 +259,7 @@ describe("createFakeApplyParseResult", () => {
 		const apply = createFakeApplyParseResult({ articleStore, articleCrawl, parseArticle });
 		const url = "https://example.com/x";
 
-		await articleCrawl.markCrawlPending({ url });
+		await articleCrawl.markCrawlPending({ url, measured: false });
 		await apply(url);
 
 		const status = await articleCrawl.findArticleCrawlStatus(url);
@@ -285,7 +285,7 @@ describe("createFakeApplyParseResult", () => {
 		const url = "https://example.com/x";
 
 		await seedGlobalArticle(articleStore, url);
-		await articleCrawl.markCrawlPending({ url });
+		await articleCrawl.markCrawlPending({ url, measured: false });
 		await apply(url);
 
 		const status = await articleCrawl.findArticleCrawlStatus(url);

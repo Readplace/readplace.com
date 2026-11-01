@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto";
 import { noopLogger } from "@packages/hutch-logger";
-import type { CrawlArticle } from "@packages/crawl-article";
+import type { CrawlArticle, CrawlUnsupportedReason } from "@packages/crawl-article";
 import { MAX_HTML_BYTES } from "@packages/crawl-article";
 import { markCrawlBlocked, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import {
+	ComprehensiveCrawlCommand,
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
-import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
+import { initFinalizeArticle, type FinalizeArticle, type FinalizedArticle } from "@packages/finalize-article";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { RenderOutcome, RenderPage } from "../../providers/render-page/render-page.types";
@@ -27,12 +28,13 @@ function createSqsEvent(detail: {
 	recrawl?: boolean;
 	refresh?: boolean;
 	previousBodyHash?: string;
+	unsupportedReason?: "javascript-required" | "blocked";
 }): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", ...detail } }),
+			body: JSON.stringify({ detail: { saveAttemptId: "attempt-1", unsupportedReason: "javascript-required", ...detail } }),
 			attributes: {
 				ApproximateReceiveCount: "1",
 				SentTimestamp: "1620000000000",
@@ -48,15 +50,18 @@ function createSqsEvent(detail: {
 	};
 }
 
+const oneRequest = { continued: 1, abortedByBudget: 0, abortedByType: 0, continuedByResourceType: { document: 1 } };
+
 const rendered = (overrides: Partial<Extract<RenderOutcome, { kind: "rendered" }>> = {}): RenderOutcome => ({
 	kind: "rendered",
 	html: RENDERED_HTML,
 	finalUrl: URL,
 	httpStatus: 200,
+	requests: oneRequest,
 	...overrides,
 });
-const blocked = (httpStatus: number): RenderOutcome => ({ kind: "blocked", httpStatus });
-const failed = (detail: string, httpStatus?: number): RenderOutcome => ({ kind: "failed", detail, httpStatus });
+const blocked = (httpStatus: number): RenderOutcome => ({ kind: "blocked", httpStatus, requests: oneRequest });
+const failed = (detail: string, httpStatus?: number): RenderOutcome => ({ kind: "failed", detail, httpStatus, requests: oneRequest });
 
 function renderPageAnswering(direct: RenderOutcome, proxied?: RenderOutcome) {
 	return jest.fn<ReturnType<RenderPage>, Parameters<RenderPage>>(async ({ proxy }) => {
@@ -83,6 +88,36 @@ const unusedCrawl: CrawlArticle = async () => {
 	throw new Error("the render path must not run the HTTP crawler");
 };
 
+const refusedProxiedCrawl: CrawlArticle = async () => ({ status: "blocked", httpStatus: 403 });
+const proxiedCrawlUnsupported = (unsupportedReason?: CrawlUnsupportedReason): CrawlArticle => async () => ({
+	status: "unsupported",
+	reason: "proxied fetch unsupported",
+	unsupportedReason,
+});
+const proxiedCrawlFetching = (httpStatus: number | undefined): CrawlArticle => async () => ({
+	status: "fetched",
+	html: RENDERED_HTML,
+	thumbnailUrl: undefined,
+	bodyHash: "proxied-hash",
+	httpStatus,
+});
+
+const CDN_BASE_URL = "https://images.example-cdn.test";
+
+const hostedImage = { body: Buffer.from("image-bytes"), contentType: "image/jpeg", url: `${CDN_BASE_URL}/photo.jpg`, extension: ".jpg" };
+
+const finalizeOnImageRefusingOrigin = (): FinalizeArticle => initFinalizeArticle({
+	parseHtml: () => ({ ok: false, reason: "no article in the document" }),
+	downloadMedia: async () => [],
+	processContent: async ({ html }) => html,
+	fetchThumbnailImage: async ({ candidates }) => ({
+		image: candidates.some((candidate) => candidate.startsWith(CDN_BASE_URL)) ? hostedImage : undefined,
+		provenUnusable: [],
+	}),
+	putImageObject: jest.fn().mockResolvedValue(undefined),
+	imagesCdnBaseUrl: CDN_BASE_URL,
+});
+
 type HandlerDeps = Parameters<typeof initRenderCrawlHandler>[0];
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
@@ -91,6 +126,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		crawlArticle: unusedCrawl,
+		proxiedCrawlArticle: refusedProxiedCrawl,
 		finalizeArticle: okFinalize,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
@@ -379,7 +415,7 @@ describe("initRenderCrawlHandler", () => {
 			{ label: "failed on both legs", overrides: { renderPage: renderPageAnswering(failed("net::ERR_TIMED_OUT"), failed("net::ERR_PROXY_CONNECTION_FAILED")) } },
 			{ label: "rendered but unreadable", overrides: { finalizeArticle: unreadableFinalize } },
 			{ label: "rendered past the parse cap", overrides: { renderPage: renderPageAnswering(rendered({ html: "a".repeat(MAX_HTML_BYTES.bytes + 1) })) } },
-			{ label: "denied by the budget", overrides: { consumeRenderCrawlBudget: async () => ({ allowed: false }) } },
+			{ label: "denied by the budget", overrides: { renderPage: renderPageAnswering(blocked(403)), consumeRenderCrawlBudget: async () => ({ allowed: false }) } },
 		];
 
 		it.each(refusals)("backs off instead of re-rendering on the next view when $label", async ({ overrides }) => {
@@ -406,10 +442,343 @@ describe("initRenderCrawlHandler", () => {
 		});
 	});
 
-	describe("the render budget", () => {
-		it("claims one slot per message and renders nothing once the window is spent", async () => {
-			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: false });
+	describe("the proxied fetch after a direct block", () => {
+		it("commits a readable proxied body with no render budget and no proxied render", async () => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const renderPage = renderPageAnswering(blocked(403));
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const info = jest.fn();
+			const handler = createHandler({
+				consumeRenderCrawlBudget,
+				renderPage,
+				putTierSource,
+				proxiedCrawlArticle: proxiedCrawlFetching(200),
+				logger: { ...noopLogger, info },
+			});
+
+			const response = await run(handler, { url: URL });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+				metadata: expect.objectContaining({ renderedThrough: "residential-proxy", httpStatus: 200 }),
+			}));
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] fetched", { url: URL, fetchedThrough: "residential-proxy", httpStatus: 200 });
+		});
+
+		it("commits a proxied image with the bytes it hosted and no proxied render", async () => {
+			const imageUrl = "https://example-spa.test/photo.jpg";
+			const originFigure = `<figure><img src="${imageUrl}"></figure>`;
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const renderPage = renderPageAnswering(blocked(403));
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				consumeRenderCrawlBudget,
+				renderPage,
+				putTierSource,
+				finalizeArticle: finalizeOnImageRefusingOrigin(),
+				proxiedCrawlArticle: async () => ({
+					status: "fetched",
+					html: originFigure,
+					evaluationHtml: originFigure,
+					thumbnailUrl: undefined,
+					thumbnail: { image: { ...hostedImage, url: imageUrl }, provenUnusable: [] },
+					mediaType: "image",
+					bodyHash: "proxied-hash",
+					finalUrl: imageUrl,
+					httpStatus: 200,
+				}),
+			});
+
+			const response = await run(handler, { url: imageUrl, unsupportedReason: "blocked" });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+				html: expect.stringContaining(`<img src="${CDN_BASE_URL}/`),
+				metadata: expect.objectContaining({ directResourceKind: "image", renderedThrough: "residential-proxy" }),
+			}));
+		});
+
+		it("commits a proxied text body through the plain-text finalize and no proxied render", async () => {
+			const textUrl = "https://example-spa.test/notes.txt";
+			const plainText = "Plain notes served as text";
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const renderPage = renderPageAnswering(blocked(403));
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				consumeRenderCrawlBudget,
+				renderPage,
+				putTierSource,
+				finalizeArticle: finalizeOnImageRefusingOrigin(),
+				proxiedCrawlArticle: async () => ({
+					status: "fetched",
+					html: "",
+					evaluationHtml: plainText,
+					thumbnailUrl: undefined,
+					mediaType: "plain-text",
+					plainText,
+					bodyHash: "proxied-hash",
+					finalUrl: textUrl,
+					httpStatus: 200,
+				}),
+			});
+
+			const response = await run(handler, { url: textUrl, unsupportedReason: "blocked" });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+				html: `<pre><code>${plainText}</code></pre>`,
+				metadata: expect.objectContaining({ directResourceKind: "plain-text", renderedThrough: "residential-proxy" }),
+			}));
+		});
+
+		it.each([
+			{ label: "answered 404 through the retained body", overrides: { proxiedCrawlArticle: proxiedCrawlFetching(404) } },
+			{ label: "carried no status", overrides: { proxiedCrawlArticle: proxiedCrawlFetching(undefined) } },
+			{ label: "could not be parsed", overrides: { proxiedCrawlArticle: proxiedCrawlFetching(200), finalizeArticle: unreadableFinalize } },
+			{ label: "was refused", overrides: { proxiedCrawlArticle: refusedProxiedCrawl } },
+		])("reaches the proxied render when the proxied fetch $label", async ({ overrides }) => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const renderPage = renderPageAnswering(blocked(403), rendered());
+			const handler = createHandler({ consumeRenderCrawlBudget, renderPage, ...overrides });
+
+			await run(handler, { url: URL });
+
+			expect(consumeRenderCrawlBudget).toHaveBeenCalledTimes(1);
+			expect(renderPage).toHaveBeenCalledTimes(2);
+		});
+
+		const deferrableReasons: { label: string; reason: CrawlUnsupportedReason | undefined }[] = [
+			{ label: "non-html content", reason: { kind: "non-html-content", contentType: "application/pdf" } },
+			{ label: "a paywall", reason: { kind: "paywall" } },
+			{ label: "no stated reason", reason: undefined },
+		];
+		it.each(deferrableReasons)("hands $label to the comprehensive crawl with no render budget and no proxied render", async ({ reason }) => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const markCrawlStage = jest.fn().mockResolvedValue(undefined);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const renderPage = renderPageAnswering(blocked(403));
+			const handler = createHandler({
+				consumeRenderCrawlBudget,
+				publishEvent,
+				markCrawlStage,
+				transitionAndPersist,
+				renderPage,
+				proxiedCrawlArticle: proxiedCrawlUnsupported(reason),
+			});
+
+			const response = await run(handler, { url: URL, userId: "user-1", recrawl: true, previousBodyHash: "previous-hash", candidates: wrapperRefs });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(publishEvent).toHaveBeenCalledTimes(1);
+			expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.objectContaining({
+				url: URL,
+				userId: "user-1",
+				recrawl: true,
+				previousBodyHash: "previous-hash",
+				candidates: wrapperRefs,
+			}));
+			expect(markCrawlStage).toHaveBeenCalledWith({ url: URL, stage: "comprehensive-fetching" });
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(transitionAndPersist).not.toHaveBeenCalled();
+		});
+
+		it("reaches the proxied render when the proxied fetch finds a javascript shell", async () => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const renderPage = renderPageAnswering(blocked(403), rendered());
+			const handler = createHandler({
+				consumeRenderCrawlBudget,
+				publishEvent,
+				renderPage,
+				proxiedCrawlArticle: proxiedCrawlUnsupported({ kind: "javascript-required" }),
+			});
+
+			await run(handler, { url: URL });
+
+			expect(publishEvent).not.toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.anything());
+			expect(consumeRenderCrawlBudget).toHaveBeenCalledTimes(1);
+			expect(renderPage).toHaveBeenCalledTimes(2);
+		});
+
+		it("settles an oversized proxied body as unsupported with no render budget and no proxied render", async () => {
+			const reason: CrawlUnsupportedReason = { kind: "content-too-large", bytes: 100_000_000 };
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const renderPage = renderPageAnswering(blocked(403));
+			const handler = createHandler({
+				consumeRenderCrawlBudget,
+				publishEvent,
+				transitionAndPersist,
+				renderPage,
+				proxiedCrawlArticle: proxiedCrawlUnsupported(reason),
+			});
+
+			await run(handler, { url: URL });
+
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, { url: URL, input: { reason } });
+			expect(publishEvent).not.toHaveBeenCalledWith(ComprehensiveCrawlCommand, expect.anything());
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
+		});
+
+		it("offers the reader's wrapper candidates to selection when the proxied body is oversized", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				publishEvent,
+				transitionAndPersist,
+				renderPage: renderPageAnswering(blocked(403)),
+				proxiedCrawlArticle: proxiedCrawlUnsupported({ kind: "content-too-large", bytes: 100_000_000 }),
+			});
+
+			await run(handler, { url: URL, candidates: wrapperRefs });
+
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ url: URL, candidates: wrapperRefs }));
+			expect(transitionAndPersist).not.toHaveBeenCalled();
+		});
+
+		it("backs off a refresh whose proxied body is oversized", async () => {
+			const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				updateFetchTimestamp,
+				renderPage: renderPageAnswering(blocked(403)),
+				proxiedCrawlArticle: proxiedCrawlUnsupported({ kind: "content-too-large", bytes: 100_000_000 }),
+			});
+
+			await run(handler, { url: URL, refresh: true, previousBodyHash: "previous-hash" });
+
+			expect(updateFetchTimestamp).toHaveBeenCalledWith(expect.objectContaining({ url: URL, bodyHash: "previous-hash" }));
+		});
+
+		it("reaches the proxied render when a readable proxied body cannot be committed", async () => {
+			const renderPage = renderPageAnswering(blocked(403), rendered());
+			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
+				.mockResolvedValueOnce({ ok: true, article: finalizedArticle })
+				.mockResolvedValueOnce({ ok: false, reason: "empty document" })
+				.mockResolvedValue({ ok: true, article: finalizedArticle });
+			const handler = createHandler({ renderPage, finalizeArticle, proxiedCrawlArticle: proxiedCrawlFetching(200) });
+
+			await run(handler, { url: URL });
+
+			expect(renderPage).toHaveBeenCalledTimes(2);
+		});
+
+		it("runs it after a failed direct render on a blocked deferral, with no render budget", async () => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const renderPage = renderPageAnswering(failed("direct timeout"));
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ consumeRenderCrawlBudget, renderPage, putTierSource, proxiedCrawlArticle: proxiedCrawlFetching(200) });
+
+			await run(handler, { url: URL, unsupportedReason: "blocked" });
+
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(putTierSource).toHaveBeenCalledTimes(1);
+		});
+
+		it("leaves it out after a failed direct render on a javascript-required deferral", async () => {
+			const proxiedCrawlArticle = jest.fn(refusedProxiedCrawl);
+			const handler = createHandler({ proxiedCrawlArticle, renderPage: renderPageAnswering(failed("direct timeout"), rendered()) });
+
+			await run(handler, { url: URL, unsupportedReason: "javascript-required" });
+
+			expect(proxiedCrawlArticle).not.toHaveBeenCalled();
+		});
+
+		it("runs it after an unreadable direct render on a blocked deferral, with no render budget", async () => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const renderPage = renderPageAnswering(rendered());
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
+				.mockResolvedValueOnce({ ok: false, reason: "empty document" })
+				.mockResolvedValue({ ok: true, article: finalizedArticle });
+			const handler = createHandler({ consumeRenderCrawlBudget, renderPage, putTierSource, transitionAndPersist, finalizeArticle, proxiedCrawlArticle: proxiedCrawlFetching(200) });
+
+			await run(handler, { url: URL, unsupportedReason: "blocked" });
+
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(transitionAndPersist).not.toHaveBeenCalled();
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+				metadata: expect.objectContaining({ renderedThrough: "residential-proxy" }),
+			}));
+		});
+
+		it("names the unreadable direct render when no leg brings a body on a blocked deferral", async () => {
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ transitionAndPersist, finalizeArticle: unreadableFinalize, renderPage: renderPageAnswering(rendered(), failed("proxied timeout")) });
+
+			await run(handler, { url: URL, unsupportedReason: "blocked" });
+
+			const detail = "render-failed: direct-egress: no readable article after render (direct-egress): empty document; residential-proxy: proxied timeout";
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+				url: URL,
+				input: { reason: { kind: "fetch-failed", detail, httpStatus: 200 } },
+			});
+		});
+
+		it("ends an unreadable direct render on a javascript-required deferral without the proxy", async () => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const proxiedCrawlArticle = jest.fn(refusedProxiedCrawl);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ consumeRenderCrawlBudget, proxiedCrawlArticle, transitionAndPersist, finalizeArticle: unreadableFinalize });
+
+			await run(handler, { url: URL, unsupportedReason: "javascript-required" });
+
+			expect(proxiedCrawlArticle).not.toHaveBeenCalled();
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+				url: URL,
+				input: { reason: { kind: "parse-error", detail: "no readable article after render (direct-egress): empty document" } },
+			});
+		});
+
+		it("names the proxied fetch outcome on the not-rendered log line", async () => {
+			const info = jest.fn();
+			const handler = createHandler({ renderPage: renderPageAnswering(blocked(403), failed("proxied timeout")), logger: { ...noopLogger, info } });
+
+			await run(handler, { url: URL });
+
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] not rendered on either leg", {
+				url: URL,
+				direct: blocked(403),
+				proxied: failed("proxied timeout"),
+				proxiedFetch: { kind: "no-body", outcome: "blocked" },
+			});
+		});
+	});
+
+	describe("the render budget", () => {
+		it("spends no slot on a direct render", async () => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const handler = createHandler({ consumeRenderCrawlBudget });
+
+			await run(handler, { url: URL });
+
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+		});
+
+		it("carries the request tally on the rendered log line", async () => {
+			const info = jest.fn();
+			const handler = createHandler({ logger: { ...noopLogger, info } });
+
+			await run(handler, { url: URL });
+
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] rendered", { url: URL, renderedThrough: "direct-egress", httpStatus: 200, requests: oneRequest });
+		});
+
+		it("claims one slot per message and runs no proxied render once the window is spent", async () => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: false });
+			const renderPage = renderPageAnswering(blocked(403));
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({ consumeRenderCrawlBudget, renderPage, transitionAndPersist });
 
@@ -417,13 +786,13 @@ describe("initRenderCrawlHandler", () => {
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			expect(consumeRenderCrawlBudget).toHaveBeenCalledWith({ messageId: "msg-1" });
-			expect(renderPage).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "spend-capped" } } });
 		});
 
 		it("leaves a refreshed article's served content alone once the window is spent", async () => {
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const handler = createHandler({ consumeRenderCrawlBudget: async () => ({ allowed: false }), transitionAndPersist });
+			const handler = createHandler({ renderPage: renderPageAnswering(blocked(403)), consumeRenderCrawlBudget: async () => ({ allowed: false }), transitionAndPersist });
 
 			await run(handler, { url: URL, refresh: true });
 
@@ -432,7 +801,7 @@ describe("initRenderCrawlHandler", () => {
 
 		it("hands the reader's wrapper candidates to selection once the window is spent", async () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
-			const handler = createHandler({ consumeRenderCrawlBudget: async () => ({ allowed: false }), publishEvent });
+			const handler = createHandler({ renderPage: renderPageAnswering(blocked(403)), consumeRenderCrawlBudget: async () => ({ allowed: false }), publishEvent });
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 

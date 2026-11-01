@@ -32,7 +32,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 		fetchH2: async () => new Response(rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } }),
 		fetchCurl: async () => new Response(rateLimitedHtml, { status: 429, headers: { "content-type": "text/html" } }),
 		personas: [{ name: "test", headers: { "user-agent": "test" } }],
-		proxyUrl: "http://proxy.example:8080",
+		egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		rateLimitRetryDelaysMs: [0],
 		resolve: (_hostname, _options, callback) => callback(null, [{ address: "93.184.216.34", family: 4 }]),
 		isBlocked: () => false,

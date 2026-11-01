@@ -4,7 +4,14 @@ import { classifyMediaType } from "./media-type";
 
 const REFRESH_DECLARATION = /^\s*[\d.]+(?:\s*[;,]\s*|\s+)url\s*=\s*(.+)$/is;
 const LEADING_QUOTE = /^['"]/;
-const ALLOWED_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
+export const ALLOWED_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
+
+export function isTextlessOnceHidden(document: ReturnType<typeof parseHTML>["document"]): boolean {
+	for (const hidden of document.querySelectorAll("title, script")) {
+		hidden.remove();
+	}
+	return [...document.childNodes].map((node) => node.textContent).join("").trim() === "";
+}
 
 function attributeValue(element: { attributes: Iterable<{ name: string; value: string }> }, name: string): string {
 	const attribute = [...element.attributes].find((candidate) => candidate.name.toLowerCase() === name);
@@ -25,9 +32,6 @@ export function metaRefreshTarget(page: { response: Response; buffer: Buffer; do
 	const target = URL.parse(quote === undefined ? declared : declared.slice(1).split(quote)[0], documentUrl);
 	if (target === null) return undefined;
 	if (!ALLOWED_PROTOCOLS.has(target.protocol)) return undefined;
-	for (const hidden of document.querySelectorAll("title, script")) {
-		hidden.remove();
-	}
-	if ([...document.childNodes].map((node) => node.textContent).join("").trim() !== "") return undefined;
+	if (!isTextlessOnceHidden(document)) return undefined;
 	return target.href;
 }

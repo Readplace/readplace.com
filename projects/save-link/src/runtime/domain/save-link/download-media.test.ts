@@ -610,5 +610,5 @@ it("threads capture ownership into attempt-scoped body images", async () => {
 	const writeContext = { url: ARTICLE_URL, attemptId: SaveAttemptIdSchema.parse("attempt"), authorUserId: UserIdSchema.parse("author") };
 	const result = await downloadMedia({ html: '<img src="https://example.com/photo.png">', referer: ARTICLE_URL, articleResourceUniqueId, writeContext });
 	expect(result).toHaveLength(1);
-	expect(putImageObject).toHaveBeenCalledWith({ key: expect.stringMatching(/^content\/example.com%2Farticle\/images\/attempts\/[a-f0-9]{64}\/[a-f0-9]{64}\.png$/), body: expect.any(Buffer), contentType: "image/png", writeContext });
+	expect(putImageObject).toHaveBeenCalledWith({ key: expect.stringMatching(/^content\/example.com%2Farticle\/images\/attempts\/[a-f0-9]{32}\/[a-f0-9]{32}\.png$/), body: expect.any(Buffer), contentType: "image/png", writeContext });
 });

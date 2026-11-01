@@ -151,6 +151,7 @@ describe("initSelectContentWork", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store: { load: async (url) => rows.get(url), save: async ({ article: next }) => { rows.set(next.url, next); } },
 			dispatchEffect: async () => {},
+			logCrawlSettled: () => {},
 		});
 		await transitionAndPersist(requestRecrawl, { url: blobUrl, input: { now: NOW } });
 		const { work } = setup({

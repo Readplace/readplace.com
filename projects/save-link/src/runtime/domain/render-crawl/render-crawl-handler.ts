@@ -4,11 +4,13 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import { initCrawlAndFinalizeArticle, type FinalizeArticle } from "@packages/finalize-article";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type CrawlArticle, MAX_HTML_BYTES } from "@packages/crawl-article";
+import { type CrawlArticle, type CrawlUnsupportedReason, MAX_HTML_BYTES } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { type TransitionAndPersist, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
-import { RenderCrawlCommand, type LogCrawlOutcome, type LogParseError } from "@packages/hutch-infra-components";
+import { ComprehensiveCrawlCommand, RenderCrawlCommand, type LogCrawlOutcome, type LogParseError } from "@packages/hutch-infra-components";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
+import { deferJavascriptShells } from "../save-link/javascript-shell";
+import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-reason";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { ConsumePaidCrawlBudget } from "../../providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -21,13 +23,16 @@ import {
 } from "../crawl-article-state/commit-deferred-crawl";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
 import type { RenderPage, RenderProxy } from "../../providers/render-page/render-page.types";
-import { type RenderLadderResult, runRenderLadder } from "./render-ladder";
+import { escalateThroughProxy, type ProxiedFetchAttempt, type RenderLadderLegs, type RenderLadderResult, runRenderLadder } from "./render-ladder";
+
+type SettledWithoutBody = Exclude<RenderLadderResult, { kind: "fetched-through-proxy" | "settled-by-proxied-fetch" | "budget-exhausted" }>;
 
 export function initRenderCrawlHandler(deps: {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	prepareArticleIdentity: PrepareArticleIdentity;
 	verifyWrapperSource: VerifyWrapperSource;
 	crawlArticle: CrawlArticle;
+	proxiedCrawlArticle: CrawlArticle;
 	finalizeArticle: FinalizeArticle;
 	putTierSource: PutTierSource;
 	updateFetchTimestamp: UpdateFetchTimestamp;
@@ -82,6 +87,10 @@ export function initRenderCrawlHandler(deps: {
 		logPrefix,
 	});
 
+	const proxiedCrawlAndFinalize = deferJavascriptShells({
+		crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({ crawlArticle: deps.proxiedCrawlArticle, finalizeArticle: deps.finalizeArticle }),
+	});
+
 	const backOffRefresh = async (ctx: DeferredCrawlContext): Promise<void> => {
 		if (!ctx.refresh) return;
 		await deps.updateFetchTimestamp({
@@ -91,7 +100,69 @@ export function initRenderCrawlHandler(deps: {
 		});
 	};
 
-	const settleWithoutBody = async (rendered: RenderLadderResult, ctx: DeferredCrawlContext): Promise<CrawlTermination> => {
+	const settleProxiedUnsupported = async (reason: CrawlUnsupportedReason | undefined, ctx: DeferredCrawlContext): Promise<ProxiedFetchAttempt> => {
+		const { url } = ctx;
+		if (reason?.kind === "javascript-required") return { kind: "no-body", outcome: reason.kind };
+		const terminalReason = terminalUnsupportedReason(reason);
+		if (terminalReason === undefined) {
+			await deps.markCrawlStage({ url, stage: "comprehensive-fetching" });
+			await deps.publishEvent(ComprehensiveCrawlCommand, {
+				url,
+				userId: ctx.userId,
+				recrawl: ctx.recrawl,
+				refresh: ctx.refresh,
+				previousBodyHash: ctx.previousBodyHash,
+				saveAttemptId: ctx.saveAttemptId,
+				candidates: ctx.candidates,
+			});
+			logger.info(`${logPrefix} proxied fetch deferred to comprehensive crawl`, { url, unsupportedReason: reason?.kind });
+			return { kind: "settled" };
+		}
+		if (ctx.candidates !== undefined) {
+			await publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+		} else {
+			await emitTier1FailureOutcome({ url });
+			await transitionAndPersist(markCrawlUnsupported, { url, input: { reason: terminalReason } });
+		}
+		await backOffRefresh(ctx);
+		return { kind: "settled" };
+	};
+
+	const fetchThroughProxy = async (ctx: DeferredCrawlContext): Promise<ProxiedFetchAttempt> => {
+		const { url } = ctx;
+		const result = await proxiedCrawlAndFinalize({
+			url: ctx.originalUrl,
+			writeContext: { url, attemptId: ctx.saveAttemptId },
+			retainResponseBody: true,
+		});
+		if (result.status === "unsupported") return settleProxiedUnsupported(result.unsupportedReason, ctx);
+		if (result.status !== "fetched") return { kind: "no-body", outcome: result.status };
+		const httpStatus = result.httpStatus ?? 0;
+		if (result.parseFailure !== undefined || httpStatus < 200 || httpStatus >= 300) return { kind: "no-body", outcome: "unreadable" };
+		assert(result.evaluationHtml !== undefined, "a retained proxied fetch carries its response body");
+		const fetched = {
+			etag: result.etag,
+			lastModified: result.lastModified,
+			bodyHash: result.bodyHash,
+			finalUrl: result.finalUrl,
+			httpStatus,
+			renderedThrough: "residential-proxy" as const,
+		};
+		const { directResourceKind } = result.article.metadata;
+		const committed = await commitFetchedBody(
+			directResourceKind === "image"
+				? { ...fetched, html: result.article.html, mediaType: "image" }
+				: directResourceKind === "plain-text"
+					? { ...fetched, html: result.evaluationHtml, mediaType: "plain-text", plainText: result.evaluationHtml }
+					: { ...fetched, html: result.evaluationHtml },
+			ctx,
+		);
+		if (committed.via === "unreadable") return { kind: "no-body", outcome: "unreadable" };
+		logger.info(`${logPrefix} fetched`, { url, fetchedThrough: "residential-proxy", httpStatus });
+		return { kind: "committed" };
+	};
+
+	const settleWithoutBody = async (rendered: SettledWithoutBody, ctx: DeferredCrawlContext): Promise<CrawlTermination> => {
 		const { url } = ctx;
 		if (ctx.candidates !== undefined) return publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
 		if (rendered.kind === "rendered") {
@@ -117,17 +188,24 @@ export function initRenderCrawlHandler(deps: {
 		return { via: "committed-in-process" };
 	};
 
-	const resolveRender = async (rendered: RenderLadderResult, ctx: DeferredCrawlContext): Promise<CrawlTermination> => {
+	const resolveRender = async (rendered: RenderLadderResult, ctx: DeferredCrawlContext, legs: RenderLadderLegs): Promise<void> => {
 		const { url } = ctx;
+		if (rendered.kind === "fetched-through-proxy" || rendered.kind === "settled-by-proxied-fetch") return;
+		if (rendered.kind === "budget-exhausted") {
+			logger.warn(`${logPrefix} render-crawl budget exhausted — failing crawl gracefully`, { url, direct: rendered.direct, proxiedFetch: rendered.proxiedFetch });
+			await resolveBudgetExhausted(ctx);
+			await backOffRefresh(ctx);
+			return;
+		}
 		if (rendered.kind === "rendered") {
-			logger.info(`${logPrefix} rendered`, { url, renderedThrough: rendered.renderedThrough, httpStatus: rendered.httpStatus });
+			logger.info(`${logPrefix} rendered`, { url, renderedThrough: rendered.renderedThrough, httpStatus: rendered.httpStatus, requests: rendered.requests });
 		} else {
-			logger.info(`${logPrefix} not rendered on either leg`, { url, direct: rendered.direct, proxied: rendered.proxied });
+			logger.info(`${logPrefix} not rendered on either leg`, { url, direct: rendered.direct, proxied: rendered.proxied, proxiedFetch: rendered.proxiedFetch });
 		}
 		if (rendered.kind !== "rendered" || Buffer.byteLength(rendered.html) > MAX_HTML_BYTES.bytes) {
-			const settled = await settleWithoutBody(rendered, ctx);
+			await settleWithoutBody(rendered, ctx);
 			await backOffRefresh(ctx);
-			return settled;
+			return;
 		}
 		const { renderedThrough } = rendered;
 		const committed = await commitFetchedBody(
@@ -140,10 +218,15 @@ export function initRenderCrawlHandler(deps: {
 			},
 			ctx,
 		);
-		if (committed.via !== "unreadable") return committed;
-		const unreadable = await resolveUnreadable({ url, detail: `no readable article after render (${renderedThrough}): ${committed.reason}` });
+		if (committed.via !== "unreadable") return;
+		const detail = `no readable article after render (${renderedThrough}): ${committed.reason}`;
+		if (renderedThrough === "direct-egress" && legs.unsupportedReason === "blocked") {
+			const direct = { kind: "failed" as const, detail, httpStatus: rendered.httpStatus, requests: rendered.requests };
+			await resolveRender(await escalateThroughProxy({ ...legs, direct }), ctx, legs);
+			return;
+		}
+		await resolveUnreadable({ url, detail });
 		await backOffRefresh(ctx);
-		return unreadable;
 	};
 
 	return async (event): Promise<SQSBatchResponse> => {
@@ -153,7 +236,7 @@ export function initRenderCrawlHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = RenderCrawlCommand.detailSchema.parse(envelope.detail);
-				const { url, userId, recrawl, refresh, saveAttemptId, previousBodyHash } = detail;
+				const { url, userId, recrawl, refresh, saveAttemptId, previousBodyHash, unsupportedReason } = detail;
 				const identity = await deps.prepareArticleIdentity(url);
 				assert(identity.status === "resolved", "queued render article original is unresolved");
 				let candidates = detail.candidates;
@@ -183,20 +266,15 @@ export function initRenderCrawlHandler(deps: {
 					userId,
 					previousBodyHash,
 				};
-				const budget = await deps.consumeRenderCrawlBudget({ messageId: record.messageId });
-				if (!budget.allowed) {
-					logger.warn(`${logPrefix} render-crawl budget exhausted — failing crawl gracefully`, { url });
-					await resolveBudgetExhausted(ctx);
-					await backOffRefresh(ctx);
-					continue;
-				}
-
-				const rendered = await runRenderLadder({
+				const legs: RenderLadderLegs = {
 					renderPage: deps.renderPage,
 					url: identity.originalUrl,
 					proxy: deps.renderProxy,
-				});
-				await resolveRender(rendered, ctx);
+					unsupportedReason,
+					fetchThroughProxy: () => fetchThroughProxy(ctx),
+					consumeBudget: () => deps.consumeRenderCrawlBudget({ messageId: record.messageId }),
+				};
+				await resolveRender(await runRenderLadder(legs), ctx, legs);
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {
 					messageId: record.messageId,

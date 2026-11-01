@@ -16,6 +16,7 @@ function harness(crawl: ArticleCrawl | undefined, opts: { failFiling?: boolean }
 	const store = initInMemoryArticleStore();
 	const calls: string[] = [];
 	const displayUrls: { articleUrl: string; displayUrl: string }[] = [];
+	const crawlPendingMarks: { url: string; measured: boolean }[] = [];
 	const fileIntoReadlist = initFileArticleIntoReadlist({
 		allocateSavedAt: store.allocateSavedAt,
 		saveReadlistArticle: store.saveReadlistArticle,
@@ -28,8 +29,9 @@ function harness(crawl: ArticleCrawl | undefined, opts: { failFiling?: boolean }
 			displayUrls.push(input);
 		},
 		findArticleCrawlStatus: async () => crawl,
-		markCrawlPending: async () => {
+		markCrawlPending: async (input) => {
 			calls.push("crawl-pending");
+			crawlPendingMarks.push(input);
 		},
 		markSummaryPending: async () => {
 			calls.push("summary-pending");
@@ -56,7 +58,7 @@ function harness(crawl: ArticleCrawl | undefined, opts: { failFiling?: boolean }
 				calls.push("saved-to-all");
 			},
 		});
-	return { store, calls, displayUrls, save };
+	return { store, calls, displayUrls, crawlPendingMarks, save };
 }
 
 describe("initSaveEmailIssue", () => {
@@ -73,6 +75,19 @@ describe("initSaveEmailIssue", () => {
 		);
 		assert.deepEqual(h.displayUrls, [{ articleUrl: ISSUE_URL, displayUrl: INBOX_PAGE }]);
 		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all", "queue-entry-created"]);
+		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: true }]);
+	});
+
+	it("marks a still-pending issue's crawl unmeasured on a repeat save, which creates no queue entry", async () => {
+		const h = harness({ status: "pending" });
+		await h.save([]);
+		h.calls.length = 0;
+		h.crawlPendingMarks.length = 0;
+
+		await h.save([]);
+
+		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all"]);
+		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: false }]);
 	});
 
 	it("files the issue into every custom readlist the newsletter is mapped to, as well as All", async () => {

@@ -100,7 +100,7 @@ describe("runTransportLadder", () => {
 		expect(attempts.map((a) => a.leg)).toEqual(["primary", "h2", "curl"]);
 	});
 
-	it.each([402, 403, 419])("escalates a block-class %i to the next transport", async (status) => {
+	it.each([400, 402, 403, 419])("escalates a block-class %i to the next transport", async (status) => {
 		const attempts: LegAttempt[] = [];
 		const ladder = ladderOf(
 			[
@@ -189,6 +189,43 @@ describe("runTransportLadder", () => {
 		expect(response.status).toBe(202);
 		expect(await response.text()).toBe("accepted article");
 		expect(attempts.map((attempt) => [attempt.leg, attempt.outcome])).toEqual([["primary", "answered"]]);
+	});
+
+	it("rescues a link the h2 leg answers 400 by opening curl", async () => {
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 50, fetch: answers(403) },
+				{ name: "h2", maxRunMs: 20, fetch: answers(400) },
+				{ name: "curl", maxRunMs: 30, fetch: answers(200, "rescued") },
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(await response.text()).toBe("rescued");
+		expect(attempts.map((a) => [a.leg, a.outcome, a.status])).toEqual([
+			["primary", "escalated", 403],
+			["h2", "escalated", 400],
+			["curl", "answered", 200],
+		]);
+	});
+
+	it("returns the origin's own 400 when every transport gets one", async () => {
+		const attempts: LegAttempt[] = [];
+		const ladder = ladderOf(
+			[
+				{ name: "primary", maxRunMs: 50, fetch: answers(400) },
+				{ name: "h2", maxRunMs: 20, fetch: answers(400) },
+				{ name: "curl", maxRunMs: 30, fetch: answers(400) },
+			],
+			attempts,
+		);
+
+		const response = await ladder("https://example.com", { headers: {}, budget: budgetOf(500) });
+
+		expect(response.status).toBe(400);
 	});
 
 	it("answers a 401 from the first leg and never opens a later transport", async () => {

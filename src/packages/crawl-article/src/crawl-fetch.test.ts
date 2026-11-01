@@ -9,7 +9,7 @@ function createCrawlFetch() {
 		personas: [{ name: "test", headers: { "user-agent": "test" } }],
 		isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 	});
 }
 
@@ -46,7 +46,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			fetchH2: stillRateLimited,
 			fetchCurl: stillRateLimited,
 			rateLimitRetryDelaysMs: [1],
@@ -82,7 +82,7 @@ describe("initCrawlFetch", () => {
 			logInfo: () => {},
 			fetchH2: blockedH2,
 			fetchCurl: blockedCurl,
-			proxyUrl: "http://proxy.example:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		});
 
 		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
@@ -121,7 +121,7 @@ describe("initCrawlFetch", () => {
 			logInfo: () => {},
 			fetchH2: blockedFallback,
 			fetchCurl: blockedFallback,
-			proxyUrl: "http://proxy.example:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		});
 
 		const response = await crawlFetch(TRACKER, { budgetMs: 30_000, onRedirect: (hop) => hops.push(hop) });
@@ -138,7 +138,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: "http://proxy.example:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		});
 
 		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
@@ -160,7 +160,7 @@ describe("initCrawlFetch", () => {
 			logInfo: () => {},
 			fetchH2: blocked,
 			fetchCurl: blocked,
-			proxyUrl: "http://proxy.example:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		});
 
 		const response = await crawlFetch("https://example.com", { budgetMs: 5000 });
@@ -209,7 +209,7 @@ describe("initCrawlFetch", () => {
 				logInfo: () => {},
 				fetchH2: challenged,
 				fetchCurl: challenged,
-				proxyUrl: "http://proxy.example:8080",
+				egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 			});
 
 			const pending = crawlFetch("https://example.com", { budgetMs: PROXIED_CRAWL_HEADERS_MILLISECONDS });
@@ -244,7 +244,7 @@ describe("initCrawlFetch", () => {
 				personas: [{ name: "test", headers: { "user-agent": "test" } }],
 				isBlocked: () => false,
 				logInfo: (message) => lines.push(message),
-				proxyUrl: undefined,
+				egress: { kind: "direct" },
 				fetchH2: stalledH2,
 				fetchCurl: async () => new Response("through"),
 			});
@@ -294,7 +294,7 @@ describe("initCrawlFetch", () => {
 				directCurlCalls += 1;
 				return new Response("Sorry\n", { status: 419 });
 			},
-			proxyUrl: "http://proxy.example:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		});
 
 		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
@@ -308,7 +308,7 @@ describe("initCrawlFetch", () => {
 		assert.deepEqual(proxied.map((a) => [a.leg, a.outcome, a.status]), [["primary", "answered", 200]]);
 	});
 
-	it("does not run a proxied pass when no proxyUrl is configured", async () => {
+	it("does not run a proxied pass under direct egress", async () => {
 		let curlCalls = 0;
 		const blockedFetch: typeof fetch = async () => new Response("denied", { status: 403 });
 		const blocked = async (): Promise<Response> => new Response("denied", { status: 403 });
@@ -321,7 +321,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			fetchH2: blocked,
 			fetchCurl: countedCurl,
 		});
@@ -346,7 +346,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 		});
 
 		const response = await crawlFetch("https://wrapper.example/link", { budgetMs: 30_000 });
@@ -368,7 +368,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 		});
 		const hops: Array<{ fromUrl: string; toUrl: string }> = [];
 
@@ -389,7 +389,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			fetchH2: outlivesTheBudget,
 			fetchCurl: outlivesTheBudget,
 		});
@@ -412,7 +412,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 		});
 		const controller = new AbortController();
 
@@ -435,7 +435,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 		});
 		const controller = new AbortController();
 		controller.abort(new Error("caller gave up first"));
@@ -453,7 +453,7 @@ describe("initCrawlFetch", () => {
 			personas: [{ name: "test", headers: { "user-agent": "test" } }],
 			isBlocked: () => false,
 			logInfo: (message) => lines.push(message),
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			fetchH2: async () => new Response("challenge", { status: 403 }),
 			fetchCurl: async () => new Response("ok", { status: 200 }),
 		});
@@ -490,7 +490,7 @@ describe("initCrawlFetch", () => {
 			logInfo: (message) => lines.push(message),
 			fetchH2: blocked,
 			fetchCurl: blocked,
-			proxyUrl: "http://proxy.example:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		});
 
 		const response = await crawlFetch("https://example.com", { budgetMs: 30_000 });
@@ -530,7 +530,7 @@ describe("initCrawlFetch", () => {
 			],
 			isBlocked: () => false,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			fetchH2: neverCalled,
 			fetchCurl: neverCalled,
 		});
@@ -540,5 +540,131 @@ describe("initCrawlFetch", () => {
 		assert.equal(response.status, 200);
 		assert.equal(await response.text(), "ok");
 		assert.deepEqual(userAgents, ["Blocked/1.0", "Allowed/1.0"]);
+	});
+});
+
+describe("initCrawlFetch proxy-only egress", () => {
+	const proxyUrl = "http://proxy.example:8080";
+	const persona = { name: "test", headers: { "user-agent": "test" } };
+
+	function proxyOnlyCrawlFetch(input: { fetch: typeof fetch; logInfo?: (line: string) => void }) {
+		const refuseDirectLeg = async (): Promise<Response> => {
+			throw new Error("a direct leg ran under proxy-only egress");
+		};
+		return initCrawlFetch({
+			fetch: input.fetch,
+			personas: [persona],
+			isBlocked: () => false,
+			logInfo: input.logInfo ?? (() => {}),
+			fetchH2: refuseDirectLeg,
+			fetchCurl: refuseDirectLeg,
+			egress: { kind: "proxy-only", proxyUrl },
+		});
+	}
+
+	it("runs no direct leg and logs every attempt through the proxy", async () => {
+		const lines: string[] = [];
+		const crawlFetch = proxyOnlyCrawlFetch({
+			fetch: async () => new Response("via proxy"),
+			logInfo: (line) => lines.push(line),
+		});
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 100_000 });
+
+		assert.equal(await response.text(), "via proxy");
+		assert.deepEqual(
+			lines.map((line) => JSON.parse(line)).map(({ via, leg, outcome }) => ({ via, leg, outcome })),
+			[{ via: "proxy", leg: "primary", outcome: "answered" }],
+		);
+	});
+
+	it("retries once past a gateway status from the unlocker", async () => {
+		const statuses = [502, 200];
+		let calls = 0;
+		const crawlFetch = proxyOnlyCrawlFetch({
+			fetch: async () => {
+				const status = statuses[calls];
+				calls += 1;
+				return new Response("answer", { status });
+			},
+		});
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 100_000 });
+
+		assert.equal(response.status, 200);
+		assert.equal(calls, 2);
+	});
+
+	it("returns the last proxied answer when the gateway never recovers", async () => {
+		let calls = 0;
+		const crawlFetch = proxyOnlyCrawlFetch({
+			fetch: async () => {
+				calls += 1;
+				return new Response("bad gateway", { status: 503 });
+			},
+		});
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 100_000 });
+
+		assert.equal(response.status, 503);
+		assert.equal(calls, 2);
+	});
+
+	it("returns a proxied 404 as the answer", async () => {
+		const crawlFetch = proxyOnlyCrawlFetch({ fetch: async () => new Response("gone", { status: 404 }) });
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 100_000 });
+
+		assert.equal(response.status, 404);
+	});
+
+	it("throws the last proxied error when every attempt timed out", async () => {
+		let calls = 0;
+		const crawlFetch = proxyOnlyCrawlFetch({
+			fetch: async () => {
+				calls += 1;
+				throw Object.assign(new Error(`attempt ${calls} timed out`), { name: "TimeoutError" });
+			},
+		});
+
+		await assert.rejects(() => crawlFetch("https://example.com", { budgetMs: 100_000 }), { message: /attempt 2 timed out/ });
+		assert.equal(calls, 2);
+	});
+
+	it("throws without a metered request when the budget cannot seat an attempt", async () => {
+		let calls = 0;
+		const crawlFetch = proxyOnlyCrawlFetch({
+			fetch: async () => {
+				calls += 1;
+				return new Response("metered");
+			},
+		});
+
+		await assert.rejects(() => crawlFetch("https://example.com/thumbnail.png", { budgetMs: 5_000 }), { name: "TimeoutError" });
+		assert.equal(calls, 0);
+	});
+});
+
+describe("initCrawlFetch direct egress", () => {
+	it("surfaces a block without any proxied attempt", async () => {
+		const lines: string[] = [];
+		const denied = async (): Promise<Response> => new Response("denied", { status: 403 });
+		const crawlFetch = initCrawlFetch({
+			fetch: denied,
+			personas: [{ name: "test", headers: { "user-agent": "test" } }],
+			isBlocked: () => false,
+			logInfo: (line) => lines.push(line),
+			fetchH2: denied,
+			fetchCurl: denied,
+			egress: { kind: "direct" },
+		});
+
+		const response = await crawlFetch("https://example.com", { budgetMs: 100_000 });
+
+		assert.equal(response.status, 403);
+		assert.deepEqual(
+			lines.map((line) => JSON.parse(line)).filter((attempt) => attempt.via === "proxy"),
+			[],
+		);
 	});
 });

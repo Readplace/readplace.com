@@ -1,5 +1,6 @@
-import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlExhausted } from "@packages/domain/article-aggregate";
+import { initFindSavedArticleForLink } from "@packages/article-store";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	MinutesSchema,
 	ReaderArticleHashIdSchema,
@@ -13,14 +14,16 @@ import { UserIdSchema } from "@packages/domain/user";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
 	EmailLinksFilteredEvent,
+	FileArticleIntoReadlistCommand,
 	QueueEntryCreatedEvent,
-	SubmitLinkCommand,
 	TierContentExtractedEvent,
 	EmailOutputSavedToAllEvent,
+	LinkQueueFailedEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
-import { initFileArticleIntoReadlist } from "@packages/save-article";
+import type { DecideReadlistFit } from "@packages/readlist-fit";
+import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import type {
@@ -33,6 +36,7 @@ import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initSubmitLinkCommandHandler } from "./submit-link-command-handler";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "./max-receive-count";
+import { initFileArticleIntoReadlistCommandHandler } from "../file-article-into-readlist/file-article-into-readlist-command-handler";
 import { initFilterEmailLinksHandler } from "../filter-email-links/filter-email-links-handler";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
@@ -196,26 +200,53 @@ describe("initSubmitLinkCommandHandler", () => {
 		const initial = createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letter@example.com" } }]);
 		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
 		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
+		await store.claimAlias({ aliasUrl: exampleUrl, targetOriginalUrl: canonical, now: fixedNow() });
+		const fileIntoReadlist = initFileArticleIntoReadlistCommandHandler({
+			findSavedArticleForLink: initFindSavedArticleForLink({
+				resolveCanonicalIdentity: initResolveCanonicalIdentity({ findIdentityRow: store.findIdentityRow }),
+				findArticleById: store.findArticleById,
+			}),
+			fileArticleIntoReadlist: initFileArticleIntoReadlist(store),
+			publishEvent: async () => {},
+			logger: noopLogger,
+			now: fixedNow,
+		});
 		const terminal: unknown[] = [];
 		const publishEvent: PublishEvent = async (event, detail) => {
-			if (event.detailType === SubmitLinkCommand.detailType) {
-				const result = await run(submit, buildSqsEvent([{ messageId: "save", body: JSON.stringify({ detail }) }]));
+			if (event.detailType === FileArticleIntoReadlistCommand.detailType) {
+				const result = await run(fileIntoReadlist, buildSqsEvent([{ messageId: "file", body: JSON.stringify({ detail }) }]));
 				expect(result.batchItemFailures).toEqual([]);
 			}
 			if (event.detailType === EmailLinksFilteredEvent.detailType) terminal.push(detail);
 		};
+		const decideReadlistFit: DecideReadlistFit = async ({ purpose, candidates }) => {
+			if (purpose.keep === unavailable) throw new Error("Custom filtering unavailable");
+			return {
+				decisions: candidates.map(({ id }) => ({
+					id,
+					verdict: purpose.keep === accepted ? "keep" : "drop",
+					reason: "Judged against this readlist's purpose",
+				})),
+				engine: "deepseek-flash",
+				model: "deepseek-chat",
+				usage: { inputTokens: 10, outputTokens: 10, reasoningTokens: 0 },
+			};
+		};
+		const discardLines: HutchLogger.Typed<unknown> = {
+			info: () => {},
+			error: () => {},
+			warn: () => {},
+			debug: () => {},
+		};
 		const filter = initFilterEmailLinksHandler({
 			listReadlistDefinitions: store.listReadlistDefinitions,
-			decideEmailLinks: async ({ purpose, links }) => {
-				if (purpose === unavailable) throw new Error("Custom filtering unavailable");
-				return {
-					kept: purpose === accepted ? links.map((link) => link.ordinal) : [],
-					dropped: purpose === rejected ? links.map((link) => ({ ordinal: link.ordinal, reason: "Outside this readlist's purpose" })) : [],
-					inputTokens: 10, outputTokens: 10, reasoningTokens: 0,
-				};
-			},
+			decideReadlistFit,
 			publishEvent,
 			logger: noopLogger,
+			fitDecidedLog: discardLines,
+			fitUnsureLog: discardLines,
+			deepseekCallFailedLog: discardLines,
+			now: fixedNow,
 		});
 		const deliveries = buildSqsEvent([accepted, rejected, unavailable].map((readlist) => ({
 			messageId: readlist,
@@ -248,7 +279,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(saveArticle).toHaveBeenCalledWith(
 			expect.objectContaining({ userId, url: exampleUrl, savedAt: allocatedSavedAt }),
 		);
-		expect(markCrawlPending).toHaveBeenCalledWith({ url: exampleUrl });
+		expect(markCrawlPending).toHaveBeenCalledWith({ url: exampleUrl, measured: true });
 		expect(putTierSource).toHaveBeenCalledWith(
 			expect.objectContaining({ url: exampleUrl, tier: "tier-1" }),
 		);
@@ -577,7 +608,31 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
 	});
 
-	it("fails the record and writes no article when the wrapper's original cannot be resolved, so the queue retries and then dead-letters it", async () => {
+	it("publishes the save failure instead of dead-lettering when the wrapper's original is still unresolved on the final receive", async () => {
+		const saveArticle = jest.fn();
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			refreshArticleIfStale: async () => ({ action: "unresolved", identity: { status: "unresolved" } }),
+			saveArticle,
+			publishEvent,
+		});
+		const lastReceive = createSqsEvent([{ url: "https://archive.ph/abc", userId }]);
+		lastReceive.Records[0].attributes = { ...stubAttributes, ApproximateReceiveCount: String(SUBMIT_LINK_MAX_RECEIVE_COUNT) };
+
+		const response = await run(handler, lastReceive);
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(saveArticle).toHaveBeenCalledTimes(0);
+		expect(publishEvent).toHaveBeenCalledTimes(1);
+		expect(publishEvent).toHaveBeenCalledWith(LinkQueueFailedEvent, {
+			url: "https://archive.ph/abc",
+			userId,
+			reason: "wrapper-original-unresolved",
+			receiveCount: SUBMIT_LINK_MAX_RECEIVE_COUNT,
+		});
+	});
+
+	it("fails the record and writes no article while the wrapper's original is unresolved before the final receive, so the queue retries it", async () => {
 		const wrapperUrl = "https://archive.ph/abc";
 		const saveArticle = jest.fn();
 		const pinContentSource = jest.fn();
@@ -655,10 +710,11 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 
-	it("acks an edge-blocked import (HTTP 403) after markCrawlBlocked and emits no tier event — dead-lettering would let the DLQ handler relabel the block as exhausted-retries", async () => {
+	it("defers an edge-blocked import (HTTP 403) to the render ladder and reports no batch failure", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const handler = createHandler({
+		const handler = createHandler({ emitSimpleCrawlUnsupported,
 			transitionAndPersist,
 			publishEvent,
 			crawlAndFinalizeArticle: (async () => ({
@@ -670,10 +726,8 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
 
 		expect(response.batchItemFailures).toEqual([]);
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
-			url: exampleUrl,
-			input: { reason: { kind: "blocked", cause: "edge-block" } },
-		});
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked" }));
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
 	});
 

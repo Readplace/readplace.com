@@ -35,7 +35,7 @@ describe("in-memory article image hosting", () => {
 		assert(imageUrl !== undefined);
 		expect(imageUrl.startsWith(`${ORIGIN}${RESOURCE_PATH}`)).toBe(true);
 		const filename = imageUrl.slice(`${ORIGIN}${RESOURCE_PATH}`.length);
-		expect(filename).toMatch(scoped ? /^attempts\/[a-f0-9]{64}\/[a-f0-9]{64}\.png$/ : /^[a-f0-9]{16}\.png$/);
+		expect(filename).toMatch(scoped ? /^attempts\/[a-f0-9]{32}\/[a-f0-9]{32}\.png$/ : /^[a-f0-9]{16}\.png$/);
 		expect(result.article.metadata.directResourceKind).toBe("image");
 
 		const response = await request(serve(app)).get(imageUrl.slice(ORIGIN.length));

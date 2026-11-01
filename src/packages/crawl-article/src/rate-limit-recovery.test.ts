@@ -43,7 +43,7 @@ function setup(input: { proxyStatus: number; initialError?: Error; retryError?: 
 		}),
 		personas: [{ name: "test", headers: {} }],
 		isBlocked: () => false,
-		proxyUrl: "http://proxy.example:8080",
+		egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.example:8080" },
 		rateLimitRetryDelaysMs: [1],
 		logInfo: (line) => attempts.push(line),
 	});

@@ -4,7 +4,7 @@ import { type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekC
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import { type CrawlSettledEvent, GenerateSummaryCommand, initLogCrawlSettled } from "@packages/hutch-infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
@@ -68,9 +68,11 @@ const { dispatchEffect } = initLambdaEffectDispatcher({
 	publishEvent,
 });
 
+const { logCrawlSettled } = initLogCrawlSettled({ logger: HutchLogger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
 const { transitionAndPersist } = initTransitionAndPersist({
 	store,
 	dispatchEffect,
+	logCrawlSettled,
 });
 
 export const handler = initSelectMostCompleteContentHandler({

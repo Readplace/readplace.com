@@ -120,10 +120,26 @@ describe("save identity", () => {
 		expect(await h.resolve(TRACKER)).toEqual(resolved({ url: ORIGINAL }));
 	});
 
+	it("follows a newsletter short link to the shared original behind its share intent", async () => {
+		const shortLink = "https://semafor.com/s/a1b2c3d4e5?email=reader%40example.com";
+		const h = harness({ targets: { [shortLink]: { url: `https://twitter.com/intent/tweet?url=${encodeURIComponent(ORIGINAL)}&text=Read` } } });
+		expect(await h.resolve(shortLink)).toEqual(resolved({ url: ORIGINAL }));
+	});
+
 	it("strips subscriber parameters before fixing the original identity", async () => {
 		const wrapper = "https://open.substack.com/pub/person/p/article";
 		const h = harness({ targets: { [wrapper]: { url: `${ORIGINAL}?r=reader&utm_source=email`, contentSourceUrl: wrapper } } });
 		expect(await h.resolve(wrapper)).toEqual(resolved({ url: `${ORIGINAL}?utm_source=email`, source: wrapper }));
+	});
+
+	it("resolves a Substack comment-button link to the post rather than its comments view", async () => {
+		const appLink = "https://substack.com/app-link/post?publication_id=1&post_id=2&comments=true&action=post-comment&token=abc";
+		const h = harness({
+			targets: { [appLink]: { url: "https://person.substack.com/p/article/comments?comments=true&action=post-comment&r=reader&utm_source=substack" } },
+		});
+		expect(await h.resolve(appLink)).toEqual(
+			resolved({ url: "https://person.substack.com/p/article?comments=true&action=post-comment&utm_source=substack", source: appLink }),
+		);
 	});
 
 	it("reuses a verified alias binding for a repeated short-link save without network", async () => {

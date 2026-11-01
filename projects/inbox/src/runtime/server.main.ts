@@ -151,12 +151,12 @@ async function main(): Promise<void> {
 		receivedAtMessageId: withLinks.receivedAtMessageId,
 		outcome: {
 			readlist: ReadlistSlugSchema.parse("work"),
-			decision: {
-				state: "decided",
-				readlist: ReadlistSlugSchema.parse("work"),
-				readlistLabel: "Work",
-			},
-			dropped: [{ ordinal: EmailLinkOrdinalSchema.parse("0001"), reason: "Outside engineering practice" }],
+			readlistLabel: "Work",
+			decision: "filtered",
+			fit: [
+				{ ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep", reason: "Engineering practice" },
+				{ ordinal: EmailLinkOrdinalSchema.parse("0001"), verdict: "drop", reason: "Outside engineering practice" },
+			],
 		},
 	});
 	await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
@@ -164,8 +164,9 @@ async function main(): Promise<void> {
 		receivedAtMessageId: withLinks.receivedAtMessageId,
 		outcome: {
 			readlist: ReadlistSlugSchema.parse("science"),
-			decision: { state: "failed", readlist: ReadlistSlugSchema.parse("science") },
-			dropped: [],
+			readlistLabel: "Science",
+			decision: "failed",
+			fit: [],
 		},
 	});
 	for (const url of ["https://example.com/first-post", "https://example.com/second-post"]) {

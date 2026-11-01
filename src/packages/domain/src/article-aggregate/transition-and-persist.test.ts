@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { CandidateIdSchema } from "../article/article.schema";
-import type { Article } from "./article.types";
+import type { Article, CrawlState } from "./article.types";
 import type { DispatchEffect } from "./effect-dispatcher.types";
 import type { Effect } from "./effects.types";
 import type { AggregateField, ArticleStore, SaveArticle } from "./storage.types";
 import {
 	initTransitionAndPersist,
+	type LogCrawlSettled,
 	type Transition,
 	type UpsertTransition,
 } from "./transition-and-persist";
@@ -88,6 +89,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await transitionAndPersist(exampleTransition, { url: URL, input: undefined });
@@ -120,6 +122,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await transitionAndPersist(exampleTransition, { url: URL, input: undefined });
@@ -147,6 +150,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await assert.rejects(
@@ -178,6 +182,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await assert.rejects(
@@ -201,6 +206,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await assert.rejects(
@@ -229,6 +235,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await assert.rejects(
@@ -265,6 +272,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await transitionAndPersist(transition, { url: URL, input: undefined });
@@ -290,6 +298,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await transitionAndPersist(transition, {
@@ -316,6 +325,7 @@ describe("initTransitionAndPersist", () => {
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await transitionAndPersist(transition, { url: URL, input: undefined });
@@ -358,6 +368,7 @@ describe("initTransitionAndPersist.upsertAndPersist", () => {
 		const { upsertAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await upsertAndPersist(transition, {
@@ -387,6 +398,7 @@ describe("initTransitionAndPersist.upsertAndPersist", () => {
 		const { upsertAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await upsertAndPersist(transition, { url: URL, input: undefined });
@@ -430,6 +442,7 @@ describe("initTransitionAndPersist.upsertAndPersist", () => {
 		const { upsertAndPersist } = initTransitionAndPersist({
 			store: wrappedStore,
 			dispatchEffect,
+			logCrawlSettled: () => {},
 		});
 
 		await upsertAndPersist(transition, {
@@ -447,7 +460,7 @@ describe("conditional selection persistence", () => {
 		let saveParams: Parameters<SaveArticle>[0] | undefined;
 		const store: ArticleStore = { load: async () => seededArticle(url), save: async (params) => { saveParams = params; } };
 		const dispatched: Effect[] = [];
-		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { dispatched.push(effect); } });
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { dispatched.push(effect); }, logCrawlSettled: () => {} });
 		const canonicalCommit = { expected: undefined, contentLocation: "s3://content/immutable.html", candidateId: CandidateIdSchema.parse("winner"), originalUrl: url, tier: "tier-1" as const };
 		await transitionAndPersist((article) => ({ article, writes: ["metadata", "crawl"], effects: [{ kind: "generate-summary", url }] }), { url, input: undefined, canonicalCommit });
 		assert.deepEqual(saveParams?.canonicalCommit, canonicalCommit);
@@ -458,9 +471,124 @@ describe("conditional selection persistence", () => {
 		let saveParams: Parameters<SaveArticle>[0] | undefined;
 		const store: ArticleStore = { load: async () => seededArticle(url), save: async (params) => { saveParams = params; throw new Error("selection revision changed"); } };
 		const dispatched: Effect[] = [];
-		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { dispatched.push(effect); } });
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async (effect) => { dispatched.push(effect); }, logCrawlSettled: () => {} });
 		await assert.rejects(transitionAndPersist((article) => ({ article, writes: ["crawl"], effects: [{ kind: "generate-summary", url }] }), { url, input: undefined, selectionExpected: { snapshot: undefined } }), /selection revision changed/);
 		assert.deepEqual(saveParams?.selectionExpected, { snapshot: undefined });
 		assert.deepEqual(dispatched, []);
+	});
+});
+
+describe("crawl settled emission", () => {
+	const URL = "https://example.com/settling";
+	const STARTED_AT = "2026-10-31T10:00:00.000Z";
+	const PENDING_WITH_START: CrawlState = { kind: "pending", pendingSince: "2026-10-31T10:00:05.000Z", startedAt: STARTED_AT };
+
+	function articleWithCrawl(crawl: CrawlState): Article {
+		return { ...seededArticle(URL), crawl };
+	}
+
+	function settleTo(crawl: CrawlState, writes: readonly AggregateField[]): Transition<undefined> {
+		return (article) => ({ article: { ...article, crawl }, effects: [], writes });
+	}
+
+	function createCapturingLog(): { logCrawlSettled: LogCrawlSettled; emitted: Parameters<LogCrawlSettled>[0][] } {
+		const emitted: Parameters<LogCrawlSettled>[0][] = [];
+		return { logCrawlSettled: (params) => { emitted.push(params); }, emitted };
+	}
+
+	const outcomes: CrawlState[] = [
+		{ kind: "ready" },
+		{ kind: "failed", reason: { kind: "fetch-failed" } },
+		{ kind: "unsupported", reason: { kind: "paywall" } },
+	];
+
+	it.each(outcomes)("emits once with the start and the outcome when a pending crawl settles to $kind", async (settled) => {
+		const { store } = createFakeStore([articleWithCrawl(PENDING_WITH_START)]);
+		const { logCrawlSettled, emitted } = createCapturingLog();
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {}, logCrawlSettled });
+
+		await transitionAndPersist(settleTo(settled, ["crawl"]), { url: URL, input: undefined });
+
+		assert.deepEqual(emitted, [{ startedAt: STARTED_AT, outcome: settled.kind }]);
+	});
+
+	const silent: { name: string; before: CrawlState; after: CrawlState; writes: readonly AggregateField[] }[] = [
+		{ name: "pending to pending", before: PENDING_WITH_START, after: { kind: "pending", pendingSince: "2026-10-31T10:01:00.000Z", startedAt: STARTED_AT }, writes: ["crawl"] },
+		{ name: "ready to ready", before: { kind: "ready" }, after: { kind: "ready" }, writes: ["crawl"] },
+		{ name: "writes without crawl", before: PENDING_WITH_START, after: { kind: "ready" }, writes: ["summary"] },
+		{ name: "empty writes", before: PENDING_WITH_START, after: { kind: "ready" }, writes: [] },
+		{ name: "a pending row without a start", before: { kind: "pending", pendingSince: "2026-10-31T10:00:05.000Z" }, after: { kind: "ready" }, writes: ["crawl"] },
+	];
+
+	it.each(silent)("does not emit for $name", async ({ before, after, writes }) => {
+		const { store } = createFakeStore([articleWithCrawl(before)]);
+		const { logCrawlSettled, emitted } = createCapturingLog();
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {}, logCrawlSettled });
+
+		await transitionAndPersist(settleTo(after, writes), { url: URL, input: undefined });
+
+		assert.deepEqual(emitted, []);
+	});
+
+	it("does not emit when an upsert creates the row", async () => {
+		const { store } = createFakeStore([]);
+		const { logCrawlSettled, emitted } = createCapturingLog();
+		const { upsertAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {}, logCrawlSettled });
+
+		await upsertAndPersist(() => ({ article: articleWithCrawl({ kind: "ready" }), effects: [], writes: ["crawl"] }), { url: URL, input: undefined });
+
+		assert.deepEqual(emitted, []);
+	});
+
+	it("does not emit when the save throws", async () => {
+		const store: ArticleStore = {
+			load: async () => articleWithCrawl(PENDING_WITH_START),
+			save: async () => { throw new Error("conditional check failed"); },
+		};
+		const { logCrawlSettled, emitted } = createCapturingLog();
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {}, logCrawlSettled });
+
+		await assert.rejects(transitionAndPersist(settleTo({ kind: "ready" }, ["crawl"]), { url: URL, input: undefined }), /conditional check failed/);
+
+		assert.deepEqual(emitted, []);
+	});
+
+	it("emits once when a retry reloads a row that is still pending", async () => {
+		let saveAttempts = 0;
+		const store: ArticleStore = {
+			load: async () => articleWithCrawl(PENDING_WITH_START),
+			save: async () => {
+				saveAttempts += 1;
+				if (saveAttempts === 1) throw new Error("conditional check failed");
+			},
+		};
+		const { logCrawlSettled, emitted } = createCapturingLog();
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect: async () => {}, logCrawlSettled });
+
+		await assert.rejects(transitionAndPersist(settleTo({ kind: "ready" }, ["crawl"]), { url: URL, input: undefined }), /conditional check failed/);
+		await transitionAndPersist(settleTo({ kind: "ready" }, ["crawl"]), { url: URL, input: undefined });
+
+		assert.deepEqual(emitted, [{ startedAt: STARTED_AT, outcome: "ready" }]);
+	});
+
+	it("does not emit again when an effect throws and the work runs again", async () => {
+		const { store } = createFakeStore([articleWithCrawl(PENDING_WITH_START)]);
+		let dispatchAttempts = 0;
+		const dispatchEffect: DispatchEffect = async () => {
+			dispatchAttempts += 1;
+			if (dispatchAttempts === 1) throw new Error("dispatch failed");
+		};
+		const { logCrawlSettled, emitted } = createCapturingLog();
+		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect, logCrawlSettled });
+		const settle: Transition<undefined> = (article) => ({
+			article: { ...article, crawl: { kind: "ready" } },
+			effects: [{ kind: "generate-summary", url: article.url }],
+			writes: ["crawl"],
+		});
+
+		await assert.rejects(transitionAndPersist(settle, { url: URL, input: undefined }), /dispatch failed/);
+		await transitionAndPersist(settle, { url: URL, input: undefined });
+
+		assert.deepEqual(emitted, [{ startedAt: STARTED_AT, outcome: "ready" }]);
 	});
 });

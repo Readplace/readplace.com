@@ -3,7 +3,10 @@ import {
 	type EmailLinkStatus,
 	type InboxEmailLinkStore,
 } from "@packages/domain/inbox";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import {
+	ReadlistSlugSchema,
+	readlistPurposeVersion,
+} from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -14,12 +17,15 @@ import { initRecordEmailLinksFilteredHandler } from "./record-email-links-filter
 const userId = UserIdSchema.parse("user-1");
 const RAM = "2026-06-24T09:00:00.000Z#<m@x>";
 const WORK = ReadlistSlugSchema.parse("work");
+const PURPOSE_VERSION = readlistPurposeVersion("Engineering practice");
 
 function filteredBody(detail: {
-	savedTo?: string;
 	readlistLabel?: string;
 	decision?: "filtered" | "no-purpose" | "readlist-missing";
-	dropped: { ordinal: string; reason: string }[];
+	fit: { ordinal: string; verdict: string; reason: string }[];
+	purposeVersion?: string;
+	engine?: string;
+	model?: string;
 }): string {
 	return JSON.stringify({
 		"detail-type": "EmailLinksFiltered",
@@ -27,10 +33,12 @@ function filteredBody(detail: {
 			userId,
 			receivedAtMessageId: RAM,
 			readlist: WORK,
-			savedTo: detail.savedTo ?? WORK,
 			readlistLabel: detail.readlistLabel ?? "Work",
 			decision: detail.decision ?? "filtered",
-			dropped: detail.dropped,
+			fit: detail.fit,
+			purposeVersion: detail.purposeVersion,
+			engine: detail.engine,
+			model: detail.model,
 			inputTokens: 1200,
 			outputTokens: 80,
 			reasoningTokens: 400,
@@ -120,9 +128,19 @@ describe("recordEmailLinksFilteredHandler", () => {
 		]);
 		await snapshotDestinations(store);
 		const before = (await read()).links;
+		const fit = [
+			{ ordinal: "0000", verdict: "keep", reason: "On topic" },
+			{ ordinal: "0001", verdict: "drop", reason: "Off topic" },
+			{ ordinal: "0002", verdict: "unsure", reason: "Can't tell" },
+		];
 
 		const result = await run([
-			filteredBody({ dropped: [{ ordinal: "0001", reason: "Off topic" }] }),
+			filteredBody({
+				fit,
+				purposeVersion: PURPOSE_VERSION,
+				engine: "deepseek-v4-flash",
+				model: "deepseek-v4-flash",
+			}),
 		]);
 
 		expect(result).toEqual({ batchItemFailures: [] });
@@ -131,22 +149,43 @@ describe("recordEmailLinksFilteredHandler", () => {
 		expect(meta?.readlistOutcomes).toEqual([
 			{
 				readlist: WORK,
-				decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
-				dropped: [{ ordinal: "0001", reason: "Off topic" }],
+				readlistLabel: "Work",
+				decision: "filtered",
+				fit,
+				purposeVersion: PURPOSE_VERSION,
+				engine: "deepseek-v4-flash",
+				model: "deepseek-v4-flash",
 			},
 		]);
 	});
 
-	it("writes a failed outcome when the filter gave up", async () => {
+	it("writes no optional key for a no-purpose fact", async () => {
 		const { store, run, read } = createHandler();
 		await snapshotDestinations(store);
+
+		await run([filteredBody({ decision: "no-purpose", fit: [] })]);
+
+		expect((await read()).meta?.readlistOutcomes).toStrictEqual([
+			{
+				readlist: WORK,
+				readlistLabel: "Work",
+				decision: "no-purpose",
+				fit: [],
+			},
+		]);
+	});
+
+	it("takes a failed outcome's label from the destination snapshot", async () => {
+		const { store, run, read } = createHandler();
+		await snapshotDestinations(store, [{ readlist: WORK, label: "Day job" }]);
 
 		expect(await run([filterFailedBody()])).toEqual({ batchItemFailures: [] });
 		expect((await read()).meta?.readlistOutcomes).toEqual([
 			{
 				readlist: WORK,
-				decision: { state: "failed", readlist: WORK },
-				dropped: [],
+				readlistLabel: "Day job",
+				decision: "failed",
+				fit: [],
 			},
 		]);
 	});
@@ -159,7 +198,7 @@ describe("recordEmailLinksFilteredHandler", () => {
 			meta: { truncated: false, extractionFailed: false },
 		});
 
-		expect(await run([filteredBody({ dropped: [] })])).toEqual({
+		expect(await run([filteredBody({ fit: [] })])).toEqual({
 			batchItemFailures: [{ itemIdentifier: "m-0" }],
 		});
 		expect(await run([filterFailedBody()])).toEqual({
@@ -174,7 +213,7 @@ describe("recordEmailLinksFilteredHandler", () => {
 			{ readlist: ReadlistSlugSchema.parse("science"), label: "Science" },
 		]);
 
-		expect(await run([filteredBody({ dropped: [] })])).toEqual({
+		expect(await run([filteredBody({ fit: [] })])).toEqual({
 			batchItemFailures: [{ itemIdentifier: "m-0" }],
 		});
 	});
@@ -182,7 +221,7 @@ describe("recordEmailLinksFilteredHandler", () => {
 	it("retries an early fact until the destination snapshot is visible", async () => {
 		const { store, run, read } = createHandler();
 		const body = filteredBody({
-			dropped: [{ ordinal: "0000", reason: "Outside this list" }],
+			fit: [{ ordinal: "0000", verdict: "drop", reason: "Outside this list" }],
 		});
 		expect(await run([body])).toEqual({
 			batchItemFailures: [{ itemIdentifier: "m-0" }],
@@ -203,12 +242,13 @@ describe("recordEmailLinksFilteredHandler", () => {
 		const { store, run, read } = createHandler();
 		await snapshotDestinations(store);
 		expect(await run([filterFailedBody()])).toEqual({ batchItemFailures: [] });
-		await run([filteredBody({ dropped: [] })]);
+		await run([filteredBody({ fit: [] })]);
 		expect((await read()).meta?.readlistOutcomes).toEqual([
 			{
 				readlist: WORK,
-				decision: { state: "failed", readlist: WORK },
-				dropped: [],
+				readlistLabel: "Work",
+				decision: "failed",
+				fit: [],
 			},
 		]);
 	});
@@ -219,7 +259,7 @@ describe("recordEmailLinksFilteredHandler", () => {
 
 		const result = await run([
 			filteredBody({
-				dropped: [{ ordinal: "not-an-ordinal", reason: "Off topic" }],
+				fit: [{ ordinal: "not-an-ordinal", verdict: "drop", reason: "Off topic" }],
 			}),
 		]);
 

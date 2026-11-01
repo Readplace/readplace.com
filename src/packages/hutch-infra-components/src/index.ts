@@ -184,6 +184,13 @@ export {
 	initLogCrawlOutcome,
 } from "./crawl-outcome";
 export {
+	CRAWL_SETTLED_EVENT,
+	CRAWL_SETTLED_METRIC,
+	type CrawlSettledEvent,
+	type LogCrawlSettled,
+	initLogCrawlSettled,
+} from "./crawl-settled";
+export {
 	GMAIL_FILTER_REWRITE_FAILED_EVENT,
 	GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 	GMAIL_METRIC_NAMESPACE,

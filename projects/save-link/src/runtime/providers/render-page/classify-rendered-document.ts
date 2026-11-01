@@ -1,5 +1,5 @@
 import { hasFastlyChallengeMarkers, isAwsWafChallenge, isBlockClassStatus } from "@packages/crawl-article";
-import type { RenderOutcome } from "./render-page.types";
+import type { ClassifiedDocument } from "./render-page.types";
 
 export type RenderedDocument = {
 	httpStatus: number;
@@ -8,7 +8,7 @@ export type RenderedDocument = {
 	finalUrl: string;
 };
 
-export type ClassifyRenderedDocument = (document: RenderedDocument) => RenderOutcome;
+export type ClassifyRenderedDocument = (document: RenderedDocument) => ClassifiedDocument;
 
 const TOO_MANY_REQUESTS = 429;
 

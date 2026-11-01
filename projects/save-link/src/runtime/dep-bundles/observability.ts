@@ -3,10 +3,13 @@ import { formatErrorLogLine, HutchLogger } from "@packages/hutch-logger";
 import {
 	initLogParseError,
 	initLogCrawlOutcome,
+	initLogCrawlSettled,
 	type ParseErrorEvent,
 	type CrawlOutcomeEvent,
+	type CrawlSettledEvent,
 	type LogParseError,
 	type LogCrawlOutcome,
+	type LogCrawlSettled,
 } from "@packages/hutch-infra-components";
 import type { ImageLeftAtOriginEvent } from "../domain/save-link/download-media";
 
@@ -24,6 +27,7 @@ export type ObservabilityDepBundle = {
 	logger: HutchLogger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
+	logCrawlSettled: LogCrawlSettled;
 	logError: LogError;
 	logInfo: LogInfo;
 	logThumbnailNotDelivered: LogThumbnailNotDelivered;
@@ -47,10 +51,15 @@ export function initObservabilityDepBundle(deps: {
 		logger: HutchLogger.fromJSON<CrawlOutcomeEvent>(),
 		now: deps.now,
 	});
+	const { logCrawlSettled } = initLogCrawlSettled({
+		logger: HutchLogger.fromJSON<CrawlSettledEvent>(),
+		now: deps.now,
+	});
 	return {
 		logger: deps.logger,
 		logParseError,
 		logCrawlOutcome,
+		logCrawlSettled,
 		logError,
 		logInfo,
 		logThumbnailNotDelivered: HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn,

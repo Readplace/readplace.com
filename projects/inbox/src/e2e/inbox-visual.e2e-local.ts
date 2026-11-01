@@ -28,10 +28,9 @@ interface SeedLink {
 
 interface SeedReadlistOutcome {
 	readlist: string;
-	decision:
-		| { state: "decided"; readlist: string; readlistLabel: string }
-		| { state: "failed"; readlist: string };
-	dropped: { ordinal: string; reason: string }[];
+	readlistLabel: string;
+	decision: "filtered" | "no-purpose" | "readlist-missing" | "failed";
+	fit: { ordinal: string; verdict: "keep" | "drop" | "unsure"; reason: string }[];
 }
 
 const TWO_CRAWLED_LINKS: readonly SeedLink[] = [
@@ -442,10 +441,12 @@ test.describe("Inbox visual checkpoints", () => {
 			readlistOutcomes: [
 				{
 					readlist: WORK_READLIST,
-					decision: { state: "decided", readlist: WORK_READLIST, readlistLabel: "Work" },
-					dropped: [
-						{ ordinal: "0001", reason: "A product announcement, not engineering practice" },
-						{ ordinal: "0002", reason: "" },
+					readlistLabel: "Work",
+					decision: "filtered",
+					fit: [
+						{ ordinal: "0000", verdict: "keep", reason: "Engineering practice" },
+						{ ordinal: "0001", verdict: "drop", reason: "A product announcement, not engineering practice" },
+						{ ordinal: "0002", verdict: "drop", reason: "" },
 					],
 				},
 			],
@@ -461,7 +462,7 @@ test.describe("Inbox visual checkpoints", () => {
 			eligibleArticleCount: 2,
 			savesHeld: false,
 			readlistOutcomes: [
-				{ readlist: WORK_READLIST, decision: { state: "failed", readlist: WORK_READLIST }, dropped: [] },
+				{ readlist: WORK_READLIST, readlistLabel: "Work", decision: "failed", fit: [] },
 			],
 		});
 		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
@@ -481,13 +482,18 @@ test.describe("Inbox visual checkpoints", () => {
 			readlistOutcomes: [
 				{
 					readlist: WORK_READLIST,
-					decision: { state: "decided", readlist: WORK_READLIST, readlistLabel: "Work" },
-					dropped: [{ ordinal: "0001", reason: "Outside engineering practice" }],
+					readlistLabel: "Work",
+					decision: "filtered",
+					fit: [
+						{ ordinal: "0000", verdict: "keep", reason: "Engineering practice" },
+						{ ordinal: "0001", verdict: "drop", reason: "Outside engineering practice" },
+					],
 				},
 				{
 					readlist: "science",
-					decision: { state: "failed", readlist: "science" },
-					dropped: [],
+					readlistLabel: "Science",
+					decision: "failed",
+					fit: [],
 				},
 			],
 		});

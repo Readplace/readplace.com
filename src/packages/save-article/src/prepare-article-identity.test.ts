@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import type { IdentityRow, RepairWrapperIdentity } from "@packages/provider-contracts/article-store";
 import type { ResolveWrapperTarget } from "./resolve-wrapper-target";
 import { initPrepareArticleIdentity } from "./prepare-article-identity";
@@ -60,4 +61,13 @@ it("keeps a tracker row unresolved when its chain ends at an Apple News story wi
 });
 it("rejects a concurrent identity change", async () => {
 	expect(await harness({ kind: "article" }, false).prepare(ARCHIVE)).toEqual({ status: "unresolved" });
+});
+it("fetches a stored LinkedIn email link at its public post under the row's own key", async () => {
+	const url = "https://www.linkedin.com/comm/feed/update/urn:li:activity:1234567890123456789?otpToken=x&midToken=y";
+	const identity = await harness({ kind: "article", originalUrl: url }).prepare(url);
+	assert.deepEqual(identity, { status: "resolved", url, originalUrl: "https://www.linkedin.com/feed/update/urn:li:activity:1234567890123456789/" });
+});
+it("fetches a stored plain article original unchanged", async () => {
+	const identity = await harness({ kind: "article", originalUrl: ORIGINAL }).prepare(ORIGINAL);
+	assert.deepEqual(identity, { status: "resolved", url: ORIGINAL, originalUrl: ORIGINAL });
 });

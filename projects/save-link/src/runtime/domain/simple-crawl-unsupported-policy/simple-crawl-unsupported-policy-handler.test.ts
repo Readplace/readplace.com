@@ -165,7 +165,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		});
 	});
 
-	it("dispatches RenderCrawlCommand with every forwarded field when the tier-1 crawl deferred a javascript-required page", async () => {
+	it.each(["javascript-required", "blocked"])("dispatches RenderCrawlCommand with every forwarded field when the tier-1 crawl deferred a %s page", async (unsupportedReason) => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initSimpleCrawlUnsupportedPolicyHandler({
@@ -179,7 +179,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 				userId: "user-1",
 				refresh: true,
 				previousBodyHash: "h".repeat(64),
-				unsupportedReason: "javascript-required",
+				unsupportedReason,
 			}),
 			buildLambdaContext(),
 			() => {},
@@ -189,6 +189,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		expect(publishEvent).toHaveBeenCalledWith(RenderCrawlCommand, {
 			url: "https://example-spa.test/post",
 			saveAttemptId: "attempt-1",
+			unsupportedReason,
 			userId: "user-1",
 			recrawl: undefined,
 			refresh: true,

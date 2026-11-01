@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_filing" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_filing" name="filing" isExecutable="false">
+    <bpmn:sendTask id="n_FAC" name="FileArticleIntoReadlistCommand now published by the filter">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:intermediateCatchEvent id="n_Q" name="file-article-into-readlist queue 300 s visibility, 5 receives">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_L" name="file-article-into-readlist Lambda">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_FIND" name="link's article in All? follows the alias to the canonical">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:serviceTask id="n_WAIT" name="ArticleNotYetSavedError info line, record fails, redelivery">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_FILE" name="fileArticleIntoReadlist">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_ART" name="user-articles readlist membership"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_EV" name="ArticleFiledIntoReadlistEvent no subscriber yet">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_DLQ" name="file-article-into-readlist DLQ alert email">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_FAC" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_Q" targetRef="n_L" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_L" targetRef="n_FIND" />
+    <bpmn:sequenceFlow id="f_3" name="not saved" sourceRef="n_FIND" targetRef="n_WAIT" />
+    <bpmn:sequenceFlow id="f_4" name="redelivered" sourceRef="n_WAIT" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_5" name="saved" sourceRef="n_FIND" targetRef="n_FILE" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_FILE" targetRef="n_EV" />
+    <bpmn:sequenceFlow id="f_8" name="after 5 receives" sourceRef="n_Q" targetRef="n_DLQ" />
+    <bpmn:association id="f_6" sourceRef="n_FILE" targetRef="n_ART" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_filing">
+    <bpmndi:BPMNPlane id="Plane_filing" bpmnElement="Process_filing">
+      <bpmndi:BPMNShape id="n_FAC_di" bpmnElement="n_FAC">
+        <dc:Bounds x="126.25" y="28" width="203.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="208" y="154" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_L_di" bpmnElement="n_L">
+        <dc:Bounds x="44.02" y="327.75" width="188.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FIND_di" bpmnElement="n_FIND">
+        <dc:Bounds x="139.75" y="454.5" width="176.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_WAIT_di" bpmnElement="n_WAIT">
+        <dc:Bounds x="28" y="580.5" width="189" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FILE_di" bpmnElement="n_FILE">
+        <dc:Bounds x="253" y="590.5" width="175" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ART_di" bpmnElement="n_ART">
+        <dc:Bounds x="68.32" y="709.75" width="137.28" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_EV_di" bpmnElement="n_EV">
+        <dc:Bounds x="294.64" y="706.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="320.38" y="311" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="228" y="96" />
+        <di:waypoint x="228" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="228" y="194" />
+        <di:waypoint x="228" y="260.88" />
+        <di:waypoint x="138.39" y="260.88" />
+        <di:waypoint x="138.39" y="327.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="138.39" y="379.75" />
+        <di:waypoint x="138.39" y="417.13" />
+        <di:waypoint x="228" y="417.13" />
+        <di:waypoint x="228" y="454.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="228" y="522.5" />
+        <di:waypoint x="228" y="551.5" />
+        <di:waypoint x="122.5" y="551.5" />
+        <di:waypoint x="122.5" y="580.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="130.64" y="580.5" />
+        <di:waypoint x="223.34" y="193.45" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="228" y="522.5" />
+        <di:waypoint x="228" y="556.5" />
+        <di:waypoint x="340.5" y="556.5" />
+        <di:waypoint x="340.5" y="590.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="340.5" y="638.5" />
+        <di:waypoint x="340.5" y="672.5" />
+        <di:waypoint x="314.64" y="672.5" />
+        <di:waypoint x="314.64" y="706.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="228" y="194" />
+        <di:waypoint x="228" y="252.5" />
+        <di:waypoint x="340.38" y="252.5" />
+        <di:waypoint x="340.38" y="311" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="340.5" y="638.5" />
+        <di:waypoint x="340.5" y="674.13" />
+        <di:waypoint x="136.96" y="674.13" />
+        <di:waypoint x="136.96" y="709.75" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

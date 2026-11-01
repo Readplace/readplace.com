@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { Agent } from "node:https";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -79,7 +80,7 @@ const extractPdf = initSaveLinkPdfExtract({
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const parser = initComprehensiveParserDepBundle({
-	proxyUrl: requireEnv("CRAWL_EGRESS_PROXY_URL"),
+	egress: { kind: "direct-then-proxy", proxyUrl: requireEnv("CRAWL_EGRESS_PROXY_URL") },
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
@@ -105,7 +106,12 @@ const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
-const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
+const articleAggregate = initArticleAggregateDepBundle({
+	dynamoClient,
+	articlesTable,
+	events,
+	logCrawlSettled: observability.logCrawlSettled,
+});
 const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 	client: dynamoClient,
@@ -113,6 +119,7 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 	scope: "paid-crawl",
 	rule: paidCrawlBudget,
 	now,
+	delay: (milliseconds) => sleep(milliseconds),
 });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 	adoptDestination: canonicalAliasStore.adoptDestination,

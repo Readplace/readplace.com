@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ReadlistSlugSchema } from "../readlist/readlist-name.schema";
+import { ReadlistPurposeVersionSchema } from "../readlist/readlist-purpose-version";
 
 const EMAIL_LINK_ORDINAL_DIGITS = 4;
 
@@ -45,16 +46,17 @@ export type EmailLinkSkipReason = z.infer<typeof EmailLinkSkipReasonSchema>;
 
 export const InboxReadlistOutcomeSchema = z.object({
 	readlist: ReadlistSlugSchema,
-	decision: z.discriminatedUnion("state", [
+	readlistLabel: z.string().min(1),
+	decision: z.enum(["filtered", "no-purpose", "readlist-missing", "failed"]),
+	fit: z.array(
 		z.object({
-			state: z.literal("decided"),
-			readlist: ReadlistSlugSchema,
-			readlistLabel: z.string().min(1),
+			ordinal: EmailLinkOrdinalSchema,
+			verdict: z.enum(["keep", "drop", "unsure"]),
+			reason: z.string(),
 		}),
-		z.object({ state: z.literal("failed"), readlist: ReadlistSlugSchema }),
-	]),
-	dropped: z.array(
-		z.object({ ordinal: EmailLinkOrdinalSchema, reason: z.string() }),
 	),
+	purposeVersion: ReadlistPurposeVersionSchema.optional(),
+	engine: z.string().optional(),
+	model: z.string().optional(),
 });
 export type InboxReadlistOutcome = z.infer<typeof InboxReadlistOutcomeSchema>;

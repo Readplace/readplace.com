@@ -29,6 +29,7 @@ export type CrawlAndFinalizeResult =
 			reason: string;
 			finalUrl?: string;
 			failure?: FetchFailureClassification;
+			cause?: unknown;
 		}
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
@@ -77,7 +78,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 			previousBodyHash: params.previousBodyHash,
 			fetchThumbnail: true,
 			retainResponseBody: params.retainResponseBody,
-			...(params.fetchUrl !== undefined ? { skipFetchPin: true } : {}),
+			...(params.fetchUrl !== undefined ? { skipFetchPin: true, retainBlockedResponse: true } : {}),
 		});
 
 		if (crawlResult.status === "not-modified") return { status: "not-modified" };
@@ -100,6 +101,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 				reason: "crawl-failed",
 				finalUrl: crawlResult.finalUrl,
 				failure: crawlResult.failure,
+				cause: crawlResult.cause,
 			};
 		}
 

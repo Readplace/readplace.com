@@ -10,7 +10,7 @@ it("retains the legacy filename for unowned development media", () => {
 	expect(mediaFilename(image)).toMatch(/^[a-f0-9]{16}\.png$/);
 });
 
-const sha256 = (...parts: Array<string | Buffer>) => parts.reduce((hash, part) => hash.update(part), createHash("sha256")).digest("hex");
+const sha256 = (...parts: Array<string | Buffer>) => parts.reduce((hash, part) => hash.update(part), createHash("sha256")).digest("hex").slice(0, 32);
 
 it("isolates capture attempts, authors and changed image bytes while retaining identical retries", () => {
 	const scope = sha256(JSON.stringify(["attempt", null]));

@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlExhausted, markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveAnonymousLinkCommandHandler } from "./save-anonymous-link-command-handler";
 import type {
@@ -102,12 +102,34 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		}));
 	});
 
-	it("does not write a tier source or publish anything when the crawl fails (record reported as batch failure)", async () => {
+	it("terminalises an origin failure in-process with its classified reason and writes no tier source, so a refused origin never dead-letters", async () => {
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
-		const handler = createHandler({ crawlAndFinalizeArticle, putTierSource, publishEvent });
+		const handler = createHandler({ crawlAndFinalizeArticle, putTierSource, publishEvent, transitionAndPersist });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
+			url: "https://example.com/unreachable",
+			input: { reason: { kind: "fetch-failed" }, receiveCount: 1 },
+		});
+		expect(putTierSource).not.toHaveBeenCalled();
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("reports a batch failure when terminalising the origin failure itself fails, so the record is not lost", async () => {
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("dynamodb down"));
+
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/unreachable" }),
@@ -116,8 +138,6 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
 	it("does not report a tier-1 crawl-failed via logParseError (a network fetch failure is not a parse defect, so it stays off the parse-errors stream)", async () => {
@@ -168,13 +188,14 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
 
-	it("terminalises an edge-blocked link (HTTP 451) via markCrawlBlocked and reports no batch failure — dead-lettering would let the DLQ handler relabel the block as exhausted-retries", async () => {
+	it("defers an edge-blocked link (HTTP 451) to the render ladder and reports no batch failure", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 451 });
 
-		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist, publishEvent, putTierSource });
+		const handler = createHandler({ emitSimpleCrawlUnsupported, crawlAndFinalizeArticle, transitionAndPersist, publishEvent, putTierSource });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/walled" }),
@@ -183,10 +204,8 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
-			url: "https://example.com/walled",
-			input: { reason: { kind: "blocked", cause: "edge-block" } },
-		});
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked" }));
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
 	});
@@ -251,24 +270,19 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
-	it("logs a tier-1 crawl-failed at warn (not error) so it stays off the errors dashboard, still reporting a batch failure for retry", async () => {
+	it("logs a tier-1 crawl-failed at warn (not error) so it stays off the errors dashboard", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logger });
 
-		const result = await handler(
-			createSqsEvent({ url: "https://example.com/article" }),
-			buildLambdaContext(),
-			() => {},
-		);
+		await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
 
-		expect(logger.warn).toHaveBeenCalledWith("[SaveAnonymousLinkCommand] tier-1 crawl failed", {
-			url: "https://example.com/article",
-			messageId: "msg-1",
-		});
+		expect(logger.warn).toHaveBeenCalledWith(
+			"[SaveAnonymousLinkCommand] crawl failed — terminalising in-process",
+			expect.objectContaining({ url: "https://example.com/article" }),
+		);
 		expect(logger.error).not.toHaveBeenCalled();
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
 	it("logs a genuine unexpected failure at error (not warn) so real bugs still surface on the dashboard", async () => {

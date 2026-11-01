@@ -10,7 +10,6 @@ describe("initParserDepBundle", () => {
 			logInfo: () => {},
 			logThumbnailNotDelivered: () => {},
 			findAdoptedFetchUrl: async () => undefined,
-			proxyUrl: "http://proxy.test:8080",
 		});
 
 		expect(typeof bundle.crawlFetch).toBe("function");
@@ -25,7 +24,6 @@ describe("initParserDepBundle", () => {
 			logInfo: () => {},
 			logThumbnailNotDelivered: () => {},
 			findAdoptedFetchUrl: async () => undefined,
-			proxyUrl: "http://proxy.test:8080",
 		});
 
 		expect(bundle.isSiteRuleUrl("https://example.com/story")).toBe(false);
@@ -46,7 +44,7 @@ describe("initComprehensiveParserDepBundle", () => {
 			logThumbnailNotDelivered: () => {},
 			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
 			findAdoptedFetchUrl: async () => undefined,
-			proxyUrl: "http://proxy.test:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.test:8080" },
 		});
 
 		expect(typeof bundle.crawlFetch).toBe("function");
@@ -62,7 +60,7 @@ describe("initComprehensiveParserDepBundle", () => {
 			logThumbnailNotDelivered: () => {},
 			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
 			findAdoptedFetchUrl: async () => undefined,
-			proxyUrl: "http://proxy.test:8080",
+			egress: { kind: "direct-then-proxy", proxyUrl: "http://proxy.test:8080" },
 		});
 
 		expect(bundle.isSiteRuleUrl("https://example.com/story")).toBe(false);

@@ -376,7 +376,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await markCrawlPending({ url: URL });
+			await markCrawlPending({ url: URL, measured: false });
 
 			const command = received as {
 				input: {
@@ -400,6 +400,38 @@ describe("initDynamoDbArticleCrawl", () => {
 			expect(command.input.ExpressionAttributeValues?.[":ready"]).toBe("ready");
 		});
 
+		it("also records crawlStartedAt once, keeping the first value, when the save is measured", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { markCrawlPending } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now,
+			});
+
+			await markCrawlPending({ url: URL, measured: true });
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toBe(
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince)",
+			);
+			expect(command.input.ConditionExpression).toBe(
+				"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":pendingSince"]).toBe(
+				FROZEN_NOW.toISOString(),
+			);
+		});
+
 		it("swallows ConditionalCheckFailedException so ready rows stay ready", async () => {
 			const client = createFakeClient(() => {
 				throw new ConditionalCheckFailedException({
@@ -413,7 +445,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await expect(markCrawlPending({ url: URL })).resolves.toBeUndefined();
+			await expect(markCrawlPending({ url: URL, measured: false })).resolves.toBeUndefined();
 		});
 
 		it("rethrows non-ConditionalCheck errors", async () => {
@@ -426,7 +458,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await expect(markCrawlPending({ url: URL })).rejects.toThrow("throttled");
+			await expect(markCrawlPending({ url: URL, measured: false })).rejects.toThrow("throttled");
 		});
 	});
 
@@ -453,7 +485,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt",
 			);
 			expect(command.input.ConditionExpression).toBeUndefined();
 			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(

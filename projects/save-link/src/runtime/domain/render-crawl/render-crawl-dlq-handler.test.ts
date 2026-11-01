@@ -22,7 +22,7 @@ function createSqsEvent(
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1" } }),
+			body: JSON.stringify({ detail: { ...detail, saveAttemptId: "attempt-1", unsupportedReason: "javascript-required" } }),
 			attributes: attributes(receiveCount),
 			messageAttributes: {},
 			md5OfBody: "",

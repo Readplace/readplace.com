@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import {
-	EmailLinkOrdinalSchema,
 	type InboxEmailLinkStore,
+	InboxReadlistOutcomeSchema,
 } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
@@ -18,15 +18,10 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 
-const FilteredFactSchema = z.object({
+const FilteredFactSchema = InboxReadlistOutcomeSchema.extend({
 	userId: UserIdSchema,
 	receivedAtMessageId: z.string(),
-	readlist: ReadlistSlugSchema,
-	savedTo: ReadlistSlugSchema,
-	readlistLabel: z.string().min(1),
-	dropped: z.array(
-		z.object({ ordinal: EmailLinkOrdinalSchema, reason: z.string() }),
-	),
+	decision: z.enum(["filtered", "no-purpose", "readlist-missing"]),
 });
 
 const FilterFailedFactSchema = z.object({
@@ -46,47 +41,42 @@ export function initRecordEmailLinksFilteredHandler(deps: {
 		userId: UserId;
 		receivedAtMessageId: string;
 		readlist: string;
-	}): Promise<void> => {
+	}) => {
 		const { meta } = await listLinksByEmail(fact);
 		assert(meta, "filtering outcome arrived before the extraction barrier");
 		assert(
 			meta.selectedReadlists,
 			"a readlist decision arrives only for an email with a destination snapshot",
 		);
-		assert(
-			meta.selectedReadlists.some(({ readlist }) => readlist === fact.readlist),
-			"filtering outcome is outside the destination snapshot",
+		const destination = meta.selectedReadlists.find(
+			({ readlist }) => readlist === fact.readlist,
 		);
+		assert(destination, "filtering outcome is outside the destination snapshot");
+		return destination;
 	};
 
 	const recordFiltered = async (detail: unknown): Promise<void> => {
-		const fact = FilteredFactSchema.parse(detail);
-		await destinationSnapshot(fact);
-		await putReadlistOutcome({
-			userId: fact.userId,
-			receivedAtMessageId: fact.receivedAtMessageId,
-			outcome: {
-				readlist: fact.readlist,
-				decision: {
-					state: "decided",
-					readlist: fact.savedTo,
-					readlistLabel: fact.readlistLabel,
-				},
-				dropped: fact.dropped,
-			},
+		const { userId, receivedAtMessageId, ...outcome } =
+			FilteredFactSchema.parse(detail);
+		await destinationSnapshot({
+			userId,
+			receivedAtMessageId,
+			readlist: outcome.readlist,
 		});
+		await putReadlistOutcome({ userId, receivedAtMessageId, outcome });
 	};
 
 	const recordFilterFailed = async (detail: unknown): Promise<void> => {
 		const fact = FilterFailedFactSchema.parse(detail);
-		await destinationSnapshot(fact);
+		const { label } = await destinationSnapshot(fact);
 		await putReadlistOutcome({
 			userId: fact.userId,
 			receivedAtMessageId: fact.receivedAtMessageId,
 			outcome: {
 				readlist: fact.readlist,
-				decision: { state: "failed", readlist: fact.readlist },
-				dropped: [],
+				readlistLabel: label,
+				decision: "failed",
+				fit: [],
 			},
 		});
 	};

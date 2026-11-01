@@ -1,3 +1,5 @@
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+
 export type WrapperFamily = "newsletter-tracker" | "apple-news" | "archive-snapshot" | "archive-outbound" | "share-intent";
 
 export type UnwrappedUrl = { url: string; contentSourceUrl?: string };
@@ -26,10 +28,13 @@ const MAILCHIMP_HOST = /^us\d*\.list-manage\.com$/;
 const MAILCHIMP_CLICK_PATH = /^\/track\/click$/;
 const WEEKLYFILET_LINK_PATH = /^\/r\/[0-9a-f]+$/i;
 const SUBSTACK_SHARE_PATH = /^\/pub\/[^/]+\/p\/[^/]+$/;
+const SUBSTACK_APP_LINK_PATH = /^\/app-link\/post$/;
+const SUBSTACK_COMMENTS_PATH = /^(\/p\/[^/]+)\/comments\/?$/;
 const SUBSTACK_REDIRECT_PATH = /^\/redirect\/[^/]+$/;
 const OPAQUE_TOKEN_PATH = /^\/[A-Za-z0-9_-]+$/;
 const GOOGLE_SHARE_HOP_PATH = /^\/share\.google$/;
 const TWEET_INTENT_PATH = /^\/intent\/(?:tweet|post)$/;
+const SEMAFOR_SHORT_LINK_PATH = /^\/s\/[A-Za-z0-9]+$/;
 
 const WAYBACK_STAMPED_PATH = /^\/web\/([^/]+)\/(.+)$/;
 const WAYBACK_UNSTAMPED_PATH = /^\/(?:web|save)\/(.+)$/;
@@ -54,6 +59,8 @@ const SUBSTACK_REDIRECT_PARAMS: readonly string[] = ["r", "publication_id", "pos
 
 type TrackerRule = { host: string | RegExp; path: RegExp; requiresParam?: string };
 
+const SUBSTACK_APP_LINK: TrackerRule = { host: "substack.com", path: SUBSTACK_APP_LINK_PATH };
+
 const NEWSLETTER_TRACKERS: readonly TrackerRule[] = [
 	{ host: "leadershipintech.com", path: BONOBO_LINK_PATH },
 	{ host: "csharpdigest.net", path: BONOBO_LINK_PATH },
@@ -62,9 +69,11 @@ const NEWSLETTER_TRACKERS: readonly TrackerRule[] = [
 	{ host: MAILCHIMP_HOST, path: OPAQUE_TOKEN_PATH, requiresParam: "c2id" },
 	{ host: "newsletter.weeklyfilet.com", path: WEEKLYFILET_LINK_PATH },
 	{ host: "open.substack.com", path: SUBSTACK_SHARE_PATH },
+	SUBSTACK_APP_LINK,
 	{ host: "substack.com", path: SUBSTACK_REDIRECT_PATH },
 	{ host: "share.google", path: OPAQUE_TOKEN_PATH },
 	{ host: "www.google.com", path: GOOGLE_SHARE_HOP_PATH, requiresParam: "q" },
+	{ host: "semafor.com", path: SEMAFOR_SHORT_LINK_PATH },
 ];
 
 function parseHttpUrl(value: string): URL | undefined {
@@ -178,6 +187,12 @@ function isTweetIntent(parsed: URL): boolean {
 	return TWEET_INTENT_HOSTS.has(hostnameOf(parsed)) && TWEET_INTENT_PATH.test(parsed.pathname);
 }
 
+const MAX_USER_ARTICLE_KEY_BYTES = 1024;
+
+function outgrowsUserArticleKey(url: string): boolean {
+	return new TextEncoder().encode(ArticleResourceUniqueId.parse(url).value).length > MAX_USER_ARTICLE_KEY_BYTES;
+}
+
 export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
 	const parsed = parseHttpUrl(url);
 	if (parsed === undefined) return undefined;
@@ -187,6 +202,7 @@ export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
 	if (NEWSLETTER_TRACKERS.some((rule) => matchesTracker(rule, host, parsed))) return "newsletter-tracker";
 	if (APPLE_NEWS_HOSTS.has(host) && OPAQUE_TOKEN_PATH.test(parsed.pathname)) return "apple-news";
 	if (unwrapArchive(parsed) !== undefined || isArchiveTodayShortId(parsed)) return "archive-snapshot";
+	if (outgrowsUserArticleKey(url)) return "newsletter-tracker";
 	return undefined;
 }
 
@@ -224,5 +240,8 @@ export function stripRedirectAddedParams(params: { wrapperUrl: string; targetUrl
 	const target = parseHttpUrl(params.targetUrl);
 	if (target === undefined) return params.targetUrl;
 	for (const name of SUBSTACK_REDIRECT_PARAMS) target.searchParams.delete(name);
+	if (matchesTracker(SUBSTACK_APP_LINK, hostnameOf(wrapper), wrapper)) {
+		target.pathname = target.pathname.replace(SUBSTACK_COMMENTS_PATH, "$1");
+	}
 	return target.href;
 }

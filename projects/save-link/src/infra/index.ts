@@ -47,6 +47,7 @@ import {
 	ReselectAfterRemovalEvent,
 	SAVE_LINK_DLQ_SOURCES,
 	SAVE_LINK_LAMBDA_NAMES,
+	CRAWL_SETTLED_METRIC,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
@@ -268,9 +269,8 @@ const saveLinkCommandQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.saveLinkCommand,
 });
 
 // maxReceiveCount=1: SQS retries are removed for the anonymous save path.
-// A failed save does not reprime when the user re-visits /view. The DLQ → SNS
-// email alarm is the operator's redrive signal, and /admin/recrawl is the
-// manual retry.
+// A failed save does not reprime when the user re-visits /view, and
+// /admin/recrawl is the manual retry.
 // Other queues that aren't user-retriable (select-most-complete-content,
 // generate-summary) keep the default maxReceiveCount=3 so transient
 // Deepseek/DDB blips still self-heal at the SQS layer.
@@ -391,7 +391,6 @@ const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCom
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -465,7 +464,6 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DYNAMODB_ONBOARDING_TABLE: onboardingTableName,
@@ -569,7 +567,6 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.save
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
@@ -617,7 +614,6 @@ const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.sa
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -956,7 +952,7 @@ const renderCrawlCommandDynamodb = new HutchDynamoDBAccess("render-crawl-command
 const renderCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCommand, {
 	memorySize: 3008,
 	ephemeralStorageSize: 1024,
-	timeout: 300,
+	timeout: 420,
 	containerImage: { imageUri: ocrImageTags["render-crawl-command"] },
 	environment: {
 		...crawlEgressProxyEnvironment,
@@ -1054,7 +1050,6 @@ const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveL
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["save-link-raw-pdf-command"] },
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
@@ -1118,7 +1113,6 @@ const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCh
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1240,6 +1234,31 @@ new aws.cloudwatch.MetricAlarm("select-content-own-capture-failed-alarm", {
 	treatMissingData: "notBreaching",
 	alarmDescription: "Content selection failed a reader's own readable capture (CLAUDE.md: a reader's own capture is never failed by the judge)",
 	alarmActions: [ownCaptureFailedTopic.arn],
+});
+
+const crawlSettledLatencyTopic = new aws.sns.Topic("crawl-settled-latency-topic", {
+	name: "crawl-settled-latency-topic",
+});
+
+new aws.sns.TopicSubscription("crawl-settled-latency-alert-email", {
+	topic: crawlSettledLatencyTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("crawl-settled-latency-alarm", {
+	name: "crawl-settled-latency-alarm",
+	comparisonOperator: "GreaterThanThreshold",
+	evaluationPeriods: 1,
+	metricName: CRAWL_SETTLED_METRIC.name,
+	namespace: CRAWL_SETTLED_METRIC.namespace,
+	period: 900,
+	extendedStatistic: "p95",
+	evaluateLowSampleCountPercentiles: "evaluate",
+	threshold: config.requireNumber("crawlSettledLatencyP95ThresholdSeconds"),
+	treatMissingData: "notBreaching",
+	alarmDescription: "The p95 time for a save to settle its crawl, over 15 minutes, is above the threshold",
+	alarmActions: [crawlSettledLatencyTopic.arn],
 });
 
 // --- RemoveMyContentCommand handler ---
@@ -1493,10 +1512,7 @@ eventBus.subscribe(CanonicalContentChangedEvent, canonicalContentChangedLambdaWi
 // Consumes the fact that a save added an article to a reader's queue and writes
 // the selected relations onto the per-user save row. Waits (throw → SQS retry)
 // while crawl metadata is still landing, so the model never compares against the
-// stub title a fresh save starts with. No dedicated DLQ event handler — an
-// absent relatedStatus renders as the hidden reader slot, so there is no terminal
-// row state to flip; the HutchSQSBackedLambda DLQ + email alarm is the operator
-// signal.
+// stub title a fresh save starts with.
 
 const computeRelatedArticlesQueue = new HutchSQS("compute-related-articles", {
 	visibilityTimeoutSeconds: RELATED_ARTICLES_TIMEOUTS.sqsVisibilitySeconds,
@@ -1652,7 +1668,6 @@ const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recraw
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
 	environment: {
-		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,

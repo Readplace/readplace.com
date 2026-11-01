@@ -96,6 +96,7 @@ export {
 } from "./transitions/request-recrawl";
 export {
 	initTransitionAndPersist,
+	type LogCrawlSettled,
 	type Transition,
 	type TransitionAndPersist,
 	type UpsertTransition,

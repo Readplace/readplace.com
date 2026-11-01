@@ -1020,8 +1020,9 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 				readlistOutcomes: [
 					{
 						readlist: WORK,
-						decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
-						dropped: [{ ordinal: EmailLinkOrdinalSchema.parse("0001"), reason: "Off topic" }],
+						readlistLabel: "Work",
+						decision: "filtered",
+						fit: [{ ordinal: EmailLinkOrdinalSchema.parse("0001"), verdict: "drop", reason: "Off topic" }],
 					},
 				],
 			}),
@@ -1041,7 +1042,7 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 			linksMeta: routedMeta({
 				eligibleArticleCount: 1,
 				readlistOutcomes: [
-					{ readlist: WORK, decision: { state: "failed", readlist: WORK }, dropped: [] },
+					{ readlist: WORK, readlistLabel: "Work", decision: "failed", fit: [] },
 				],
 			}),
 		});
@@ -1057,6 +1058,52 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 		]);
 	});
 
+	it("counts an unsure link as one that didn't fit", () => {
+		const vm = build({
+			links: [kept("0000"), kept("0001"), kept("0002")],
+			linksMeta: routedMeta({
+				eligibleArticleCount: 3,
+				readlistOutcomes: [
+					{
+						readlist: WORK,
+						readlistLabel: "Work",
+						decision: "filtered",
+						fit: [
+							{ ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep", reason: "On topic" },
+							{ ordinal: EmailLinkOrdinalSchema.parse("0001"), verdict: "drop", reason: "Off topic" },
+							{ ordinal: EmailLinkOrdinalSchema.parse("0002"), verdict: "unsure", reason: "Can't tell" },
+						],
+					},
+				],
+			}),
+		});
+
+		expect(vm.articles.notices).toEqual([
+			SAVED_TO_ALL,
+			{ key: "decided", text: "1 article saved to Work; 2 didn't fit.", iconName: undefined },
+		]);
+	});
+
+	it("names a failed readlist by the label in the destination snapshot", () => {
+		const vm = build({
+			links: [kept("0000")],
+			linksMeta: {
+				...routedMeta({
+					eligibleArticleCount: 1,
+					readlistOutcomes: [
+						{ readlist: WORK, readlistLabel: "Work", decision: "failed", fit: [] },
+					],
+				}),
+				selectedReadlists: [{ readlist: WORK, label: "Day job" }],
+			},
+		});
+
+		expect(vm.articles.notices.map(({ text }) => text)).toEqual([
+			"Saved to All.",
+			"Couldn't choose articles for Day job. Articles remain in All.",
+		]);
+	});
+
 	it("ends a routed email with no eligible link on its count line", () => {
 		const vm = build({
 			links: [],
@@ -1065,8 +1112,9 @@ describe("toInboxEmailDetailViewModel for an inbox routed to a readlist", () => 
 				readlistOutcomes: [
 					{
 						readlist: WORK,
-						decision: { state: "decided", readlist: WORK, readlistLabel: "Work" },
-						dropped: [],
+						readlistLabel: "Work",
+						decision: "filtered",
+						fit: [],
 					},
 				],
 			}),
@@ -1097,22 +1145,21 @@ describe("Gmail filtering results", () => {
 				readlistOutcomes: [
 					{
 						readlist: WORK,
-						decision: {
-							state: "decided",
-							readlist: WORK,
-							readlistLabel: "Work",
-						},
-						dropped: [
+						readlistLabel: "Work",
+						decision: "filtered",
+						fit: [
 							{
 								ordinal: EmailLinkOrdinalSchema.parse("0000"),
+								verdict: "drop",
 								reason: "Outside this list",
 							},
 						],
 					},
 					{
 						readlist: science,
-						decision: { state: "failed", readlist: science },
-						dropped: [],
+						readlistLabel: "Science",
+						decision: "failed",
+						fit: [],
 					},
 				],
 			},
@@ -1177,12 +1224,9 @@ it("reports one accepted Gmail article using the readlist's captured name", () =
 			readlistOutcomes: [
 				{
 					readlist: WORK,
-					decision: {
-						state: "decided",
-						readlist: WORK,
-						readlistLabel: "Day job",
-					},
-					dropped: [],
+					readlistLabel: "Day job",
+					decision: "filtered",
+					fit: [],
 				},
 			],
 		},
@@ -1195,7 +1239,7 @@ it("reports one accepted Gmail article using the readlist's captured name", () =
 });
 
 it("reports zero eligible Gmail articles using the stored count rather than unsaveable previews", () => {
-	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [{ readlist: WORK, decision: { state: "decided", readlist: WORK, readlistLabel: "Work" }, dropped: [] }] } });
+	const vm = build({ links: [link({ status: "crawled" })], linksMeta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }], eligibleArticleCount: 0, savesHeld: false, readlistOutcomes: [{ readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [] }] } });
 	expect(vm.articles.notices.map(({ text }) => text)).toEqual(["0 articles saved to Work; 0 didn't fit."]);
 	expect(vm.articles.panelPollUrl).toBeUndefined();
 });
@@ -1248,7 +1292,7 @@ describe("a Gmail newsletter kept as an issue", () => {
 				selectedReadlists: [{ readlist: WORK, label: "Work" }],
 				eligibleArticleCount: 1,
 				savesHeld: false,
-				readlistOutcomes: [{ readlist: WORK, decision: { state: "decided", readlist: WORK, readlistLabel: "Work" }, dropped: [] }],
+				readlistOutcomes: [{ readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [] }],
 				issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: false },
 			},
 		});

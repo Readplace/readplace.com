@@ -408,12 +408,22 @@ it("revokes candidates from immutable manifests and candidate-backed history wit
 	expect(result.candidateIds).toEqual(["owned", "history-candidate"]);
 });
 
-function authoredMedia({ attemptId, authorUserId }: { attemptId: string; authorUserId?: string }) {
-	const scope = createHash("sha256").update(JSON.stringify([attemptId, authorUserId ?? null])).digest("hex");
-	const objectKey = `content/${ENCODED}/images/attempts/${scope}/${"a".repeat(64)}.png`;
+function authoredMedia({ attemptId, authorUserId, digests = { scope: 64, body: 64 } }: { attemptId: string; authorUserId?: string; digests?: { scope: number; body: number } }) {
+	const scope = createHash("sha256").update(JSON.stringify([attemptId, authorUserId ?? null])).digest("hex").slice(0, digests.scope);
+	const name = `${scope}/${"a".repeat(digests.body)}.png`;
+	const objectKey = `content/${ENCODED}/images/attempts/${name}`;
 	const metadata = { url: URL, attemptId, authorUserId, objectKey };
-	return { objectKey, manifestKey: `articles/${ENCODED}/sources/media-owners/${scope}/${"a".repeat(64)}.png.metadata.json`, metadata, object: { body: JSON.stringify(metadata) } };
+	return { objectKey, manifestKey: `articles/${ENCODED}/sources/media-owners/${name}.metadata.json`, metadata, object: { body: JSON.stringify(metadata) } };
 }
+
+it("erases owned media named with either the full or the truncated digests and skips every other name shape", async () => {
+	const full = authoredMedia({ attemptId: "full", authorUserId: "user-1" });
+	const truncated = authoredMedia({ attemptId: "truncated", authorUserId: "user-1", digests: { scope: 32, body: 32 } });
+	const misshapen = [{ scope: 64, body: 32 }, { scope: 32, body: 64 }, { scope: 36, body: 36 }].map((digests) => authoredMedia({ attemptId: `misshapen-${digests.scope}-${digests.body}`, authorUserId: "user-1", digests }));
+	const objects = Object.fromEntries([full, truncated, ...misshapen].map((entry) => [entry.manifestKey, entry.object]));
+	const { resolveAuthoredContentKeys } = createResolver({ sidecar: "missing", objects, listContentKeys: async () => Object.keys(objects) });
+	expect(await resolveAuthoredContentKeys(lastAuthoredRequest)).toEqual({ objectKeys: [full.objectKey, truncated.objectKey], manifestKeys: [full.manifestKey, truncated.manifestKey], candidateIds: [], pruneMinuteIds: [] });
+});
 
 it("erases owned media while preserving other and unknown ownership", async () => {
 	const own = authoredMedia({ attemptId: "owned", authorUserId: "user-1" });

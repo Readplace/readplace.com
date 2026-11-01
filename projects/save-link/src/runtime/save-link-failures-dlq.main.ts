@@ -4,13 +4,15 @@ import { initDeadLetterRouter } from "@packages/dead-letter-routing";
 import {
 	GenerateSummaryCommand,
 	SAVE_LINK_DLQ_SOURCE_QUEUES,
+	type CrawlSettledEvent,
+	initLogCrawlSettled,
 } from "@packages/hutch-infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
 	initSqsCommandDispatcher,
 } from "@packages/hutch-infra-components/runtime";
-import { consoleLogger } from "@packages/hutch-logger";
+import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { requireEnv } from "@packages/require-env";
@@ -58,9 +60,11 @@ const { dispatchEffect } = initLambdaEffectDispatcher({
 	publishEvent,
 });
 
+const { logCrawlSettled } = initLogCrawlSettled({ logger: HutchLogger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
 const { transitionAndPersist } = initTransitionAndPersist({
 	store,
 	dispatchEffect,
+	logCrawlSettled,
 });
 
 const logger = consoleLogger;

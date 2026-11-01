@@ -69,7 +69,6 @@ const extractPdf = initSaveLinkPdfExtract({
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link-raw-pdf", now });
 const canonicalAliasStore = initCanonicalAliasStore({ client: dynamoClient, tableName: articlesTable });
 const parser = initParserDepBundle({
-	proxyUrl: requireEnv("CRAWL_EGRESS_PROXY_URL"),
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
@@ -85,7 +84,12 @@ const media = initMediaDepBundle({
 	imagesCdnBaseUrl,
 });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
-const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
+const articleAggregate = initArticleAggregateDepBundle({
+	dynamoClient,
+	articlesTable,
+	events,
+	logCrawlSettled: observability.logCrawlSettled,
+});
 
 const { readPendingPdf } = initReadPendingPdf({ client: s3Client, bucketName: pendingPdfBucketName });
 

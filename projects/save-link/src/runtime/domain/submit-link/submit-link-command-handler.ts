@@ -16,6 +16,7 @@ import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	EmailOutputSavedToAllEvent,
 	LinkQueuedEvent,
+	LinkQueueFailedEvent,
 	QueueEntryCreatedEvent,
 	SubmitLinkCommand,
 	TierContentExtractedEvent,
@@ -182,7 +183,18 @@ export function initSubmitLinkCommandHandler(deps: {
 					saveArticleFromUrl,
 				});
 				const freshness = await deps.refreshArticleIfStale({ url });
-				assert(freshness.action !== "unresolved", "The wrapper original could not be resolved");
+				if (freshness.action === "unresolved") {
+					const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+					assert(receiveCount >= SUBMIT_LINK_MAX_RECEIVE_COUNT, "The wrapper original could not be resolved");
+					logger.warn(`${logPrefix} wrapper original unresolved on the final receive — giving up the save`, { url });
+					await publishEvent(LinkQueueFailedEvent, {
+						url: detail.url,
+						userId,
+						reason: "wrapper-original-unresolved",
+						receiveCount,
+					});
+					continue;
+				}
 				const { saved } = await saveArticleAtReadlistTop({
 					userId,
 					url,

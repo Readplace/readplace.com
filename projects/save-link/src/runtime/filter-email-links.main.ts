@@ -1,4 +1,4 @@
-import { type DeepseekUsageLine, initCreateDeepseekThinkingMessage, initDeepseekClient } from "@packages/ai-message";
+import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initDeepseekClient } from "@packages/ai-message";
 import { initDynamoDbReadlistDefinitions } from "@packages/article-store";
 import {
 	EventBridgeClient,
@@ -6,14 +6,20 @@ import {
 } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import {
+	createAiMessageForEngine,
+	initDecideReadlistFitWithDeepseek,
+	ReadlistFitEngineSchema,
+} from "@packages/readlist-fit";
 import { requireEnv } from "@packages/require-env";
-import { initDecideEmailLinks } from "./domain/filter-email-links/decide-email-links";
 import { initFilterEmailLinksHandler } from "./domain/filter-email-links/filter-email-links-handler";
+import type { ReadlistFitDecidedLine, ReadlistFitUnsureLine } from "./domain/filter-email-links/readlist-fit-log-lines.types";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "./domain/filter-email-links/timeouts";
 
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
 const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
+const readlistFitEngine = ReadlistFitEngineSchema.parse(requireEnv("READLIST_FIT_ENGINE"));
 
 const logger = HutchLogger.from(consoleLogger);
 
@@ -29,9 +35,9 @@ const deepseekClient = initDeepseekClient({
 	now: () => new Date(),
 });
 
-const { decideEmailLinks } = initDecideEmailLinks({
-	createMessage: initCreateDeepseekThinkingMessage({ client: deepseekClient }),
-	logger,
+const decideReadlistFit = initDecideReadlistFitWithDeepseek({
+	createAiMessage: createAiMessageForEngine({ engine: readlistFitEngine, client: deepseekClient }),
+	engine: readlistFitEngine,
 });
 
 const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
@@ -46,7 +52,11 @@ const { publishEvent } = initEventBridgePublisher({
 
 export const handler = initFilterEmailLinksHandler({
 	listReadlistDefinitions,
-	decideEmailLinks,
+	decideReadlistFit,
 	publishEvent,
 	logger,
+	fitDecidedLog: HutchLogger.fromJSON<ReadlistFitDecidedLine>(),
+	fitUnsureLog: HutchLogger.fromJSON<ReadlistFitUnsureLine>(),
+	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	now: () => new Date(),
 });

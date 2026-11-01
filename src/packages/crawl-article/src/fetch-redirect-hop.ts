@@ -1,6 +1,8 @@
 import assert from "node:assert";
 import { defaultResolveAll, type IsBlockedAddress, type ResolveAll } from "./blocked-address-lookup";
+import type { CurlFetch } from "./curl-fetch";
 import { createGuardedDispatcher } from "./guarded-dispatcher";
+import { ESCALATE_STATUS_CODES } from "./transport-ladder";
 
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 
@@ -32,5 +34,12 @@ export function initFetchRedirectHop(deps: {
 		});
 		await response.body?.cancel();
 		return response;
+	};
+}
+
+export function escalateBlockedHop(deps: { direct: FetchRedirectHop; curl: CurlFetch }): FetchRedirectHop {
+	return async (url, init) => {
+		const response = await deps.direct(url, init);
+		return ESCALATE_STATUS_CODES.has(response.status) ? deps.curl(url, init) : response;
 	};
 }

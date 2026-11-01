@@ -91,7 +91,11 @@ export function initComputeRelatedArticlesHandler(
 				}
 				const target = lookup.article;
 				if (target.crawlStatus === "pending") {
-					throw new MetadataNotReadyError({ url: entry.url, crawlStatus: "pending" });
+					if (receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
+						throw new MetadataNotReadyError({ url: entry.url, crawlStatus: "pending" });
+					}
+					await skipNextRead({ save, reason: "crawl still pending after the wait", details: { crawlStatus: "pending" } });
+					continue;
 				}
 				const { crawlStatus } = target;
 				if (target.hasStubMetadata) {

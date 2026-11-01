@@ -216,7 +216,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			isBlocked: blocksPrivate,
 			resolve: allHostsResolveTo("10.1.2.3"),
 		});
@@ -236,7 +236,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			isBlocked: (address) => {
 				checkedAddresses.push(address);
 				return blocksPrivateExceptLoopback(address);
@@ -263,7 +263,7 @@ describe("SSRF guard — initCrawlFetch composition", () => {
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			isBlocked: blocksPrivate,
 			resolve: allHostsResolveTo("169.254.169.254"),
 		});
@@ -289,7 +289,7 @@ describe("SSRF guard — meta refresh hop", () => {
 			fetch: globalThis.fetch,
 			personas: PERSONAS,
 			logInfo: () => {},
-			proxyUrl: undefined,
+			egress: { kind: "direct" },
 			isBlocked: (address) => {
 				checkedAddresses.push(address);
 				return blocksPrivateExceptLoopback(address);
@@ -309,7 +309,7 @@ describe("SSRF guard — meta refresh hop", () => {
 		try {
 			const result = await crawlArticle({ url: `${server.origin}/old-path` });
 
-			expect(result).toEqual({
+			expect(result).toMatchObject({
 				status: "failed",
 				finalUrl: "http://internal.attacker.test/secret",
 				failure: { kind: "fetch-failed" },

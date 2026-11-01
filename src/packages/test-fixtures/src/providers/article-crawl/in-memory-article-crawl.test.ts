@@ -6,7 +6,7 @@ describe("initInMemoryArticleCrawl", () => {
 	describe("markCrawlStage", () => {
 		it("records the stage on a previously-pending row", async () => {
 			const crawl = initInMemoryArticleCrawl();
-			await crawl.markCrawlPending({ url: URL });
+			await crawl.markCrawlPending({ url: URL, measured: false });
 			await crawl.markCrawlStage({ url: URL, stage: "crawl-fetched" });
 
 			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
@@ -61,9 +61,9 @@ describe("initInMemoryArticleCrawl", () => {
 
 		it("preserves the recorded stage when markCrawlPending is re-called (legacy-stub healing path)", async () => {
 			const crawl = initInMemoryArticleCrawl();
-			await crawl.markCrawlPending({ url: URL });
+			await crawl.markCrawlPending({ url: URL, measured: false });
 			await crawl.markCrawlStage({ url: URL, stage: "crawl-parsed" });
-			await crawl.markCrawlPending({ url: URL });
+			await crawl.markCrawlPending({ url: URL, measured: false });
 
 			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
 				status: "pending",
@@ -75,7 +75,7 @@ describe("initInMemoryArticleCrawl", () => {
 	describe("markCrawlUnsupported", () => {
 		it("flips a pending row to unsupported with the supplied reason", async () => {
 			const crawl = initInMemoryArticleCrawl();
-			await crawl.markCrawlPending({ url: URL });
+			await crawl.markCrawlPending({ url: URL, measured: false });
 			await crawl.markCrawlUnsupported({
 				url: URL,
 				reason: "non-html content type: application/pdf",

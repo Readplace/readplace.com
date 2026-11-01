@@ -1605,12 +1605,12 @@ describe("Gmail destination snapshots", () => {
 		const dlq = initExtractEmailLinksDlqHandler({ markLinksExtractionFailed: harness.linkStore.markLinksExtractionFailed, logger: noopLogger });
 		await dlq(buildSqsEvent([{ messageId: "extraction-dlq", body }]), buildLambdaContext(), () => {});
 		const recorder = initRecordEmailLinksFilteredHandler({ putReadlistOutcome: harness.linkStore.putReadlistOutcome, listLinksByEmail: harness.linkStore.listLinksByEmail, logger: noopLogger });
-		const rejection = { userId: USER, receivedAtMessageId: RAM, readlist: WORK, savedTo: WORK, readlistLabel: "Work", dropped: [{ ordinal: "0000", reason: "Outside the list topic" }] };
+		const rejection = { userId: USER, receivedAtMessageId: RAM, readlist: WORK, readlistLabel: "Work", decision: "filtered", fit: [{ ordinal: "0000", verdict: "drop", reason: "Outside the list topic" }] };
 		expect(await recorder(buildSqsEvent([{ messageId: "late-rejection", body: JSON.stringify({ "detail-type": EmailLinksFilteredEvent.detailType, detail: rejection }) }]), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [] });
 		const { links, meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
 		expect(links.map(({ status }) => status)).toEqual(["pending"]);
 		expect(meta?.selectedReadlists).toEqual([{ readlist: WORK, label: "Work" }]);
-		expect(meta?.readlistOutcomes?.[0]?.dropped).toEqual(rejection.dropped);
+		expect(meta?.readlistOutcomes?.[0]?.fit).toEqual(rejection.fit);
 		expect(meta?.extractionFailed).toBe(false);
 	});
 

@@ -1,6 +1,6 @@
 import { createCrawlBudget } from "./crawl-budget";
 import type { OnRedirect } from "./follow-redirects";
-import { withProxiedLadderFallback } from "./proxied-ladder-fallback";
+import { isProxyWorthyError, isProxyWorthyResponse, withProxiedLadderFallback, withProxyOnlyLadder } from "./proxied-ladder-fallback";
 import type { LadderFetch } from "./transport-ladder";
 import { TransportLadderFailure } from "./transport-ladder-failure";
 
@@ -696,5 +696,139 @@ describe("withProxiedLadderFallback", () => {
 		});
 		await expect(harness.fetchIt()).rejects.toThrow("terminated");
 		expect(harness.proxyBudgets).toHaveLength(0);
+	});
+});
+
+describe("withProxyOnlyLadder", () => {
+	it("returns a gateway answer when the time left cannot seat a retry", async () => {
+		const clock = { nowMs: 1_000_000 };
+		const controller = new AbortController();
+		let attempts = 0;
+		const ladder = withProxyOnlyLadder({
+			proxyFetch: async () => {
+				attempts += 1;
+				clock.nowMs += 20_000;
+				return new Response("bad gateway", { status: 502 });
+			},
+			now: () => clock.nowMs,
+		});
+
+		const response = await ladder(ENTRY_URL, {
+			headers: {},
+			budget: createCrawlBudget({ signal: controller.signal, totalMs: 25_000, now: () => clock.nowMs }),
+		});
+
+		expect(response.status).toBe(502);
+		expect(attempts).toBe(1);
+	});
+
+	function timeoutError(): Error {
+		const error = new Error("timed out");
+		error.name = "TimeoutError";
+		return error;
+	}
+
+	function budgetOf(params: { totalMs: number; clock: { nowMs: number } }) {
+		const { totalMs, clock } = params;
+		return createCrawlBudget({ signal: new AbortController().signal, totalMs, now: () => clock.nowMs });
+	}
+
+	it("returns the second gateway answer rather than a third attempt", async () => {
+		const clock = { nowMs: 1_000_000 };
+		let attempts = 0;
+		const ladder = withProxyOnlyLadder({
+			proxyFetch: async () => {
+				attempts += 1;
+				return new Response("bad gateway", { status: 502 });
+			},
+			now: () => clock.nowMs,
+		});
+
+		const response = await ladder(ENTRY_URL, { headers: {}, budget: budgetOf({ totalMs: 100_000, clock }) });
+
+		expect(response.status).toBe(502);
+		expect(attempts).toBe(2);
+	});
+
+	it("surfaces the timeout once both attempts have timed out", async () => {
+		const clock = { nowMs: 1_000_000 };
+		const timeout = timeoutError();
+		let attempts = 0;
+		const ladder = withProxyOnlyLadder({
+			proxyFetch: async () => {
+				attempts += 1;
+				throw timeout;
+			},
+			now: () => clock.nowMs,
+		});
+
+		await expect(ladder(ENTRY_URL, { headers: {}, budget: budgetOf({ totalMs: 100_000, clock }) })).rejects.toBe(timeout);
+		expect(attempts).toBe(2);
+	});
+
+	it("surfaces a timeout when the time left cannot seat a retry", async () => {
+		const clock = { nowMs: 1_000_000 };
+		const timeout = timeoutError();
+		let attempts = 0;
+		const ladder = withProxyOnlyLadder({
+			proxyFetch: async () => {
+				attempts += 1;
+				clock.nowMs += 20_000;
+				throw timeout;
+			},
+			now: () => clock.nowMs,
+		});
+
+		await expect(ladder(ENTRY_URL, { headers: {}, budget: budgetOf({ totalMs: 25_000, clock }) })).rejects.toBe(timeout);
+		expect(attempts).toBe(1);
+	});
+
+	it("does not retry an error that is not a timeout", async () => {
+		const clock = { nowMs: 1_000_000 };
+		const refused = new Error("refused");
+		let attempts = 0;
+		const ladder = withProxyOnlyLadder({
+			proxyFetch: async () => {
+				attempts += 1;
+				throw refused;
+			},
+			now: () => clock.nowMs,
+		});
+
+		await expect(ladder(ENTRY_URL, { headers: {}, budget: budgetOf({ totalMs: 100_000, clock }) })).rejects.toBe(refused);
+		expect(attempts).toBe(1);
+	});
+
+	it("makes no proxied request when the budget is under the attempt floor", async () => {
+		const clock = { nowMs: 1_000_000 };
+		let attempts = 0;
+		const ladder = withProxyOnlyLadder({
+			proxyFetch: async () => {
+				attempts += 1;
+				return new Response("ok");
+			},
+			now: () => clock.nowMs,
+		});
+
+		await expect(ladder(ENTRY_URL, { headers: {}, budget: budgetOf({ totalMs: 1_000, clock }) })).rejects.toThrow("floor");
+		expect(attempts).toBe(0);
+	});
+});
+
+describe("the exported proxy triggers", () => {
+	it.each([403, 419, 429])("name a direct %i as worth the proxy", (status) => {
+		expect(isProxyWorthyResponse(new Response(null, { status }))).toBe(true);
+	});
+
+	it.each([200, 404, 500])("leave a direct %i alone", (status) => {
+		expect(isProxyWorthyResponse(new Response(null, { status }))).toBe(false);
+	});
+
+	it("name a timeout as worth the proxy", () => {
+		expect(isProxyWorthyError(Object.assign(new Error("no headers"), { name: "TimeoutError" }))).toBe(true);
+	});
+
+	it("leave an unclassified error alone", () => {
+		expect(isProxyWorthyError(new Error("getaddrinfo ENOTFOUND"))).toBe(false);
 	});
 });

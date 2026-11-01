@@ -15,9 +15,11 @@ const TRACKERS = [
 	"https://us.list-manage.com/z5nMJesu3W3?c2id=5f57c6b558b0fa2f2e9be286033610a1&e=ab645c7bcd",
 	"https://newsletter.weeklyfilet.com/r/0f9a8b7c6d",
 	"https://open.substack.com/pub/lcamtuf/p/the-sad-state-of-property-graph-query",
+	"https://substack.com/app-link/post?publication_id=1&post_id=2&comments=true&action=post-comment",
 	"https://substack.com/redirect/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11",
 	"https://share.google/AbCdEf_12-3",
 	"https://www.google.com/share.google?q=https%3A%2F%2Fpublisher.example%2Farticle",
+	"https://semafor.com/s/a1b2c3d4e5?email=reader%40example.com",
 ];
 
 const NEAR_MISSES = [
@@ -30,10 +32,14 @@ const NEAR_MISSES = [
 	"https://newsletter.weeklyfilet.com/issues/2026-09",
 	"https://open.substack.com/pub/lcamtuf",
 	"https://lcamtuf.substack.com/p/the-sad-state-of-property-graph-query",
+	"https://substack.com/app-link/post/extra",
 	"https://substack.com/home",
 	"https://share.google/",
 	"https://www.google.com/share.google",
 	"https://www.google.com/search?q=share.google",
+	"https://semafor.com/newsletter/10/30/2026/a-newsletter-issue",
+	"https://semafor.com/article/10/30/2026/an-article",
+	"https://semafor.com/s/",
 	"https://apple.news/",
 	"https://apple.news/AjYm3jdR0S4uhs9hRKpJ1Sg/related",
 	"https://web.archive.org/web/*/https://publisher.example/*",
@@ -58,6 +64,14 @@ const ORIGINAL = "http://www.onscreenasia.com/article-106.html";
 describe("wrapperFamilyOf", () => {
 	it.each(TRACKERS)("classifies %s as a newsletter tracker", (url) => {
 		expect(wrapperFamilyOf(url)).toBe("newsletter-tracker");
+	});
+
+	it("classifies a link on an unknown host as a newsletter tracker when its key cannot fit a reader's article row", () => {
+		expect(wrapperFamilyOf(`https://click.unknown-sender.example/ls/click?upn=${"a".repeat(1100)}`)).toBe("newsletter-tracker");
+	});
+
+	it("leaves a link whose key fits a reader's article row unclassified", () => {
+		expect(wrapperFamilyOf(`https://publisher.example/${"a".repeat(1000)}`)).toBeUndefined();
 	});
 
 	it.each([
@@ -203,6 +217,42 @@ describe("stripRedirectAddedParams", () => {
 			);
 		},
 	);
+
+	it("serves the post a Substack comment button points at, not its comments view", () => {
+		expect(
+			stripRedirectAddedParams({
+				wrapperUrl: "https://substack.com/app-link/post?publication_id=1&post_id=2&comments=true&action=post-comment",
+				targetUrl: "https://pub.example/p/foo/comments",
+			}),
+		).toBe("https://pub.example/p/foo");
+	});
+
+	it("keeps a comments segment that is not the comments view of a post", () => {
+		expect(
+			stripRedirectAddedParams({
+				wrapperUrl: "https://substack.com/app-link/post?publication_id=1&post_id=2",
+				targetUrl: "https://blog.example/p/comments",
+			}),
+		).toBe("https://blog.example/p/comments");
+	});
+
+	it("keeps the comments path of a page a Substack redirect points at", () => {
+		expect(
+			stripRedirectAddedParams({
+				wrapperUrl: "https://substack.com/redirect/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11",
+				targetUrl: "https://site.example/p/foo/comments",
+			}),
+		).toBe("https://site.example/p/foo/comments");
+	});
+
+	it("keeps the action parameter of a page a Substack redirect points at", () => {
+		expect(
+			stripRedirectAddedParams({
+				wrapperUrl: "https://substack.com/redirect/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11",
+				targetUrl: "https://forum.example/index.php?action=thread&id=9",
+			}),
+		).toBe("https://forum.example/index.php?action=thread&id=9");
+	});
 
 	it("drops the query entirely when only Substack params were present", () => {
 		expect(

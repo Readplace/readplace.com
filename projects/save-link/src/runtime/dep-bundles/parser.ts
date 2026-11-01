@@ -1,5 +1,6 @@
 import type {
 	CrawlArticle,
+	CrawlEgress,
 	CrawlFetch,
 	ExtractPdf,
 } from "@packages/crawl-article";
@@ -46,14 +47,13 @@ export function initParserDepBundle(deps: {
 	logInfo: LogInfo;
 	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
-	proxyUrl: string;
 }): ParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 		logInfo: deps.logInfo,
-		proxyUrl: deps.proxyUrl,
+		egress: { kind: "direct" },
 	});
 	const { siteRules, crawlClaimingSiteRules } = initArticleSiteRules({ crawlFetch, logError: deps.logError });
 	const crawlArticle = initFetchPinnedCrawl({
@@ -96,14 +96,14 @@ export function initComprehensiveParserDepBundle(deps: {
 	logThumbnailNotDelivered: LogThumbnailNotDelivered;
 	extractPdf: ExtractPdf;
 	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
-	proxyUrl: string;
+	egress: CrawlEgress;
 }): ComprehensiveParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 		logInfo: deps.logInfo,
-		proxyUrl: deps.proxyUrl,
+		egress: deps.egress,
 	});
 	const { siteRules, crawlClaimingSiteRules } = initArticleSiteRules({ crawlFetch, logError: deps.logError });
 	const crawlArticle = initFetchPinnedCrawl({

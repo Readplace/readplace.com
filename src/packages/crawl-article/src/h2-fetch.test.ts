@@ -47,6 +47,44 @@ describe("fetchH2 — against a local HTTP/2 server", () => {
 		}
 	});
 
+	it("sends :authority as the bare host and :scheme without the colon for a default-port https URL", async () => {
+		let captured: http2.IncomingHttpHeaders | undefined;
+		const server = await startH2Server((stream, headers) => {
+			captured = headers;
+			stream.respond({ ":status": 200, "content-type": "text/html" });
+			stream.end("<html></html>");
+		});
+		const realConnect = http2.connect;
+		const connectSpy = jest
+			.spyOn(http2, "connect")
+			.mockImplementation((_authority, options) => realConnect(server.origin, options));
+		try {
+			await fetchH2("https://link.example.com/ss/c/abc?x=1");
+			expect(captured?.[":authority"]).toBe("link.example.com");
+			expect(captured?.[":scheme"]).toBe("https");
+			expect(captured?.[":path"]).toBe("/ss/c/abc?x=1");
+		} finally {
+			connectSpy.mockRestore();
+			await server.close();
+		}
+	});
+
+	it("keeps a non-default port in :authority", async () => {
+		let captured: http2.IncomingHttpHeaders | undefined;
+		const server = await startH2Server((stream, headers) => {
+			captured = headers;
+			stream.respond({ ":status": 200, "content-type": "text/html" });
+			stream.end("<html></html>");
+		});
+		try {
+			await fetchH2(`${server.origin}/`);
+			expect(captured?.[":authority"]).toBe(new URL(server.origin).host);
+			expect(captured?.[":scheme"]).toBe("http");
+		} finally {
+			await server.close();
+		}
+	});
+
 	it("follows 301 redirects to the final destination", async () => {
 		const server = await startH2Server((stream, headers) => {
 			if (headers[":path"] === "/start") {

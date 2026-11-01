@@ -731,6 +731,6 @@ it.each([undefined, "image"] as const)("hosts %s media under the storage row wit
 	const finalize = createFinalize({ downloadMedia, putImageObject });
 	const result = await finalize({ url: URL_UNDER_TEST, documentUrl: URL_UNDER_TEST, html: "<p>article</p>", mediaType, writeContext, resolvedThumbnail: { image: { url: "https://example.com/photo.png", body: Buffer.from("image"), contentType: "image/png", extension: ".png" }, provenUnusable: [] } });
 	expect(result.ok).toBe(true);
-	expect(putImageObject).toHaveBeenCalledWith({ key: expect.stringMatching(/^content\/archive.is%2Flegacy\/images\/attempts\/[a-f0-9]{64}\/[a-f0-9]{64}\.png$/), body: Buffer.from("image"), contentType: "image/png", writeContext });
+	expect(putImageObject).toHaveBeenCalledWith({ key: expect.stringMatching(/^content\/archive.is%2Flegacy\/images\/attempts\/[a-f0-9]{32}\/[a-f0-9]{32}\.png$/), body: Buffer.from("image"), contentType: "image/png", writeContext });
 	if (mediaType === undefined) expect(downloadMedia).toHaveBeenCalledWith({ html: expect.any(String), referer: URL_UNDER_TEST, articleResourceUniqueId: ArticleResourceUniqueId.parse(writeContext.url), writeContext });
 });

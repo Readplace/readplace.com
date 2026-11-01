@@ -3,6 +3,7 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
+import { type CrawlSettledEvent, initLogCrawlSettled } from "@packages/hutch-infra-components";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initRefreshContentExtractedHandler } from "./domain/select-content/refresh-content-extracted-handler";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
@@ -34,7 +35,8 @@ const deepseekClient = initDeepseekClient({
 });
 
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
-const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
+const { logCrawlSettled } = initLogCrawlSettled({ logger: HutchLogger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
+const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events, logCrawlSettled });
 const selectContent = initSelectContentDepBundle({
 	s3Client,
 	dynamoClient,

@@ -19,6 +19,7 @@ import {
 	ComputeRelatedPastReadsCommand,
 	RelatedPastReadsComputedEvent,
 } from "./index";
+import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { computePastReadsFingerprint } from "./related-past-reads-fingerprint";
 import { RELATED_CANDIDATES_MAX } from "./related-articles-limits";
 import type { SelectRelatedArticles } from "./related-articles-selector";
@@ -123,10 +124,19 @@ export function initComputeRelatedPastReadsHandler(
 					});
 					continue;
 				}
-				if (lookup.state === "absent" || lookup.article.crawlStatus === "pending") {
+				if (lookup.state === "absent") {
 					throw new MetadataNotReadyError(entry.url);
 				}
 				const target = lookup.article;
+				if (target.crawlStatus === "pending") {
+					if (Number(record.attributes.ApproximateReceiveCount) < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
+						throw new MetadataNotReadyError(entry.url);
+					}
+					logger.info("[ComputeRelatedPastReads] skipped; crawl still pending after the wait", {
+						url: entry.url,
+					});
+					continue;
+				}
 
 				const { candidates } = await findReadCandidatesAcrossReadlists({
 					userId,

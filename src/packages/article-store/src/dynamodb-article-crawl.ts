@@ -154,13 +154,14 @@ export function initDynamoDbArticleCrawl(deps: {
 		return result;
 	};
 
-	const markCrawlPending: MarkCrawlPending = async ({ url }) => {
+	const markCrawlPending: MarkCrawlPending = async ({ url, measured }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		try {
 			await table.update({
 				Key: { url: articleResourceUniqueId.value },
-				UpdateExpression:
-					"SET crawlStatus = :pending, crawlPendingSince = :pendingSince",
+				UpdateExpression: measured
+					? "SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince)"
+					: "SET crawlStatus = :pending, crawlPendingSince = :pendingSince",
 				ConditionExpression:
 					"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
 				ExpressionAttributeValues: {
@@ -179,7 +180,7 @@ export function initDynamoDbArticleCrawl(deps: {
 		await table.update({
 			Key: { url: articleResourceUniqueId.value },
 			UpdateExpression:
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt",
 			ExpressionAttributeValues: {
 				":pending": "pending",
 				":pendingSince": deps.now().toISOString(),
