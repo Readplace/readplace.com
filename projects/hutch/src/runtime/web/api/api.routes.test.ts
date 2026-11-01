@@ -2521,26 +2521,6 @@ describe("Siren readlists", () => {
 			expect(articleUrls(recipes.body)).toEqual([url]);
 		});
 
-		it("still files the readlist a legacy queue-keyed href names", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
-				email: "readlist-actions-add-legacy-href@example.com",
-			});
-			const url = "https://example.com/legacy-filed";
-			await saveThrough(harness, { accessToken, path: "/queue", url });
-			const entity = await entityListing(harness, { accessToken, path: "/queue", url });
-
-			const filed = await submit(harness, {
-				accessToken,
-				action: actionNamed(entity, "add-to-readlist"),
-				body: { readlists: [`/queue?queue=${readlist}`] },
-			});
-
-			expect(filed.status).toBe(303);
-			const work = await readCollection(harness, { accessToken, path: hrefs[WORK_LABEL] });
-			expect(articleUrls(work.body)).toEqual([url]);
-		});
-
 		it("answers an iPhone before 134 with add-to-readlist and create-readlist Locations that key the readlist as queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { userId, readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
@@ -2628,10 +2608,25 @@ describe("Siren readlists", () => {
 			]);
 		});
 
+		it("answers an iPhone before 134 that deletes through the advertised href with a Location that names no readlist", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-old-ios-delete-advertised@example.com",
+			});
+			const recipes = await readCollection(harness, { accessToken, path: hrefs[RECIPES_LABEL] });
+
+			const deleted = await submit(harness, {
+				accessToken,
+				action: actionNamed(recipes.body, "delete-readlist"),
+			}).set("User-Agent", IOS_BUILD_133);
+
+			expect([deleted.status, keysOf(deleted.headers.location)]).toEqual([303, { queue: false, readlist: false }]);
+		});
+
 		it.each([
 			{
 				what: "names only All and a readlist the reader does not own",
-				body: { readlists: ["/queue", "/queue?queue=nobodys"] },
+				body: { readlists: ["/queue", "/queue?readlist=nobodys"] },
 			},
 			{ what: "sends readlists that are not a list", body: { readlists: "/queue" } },
 			{ what: "sends no body", body: undefined },
