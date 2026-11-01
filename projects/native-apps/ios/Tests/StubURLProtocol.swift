@@ -127,7 +127,6 @@ final class StubURLProtocol: URLProtocol {
 		if (300...399).contains(stub.status), let location = stub.headers["Location"],
 			let redirectURL = URL(string: location, relativeTo: url) {
 			client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: redirectURL), redirectResponse: response)
-			client?.urlProtocolDidFinishLoading(self)
 			return
 		}
 		client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: stub.storagePolicy)
