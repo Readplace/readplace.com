@@ -67,6 +67,12 @@ it("fetches a stored LinkedIn email link at its public post under the row's own 
 	const identity = await harness({ kind: "article", originalUrl: url }).prepare(url);
 	assert.deepEqual(identity, { status: "resolved", url, originalUrl: "https://www.linkedin.com/feed/update/urn:li:activity:1234567890123456789/" });
 });
+it("fetches the post of a row pinned to its Substack comment view under the row's own key", async () => {
+	const url = "https://newsletter.example/p/a-post/comments?action=post-comment&comments=true";
+	const identity = await harness({ kind: "article", originalUrl: url }).prepare(url);
+	assert.deepEqual(identity, { status: "resolved", url, originalUrl: "https://newsletter.example/p/a-post" });
+});
+
 it("fetches a stored plain article original unchanged", async () => {
 	const identity = await harness({ kind: "article", originalUrl: ORIGINAL }).prepare(ORIGINAL);
 	assert.deepEqual(identity, { status: "resolved", url: ORIGINAL, originalUrl: ORIGINAL });
