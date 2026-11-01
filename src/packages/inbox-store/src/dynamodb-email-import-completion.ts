@@ -41,6 +41,7 @@ const CandidateRow = CompletionRow.extend({
 });
 
 const CANDIDATE_FIELDS = [
+	"userId",
 	"messageId",
 	"receivedAtMessageId",
 	"senderEmail",

@@ -8,7 +8,7 @@ import { initDynamoDbEmailImportCompletion } from "./dynamodb-email-import-compl
 type SendFn = DynamoDBDocumentClient["send"];
 interface Sent {
 	name: string;
-	input: Record<string, unknown> & { ExpressionAttributeValues?: Record<string, unknown> };
+	input: Record<string, unknown> & { ExpressionAttributeValues?: Record<string, unknown>; ProjectionExpression?: string; ExpressionAttributeNames?: Record<string, string> };
 }
 
 const USER = UserIdSchema.parse("user-1");
@@ -29,6 +29,13 @@ function fakeClient(respond: (command: Sent) => unknown): { client: DynamoDBDocu
 		return respond(recorded);
 	}) as SendFn;
 	return { client: { send } as unknown as DynamoDBDocumentClient, sent };
+}
+
+function projected(row: Record<string, unknown>, input: Sent["input"]): Record<string, unknown> {
+	const { ProjectionExpression, ExpressionAttributeNames } = input;
+	assert(ProjectionExpression && ExpressionAttributeNames, "the query names the attributes it projects");
+	const fields = ProjectionExpression.split(", ").map((alias) => ExpressionAttributeNames[alias]);
+	return Object.fromEntries(Object.entries(row).filter(([field]) => fields.includes(field)));
 }
 
 function store(respond: (command: Sent) => unknown = () => ({})) {
@@ -126,7 +133,7 @@ describe("initDynamoDbEmailImportCompletion", () => {
 			gmailOrigins: new Set([JSON.stringify(ORIGIN), JSON.stringify(ORIGIN)]),
 		};
 		const untracked = { userId: USER, receivedAtMessageId: "2026-10-26T00:00:00.000Z#<old@example.com>", messageId: "<old@example.com>", senderEmail: "dan@news.test", status: "rejected" };
-		const { completion, sent } = store(() => ({ Items: [tracked, untracked], LastEvaluatedKey: { userId: USER } }));
+		const { completion, sent } = store(({ input }) => ({ Items: [tracked, untracked].map((row) => projected(row, input)), LastEvaluatedKey: { userId: USER } }));
 
 		const listed = await completion.listCompletionsBefore({ userId: USER, before: "2026-10-28T00:00:00.000Z", limit: 500 });
 
@@ -170,7 +177,7 @@ describe("initDynamoDbEmailImportCompletion", () => {
 				values: { ":uid": USER, ":before": "2026-10-28T00:00:00.000Z" },
 				forward: false,
 				limit: 100,
-				projection: "#messageId, #receivedAtMessageId, #senderEmail, #status, #gmailDestinationAddresses, #gmailDeliveryMode, #outputSelection, #savedOutputs, #gmailOrigins",
+				projection: "#userId, #messageId, #receivedAtMessageId, #senderEmail, #status, #gmailDestinationAddresses, #gmailDeliveryMode, #outputSelection, #savedOutputs, #gmailOrigins",
 			},
 		);
 	});
