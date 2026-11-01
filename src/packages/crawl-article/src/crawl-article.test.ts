@@ -2528,3 +2528,119 @@ describe("initCrawlArticle block classification on the direct ladder", () => {
 		expect(isProxyWorthyError(result.cause)).toBe(true);
 	});
 });
+
+describe("initCrawlArticle — a click tracker that answers a Location-less 302 with a script redirect", () => {
+	const TRACKER_URL = "https://email.tracker.example/MzAwLUFCQy0xMjM/abcDEF123";
+	const DESTINATION_URL = "https://news.example/2026/10/a-report?mkt_tok=TOKEN";
+	const ARTICLE_HTML =
+		"<html><head><title>A report</title></head><body><article><h1>A report</h1><p>Body text of the report.</p></article></body></html>";
+
+	function stub(redirectUrl: string): string {
+		return `<html>
+<head>
+<meta charset='UTF-8'>
+<meta name='robots' content='noindex'>
+<script language='javascript'>
+var redirecturl = '${redirectUrl}';
+document.getElementsByTagName('head')[0].addEventListener('load',redirect());
+function redirect() {
+var anchor = window.location.hash;
+window.self.location = redirecturl + anchor;
+}
+</script>
+</head>
+<body></body>
+</html>
+`;
+	}
+
+	function locationless302(body: string | null): Response {
+		return new Response(body, { status: 302, headers: { "content-type": "text/html; charset=UTF-8" } });
+	}
+
+	function html(body: string): Response {
+		return new Response(body, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } });
+	}
+
+	it("crawls the destination the tracker's script redirects to", async () => {
+		const requested: string[] = [];
+		const logInfo = jest.fn();
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				const url = String(input);
+				requested.push(url);
+				if (url === TRACKER_URL) return locationless302(stub(DESTINATION_URL));
+				if (url === DESTINATION_URL) return html(ARTICLE_HTML);
+				return new Response(null, { status: 404 });
+			},
+			logInfo,
+			logError,
+		});
+
+		const result = await crawlArticle({ url: TRACKER_URL });
+
+		assertFetched(result);
+		expect(result.html).toBe(ARTICLE_HTML);
+		expect(result.finalUrl).toBe(DESTINATION_URL);
+		expect(requested).toEqual([TRACKER_URL, DESTINATION_URL]);
+		expect(logInfo).toHaveBeenCalledWith(`[CrawlArticle] Following script redirect from ${TRACKER_URL} to ${DESTINATION_URL}`);
+		expect([...logInfo.mock.calls, ...logError.mock.calls].flat()).not.toContainEqual(
+			expect.stringContaining("[CrawlArticle] HTTP 302"),
+		);
+	});
+
+	it.each([
+		["a non-stub HTML body", "<html><body><p>Moved.</p></body></html>"],
+		["no body", null],
+	])("still reports a Location-less 302 with %s as a failed fetch", async (_label, body) => {
+		const crawlArticle = initCrawl({ fetch: async () => locationless302(body) });
+
+		expect(await crawlArticle({ url: TRACKER_URL })).toEqual({
+			status: "failed",
+			finalUrl: TRACKER_URL,
+			failure: { kind: "fetch-failed", httpStatus: 302 },
+		});
+	});
+
+	it("reports a Location-less 302 whose body never finishes within the body budget as a failed fetch", async () => {
+		const crawlArticle = initCrawl({
+			fetch: async (_input, init) => {
+				const signal = init?.signal;
+				assert(signal, "Expected the crawl fetch to pass an AbortSignal");
+				const body = new ReadableStream<Uint8Array>({
+					start(controller) {
+						signal.addEventListener("abort", () => controller.error(signal.reason), { once: true });
+					},
+				});
+				return new Response(body, { status: 302, headers: { "content-type": "text/html" } });
+			},
+			fetchTimeouts: { headersMs: 5000, bodyMs: 15 },
+		});
+
+		expect(await crawlArticle({ url: TRACKER_URL })).toEqual({
+			status: "failed",
+			finalUrl: TRACKER_URL,
+			failure: { kind: "fetch-failed", httpStatus: 302 },
+		});
+	});
+
+	it("does not follow a second script redirect stub", async () => {
+		const SECOND_TRACKER_URL = "https://email.tracker.example/second";
+		const requested: string[] = [];
+		const crawlArticle = initCrawl({
+			fetch: async (input) => {
+				const url = String(input);
+				requested.push(url);
+				return locationless302(stub(url === TRACKER_URL ? SECOND_TRACKER_URL : DESTINATION_URL));
+			},
+		});
+
+		expect(await crawlArticle({ url: TRACKER_URL })).toEqual({
+			status: "failed",
+			finalUrl: SECOND_TRACKER_URL,
+			failure: { kind: "fetch-failed", httpStatus: 302 },
+		});
+		expect(requested).toEqual([TRACKER_URL, SECOND_TRACKER_URL]);
+	});
+});

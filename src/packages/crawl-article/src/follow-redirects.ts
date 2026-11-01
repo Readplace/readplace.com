@@ -1,4 +1,4 @@
-const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
+export const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 5;
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 const CROSS_ORIGIN_SENSITIVE_HEADERS = new Set(["cookie", "authorization", "proxy-authorization"]);
