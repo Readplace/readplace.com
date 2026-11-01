@@ -120,6 +120,12 @@ describe("save identity", () => {
 		expect(await h.resolve(TRACKER)).toEqual(resolved({ url: ORIGINAL }));
 	});
 
+	it("follows a newsletter short link to the shared original behind its share intent", async () => {
+		const shortLink = "https://semafor.com/s/a1b2c3d4e5?email=reader%40example.com";
+		const h = harness({ targets: { [shortLink]: { url: `https://twitter.com/intent/tweet?url=${encodeURIComponent(ORIGINAL)}&text=Read` } } });
+		expect(await h.resolve(shortLink)).toEqual(resolved({ url: ORIGINAL }));
+	});
+
 	it("strips subscriber parameters before fixing the original identity", async () => {
 		const wrapper = "https://open.substack.com/pub/person/p/article";
 		const h = harness({ targets: { [wrapper]: { url: `${ORIGINAL}?r=reader&utm_source=email`, contentSourceUrl: wrapper } } });

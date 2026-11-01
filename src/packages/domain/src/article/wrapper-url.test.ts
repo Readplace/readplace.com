@@ -18,6 +18,7 @@ const TRACKERS = [
 	"https://substack.com/redirect/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11",
 	"https://share.google/AbCdEf_12-3",
 	"https://www.google.com/share.google?q=https%3A%2F%2Fpublisher.example%2Farticle",
+	"https://semafor.com/s/a1b2c3d4e5?email=reader%40example.com",
 ];
 
 const NEAR_MISSES = [
@@ -34,6 +35,9 @@ const NEAR_MISSES = [
 	"https://share.google/",
 	"https://www.google.com/share.google",
 	"https://www.google.com/search?q=share.google",
+	"https://semafor.com/newsletter/10/30/2026/a-newsletter-issue",
+	"https://semafor.com/article/10/30/2026/an-article",
+	"https://semafor.com/s/",
 	"https://apple.news/",
 	"https://apple.news/AjYm3jdR0S4uhs9hRKpJ1Sg/related",
 	"https://web.archive.org/web/*/https://publisher.example/*",

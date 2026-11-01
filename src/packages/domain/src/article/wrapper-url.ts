@@ -32,6 +32,7 @@ const SUBSTACK_REDIRECT_PATH = /^\/redirect\/[^/]+$/;
 const OPAQUE_TOKEN_PATH = /^\/[A-Za-z0-9_-]+$/;
 const GOOGLE_SHARE_HOP_PATH = /^\/share\.google$/;
 const TWEET_INTENT_PATH = /^\/intent\/(?:tweet|post)$/;
+const SEMAFOR_SHORT_LINK_PATH = /^\/s\/[A-Za-z0-9]+$/;
 
 const WAYBACK_STAMPED_PATH = /^\/web\/([^/]+)\/(.+)$/;
 const WAYBACK_UNSTAMPED_PATH = /^\/(?:web|save)\/(.+)$/;
@@ -67,6 +68,7 @@ const NEWSLETTER_TRACKERS: readonly TrackerRule[] = [
 	{ host: "substack.com", path: SUBSTACK_REDIRECT_PATH },
 	{ host: "share.google", path: OPAQUE_TOKEN_PATH },
 	{ host: "www.google.com", path: GOOGLE_SHARE_HOP_PATH, requiresParam: "q" },
+	{ host: "semafor.com", path: SEMAFOR_SHORT_LINK_PATH },
 ];
 
 function parseHttpUrl(value: string): URL | undefined {
