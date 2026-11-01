@@ -15,6 +15,7 @@ import { redirectable, type RedirectableFetch } from "./follow-redirects";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 import { MAX_HTML_BYTES } from "./html-body-limit";
+import { TransportLadderFailure } from "./transport-ladder-failure";
 import type { Persona } from "./persona-fallback";
 import { initXTwitterSiteRules } from "./x-twitter-site-rules";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
@@ -1024,8 +1025,13 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).toHaveBeenCalledTimes(1);
 		const [loggedMessage, loggedError] = logError.mock.calls[0];
 		expect(loggedMessage).toBe(`[CrawlArticle] Network error for ${WRAPPER_URL} → ${DESTINATION_URL}`);
-		assert(loggedError instanceof Error, "Expected the headers timeout to be logged as an Error");
-		expect(loggedError.name).toBe("TimeoutError");
+		assert(loggedError instanceof Error, "Expected the stalled chain to be logged as an Error");
+		const deadline = loggedError instanceof TransportLadderFailure ? loggedError.cause : loggedError;
+		assert(
+			deadline instanceof Error,
+			"Expected the ladder failure to carry the leg deadline that ran out before the caller's headers timer",
+		);
+		expect(deadline.name).toBe("TimeoutError");
 	});
 
 	it("attributes an unsupported body to the destination that served it, not to the tracker", async () => {
