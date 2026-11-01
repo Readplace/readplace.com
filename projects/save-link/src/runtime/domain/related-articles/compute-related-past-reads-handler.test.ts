@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
@@ -12,6 +13,7 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { initComputeRelatedPastReadsHandler } from "./compute-related-past-reads-handler";
 import { computePastReadsFingerprint } from "./related-past-reads-fingerprint";
 import type { SelectRelatedArticles } from "./related-articles-selector";
@@ -257,6 +259,31 @@ describe("initComputeRelatedPastReadsHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(marked).toEqual([]);
+	});
+
+	it("gives up without a retry when the crawl is still pending on the final receive", async () => {
+		const { handler, marked, published } = createHandler({
+			targetLookup: { state: "found", article: crawledTarget({ crawlStatus: "pending" }) },
+		});
+		const [record] = command.Records;
+		assert(record, "the command holds one record");
+		const finalReceive: SQSEvent = {
+			Records: [
+				{
+					...record,
+					attributes: {
+						...stubAttributes,
+						ApproximateReceiveCount: String(COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT),
+					},
+				},
+			],
+		};
+
+		const result = await handler(finalReceive, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(marked).toEqual([]);
+		expect(published).toEqual([]);
 	});
 
 	it("retries the message when the model returns no text block", async () => {
