@@ -7,8 +7,6 @@ import {
 	assertCurlImpersonateAvailable,
 	CURL_IMPERSONATE_BIN,
 	createCurlFetch,
-	createCurlHop,
-	initGuardedCurlHop,
 } from "./curl-fetch";
 
 const live = () => new AbortController().signal;
@@ -552,31 +550,5 @@ describe("assertCurlImpersonateAvailable", () => {
 		});
 		expect(() => assertCurlImpersonateAvailable({ probe })).toThrow(/curl_chrome131/);
 		expect(() => assertCurlImpersonateAvailable({ probe })).toThrow(/ENOENT; PATH=\/usr\/bin/);
-	});
-});
-
-describe("createCurlHop", () => {
-	it("returns a redirect unfollowed so the caller checks its target", async () => {
-		const fake = makeFakeExec({
-			stdout: "HTTP/1.1 302 Found\r\nlocation: https://example.com/article\r\n\r\n",
-		});
-		const hop = createCurlHop({ execCurl: fake.execCurl, resolvePinnedAddress });
-
-		const response = await hop("https://tracker.example/abc", { signal: live() });
-
-		assert.equal(response.status, 302);
-		assert.equal(response.headers.get("location"), "https://example.com/article");
-		assert.equal(fake.calls.length, 1);
-	});
-});
-
-describe("initGuardedCurlHop", () => {
-	it("refuses a host that resolves to a blocked address", async () => {
-		const hop = initGuardedCurlHop({
-			resolve: (_hostname, _options, callback) => callback(null, [{ address: "10.0.0.1", family: 4 }]),
-			isBlocked: () => true,
-		});
-
-		await assert.rejects(hop("https://tracker.example/abc", { signal: live() }));
 	});
 });

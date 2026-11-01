@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import type { IsBlockedAddress, ResolveAll } from "./blocked-address-lookup";
-import { escalateBlockedHop, initFetchRedirectHop } from "./fetch-redirect-hop";
+import { initFetchRedirectHop } from "./fetch-redirect-hop";
 
 const HEADERS = { "user-agent": "test" };
 
@@ -149,39 +149,5 @@ describe("initFetchRedirectHop", () => {
 			/Invalid URL/,
 		);
 		assert.equal(calls, 0);
-	});
-});
-
-describe("escalateBlockedHop", () => {
-	const init = { headers: HEADERS, signal: new AbortController().signal };
-	const answer = (status: number, location?: string) => async () =>
-		new Response(null, { status, headers: location === undefined ? {} : { location } });
-
-	it("reads the redirect curl gets when the direct hop is blocked with a 403", async () => {
-		const hop = escalateBlockedHop({
-			direct: answer(403),
-			curl: answer(302, "https://example.com/article"),
-		});
-
-		const response = await hop("https://tracker.example/abc", init);
-
-		assert.equal(response.status, 302);
-		assert.equal(response.headers.get("location"), "https://example.com/article");
-	});
-
-	it("never opens curl when the direct hop gets the redirect", async () => {
-		let curlCalls = 0;
-		const hop = escalateBlockedHop({
-			direct: answer(302, "https://example.com/article"),
-			curl: async () => {
-				curlCalls += 1;
-				return new Response(null, { status: 500 });
-			},
-		});
-
-		const response = await hop("https://tracker.example/abc", init);
-
-		assert.equal(response.status, 302);
-		assert.equal(curlCalls, 0);
 	});
 });
