@@ -2188,6 +2188,11 @@ describe("Siren readlists", () => {
 			return parseReadlistUrl(Object.fromEntries(new URL(location, TEST_APP_ORIGIN).searchParams));
 		}
 
+		function keysOf(location: string) {
+			const query = new URL(location, TEST_APP_ORIGIN).searchParams;
+			return { queue: query.has("queue"), readlist: query.has("readlist") };
+		}
+
 		function answerOf(response: request.Response) {
 			return { status: response.status, type: response.type, body: response.body };
 		}
@@ -2561,10 +2566,6 @@ describe("Siren readlists", () => {
 				body: { label: "Travel" },
 			}).set("User-Agent", IOS_BUILD_133);
 
-			const keysOf = (location: string) => {
-				const query = new URL(location, TEST_APP_ORIGIN).searchParams;
-				return { queue: query.has("queue"), readlist: query.has("readlist") };
-			};
 			expect({
 				filed: [filed.status, keysOf(filed.headers.location), addressedBy(filed.headers.location).readlist],
 				created: [created.status, keysOf(created.headers.location)],
@@ -2572,6 +2573,59 @@ describe("Siren readlists", () => {
 				filed: [303, { queue: true, readlist: false }, readlist],
 				created: [303, { queue: true, readlist: false }],
 			});
+		});
+
+		it("answers an iPhone before 134 with rename-readlist and remove-from-readlist Locations that key the readlist as queue", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { userId, readlist, accessToken } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-old-ios-rename-remove@example.com",
+			});
+			const url = "https://example.com/old-ios-removed";
+			await seedInReadlistOnly(harness, { userId, readlist, url });
+			const listing = await readCollection(harness, { accessToken, path: `/queue?queue=${readlist}` }).set(
+				"User-Agent",
+				IOS_BUILD_133,
+			);
+			const entity = listing.body.entities.find((candidate: ArticleEntity) => candidate.properties.url === url);
+			assert(entity, `expected ${url} to be listed`);
+
+			const removed = await submit(harness, {
+				accessToken,
+				action: actionNamed(entity, "remove-from-readlist"),
+			}).set("User-Agent", IOS_BUILD_133);
+			const renamed = await submit(harness, {
+				accessToken,
+				action: actionNamed(listing.body, "rename-readlist"),
+				body: { label: "Office" },
+			}).set("User-Agent", IOS_BUILD_133);
+
+			expect({
+				removed: [removed.status, keysOf(removed.headers.location), addressedBy(removed.headers.location).readlist],
+				renamed: [renamed.status, keysOf(renamed.headers.location), addressedBy(renamed.headers.location).readlist],
+			}).toEqual({
+				removed: [303, { queue: true, readlist: false }, readlist],
+				renamed: [303, { queue: true, readlist: false }, readlist],
+			});
+		});
+
+		it("answers an iPhone before 134 that deletes another readlist with a Location keying the readlist it is viewing as queue", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { readlist, accessToken, hrefs } = await readerWithTwoReadlists(harness, {
+				email: "readlist-actions-old-ios-delete@example.com",
+			});
+			const recipes = await readCollection(harness, { accessToken, path: hrefs[RECIPES_LABEL] });
+			const action = actionNamed(recipes.body, "delete-readlist");
+
+			const deleted = await submit(harness, {
+				accessToken,
+				action: { ...action, href: `${action.href}?queue=${readlist}` },
+			}).set("User-Agent", IOS_BUILD_133);
+
+			expect([deleted.status, keysOf(deleted.headers.location), addressedBy(deleted.headers.location).readlist]).toEqual([
+				303,
+				{ queue: true, readlist: false },
+				readlist,
+			]);
 		});
 
 		it.each([
