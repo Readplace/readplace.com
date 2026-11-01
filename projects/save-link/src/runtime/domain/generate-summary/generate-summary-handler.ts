@@ -1,9 +1,10 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import {
 	isCanonicalCandidateRevoked,
+	markSummaryExhausted,
 	markSummaryReady,
 	markSummarySkipped,
 	summaryMatchesCanonical,
@@ -172,17 +173,33 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 					url,
 					error,
 				});
+				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 				const failure = describeAiProviderError(error);
 				if (failure.kind !== "unknown") {
 					deepseekCallFailedLog.error(
 						deepseekCallFailedLogLine({
 							feature: "generate-summary",
 							failure,
-							receiveCount: Number(record.attributes.ApproximateReceiveCount),
+							receiveCount,
 							messageId: record.messageId,
 							ids: {},
 						}),
 					);
+				}
+				if (url && receiveCount >= GENERATE_SUMMARY_MAX_RECEIVE_COUNT) {
+					try {
+						await transitionAndPersist(markSummaryExhausted, {
+							url,
+							input: { reason: { kind: "exhausted-retries" as const, receiveCount }, receiveCount },
+						});
+					} catch (markError) {
+						logger.error(formatErrorLogLine({
+							message: `[GenerateSummary] exhausted-mark record failed on receive ${receiveCount} (messageId ${record.messageId})`,
+							url,
+							error: markError instanceof Error ? markError : new Error(String(markError)),
+							now,
+						}));
+					}
 				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });
 			}

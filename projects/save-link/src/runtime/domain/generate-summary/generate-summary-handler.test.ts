@@ -3,6 +3,7 @@ import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-aggregate";
 import {
 	type Article,
+	markSummaryExhausted,
 	markSummaryReady,
 	markSummarySkipped,
 } from "@packages/domain/article-aggregate";
@@ -360,6 +361,7 @@ describe("initGenerateSummaryHandler", () => {
 			selectionExpected: { scope: "canonical-content", snapshot: undefined },
 			input: { reason: "declined", now: NOW.toISOString() },
 		});
+		expect(deps.transitionAndPersist).toHaveBeenCalledTimes(1);
 		expect(error).not.toHaveBeenCalled();
 	});
 
@@ -406,7 +408,7 @@ describe("initGenerateSummaryHandler", () => {
 		});
 	});
 
-	it("reports an unusable answer on the final receive as a failed record at ERROR, so it DLQs as failed for auto-heal", async () => {
+	it("reports an unusable answer on the final receive as a failed record at ERROR and marks the summary exhausted", async () => {
 		const URL = "https://example.com/unusable-final";
 		const warn = jest.fn();
 		const error = jest.fn();
@@ -423,7 +425,10 @@ describe("initGenerateSummaryHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryExhausted, {
+			url: URL,
+			input: { reason: { kind: "exhausted-retries", receiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT }, receiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT },
+		});
 		expect(warn).not.toHaveBeenCalled();
 		expect(error).toHaveBeenCalledWith(
 			"[GenerateSummary] record failed",
@@ -435,7 +440,7 @@ describe("initGenerateSummaryHandler", () => {
 		);
 	});
 
-	it("still reports batchItemFailures for no-text-block on the final receive, so it DLQs as failed for auto-heal", async () => {
+	it("still reports batchItemFailures for no-text-block on the final receive and marks the summary exhausted", async () => {
 		const URL = "https://example.com/no-text-block-final";
 		const { handler, deps } = createHandler({
 			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "no-text-block" }),
@@ -449,7 +454,74 @@ describe("initGenerateSummaryHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryExhausted, {
+			url: URL,
+			input: { reason: { kind: "exhausted-retries", receiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT }, receiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT },
+		});
+	});
+
+	it("marks the summary exhausted on the final receive of a provider error and still fails the record", async () => {
+		const URL = "https://example.com/provider-error-final";
+		const providerError = Object.assign(new Error("402 Insufficient Balance"), { status: 402, requestID: null });
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockRejectedValue(providerError),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+		});
+
+		const result = await handler(
+			createSqsEventOnReceive({ url: URL }, GENERATE_SUMMARY_MAX_RECEIVE_COUNT),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryExhausted, {
+			url: URL,
+			input: { reason: { kind: "exhausted-retries", receiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT }, receiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT },
+		});
+	});
+
+	it("marks nothing for a schema-rejected body on the final receive", async () => {
+		const { handler, deps } = createHandler();
+		const event = createSqsEventOnReceive({ url: "https://example.com/x" }, GENERATE_SUMMARY_MAX_RECEIVE_COUNT);
+		const invalidEvent: SQSEvent = {
+			Records: event.Records.map((record) => ({ ...record, body: JSON.stringify({ detail: { invalid: true } }) })),
+		};
+
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["an Error", new Error("DynamoDB unavailable")],
+		["a string", "DynamoDB unavailable"],
+	])("logs the exhausted-mark line when the mark throws %s and still fails the record", async (_label, thrown) => {
+		const URL = "https://example.com/mark-throws";
+		const error = jest.fn();
+		const { handler } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "no-text-block" }),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			transitionAndPersist: jest.fn().mockRejectedValue(thrown),
+			logger: { ...noopLogger, error },
+		});
+
+		const result = await handler(
+			createSqsEventOnReceive({ url: URL }, GENERATE_SUMMARY_MAX_RECEIVE_COUNT),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		const markLines = error.mock.calls.filter(([line]) => typeof line === "string" && line.startsWith("{"));
+		expect(markLines).toHaveLength(1);
+		expect(JSON.parse(markLines[0][0])).toMatchObject({
+			message: "[GenerateSummary] exhausted-mark record failed on receive 3 (messageId msg-1)",
+			url: URL,
+			name: "Error",
+			stack: expect.stringContaining("DynamoDB unavailable"),
+		});
 	});
 
 	it("reports batchItemFailures when the summariser returns no-text-block so SQS redelivers and eventually DLQs", async () => {
@@ -469,7 +541,7 @@ describe("initGenerateSummaryHandler", () => {
 		const URL = "https://example.com/provider-error";
 		const deepseekCallFailed = jest.fn();
 		const providerError = Object.assign(new Error("402 Insufficient Balance"), { status: 402, requestID: null });
-		const { handler } = createHandler({
+		const { handler, deps } = createHandler({
 			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockRejectedValue(providerError),
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
 			deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
@@ -478,6 +550,7 @@ describe("initGenerateSummaryHandler", () => {
 		const result = await handler(createSqsEventOnReceive({ url: URL }, 1), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
 		const line = deepseekCallFailed.mock.calls[0][0];
 		expect(line).toMatchObject({ feature: "generate-summary", status: 402, kind: "http", receiveCount: 1, messageId: "msg-1" });
