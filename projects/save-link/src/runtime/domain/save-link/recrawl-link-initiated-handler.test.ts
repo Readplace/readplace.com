@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import { markCrawlBlocked, markCrawlNotFound } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlExhausted, markCrawlNotFound } from "@packages/domain/article-aggregate";
 import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import type {
@@ -98,11 +98,32 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		}));
 	});
 
-	it("reports the record as a batch failure when crawl-and-finalize fails (so SQS redelivers just that record)", async () => {
+	it("terminalises an origin failure in-process with its classified reason and reports no batch failure, so a refused origin never dead-letters", async () => {
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
-		const handler = createHandler({ crawlAndFinalizeArticle, publishEvent });
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist, publishEvent });
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
+			url: "https://example.com/unreachable",
+			input: { reason: { kind: "fetch-failed" }, receiveCount: 1 },
+		});
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("reports a batch failure when terminalising the origin failure itself fails, so the record is not lost", async () => {
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
+		const transitionAndPersist = jest.fn().mockRejectedValue(new Error("dynamodb down"));
+
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/unreachable" }),
@@ -111,7 +132,6 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
 	it("terminalises a permanently-dead link (HTTP 404) via markCrawlNotFound and neither emits RecrawlContentExtractedEvent nor reports a batch failure — recrawling a page the origin no longer serves can never succeed", async () => {
@@ -212,24 +232,19 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
-	it("logs a tier-1 crawl-failed at warn (not error) so it stays off the errors dashboard, still reporting a batch failure for retry", async () => {
+	it("logs a tier-1 crawl-failed at warn (not error) so it stays off the errors dashboard", async () => {
 		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logger });
 
-		const result = await handler(
-			createSqsEvent({ url: "https://example.com/article" }),
-			buildLambdaContext(),
-			() => {},
-		);
+		await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
 
-		expect(logger.warn).toHaveBeenCalledWith("[RecrawlLinkInitiated] tier-1 crawl failed", {
-			url: "https://example.com/article",
-			messageId: "msg-1",
-		});
+		expect(logger.warn).toHaveBeenCalledWith(
+			"[RecrawlLinkInitiated] crawl failed — terminalising in-process",
+			expect.objectContaining({ url: "https://example.com/article" }),
+		);
 		expect(logger.error).not.toHaveBeenCalled();
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
 	it("logs a genuine unexpected failure at error (not warn) so real bugs still surface on the dashboard", async () => {

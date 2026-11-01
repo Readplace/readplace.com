@@ -1,3 +1,5 @@
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+
 export type WrapperFamily = "newsletter-tracker" | "apple-news" | "archive-snapshot" | "archive-outbound" | "share-intent";
 
 export type UnwrappedUrl = { url: string; contentSourceUrl?: string };
@@ -178,6 +180,12 @@ function isTweetIntent(parsed: URL): boolean {
 	return TWEET_INTENT_HOSTS.has(hostnameOf(parsed)) && TWEET_INTENT_PATH.test(parsed.pathname);
 }
 
+const MAX_USER_ARTICLE_KEY_BYTES = 1024;
+
+function outgrowsUserArticleKey(url: string): boolean {
+	return new TextEncoder().encode(ArticleResourceUniqueId.parse(url).value).length > MAX_USER_ARTICLE_KEY_BYTES;
+}
+
 export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
 	const parsed = parseHttpUrl(url);
 	if (parsed === undefined) return undefined;
@@ -187,6 +195,7 @@ export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
 	if (NEWSLETTER_TRACKERS.some((rule) => matchesTracker(rule, host, parsed))) return "newsletter-tracker";
 	if (APPLE_NEWS_HOSTS.has(host) && OPAQUE_TOKEN_PATH.test(parsed.pathname)) return "apple-news";
 	if (unwrapArchive(parsed) !== undefined || isArchiveTodayShortId(parsed)) return "archive-snapshot";
+	if (outgrowsUserArticleKey(url)) return "newsletter-tracker";
 	return undefined;
 }
 

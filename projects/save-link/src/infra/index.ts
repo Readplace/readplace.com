@@ -269,9 +269,8 @@ const saveLinkCommandQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.saveLinkCommand,
 });
 
 // maxReceiveCount=1: SQS retries are removed for the anonymous save path.
-// A failed save does not reprime when the user re-visits /view. The DLQ → SNS
-// email alarm is the operator's redrive signal, and /admin/recrawl is the
-// manual retry.
+// A failed save does not reprime when the user re-visits /view, and
+// /admin/recrawl is the manual retry.
 // Other queues that aren't user-retriable (select-most-complete-content,
 // generate-summary) keep the default maxReceiveCount=3 so transient
 // Deepseek/DDB blips still self-heal at the SQS layer.

@@ -60,6 +60,14 @@ describe("wrapperFamilyOf", () => {
 		expect(wrapperFamilyOf(url)).toBe("newsletter-tracker");
 	});
 
+	it("classifies a link on an unknown host as a newsletter tracker when its key cannot fit a reader's article row", () => {
+		expect(wrapperFamilyOf(`https://click.unknown-sender.example/ls/click?upn=${"a".repeat(1100)}`)).toBe("newsletter-tracker");
+	});
+
+	it("leaves a link whose key fits a reader's article row unclassified", () => {
+		expect(wrapperFamilyOf(`https://publisher.example/${"a".repeat(1000)}`)).toBeUndefined();
+	});
+
 	it.each([
 		"https://apple.news/AjYm3jdR0S4uhs9hRKpJ1Sg",
 		"https://www.apple.news/AjYm3jdR0S4uhs9hRKpJ1Sg",

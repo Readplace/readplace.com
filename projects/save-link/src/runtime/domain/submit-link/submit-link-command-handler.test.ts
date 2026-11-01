@@ -17,6 +17,7 @@ import {
 	SubmitLinkCommand,
 	TierContentExtractedEvent,
 	EmailOutputSavedToAllEvent,
+	LinkQueueFailedEvent,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
@@ -577,7 +578,31 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
 	});
 
-	it("fails the record and writes no article when the wrapper's original cannot be resolved, so the queue retries and then dead-letters it", async () => {
+	it("publishes the save failure instead of dead-lettering when the wrapper's original is still unresolved on the final receive", async () => {
+		const saveArticle = jest.fn();
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			refreshArticleIfStale: async () => ({ action: "unresolved", identity: { status: "unresolved" } }),
+			saveArticle,
+			publishEvent,
+		});
+		const lastReceive = createSqsEvent([{ url: "https://archive.ph/abc", userId }]);
+		lastReceive.Records[0].attributes = { ...stubAttributes, ApproximateReceiveCount: String(SUBMIT_LINK_MAX_RECEIVE_COUNT) };
+
+		const response = await run(handler, lastReceive);
+
+		expect(response.batchItemFailures).toEqual([]);
+		expect(saveArticle).toHaveBeenCalledTimes(0);
+		expect(publishEvent).toHaveBeenCalledTimes(1);
+		expect(publishEvent).toHaveBeenCalledWith(LinkQueueFailedEvent, {
+			url: "https://archive.ph/abc",
+			userId,
+			reason: "wrapper-original-unresolved",
+			receiveCount: SUBMIT_LINK_MAX_RECEIVE_COUNT,
+		});
+	});
+
+	it("fails the record and writes no article while the wrapper's original is unresolved before the final receive, so the queue retries it", async () => {
 		const wrapperUrl = "https://archive.ph/abc";
 		const saveArticle = jest.fn();
 		const pinContentSource = jest.fn();

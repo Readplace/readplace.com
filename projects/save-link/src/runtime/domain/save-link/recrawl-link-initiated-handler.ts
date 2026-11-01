@@ -3,6 +3,7 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
+import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
@@ -11,7 +12,7 @@ import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-st
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import { initSaveLinkWork, logRecordFailure } from "./save-link-work";
+import { ClassifiedCrawlError, initSaveLinkWork, logRecordFailure } from "./save-link-work";
 import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import assert from "node:assert";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
@@ -85,25 +86,40 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 				const identity = await deps.prepareArticleIdentity(detail.url);
 				assert(identity.status === "resolved", "recrawl original identity is unresolved");
 
-				const captureUrl = await deps.findContentSourceUrl(detail.url);
-				let extracted: SaveCandidates;
-				if (captureUrl !== undefined) {
-					extracted = await crawlSaveCandidates({ url: detail.url, captureUrl, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
-				} else {
-					const result = await saveLinkWork(detail.url, { recrawl: true, saveAttemptId });
-					if (typeof result !== "object" || "deferred" in result) continue;
-					extracted = { candidates: [result.candidate], liveAttempt: { outcome: "body" } };
-				}
+				try {
+					const captureUrl = await deps.findContentSourceUrl(detail.url);
+					let extracted: SaveCandidates;
+					if (captureUrl !== undefined) {
+						extracted = await crawlSaveCandidates({ url: detail.url, captureUrl, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
+					} else {
+						const result = await saveLinkWork(detail.url, { recrawl: true, saveAttemptId });
+						if (typeof result !== "object" || "deferred" in result) continue;
+						extracted = { candidates: [result.candidate], liveAttempt: { outcome: "body" } };
+					}
 
-				await publishEvent(RecrawlContentExtractedEvent, {
-					url: detail.url,
-					saveAttemptId,
-					...extracted,
-					extractedAt: deps.now().toISOString(),
-				});
-				logger.info("[RecrawlLinkInitiated] emitted RecrawlContentExtractedEvent", {
-					url: detail.url,
-				});
+					await publishEvent(RecrawlContentExtractedEvent, {
+						url: detail.url,
+						saveAttemptId,
+						...extracted,
+						extractedAt: deps.now().toISOString(),
+					});
+					logger.info("[RecrawlLinkInitiated] emitted RecrawlContentExtractedEvent", {
+						url: detail.url,
+					});
+				} catch (error) {
+					if (!(error instanceof ClassifiedCrawlError)) throw error;
+					logger.warn(`${logPrefix} crawl failed — terminalising in-process`, {
+						url: detail.url,
+						error: String(error),
+					});
+					await deps.transitionAndPersist(markCrawlExhausted, {
+						url: detail.url,
+						input: {
+							reason: error.crawlFailureReason,
+							receiveCount: Number(record.attributes.ApproximateReceiveCount),
+						},
+					});
+				}
 			} catch (error) {
 				logRecordFailure({ logger, logPrefix, record, error });
 				batchItemFailures.push({ itemIdentifier: record.messageId });
