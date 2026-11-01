@@ -2,12 +2,13 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecor
 import type { SaveAttemptId } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import { isBlockClassStatus } from "@packages/crawl-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import {
 	type LoadArticle,
 	type TransitionAndPersist,
+	markCrawlExhausted,
 	promoteTier,
 	recrawlPromoteTier,
 	recrawlTieKeptCanonical,
@@ -22,6 +23,7 @@ import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import { resolveCanonicalPublishedOn } from "./resolve-canonical-published-on";
 import { type LiveAttempt, type PreparedContentSelection, initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import { markNoReadableArticle } from "./mark-no-readable-article";
+import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 
 export interface SelectContentDependencies {
@@ -114,27 +116,52 @@ export function initSelectionQueueHandler(queue: {
 	tag: string;
 	feature: "select-most-complete-content" | "recrawl-content-extracted" | "refresh-content-extracted" | "reselect-after-removal";
 	toRequest: (detail: unknown, record: SQSRecord) => SelectContentRequest;
+	onExhaustion: "mark-crawl-exhausted" | "keep-row";
 }): (deps: SelectContentDependencies & { deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine> }) => Handler<SQSEvent, SQSBatchResponse> {
 	return (deps) => {
 		const selectContent = initSelectContentWork(deps);
 		return async (event) => {
 			const batchItemFailures: SQSBatchItemFailure[] = [];
 			for (const record of event.Records) {
+				let recordUrl: string | undefined;
 				try {
-					await selectContent(queue.toRequest(JSON.parse(record.body).detail, record));
+					const request = queue.toRequest(JSON.parse(record.body).detail, record);
+					recordUrl = request.url;
+					await selectContent(request);
 				} catch (error) {
 					deps.logger.error(`[${queue.tag}] record failed`, { messageId: record.messageId, error });
-					batchItemFailures.push({ itemIdentifier: record.messageId });
+					const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 					const failure = describeAiProviderError(error);
 					if (failure.kind !== "unknown") {
 						deps.deepseekCallFailedLog.error(deepseekCallFailedLogLine({
 							feature: queue.feature,
 							failure,
-							receiveCount: Number(record.attributes.ApproximateReceiveCount),
+							receiveCount,
 							messageId: record.messageId,
 							ids: {},
 						}));
 					}
+					if (queue.onExhaustion === "mark-crawl-exhausted" && recordUrl !== undefined && receiveCount >= SELECT_CONTENT_MAX_RECEIVE_COUNT) {
+						try {
+							await deps.transitionAndPersist(markCrawlExhausted, {
+								url: recordUrl,
+								input: { reason: { kind: "exhausted-retries", receiveCount } as const, receiveCount },
+							});
+							deps.logger.error(formatErrorLogLine({
+								message: `[${queue.tag}] dead-lettered after ${receiveCount} receives (messageId ${record.messageId}); marking crawl exhausted`,
+								url: recordUrl,
+								now: deps.now,
+							}));
+						} catch (markError) {
+							deps.logger.error(formatErrorLogLine({
+								message: `[${queue.tag}] exhausted-mark record failed on receive ${receiveCount} (messageId ${record.messageId})`,
+								url: recordUrl,
+								error: markError instanceof Error ? markError : new Error(String(markError)),
+								now: deps.now,
+							}));
+						}
+					}
+					batchItemFailures.push({ itemIdentifier: record.messageId });
 				}
 			}
 			return { batchItemFailures };

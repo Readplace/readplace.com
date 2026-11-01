@@ -1,0 +1,1 @@
+export const SELECT_CONTENT_MAX_RECEIVE_COUNT = 3;

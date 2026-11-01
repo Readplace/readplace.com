@@ -4,6 +4,7 @@ import { initSelectionQueueHandler } from "./select-content-work";
 export const initRefreshContentExtractedHandler = initSelectionQueueHandler({
 	tag: "RefreshContentExtracted",
 	feature: "refresh-content-extracted",
+	onExhaustion: "keep-row",
 	toRequest: (detail) => {
 		const parsed = RefreshContentExtractedEvent.detailSchema.parse(detail);
 		return { ...parsed, extractedAt: parsed.contentFetchedAt, refresh: parsed, mode: "refresh" };
