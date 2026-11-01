@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { equivalentArticleUrls, toCanonicalArticleUrl } from "./canonical-article-url";
 import { ArticleResourceUniqueId } from "./index";
 
@@ -12,6 +13,29 @@ describe("toCanonicalArticleUrl", () => {
 
 	it("still saves a twitter.com link as its x.com spelling", () => {
 		expect(toCanonicalArticleUrl("https://twitter.com/jack/status/20")).toBe("https://x.com/jack/status/20");
+	});
+
+	const EMAIL_QUERY = "?midToken=AQExampleMid&otpToken=ZXhhbXBsZU90cA&trk=eml-email_example-update";
+
+	it.each([
+		["urn:li:activity:7000000000000000001", "urn:li:activity:7000000000000000001"],
+		["urn:li:share:7000000000000000002", "urn:li:share:7000000000000000002"],
+		["activity:7000000000000000003", "urn:li:activity:7000000000000000003"],
+		["share:7000000000000000004", "urn:li:share:7000000000000000004"],
+		["ugcPost:7000000000000000005", "urn:li:ugcPost:7000000000000000005"],
+	])("saves a LinkedIn email link to post %s as the public post page without its sign-in tokens", (urn, postUrn) => {
+		assert.equal(
+			toCanonicalArticleUrl(`https://www.linkedin.com/comm/feed/update/${urn}${EMAIL_QUERY}`),
+			`https://www.linkedin.com/feed/update/${postUrn}/`,
+		);
+	});
+
+	it.each([
+		`https://www.linkedin.com/comm/in/example-person${EMAIL_QUERY}`,
+		"https://www.linkedin.com/comm/search/results/all/?keywords=example",
+		`https://www.linkedin.com/comm/feed/update/urn:li:groupPost:7000000000000000006${EMAIL_QUERY}`,
+	])("leaves the LinkedIn email link %s as it is", (url) => {
+		assert.equal(toCanonicalArticleUrl(url), url);
 	});
 });
 
