@@ -53,6 +53,8 @@ function h2Request(
 		client.on("error", reject);
 		const reqHeaders: http2.OutgoingHttpHeaders = {
 			":method": "GET",
+			":authority": url.host,
+			":scheme": url.protocol.slice(0, -1),
 			":path": url.pathname + url.search,
 		};
 		if (init?.headers) {
