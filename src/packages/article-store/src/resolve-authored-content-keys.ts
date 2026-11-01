@@ -104,7 +104,7 @@ export function initResolveAuthoredContentKeys(deps: {
 	async function authoredMediaKeys(id: ArticleResourceUniqueId, userId: string) {
 		const owned = await ownedManifests({
 			prefix: id.toS3MediaOwnersPrefix(),
-			suffixPattern: /^[a-f0-9]{64}\/[a-f0-9]{64}\.[a-z0-9]+\.metadata\.json$/,
+			suffixPattern: /^(?:[a-f0-9]{64}\/[a-f0-9]{64}|[a-f0-9]{32}\/[a-f0-9]{32})\.[a-z0-9]+\.metadata\.json$/,
 			schema: MediaManifestSchema,
 			userId,
 		});

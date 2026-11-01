@@ -25,7 +25,7 @@ const VOID_ELEMENTS = new Set([
 const DROP_ELEMENTS = ["script", "style", "iframe"];
 const DROP_IMAGE_ATTRIBUTES = ["srcset", "sizes", "loading", "decoding"];
 const SAFE_IMAGE_FILENAME = /^[A-Za-z0-9._-]+\.(jpg|jpeg|png|gif|webp|avif|svg)$/i;
-const OWNED_IMAGE_FILENAME = /^attempts\/[a-f0-9]{64}\/[a-f0-9]{64}\.(jpg|jpeg|png|gif|webp|avif|svg)$/;
+const OWNED_IMAGE_FILENAME = /^attempts\/(?:[a-f0-9]{64}\/[a-f0-9]{64}|[a-f0-9]{32}\/[a-f0-9]{32})\.(jpg|jpeg|png|gif|webp|avif|svg)$/;
 
 export function embeddableImageFilename(params: {
 	src: string;

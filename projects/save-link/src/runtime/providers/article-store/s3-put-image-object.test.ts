@@ -45,7 +45,7 @@ it("writes ownership outside the served media prefix before image bytes and acce
 	await putImageObject(upload());
 	await putImageObject(upload());
 	expect([...store.objects.keys()]).toEqual([ownerKey(), upload().key]);
-	expect(upload().key).toMatch(/^content\/example\.com%2Farticle\/images\/attempts\/[a-f0-9]{64}\/[a-f0-9]{64}\.png$/);
+	expect(upload().key).toMatch(/^content\/example\.com%2Farticle\/images\/attempts\/[a-f0-9]{32}\/[a-f0-9]{32}\.png$/);
 	expect(store.objects.get(upload().key)).toEqual(image.body);
 	const manifest = JSON.parse(String(store.objects.get(ownerKey())));
 	expect(manifest).toEqual({ authorUserId: "alice", objectKey: upload().key });
@@ -70,4 +70,18 @@ it("retains ownership when image upload fails", async () => {
 	const store = storage({ before: (command) => { if (command.input.Key === upload().key) throw error; } });
 	await expect(writer(store.client)(upload())).rejects.toBe(error);
 	expect([...store.objects.keys()]).toEqual([ownerKey()]);
+});
+
+it("keeps the image and ownership keys within S3's 1024-byte limit at the longest unhashed article segment", async () => {
+	const url = `https://example.com/${"a".repeat(886)}`;
+	const id = ArticleResourceUniqueId.parse(url);
+	expect(id.toS3ImagePrefix()).toBe(`content/${encodeURIComponent(`example.com/${"a".repeat(886)}`)}/images/`);
+	expect(id.toS3ImagePrefix().length).toBe("content/".length + 900 + "/images/".length);
+	const writeContext = { ...context, url };
+	const longImage = { ...image, extension: ".abcde" };
+	const store = storage();
+	await writer(store.client)({ key: id.toS3ImageKey(mediaFilename({ ...longImage, writeContext })), body: longImage.body, contentType: "image/png", writeContext });
+	const keyBytes = [...store.objects.keys()].map((key) => Buffer.byteLength(key));
+	expect(keyBytes).toHaveLength(2);
+	expect(Math.max(...keyBytes)).toBeLessThanOrEqual(1024);
 });
