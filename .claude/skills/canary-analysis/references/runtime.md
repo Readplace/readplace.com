@@ -27,7 +27,7 @@ Discover actual supported model IDs and available delegation/switch facilities f
 
 | Role | Claude | Codex |
 |---|---|---|
-| Per-category reasoning, RCA, acceptance design, verification judgment | Prefer Fable, default effort; Opus Max already authorized when Fable is unavailable | Astra |
+| Per-category reasoning, RCA, acceptance design, verification judgment | Prefer Fable at the effort the CLAUDE.md model table sets, named on the call; Opus Max already authorized when Fable is unavailable | Astra |
 | Code, tests, fixes and reverts | Opus 5.5, medium effort | Sol |
 
 Both Claude reasoning options above are authorized by this skill; using the allowed alternative needs no repeat approval. Respect any narrower user selection. If no authorized model or required handoff facility is available, ask and wait; no silent fallback. An authorized alternative is not permission to bypass a stop latch or an applicable quota pause.

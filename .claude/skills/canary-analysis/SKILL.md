@@ -21,7 +21,7 @@ When a trigger fires, latch it and start no new hypothesis or category. Finish t
 
 ## Runtime roles and private checkpoint
 
-Resolve supported model IDs at runtime; use available delegation or switch facilities with a self-contained evidence brief. Per-category reasoning, RCA, acceptance design and verification judgment use Claude **Fable at default effort**, with **Opus Max** already authorized when Fable is unavailable, or Codex **Astra**. Code, tests and reverts use Claude **Opus 5.5 medium** or Codex **Sol**. Respect a narrower user selection; ask if no authorized model or required facility is available, rather than silently substituting. See the runtime reference for quota and handoff details.
+Resolve supported model IDs at runtime; use available delegation or switch facilities with a self-contained evidence brief. Per-category reasoning, RCA, acceptance design and verification judgment use Claude **Fable at the effort the [CLAUDE.md](../../../CLAUDE.md) model table sets, named on the call**, with **Opus Max** already authorized when Fable is unavailable, or Codex **Astra**. Code, tests and reverts use Claude **Opus 5.5 medium** or Codex **Sol**. Respect a narrower user selection; ask if no authorized model or required facility is available, rather than silently substituting. See the runtime reference for quota and handoff details.
 
 The parent runs only one heavy check at a time, after checking local sessions and self-hosted runners are idle. Never delegate a full check or a commit that fires its hook. Follow repository checks and hook policy; do not bypass hooks.
 

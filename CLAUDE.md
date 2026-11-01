@@ -536,16 +536,37 @@ When a workflow is warranted:
 - Keep each agent's scope narrow enough that its report can be checked, not just trusted. An agent handed a hypothesis tends to return it confirmed.
 - Never run the same work inline that a spawned agent is already doing; wait for the result.
 
+### A limit pauses a workflow; it never restarts one
+
+In the week to 2026-10-31, 39 workflow sessions on one machine accounted for 99% of what it spent, and 87% of that went to the agents they spawned. 639 of those 2,193 agents — 42% of the agents' spend — were started by "rerun everything that did not complete, the limit is reset" prompts, and the agents logged 289 rate-limit errors. About one workflow launch in six resumed by run id; the rest re-ran every agent, finished ones included.
+
+- A workflow that a limit, a kill or a script edit stopped is resumed with its run id (`resumeFromRunId`): agents that finished return their cached result and only the rest run. Read the run's journal first; a finished agent's result is already there.
+- Every agent writes its findings to the file its brief names as it goes, before the summary it returns, so the work a limit kills is on disk.
+- Before a workflow starts, check `/usage`. A Fable phase does not start above about three quarters of the 7-day limit: it waits for the reset, or runs on Opus 5.5 after the approval the model table requires.
+
+### An agent is sized to finish inside one context
+
+That same week the median agent needed 16 model calls. The 16% of agents that outgrew their 400k-token context and compacted spent 41% of all agent tokens, and agents over 30 calls were 35% of agents and 69% of the spend. The longest ran 235 to 358 shell commands on a 150k-token context — 84% of them `ls`, `cat`, `head` or `sed` — and compacted up to 14 times for a handful of edits. An agent that compacts has lost its brief and the findings it had not yet written down; what it costs is the result that then has to be redone.
+
+- Every brief states a budget — about 30 tool calls — and an exit rule: when the budget is spent, write what was found and what is left to the named file, and stop. The orchestrator splits the remainder into new agents; it never lets one agent run on.
+- A brief points at files and sections and says what to grep for. It never pastes a plan, a document or another agent's output: 425 briefs that week exceeded 20k characters, the largest a 668k-character dump of earlier agents' findings, and every pasted character is cached again for each agent that receives it.
+- An agent batches its shell commands, sieves output with `head`, `grep` or a redirect to a file, and reads a file once, by range. Every tool call sends the whole context again.
+- A read-only stage — locate files, list call sites, summarise a document — runs as the Explore agent type (`agentType` in a workflow script, `subagent_type` in the Agent tool), which skips CLAUDE.md and runs Opus 5.5 at low effort. CLAUDE.md is about 10k tokens and was loaded into every one of the week's roughly 2,100 agents, most of which only searched.
+
 ### Which model for which work
 
-Current as of 2026-10-15. Pick by the kind of judgment the step needs, not by what is cheapest or newest; a human's explicit choice for a task overrides this table.
+Current as of 2026-11-01. Pick by the kind of judgment the step needs, not by what is cheapest or newest; a human's explicit choice for a task overrides this table.
 
 | Work | Model | Effort | Why |
 |---|---|---|---|
+| Locating and reporting — finding files, listing call sites, summarising a document | Opus 5.5, as the Explore agent type | low | The answer is what the search returns; reasoning effort adds thinking to every call and nothing to the result |
 | Coding tasks — writing or editing code, tests, fixes, refactors, running `pnpm check` | Opus 5.5 | medium | Fast, capable at well-specified implementation, and cheaper than a reasoning-tier model for work the tests will verify |
-| Complex reasoning and decisions — architecture choices, root-cause analysis across a pipeline, security judgments, ambiguous trade-offs, reviewing another agent's plan | Fable 5.1 | default | Mythos-class reasoning is what catches the subtle failure; a cheaper model's confident wrong answer costs more than the tokens saved |
+| Checking a claim against the code — does the module do what the finding says, does the reproduction reproduce, does the test fail without the fix | Opus 5.5 | medium | The check is implementation-grade work with a yes-or-no answer; the judgment it feeds is the Fable call |
+| Complex reasoning and decisions — architecture choices, root-cause analysis across a pipeline, security judgments, ambiguous trade-offs, judging another agent's plan or findings | Fable 5.1 | high, named on the call | Mythos-class reasoning is what catches the subtle failure; a cheaper model's confident wrong answer costs more than the tokens saved |
 
 The split applies to delegated work too: a subagent or workflow step that implements a decision runs on Opus 5.5 at medium effort, and the step that makes the decision runs on Fable 5.1. When one task mixes both — a decision that is then implemented — make the decision first on Fable, then hand the implementation to Opus with the decision written into its brief.
+
+A workflow makes one Fable call per question it has to answer: the judge. The stages that gather what the judge weighs — the analyst, the skeptic, the reproduction — run on Opus. In the week to 2026-10-31 thinking was 21% of everything spent and Fable agents 20%; one script ran four Fable agents per plan (an analyst, two skeptics and a judge) across ten plans, and 146 workflow calls named Fable without an effort, so each inherited the session's `xhigh`. Name the effort on every delegated call: an unnamed one inherits whatever the session runs at.
 
 If Fable is unavailable or has hit the limit, Use Opus 5.5 Max in its place instead after user's approval asked via the Ask tool.
 
