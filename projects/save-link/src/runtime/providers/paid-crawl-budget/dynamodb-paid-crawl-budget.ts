@@ -21,6 +21,9 @@ export type RefundPaidCrawlBudget = () => Promise<void>;
 
 const BudgetRow = z.object({ pk: z.string() });
 
+const MAX_CONSUME_ATTEMPTS = 3;
+const CONFLICT_RETRY_BASE_DELAY_MS = 50;
+
 /**
  * Global (not per-client) spend circuit-breaker for the comprehensive crawl —
  * the tier that fans out OCR and LLM cleanup, each invocation carrying real
@@ -38,6 +41,7 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 	scope: "paid-crawl" | "render-crawl";
 	rule: RateLimitRule;
 	now: () => Date;
+	delay: (milliseconds: number) => Promise<void>;
 }): {
 	consumePaidCrawlBudget: ConsumePaidCrawlBudget;
 	refundPaidCrawlBudget: RefundPaidCrawlBudget;
@@ -59,60 +63,67 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 		// mid-window. The claim marker shares the counter's window so a message
 		// redelivered after the window rolls re-competes against the new budget.
 		const expiresAt = windowStartSeconds + 2 * deps.rule.windowSeconds;
-		try {
-			await deps.client.send(
-				new TransactWriteCommand({
-					TransactItems: [
-						{
-							// Per-message idempotency claim. The create-if-absent condition
-							// fails when this message already consumed a slot this window, so
-							// re-running the gate on a redelivery adds nothing to the counter.
-							Update: {
-								TableName: deps.tableName,
-								Key: { pk: `${deps.scope}#claim#${messageId}#${windowStartSeconds}` },
-								UpdateExpression: "SET expiresAt = :expiresAt",
-								ConditionExpression: "attribute_not_exists(pk)",
-								ExpressionAttributeValues: { ":expiresAt": expiresAt },
-							},
-						},
-						{
-							// Global window counter — the conditional ADD fails once the
-							// budget is spent, atomically with the claim above so a denied
-							// crawl never leaves a stranded claim marker behind.
-							Update: {
-								TableName: deps.tableName,
-								Key: { pk: `${deps.scope}#global#${windowStartSeconds}` },
-								UpdateExpression:
-									"ADD #count :one SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
-								ConditionExpression: "attribute_not_exists(#count) OR #count < :limit",
-								ExpressionAttributeNames: { "#count": "count" },
-								ExpressionAttributeValues: {
-									":one": 1,
-									":limit": deps.rule.limit,
-									":expiresAt": expiresAt,
+		const transact = async (attempt: number): ReturnType<ConsumePaidCrawlBudget> => {
+			try {
+				await deps.client.send(
+					new TransactWriteCommand({
+						TransactItems: [
+							{
+								// Per-message idempotency claim. The create-if-absent condition
+								// fails when this message already consumed a slot this window, so
+								// re-running the gate on a redelivery adds nothing to the counter.
+								Update: {
+									TableName: deps.tableName,
+									Key: { pk: `${deps.scope}#claim#${messageId}#${windowStartSeconds}` },
+									UpdateExpression: "SET expiresAt = :expiresAt",
+									ConditionExpression: "attribute_not_exists(pk)",
+									ExpressionAttributeValues: { ":expiresAt": expiresAt },
 								},
 							},
-						},
-					],
-				}),
-			);
-			return { allowed: true, consumed: true };
-		} catch (error) {
-			if (error instanceof TransactionCanceledException) {
-				// CancellationReasons are positional: [0] = claim marker, [1] = counter.
-				const reasons = error.CancellationReasons;
-				const claimRejected = reasons?.[0]?.Code === "ConditionalCheckFailed";
-				const counterRejected = reasons?.[1]?.Code === "ConditionalCheckFailed";
-				// Claim rejected → this message already paid a slot this window (a
-				// redelivery): allow without re-incrementing. Else counter rejected →
-				// the window's budget is spent. Any other cancellation (throttling,
-				// capacity) is not a budget decision, so it rethrows and the SQS gate
-				// re-runs on the next receive (fail closed) rather than slipping past.
-				if (claimRejected) return { allowed: true, consumed: false };
-				if (counterRejected) return { allowed: false };
+							{
+								// Global window counter — the conditional ADD fails once the
+								// budget is spent, atomically with the claim above so a denied
+								// crawl never leaves a stranded claim marker behind.
+								Update: {
+									TableName: deps.tableName,
+									Key: { pk: `${deps.scope}#global#${windowStartSeconds}` },
+									UpdateExpression:
+										"ADD #count :one SET expiresAt = if_not_exists(expiresAt, :expiresAt)",
+									ConditionExpression: "attribute_not_exists(#count) OR #count < :limit",
+									ExpressionAttributeNames: { "#count": "count" },
+									ExpressionAttributeValues: {
+										":one": 1,
+										":limit": deps.rule.limit,
+										":expiresAt": expiresAt,
+									},
+								},
+							},
+						],
+					}),
+				);
+				return { allowed: true, consumed: true };
+			} catch (error) {
+				if (error instanceof TransactionCanceledException) {
+					// CancellationReasons are positional: [0] = claim marker, [1] = counter.
+					const reasons = error.CancellationReasons;
+					const claimRejected = reasons?.[0]?.Code === "ConditionalCheckFailed";
+					const counterRejected = reasons?.[1]?.Code === "ConditionalCheckFailed";
+					// Claim rejected → this message already paid a slot this window (a
+					// redelivery): allow without re-incrementing. Else counter rejected →
+					// the window's budget is spent. Any other cancellation (throttling,
+					// capacity) is not a budget decision, so it rethrows.
+					if (claimRejected) return { allowed: true, consumed: false };
+					if (counterRejected) return { allowed: false };
+					const conflicted = reasons?.some((reason) => reason.Code === "TransactionConflict");
+					if (conflicted && attempt < MAX_CONSUME_ATTEMPTS) {
+						await deps.delay(Math.random() * CONFLICT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
+						return transact(attempt + 1);
+					}
+				}
+				throw error;
 			}
-			throw error;
-		}
+		};
+		return transact(1);
 	};
 
 	/* Hand a slot back to the current window when a crawl turns out cheap

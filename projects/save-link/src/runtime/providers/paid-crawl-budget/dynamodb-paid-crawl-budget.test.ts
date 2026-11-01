@@ -44,12 +44,31 @@ const HOUR_BUDGET = { limit: 50, windowSeconds: 3600 };
 // 02:00:00 UTC + 600s → window start 7200.
 const midWindowNow = () => new Date(7_800_000);
 
-function cancelled(codes: (string | undefined)[]): TransactionCanceledException {
+function cancelled(codes: (string | undefined)[] | undefined): TransactionCanceledException {
 	return new TransactionCanceledException({
 		$metadata: {},
 		message: "transaction cancelled",
-		CancellationReasons: codes.map((Code) => ({ Code })),
+		CancellationReasons: codes?.map((Code) => ({ Code })),
 	});
+}
+
+const noDelay = async () => {};
+
+function recordDelay(delays: number[]) {
+	return async (milliseconds: number) => {
+		delays.push(milliseconds);
+	};
+}
+
+function sequencedClient(outcomes: (TransactionCanceledException | Record<string, never>)[]) {
+	let calls = 0;
+	const client = createFakeClient(() => {
+		const outcome = outcomes[calls];
+		calls += 1;
+		if (outcome instanceof Error) throw outcome;
+		return outcome;
+	}) as DynamoDBDocumentClient;
+	return { client, calls: () => calls };
 }
 
 describe("initDynamoDbPaidCrawlBudget", () => {
@@ -64,6 +83,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
@@ -91,6 +111,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
@@ -107,6 +128,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
@@ -123,6 +145,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
@@ -130,20 +153,100 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 		assert.deepEqual(decision, { allowed: true, consumed: false });
 	});
 
-	it("rethrows a transaction cancelled for a non-budget reason (e.g. throttling) so the gate re-runs (fail closed)", async () => {
+	it("retries a transaction cancelled by a conflict on the counter and counts the invocation once it commits", async () => {
+		const client = sequencedClient([cancelled(["None", "TransactionConflict"]), {}]);
+		const delays: number[] = [];
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
-			client: createFakeClient(() => {
-				throw cancelled(["TransactionConflict", "None"]);
-			}) as DynamoDBDocumentClient,
+			client: client.client,
 			tableName: TABLE,
-			scope: "paid-crawl",
+			scope: "render-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: recordDelay(delays),
 		});
 
-		await expect(consumePaidCrawlBudget({ messageId: "msg-1" })).rejects.toThrow(
-			TransactionCanceledException,
-		);
+		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
+
+		assert.deepEqual(decision, { allowed: true, consumed: true });
+		assert.equal(client.calls(), 2);
+		assert.equal(delays.length, 1);
+		expect(delays[0]).toBeGreaterThanOrEqual(0);
+		expect(delays[0]).toBeLessThan(50);
+	});
+
+	it("rethrows a conflict that persists on every attempt after three attempts with a growing jittered delay between them", async () => {
+		const conflict = cancelled(["None", "TransactionConflict"]);
+		const client = sequencedClient([conflict, conflict, conflict, {}]);
+		const delays: number[] = [];
+		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: client.client,
+			tableName: TABLE,
+			scope: "render-crawl",
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+			delay: recordDelay(delays),
+		});
+
+		await expect(consumePaidCrawlBudget({ messageId: "msg-1" })).rejects.toBe(conflict);
+		assert.equal(client.calls(), 3);
+		assert.equal(delays.length, 2);
+		expect(delays[0]).toBeLessThan(50);
+		expect(delays[1]).toBeLessThan(100);
+	});
+
+	it("resolves as an idempotent re-consume when a retry after a conflict finds the claim already committed", async () => {
+		const client = sequencedClient([cancelled(["None", "TransactionConflict"]), cancelled(["ConditionalCheckFailed", "None"])]);
+		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: client.client,
+			tableName: TABLE,
+			scope: "render-crawl",
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+			delay: noDelay,
+		});
+
+		assert.deepEqual(await consumePaidCrawlBudget({ messageId: "msg-1" }), { allowed: true, consumed: false });
+		assert.equal(client.calls(), 2);
+	});
+
+	it.each([
+		{ name: "a throttled claim", outcome: cancelled(["ThrottlingError", "None"]) },
+		{ name: "a cancellation with no reasons", outcome: cancelled(undefined) },
+	])("rethrows $name after one attempt without retrying", async ({ outcome }) => {
+		const client = sequencedClient([outcome, {}]);
+		const delays: number[] = [];
+		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: client.client,
+			tableName: TABLE,
+			scope: "render-crawl",
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+			delay: recordDelay(delays),
+		});
+
+		await expect(consumePaidCrawlBudget({ messageId: "msg-1" })).rejects.toBe(outcome);
+		assert.equal(client.calls(), 1);
+		assert.deepEqual(delays, []);
+	});
+
+	it.each([
+		{ name: "counter", reasons: ["None", "ConditionalCheckFailed"], decision: { allowed: false } },
+		{ name: "claim", reasons: ["ConditionalCheckFailed", "None"], decision: { allowed: true, consumed: false } },
+	])("decides on a rejected $name without retrying", async ({ reasons, decision }) => {
+		const client = sequencedClient([cancelled(reasons), {}]);
+		const delays: number[] = [];
+		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: client.client,
+			tableName: TABLE,
+			scope: "render-crawl",
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+			delay: recordDelay(delays),
+		});
+
+		assert.deepEqual(await consumePaidCrawlBudget({ messageId: "msg-1" }), decision);
+		assert.equal(client.calls(), 1);
+		assert.deepEqual(delays, []);
 	});
 
 	it("rethrows non-transaction errors", async () => {
@@ -155,6 +258,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		await expect(consumePaidCrawlBudget({ messageId: "msg-1" })).rejects.toThrow("throttled");
@@ -171,6 +275,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "render-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		await consumePaidCrawlBudget({ messageId: "msg-1" });
@@ -191,6 +296,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "render-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		await refundPaidCrawlBudget();
@@ -209,6 +315,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		await refundPaidCrawlBudget();
@@ -232,6 +339,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		await expect(refundPaidCrawlBudget()).resolves.toBeUndefined();
@@ -246,6 +354,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			scope: "paid-crawl",
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
+			delay: noDelay,
 		});
 
 		await expect(refundPaidCrawlBudget()).rejects.toThrow("throttled");

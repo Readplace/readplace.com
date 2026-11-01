@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { Agent } from "node:https";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -113,6 +114,7 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 	scope: "paid-crawl",
 	rule: paidCrawlBudget,
 	now,
+	delay: (milliseconds) => sleep(milliseconds),
 });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 	adoptDestination: canonicalAliasStore.adoptDestination,

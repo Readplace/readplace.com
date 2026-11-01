@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { join } from "node:path";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
@@ -78,6 +79,7 @@ const { consumePaidCrawlBudget: consumeRenderCrawlBudget } = initDynamoDbPaidCra
 	scope: "render-crawl",
 	rule: renderCrawlBudget,
 	now,
+	delay: (milliseconds) => sleep(milliseconds),
 });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 	adoptDestination: canonicalAliasStore.adoptDestination,
