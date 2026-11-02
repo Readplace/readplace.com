@@ -4,6 +4,7 @@ import request from "supertest";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
+import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -333,6 +334,36 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 
 		expect(response.status).toBe(200);
 		expect(await harness.articleStore.findUserArticlesByUrl(url)).toEqual([{ userId, viewedAt: undefined }]);
+	});
+
+	it("counts the owner's session fetch as a reader open and a bearer client's fetch as nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const activity: Parameters<RecordEngagementActivity>[0][] = [];
+		fixture.engagementStarter.recordEngagementActivity = async (input) => {
+			activity.push(input);
+		};
+		const harness = useApp({ ...fixture, summary: createFakeSummaryProvider() });
+		const { agent, userId, token } = await loggedInOwner(harness);
+		const url = "https://example.com/post";
+		const id = ReaderArticleHashId.from(url).value;
+		await harness.articleStore.saveArticle({
+			userId,
+			url,
+			metadata: { title: "Hello World", siteName: "example.com", excerpt: "Parsed blurb.", wordCount: 3 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+		});
+
+		const bearerFetch = await markdownGet(harness, { path: `/queue/${id}/view`, token });
+
+		expect(bearerFetch.status).toBe(200);
+		expect(activity).toEqual([]);
+
+		const sessionFetch = await agent.get(`/queue/${id}/view`).set("Accept", "text/markdown");
+
+		expect(sessionFetch.status).toBe(200);
+		expect(activity.map((input) => input.kind)).toEqual(["reader-open"]);
 	});
 
 	it("serves identical bytes through the read href of every readlist that holds the article", async () => {
