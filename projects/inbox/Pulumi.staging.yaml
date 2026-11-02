@@ -12,6 +12,7 @@ config:
   inbox:inboxMailParentZone: readplace-staging.com
   inbox:deletionProtection: false
   inbox:dynamodbUserArticlesTable: hutch-user-articles-8226beb
+  inbox:dynamodbArticlesTable: hutch-articles-cda0a08
   inbox:dynamodbInboxAddressesTable: hutch-inbox-addresses-staging
   inbox:dynamodbInboxEmailsTable: hutch-inbox-emails-staging
   inbox:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-staging

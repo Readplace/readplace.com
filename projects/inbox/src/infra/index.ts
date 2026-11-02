@@ -92,6 +92,7 @@ const awsRegion = new pulumi.Config("aws").require("region");
 const awsAccountId = pulumi.output(aws.getCallerIdentity({})).accountId;
 const tableNames = {
 	userArticles: config.require("dynamodbUserArticlesTable"),
+	articles: config.require("dynamodbArticlesTable"),
 	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
 	inboxEmails: config.require("dynamodbInboxEmailsTable"),
 	inboxEmailLinks: config.require("dynamodbInboxEmailLinksTable"),
@@ -193,6 +194,16 @@ const webOnboarding = new HutchDynamoDBAccess("inbox-web-onboarding", {
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
+const webArticlesRead = new HutchDynamoDBAccess("inbox-web-articles-read", {
+	tables: [{ arn: tableArn(tableNames.articles), includeIndexes: true }],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
+});
+
+const webUserArticles = new HutchDynamoDBAccess("inbox-web-user-articles", {
+	tables: [{ arn: tableArn(tableNames.userArticles), includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:DeleteItem"],
+});
+
 const webLambda = new HutchLambda("inbox-web", {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/inbox-web",
@@ -211,6 +222,8 @@ const webLambda = new HutchLambda("inbox-web", {
 		DYNAMODB_USERS_TABLE: tableNames.users,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: tableNames.subscriptionProviders,
 		DYNAMODB_ONBOARDING_TABLE: tableNames.onboarding,
+		DYNAMODB_ARTICLES_TABLE: tableNames.articles,
+		DYNAMODB_USER_ARTICLES_TABLE: tableNames.userArticles,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		// Pinned into the email iframe's CSP so only rehosted image copies load.
 		IMAGES_CDN_BASE_URL: imagesCdnBaseUrl,
@@ -226,14 +239,14 @@ const webLambda = new HutchLambda("inbox-web", {
 		...webSubscriptionProvidersRead.policies,
 		...webSavedLinksRead.policies,
 		...webOnboarding.policies,
+		...webArticlesRead.policies,
+		...webUserArticles.policies,
 		// Reads the sanitized email bodies the receive worker wrote to the shared
 		// content bucket.
 		...HutchS3ReadWrite.readPoliciesForBucket("inbox-web-content", contentBucketName),
 	],
 });
 
-// The per-link Save button publishes SubmitLinkCommand; the queue write itself
-// still happens only in save-link's subscriber role.
 eventBus.grantPublish(webLambda);
 
 const inboxRoutes = new HutchAPIGatewayLambdaRoute("inbox-web", {
