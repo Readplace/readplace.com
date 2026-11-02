@@ -74,7 +74,7 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 	});
 	const capture = await initCrawlArchiveCapture({
 		crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle }),
-		putTierSource: async (source) => { stored.push(source); },
+		putTierSource: async (source) => { stored.push(source); return source.metadata; },
 		readTierSnapshot: async () => ({ tier0Status: "not_attempted", tier1Status: "failed", pickedTier: "tier-2" }),
 		verifyWrapperSource,
 		logCrawlOutcome: () => {},

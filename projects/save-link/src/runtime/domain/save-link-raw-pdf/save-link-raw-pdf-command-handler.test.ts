@@ -129,7 +129,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 	it("writes the tier-0 source before publishing TierContentExtractedEvent", async () => {
 		const calls: string[] = [];
 		const publishEvent = jest.fn(async () => { calls.push("publishEvent"); });
-		const putTierSource: PutTierSource = jest.fn(async () => { calls.push("putTierSource"); });
+		const putTierSource: PutTierSource = jest.fn(async (params: Parameters<PutTierSource>[0]) => { calls.push("putTierSource"); return params.metadata; });
 
 		const { handler } = createHandler({ publishEvent, putTierSource });
 
@@ -234,6 +234,7 @@ it("writes the tier-0 candidate, reads the snapshot, logs the outcome, announces
 	const { handler } = createHandler({
 		putTierSource: async (params) => {
 			trace.push(["putTierSource", params]);
+			return params.metadata;
 		},
 		readTierSnapshot: async (params) => {
 			trace.push(["readTierSnapshot", params]);

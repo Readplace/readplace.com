@@ -315,6 +315,7 @@ it("logs, writes the tier-1 candidate, announces it, then logs again, with exact
 		readRefreshHtml: async (_url, options) => options?.representation === "evaluation" ? raw : HTML,
 		putTierSource: async (params) => {
 			trace.push(["putTierSource", params]);
+			return params.metadata;
 		},
 		publishEvent: async (event, detail) => {
 			trace.push(["publishEvent", event.detailType, detail]);

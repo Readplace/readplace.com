@@ -138,6 +138,7 @@ describe("summary recovery on canonical content change", () => {
 			},
 			recordCrawlVersion, loadArticle: store.load, readCanonicalContent: findArticleContent, transitionAndPersist,
 			resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+			fetchYouTubeVideoCard: async () => undefined, putTierSource: async (params) => params.metadata,
 			now: () => FIXED_NOW, logger: noopLogger,
 		});
 
@@ -227,6 +228,8 @@ describe("summary recovery on canonical content change", () => {
 			writeCanonicalContent: async () => ({ contentLocation: "s3://content/current.html", candidateId: tier1.metadata.id, tier: "tier-1" }),
 			resolveOriginalUrl: async () => URL,
 			verifyWrapperSource: async () => undefined,
+			fetchYouTubeVideoCard: async () => undefined,
+			putTierSource: async (params) => params.metadata,
 			recordCrawlVersion: jest.fn().mockResolvedValue(undefined),
 			loadArticle: store.load,
 			transitionAndPersist,

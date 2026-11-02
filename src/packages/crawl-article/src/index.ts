@@ -10,6 +10,8 @@ export {
 export { isBlockClassStatus, type Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
 export { describeRejection } from "./describe-rejection";
+export { initFetchYouTubeVideoCard } from "./youtube-video-card";
+export type { FetchYouTubeVideoCard, YouTubeVideoCard } from "./youtube-video-card";
 export {
 	extractThumbnailCandidates,
 	initFetchThumbnailImage,
@@ -66,3 +68,5 @@ export { initHnSearchSiteRules } from "./hn-search-site-rules";
 export { initGitHubPdfSiteRules } from "./github-pdf-site-rules";
 export { initOjsGalleySiteRules } from "./ojs-galley-site-rules";
 export { initGallupDocumentSiteRules } from "./gallup-document-site-rules";
+export { parseYouTubeEmbed } from "./parse-embed-url";
+export type { YouTubeEmbed } from "./parse-embed-url";

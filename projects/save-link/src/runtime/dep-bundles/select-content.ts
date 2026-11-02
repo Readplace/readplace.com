@@ -1,5 +1,6 @@
 import { initCanonicalAliasStore, initDynamoDbMeteredLegLedger } from "@packages/article-store";
 import { initRunMeteredLeg, type RunMeteredLeg } from "../domain/metered-leg/run-metered-leg";
+import { initFetchYouTubeVideoCard, type FetchYouTubeVideoCard } from "@packages/crawl-article";
 import { initSelectionSourceIdentity } from "./source-identity";
 import { initFindArticleContent, type FindArticleContent } from "../providers/article-store/find-article-content";
 import type { VerifyWrapperSource } from "@packages/save-article";
@@ -28,6 +29,8 @@ import {
 	type RecordCrawlVersion,
 } from "../providers/article-store/record-crawl-version";
 
+import { initPutTierSource, type PutTierSource } from "@packages/tier-source";
+
 export type SelectContentDepBundle = {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
@@ -39,6 +42,8 @@ export type SelectContentDepBundle = {
 	recordCrawlVersion: RecordCrawlVersion;
 	readCanonicalContent: FindArticleContent;
 	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
+	fetchYouTubeVideoCard: FetchYouTubeVideoCard;
+	putTierSource: PutTierSource;
 };
 
 export function initSelectContentDepBundle(deps: {
@@ -84,5 +89,7 @@ export function initSelectContentDepBundle(deps: {
 		writeCanonicalContent,
 		recordCrawlVersion,
 		deepseekCallFailedLog: deps.deepseekCallFailedLog,
+		fetchYouTubeVideoCard: initFetchYouTubeVideoCard({ fetch: globalThis.fetch, logError: deps.logger.error.bind(deps.logger) }),
+		putTierSource: initPutTierSource({ client: deps.s3Client, bucketName: deps.contentBucketName }).putTierSource,
 	};
 }

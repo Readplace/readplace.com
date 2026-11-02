@@ -1,4 +1,4 @@
-import type { YouTubeEmbed } from "./parse-embed-url";
+import type { YouTubeEmbed } from "@packages/crawl-article";
 
 interface ParsedArticle {
 	title: string;

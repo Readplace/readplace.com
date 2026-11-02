@@ -6,10 +6,11 @@ import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { type Article, type CanonicalCommit, type TransitionAndPersist, initTransitionAndPersist, requestRecrawl, promoteTier, recrawlPromoteTier, recrawlTieKeptCanonical, refreshContent } from "@packages/domain/article-aggregate";
 import { initSelectContentWork, type SelectContentDependencies } from "./select-content-work";
-import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
+import { candidateProvenance, type PutTierSource, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
 import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import { markNoReadableArticle } from "./mark-no-readable-article";
+import { COMPARISON_COMPLETED } from "./comparison-log";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 
@@ -60,6 +61,8 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 		readCanonicalContent: async () => undefined, loadArticle: async () => article(), transitionAndPersist,
 		resolveOriginalUrl: async () => URL,
 		verifyWrapperSource: async () => ({ originalUrl: URL, sourceUrl: "https://archive.ph/abc12" }),
+		fetchYouTubeVideoCard: jest.fn(async () => undefined),
+		putTierSource: jest.fn(async (params: Parameters<PutTierSource>[0]) => ({ ...params.metadata, htmlLocation: "s3://bucket/card.html", evaluationLocation: "s3://bucket/card-evaluation.html" })),
 		now: () => new Date(NOW), logger: { ...noopLogger, info: jest.fn(() => { events.push("completion"); }) },
 		...overrides,
 	};
@@ -613,5 +616,159 @@ describe("initSelectContentWork", () => {
 			});
 			assert.deepEqual(shown, STALE);
 		});
+	});
+});
+
+describe("the video card fallback", () => {
+	const VIDEO_URL = "https://www.youtube.com/watch?v=I-jk9ni4XWk";
+	const CARD = {
+		title: "How to Live to be 100+", author: "TED", excerpt: "Video by TED on YouTube.", watchUrl: VIDEO_URL,
+		posterUrl: "https://i.ytimg.com/vi/I-jk9ni4XWk/hqdefault.jpg",
+		html: '<p class="reader-embed-facade"><a href="https://www.youtube.com/watch?v=I-jk9ni4XWk" target="_blank" rel="noopener noreferrer"><img src="https://i.ytimg.com/vi/I-jk9ni4XWk/hqdefault.jpg" alt="Watch on YouTube" loading="lazy"></a></p>',
+	};
+	const videoRequest = { ...request, url: VIDEO_URL };
+	function renderedShell(): VerifiedTierSource {
+		const html = "<p>Before you continue to YouTube</p>";
+		return { tier: "tier-1", html, metadata: { ...candidateProvenance({
+			metadata: { ...metadata, wordCount: 5 }, html, evaluationHtml: html, attemptId: request.saveAttemptId, originalUrl: VIDEO_URL, sourceUrl: VIDEO_URL, kind: "live", fetchedAt: NOW,
+		}), id: cid("rendered-shell") } };
+	}
+	function storedDescription(tier: VerifiedTierSource["tier"]): VerifiedTierSource {
+		const html = "<p>A talk about the places where people live longest</p>";
+		return { tier, html, metadata: { ...candidateProvenance({
+			metadata, html, evaluationHtml: html, attemptId: request.saveAttemptId, originalUrl: VIDEO_URL, sourceUrl: VIDEO_URL, kind: tier === "tier-0" ? "extension" : "live", fetchedAt: NOW,
+		}), id: cid(tier) } };
+	}
+	function setupVideo(overrides: Partial<TestDependencies> = {}) {
+		return setup({
+			loadArticle: async () => article({ url: VIDEO_URL }), resolveOriginalUrl: async () => VIDEO_URL,
+			listAvailableTierSources: async () => [renderedShell()],
+			selectMostCompleteContent: async () => ({ kind: "none", reason: "Empty shell" }),
+			fetchYouTubeVideoCard: jest.fn(async () => CARD),
+			...overrides,
+		});
+	}
+	function comparisonLine(logger: TestDependencies["logger"]) {
+		const line = jest.mocked(logger.info).mock.calls.map(([message]) => String(message)).find((message) => message.startsWith(COMPARISON_COMPLETED));
+		return JSON.parse(String(line).slice(COMPARISON_COMPLETED.length));
+	}
+
+	it("commits the card as this attempt's live candidate when a first save finds nothing readable", async () => {
+		const { work, deps, events } = setupVideo();
+
+		await work(videoRequest);
+
+		expect(deps.fetchYouTubeVideoCard).toHaveBeenCalledWith({ url: VIDEO_URL });
+		expect(deps.putTierSource).toHaveBeenCalledWith({
+			url: VIDEO_URL, tier: "tier-1", html: CARD.html, evaluationHtml: CARD.html,
+			metadata: expect.objectContaining({ attemptId: request.saveAttemptId, originalUrl: VIDEO_URL, sourceUrl: VIDEO_URL, kind: "live", httpStatus: 200 }),
+		});
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, expect.objectContaining({ input: expect.objectContaining({
+			tier: "tier-1",
+			estimatedReadTime: 1,
+			metadata: expect.objectContaining({ title: CARD.title, siteName: "YouTube", excerpt: CARD.excerpt, wordCount: 0, imageUrl: CARD.posterUrl }),
+		}) }));
+		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({ url: VIDEO_URL, source: expect.objectContaining({ html: CARD.html, metadata: expect.objectContaining({ htmlLocation: "s3://bucket/card.html" }) }) });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalledWith(markNoReadableArticle, expect.anything());
+		expect(events).toEqual(["upload", "commit", "version", "completion"]);
+		const comparison = comparisonLine(deps.logger);
+		expect(comparison).toMatchObject({ outcome: "selected", selectionRule: "video-card-fallback", reason: "no readable candidate (Empty shell); served the oEmbed video card" });
+		expect(comparison.candidates.at(-1)).toMatchObject({ id: comparison.selectedCandidateId, kind: "live", httpStatus: 200, sourceUrl: VIDEO_URL, readable: true, fresh: true });
+	});
+
+	it("fails the save as it does today when no card comes back", async () => {
+		const { work, deps, events } = setupVideo({ fetchYouTubeVideoCard: jest.fn(async () => undefined) });
+
+		await work(videoRequest);
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, { url: VIDEO_URL, input: { reason: { kind: "parse-error", detail: "no readable article candidate: Empty shell" } }, selectionExpected: { snapshot: undefined } });
+		expect(deps.putTierSource).not.toHaveBeenCalled();
+		expect(deps.writeCanonicalContent).not.toHaveBeenCalled();
+		expect(comparisonLine(deps.logger)).toMatchObject({ outcome: "no-readable", selectionRule: "judge" });
+		expect(events).toEqual(["commit", "completion"]);
+	});
+
+	it("waits for the deferred comprehensive crawl before asking for a card", async () => {
+		const { work, deps, events } = setupVideo();
+
+		await work({ ...videoRequest, liveAttempt: { outcome: "deferred" } });
+
+		expect(deps.fetchYouTubeVideoCard).not.toHaveBeenCalled();
+		expect(events).toEqual(["completion"]);
+	});
+
+	it("leaves a withheld legacy canonical alone without asking for a card", async () => {
+		const legacy = "<p>The first author's capture stored before candidates existed.</p>";
+		const { work, deps, events } = setupVideo({
+			loadArticle: async () => article({ url: VIDEO_URL, contentSelection: { tier: "tier-0" }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(legacy) } }),
+			listAvailableTierSources: async () => [source("tier-0")], readCanonicalContent: async () => ({ content: legacy }),
+		});
+
+		await work({ ...videoRequest, candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
+
+		expect(deps.fetchYouTubeVideoCard).not.toHaveBeenCalled();
+		expect(events).toEqual(["completion"]);
+	});
+
+	it("keeps a stored description through a refresh whose fresh render is unreadable", async () => {
+		const existing = article({ url: VIDEO_URL, contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 4 } });
+		const { work, deps } = setupVideo({ loadArticle: async () => existing, listAvailableTierSources: async () => [storedDescription("tier-1"), renderedShell()] });
+		const freshness = { bodyHash: "raw-body-hash", contentFetchedAt: NOW };
+
+		await work({ ...videoRequest, mode: "refresh", refresh: freshness });
+
+		expect(deps.fetchYouTubeVideoCard).not.toHaveBeenCalled();
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(refreshContent, expect.objectContaining({ input: expect.objectContaining({ freshness }) }));
+		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({ url: VIDEO_URL, source: storedDescription("tier-1") });
+	});
+
+	it("repairs a legacy zero-word row through the refresh transition", async () => {
+		const html = "<p></p>";
+		const zeroWord: VerifiedTierSource = { tier: "tier-1", html, metadata: { ...candidateProvenance({
+			metadata: { ...metadata, wordCount: 0 }, html, evaluationHtml: html, attemptId: request.saveAttemptId, originalUrl: VIDEO_URL, sourceUrl: VIDEO_URL, kind: "live", fetchedAt: NOW,
+		}), id: cid("tier-1") } };
+		const existing = article({ url: VIDEO_URL, contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 1 }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash("") } });
+		const { work, deps } = setupVideo({ loadArticle: async () => existing, listAvailableTierSources: async () => [zeroWord] });
+		const freshness = { bodyHash: "raw-body-hash", contentFetchedAt: NOW };
+
+		await work({ ...videoRequest, mode: "refresh", refresh: freshness });
+
+		expect(deps.fetchYouTubeVideoCard).toHaveBeenCalledWith({ url: VIDEO_URL });
+		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({ url: VIDEO_URL, source: expect.objectContaining({ html: CARD.html }) });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(refreshContent, expect.objectContaining({ input: expect.objectContaining({ freshness, metadata: expect.objectContaining({ title: CARD.title, wordCount: 0 }) }) }));
+		expect(deps.transitionAndPersist).not.toHaveBeenCalledWith(markNoReadableArticle, expect.anything());
+	});
+
+	it("promotes the card through the recrawl transition", async () => {
+		const { work, deps } = setupVideo();
+
+		await work({ ...videoRequest, mode: "recrawl", candidates: [] });
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, expect.objectContaining({ input: expect.objectContaining({ winnerTier: "tier-1", metadata: expect.objectContaining({ title: CARD.title }) }) }));
+	});
+
+	it("lets the reader's own capture win without asking for a card", async () => {
+		const { work, deps } = setupVideo({ listAvailableTierSources: async () => [storedDescription("tier-0"), renderedShell()] });
+
+		await work(videoRequest);
+
+		expect(deps.fetchYouTubeVideoCard).not.toHaveBeenCalled();
+		expect(comparisonLine(deps.logger)).toMatchObject({ selectionRule: "own-capture-over-verdict" });
+	});
+
+	it("verifies the stored card as the canonical of a later selection", async () => {
+		const first = setupVideo();
+		await first.work(videoRequest);
+		const [{ tier, html, evaluationHtml, metadata: stored }] = jest.mocked(first.deps.putTierSource).mock.calls[0];
+
+		const later = setupVideo({
+			loadArticle: async () => article({ url: VIDEO_URL, contentSelection: { candidateId: stored.id, tier, revision: 1 } }),
+			listAvailableTierSources: async () => [{ tier, html, evaluationHtml, metadata: stored }],
+			fetchYouTubeVideoCard: jest.fn(async () => undefined),
+		});
+		await later.work({ ...videoRequest, saveAttemptId: laterRequest.saveAttemptId });
+
+		expect(later.deps.writeCanonicalContent).toHaveBeenCalledWith({ url: VIDEO_URL, source: expect.objectContaining({ html: CARD.html }) });
+		expect(comparisonLine(later.deps.logger)).toMatchObject({ outcome: "retained" });
 	});
 });

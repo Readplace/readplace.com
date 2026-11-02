@@ -25,5 +25,7 @@ describe("initSelectContentDepBundle", () => {
 		expect(typeof bundle.writeCanonicalContent).toBe("function");
 		expect(typeof bundle.recordCrawlVersion).toBe("function");
 		expect(bundle.deepseekCallFailedLog).toBe(noopLogger);
+		expect(typeof bundle.fetchYouTubeVideoCard).toBe("function");
+		expect(typeof bundle.putTierSource).toBe("function");
 	});
 });

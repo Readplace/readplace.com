@@ -225,7 +225,10 @@ describe("initCommitDeferredCrawl", () => {
 					trace.push(["finalizeArticle"]);
 					return { ok: true, article: renderedArticle };
 				},
-				putTierSource: record("putTierSource"),
+				putTierSource: async (params) => {
+					trace.push(["putTierSource", params]);
+					return params.metadata;
+				},
 				updateFetchTimestamp: record("updateFetchTimestamp"),
 				markCrawlStage: record("markCrawlStage"),
 				adoptCanonicalIdentity: record("adoptCanonicalIdentity"),
