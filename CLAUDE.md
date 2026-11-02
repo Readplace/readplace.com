@@ -104,6 +104,9 @@ Each queue below dead-letters into its own `<queue>-dlq`, and nothing consumes i
 | `generate-summary` | The handler marks the summary failed and still fails the record |
 | `refresh-content-extracted` | Nothing is marked; the reader keeps the current content |
 | `compute-related-articles` | Nothing is marked; Next read and Already read stay as they were |
+| `filter-email-links` | The handler marks that readlist's decision failed, and the email page shows its failed line. Every link is already in All |
+
+Before you redrive `filter-email-links-dlq`, read the readlist's current purpose and the account's write access: a redrive decides under today's purpose and does not recheck access.
 
 Where a handler marks, the reader sees today's failure state. The message is the only copy of the work: once the cause is fixed, a redrive lets the handler replace the failed state. Do not attach a consumer, purge the queue to quiet its alarm, or point the queue back at the shared dead-letter queue, because removing an own dead-letter queue from the Pulumi program deletes it and every message in it.
 

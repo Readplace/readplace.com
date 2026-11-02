@@ -57,6 +57,7 @@ import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "../runtime/domain/select-conte
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "../runtime/domain/submit-link/max-receive-count";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "../runtime/domain/related-articles/max-receive-count";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
+import { FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT } from "../runtime/domain/filter-email-links/max-receive-count";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "../runtime/domain/filter-email-links/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
@@ -1573,8 +1574,7 @@ eventBus.subscribeAll(
 
 const filterEmailLinksQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.filterEmailLinks, {
 	visibilityTimeoutSeconds: FILTER_EMAIL_LINKS_TIMEOUTS.sqsVisibilitySeconds,
-	dlqMaxReceiveCount: 2,
-	sharedDlq: failuresDlq,
+	dlqMaxReceiveCount: FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT,
 });
 
 const filterEmailLinksUserArticlesDynamodb = new HutchDynamoDBAccess("filter-email-links-user-articles-dynamodb", {

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_filter_redrive" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_filter_redrive" name="filter-redrive" isExecutable="false">
+    <bpmn:intermediateCatchEvent id="n_N" name="filter-email-links-dlq">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_Q" name="filter-email-links queue">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_H" name="filter-email-links Lambda">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_D" name="EmailLinksFilteredEvent">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="n_I" name="Inbox recorder">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_W" name="Email links table: readlist result row, failed replaced by decided"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_P" name="Email page: the count line"></bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="redrive" sourceRef="n_N" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_Q" targetRef="n_H" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_H" targetRef="n_D" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_D" targetRef="n_I" />
+    <bpmn:association id="f_4" sourceRef="n_I" targetRef="n_W" associationDirection="One" />
+    <bpmn:association id="f_5" sourceRef="n_W" targetRef="n_P" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_filter_redrive">
+    <bpmndi:BPMNPlane id="Plane_filter_redrive" bpmnElement="Process_filter_redrive">
+      <bpmndi:BPMNShape id="n_N_di" bpmnElement="n_N">
+        <dc:Bounds x="104.13" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="104.13" y="144.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_H_di" bpmnElement="n_H">
+        <dc:Bounds x="28" y="261" width="192.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="104.13" y="367" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_I_di" bpmnElement="n_I">
+        <dc:Bounds x="62.75" y="483.5" width="122.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_W_di" bpmnElement="n_W">
+        <dc:Bounds x="29.64" y="589.5" width="188.98" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="29.5" y="740" width="189.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="124.13" y="68" />
+        <di:waypoint x="124.13" y="144.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="124.13" y="184.5" />
+        <di:waypoint x="124.13" y="261" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="124.13" y="309" />
+        <di:waypoint x="124.13" y="367" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="124.13" y="407" />
+        <di:waypoint x="124.13" y="483.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="124.13" y="531.5" />
+        <di:waypoint x="124.13" y="589.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="124.13" y="637.5" />
+        <di:waypoint x="124.13" y="740" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
