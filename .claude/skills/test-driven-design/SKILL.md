@@ -215,6 +215,7 @@ Backward-compatibility practices — optional/additive fields, tolerant decoding
 - iOS app (waits on App Store review)
 - macOS / desktop apps (user-driven updates)
 - browser extensions (wait on AMO / Chrome Web Store review)
+- the Obsidian plugin (installed copies update when the reader chooses)
 - any third-party or otherwise published API consumer
 
 For those, evolve additively and never require a field an older shipped client won't send.
