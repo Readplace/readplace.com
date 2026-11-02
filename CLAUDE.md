@@ -92,6 +92,31 @@ Only the functions that apply the rule can mint the body and summary brands (gre
 
 ChatGPT readers call the tool definitions OpenAI's plugin directory published from its last successful scan of our MCP server, not our live `tools/list`, and the scan runs on an OAuth grant of its own. Changing a tool, the scan's credential, the OAuth code, `ANALYTICS_SALT` or the OAuth table is governed by the [MCP skill](./.claude/skills/mcp/SKILL.md), whose guards refuse the dangerous change and name the approval each needs. The [MCP scanner runbook](./projects/hutch/docs/mcp-scanner-runbook.md) has the operations.
 
+### A DeepSeek dead letter is kept to be redriven
+
+**Read the row first.** In the 30 days to 2026-10-24 every judge and summary dead letter moved on without a redrive: of 31 judge rows, 27 were ready on 2026-10-24 and 4 had failed again with a parse error, and the 3 summary rows settled. A late redrive is therefore usually stale. Before you redrive a message, read its article row, and delete the message instead when the row has already moved on. SQS cannot edit a message on the way back, so a redrive runs the old command against the row as it is now.
+
+Each queue below dead-letters into its own `<queue>-dlq`, and nothing consumes it.
+
+| Queue | On the final receive |
+|---|---|
+| `select-most-complete-content`, `reselect-after-removal`, `recrawl-content-extracted` | The handler marks the crawl failed, logs `dead-lettered after N receives`, and still fails the record |
+| `generate-summary` | The handler marks the summary failed and still fails the record |
+| `refresh-content-extracted` | Nothing is marked; the reader keeps the current content |
+| `compute-related-articles` | Nothing is marked; Next read and Already read stay as they were |
+
+Where a handler marks, the reader sees today's failure state. The message is the only copy of the work: once the cause is fixed, a redrive lets the handler replace the failed state. Do not attach a consumer, purge the queue to quiet its alarm, or point the queue back at the shared dead-letter queue, because removing an own dead-letter queue from the Pulumi program deletes it and every message in it.
+
+| Step | What to know |
+|---|---|
+| Alarm | `<queue>-dlq-alarm` emails each time it enters ALARM, from OK or from INSUFFICIENT_DATA, where an idle queue sits. While one message stays visible it stays in ALARM, so later dead letters send no email: read the queue's depth, not the inbox. |
+| Cause | In `/readplace/errors`, a `deepseek-call-failed` line carries `feature`, `kind` and `status`, and no URL. Its `messageId` matches the record-failed line in that Lambda's own log group and, on the three judge queues, the `dead-lettered after` line, which carries the URL. The dead-lettered message's own body always names the article: poll it in the SQS console. |
+| Balance | A `status` of 402 is the DeepSeek balance, not the code. Top up, then redrive every queue that alarmed. Triage and the three PDF stages leave no dead letter, because they fail open or fall back to text; their lines count what an outage cost. |
+| Redrive | After the fix is live: in the SQS console open the `-dlq` queue and choose Start DLQ redrive to the source queue, or run `aws sqs start-message-move-task --source-arn <dlq arn>`. A message EventBridge put there carries only a `TARGET_ARN` attribute and needs Redrive to custom destination, with the source queue's ARN. A redrive before the fix fails every receive again and pays a DeepSeek call each time. |
+| Expiry | A message expires 14 days after it first entered its source queue. A redrive makes it a new message and restarts the 14 days, so redrive once before day 14 when a fix needs longer. |
+
+AWS documents the redrive at https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-configure-dead-letter-queue-redrive.html.
+
 ## Architecture Guidelines
 
 ### Brand & Design Guidelines
