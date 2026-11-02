@@ -24,7 +24,6 @@ import { initSaveAnonymousLinkDlqHandler } from "./domain/crawl-article-state/sa
 import { initSaveLinkDlqHandler } from "./domain/crawl-article-state/save-link-dlq-handler";
 import { initSaveLinkRawHtmlDlqHandler } from "./domain/crawl-article-state/save-link-raw-html-dlq-handler";
 import { initSaveLinkRawPdfDlqHandler } from "./domain/crawl-article-state/save-link-raw-pdf-dlq-handler";
-import { initFilterEmailLinksDlqHandler } from "./domain/filter-email-links/filter-email-links-dlq-handler";
 import { initSimpleCrawlUnsupportedPolicyDlqHandler } from "./domain/simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-dlq-handler";
 import { initSubmitLinkDlqHandler } from "./domain/submit-link/submit-link-dlq-handler";
 
@@ -112,10 +111,6 @@ export const handler = initDeadLetterRouter({
 			transitionAndPersist,
 			logger,
 			now,
-		}),
-		[SAVE_LINK_DLQ_SOURCE_QUEUES.filterEmailLinks]: initFilterEmailLinksDlqHandler({
-			publishEvent,
-			logger,
 		}),
 	},
 });
