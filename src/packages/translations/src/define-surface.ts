@@ -107,12 +107,18 @@ export function lookupMessage(tree: MessageNode, key: string): MessageNode | und
 	);
 }
 
+export function assertParams(input: { readonly message: string; readonly names: readonly string[] }): void {
+	const expected = placeholdersOf(input.message);
+	const given = [...input.names].sort();
+	assert(
+		sameNames(expected, given),
+		`"${input.message}" takes the params {${expected.join("}, {")}}, got {${given.join("}, {")}}`,
+	);
+}
+
 export function fill(message: string, params: object): string {
 	const values = new Map(Object.entries(params));
-	assert(
-		sameNames(placeholdersOf(message), [...values.keys()].sort()),
-		`"${message}" takes the params {${placeholdersOf(message).join("}, {")}}, got {${[...values.keys()].sort().join("}, {")}}`,
-	);
+	assertParams({ message, names: [...values.keys()] });
 	return message.replace(PLACEHOLDER, (_match, name: string) => String(values.get(name)));
 }
 

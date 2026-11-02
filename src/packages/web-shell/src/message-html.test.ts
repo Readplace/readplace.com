@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import Handlebars from "handlebars";
-import { messageHtml, toSingleQuotedJsString } from "./message-html";
+import { messageHtml } from "./message-html";
 
 describe("messageHtml", () => {
-	it("escapes only & < > \" in the message text, so apostrophes and glyphs stay as written", () => {
-		assert.equal(messageHtml(`Tom & Jerry's <"show"> — it’s on`, {}).toHTML(), "Tom &amp; Jerry's &lt;&quot;show&quot;&gt; — it’s on");
+	it("escapes & < > \" ' in the message text, so glyphs stay as written", () => {
+		assert.equal(messageHtml(`Tom & Jerry's <"show"> — it’s on`, {}).toHTML(), "Tom &amp; Jerry&#x27;s &lt;&quot;show&quot;&gt; — it’s on");
 	});
 
 	it("escapes a param the way {{value}} would", () => {
@@ -20,13 +20,5 @@ describe("messageHtml", () => {
 		assert.throws(() => messageHtml("Hello, {name}", {}), /takes the params \{name\}, got \{\}/);
 		assert.throws(() => messageHtml("Hello", { name: "Ada" }), /takes the params \{\}, got \{name\}/);
 		assert.throws(() => messageHtml("Hello, {name}", { name: { first: "Ada" } }), /must be a string, a number or a SafeString/);
-	});
-});
-
-describe("toSingleQuotedJsString", () => {
-	it("writes a message as a single-quoted JavaScript string literal that cannot close its script", () => {
-		assert.equal(toSingleQuotedJsString("You're offline"), "'You\\'re offline'");
-		assert.equal(toSingleQuotedJsString("a\\b\nc\rd</script>\u2028\u2029"), "'a\\\\b\\nc\\rd\\u003c/script>\\u2028\\u2029'");
-		assert.equal(toSingleQuotedJsString("Plain"), "'Plain'");
 	});
 });

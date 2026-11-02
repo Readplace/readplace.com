@@ -1,5 +1,6 @@
 export { ALL_SURFACES } from "./all-surfaces";
 export {
+	assertParams,
 	combineSurfaces,
 	defineSurface,
 	fill,
