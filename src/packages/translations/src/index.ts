@@ -23,4 +23,4 @@ export type {
 	PluralPath,
 	Placeholders,
 } from "./message.types";
-export { NATIVE_CATALOGS, NATIVE_LOCALES } from "./native/native-catalogs";
+export { NATIVE_CATALOGS } from "./native/native-catalogs";

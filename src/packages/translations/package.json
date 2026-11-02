@@ -1,7 +1,7 @@
 {
   "name": "@packages/translations",
   "version": "1.0.0",
-  "description": "Every user-facing string for the web deployables and browser extensions, one module per surface and locale, plus the parity check over the iOS String Catalog and Android strings.xml",
+  "description": "Every user-facing string for the web deployables and browser extensions, one module per surface and locale",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
