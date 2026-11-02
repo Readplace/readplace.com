@@ -69,14 +69,14 @@ describe("GET /privacy", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		const items = Array.from(doc.querySelectorAll(".legal-page__item-text"), (item) => item.textContent);
-		expect(items.some((text) => text?.endsWith("For newsletters, each issue's subject, sender, link addresses and link text are sent to DeepSeek to tell articles from ads and menus, and, for a readlist you described, what you wrote is sent with them to choose which fit."))).toBe(true);
+		expect(items.some((text) => text?.endsWith("For newsletters, each issue's subject, sender, link addresses and link text are sent to DeepSeek to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit."))).toBe(true);
 	});
 
 	it("carries the date of its latest change", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server).get("/privacy");
 
-		expect(response.text).toContain("Last updated: 25 October 2026");
+		expect(response.text).toContain("Last updated: 3 November 2026");
 	});
 
 	it("lists the optional display name among the account information Readplace keeps", async () => {
