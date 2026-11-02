@@ -1247,6 +1247,12 @@ new aws.sns.TopicSubscription("crawl-settled-latency-alert-email", {
 	endpoint: alertEmail,
 });
 
+/**
+ * 1. Replaying October 2026's prod saves put the quiet-day p95 near 98 s and the slowest normal-day save at 309 s. A threshold at the p95 fired on single ordinary slow saves (10 of 15 firings were not incidents); at 315 s every firing was a real incident, and it still catches the crawls that outlast the related-articles worker's 480 s and 600 s retries.
+ * 2. That replay included email saves (inbox address, Gmail), which this metric does not measure: it times only a URL whose first save a reader chose. If the alarm fires with no incident, or stays quiet through one, re-derive the value from the crawl_settled events of those saves alone.
+ */
+const CRAWL_SETTLED_P95_THRESHOLD_SECONDS = 315; /* 1, 2 */
+
 new aws.cloudwatch.MetricAlarm("crawl-settled-latency-alarm", {
 	name: "crawl-settled-latency-alarm",
 	comparisonOperator: "GreaterThanThreshold",
@@ -1256,7 +1262,7 @@ new aws.cloudwatch.MetricAlarm("crawl-settled-latency-alarm", {
 	period: 900,
 	extendedStatistic: "p95",
 	evaluateLowSampleCountPercentiles: "evaluate",
-	threshold: config.requireNumber("crawlSettledLatencyP95ThresholdSeconds"),
+	threshold: CRAWL_SETTLED_P95_THRESHOLD_SECONDS,
 	treatMissingData: "notBreaching",
 	alarmDescription: "The p95 time for a save to settle its crawl, over 15 minutes, is above the threshold",
 	alarmActions: [crawlSettledLatencyTopic.arn],
