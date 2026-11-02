@@ -68,6 +68,10 @@
     "./browser-extension": {
       "types": "./dist/surfaces/browser-extension/index.d.ts",
       "default": "./dist/surfaces/browser-extension/index.js"
+    },
+    "./copy-checker": {
+      "types": "./dist/copy-checker.d.ts",
+      "default": "./dist/copy-checker.js"
     }
   },
   "typesVersions": {
@@ -116,6 +120,9 @@
       ],
       "browser-extension": [
         "./dist/surfaces/browser-extension/index.d.ts"
+      ],
+      "copy-checker": [
+        "./dist/copy-checker.d.ts"
       ]
     }
   },
@@ -127,6 +134,10 @@
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "check": "nx run @packages/translations:check",
     "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "dependencies": {
+    "handlebars": "4.7.9",
+    "linkedom": "0.18.12"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

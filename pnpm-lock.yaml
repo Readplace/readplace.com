@@ -68,6 +68,9 @@ importers:
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../../src/packages/supported-clients
+      '@packages/translations':
+        specifier: workspace:*
+        version: link:../../src/packages/translations
       '@packages/viewer-identity':
         specifier: workspace:*
         version: link:../../src/packages/viewer-identity
@@ -183,6 +186,9 @@ importers:
       '@packages/logger':
         specifier: workspace:*
         version: link:../../../src/packages/logger
+      '@packages/translations':
+        specifier: workspace:*
+        version: link:../../../src/packages/translations
       '@packages/ui-icons':
         specifier: workspace:*
         version: link:../../../src/packages/ui-icons
@@ -459,6 +465,9 @@ importers:
       '@packages/time-left':
         specifier: workspace:*
         version: link:../../src/packages/time-left
+      '@packages/translations':
+        specifier: workspace:*
+        version: link:../../src/packages/translations
       '@packages/ui-icons':
         specifier: workspace:*
         version: link:../../src/packages/ui-icons
@@ -661,6 +670,9 @@ importers:
       '@packages/subscription-access':
         specifier: workspace:*
         version: link:../../src/packages/subscription-access
+      '@packages/translations':
+        specifier: workspace:*
+        version: link:../../src/packages/translations
       '@packages/viewer-identity':
         specifier: workspace:*
         version: link:../../src/packages/viewer-identity
@@ -1022,6 +1034,9 @@ importers:
       '@packages/storage-client':
         specifier: workspace:*
         version: link:../../src/packages/storage-client
+      '@packages/translations':
+        specifier: workspace:*
+        version: link:../../src/packages/translations
       '@packages/viewer-identity':
         specifier: workspace:*
         version: link:../../src/packages/viewer-identity
@@ -2127,6 +2142,13 @@ importers:
         version: 6.0.3
 
   src/packages/translations:
+    dependencies:
+      handlebars:
+        specifier: 4.7.9
+        version: 4.7.9
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
     devDependencies:
       '@types/jest':
         specifier: 30.0.0

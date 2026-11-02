@@ -5,6 +5,7 @@ Every user-facing string Readplace shows, one module per surface and locale. The
 - Web templates: `{{t "page.component.element" name=value}}` (registered by `@packages/web-shell`).
 - TypeScript: `const { t, tPlural } = translator(surface, DEFAULT_LOCALE)`.
 - Plurals are `{ one, other }` sub-keys chosen with `Intl.PluralRules`; values never contain HTML.
+- `@packages/translations/copy-checker` reports literal copy left in a template; each web deployable's `copy.test.ts` runs it over the directories listed in its `MIGRATED_DIRECTORIES`.
 
 | Surface | Purpose | Consumers |
 |---|---|---|
