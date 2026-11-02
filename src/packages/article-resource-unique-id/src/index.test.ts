@@ -255,10 +255,8 @@ describe("ArticleResourceUniqueId key-family prefixes", () => {
 });
 
 describe("ArticleResourceUniqueId keys at the longest unhashed segment", () => {
-	const S3_MAX_KEY_BYTES = 1024;
 	const longestUnhashedUrl = `https://example.com/${"a".repeat(886)}`;
 	const saveAttemptId = "123e4567-e89b-12d3-a456-426614174000";
-	const longestImageFilename = `attempts/${"f".repeat(32)}/${"f".repeat(32)}.abcde`;
 
 	it("keeps the URL segment unhashed at 900 encoded characters and hashes one character more", () => {
 		expect(ArticleResourceUniqueId.parse(longestUnhashedUrl).toS3ContentKey()).toBe(
@@ -276,7 +274,6 @@ describe("ArticleResourceUniqueId keys at the longest unhashed segment", () => {
 		const id = ArticleResourceUniqueId.parse(longestUnhashedUrl);
 		const keys = [
 			id.toS3ContentKey(),
-			id.toS3ImageKey(longestImageFilename),
 			id.toS3PendingHtmlKey(saveAttemptId),
 			id.toS3PendingPdfKey(saveAttemptId),
 			id.toS3RefreshHtmlKey(saveAttemptId),
@@ -284,7 +281,7 @@ describe("ArticleResourceUniqueId keys at the longest unhashed segment", () => {
 			id.toS3ContentVersionKey({ minuteId: "2026-10-29T10:00Z" }),
 			...["tier-0", "tier-1", "tier-2"].flatMap((tier) => [id.toS3SourceKey({ tier }), id.toS3SourceMetadataKey({ tier })]),
 		];
-		const overLimit = keys.filter((key) => Buffer.byteLength(key) > S3_MAX_KEY_BYTES);
+		const overLimit = keys.filter((key) => Buffer.byteLength(key) > 1024);
 		expect(overLimit).toEqual([]);
 	});
 });

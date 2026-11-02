@@ -7,6 +7,7 @@ import { initPersistCandidateArtifact } from "./persist-candidate-artifact";
 import { candidateBodyKeys, candidateManifestKey } from "./candidate-object-keys";
 import { CandidateProvenanceSchema, type CandidateProvenance } from "./tier-source.types";
 import { candidateProvenance } from "./candidate-provenance";
+import { KNOWN_TIERS } from "@packages/article-state-types";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 
@@ -51,7 +52,7 @@ describe("candidate manifest identity", () => {
 	it("keeps every candidate key within S3's 1024-byte limit at the longest unhashed article segment", () => {
 		const url = `https://example.com/${"a".repeat(886)}`;
 		expect(ArticleResourceUniqueId.parse(url).toS3SourcesPrefix().length).toBe("articles/".length + 900 + "/sources/".length);
-		const keys = (["tier-0", "tier-1", "tier-2"] as const).flatMap((tier) => {
+		const keys = KNOWN_TIERS.flatMap((tier) => {
 			const candidate = { url, tier, candidateId: cid("candidate") };
 			const { htmlLocation, evaluationLocation } = candidateBodyKeys(candidate);
 			return [candidateManifestKey(candidate), htmlLocation, evaluationLocation];
