@@ -1,6 +1,7 @@
 import assert from "node:assert";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
-const CURRENCY_DISPLAY_LOCALE = "en-US";
+const CURRENCY_DISPLAY_LOCALE = DEFAULT_LOCALE;
 
 /** Minor units are only hundredths in the currencies that have two decimal places —
  * JPY has none — so the divisor comes from the currency itself rather than a

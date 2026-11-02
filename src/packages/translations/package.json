@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./locale": {
+      "types": "./dist/locale.d.ts",
+      "default": "./dist/locale.js"
+    },
     "./web-catalog": {
       "types": "./dist/web-catalog.d.ts",
       "default": "./dist/web-catalog.js"
@@ -76,6 +80,9 @@
   },
   "typesVersions": {
     "*": {
+      "locale": [
+        "./dist/locale.d.ts"
+      ],
       "web-catalog": [
         "./dist/web-catalog.d.ts"
       ],

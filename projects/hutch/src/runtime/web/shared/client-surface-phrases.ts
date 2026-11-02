@@ -1,4 +1,5 @@
 import type { AdvertisedClientName, AdvertisedClientNameInGroup, ClientGroup } from "@packages/supported-clients";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 /**
  * User-facing copy enumerates client GROUPS, not individual clients: a new
@@ -53,6 +54,6 @@ const CONNECTED_APP_NOUNS = {
 	claude: "AI assistants",
 } satisfies Record<AdvertisedClientName, string>;
 
-export const CONNECTED_APPS_PHRASE = new Intl.ListFormat("en", { type: "conjunction" }).format([
+export const CONNECTED_APPS_PHRASE = new Intl.ListFormat(DEFAULT_LOCALE, { type: "conjunction" }).format([
 	...new Set(Object.values(CONNECTED_APP_NOUNS)),
 ]);

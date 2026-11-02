@@ -55,6 +55,7 @@ import {
 	type GmailPickerState,
 	type GmailPollState,
 } from "./gmail.url";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 export interface GmailBannerViewModel { key: string; message: string }
 export interface GmailNoticeViewModel extends GmailBannerViewModel { variant: AlertVariant }
