@@ -5,6 +5,7 @@ const clients: Record<string, Pick<AuthDiagnosticContext, "client" | "surface">>
 	"hutch-firefox-extension": { client: "firefox", surface: "background" },
 	"ios-app": { client: "ios", surface: "app" },
 	"android-app": { client: "android", surface: "app" },
+	"obsidian-plugin": { client: "obsidian", surface: "app" },
 };
 
 export function attributeOAuthClient(clientId: string): void {

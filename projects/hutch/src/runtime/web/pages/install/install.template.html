@@ -76,6 +76,17 @@
       </section>
       {{/case}}
 
+      {{#case "notesApp"}}
+      <section class="install-page__panel" data-test-panel="{{panel.app.key}}">
+        <h2 class="install-page__panel-title">{{panel.app.title}}</h2>
+        <p class="install-page__lead">{{panel.app.lead}}</p>
+
+        {{#if panel.app.unavailable}}
+        <p class="install-page__unavailable" data-test-section="{{panel.app.unavailable.testId}}">{{panel.app.unavailable.text}}</p>
+        {{/if}}
+      </section>
+      {{/case}}
+
       {{#case "browserExtension"}}
       <section class="install-page__panel" data-test-panel="browser">
         <h2 class="install-page__panel-title">Readplace for {{panel.browser.name}}</h2>

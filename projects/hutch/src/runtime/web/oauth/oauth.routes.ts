@@ -25,7 +25,8 @@ import type { BuildBannerState } from "../banner-state";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { sendComponent } from "@packages/web-shell";
 import type { AnalyticsEvent, RecordUngatedEvent } from "@packages/web-analytics";
-import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
+import { OAuthAuthorizePage, OAuthCallbackPage, OAuthObsidianHandoffPage } from "./oauth.component";
+import { parseObsidianHandoffQuery } from "./obsidian-handoff";
 import { initObserveTokenOutcome } from "./token-refusal";
 import { initTokenExchange } from "./token-exchange";
 import { captureOAuthBody } from "../../oauth-refresh/request-body";
@@ -392,6 +393,18 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 	router.get("/callback", async (req: Request, res: Response) => {
 		sendComponent(req, res, Base(OAuthCallbackPage(), await deps.buildBannerState(req)));
+	});
+
+	router.get("/obsidian", async (req: Request, res: Response) => {
+		res.set({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+		sendComponent(
+			req,
+			res,
+			Base(OAuthObsidianHandoffPage(parseObsidianHandoffQuery(req.query)), {
+				...(await deps.buildBannerState(req)),
+				currentPath: "/oauth/obsidian",
+			}),
+		);
 	});
 
 	return router;

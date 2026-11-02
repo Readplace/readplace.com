@@ -1,0 +1,16 @@
+    <main class="auth-page">
+      <div class="auth-card">
+        <h1 class="auth-card__title">{{heading}}</h1>
+        <p class="oauth-callback__text">{{body}}</p>
+        {{#each returnLinks}}
+        <a class="btn {{variantClass}} oauth-obsidian__return" href="{{href}}" data-test-return>Return to Obsidian</a>
+        {{/each}}
+        {{#each signInCodes}}
+        <div class="oauth-obsidian__copy-field">
+          <span class="oauth-obsidian__copy-label">Sign-in code</span>
+          <code class="oauth-obsidian__copy-value" data-test-code>{{this}}</code>
+          <button type="button" class="btn btn--secondary btn--s oauth-obsidian__copy-button" data-oauth-copy data-oauth-text="{{this}}" aria-label="Copy the sign-in code" hidden>Copy</button>
+        </div>
+        {{/each}}
+      </div>
+    </main>

@@ -7,6 +7,7 @@ import {
 	isBuiltInOAuthClientId,
 	isClientName,
 	isContentCaptureOAuthClientId,
+	isSavingBuiltInOAuthClientId,
 	SUPPORTED_CLIENTS,
 } from "./supported-clients";
 
@@ -14,7 +15,7 @@ describe("SUPPORTED_CLIENTS", () => {
 	it("pins the exact roster so changing it is a conscious edit", () => {
 		assert.deepEqual(
 			SUPPORTED_CLIENTS.map((client) => client.name),
-			["firefox", "chrome", "iphone", "android", "chatgpt", "gemini", "claude"],
+			["firefox", "chrome", "iphone", "android", "chatgpt", "gemini", "claude", "obsidian"],
 		);
 	});
 
@@ -32,6 +33,7 @@ describe("SUPPORTED_CLIENTS", () => {
 			"hutch-chrome-extension",
 			"ios-app",
 			"android-app",
+			"obsidian-plugin",
 		]);
 	});
 
@@ -53,6 +55,7 @@ describe("SUPPORTED_CLIENTS", () => {
 				chatgpt: "mcpConnector",
 				gemini: "mcpConnector",
 				claude: "mcpConnector",
+				obsidian: "communityDirectory",
 			},
 		);
 	});
@@ -87,7 +90,7 @@ describe("appStoreUrl", () => {
 
 describe("client categories", () => {
 	it("pins the category order so adding one is a conscious edit", () => {
-		assert.deepEqual(CLIENT_CATEGORIES, ["contentCapture", "urlOnly"]);
+		assert.deepEqual(CLIENT_CATEGORIES, ["contentCapture", "urlOnly", "notesSync"]);
 	});
 
 	it("pins which category each group belongs to", () => {
@@ -102,6 +105,7 @@ describe("client categories", () => {
 				browserExtension: "contentCapture",
 				nativeApp: "contentCapture",
 				aiAssistant: "urlOnly",
+				notesApp: "notesSync",
 			},
 		);
 	});
@@ -154,11 +158,29 @@ describe("isContentCaptureOAuthClientId", () => {
 	});
 });
 
+describe("isSavingBuiltInOAuthClientId", () => {
+	it.each(["hutch-firefox-extension", "hutch-chrome-extension", "ios-app", "android-app"])(
+		"accepts %s, a built-in client that saves",
+		(oauthClientId) => {
+			assert.equal(isSavingBuiltInOAuthClientId(oauthClientId), true);
+		},
+	);
+
+	it("rejects the Obsidian plugin, which is built in but saves nothing", () => {
+		assert.equal(isSavingBuiltInOAuthClientId("obsidian-plugin"), false);
+	});
+
+	it("rejects a dynamically-registered client id", () => {
+		assert.equal(isSavingBuiltInOAuthClientId("randomly-minted-dcr-id"), false);
+	});
+});
+
 describe("clientNameForBuiltInOAuthClientId", () => {
 	it("names the client each shipped OAuth client id belongs to", () => {
 		assert.equal(clientNameForBuiltInOAuthClientId("hutch-firefox-extension"), "firefox");
 		assert.equal(clientNameForBuiltInOAuthClientId("hutch-chrome-extension"), "chrome");
 		assert.equal(clientNameForBuiltInOAuthClientId("ios-app"), "iphone");
 		assert.equal(clientNameForBuiltInOAuthClientId("android-app"), "android");
+		assert.equal(clientNameForBuiltInOAuthClientId("obsidian-plugin"), "obsidian");
 	});
 });

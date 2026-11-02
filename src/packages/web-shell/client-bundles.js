@@ -55,6 +55,12 @@ const SHARED_CLIENT_BUNDLES = [
     }),
   },
   {
+    outfile: "oauth-obsidian-handoff.client.js",
+    entry: CLIPBOARD_COPY_ENTRY,
+    globalName: "ClipboardCopy",
+    footer: clipboardCopyFooter("[data-oauth-copy]", "data-oauth-text"),
+  },
+  {
     outfile: "extension-suggestion-banner.client.js",
     entry: path.join(
       SRC_DIR,

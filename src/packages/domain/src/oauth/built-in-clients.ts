@@ -61,6 +61,16 @@ const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient | undefined> = {
 		redirectUris: [ANDROID_NATIVE_OAUTH_CALLBACK_URI],
 		grants: ["authorization_code", "refresh_token"],
 	},
+	"obsidian-plugin": {
+		id: OAuthClientIdSchema.parse("obsidian-plugin"),
+		name: "Readplace for Obsidian",
+		redirectUris: [
+			"https://readplace.com/oauth/obsidian",
+			"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com/oauth/obsidian",
+			"http://127.0.0.1:3000/oauth/obsidian",
+		],
+		grants: ["authorization_code", "refresh_token"],
+	},
 } satisfies Record<BuiltInOAuthClientId, OAuthClient>;
 
 export function getBuiltInClient(clientId: string): OAuthClient | undefined {
@@ -78,6 +88,7 @@ const REVOKE_DESTROYS_GRANT_SESSIONS = {
 	"hutch-chrome-extension": false,
 	"ios-app": true,
 	"android-app": true,
+	"obsidian-plugin": false,
 } satisfies Record<BuiltInOAuthClientId, boolean>;
 
 export function revokeDestroysGrantSessions(clientId: string): boolean {
