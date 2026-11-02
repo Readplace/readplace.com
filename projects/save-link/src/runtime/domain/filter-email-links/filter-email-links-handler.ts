@@ -10,6 +10,7 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
+import { z } from "zod";
 import { type EmailLinkOrdinal, EmailLinkOrdinalSchema } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_LABEL,
@@ -23,6 +24,7 @@ import {
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	EmailLinksFilteredEvent,
+	EmailLinksFilterFailedEvent,
 	EmailLinksTriagedEvent,
 	FileArticleIntoReadlistCommand,
 	type FileArticleIntoReadlistDetail,
@@ -34,7 +36,23 @@ import type {
 	ReadlistDefinitionData,
 } from "@packages/provider-contracts/article-store";
 import type { DecideReadlistFit, ReadlistFitEngine, ReadlistFitVerdict } from "@packages/readlist-fit";
+import { FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { ReadlistFitDecidedLine, ReadlistFitUnsureLine } from "./readlist-fit-log-lines.types";
+
+const FailedTriageIds = z.object({
+	detail: z.object({ userId: z.string(), receivedAtMessageId: z.string(), readlist: z.string() }),
+});
+
+function failedTriageIds(body: string) {
+	let envelope: unknown;
+	try {
+		envelope = JSON.parse(body);
+	} catch {
+		return undefined;
+	}
+	const parsed = FailedTriageIds.safeParse(envelope);
+	return parsed.success ? parsed.data.detail : undefined;
+}
 
 type FitEntry = { ordinal: EmailLinkOrdinal; verdict: ReadlistFitVerdict; reason: string };
 
@@ -249,6 +267,7 @@ export function initFilterEmailLinksHandler(deps: {
 					unsure: countVerdict({ fit: outcome.fit, verdict: "unsure" }),
 				});
 			} catch (error) {
+				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 				logger.error("[filter-email-links] record failed", {
 					messageId: record.messageId,
 					error,
@@ -260,11 +279,19 @@ export function initFilterEmailLinksHandler(deps: {
 						deepseekCallFailedLogLine({
 							feature: "filter-email-links",
 							failure,
-							receiveCount: Number(record.attributes.ApproximateReceiveCount),
+							receiveCount,
 							messageId: record.messageId,
 							ids: failureIds,
 						}),
 					);
+				}
+				const failedIds = failedTriageIds(record.body);
+				if (failedIds !== undefined && receiveCount >= FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT) {
+					await publishEvent(EmailLinksFilterFailedEvent, {
+						...failedIds,
+						reason: "decision-retries-exhausted",
+						receiveCount,
+					});
 				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });
 			}

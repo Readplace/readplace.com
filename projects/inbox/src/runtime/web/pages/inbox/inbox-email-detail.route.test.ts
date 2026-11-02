@@ -1366,6 +1366,29 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		).toEqual(["0000", "0001"]);
 	});
 
+	it("shows the count line, not the failed line, once a decision replaces a failed one", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, ROUTED_LINKS);
+		await seedRoutedSnapshot(fixture, {
+			eligibleArticleCount: 2,
+			outcome: { readlist: WORK, readlistLabel: "Work", decision: "failed", fit: [] },
+		});
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist before seeding");
+		await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+			outcome: DECIDED,
+		});
+
+		const doc = parseDoc((await agent.get(articlesTabPath)).text);
+
+		expect(noticeTexts(doc)).toEqual(["Saved to All.", "1 article saved to Work; 1 didn't fit."]);
+	});
+
 	it("renders an unsure link like a drop, with no marker", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

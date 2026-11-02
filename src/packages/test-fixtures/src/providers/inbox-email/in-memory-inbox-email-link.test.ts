@@ -354,7 +354,7 @@ it("keeps Gmail list results independent, preserves the first selection, and rem
 	const outcome = {
 		readlist: WORK,
 		readlistLabel: "Work",
-		decision: "failed" as const,
+		decision: "no-purpose" as const,
 		fit: [],
 	};
 	await store.putLinksMeta({
@@ -393,6 +393,34 @@ it("keeps Gmail list results independent, preserves the first selection, and rem
 	expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual(
 		[],
 	);
+});
+
+it("lets a decided list result replace a failed one", async () => {
+	const store = initInMemoryInboxEmailLink();
+	const key = { userId: owner, receivedAtMessageId: RAM };
+	const failed = { readlist: WORK, readlistLabel: "Work", decision: "failed" as const, fit: [] };
+	const decided = { readlist: WORK, readlistLabel: "Work", decision: "no-purpose" as const, fit: [] };
+	await store.putLinksMeta({
+		...key,
+		meta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }] },
+	});
+	expect(await store.putReadlistOutcome({ ...key, outcome: failed })).toBe("stored");
+	expect(await store.putReadlistOutcome({ ...key, outcome: decided })).toBe("stored");
+	expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual([decided]);
+});
+
+it("never lets a failed list result replace a decided one", async () => {
+	const store = initInMemoryInboxEmailLink();
+	const key = { userId: owner, receivedAtMessageId: RAM };
+	const failed = { readlist: WORK, readlistLabel: "Work", decision: "failed" as const, fit: [] };
+	const decided = { readlist: WORK, readlistLabel: "Work", decision: "no-purpose" as const, fit: [] };
+	await store.putLinksMeta({
+		...key,
+		meta: { truncated: false, extractionFailed: false, selectedReadlists: [{ readlist: WORK, label: "Work" }] },
+	});
+	expect(await store.putReadlistOutcome({ ...key, outcome: decided })).toBe("stored");
+	expect(await store.putReadlistOutcome({ ...key, outcome: failed })).toBe("duplicate");
+	expect((await store.listLinksByEmail(key)).meta?.readlistOutcomes).toEqual([decided]);
 });
 
 it("round-trips a Gmail list result with every verdict, and one without a purpose version, engine or model", async () => {

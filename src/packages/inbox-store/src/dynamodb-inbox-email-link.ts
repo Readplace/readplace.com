@@ -355,7 +355,9 @@ export function initDynamoDbInboxEmailLink(deps: {
 						receivedAtMessageId,
 						readlistOutcome,
 					},
-					ConditionExpression: "attribute_not_exists(ordinal)",
+					ConditionExpression:
+						"attribute_not_exists(ordinal) OR readlistOutcome.decision = :failed",
+					ExpressionAttributeValues: { ":failed": "failed" },
 				});
 				return "stored";
 			} catch (error) {

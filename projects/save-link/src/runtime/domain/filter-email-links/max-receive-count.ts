@@ -1,0 +1,1 @@
+export const FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT = 2;

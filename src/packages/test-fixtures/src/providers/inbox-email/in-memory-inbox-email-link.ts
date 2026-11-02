@@ -124,7 +124,8 @@ export function initInMemoryInboxEmailLink(): InboxEmailLinkStore {
 			const group = groupKey({ userId, receivedAtMessageId });
 			const results =
 				outcomes.get(group) ?? new Map<string, InboxReadlistOutcome>();
-			if (results.has(outcome.readlist)) return "duplicate";
+			const stored = results.get(outcome.readlist);
+			if (stored !== undefined && stored.decision !== "failed") return "duplicate";
 			results.set(outcome.readlist, outcome);
 			outcomes.set(group, results);
 			return "stored";

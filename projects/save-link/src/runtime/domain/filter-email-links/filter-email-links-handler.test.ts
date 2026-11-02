@@ -73,6 +73,7 @@ function makeHarness(opts: {
 	definitions?: ReadlistDefinitionData[];
 	decideReadlistFit?: DecideReadlistFit;
 	publishEvent?: PublishEvent;
+	receiveCount?: number;
 }) {
 	const published: { detailType: string; detail: unknown }[] = [];
 	const decisions: Parameters<DecideReadlistFit>[0][] = [];
@@ -105,17 +106,26 @@ function makeHarness(opts: {
 			return new Date(clockMs);
 		},
 	});
-	const run = (detail: unknown) =>
-		handler(
-			buildSqsEvent([{ messageId: "rec-1", body: JSON.stringify({ detail }) }]),
+	const runBody = (body: string) => {
+		const event = buildSqsEvent([{ messageId: "rec-1", body }]);
+		return handler(
+			{
+				Records: event.Records.map((record) => ({
+					...record,
+					attributes: { ...record.attributes, ApproximateReceiveCount: String(opts.receiveCount ?? 1) },
+				})),
+			},
 			buildLambdaContext(),
 			() => {},
 		);
+	};
+	const run = (detail: unknown) => runBody(JSON.stringify({ detail }));
 	return {
 		published,
 		decisions,
 		definitionReads,
 		run,
+		runBody,
 		decidedLines: fitDecided.lines,
 		unsureLines: fitUnsure.lines,
 		callFailedLines: callFailed.lines,
@@ -457,6 +467,83 @@ describe("initFilterEmailLinksHandler", () => {
 			outputTokens: 0,
 			reasoningTokens: 0,
 		} }]);
+	});
+
+	describe("the final receive", () => {
+		const refusedByProvider = async () => {
+			throw Object.assign(new Error("402 Insufficient Balance"), {
+				status: 402,
+				code: "invalid_request_error",
+				requestID: null,
+			});
+		};
+
+		it("publishes the failed decision, files nothing, writes one call-failed line and still fails the record", async () => {
+			const harness = makeHarness({ decideReadlistFit: refusedByProvider, receiveCount: 2 });
+
+			const result = await harness.run(TRIAGED);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.published).toEqual([
+				{
+					detailType: "EmailLinksFilterFailed",
+					detail: {
+						userId: USER,
+						receivedAtMessageId: RAM,
+						readlist: "a1b2c3d4",
+						reason: "decision-retries-exhausted",
+						receiveCount: 2,
+					},
+				},
+			]);
+			expect(harness.callFailedLines).toHaveLength(1);
+		});
+
+		it("publishes nothing on the first receive", async () => {
+			const harness = makeHarness({ decideReadlistFit: refusedByProvider, receiveCount: 1 });
+
+			const result = await harness.run(TRIAGED);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.published).toEqual([]);
+		});
+
+		it("marks the decision failed for a malformed ordinal, with no call-failed line", async () => {
+			const harness = makeHarness({ receiveCount: 2 });
+
+			const result = await harness.run({
+				...TRIAGED,
+				links: [{ ordinal: "7", url: "https://a.test/x", anchorText: "" }],
+			});
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.published.map((entry) => entry.detailType)).toEqual(["EmailLinksFilterFailed"]);
+			expect(harness.callFailedLines).toEqual([]);
+		});
+
+		it("publishes nothing when the record names no email", async () => {
+			const harness = makeHarness({ receiveCount: 2 });
+			const { receivedAtMessageId: _receivedAtMessageId, ...withoutEmail } = TRIAGED;
+
+			const result = await harness.run(withoutEmail);
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.published).toEqual([]);
+		});
+
+		it("publishes nothing when the body is not JSON", async () => {
+			const harness = makeHarness({ receiveCount: 2 });
+
+			const result = await harness.runBody("not json");
+
+			assert(result);
+			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+			expect(harness.published).toEqual([]);
+		});
 	});
 
 	it("fails a triage whose link ordinal is malformed", async () => {

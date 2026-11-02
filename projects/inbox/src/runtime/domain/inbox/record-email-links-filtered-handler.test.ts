@@ -238,16 +238,31 @@ describe("recordEmailLinksFilteredHandler", () => {
 		});
 	});
 
-	it("keeps the outcome that was recorded first when a later fact disagrees", async () => {
+	it("lets a decided result replace a failed one", async () => {
 		const { store, run, read } = createHandler();
 		await snapshotDestinations(store);
 		expect(await run([filterFailedBody()])).toEqual({ batchItemFailures: [] });
-		await run([filteredBody({ fit: [] })]);
+		await run([filteredBody({ decision: "no-purpose", fit: [] })]);
 		expect((await read()).meta?.readlistOutcomes).toEqual([
 			{
 				readlist: WORK,
 				readlistLabel: "Work",
-				decision: "failed",
+				decision: "no-purpose",
+				fit: [],
+			},
+		]);
+	});
+
+	it("keeps a decided result when a failed fact arrives later", async () => {
+		const { store, run, read } = createHandler();
+		await snapshotDestinations(store);
+		await run([filteredBody({ decision: "no-purpose", fit: [] })]);
+		expect(await run([filterFailedBody()])).toEqual({ batchItemFailures: [] });
+		expect((await read()).meta?.readlistOutcomes).toEqual([
+			{
+				readlist: WORK,
+				readlistLabel: "Work",
+				decision: "no-purpose",
 				fit: [],
 			},
 		]);

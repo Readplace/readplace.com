@@ -846,7 +846,9 @@ describe("Gmail readlist outcomes", () => {
 				receivedAtMessageId: RAM,
 				readlistOutcome: outcome,
 			},
-			ConditionExpression: "attribute_not_exists(ordinal)",
+			ConditionExpression:
+				"attribute_not_exists(ordinal) OR readlistOutcome.decision = :failed",
+			ExpressionAttributeValues: { ":failed": "failed" },
 		});
 		expect(
 			await store(() => {
