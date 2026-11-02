@@ -24,11 +24,7 @@ import { initSaveAnonymousLinkDlqHandler } from "./domain/crawl-article-state/sa
 import { initSaveLinkDlqHandler } from "./domain/crawl-article-state/save-link-dlq-handler";
 import { initSaveLinkRawHtmlDlqHandler } from "./domain/crawl-article-state/save-link-raw-html-dlq-handler";
 import { initSaveLinkRawPdfDlqHandler } from "./domain/crawl-article-state/save-link-raw-pdf-dlq-handler";
-import { initGenerateSummaryDlqHandler } from "./domain/generate-summary/generate-summary-dlq-handler";
-import { initReselectAfterRemovalDlqHandler } from "./domain/remove-my-content/reselect-after-removal-dlq-handler";
 import { initFilterEmailLinksDlqHandler } from "./domain/filter-email-links/filter-email-links-dlq-handler";
-import { initRecrawlContentExtractedDlqHandler } from "./domain/select-content/recrawl-content-extracted-dlq-handler";
-import { initSelectMostCompleteContentDlqHandler } from "./domain/select-content/select-most-complete-content-dlq-handler";
 import { initSimpleCrawlUnsupportedPolicyDlqHandler } from "./domain/simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-dlq-handler";
 import { initSubmitLinkDlqHandler } from "./domain/submit-link/submit-link-dlq-handler";
 
@@ -112,27 +108,7 @@ export const handler = initDeadLetterRouter({
 			logger,
 			now,
 		}),
-		[SAVE_LINK_DLQ_SOURCE_QUEUES.selectMostCompleteContent]:
-			initSelectMostCompleteContentDlqHandler({
-				transitionAndPersist,
-				logger,
-				now,
-			}),
-		[SAVE_LINK_DLQ_SOURCE_QUEUES.reselectAfterRemoval]: initReselectAfterRemovalDlqHandler({
-			transitionAndPersist,
-			logger,
-			now,
-		}),
-		[SAVE_LINK_DLQ_SOURCE_QUEUES.generateSummary]: initGenerateSummaryDlqHandler({
-			transitionAndPersist,
-			logger,
-		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.recrawlLinkInitiated]: initRecrawlLinkInitiatedDlqHandler({
-			transitionAndPersist,
-			logger,
-			now,
-		}),
-		[SAVE_LINK_DLQ_SOURCE_QUEUES.recrawlContentExtracted]: initRecrawlContentExtractedDlqHandler({
 			transitionAndPersist,
 			logger,
 			now,
