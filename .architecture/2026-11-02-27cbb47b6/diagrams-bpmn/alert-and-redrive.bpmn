@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_alert_and_redrive" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_alert_and_redrive" name="alert-and-redrive" isExecutable="false">
+    <bpmn:intermediateCatchEvent id="n_D" name="Own dead-letter queue, 14-day retention">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="n_AL" name="Queue alarm">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_T" name="Topic">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_EM" name="Email subscription">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:businessRuleTask id="n_O" name="Owner fixes the cause">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:businessRuleTask id="n_RD" name="Console redrive">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:intermediateCatchEvent id="n_Q" name="Source queue">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_H" name="Live handler">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_D" targetRef="n_AL" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_AL" targetRef="n_T" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_T" targetRef="n_EM" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_EM" targetRef="n_O" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_O" targetRef="n_RD" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_RD" targetRef="n_Q" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_Q" targetRef="n_H" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_alert_and_redrive">
+    <bpmndi:BPMNPlane id="Plane_alert_and_redrive" bpmnElement="Process_alert_and_redrive">
+      <bpmndi:BPMNShape id="n_D_di" bpmnElement="n_D">
+        <dc:Bounds x="73.56" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_AL_di" bpmnElement="n_AL">
+        <dc:Bounds x="217.12" y="40" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_T_di" bpmnElement="n_T">
+        <dc:Bounds x="379.12" y="40" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_EM_di" bpmnElement="n_EM">
+        <dc:Bounds x="541.12" y="40" width="144.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_O_di" bpmnElement="n_O">
+        <dc:Bounds x="743.37" y="40" width="168" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RD_di" bpmnElement="n_RD">
+        <dc:Bounds x="969.37" y="40" width="124.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Q_di" bpmnElement="n_Q">
+        <dc:Bounds x="1168.03" y="34.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_H_di" bpmnElement="n_H">
+        <dc:Bounds x="1282.44" y="40" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="113.56" y="48" />
+        <di:waypoint x="165.34" y="48" />
+        <di:waypoint x="165.34" y="64" />
+        <di:waypoint x="217.12" y="64" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="321.12" y="64" />
+        <di:waypoint x="379.12" y="64" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="483.12" y="64" />
+        <di:waypoint x="541.12" y="64" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="685.37" y="64" />
+        <di:waypoint x="743.37" y="64" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="911.37" y="64" />
+        <di:waypoint x="969.37" y="64" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="1093.62" y="64" />
+        <di:waypoint x="1130.82" y="64" />
+        <di:waypoint x="1130.82" y="54.75" />
+        <di:waypoint x="1168.03" y="54.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="1208.03" y="54.75" />
+        <di:waypoint x="1245.23" y="54.75" />
+        <di:waypoint x="1245.23" y="64" />
+        <di:waypoint x="1282.44" y="64" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

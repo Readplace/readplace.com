@@ -53,6 +53,7 @@ import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { OWN_CAPTURE_FAILED_METRIC } from "../runtime/domain/select-content/comparison-log";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "../runtime/domain/generate-summary/max-receive-count";
+import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "../runtime/domain/select-content/max-receive-count";
 import { SUBMIT_LINK_MAX_RECEIVE_COUNT } from "../runtime/domain/submit-link/max-receive-count";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "../runtime/domain/related-articles/max-receive-count";
 import { RELATED_ARTICLES_TIMEOUTS } from "../runtime/domain/related-articles/timeouts";
@@ -238,7 +239,6 @@ const failuresDlq = new HutchSharedDlq(SAVE_LINK_FAILURES_DLQ, {
 
 const generateSummaryQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.generateSummary, {
 	visibilityTimeoutSeconds: GENERATE_SUMMARY_TIMEOUTS.sqsVisibilitySeconds,
-	sharedDlq: failuresDlq,
 	dlqMaxReceiveCount: GENERATE_SUMMARY_MAX_RECEIVE_COUNT,
 });
 
@@ -272,7 +272,7 @@ const saveLinkCommandQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.saveLinkCommand,
 // A failed save does not reprime when the user re-visits /view, and
 // /admin/recrawl is the manual retry.
 // Other queues that aren't user-retriable (select-most-complete-content,
-// generate-summary) keep the default maxReceiveCount=3 so transient
+// generate-summary) keep maxReceiveCount=3 so transient
 // Deepseek/DDB blips still self-heal at the SQS layer.
 //
 // Now simple-only — PDFs go through the comprehensive Lambda — so the
@@ -341,7 +341,7 @@ const recrawlContentExtractedQueue = new HutchSQS(
 	SAVE_LINK_DLQ_SOURCES.recrawlContentExtracted,
 	{
 		visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
-		sharedDlq: failuresDlq,
+		dlqMaxReceiveCount: SELECT_CONTENT_MAX_RECEIVE_COUNT,
 	},
 );
 
@@ -351,7 +351,7 @@ const removeMyContentCommandQueue = new HutchSQS("remove-my-content-command", {
 
 const reselectAfterRemovalQueue = new HutchSQS(SAVE_LINK_DLQ_SOURCES.reselectAfterRemoval, {
 	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
-	sharedDlq: failuresDlq,
+	dlqMaxReceiveCount: SELECT_CONTENT_MAX_RECEIVE_COUNT,
 });
 
 new HutchDLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
@@ -1153,7 +1153,7 @@ const selectMostCompleteContentQueue = new HutchSQS(
 	SAVE_LINK_DLQ_SOURCES.selectMostCompleteContent,
 	{
 		visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
-		sharedDlq: failuresDlq,
+		dlqMaxReceiveCount: SELECT_CONTENT_MAX_RECEIVE_COUNT,
 	},
 );
 
