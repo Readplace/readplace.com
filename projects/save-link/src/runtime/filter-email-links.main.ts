@@ -29,7 +29,7 @@ const deepseekClient = initDeepseekClient({
 	maxRetries: 0,
 	logger: consoleLogger,
 	logLevel: "warn",
-	callTimeoutMs: null,
+	callTimeoutMs: FILTER_EMAIL_LINKS_TIMEOUTS.deepseekMs,
 	fetch: globalThis.fetch,
 	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
