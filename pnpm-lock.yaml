@@ -2275,6 +2275,9 @@ importers:
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../supported-clients
+      '@packages/translations':
+        specifier: workspace:*
+        version: link:../translations
       '@packages/ui-icons':
         specifier: workspace:*
         version: link:../ui-icons

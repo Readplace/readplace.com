@@ -1,5 +1,7 @@
 import { iconSvg } from "@packages/ui-icons";
-import { render } from "./render";
+import { combineSurfaces, defineSurface } from "@packages/translations";
+import Handlebars from "handlebars";
+import { createTranslateHelper, render } from "./render";
 
 describe("render", () => {
 	it("should interpolate data into a Handlebars template", () => {
@@ -122,5 +124,33 @@ describe("render", () => {
 			helpers: { shout: (value: string) => value.toUpperCase() },
 		});
 		expect(result).toBe("<p>HI</p>");
+	});
+
+	describe("{{t}}", () => {
+		const catalog = combineSurfaces({
+			sample: defineSurface({
+				purpose: "A surface used only by this test",
+				defaultMessages: { page: { heading: "Tom & Jerry’s list", greeting: "Hello, {name}" } },
+				otherLocales: {},
+			}),
+		});
+		const t = createTranslateHelper(catalog);
+
+		it("renders a message from the catalog, escaping its text minimally and its params fully", () => {
+			const result = render('<h1 title="{{t "page.heading"}}">{{t "page.greeting" name=who}}</h1>', { who: "<Ada>" }, { helpers: { t } });
+			expect(result).toBe('<h1 title="Tom &amp; Jerry’s list">Hello, &lt;Ada&gt;</h1>');
+		});
+
+		it("fails the render on an unknown key, like {{icon}} does on an unknown icon", () => {
+			expect(() => render('{{t "page.missing"}}', {}, { helpers: { t } })).toThrow('{{t}} does not know the message "page.missing"');
+			expect(() => render('{{t "page.missing"}}', {})).toThrow('{{t}} does not know the message "page.missing"');
+		});
+
+		it("fails the render without a string key or without a supported locale", () => {
+			expect(() => render("{{t missing}}", {}, { helpers: { t } })).toThrow("{{t}} requires a message key");
+			expect(() => Handlebars.compile('{{t "page.heading"}}')({}, { helpers: { t } })).toThrow(
+				"{{t}} needs a supported locale in the render data, got undefined",
+			);
+		});
 	});
 });

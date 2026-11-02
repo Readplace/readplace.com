@@ -43,11 +43,12 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "check": "nx run @packages/web-shell:check",
-    "check-infra": "echo 'No infrastructure \u2014 shared library'"
+    "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {
     "@packages/provider-contracts": "workspace:*",
     "@packages/supported-clients": "workspace:*",
+    "@packages/translations": "workspace:*",
     "@packages/ui-icons": "workspace:*",
     "@packages/web-session": "workspace:*",
     "handlebars": "4.7.9",
