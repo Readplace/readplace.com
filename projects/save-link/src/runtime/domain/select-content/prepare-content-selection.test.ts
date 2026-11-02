@@ -959,6 +959,24 @@ describe("initLogContentSelection", () => {
 			expect(result).toMatchObject({ outcome: "selected", selectionRule: "unchanged-content" });
 			expect(result.selected?.metadata.id).toBe("fresh");
 		});
+
+		it("keeps the canonical when a re-save stored the same images under its own attempt path", async () => {
+			const withImage = (attempt: string) => `${prose}<img src="https://cdn.test/content/article-id/images/attempts/${attempt.repeat(32)}/${"c".repeat(32)}.png">`;
+			const canonical = source("tier-1", "canonical", { html: withImage("a") });
+			const fresh = source("tier-1", "fresh", { html: withImage("b") });
+			const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+			const { prepare } = setup({
+				loadArticle: async () => article({ contentSelection: { revision: 1, candidateId: canonical.metadata.id, tier: "tier-1" }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(canonical.html) } }),
+				listAvailableTierSources: async () => [canonical, fresh],
+				selectMostCompleteContent: select,
+			});
+
+			const result = await prepare({ url: URL, candidates: [{ id: cid("fresh"), tier: "tier-1" }] });
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result).toMatchObject({ outcome: "retained", selectionRule: "unchanged-content" });
+			expect(result.selected?.metadata.id).toBe("canonical");
+		});
 	});
 
 	it("asks the judge when any candidate's prose differs from the stored canonical", async () => {

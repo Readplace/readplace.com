@@ -40,4 +40,40 @@ describe("tiersDifferInMedia", () => {
 
 		expect(result).toBe(true);
 	});
+
+	describe("for images stored under a save attempt's path", () => {
+		const firstAttempt = "a".repeat(32);
+		const secondAttempt = "b".repeat(32);
+		const sameBytes = "c".repeat(32);
+		const changedBytes = "d".repeat(32);
+		const cdnImage = (params: { attempt: string; bytes: string }) =>
+			`https://cdn.test/content/article-id/images/attempts/${params.attempt}/${params.bytes}.png`;
+
+		it("is false when src differs only by the attempt", () => {
+			const result = tiersDifferInMedia([
+				source(`<img src="${cdnImage({ attempt: firstAttempt, bytes: sameBytes })}">`),
+				source(`<img src="${cdnImage({ attempt: secondAttempt, bytes: sameBytes })}">`),
+			]);
+
+			expect(result).toBe(false);
+		});
+
+		it("is false when srcset differs only by the attempt", () => {
+			const result = tiersDifferInMedia([
+				source(`<img srcset="${cdnImage({ attempt: firstAttempt, bytes: sameBytes })} 1x">`),
+				source(`<img srcset="${cdnImage({ attempt: secondAttempt, bytes: sameBytes })} 1x">`),
+			]);
+
+			expect(result).toBe(false);
+		});
+
+		it("is true when the same attempt wrote different image bytes", () => {
+			const result = tiersDifferInMedia([
+				source(`<img src="${cdnImage({ attempt: firstAttempt, bytes: sameBytes })}">`),
+				source(`<img src="${cdnImage({ attempt: firstAttempt, bytes: changedBytes })}">`),
+			]);
+
+			expect(result).toBe(true);
+		});
+	});
 });

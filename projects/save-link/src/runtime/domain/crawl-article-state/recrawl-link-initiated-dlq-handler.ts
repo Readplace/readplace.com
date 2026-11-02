@@ -25,9 +25,11 @@ export function initRecrawlLinkInitiatedDlqHandler(
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
 		for (const record of event.Records) {
+			let url: string | undefined;
 			try {
 				const envelope = JSON.parse(record.body);
-				const detail = RecrawlLinkInitiatedEvent.detailSchema.parse(envelope.detail);
+				const detail = RecrawlLinkInitiatedEvent.detailSchema.pick({ url: true }).parse(envelope.detail);
+				url = detail.url;
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 
 				await transitionAndPersist(markCrawlExhausted, {
@@ -45,6 +47,7 @@ export function initRecrawlLinkInitiatedDlqHandler(
 			} catch (error) {
 				logger.error("[RecrawlLinkInitiatedDlq] record failed", {
 					messageId: record.messageId,
+					url,
 					error,
 				});
 				batchItemFailures.push({ itemIdentifier: record.messageId });

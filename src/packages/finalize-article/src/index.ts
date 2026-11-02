@@ -14,4 +14,4 @@ export { decideTerminalAction } from "./decide-terminal-action";
 export { initRefreshArticleIfStale } from "./check-content-freshness";
 export type { ContentFreshnessResult, RefreshArticleIfStale } from "./check-content-freshness";
 
-export { mediaFilename } from "./media-filename";
+export { mediaFilename, mediaIdentity } from "./media-filename";

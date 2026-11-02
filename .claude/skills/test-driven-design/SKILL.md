@@ -228,7 +228,7 @@ newClientCapability: z.string().optional(),
 Two clarifications:
 
 - A **semantically optional** field — genuinely absent in some valid case, e.g. a hash the 304-Not-Modified path never computes, or the hash of the previous body, which a first-ever save does not have — stays optional regardless. That is modelling reality, not back-compat.
-- Making an internal EventBridge / SQS field required can reject messages already enqueued at deploy time. That is a brief, self-healing drain (DLQ + retry, or the next tick re-emits) — accept it rather than permanently weakening the schema.
+- Making an internal EventBridge / SQS field required can reject messages already enqueued at deploy time. That is a brief, self-healing drain (DLQ + retry, or the next tick re-emits) — accept it rather than permanently weakening the schema. The drain heals only if the DLQ consumer can parse the old shape, so have it read just the fields it needs; a consumer that strict-parses the new schema loops on the old message until the queue's retention expires.
 
 ### No Silent Fallbacks for Missing Values
 

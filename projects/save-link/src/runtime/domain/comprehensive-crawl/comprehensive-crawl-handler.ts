@@ -9,7 +9,8 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
-import { markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { markCrawlExhausted, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { crawlFailureReasonForFetchFailure } from "../save-link/crawl-failure-reason-for-fetch-failure";
 import { ComprehensiveCrawlCommand } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
@@ -116,6 +117,7 @@ export function initComprehensiveCrawlHandler(deps: {
 			previousBodyHash?: string;
 			saveAttemptId: SaveAttemptId;
 			candidates?: CandidateReference[];
+			receiveCount: number;
 		},
 	): Promise<CrawlTermination> => {
 		const { url, previousBodyHash } = ctx;
@@ -157,7 +159,14 @@ export function initComprehensiveCrawlHandler(deps: {
 				const reason = `crawl-${crawlResult.status}`;
 				logParseError({ url, reason });
 				await emitTier1FailureOutcome({ url });
-				throw new Error(`crawl failed for ${url}: ${reason}`);
+				await transitionAndPersist(markCrawlExhausted, {
+					url,
+					input: {
+						reason: crawlFailureReasonForFetchFailure(crawlResult.failure),
+						receiveCount: ctx.receiveCount,
+					},
+				});
+				return { via: "committed-in-process" };
 			}
 			case "blocked":
 				return resolveBlocked({ url, httpStatus: crawlResult.httpStatus });
@@ -288,6 +297,7 @@ export function initComprehensiveCrawlHandler(deps: {
 					recrawl,
 					userId,
 					previousBodyHash,
+					receiveCount: Number(record.attributes.ApproximateReceiveCount),
 				});
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {

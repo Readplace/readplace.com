@@ -2,6 +2,7 @@ import { noopLogger } from "@packages/hutch-logger";
 import { initCrawlArticle, type CrawlArticle } from "@packages/crawl-article";
 import {
 	markCrawlBlocked,
+	markCrawlExhausted,
 	markCrawlFailed,
 	markCrawlNotFound,
 	markCrawlUnsupported,
@@ -366,15 +367,41 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
-	it("throws (record routed to batchItemFailures) when crawlArticle returns 'failed' so SQS retries", async () => {
-		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed" });
+	it("ends the row in process and consumes the message when crawlArticle returns 'failed'", async () => {
+		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed", failure: { kind: "origin-unreachable", code: "ETIMEDOUT" } });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const logParseError = jest.fn();
+		const logCrawlOutcome = jest.fn();
 
 		const handler = createHandler({
 			crawlArticle: failingComprehensiveCrawl,
 			transitionAndPersist,
 			publishEvent,
+			logParseError,
+			logCrawlOutcome,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/doc.pdf" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
+			url: "https://example.com/doc.pdf",
+			input: { reason: { kind: "origin-unreachable", code: "ETIMEDOUT" }, receiveCount: 1 },
+		});
+		expect(logParseError).toHaveBeenCalledWith({ url: "https://example.com/doc.pdf", reason: "crawl-failed" });
+		expect(logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTier: "tier-1", thisTierStatus: "failed", pickedTier: "none" }));
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("reports the record as a batch failure when the terminal write for a failed crawl throws", async () => {
+		const handler = createHandler({
+			crawlArticle: async () => ({ status: "failed" }),
+			transitionAndPersist: jest.fn().mockRejectedValue(new Error("ddb throttled")),
 		});
 
 		const result = await handler(
@@ -384,8 +411,6 @@ describe("initComprehensiveCrawlHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(transitionAndPersist).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
 	it("consumes the message (empty batchItemFailures, no SQS retry) and terminalises via markCrawlNotFound when the origin says the page is permanently gone — a retry can never resurrect a 404", async () => {
@@ -540,17 +565,17 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
-	it("reports the crawl's own error (not the snapshot read's) when the outcome emit degrades, so the DLQ line names the real failure", async () => {
+	it("still ends the failed row in process when the outcome emit degrades on a snapshot read error", async () => {
 		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed" });
 		const readTierSnapshot = jest.fn().mockRejectedValue(new Error("KeyTooLongError: Your key is too long"));
 		const logCrawlOutcome = jest.fn();
-		const logger = { ...noopLogger, error: jest.fn() };
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({
 			crawlArticle: failingComprehensiveCrawl,
 			readTierSnapshot,
 			logCrawlOutcome,
-			logger,
+			transitionAndPersist,
 		});
 
 		const result = await handler(
@@ -559,7 +584,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			() => {},
 		);
 
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(result).toEqual({ batchItemFailures: [] });
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
 			thisTier: "tier-1",
@@ -567,9 +592,9 @@ describe("initComprehensiveCrawlHandler", () => {
 			otherTierStatus: "not_attempted",
 			pickedTier: "none",
 		});
-		expect(logger.error).toHaveBeenCalledWith("[ComprehensiveCrawlCommand] record failed", {
-			messageId: "msg-1",
-			error: new Error("crawl failed for https://example.com/doc.pdf: crawl-failed"),
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
+			url: "https://example.com/doc.pdf",
+			input: { reason: { kind: "fetch-failed" }, receiveCount: 1 },
 		});
 	});
 

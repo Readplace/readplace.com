@@ -61,6 +61,39 @@ describe("initRecrawlLinkInitiatedDlqHandler", () => {
 		});
 	});
 
+	it("marks the crawl exhausted from the url alone when the dead letter has no saveAttemptId", async () => {
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = initRecrawlLinkInitiatedDlqHandler({
+			transitionAndPersist,
+			logger: noopLogger,
+			now: () => new Date(),
+		});
+		const urlOnlyEvent: SQSEvent = {
+			Records: [{
+				messageId: "msg-1",
+				receiptHandle: "receipt-1",
+				body: JSON.stringify({ detail: { url: "https://example.com/failed" } }),
+				attributes: attributes(3),
+				messageAttributes: {},
+				md5OfBody: "",
+				eventSource: "aws:sqs",
+				eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:recrawl-link-initiated-dlq",
+				awsRegion: "ap-southeast-2",
+			}],
+		};
+
+		const result = await handler(urlOnlyEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
+			url: "https://example.com/failed",
+			input: {
+				reason: { kind: "exhausted-retries", receiveCount: 3 },
+				receiveCount: 3,
+			},
+		});
+	});
+
 	it("reports the record as a batch failure on invalid event envelope (Zod failure) and does NOT dispatch the transition", async () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn();
 
@@ -159,6 +192,7 @@ describe("initRecrawlLinkInitiatedDlqHandler", () => {
 		const result = await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});
 
 		expect(calls.map((c) => c[0])).toEqual(["[RecrawlLinkInitiatedDlq] record failed"]);
+		expect(calls[0]?.[1]).toMatchObject({ messageId: "msg-1", url: "https://example.com/failed" });
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

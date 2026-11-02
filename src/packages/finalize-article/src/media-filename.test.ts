@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { mediaFilename } from "./media-filename";
+import { mediaFilename, mediaIdentity } from "./media-filename";
 
 const image = { sourceUrl: "https://example.com/photo.png", body: Buffer.from("image"), extension: ".png" };
 const context = { url: "https://example.com/article", attemptId: SaveAttemptIdSchema.parse("attempt") };
@@ -26,4 +26,27 @@ it("isolates capture attempts, authors and changed image bytes while retaining i
 	expect(mediaFilename({ ...image, body: Buffer.from("changed"), writeContext: context })).toBe(
 		`attempts/${scope}/${sha256(JSON.stringify(image.sourceUrl), Buffer.from("changed"))}.png`,
 	);
+});
+
+describe("mediaIdentity", () => {
+	const nextAttempt = { ...context, attemptId: SaveAttemptIdSchema.parse("next") };
+
+	it("is the same for the same image written by two attempts", () => {
+		expect(mediaIdentity(mediaFilename({ ...image, writeContext: context }))).toBe(mediaIdentity(mediaFilename({ ...image, writeContext: nextAttempt })));
+	});
+
+	it("differs when the image bytes changed", () => {
+		expect(mediaIdentity(mediaFilename({ ...image, writeContext: context }))).not.toBe(mediaIdentity(mediaFilename({ ...image, body: Buffer.from("changed"), writeContext: nextAttempt })));
+	});
+
+	it("leaves a legacy filename unchanged", () => {
+		const legacy = mediaFilename(image);
+		expect(mediaIdentity(legacy)).toBe(legacy);
+	});
+
+	it("removes the attempt path from every URL in a srcset", () => {
+		const first = "a".repeat(32);
+		const second = "b".repeat(32);
+		expect(mediaIdentity(`https://cdn.test/attempts/${first}/x.png 1x, https://cdn.test/attempts/${second}/y.png 2x`)).toBe("https://cdn.test/x.png 1x, https://cdn.test/y.png 2x");
+	});
 });

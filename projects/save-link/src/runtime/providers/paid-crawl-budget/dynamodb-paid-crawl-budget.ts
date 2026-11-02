@@ -21,7 +21,7 @@ export type RefundPaidCrawlBudget = () => Promise<void>;
 
 const BudgetRow = z.object({ pk: z.string() });
 
-const MAX_CONSUME_ATTEMPTS = 3;
+const MAX_CONSUME_ATTEMPTS = 6;
 const CONFLICT_RETRY_BASE_DELAY_MS = 50;
 
 /**

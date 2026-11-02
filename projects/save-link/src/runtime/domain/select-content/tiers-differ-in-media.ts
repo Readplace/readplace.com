@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { mediaIdentity } from "@packages/finalize-article";
 import { parseHTML } from "linkedom";
 import type { TierSource } from "./tier-source.types";
 
@@ -21,9 +22,9 @@ function mediaSignature(html: string): string {
 	const urls: string[] = [];
 	for (const el of wrapper.querySelectorAll("img, source")) {
 		const src = el.getAttribute("src");
-		if (src) urls.push(src);
+		if (src) urls.push(mediaIdentity(src));
 		const srcset = el.getAttribute("srcset");
-		if (srcset) urls.push(srcset);
+		if (srcset) urls.push(mediaIdentity(srcset));
 	}
 	return urls.sort().join("\n");
 }

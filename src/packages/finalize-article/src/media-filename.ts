@@ -7,3 +7,7 @@ export function mediaFilename(params: { sourceUrl: string; body: Buffer; extensi
 	const body = createHash("sha256").update(JSON.stringify(params.sourceUrl)).update(params.body).digest("hex").slice(0, 32);
 	return `attempts/${scope}/${body}${params.extension}`;
 }
+
+export function mediaIdentity(url: string): string {
+	return url.replace(/attempts\/[a-f0-9]{32}\//g, "");
+}
