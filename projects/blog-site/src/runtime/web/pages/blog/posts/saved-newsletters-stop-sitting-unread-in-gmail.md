@@ -39,7 +39,7 @@ Summaries and filing keep running after the save, and the mailbox does not wait 
 
 The checkbox governs the saves made after it is ticked. For the rest, the sender's card offers "Apply to earlier emails".
 
-That backfill walks back through the sender's mail and gives each fully saved issue the same treatment, whether it arrived through the 30-day import or was forwarded as it landed. It acts only on proof that every piece of an email was saved. Readplace began keeping that proof in early October 2026, so issues saved before then are left alone rather than guessed at.
+That backfill walks back through the sender's mail and gives each fully saved issue the same treatment, whether it arrived through the 30-day import or was forwarded as it landed. It acts only on proof that every piece of an email was saved. Readplace began keeping that proof on 4 October 2026 for emails and on 13 October 2026 for whole saved issues, so anything saved before then is left alone rather than guessed at.
 
 ## Off is still the default
 
