@@ -5,7 +5,6 @@ import type { SetArticleDisplayUrl } from "@packages/article-store";
 import type { FindArticleCrawlStatus, MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
 import type { AllocateSavedAt, SaveArticle } from "@packages/provider-contracts/article-store";
-import type { PublishQueueEntryCreated } from "@packages/provider-contracts/events";
 import type { FileArticleIntoReadlist } from "@packages/save-article";
 
 export type SaveEmailIssue = (params: {
@@ -27,11 +26,10 @@ export function initSaveEmailIssue(deps: {
 	markCrawlPending: MarkCrawlPending;
 	markSummaryPending: MarkSummaryPending;
 	fileArticleIntoReadlist: FileArticleIntoReadlist;
-	publishQueueEntryCreated: PublishQueueEntryCreated;
 }): SaveEmailIssue {
 	return async ({ userId, url, displayUrl, metadata, estimatedReadTime, provenance, readlists, onSavedToAll }) => {
 		const contentPending = (await deps.findArticleCrawlStatus(url))?.status !== "ready";
-		const { saved, createdUserArticle } = await deps.saveArticle({
+		const { saved } = await deps.saveArticle({
 			userId,
 			url,
 			metadata,
@@ -41,14 +39,13 @@ export function initSaveEmailIssue(deps: {
 		});
 		await deps.setDisplayUrl({ articleUrl: url, displayUrl });
 		if (contentPending) {
-			await deps.markCrawlPending({ url, measured: createdUserArticle });
+			await deps.markCrawlPending({ url, measured: false });
 			await deps.markSummaryPending({ url });
 		}
 		await onSavedToAll();
 		for (const readlist of readlists) {
 			await deps.fileArticleIntoReadlist({ userId, readlist, article: saved, provenance });
 		}
-		if (createdUserArticle) await deps.publishQueueEntryCreated({ url, userId });
 		return { contentPending };
 	};
 }

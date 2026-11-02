@@ -970,13 +970,13 @@ describe("initMcpServer", () => {
 			});
 		});
 
-		it("reports a pending computation", async () => {
+		it("says so plainly when no related saves have been worked out", async () => {
 			const server = initMcpServer(
 				fakeDeps({ getRelatedArticles: async () => ({ status: "pending" }) }),
 			);
 			const response = await call(server, 59, "get_related_articles", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
-				result: { content: [{ text: expect.stringContaining("still being worked out") }] },
+				result: { content: [{ text: expect.stringContaining("No related saves have been worked out") }] },
 			});
 		});
 

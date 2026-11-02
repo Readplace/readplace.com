@@ -45,7 +45,7 @@ describe("initSaveArticleAtReadlistTop", () => {
 			userId,
 			url: exampleUrl,
 			freshness,
-			provenance, saveAttemptId,
+			provenance, saveTrigger: "automatic", saveAttemptId,
 		});
 
 		expect(calls).toEqual([`allocate:${userId}`, "save"]);
@@ -54,7 +54,7 @@ describe("initSaveArticleAtReadlistTop", () => {
 				userId,
 				url: exampleUrl,
 				freshness,
-				provenance, saveAttemptId,
+				provenance, saveTrigger: "automatic", saveAttemptId,
 				savedAt: allocatedInstant,
 			},
 		]);
@@ -74,7 +74,7 @@ describe("initSaveArticleAtReadlistTop", () => {
 		});
 
 		await expect(
-			saveArticleAtReadlistTop({ userId, url: exampleUrl, freshness, provenance, saveAttemptId }),
+			saveArticleAtReadlistTop({ userId, url: exampleUrl, freshness, provenance, saveTrigger: "manual", saveAttemptId }),
 		).rejects.toThrow("cursor write throttled");
 		expect(receivedSaves).toEqual([]);
 	});

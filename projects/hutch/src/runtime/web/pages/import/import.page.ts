@@ -355,7 +355,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			await Promise.all(
 				submitted.map(({ url }) =>
 					deps
-						.publishSubmitLink({ url, userId, provenance: { kind: "import" }, readlist: DEFAULT_READLIST_SLUG, saveAttemptId: newSaveAttemptId() })
+						.publishSubmitLink({ url, userId, provenance: { kind: "import" }, readlist: DEFAULT_READLIST_SLUG, saveTrigger: "automatic", saveAttemptId: newSaveAttemptId() })
 						.catch((error: unknown) => logImportFailure(url, error)),
 				),
 			);
@@ -375,6 +375,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 						url,
 						freshness,
 						provenance: { kind: "import" },
+						saveTrigger: "automatic",
 						savedAt: savedAts[index],
 						saveAttemptId: newSaveAttemptId(),
 					}).catch((error: unknown) => logImportFailure(url, error)),

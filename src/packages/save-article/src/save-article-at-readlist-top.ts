@@ -1,6 +1,6 @@
 import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
 import type { ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
-import type { SaveAttemptId, SaveProvenance, SaveableUrl, SavedArticle } from "@packages/domain/article";
+import type { SaveAttemptId, SaveProvenance, SaveTrigger, SaveableUrl, SavedArticle } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { SaveArticleFromUrl } from "./save-article-from-url";
 
@@ -14,6 +14,7 @@ export type SaveArticleAtReadlistTop = (params: {
 	url: SaveableUrl;
 	freshness: ResolvedFreshnessResult;
 	provenance: SaveProvenance;
+	saveTrigger: SaveTrigger;
 	saveAttemptId: SaveAttemptId;
 }) => Promise<{
 	saved: SavedArticle;

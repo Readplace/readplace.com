@@ -36,6 +36,8 @@ export {
 	type CandidateId,
 	CaptureTriggerSchema,
 	type CaptureTrigger,
+	SaveTriggerSchema,
+	type SaveTrigger,
 } from "./article.schema";
 export {
 	MAX_SAVEABLE_URL_LENGTH,

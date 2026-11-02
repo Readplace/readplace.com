@@ -6,7 +6,6 @@ import {
 	initDynamoDbSavedArticleStore,
 	initS3ReadContent,
 } from "@packages/article-store";
-import { QueueEntryCreatedEvent } from "@packages/hutch-infra-components";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
@@ -58,7 +57,6 @@ export const handler = initSaveEmailIssueCommandHandler({
 			saveReadlistArticle: savedArticleStore.saveReadlistArticle,
 			updateArticleStatusAcrossReadlists: savedArticleStore.updateArticleStatusAcrossReadlists,
 		}),
-		publishQueueEntryCreated: (params) => publishEvent(QueueEntryCreatedEvent, params),
 	}),
 	putTierSource,
 	recordInboxArticleQueued: onboardingSignals.recordInboxArticleQueued,

@@ -50,3 +50,7 @@ export type CandidateId = z.infer<typeof CandidateIdSchema>;
 export const CaptureTriggerSchema = z.enum(["automatic", "manual"]);
 
 export type CaptureTrigger = z.infer<typeof CaptureTriggerSchema>;
+
+export const SaveTriggerSchema = z.enum(["automatic", "manual"]);
+
+export type SaveTrigger = z.infer<typeof SaveTriggerSchema>;

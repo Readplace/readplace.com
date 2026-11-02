@@ -1172,7 +1172,7 @@ describe("POST /queue/save-articles with an archive.today short id", () => {
 			],
 		}));
 		expect(fixture.submitLink.submitLinks).toEqual([
-			{ url: SHORT_ID, userId: TEST_USER_ID, provenance: { kind: "client", clientName: "firefox" }, readlist: "default", saveAttemptId: expect.any(String) },
+			{ url: SHORT_ID, userId: TEST_USER_ID, provenance: { kind: "client", clientName: "firefox" }, saveTrigger: "manual", readlist: "default", saveAttemptId: expect.any(String) },
 		]);
 		expect(await testApp.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
 		expect(await testApp.articleStore.findArticleByUrl("https://example.com/inline")).not.toBeNull();

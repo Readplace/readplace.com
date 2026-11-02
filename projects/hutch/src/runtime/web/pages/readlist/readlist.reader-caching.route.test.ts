@@ -210,6 +210,19 @@ describe("Reader view browser cache (GET /queue/:id/view)", () => {
 		expect(response.headers["cache-control"]).toBe("private, no-cache");
 	});
 
+	it("revalidates a reader whose row never asked for related saves, so an automatic save's reader is not browser-cached", async () => {
+		const fixture = buildFixture({ summaryReady: true });
+		const harness = useApp(fixture);
+		const url = "https://example.com/reader-cache-never-asked";
+		const { agent } = await saveArticle(harness, url);
+
+		const { articleId, version } = readerVersionFrom((await agent.get("/queue")).text);
+		const response = await agent.get(`/queue/${articleId}/view?v=${version}`);
+
+		expect(response.status).toBe(200);
+		expect(response.headers["cache-control"]).toBe("private, no-cache");
+	});
+
 	it("revalidates a matching version while the summary is still loading", async () => {
 		const fixture = buildFixture();
 		const harness = useApp(fixture);

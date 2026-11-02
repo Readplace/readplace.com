@@ -750,7 +750,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				const saveAttemptId = newSaveAttemptId();
 				if (freshness.action === "unresolved") {
 					for (const readlist of new Set([DEFAULT_READLIST_SLUG, ...readlists])) {
-						await deps.publishSubmitLink({ userId, url: validation.url, readlist, provenance, saveAttemptId });
+						await deps.publishSubmitLink({ userId, url: validation.url, readlist, provenance, saveTrigger: "manual", saveAttemptId });
 					}
 					return { ok: true, pending: true };
 				}
@@ -760,6 +760,7 @@ export function createApp(dependencies: AppDependencies): Express {
 					url: validation.url,
 					freshness,
 					provenance,
+					saveTrigger: "manual",
 				});
 				for (const readlist of readlists) {
 					if (readlist === DEFAULT_READLIST_SLUG) continue;

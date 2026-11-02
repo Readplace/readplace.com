@@ -200,6 +200,7 @@ export function initSubmitLinkCommandHandler(deps: {
 					url,
 					freshness,
 					provenance,
+					saveTrigger: detail.saveTrigger,
 					saveAttemptId,
 				});
 				if ("emailOutput" in detail && detail.emailOutput !== undefined) {

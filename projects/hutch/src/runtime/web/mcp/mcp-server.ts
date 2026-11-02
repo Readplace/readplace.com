@@ -969,7 +969,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 					return notFoundResult(args.data.id);
 				case "pending":
 					return data(
-						"Related saves for that article are still being worked out. Try again shortly.",
+						"No related saves have been worked out for that article. Readplace works them out in the minutes after a reader saves a link themselves; a link saved for them from an email or an import has none.",
 						result,
 					);
 				case "skipped":

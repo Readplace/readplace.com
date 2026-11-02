@@ -11,7 +11,7 @@ import {
 	parseInboxHighlight,
 } from "@packages/domain/inbox";
 import { newSaveAttemptId, validateSaveableUrl } from "@packages/domain/article";
-import type { SaveAttemptId, SaveProvenance } from "@packages/domain/article";
+import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type {
@@ -85,6 +85,7 @@ interface InboxDependencies {
 		url: string;
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
+		saveTrigger: SaveTrigger;
 		saveAttemptId: SaveAttemptId;
 	}) => Promise<void>;
 	recordEngagementActivity: RecordEngagementActivity;
@@ -528,6 +529,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				url: unresolved ? link.url : stripUtmParams(link.url),
 				provenance: { kind: "email", senderEmail: email.senderEmail },
 				readlist: DEFAULT_READLIST_SLUG,
+				saveTrigger: "manual",
 				saveAttemptId: newSaveAttemptId(),
 			});
 			await deps.recordEngagementActivity({ userId, kind: "personal-save", at: deps.now() });

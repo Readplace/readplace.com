@@ -57,6 +57,7 @@ function createSqsEvent(
 		userId?: string;
 		rawHtml?: string;
 		provenance?: unknown;
+		saveTrigger?: string;
 		readlist?: string;
 		emailOutput?: { receivedAtMessageId: string; outputKey: string };
 	}>,
@@ -69,7 +70,7 @@ function createSqsEvent(
 				detail:
 					detail.userId === undefined
 						? { saveAttemptId: `attempt-${index + 1}`, ...detail }
-						: { saveAttemptId: `attempt-${index + 1}`, provenance: { kind: "web" }, readlist: "default", ...detail },
+						: { saveAttemptId: `attempt-${index + 1}`, provenance: { kind: "web" }, saveTrigger: "manual", readlist: "default", ...detail },
 			}),
 			attributes: stubAttributes,
 			messageAttributes: {},
@@ -197,7 +198,7 @@ describe("initSubmitLinkCommandHandler", () => {
 			fileArticleIntoReadlist: initFileArticleIntoReadlist(store),
 			refreshArticleIfStale: refreshAs("skip", () => ({ status: "resolved", url: canonical, originalUrl: canonical })),
 		});
-		const initial = createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letter@example.com" } }]);
+		const initial = createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letter@example.com" }, saveTrigger: "automatic" }]);
 		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
 		expect((await run(submit, initial)).batchItemFailures).toEqual([]);
 		await store.claimAlias({ aliasUrl: exampleUrl, targetOriginalUrl: canonical, now: fixedNow() });
@@ -362,19 +363,31 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 	});
 
-	it("asks to resurface earlier saves for a newsletter link the reader did not already have, keyed on the alias target", async () => {
+	it("asks to resurface earlier saves for a newsletter link the reader tapped Save on, keyed on the alias target", async () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			publishEvent,
 			refreshArticleIfStale: refreshAs("new", () => ({ status: "resolved", originalUrl: "https://example.com/canonical", url: "https://example.com/canonical" })),
 		});
 
-		await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "manual" }]));
 
 		expect(publishEvent).toHaveBeenCalledWith(QueueEntryCreatedEvent, {
 			url: "https://example.com/canonical",
 			userId,
 		});
+	});
+
+	it("asks nothing for a newsletter link the system saved on the reader's behalf", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			publishEvent,
+			refreshArticleIfStale: refreshAs("new"),
+		});
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
+
+		expect(publishedDetailTypes(publishEvent)).not.toContain("QueueEntryCreated");
 	});
 
 	it("asks nothing for a newsletter link already sitting in the reader's queue", async () => {
@@ -482,12 +495,26 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(saveArticle).not.toHaveBeenCalled();
 	});
 
+	it("fails a pre-trigger record still in flight at deploy, so its dead letter re-offers the Save button", async () => {
+		const saveArticle = jest.fn();
+		const handler = createHandler({ saveArticle });
+		const event = createSqsEvent([{ url: exampleUrl }]);
+		event.Records[0].body = JSON.stringify({
+			detail: { saveAttemptId: "attempt-1", url: exampleUrl, userId, provenance: { kind: "web" }, readlist: "default" },
+		});
+
+		const response = await run(handler, event);
+
+		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
+		expect(saveArticle).not.toHaveBeenCalled();
+	});
+
 	it("fails a pre-readlist record still in flight at deploy, so its dead letter re-offers the Save button", async () => {
 		const saveArticle = jest.fn();
 		const handler = createHandler({ saveArticle });
 		const event = createSqsEvent([{ url: exampleUrl }]);
 		event.Records[0].body = JSON.stringify({
-			detail: { url: exampleUrl, userId, provenance: { kind: "web" } },
+			detail: { saveAttemptId: "attempt-1", url: exampleUrl, userId, provenance: { kind: "web" }, saveTrigger: "manual" },
 		});
 
 		const response = await run(handler, event);
@@ -532,6 +559,7 @@ describe("initSubmitLinkCommandHandler", () => {
 					url: exampleUrl,
 					userId,
 					provenance: { kind: "email", senderEmail: "news@example.com" },
+					saveTrigger: "automatic",
 					readlist: "a1b2c3d4",
 				},
 			]),
@@ -546,7 +574,6 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 		expect(calls.slice(0, calls.indexOf("filed") + 1)).toEqual([
 			"LinkQueued",
-			"QueueEntryCreated",
 			"filed",
 		]);
 	});
@@ -567,11 +594,11 @@ describe("initSubmitLinkCommandHandler", () => {
 
 		const response = await run(
 			handler,
-			createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, readlist: "a1b2c3d4", emailOutput }]),
+			createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic", readlist: "a1b2c3d4", emailOutput }]),
 		);
 
 		expect(response.batchItemFailures).toEqual([{ itemIdentifier: "msg-1" }]);
-		expect(calls).toEqual(["LinkQueued", "QueueEntryCreated", "EmailOutputSavedToAll", "filed"]);
+		expect(calls).toEqual(["LinkQueued", "EmailOutputSavedToAll", "filed"]);
 		expect(publishEvent).toHaveBeenCalledWith(EmailOutputSavedToAllEvent, { userId, ...emailOutput });
 	});
 
@@ -840,7 +867,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(
 			handler,
 			createSqsEvent([
-				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" } },
+				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" }, saveTrigger: "automatic" },
 			]),
 		);
 
@@ -882,7 +909,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		await run(
 			handler,
 			createSqsEvent([
-				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" } },
+				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" }, saveTrigger: "automatic" },
 			]),
 		);
 
@@ -906,7 +933,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		const response = await run(
 			handler,
 			createSqsEvent([
-				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" } },
+				{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "letters@example.com" }, saveTrigger: "automatic" },
 			]),
 		);
 
@@ -936,7 +963,7 @@ describe("initSubmitLinkCommandHandler — a twitter.com link from an email", ()
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({ refreshArticleIfStale, saveArticle, crawlAndFinalizeArticle, publishEvent });
 
-		const response = await run(handler, createSqsEvent([{ url: TWEET_ON_TWITTER, userId, provenance: { kind: "email", senderEmail: "news@example.com" } }]));
+		const response = await run(handler, createSqsEvent([{ url: TWEET_ON_TWITTER, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
 
 		expect(response.batchItemFailures).toEqual([]);
 		expect(refreshArticleIfStale).toHaveBeenCalledWith({ url: TWEET_ON_X });
@@ -944,7 +971,6 @@ describe("initSubmitLinkCommandHandler — a twitter.com link from an email", ()
 		expect(crawled).toEqual([TWEET_ON_X]);
 		expect(publishEvent.mock.calls.map((call) => [call[0].detailType, call[1].url])).toEqual([
 			["LinkQueued", TWEET_ON_X],
-			["QueueEntryCreated", TWEET_ON_X],
 			["TierContentExtracted", TWEET_ON_X],
 		]);
 	});
@@ -974,7 +1000,7 @@ describe("initSubmitLinkCommandHandler — an Amazon title link from an email", 
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({ refreshArticleIfStale, saveArticle, crawlAndFinalizeArticle, publishEvent });
 
-		const response = await run(handler, createSqsEvent([{ url: TITLE, userId, provenance: { kind: "email", senderEmail: "news@example.com" } }]));
+		const response = await run(handler, createSqsEvent([{ url: TITLE, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
 
 		expect(response.batchItemFailures).toEqual([]);
 		expect(refreshArticleIfStale).toHaveBeenCalledWith({ url: BARE });
@@ -982,7 +1008,6 @@ describe("initSubmitLinkCommandHandler — an Amazon title link from an email", 
 		expect(crawled).toEqual([BARE]);
 		expect(publishEvent.mock.calls.map((call) => [call[0].detailType, call[1].url])).toEqual([
 			["LinkQueued", BARE],
-			["QueueEntryCreated", BARE],
 			["TierContentExtracted", BARE],
 		]);
 	});

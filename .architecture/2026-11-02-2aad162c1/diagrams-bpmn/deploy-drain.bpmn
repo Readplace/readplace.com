@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_deploy_drain" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_deploy_drain" name="deploy-drain" isExecutable="false">
+    <bpmn:sendTask id="n_OLD" name="Old producer SubmitLinkCommand without saveTrigger">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:intermediateCatchEvent id="n_SLQ" name="submit-link queue 3 receives">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_SLL" name="New submit-link Lambda matches neither union branch">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateCatchEvent id="n_DLQ" name="submit-link DLQ">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_DLH" name="submit-link DLQ consumer parses url and optional userId">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_LQF" name="LinkQueueFailedEvent">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:userTask id="n_UI" name="Inbox link shows failed, Save offered again">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:userTask>
+    <bpmn:endEvent id="n_LOST" name="Hutch save lost, no failure shown nothing in hutch reads the event">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_OLD" targetRef="n_SLQ" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_SLQ" targetRef="n_SLL" />
+    <bpmn:sequenceFlow id="f_2" name="batch item failure" sourceRef="n_SLL" targetRef="n_SLQ" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_SLQ" targetRef="n_DLQ" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_DLQ" targetRef="n_DLH" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_DLH" targetRef="n_LQF" />
+    <bpmn:sequenceFlow id="f_6" name="inbox record-link-queued" sourceRef="n_LQF" targetRef="n_UI" />
+    <bpmn:sequenceFlow id="f_7" name="no hutch subscriber" sourceRef="n_LQF" targetRef="n_LOST" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_deploy_drain">
+    <bpmndi:BPMNPlane id="Plane_deploy_drain" bpmnElement="Process_deploy_drain">
+      <bpmndi:BPMNShape id="n_OLD_di" bpmnElement="n_OLD">
+        <dc:Bounds x="130.39" y="28" width="157.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SLQ_di" bpmnElement="n_SLQ">
+        <dc:Bounds x="189.14" y="154" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SLL_di" bpmnElement="n_SLL">
+        <dc:Bounds x="54.44" y="284" width="182.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLQ_di" bpmnElement="n_DLQ">
+        <dc:Bounds x="298.52" y="288.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DLH_di" bpmnElement="n_DLH">
+        <dc:Bounds x="112.26" y="410" width="193.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LQF_di" bpmnElement="n_LQF">
+        <dc:Bounds x="189.14" y="536" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UI_di" bpmnElement="n_UI">
+        <dc:Bounds x="28" y="676" width="178" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LOST_di" bpmnElement="n_LOST">
+        <dc:Bounds x="296.14" y="652.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="209.14" y="96" />
+        <di:waypoint x="209.14" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="209.14" y="194" />
+        <di:waypoint x="209.14" y="239" />
+        <di:waypoint x="145.82" y="239" />
+        <di:waypoint x="145.82" y="284" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="160.77" y="284" />
+        <di:waypoint x="201.09" y="192.31" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="209.14" y="194" />
+        <di:waypoint x="209.14" y="241.38" />
+        <di:waypoint x="318.52" y="241.38" />
+        <di:waypoint x="318.52" y="288.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="318.52" y="328.75" />
+        <di:waypoint x="318.52" y="369.38" />
+        <di:waypoint x="209.14" y="369.38" />
+        <di:waypoint x="209.14" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="209.14" y="478" />
+        <di:waypoint x="209.14" y="536" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="209.14" y="576" />
+        <di:waypoint x="209.14" y="626" />
+        <di:waypoint x="117" y="626" />
+        <di:waypoint x="117" y="676" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="209.14" y="576" />
+        <di:waypoint x="209.14" y="614.25" />
+        <di:waypoint x="316.14" y="614.25" />
+        <di:waypoint x="316.14" y="652.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

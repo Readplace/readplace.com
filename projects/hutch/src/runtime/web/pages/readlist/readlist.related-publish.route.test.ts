@@ -7,12 +7,13 @@ import {
 	createDefaultTestAppFixture,
 	type TestAppFixture,
 } from "@packages/test-fixtures";
-import { useTestServer, type TestAppHarness, type TestAppResult } from "../../../test-app";
+import { loginAgent, useTestServer, type TestAppHarness, type TestAppResult } from "../../../test-app";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 
 const TEST_USER_ID = "test-user-related-publish" as UserId;
 const SECOND_USER_ID = "test-user-related-publish-b" as UserId;
 const ARTICLE_URL = "https://example.com/stateless-mcp";
+const UNRESOLVED_WRAPPER_URL = "https://archive.ph/abc";
 const CAPTURED_PAGE = Buffer.from("<html><body>Captured page</body></html>");
 
 function createTestToken(userId: UserId, suffix: string): Token {
@@ -56,14 +57,28 @@ function saveArticleLeg(server: TestAppHarness["server"], token: string) {
 		.send({ url: ARTICLE_URL });
 }
 
-function saveContentLeg(server: TestAppHarness["server"], token: string) {
+function saveContentLeg(server: TestAppHarness["server"], token: string, captureTrigger = "manual") {
 	return request(server)
 		.post("/queue/save-content")
 		.set("Accept", SIREN_MEDIA_TYPE)
 		.set("Authorization", `Bearer ${token}`)
 		.field("url", ARTICLE_URL)
 		.field("mediaType", "text/html")
+		.field("captureTrigger", captureTrigger)
 		.attach("content", CAPTURED_PAGE, "content");
+}
+
+function saveLinkThroughAssistant(server: TestAppHarness["server"], token: string, url: string) {
+	return request(server)
+		.post("/mcp")
+		.set("Authorization", `Bearer ${token}`)
+		.set("Content-Type", "application/json")
+		.send(JSON.stringify({
+			jsonrpc: "2.0",
+			id: 1,
+			method: "tools/call",
+			params: { name: "save_link", arguments: { url } },
+		}));
 }
 
 describe("queue-entry-created events per save", () => {
@@ -85,6 +100,88 @@ describe("queue-entry-created events per save", () => {
 		expect(fixture.publishedQueueEntryCreated).toEqual([
 			{ url: ARTICLE_URL, userId: TEST_USER_ID },
 		]);
+	});
+
+	it("asks for an upload the reader tapped", async () => {
+		const harness = useApp(fixture);
+		const token = await bearerToken(harness, TEST_USER_ID, "a");
+
+		const captured = await saveContentLeg(harness.server, token);
+
+		expect(captured.status).toBe(201);
+		expect(fixture.publishedQueueEntryCreated).toEqual([
+			{ url: ARTICLE_URL, userId: TEST_USER_ID },
+		]);
+	});
+
+	it("asks for a link saved from the save bar", async () => {
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
+
+		expect(fixture.publishedQueueEntryCreated).toEqual([
+			expect.objectContaining({ url: ARTICLE_URL }),
+		]);
+	});
+
+	it("asks for each tab of a save-all-tabs batch", async () => {
+		const harness = useApp(fixture);
+		const token = await bearerToken(harness, TEST_USER_ID, "a");
+
+		const response = await request(harness.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.field("manifest", JSON.stringify([{ url: ARTICLE_URL }]));
+
+		expect(response.status).toBe(200);
+		expect(fixture.publishedQueueEntryCreated).toEqual([
+			{ url: ARTICLE_URL, userId: TEST_USER_ID },
+		]);
+	});
+
+	it("asks for a link saved through an assistant", async () => {
+		const harness = useApp(fixture);
+		const token = await bearerToken(harness, TEST_USER_ID, "a");
+
+		await saveLinkThroughAssistant(harness.server, token, ARTICLE_URL);
+
+		expect(fixture.publishedQueueEntryCreated).toEqual([
+			{ url: ARTICLE_URL, userId: TEST_USER_ID },
+		]);
+	});
+
+	it("tells the background submit a person picked an unresolved link from the save bar", async () => {
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		await agent.post("/queue/save").type("form").send({ url: UNRESOLVED_WRAPPER_URL });
+
+		expect(fixture.submitLink.submitLinks).toEqual([
+			expect.objectContaining({ url: UNRESOLVED_WRAPPER_URL, saveTrigger: "manual" }),
+		]);
+	});
+
+	it("tells the background submit a person picked an unresolved link through an assistant", async () => {
+		const harness = useApp(fixture);
+		const token = await bearerToken(harness, TEST_USER_ID, "a");
+
+		await saveLinkThroughAssistant(harness.server, token, UNRESOLVED_WRAPPER_URL);
+
+		expect(fixture.submitLink.submitLinks).toEqual([
+			expect.objectContaining({ url: UNRESOLVED_WRAPPER_URL, saveTrigger: "manual" }),
+		]);
+	});
+
+	it("asks nothing for an upload a client took without the reader's tap", async () => {
+		const harness = useApp(fixture);
+		const token = await bearerToken(harness, TEST_USER_ID, "a");
+
+		const captured = await saveContentLeg(harness.server, token, "automatic");
+
+		expect(captured.status).toBe(201);
+		expect(fixture.publishedQueueEntryCreated).toEqual([]);
 	});
 
 	it("does not ask again when the reader re-saves a page already in their readlist", async () => {

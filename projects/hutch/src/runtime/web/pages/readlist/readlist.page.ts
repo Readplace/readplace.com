@@ -9,7 +9,7 @@ import {
 import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import type { BulkSaveOutcome, SaveAttemptId, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
+import type { BulkSaveOutcome, SaveAttemptId, SaveTrigger, SaveableUrl, SaveableUrlErrorCode, ValidateSaveableUrl } from "@packages/domain/article";
 import {
 	type EmailLinkOrdinal,
 	EmailLinkOrdinalSchema,
@@ -899,6 +899,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		userId: UserId;
 		url: SaveableUrl;
 		readlists: Iterable<ReadlistSlug>;
+		saveTrigger: SaveTrigger;
 		saveAttemptId: SaveAttemptId;
 		path: string;
 	}): Promise<void> => {
@@ -908,6 +909,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				userId: params.userId,
 				provenance: resolveSaveProvenance(params.req.oauthClientId),
 				readlist,
+				saveTrigger: params.saveTrigger,
 				saveAttemptId: params.saveAttemptId,
 			});
 		}
@@ -2092,6 +2094,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					userId,
 					url: validation.url,
 					readlists: new Set([DEFAULT_READLIST_SLUG, ...destinations.map((destination) => destination.slug)]),
+					saveTrigger: "manual",
 					saveAttemptId,
 					path: SAVE_INTENT_PATH.saveArticle,
 				});
@@ -2102,6 +2105,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
+				saveTrigger: "manual",
 				saveAttemptId,
 			});
 
@@ -2245,6 +2249,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						userId,
 						provenance: resolveSaveProvenance(req.oauthClientId),
 						readlist: DEFAULT_READLIST_SLUG,
+						saveTrigger: "manual",
 						saveAttemptId,
 					});
 					emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
@@ -2272,6 +2277,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					url: job.url,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
+					saveTrigger: "manual",
 					savedAt,
 					saveAttemptId: page.saveAttemptId,
 				});
@@ -2448,6 +2454,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					url: articleUrl,
 					freshness,
 					provenance: resolveSaveProvenance(req.oauthClientId),
+					saveTrigger: captureTrigger.data,
 					savedAt: await deps.allocateSavedAt({ userId }),
 					saveAttemptId,
 				});
@@ -2486,6 +2493,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 							userId,
 							url: validation.url,
 							readlists: [DEFAULT_READLIST_SLUG],
+							saveTrigger: captureTrigger.data,
 							saveAttemptId,
 							path: SAVE_INTENT_PATH.saveContent,
 						});
@@ -2632,7 +2640,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
 			const saveAttemptId = newSaveAttemptId();
 			if (freshness.action === "unresolved") {
-				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, saveAttemptId });
+				await deps.publishSubmitLink({ url: validation.url, userId, provenance: resolveSaveProvenance(req.oauthClientId), readlist: DEFAULT_READLIST_SLUG, saveTrigger: "manual", saveAttemptId });
 				await rememberReadlistFilter(req, NO_READLIST_FILTER);
 				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.readlistSaveBar, outcome: SAVE_OUTCOMES.saved });
 				res.set(SAVE_ATTEMPT_ID_HEADER, saveAttemptId);
@@ -2644,6 +2652,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				url: validation.url,
 				freshness,
 				provenance: resolveSaveProvenance(req.oauthClientId),
+				saveTrigger: "manual",
 				saveAttemptId,
 			});
 			await rememberReadlistFilter(req, NO_READLIST_FILTER);
@@ -2974,13 +2983,14 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const freshness = await deps.refreshArticleIfStale({ url: target.url });
 		const saveAttemptId = newSaveAttemptId();
 		if (freshness.action === "unresolved") {
-			await deps.publishSubmitLink({ url: target.url, userId, provenance: target.article.provenance, readlist: DEFAULT_READLIST_SLUG, saveAttemptId });
+			await deps.publishSubmitLink({ url: target.url, userId, provenance: target.article.provenance, readlist: DEFAULT_READLIST_SLUG, saveTrigger: "manual", saveAttemptId });
 		} else {
 			await saveArticleAtReadlistTop({
 				userId,
 				url: target.url,
 				freshness,
 				provenance: target.article.provenance,
+				saveTrigger: "manual",
 				saveAttemptId,
 			});
 		}

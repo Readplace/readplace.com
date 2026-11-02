@@ -6,6 +6,7 @@
  * orchestrator fires effects only after the store accepts the new aggregate,
  * so a handler can't return success without persisting AND dispatching.
  */
+import type { SaveTrigger } from "../article/article.schema";
 import type { SaveProvenance } from "../article/save-provenance";
 
 export type Effect =
@@ -15,8 +16,9 @@ export type Effect =
 			kind: "dispatch-submit-link";
 			url: string;
 			/** Grouped so an authenticated submission can never travel without the
-			 * provenance the reader tags it with. Absent on an anonymous submission. */
-			submitter?: { userId: string; provenance: SaveProvenance };
+			 * provenance the reader tags it with and the trigger that says who picked
+			 * the link. Absent on an anonymous submission. */
+			submitter?: { userId: string; provenance: SaveProvenance; saveTrigger: SaveTrigger };
 			rawHtml?: string;
 		}
 	| {

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_past_reads_on_open" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_past_reads_on_open" name="past-reads-on-open" isExecutable="false">
+    <bpmn:startEvent id="n_OPEN" name="Reader opens the article">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="n_TR" name="POST /:id/topic-reads">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_CMD" name="ComputeRelatedPastReadsCommand">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_CRL" name="compute-related-articles Lambda">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_PAST" name="past_reads pass">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_POLL" name="GET /:id/related polls Next read slot stays hidden">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_STOP" name="Stops at MAX_POLLS">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_CAND" name="Automatic saves stay candidates for other saves' passes"></bpmn:dataStoreReference>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_OPEN" targetRef="n_TR" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_TR" targetRef="n_CMD" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_CMD" targetRef="n_CRL" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_CRL" targetRef="n_PAST" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_OPEN" targetRef="n_POLL" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_POLL" targetRef="n_STOP" />
+    <bpmn:association id="f_6" sourceRef="n_PAST" targetRef="n_CAND" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_past_reads_on_open">
+    <bpmndi:BPMNPlane id="Plane_past_reads_on_open" bpmnElement="Process_past_reads_on_open">
+      <bpmndi:BPMNShape id="n_OPEN_di" bpmnElement="n_OPEN">
+        <dc:Bounds x="210" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_TR_di" bpmnElement="n_TR">
+        <dc:Bounds x="28" y="146.5" width="168" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CMD_di" bpmnElement="n_CMD">
+        <dc:Bounds x="28.88" y="254.5" width="203.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CRL_di" bpmnElement="n_CRL">
+        <dc:Bounds x="134.88" y="364.5" width="190.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PAST_di" bpmnElement="n_PAST">
+        <dc:Bounds x="165.88" y="474.5" width="128.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_POLL_di" bpmnElement="n_POLL">
+        <dc:Bounds x="232" y="144.5" width="200" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_STOP_di" bpmnElement="n_STOP">
+        <dc:Bounds x="268.13" y="256.5" width="163" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CAND_di" bpmnElement="n_CAND">
+        <dc:Bounds x="153" y="580.5" width="154" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="230" y="68" />
+        <di:waypoint x="230" y="107.25" />
+        <di:waypoint x="112" y="107.25" />
+        <di:waypoint x="112" y="146.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="112" y="194.5" />
+        <di:waypoint x="112" y="224.5" />
+        <di:waypoint x="130.5" y="224.5" />
+        <di:waypoint x="130.5" y="254.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="130.5" y="306.5" />
+        <di:waypoint x="130.5" y="335.5" />
+        <di:waypoint x="230" y="335.5" />
+        <di:waypoint x="230" y="364.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="230" y="416.5" />
+        <di:waypoint x="230" y="474.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="230" y="68" />
+        <di:waypoint x="230" y="106.25" />
+        <di:waypoint x="332" y="106.25" />
+        <di:waypoint x="332" y="144.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="332" y="196.5" />
+        <di:waypoint x="332" y="226.5" />
+        <di:waypoint x="349.63" y="226.5" />
+        <di:waypoint x="349.63" y="256.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="230" y="522.5" />
+        <di:waypoint x="230" y="580.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

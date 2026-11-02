@@ -234,7 +234,7 @@ describe("initLambdaEffectDispatcher", () => {
 		await dispatchEffect({
 			kind: "dispatch-submit-link",
 			url: "https://example.com/article",
-			submitter: { userId: "user-123", provenance: { kind: "email", senderEmail: "news@example.com" } },
+			submitter: { userId: "user-123", provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" },
 		});
 
 		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
@@ -242,6 +242,7 @@ describe("initLambdaEffectDispatcher", () => {
 			saveAttemptId: expect.any(String),
 			userId: "user-123",
 			provenance: { kind: "email", senderEmail: "news@example.com" },
+			saveTrigger: "automatic",
 			readlist: "default",
 		});
 	});
@@ -300,7 +301,7 @@ describe("initLambdaEffectDispatcher", () => {
 		await dispatchEffect({
 			kind: "dispatch-submit-link",
 			url: "https://example.com/article",
-			submitter: { userId: "user-123", provenance: { kind: "web" } },
+			submitter: { userId: "user-123", provenance: { kind: "web" }, saveTrigger: "manual" },
 			rawHtml: "<html>captured DOM</html>",
 		});
 
@@ -309,6 +310,7 @@ describe("initLambdaEffectDispatcher", () => {
 			saveAttemptId: expect.any(String),
 			userId: "user-123",
 			provenance: { kind: "web" },
+			saveTrigger: "manual",
 			readlist: "default",
 			rawHtml: "<html>captured DOM</html>",
 		});

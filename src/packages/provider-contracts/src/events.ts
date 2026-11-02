@@ -1,4 +1,4 @@
-import type { CaptureTrigger, SaveAttemptId, SaveProvenance } from "@packages/domain/article";
+import type { CaptureTrigger, SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type { BillingPlan } from "./subscription-providers";
@@ -97,6 +97,7 @@ export type PublishSubmitLink = (params: {
 	userId: UserId;
 	provenance: SaveProvenance;
 	readlist: ReadlistSlug;
+	saveTrigger: SaveTrigger;
 }) => Promise<void>;
 
 export type PublishSaveAnonymousLink = (params: {

@@ -1095,10 +1095,19 @@ it("queues a wrapper the resolver answered but could not name a destination for"
 	const response = await request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", "https://archive.ph/abc").field("mediaType", "text/html").attach("content", VALID_HTML, "page.html");
 	expect(response.status).toBe(409);
 	expect(response.body).toEqual({ class: ["error"], properties: { messages: [{ type: "warning", content: { type: "text/html", body: "This link is queued while Readplace finds the original article." } }] } });
-	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", readlist: "default", saveAttemptId: expect.any(String) })]);
+	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", readlist: "default", saveTrigger: "manual", saveAttemptId: expect.any(String) })]);
 	expect(events).toEqual([]);
 	expect(staged).toEqual([]);
 	expect(await fixture.articleStore.findArticleByUrl("https://archive.ph/abc")).toBeNull();
+});
+
+it("tells the background submit that nobody picked an automatic capture of an unresolved wrapper", async () => {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const testApp = useApp(fixture);
+	const token = await createAccessToken(testApp);
+	const response = await request(testApp.server).post("/queue/save-content").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).field("url", "https://archive.ph/abc").field("mediaType", "text/html").field("captureTrigger", "automatic").attach("content", VALID_HTML, "page.html");
+	expect(response.status).toBe(409);
+	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", saveTrigger: "automatic" })]);
 });
 
 it("queues a URL-only save of an unresolved wrapper and answers with the notice refusal shape", async () => {
@@ -1108,7 +1117,7 @@ it("queues a URL-only save of an unresolved wrapper and answers with the notice 
 	const response = await request(testApp.server).post("/queue").set("Accept", SIREN_MEDIA_TYPE).set("Authorization", `Bearer ${token}`).send({ url: "https://archive.ph/abc" });
 	expect(response.status).toBe(409);
 	expect(response.body).toEqual({ class: ["error"], properties: { messages: [{ type: "warning", content: { type: "text/html", body: "This link is queued while Readplace finds the original article." } }] } });
-	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", readlist: "default", saveAttemptId: expect.any(String) })]);
+	expect(fixture.submitLink.submitLinks).toEqual([expect.objectContaining({ url: "https://archive.ph/abc", readlist: "default", saveTrigger: "manual", saveAttemptId: expect.any(String) })]);
 	expect(await fixture.articleStore.findArticleByUrl("https://archive.ph/abc")).toBeNull();
 	expect(testApp.analytics.events.filter((event) => event.event === "view_save_intent")).toEqual([expect.objectContaining({ path: "/queue", outcome: "saved" })]);
 });

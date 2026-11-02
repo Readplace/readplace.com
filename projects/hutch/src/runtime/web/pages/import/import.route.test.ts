@@ -781,7 +781,7 @@ describe("Import routes", () => {
 
 				expect(commit.status).toBe(303);
 				expect(fixture.submitLink.submitLinks).toEqual([
-					{ url: SHORT_ID, userId, provenance: { kind: "import" }, readlist: "default", saveAttemptId: expect.any(String) },
+					{ url: SHORT_ID, userId, provenance: { kind: "import" }, saveTrigger: "automatic", readlist: "default", saveAttemptId: expect.any(String) },
 				]);
 				expect(await harness.articleStore.findArticleByUrl(SHORT_ID)).toBeNull();
 				expect(await harness.articleStore.findArticleByUrl("https://example.com/imported-a")).not.toBeNull();

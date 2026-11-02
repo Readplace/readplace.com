@@ -12,6 +12,7 @@ describe("initEventBridgeSubmitLink", () => {
 			url: "https://archive.ph/Ab1cD",
 			userId: UserIdSchema.parse("00000000000000000000000000000001"),
 			provenance: { kind: "import" as const },
+			saveTrigger: "automatic" as const,
 			readlist: DEFAULT_READLIST_SLUG,
 			saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
 		};

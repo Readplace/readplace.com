@@ -41,9 +41,6 @@ function harness(crawl: ArticleCrawl | undefined, opts: { failFiling?: boolean }
 			if (opts.failFiling) throw new Error("readlist write failed");
 			return fileIntoReadlist(input);
 		},
-		publishQueueEntryCreated: async () => {
-			calls.push("queue-entry-created");
-		},
 	});
 	const save = (readlists: typeof WORK[]) =>
 		saveEmailIssue({
@@ -74,11 +71,11 @@ describe("initSaveEmailIssue", () => {
 			["Employee #1: Yahoo", "TLDR", 476, 2],
 		);
 		assert.deepEqual(h.displayUrls, [{ articleUrl: ISSUE_URL, displayUrl: INBOX_PAGE }]);
-		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all", "queue-entry-created"]);
-		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: true }]);
+		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all"]);
+		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: false }]);
 	});
 
-	it("marks a still-pending issue's crawl unmeasured on a repeat save, which creates no queue entry", async () => {
+	it("marks a still-pending issue's crawl unmeasured on a repeat save too", async () => {
 		const h = harness({ status: "pending" });
 		await h.save([]);
 		h.calls.length = 0;
@@ -98,7 +95,7 @@ describe("initSaveEmailIssue", () => {
 		assert.deepEqual(await h.store.listUserSavesForUrl({ userId: READER, url: ISSUE_URL }), [{}, { readlist: WORK }]);
 	});
 
-	it("leaves an issue whose content is already ready alone, and announces no new queue entry on a repeat save", async () => {
+	it("leaves an issue whose content is already ready alone on a repeat save", async () => {
 		const h = harness({ status: "ready" });
 		await h.save([]);
 		h.calls.length = 0;

@@ -261,7 +261,7 @@ describe("Saving a link from an issue (POST /queue/:id/issue-links)", () => {
 	});
 
 	it("saves a newsletter click-tracker link under the publisher it resolves to", async () => {
-		const { agent, fixture, putLink, issueId } = await buildHarness();
+		const { agent, fixture, userId, putLink, issueId } = await buildHarness();
 		const tracker = "https://javascriptweekly.com/link/100000/rss";
 		const publisher = "https://sqlite.org/lang_with.html";
 		await putLink({ ordinal: "0003", url: tracker });
@@ -274,6 +274,7 @@ describe("Saving a link from an issue (POST /queue/:id/issue-links)", () => {
 		const saved = await fixture.articleStore.findArticleByUrl(publisher);
 		assert.equal(saved?.url, publisher);
 		assert.deepEqual(fixture.submitLink.submitLinks, []);
+		assert.deepEqual(fixture.publishedQueueEntryCreated, [{ url: publisher, userId }]);
 	});
 
 	it("queues a click-tracker link whose publisher cannot be resolved, writing no article for the tracker", async () => {
@@ -290,6 +291,7 @@ describe("Saving a link from an issue (POST /queue/:id/issue-links)", () => {
 				url: tracker,
 				userId,
 				provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
+				saveTrigger: "manual",
 				readlist: "default",
 				saveAttemptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
 			},

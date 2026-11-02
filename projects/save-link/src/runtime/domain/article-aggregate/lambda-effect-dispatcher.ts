@@ -47,6 +47,7 @@ export function initLambdaEffectDispatcher(deps: {
 								saveAttemptId: newSaveAttemptId(),
 								userId: effect.submitter.userId,
 								provenance: effect.submitter.provenance,
+								saveTrigger: effect.submitter.saveTrigger,
 								readlist: DEFAULT_READLIST_SLUG,
 								...(effect.rawHtml !== undefined ? { rawHtml: effect.rawHtml } : {}),
 							}

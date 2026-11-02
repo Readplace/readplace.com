@@ -10,7 +10,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { UserId } from "@packages/domain/user";
-import type { SaveAttemptId, SaveProvenance, SaveableUrl, SavedArticle } from "@packages/domain/article";
+import type { SaveAttemptId, SaveProvenance, SaveTrigger, SaveableUrl, SavedArticle } from "@packages/domain/article";
 
 export interface SaveArticleFromUrlDependencies {
 	saveArticle: SaveArticle;
@@ -23,16 +23,6 @@ export interface SaveArticleFromUrlDependencies {
 	publishLinkQueued: PublishLinkQueued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 }
-
-const RESURFACES_EARLIER_SAVES = {
-	web: true,
-	client: true,
-	email: true,
-	mcp: true,
-	import: false,
-	"hn-suggestion": false,
-	"founder-seed": false,
-} satisfies Record<SaveProvenance["kind"], boolean>;
 
 type SaveOutcome = {
 	saved: SavedArticle;
@@ -61,6 +51,7 @@ export type SaveArticleFromUrl = (params: {
 	url: SaveableUrl;
 	freshness: ResolvedFreshnessResult;
 	provenance: SaveProvenance;
+	saveTrigger: SaveTrigger;
 	savedAt: Date;
 	saveAttemptId: SaveAttemptId;
 }) => Promise<{
@@ -80,10 +71,10 @@ async function saveByFreshness(
 		saveAttemptId: SaveAttemptId;
 		freshness: ResolvedFreshnessResult;
 		written: { saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean };
-		createsQueueEntry: boolean;
+		resurfacesEarlierSaves: boolean;
 	},
 ): Promise<SaveOutcome> {
-	const { userId, url, source, saveAttemptId, freshness, written, createsQueueEntry } = params;
+	const { userId, url, source, saveAttemptId, freshness, written, resurfacesEarlierSaves } = params;
 
 	if (source !== undefined && isArchiveHost(source.contentSourceUrl)) {
 		await deps.pinContentSource({ articleUrl: url, ...source });
@@ -93,7 +84,7 @@ async function saveByFreshness(
 		if (isNonArticleHost(url)) {
 			return markUnreadIfRead(deps.updateArticleStatus, written);
 		}
-		await deps.markCrawlPending({ url, measured: createsQueueEntry });
+		await deps.markCrawlPending({ url, measured: resurfacesEarlierSaves });
 		await deps.markSummaryPending({ url });
 		const [outcome] = await Promise.all([
 			markUnreadIfRead(deps.updateArticleStatus, written),
@@ -139,7 +130,7 @@ export function initSaveArticleFromUrl(
 			provenance: params.provenance,
 			savedAt: params.savedAt,
 		});
-		const createsQueueEntry = written.createdUserArticle && RESURFACES_EARLIER_SAVES[params.provenance.kind];
+		const resurfacesEarlierSaves = written.createdUserArticle && params.saveTrigger === "manual";
 		const result = await saveByFreshness(deps, {
 			userId: params.userId,
 			url,
@@ -147,13 +138,13 @@ export function initSaveArticleFromUrl(
 			saveAttemptId: params.saveAttemptId,
 			freshness: params.freshness,
 			written,
-			createsQueueEntry,
+			resurfacesEarlierSaves,
 		});
 		// The row is committed, so the save is accepted on every freshness branch —
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,
 		// not the canonical one a consumer never saw.
 		await deps.publishLinkQueued({ url: params.url, userId: params.userId });
-		if (createsQueueEntry) {
+		if (resurfacesEarlierSaves) {
 			await deps.publishQueueEntryCreated({ url, userId: params.userId });
 		}
 		return { ...result, canonicalUrl: url };

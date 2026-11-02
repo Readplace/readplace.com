@@ -1,6 +1,6 @@
 import { ReaderArticleHashIdSchema, SaveAttemptIdSchema, SaveableUrlSchema, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
-import type { SaveProvenance, SavedArticle } from "@packages/domain/article";
+import type { SaveProvenance, SaveTrigger, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	initSaveArticleFromUrl,
@@ -12,6 +12,7 @@ const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abc
 const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
 const destination = articleDestinationUrl({ url: exampleUrl, displayUrl: undefined });
 const provenance: SaveProvenance = { kind: "web" };
+const saveTrigger: SaveTrigger = "manual";
 const saveAttemptId = SaveAttemptIdSchema.parse("save-attempt");
 const operationSavedAt = new Date("2026-08-01T10:00:00.000Z");
 const gmailUrl = SaveableUrlSchema.parse("https://mail.google.com/mail/u/0/");
@@ -105,6 +106,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: exampleUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: { action: "new", identity: ownIdentity },
 		});
@@ -128,6 +130,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: gmailUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: { action: "new", identity: { status: "resolved", url: gmailUrl, originalUrl: gmailUrl } },
 		});
@@ -152,6 +155,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: gmailUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: { action: "new", identity: { status: "resolved", url: gmailUrl, originalUrl: gmailUrl } },
 		});
@@ -178,7 +182,7 @@ describe("saveArticleFromUrl", () => {
 			},
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: canonicalIdentity } });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: canonicalIdentity } });
 
 		expect(keyedOn).toEqual([
 			"saveArticle:https://example.com/canonical",
@@ -193,7 +197,7 @@ describe("saveArticleFromUrl", () => {
 			...tracker.deps,
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: canonicalIdentity } });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: canonicalIdentity } });
 
 		expect(tracker.queueEntryCreated).toEqual([
 			{ url: "https://example.com/canonical", userId },
@@ -207,31 +211,56 @@ describe("saveArticleFromUrl", () => {
 			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
 
 		expect(tracker.queueEntryCreated).toEqual([]);
 		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured: false }]);
 	});
 
-	it.each<{ provenance: SaveProvenance; asks: number; measured: boolean }>([
-		{ provenance: { kind: "web" }, asks: 1, measured: true },
-		{ provenance: { kind: "client", clientName: "hutch-chrome-extension" }, asks: 1, measured: true },
-		{ provenance: { kind: "email", senderEmail: "letter@example.com" }, asks: 1, measured: true },
-		{ provenance: { kind: "mcp", registeredName: "claude" }, asks: 1, measured: true },
-		{ provenance: { kind: "import" }, asks: 0, measured: false },
-	])("asks $asks time(s) to resurface earlier saves for a $provenance.kind save, and marks the crawl pending with measured=$measured", async ({ provenance: saveProvenance, asks, measured }) => {
+	it("asks nothing when a tapped save lands on the row an automatic save created", async () => {
 		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
+		};
 
-		await initSaveArticleFromUrl(tracker.deps)({
-			userId,
-			url: exampleUrl,
-			provenance: saveProvenance,
-			savedAt: operationSavedAt, saveAttemptId,
-			freshness: { action: "new", identity: ownIdentity },
-		});
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
 
-		expect(tracker.calls.publishQueueEntryCreated).toBe(asks);
-		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured }]);
+		expect(tracker.queueEntryCreated).toEqual([]);
+		expect(tracker.calls.publishLinkQueued).toBe(1);
+	});
+
+	describe("precomputes related passes only for a link a person picked", () => {
+		const provenances: SaveProvenance[] = [
+			{ kind: "web" },
+			{ kind: "client", clientName: "hutch-chrome-extension" },
+			{ kind: "email", senderEmail: "letter@example.com" },
+			{ kind: "mcp", registeredName: "claude" },
+			{ kind: "import" },
+		];
+		const triggers: { saveTrigger: SaveTrigger; asks: number; measured: boolean }[] = [
+			{ saveTrigger: "manual", asks: 1, measured: true },
+			{ saveTrigger: "automatic", asks: 0, measured: false },
+		];
+
+		it.each(provenances.flatMap((saveProvenance) => triggers.map((trigger) => ({ saveProvenance, ...trigger }))))(
+			"asks $asks time(s) for a $saveTrigger $saveProvenance.kind save, and marks the crawl pending with measured=$measured",
+			async ({ saveProvenance, saveTrigger: trigger, asks, measured }) => {
+				const tracker = makeTracker();
+
+				await initSaveArticleFromUrl(tracker.deps)({
+					userId,
+					url: exampleUrl,
+					provenance: saveProvenance,
+					saveTrigger: trigger,
+					savedAt: operationSavedAt, saveAttemptId,
+					freshness: { action: "new", identity: ownIdentity },
+				});
+
+				expect(tracker.calls.publishQueueEntryCreated).toBe(asks);
+				expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured }]);
+			},
+		);
 	});
 
 	it("announces the accepted save before asking to resurface earlier ones", async () => {
@@ -247,7 +276,7 @@ describe("saveArticleFromUrl", () => {
 			},
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
 
 		expect(order).toEqual(["link-queued", "queue-entry-created"]);
 	});
@@ -259,6 +288,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: exampleUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: {
 				action: "refreshed",
@@ -288,6 +318,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: exampleUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: {
 				action: "refreshed",
@@ -316,6 +347,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: exampleUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: { action: "skip", identity: ownIdentity },
 		});
@@ -331,6 +363,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: exampleUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: { action: "skip", identity: ownIdentity },
 		});
@@ -348,7 +381,7 @@ describe("saveArticleFromUrl", () => {
 			},
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: canonicalIdentity } });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: canonicalIdentity } });
 
 		expect(queued).toEqual([exampleUrl]);
 	});
@@ -363,7 +396,7 @@ describe("saveArticleFromUrl", () => {
 			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
 		};
 
-		const result = await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness });
+		const result = await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness });
 
 		expect(result.createdUserArticle).toBe(false);
 	});
@@ -382,7 +415,7 @@ describe("saveArticleFromUrl", () => {
 			},
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness });
 
 		expect(storeSavedAt).toEqual([operationSavedAt]);
 	});
@@ -395,6 +428,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: exampleUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: { action: "new", identity: ownIdentity },
 		});
@@ -416,6 +450,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: exampleUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness: { action: "skip", identity: ownIdentity },
 		});
@@ -438,6 +473,7 @@ describe("saveArticleFromUrl", () => {
 			userId,
 			url: exampleUrl,
 			provenance,
+			saveTrigger,
 			savedAt: operationSavedAt, saveAttemptId,
 			freshness,
 		});
@@ -468,7 +504,7 @@ describe("saveArticleFromUrl", () => {
 				},
 			};
 
-			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: snapshotIdentity } });
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: snapshotIdentity } });
 
 			expect(order).toEqual([
 				`saveArticle:${exampleUrl}`,
@@ -487,7 +523,7 @@ describe("saveArticleFromUrl", () => {
 				},
 			};
 
-			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: snapshotIdentity } });
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: snapshotIdentity } });
 
 			expect(linkSaves).toEqual([
 				{ url: exampleUrl, captureUrl: snapshot },
@@ -511,7 +547,7 @@ describe("saveArticleFromUrl", () => {
 				},
 			};
 
-			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { ...freshness, identity: snapshotIdentity } });
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { ...freshness, identity: snapshotIdentity } });
 
 			expect(pinned).toEqual([{ articleUrl: exampleUrl, contentSourceUrl: snapshot, sourceOriginalUrl: exampleUrl }]);
 			expect(linkSaves).toEqual([{ url: exampleUrl, captureUrl: snapshot }]);
@@ -533,7 +569,7 @@ describe("saveArticleFromUrl", () => {
 			},
 		};
 
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { ...freshness, identity: { ...ownIdentity, contentSourceUrl: trackerUrl, sourceOriginalUrl: exampleUrl } } });
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { ...freshness, identity: { ...ownIdentity, contentSourceUrl: trackerUrl, sourceOriginalUrl: exampleUrl } } });
 
 		expect(tracker.calls.pinContentSource).toBe(0);
 		expect(linkSaves).toEqual([{ url: exampleUrl, captureUrl: trackerUrl, sourceOriginalUrl: exampleUrl }]);
@@ -542,7 +578,7 @@ describe("saveArticleFromUrl", () => {
 	it("pins nothing when the identity carries no content source", async () => {
 		const tracker = makeTracker();
 
-		await initSaveArticleFromUrl(tracker.deps)({ userId, url: exampleUrl, provenance, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+		await initSaveArticleFromUrl(tracker.deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
 
 		expect(tracker.calls.pinContentSource).toBe(0);
 	});

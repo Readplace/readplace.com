@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { decodeHtmlEntities } from "@packages/crawl-article";
-import type { SaveAttemptId, SaveProvenance } from "@packages/domain/article";
+import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import { newSaveAttemptId, validateSaveableUrl } from "@packages/domain/article";
 import { extractUrls } from "@packages/domain/import-session";
 import {
@@ -105,6 +105,7 @@ export function initExtractEmailLinksHandler(deps: {
 		url: string;
 		provenance: SaveProvenance;
 		readlist: ReadlistSlug;
+		saveTrigger: SaveTrigger;
 		saveAttemptId: SaveAttemptId;
 		emailOutput: EmailOutputCorrelation | undefined;
 	}) => Promise<void>;
@@ -377,6 +378,7 @@ export function initExtractEmailLinksHandler(deps: {
 						url: input.url,
 						provenance: { kind: "email", senderEmail: email.senderEmail },
 						readlist: DEFAULT_READLIST_SLUG,
+						saveTrigger: "automatic",
 						saveAttemptId: newSaveAttemptId(),
 						emailOutput: input.emailOutput,
 					});

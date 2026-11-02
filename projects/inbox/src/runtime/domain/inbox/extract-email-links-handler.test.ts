@@ -325,12 +325,14 @@ describe("initExtractEmailLinksHandler", () => {
 				userId: USER,
 				url: "https://a.test/x",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 			{
 				userId: USER,
 				url: "https://b.test/y",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 		]);
@@ -467,6 +469,7 @@ describe("initExtractEmailLinksHandler", () => {
 				userId: USER,
 				url: "https://a.test/x",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 		]);
@@ -494,6 +497,7 @@ describe("initExtractEmailLinksHandler", () => {
 				userId: USER,
 				url: "https://a.test/x",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 		]);
@@ -516,6 +520,7 @@ describe("initExtractEmailLinksHandler", () => {
 				userId: USER,
 				url: "https://a.test/x",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 		]);
@@ -539,6 +544,7 @@ describe("initExtractEmailLinksHandler", () => {
 				userId: USER,
 				url: "https://link.mail.test/ss/c/token?utm_source=nl",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 		]);
@@ -1021,24 +1027,28 @@ describe("initExtractEmailLinksHandler", () => {
 				userId: USER,
 				url: "https://a.test/x",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 			{
 				userId: USER,
 				url: "https://b.test/y",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 			{
 				userId: USER,
 				url: "https://a.test/x",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 			{
 				userId: USER,
 				url: "https://b.test/y",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 		]);
@@ -1063,12 +1073,14 @@ describe("initExtractEmailLinksHandler", () => {
 					userId: USER,
 					url: "https://a.test/x",
 					provenance: DIGEST_PROVENANCE,
+					saveTrigger: "automatic",
 					readlist: DEFAULT_READLIST_SLUG,
 				},
 				{
 					userId: USER,
 					url: "https://b.test/y",
 					provenance: DIGEST_PROVENANCE,
+					saveTrigger: "automatic",
 					readlist: DEFAULT_READLIST_SLUG,
 				},
 			]);
@@ -1385,6 +1397,7 @@ describe("initExtractEmailLinksHandler", () => {
 					userId: USER,
 					url: "https://a.test/x",
 					provenance: DIGEST_PROVENANCE,
+					saveTrigger: "automatic",
 					readlist: DEFAULT_READLIST_SLUG,
 				},
 			]);
@@ -1405,6 +1418,7 @@ describe("initExtractEmailLinksHandler", () => {
 					userId: USER,
 					url: "https://a.test/x",
 					provenance: DIGEST_PROVENANCE,
+					saveTrigger: "automatic",
 					readlist: DEFAULT_READLIST_SLUG,
 				},
 			]);
@@ -1503,7 +1517,7 @@ describe("a Gmail newsletter whose reader keeps the issue", () => {
 			{ kind: "submit", outputKey: "link#0000", url: "https://a.test/x" },
 		]);
 		expect(harness.submitted).toEqual([
-			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, readlist: DEFAULT_READLIST_SLUG },
+			{ userId: USER, url: "https://a.test/x", provenance: DIGEST_PROVENANCE, saveTrigger: "automatic", readlist: DEFAULT_READLIST_SLUG },
 		]);
 		expect(harness.triaged.map(({ readlist }) => readlist)).toEqual([WORK]);
 	});
@@ -1642,6 +1656,7 @@ describe("Gmail destination snapshots", () => {
 				userId: USER,
 				url: "https://example.com/article",
 				provenance: DIGEST_PROVENANCE,
+				saveTrigger: "automatic",
 				readlist: DEFAULT_READLIST_SLUG,
 			},
 		]);

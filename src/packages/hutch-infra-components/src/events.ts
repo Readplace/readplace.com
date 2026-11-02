@@ -132,6 +132,7 @@ export const SubmitLinkCommand = defineEvent({
 			userId: z.string(),
 			provenance: z.looseObject({ kind: z.string() }), /* 1 */
 			readlist: z.string(),
+			saveTrigger: z.enum(["automatic", "manual"]),
 			rawHtml: z.string().optional(),
 			emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
 		}),
@@ -308,9 +309,10 @@ export type LinkQueuedDetail = z.infer<typeof LinkQueuedEvent.detailSchema>;
 
 /** Irreversible fact: a save added an article to a reader's queue that was not
  * in it before. Narrower than {@link LinkQueuedEvent} on both axes: it is silent
- * on a re-save of an article the reader already had, and it is silent for the
- * save provenances that do not ask for resurfacing — today the import commit,
- * whose thousands-of-links burst is not worth an LLM call each.
+ * on a re-save of an article the reader already had, and a save publishes it only
+ * when the reader picked the link (`saveTrigger: "manual"`). A link the system
+ * picked, such as an email's links, a newsletter issue or an import file, is saved
+ * without it: thousands of system-picked links are not worth an LLM call each.
  *
  * `url` is the canonical URL after alias resolution — the articles-table
  * partition key and the per-user row's sort key — where `LinkQueuedEvent`
