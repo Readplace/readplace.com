@@ -1,3 +1,6 @@
+import assert from "node:assert/strict";
+import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
@@ -220,4 +223,40 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 			}),
 		);
 	});
+});
+
+it("writes the tier-0 candidate, reads the snapshot, logs the outcome, announces it, then logs, with exactly these arguments", async () => {
+	const trace: unknown[][] = [];
+	const record = (level: string) => (...args: unknown[]) => {
+		trace.push([level, ...args]);
+	};
+	const url = "https://example.com/x.pdf";
+	const { handler } = createHandler({
+		putTierSource: async (params) => {
+			trace.push(["putTierSource", params]);
+		},
+		readTierSnapshot: async (params) => {
+			trace.push(["readTierSnapshot", params]);
+			return { tier0Status: "success", tier1Status: "failed", pickedTier: "tier-0" };
+		},
+		logCrawlOutcome: (params) => {
+			trace.push(["logCrawlOutcome", params]);
+		},
+		publishEvent: async (event, detail) => {
+			trace.push(["publishEvent", event.detailType, detail]);
+		},
+		logger: { info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") },
+	});
+
+	await handler(createSqsEvent({ url, userId: "user-1" }), buildLambdaContext(), () => {});
+
+	const html = "<p>PDF content</p>";
+	const metadata = candidateProvenance({ metadata: { title: "Test PDF", siteName: "example.com", excerpt: "test", wordCount: 10, estimatedReadTime: 1, imageUrl: undefined, authorUserId: "user-1" }, html, evaluationHtml: html, attemptId: SaveAttemptIdSchema.parse("attempt-1"), originalUrl: url, sourceUrl: url, kind: "extension", fetchedAt: "2026-10-01T00:00:00.000Z" });
+	assert.deepEqual(trace, [
+		["putTierSource", { url, tier: "tier-0", html, metadata }],
+		["readTierSnapshot", { url }],
+		["logCrawlOutcome", { url, thisTier: "tier-0", thisTierStatus: "success", otherTierStatus: "failed", pickedTier: "tier-0" }],
+		["publishEvent", TierContentExtractedEvent.detailType, { saveAttemptId: "attempt-1", candidates: [{ id: metadata.id, tier: "tier-0" }], url, userId: "user-1", extractedAt: "2026-04-18T12:00:00.000Z" }],
+		["info", "[SaveLinkRawPdfCommand] tier-0 source written", { url, capturedTitle: undefined }],
+	]);
 });

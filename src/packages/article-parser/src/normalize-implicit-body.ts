@@ -1,4 +1,5 @@
 export function normalizeImplicitBody(document: Document): void {
+	promoteEdgarFiling(document);
 	wrapInHtmlRoot(document);
 	const head = document.head;
 	const body = document.body;
@@ -29,4 +30,10 @@ function wrapInHtmlRoot(document: Document): void {
 	for (const node of Array.from(document.childNodes)) {
 		if (node !== html && node.nodeType !== node.DOCUMENT_TYPE_NODE) html.appendChild(node);
 	}
+}
+
+function promoteEdgarFiling(document: Document): void {
+	if (document.documentElement.tagName !== "DOCUMENT") return;
+	const filing = document.documentElement.querySelector("TEXT > html");
+	if (filing) document.replaceChild(filing, document.documentElement);
 }

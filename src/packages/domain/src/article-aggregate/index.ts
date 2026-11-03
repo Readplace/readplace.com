@@ -82,6 +82,7 @@ export {
 	type PromoteTierInput,
 } from "./transitions/promote-tier";
 export { recrawlTieKeptCanonical } from "./transitions/recrawl-tie-kept-canonical";
+export { shownMetadataOf } from "./transitions/displayed-metadata";
 export {
 	recrawlPromoteTier,
 	type RecrawlPromoteTierInput,

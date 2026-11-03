@@ -9,6 +9,7 @@ import type { Effect } from "../effects.types";
 import { isCanonicalCandidateRevoked } from "../content-selection.types";
 import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
+import { type MetadataDisplay, displayedMetadata } from "./displayed-metadata";
 
 export interface RefreshContentInput {
 	/** `imageUrl` is branded `CanonicalImageUrl` so the only way to populate it
@@ -19,6 +20,7 @@ export interface RefreshContentInput {
 		imageUrl: CanonicalImageUrl;
 		publishedOn: CanonicalPublishedOn;
 	};
+	display: Extract<MetadataDisplay, { kind: "candidate" | "row" }>;
 	freshness: ArticleFreshness;
 	estimatedReadTime: number;
 	now: string;
@@ -77,7 +79,7 @@ export function refreshContent(
 
 	const next: Article = {
 		...available.article,
-		metadata: input.metadata,
+		metadata: displayedMetadata({ article, metadata: input.metadata, display: input.display }),
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,
 		summary: nextSummary,

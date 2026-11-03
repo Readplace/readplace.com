@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
-import { articleFromHostTitle, clipMetadataExcerpt, contentSavedFromHostExcerpt } from "@packages/domain/article";
+import { articleFromHostTitle, clipMetadataExcerpt, contentSavedFromHostExcerpt, pageHostUrl } from "@packages/domain/article";
 import { type CrawlArticle, resolveDocumentUrl } from "@packages/crawl-article";
 import type { ParseArticle, ParseHtml, ReadabilityAdditions } from "./article-parser.types";
 import { matchingSiteRuleUrl, type SiteArticleContent, type SiteRules } from "@packages/site-rules";
@@ -16,10 +16,16 @@ export function initReadabilityParser(deps: {
 	const parseHtml: ParseHtml = (params) => {
 		let hostname: string;
 		try {
-			hostname = new URL(params.url).hostname;
+			new URL(params.url);
+			hostname = pageHostUrl({ savedUrl: params.url, documentUrl: params.documentUrl }).hostname;
 		} catch {
 			return { ok: false, reason: "Invalid URL" };
 		}
+		const fallback = {
+			title: articleFromHostTitle(hostname),
+			siteName: hostname,
+			excerpt: contentSavedFromHostExcerpt(hostname),
+		};
 
 		const extracted = tryExtractFromSiteRules({
 			siteRules: deps.siteRules,
@@ -84,9 +90,7 @@ export function initReadabilityParser(deps: {
 			return {
 				ok: true,
 				article: {
-					title: articleFromHostTitle(hostname),
-					siteName: hostname,
-					excerpt: contentSavedFromHostExcerpt(hostname),
+					...fallback,
 					wordCount: 0,
 					content: "",
 					imageUrl: params.thumbnailUrl ?? undefined,
@@ -102,9 +106,9 @@ export function initReadabilityParser(deps: {
 			/* c8 ignore next 2 -- V8 block coverage phantom on the success-return object literal with cascading `||` fallbacks (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 			ok: true,
 			article: {
-				title: parsed.title || articleFromHostTitle(hostname),
-				siteName: parsed.siteName || hostname,
-				excerpt: clipMetadataExcerpt(parsed.excerpt || contentSavedFromHostExcerpt(hostname)),
+				title: parsed.title || fallback.title,
+				siteName: parsed.siteName || fallback.siteName,
+				excerpt: clipMetadataExcerpt(parsed.excerpt || fallback.excerpt),
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 				content: deps.readabilityAdditions.resolveRelativeUrls({ html: deps.readabilityAdditions.restoreRetaggedTables(parsed.content), baseUrl: params.documentUrl }),
 				imageUrl: params.thumbnailUrl ?? undefined,

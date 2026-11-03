@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
 import { ArchiveCaptureCrawlFailedEvent } from "@packages/hutch-infra-components";
@@ -79,4 +81,41 @@ it("rejects a legacy queued capture whose original does not match the adopted id
 	expect(await crawl({ url: ORIGINAL, captureUrl: CAPTURE, saveAttemptId: SaveAttemptIdSchema.parse("legacy-attempt") })).toBeUndefined();
 	expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
 	expect(publishEvent).toHaveBeenCalledWith(ArchiveCaptureCrawlFailedEvent, { url: ORIGINAL, captureUrl: CAPTURE, reason: "unverified source identity" });
+});
+
+it("reads the tier snapshot, writes the archive candidate, then logs its success, with exactly these arguments", async () => {
+	const trace: unknown[][] = [];
+	const record = (level: string) => (...args: unknown[]) => {
+		trace.push([level, ...args]);
+	};
+	const evaluationHtml = "<html><body><p>From the archive</p></body></html>";
+	const crawl = initCrawlArchiveCapture({
+		now: () => new Date("2026-04-18T12:00:00.000Z"),
+		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
+		crawlAndFinalizeArticle: async () => ({ status: "fetched", article: finalized, bodyHash: "a".repeat(64), evaluationHtml, httpStatus: 200 }),
+		putTierSource: async (params) => {
+			trace.push(["putTierSource", params]);
+		},
+		readTierSnapshot: async (params) => {
+			trace.push(["readTierSnapshot", params]);
+			return { tier0Status: "success", tier1Status: "failed", pickedTier: "tier-0" };
+		},
+		logCrawlOutcome: (params) => {
+			trace.push(["logCrawlOutcome", params]);
+		},
+		publishEvent: async (event, detail) => {
+			trace.push(["publishEvent", event.detailType, detail]);
+		},
+		logger: { info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") },
+	});
+
+	const result = await crawl({ url: ORIGINAL, captureUrl: CAPTURE, saveAttemptId: SaveAttemptIdSchema.parse("attempt") });
+
+	const metadata = candidateProvenance({ metadata: finalized.metadata, html: finalized.html, evaluationHtml, attemptId: SaveAttemptIdSchema.parse("attempt"), originalUrl: ORIGINAL, sourceUrl: CAPTURE, kind: "wrapper", fetchedAt: "2026-04-18T12:00:00.000Z", httpStatus: 200 });
+	assert.deepEqual(result, { id: metadata.id, tier: "tier-2" });
+	assert.deepEqual(trace, [
+		["readTierSnapshot", { url: ORIGINAL }],
+		["putTierSource", { url: ORIGINAL, tier: "tier-2", html: finalized.html, evaluationHtml, metadata }],
+		["logCrawlOutcome", { url: ORIGINAL, thisTier: "tier-2", thisTierStatus: "success", otherTierStatus: "failed", pickedTier: "tier-0" }],
+	]);
 });

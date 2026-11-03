@@ -81,10 +81,12 @@ export {
 	type ShownSummary,
 } from "./shown-summary";
 export {
+	hasWrapperShape,
 	isArchiveHost,
 	isStoredWrapperUrl,
 	isUnlockableTrackerUrl,
 	isWrapperUrl,
+	pageHostUrl,
 	stripRedirectAddedParams,
 	unwrapWrapperUrl,
 	wrapperFamilyOf,

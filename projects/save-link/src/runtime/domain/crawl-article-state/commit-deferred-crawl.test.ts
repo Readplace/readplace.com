@@ -8,6 +8,7 @@ import {
 } from "@packages/hutch-infra-components";
 import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
 import { initCommitDeferredCrawl } from "./commit-deferred-crawl";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 
 type CommitDeps = Parameters<typeof initCommitDeferredCrawl>[0];
 
@@ -194,6 +195,106 @@ describe("initCommitDeferredCrawl", () => {
 			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 				metadata: expect.objectContaining({ sourceUrl: "https://example-spa.test/original" }),
 			}));
+		});
+		it.each<{ mode: "save" | "recrawl" | "refresh"; httpStatus: number }>([
+			{ mode: "save", httpStatus: 200 },
+			{ mode: "save", httpStatus: 404 },
+			{ mode: "recrawl", httpStatus: 200 },
+			{ mode: "refresh", httpStatus: 200 },
+		])("commits a $mode body with HTTP $httpStatus beside the existing candidates in a fixed call order", async ({ mode, httpStatus }) => {
+			const trace: unknown[][] = [];
+			let tick = 0;
+			const record = (name: string) => async (params: unknown) => {
+				trace.push([name, params]);
+			};
+			const { commitFetchedBody } = createCommit({
+				resolveOriginalUrl: async (u) => {
+					trace.push(["resolveOriginalUrl", u]);
+					return "https://example-spa.test/original";
+				},
+				finalizeArticle: async () => {
+					trace.push(["finalizeArticle"]);
+					return { ok: true, article: renderedArticle };
+				},
+				putTierSource: record("putTierSource"),
+				updateFetchTimestamp: record("updateFetchTimestamp"),
+				markCrawlStage: record("markCrawlStage"),
+				adoptCanonicalIdentity: record("adoptCanonicalIdentity"),
+				publishEvent: async (event, detail) => {
+					trace.push(["publishEvent", event.detailType, detail]);
+				},
+				readTierSnapshot: async (params) => {
+					trace.push(["readTierSnapshot", params]);
+					return { tier0Status: "failed", tier1Status: "not_attempted", pickedTier: "none" };
+				},
+				logCrawlOutcome: (params) => {
+					trace.push(["logCrawlOutcome", params]);
+				},
+				logger: { ...noopLogger, info: (message, context) => trace.push(["logger.info", message, context]) },
+				now: () => {
+					tick += 1;
+					trace.push(["now"]);
+					return new Date(Date.UTC(2026, 9, 29, 0, 0, tick));
+				},
+			});
+			const archived = { id: CandidateIdSchema.parse("archive-candidate"), tier: "tier-2" as const };
+			const body = { ...renderedBody, httpStatus, evaluationHtml: "<main>raw</main>", etag: "\"v2\"", lastModified: "Tue, 28 Oct 2026 00:00:00 GMT", finalUrl: "https://example-spa.test/final", renderedThrough: "residential-proxy" as const };
+
+			const outcome = await commitFetchedBody(body, {
+				url,
+				originalUrl: "https://example-spa.test/saved",
+				saveAttemptId,
+				candidates: [archived],
+				userId: "user-1",
+				recrawl: mode === "recrawl" ? true : undefined,
+				refresh: mode === "refresh" ? true : undefined,
+			});
+
+			const failed = httpStatus !== 200;
+			const metadata = candidateProvenance({
+				metadata: renderedArticle.metadata,
+				html: renderedArticle.html,
+				evaluationHtml: "<main>raw</main>",
+				attemptId: saveAttemptId,
+				originalUrl: "https://example-spa.test/original",
+				sourceUrl: "https://example-spa.test/final",
+				kind: "live",
+				fetchedAt: "2026-10-29T00:00:01.000Z",
+				httpStatus,
+				renderedThrough: "residential-proxy",
+			});
+			const candidates = [archived, { id: metadata.id, tier: "tier-1" }];
+			const contentFetchedAt = "2026-10-29T00:00:02.000Z";
+			const announcements: Record<typeof mode, unknown[][]> = {
+				save: [
+					["publishEvent", TierContentExtractedEvent.detailType, { url, userId: "user-1", extractedAt: contentFetchedAt, candidates, saveAttemptId }],
+					["logger.info", "[Test] emitted TierContentExtractedEvent", { url, tier: "tier-1" }],
+				],
+				recrawl: [
+					["publishEvent", RecrawlContentExtractedEvent.detailType, { url, extractedAt: contentFetchedAt, candidates, saveAttemptId }],
+					["logger.info", "[Test] emitted RecrawlContentExtractedEvent", { url }],
+				],
+				refresh: [
+					["publishEvent", RefreshContentExtractedEvent.detailType, { url, candidates, saveAttemptId, etag: "\"v2\"", lastModified: "Tue, 28 Oct 2026 00:00:00 GMT", contentFetchedAt, bodyHash: renderedBody.bodyHash }],
+					["logger.info", "[Test] emitted RefreshContentExtractedEvent", { url }],
+				],
+			};
+			expect(outcome).toEqual({ via: "deferred-to-event" });
+			expect(trace).toStrictEqual([
+				["now"],
+				["finalizeArticle"],
+				["adoptCanonicalIdentity", { url, finalUrl: "https://example-spa.test/final", outcome: failed ? { kind: "crawl-failed" } : { kind: "finalized", wordCount: 120 }, recrawl: mode !== "save" }],
+				["resolveOriginalUrl", url],
+				["putTierSource", { url, tier: "tier-1", html: renderedArticle.html, evaluationHtml: "<main>raw</main>", metadata }],
+				["markCrawlStage", { url, stage: "crawl-content-uploaded" }],
+				["now"],
+				...(mode !== "refresh" && !failed
+					? [["updateFetchTimestamp", { url, contentFetchedAt, etag: "\"v2\"", lastModified: "Tue, 28 Oct 2026 00:00:00 GMT", bodyHash: renderedBody.bodyHash }]]
+					: []),
+				["readTierSnapshot", { url }],
+				["logCrawlOutcome", { url, thisTier: "tier-1", thisTierStatus: failed ? "failed" : "success", otherTierStatus: "failed", pickedTier: "none" }],
+				...announcements[mode],
+			]);
 		});
 	});
 

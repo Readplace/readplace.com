@@ -46,6 +46,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 function buildInput(overrides: Partial<PromoteTierInput> = {}): PromoteTierInput {
 	return {
 		tier: "tier-0",
+		display: { kind: "candidate" },
 		metadata: {
 			title: "New title",
 			siteName: "New site",
@@ -64,6 +65,20 @@ function buildInput(overrides: Partial<PromoteTierInput> = {}): PromoteTierInput
 }
 
 describe("promoteTier", () => {
+	it("keeps the row's own title, siteName and excerpt when the stored canonical was retained, taking the rest from the input", () => {
+		const { article, writes } = promoteTier(buildArticle(), buildInput({ display: { kind: "row" } }));
+
+		assert.deepEqual(article.metadata, {
+			title: "Old title",
+			siteName: "Old site",
+			excerpt: "Old excerpt",
+			wordCount: 250,
+			imageUrl: "https://example.com/image.jpg",
+			publishedOn: "2025-10-08",
+		});
+		assert.ok(writes.includes("metadata"));
+	});
+
 	it("overwrites metadata with the supplied values", () => {
 		const { article } = promoteTier(buildArticle(), buildInput());
 

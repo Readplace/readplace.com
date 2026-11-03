@@ -20,7 +20,8 @@ import { isProxyWorthyError } from "@packages/crawl-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
 import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 
 export type SaveLinkWorkResult =
 	| { candidate: { id: CandidateId; tier: "tier-1" } }
@@ -99,6 +100,7 @@ export function initSaveLinkWork(deps: {
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
 	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
 	putTierSource: PutTierSource;
+	publishEvent: PublishEvent;
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
@@ -114,7 +116,6 @@ export function initSaveLinkWork(deps: {
 	const {
 		crawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported,
-		putTierSource,
 		updateFetchTimestamp,
 		transitionAndPersist,
 		markCrawlStage,
@@ -126,6 +127,8 @@ export function initSaveLinkWork(deps: {
 		readTierSnapshot,
 		logPrefix,
 	} = deps;
+
+	const commitTierCandidate = initCommitTierCandidate({ putTierSource: deps.putTierSource, publishEvent: deps.publishEvent });
 
 	const { emitTier1FailureOutcome } = initEmitTier1FailureOutcome({
 		readTierSnapshot,
@@ -252,50 +255,37 @@ export function initSaveLinkWork(deps: {
 			outcome: liveFailed ? { kind: "crawl-failed" } : { kind: "finalized", wordCount: result.article.metadata.wordCount },
 			recrawl: options.recrawl,
 		});
-		const metadata = candidateProvenance({
-			metadata: result.article.metadata,
-			html: result.article.html,
-			evaluationHtml: result.evaluationHtml ?? result.article.html,
+		const candidate = await commitTierCandidate({
+			url,
 			attemptId,
 			originalUrl: await deps.resolveOriginalUrl(url),
 			sourceUrl: result.finalUrl ?? originalUrl,
-			kind: "live",
 			fetchedAt,
-			httpStatus: result.httpStatus,
-		});
-		await putTierSource({
-			url,
-			tier: "tier-1",
+			leg: { tier: "tier-1", kind: "live", httpStatus: result.httpStatus },
+			metadata: result.article.metadata,
 			html: result.article.html,
-			metadata,
-			evaluationHtml: result.evaluationHtml,
-		});
-		await markCrawlStage({ url, stage: "crawl-content-uploaded" });
-
-		if (!liveFailed) {
-			await updateFetchTimestamp({
-				url,
-				contentFetchedAt: now().toISOString(),
-				etag: result.etag,
-				lastModified: result.lastModified,
-				bodyHash: result.bodyHash,
-			});
-		}
-
-		const successSnapshot = await readTierSnapshot({ url });
-		logCrawlOutcome({
-			url,
-			thisTier: "tier-1",
-			thisTierStatus: liveFailed ? "failed" : "success",
-			otherTierStatus: successSnapshot.tier0Status,
-			pickedTier: successSnapshot.pickedTier,
+			evaluation: { hashed: result.evaluationHtml ?? result.article.html, stored: result.evaluationHtml },
+			afterStore: async () => {
+				await markCrawlStage({ url, stage: "crawl-content-uploaded" });
+				if (!liveFailed) {
+					await updateFetchTimestamp({
+						url,
+						contentFetchedAt: now().toISOString(),
+						etag: result.etag,
+						lastModified: result.lastModified,
+						bodyHash: result.bodyHash,
+					});
+				}
+			},
+			crawlOutcome: { report: liveFailed ? "failed" : "success", readSnapshot: () => readTierSnapshot({ url }), logCrawlOutcome },
+			announce: { event: "none" },
 		});
 
 		logger.info(`${logPrefix} tier-1 source written`, {
 			url,
 			imageUrl: result.article.metadata.imageUrl ?? null,
 		});
-		return { candidate: { id: metadata.id, tier: "tier-1" } };
+		return { candidate };
 	};
 
 	return { saveLinkWork };

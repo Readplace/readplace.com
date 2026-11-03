@@ -8,6 +8,7 @@ import type { AdoptArticleDestination } from "@packages/article-store";
 import { initAdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 
 const notFoundCrawl = (httpStatus: 404 | 410): CrawlAndFinalizeArticle => async () => ({ status: "not-found", httpStatus });
 
@@ -28,6 +29,7 @@ function createWork(overrides: Partial<WorkDeps> = {}) {
 		crawlAndFinalizeArticle: notFoundCrawl(404),
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
+		publishEvent: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
@@ -633,5 +635,77 @@ describe("initSaveLinkWork — a queued twitter.com identity", () => {
 		expect(finalized).toEqual([{ url: "https://twitter.com/jack/status/20", documentUrl: "https://x.com/jack/status/20" }]);
 		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: "https://twitter.com/jack/status/20", tier: "tier-1" }));
 		expect(adoptDestination.mock.calls).toEqual([]);
+	});
+});
+
+describe("initSaveLinkWork — the tier-1 commit tail", () => {
+	it.each<{ name: string; fetched: { httpStatus: number; evaluationHtml?: string; etag?: string }; status: "success" | "failed" }>([
+		{ name: "a readable 200", fetched: { httpStatus: 200, etag: "\"v1\"" }, status: "success" },
+		{ name: "a retained 403 with its evaluation bytes", fetched: { httpStatus: 403, evaluationHtml: "<html><body>Denied</body></html>" }, status: "failed" },
+	])("stores $name, records freshness only for a success, and reports the outcome in that order", async ({ fetched, status }) => {
+		const trace: unknown[][] = [];
+		let tick = 0;
+		const record = (name: string) => async (params: unknown) => {
+			trace.push([name, params]);
+		};
+		const article = { html: "<p>body</p>", metadata: { title: "T", siteName: "S", excerpt: "E", wordCount: 321, estimatedReadTime: 2, imageUrl: "https://site.com/i.png" } };
+		const { saveLinkWork } = createWork({
+			resolveOriginalUrl: async (u) => {
+				trace.push(["resolveOriginalUrl", u]);
+				return "https://site.com/original";
+			},
+			crawlAndFinalizeArticle: async (params) => {
+				trace.push(["crawlAndFinalizeArticle", params]);
+				return { status: "fetched", article, finalUrl: "https://site.com/final", bodyHash: "b".repeat(64), lastModified: "Tue, 28 Oct 2026 00:00:00 GMT", ...fetched };
+			},
+			putTierSource: record("putTierSource"),
+			updateFetchTimestamp: record("updateFetchTimestamp"),
+			markCrawlStage: record("markCrawlStage"),
+			adoptCanonicalIdentity: record("adoptCanonicalIdentity"),
+			readTierSnapshot: async (params) => {
+				trace.push(["readTierSnapshot", params]);
+				return { tier0Status: "success", tier1Status: "not_attempted", pickedTier: "tier-0" };
+			},
+			logCrawlOutcome: (params) => {
+				trace.push(["logCrawlOutcome", params]);
+			},
+			logger: { ...noopLogger, info: (message, context) => trace.push(["logger.info", message, context]) },
+			now: () => {
+				tick += 1;
+				trace.push(["now"]);
+				return new Date(Date.UTC(2026, 3, 18, 12, 0, tick));
+			},
+		});
+
+		const result = await saveLinkWork("https://site.com/page", { saveAttemptId, recrawl: true });
+
+		const metadata = candidateProvenance({
+			metadata: article.metadata,
+			html: article.html,
+			evaluationHtml: fetched.evaluationHtml ?? article.html,
+			attemptId: saveAttemptId,
+			originalUrl: "https://site.com/original",
+			sourceUrl: "https://site.com/final",
+			kind: "live",
+			fetchedAt: "2026-04-18T12:00:01.000Z",
+			httpStatus: fetched.httpStatus,
+		});
+		expect(result).toEqual({ candidate: { id: metadata.id, tier: "tier-1" } });
+		expect(trace).toEqual([
+			["resolveOriginalUrl", "https://site.com/page"],
+			["now"],
+			["markCrawlStage", { url: "https://site.com/page", stage: "crawl-fetching" }],
+			["crawlAndFinalizeArticle", { url: "https://site.com/original", writeContext: { url: "https://site.com/page", attemptId: saveAttemptId } }],
+			["adoptCanonicalIdentity", { url: "https://site.com/page", finalUrl: "https://site.com/final", outcome: status === "success" ? { kind: "finalized", wordCount: 321 } : { kind: "crawl-failed" }, recrawl: true }],
+			["resolveOriginalUrl", "https://site.com/page"],
+			["putTierSource", { url: "https://site.com/page", tier: "tier-1", html: article.html, metadata, evaluationHtml: fetched.evaluationHtml }],
+			["markCrawlStage", { url: "https://site.com/page", stage: "crawl-content-uploaded" }],
+			...(status === "success"
+				? [["now"], ["updateFetchTimestamp", { url: "https://site.com/page", contentFetchedAt: "2026-04-18T12:00:02.000Z", etag: "\"v1\"", lastModified: "Tue, 28 Oct 2026 00:00:00 GMT", bodyHash: "b".repeat(64) }]]
+				: []),
+			["readTierSnapshot", { url: "https://site.com/page" }],
+			["logCrawlOutcome", { url: "https://site.com/page", thisTier: "tier-1", thisTierStatus: status, otherTierStatus: "success", pickedTier: "tier-0" }],
+			["logger.info", "[save-link-work.test] tier-1 source written", { url: "https://site.com/page", imageUrl: "https://site.com/i.png" }],
+		]);
 	});
 });

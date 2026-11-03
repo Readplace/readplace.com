@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/hutch-logger";
@@ -79,7 +80,7 @@ describe("initSelectContentWork", () => {
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, {
 			url: URL, canonicalCommit: commit,
 			input: {
-				tier: "tier-1", metadata: { ...winner.metadata, imageUrl: imageSource.metadata.imageUrl }, estimatedReadTime: 3,
+				tier: "tier-1", display: { kind: "candidate" }, metadata: { ...winner.metadata, imageUrl: imageSource.metadata.imageUrl }, estimatedReadTime: 3,
 				contentFetchedAt: NOW, now: NOW, canonicalChanged: true, canonicalContentHash: computeCanonicalContentHash(winner.html),
 			},
 		});
@@ -175,7 +176,7 @@ describe("initSelectContentWork", () => {
 
 	it("promotes a recrawl through its recrawl transition and carries the immutable commit", async () => {
 		const { work, deps, commit } = setup();
-		await work({ ...request, mode: "recrawl" });
+		await work({ ...request, mode: "recrawl", candidates: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, expect.objectContaining({
 			canonicalCommit: commit, input: expect.objectContaining({ winnerTier: "tier-1", canonicalContentHash: computeCanonicalContentHash(source().html) }),
 		}));
@@ -210,7 +211,7 @@ describe("initSelectContentWork", () => {
 			selectMostCompleteContent: async () => ({ kind: "tie", candidateIds: [cid("tier-1"), cid("tier-0")], reason: "Identical prose" }),
 		});
 		await work({ ...laterRequest, mode: "recrawl", candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
-		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, { url: URL, input: { now: NOW, publishedOn: undefined }, canonicalCommit: { ...commit, expected: existing.contentSelection } });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, { url: URL, input: { now: NOW, publishedOn: undefined, display: { kind: "row" } }, canonicalCommit: { ...commit, expected: existing.contentSelection } });
 		expect(deps.recordCrawlVersion).not.toHaveBeenCalled();
 	});
 
@@ -255,7 +256,7 @@ describe("initSelectContentWork", () => {
 		await work({ ...laterRequest, mode: "recrawl", candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
 
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, expect.objectContaining({
-			input: { now: NOW, publishedOn: "2025-10-08" },
+			input: { now: NOW, publishedOn: "2025-10-08", display: { kind: "row" } },
 		}));
 	});
 
@@ -273,14 +274,14 @@ describe("initSelectContentWork", () => {
 			listAvailableTierSources: async () => [capture],
 			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("tier-0"), reason: "The snapshot" }),
 		});
-		await work({ ...laterRequest, url: archive, mode: "recrawl" });
+		await work({ ...laterRequest, url: archive, mode: "recrawl", candidates: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, expect.objectContaining({ canonicalCommit: expect.objectContaining({ originalUrl: URL }) }));
 	});
 
 	it.each(["save", "recrawl"] as const)("retains the verified canonical and its existing version when the %s comparison returns none", async (mode) => {
 		const existing = article({ contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 4 } });
 		const { work, deps, events, commit } = setup({ loadArticle: async () => existing, selectMostCompleteContent: async () => ({ kind: "none", reason: "Blocked responses" }) });
-		await work({ ...laterRequest, mode });
+		await work(mode === "recrawl" ? { ...laterRequest, mode, candidates: [] } : { ...laterRequest, mode });
 		expect(deps.recordCrawlVersion).not.toHaveBeenCalled();
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(mode === "recrawl" ? recrawlTieKeptCanonical : promoteTier, expect.objectContaining({ canonicalCommit: { ...commit, expected: existing.contentSelection } }));
 		expect(events).toEqual(["upload", "commit", "completion"]);
@@ -458,5 +459,146 @@ describe("initSelectContentWork", () => {
 		const { work, events } = setup({ selectMostCompleteContent: async () => ({ kind: "none", reason: "CAPTCHA" }), transitionAndPersist: async () => { throw new Error("selection changed"); } });
 		await expect(work(request)).rejects.toThrow("selection changed");
 		expect(events).toEqual([]);
+	});
+
+	describe("the title a selection that kept the stored canonical shows", () => {
+		const PROSE = "<p>Complete article</p>";
+		const STALE = { title: "Article from link.mail.example", siteName: "link.mail.example", excerpt: "Content saved from link.mail.example." };
+		const FILING = { title: "Anthropic, PBC - S-1/A-1", siteName: "www.sec.gov", excerpt: "Filing excerpt" };
+		function candidate(params: { id: string; tier: VerifiedTierSource["tier"]; shown: typeof STALE; html?: string; sourceUrl?: string; httpStatus?: number }): VerifiedTierSource {
+			const html = params.html ?? PROSE;
+			const provenance = candidateProvenance({
+				metadata: { ...metadata, ...params.shown }, html, evaluationHtml: html, attemptId: laterRequest.saveAttemptId, originalUrl: URL,
+				sourceUrl: params.sourceUrl ?? URL, kind: params.tier === "tier-0" ? "extension" : "live", fetchedAt: NOW,
+			});
+			return { tier: params.tier, html, metadata: { ...provenance, id: cid(params.id), httpStatus: params.httpStatus } };
+		}
+		async function shownAfter(params: {
+			stored: VerifiedTierSource;
+			row?: typeof STALE;
+			sources: VerifiedTierSource[];
+			fresh: string[];
+			mode?: "save" | "recrawl" | "refresh";
+			judge?: TestDependencies["selectMostCompleteContent"];
+		}) {
+			const rows = new Map<string, Article>([[URL, article({
+				metadata: { ...metadata, ...(params.row ?? STALE) },
+				freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(params.stored.html) },
+				contentSelection: { candidateId: params.stored.metadata.id, tier: params.stored.tier, revision: 4 },
+			})]]);
+			const { transitionAndPersist } = initTransitionAndPersist({
+				store: { load: async (url) => rows.get(url), save: async ({ article: next }) => { rows.set(next.url, next); } },
+				dispatchEffect: async () => {},
+				logCrawlSettled: () => {},
+			});
+			const { work } = setup({
+				loadArticle: async (url) => rows.get(url), transitionAndPersist,
+				listAvailableTierSources: async () => [params.stored, ...params.sources],
+				selectMostCompleteContent: params.judge,
+				writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://bucket/immutable/content.html", candidateId: source.metadata.id, tier: source.tier }),
+			});
+			const all = [params.stored, ...params.sources];
+			const candidates = params.fresh.map((id) => {
+				const found = all.find((source) => source.metadata.id === id);
+				assert(found, `no source ${id}`);
+				return { id: found.metadata.id, tier: found.tier };
+			});
+			const mode = params.mode ?? "recrawl";
+			await work(mode === "refresh" ? { ...laterRequest, mode, candidates, refresh: { bodyHash: "raw-body-hash", contentFetchedAt: NOW } } : { ...laterRequest, mode, candidates });
+			const { title, siteName, excerpt } = rows.get(URL)?.metadata ?? {};
+			return { title, siteName, excerpt };
+		}
+
+		it("takes the fresh tier-1 source's title, siteName and excerpt when a recrawl finds the prose unchanged", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }),
+				sources: [candidate({ id: "fresh", tier: "tier-1", shown: FILING })],
+				fresh: ["fresh"],
+			});
+			assert.deepEqual(shown, FILING);
+		});
+
+		it("takes the fresh tier-1 source's title when a duplicate recrawl delivery carries the same prose in different markup", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }),
+				sources: [candidate({ id: "fresh", tier: "tier-1", shown: FILING, html: "<div><p>Complete article</p></div>" })],
+				fresh: ["fresh"],
+			});
+			assert.deepEqual(shown, FILING);
+		});
+
+		it("keeps a repaired title when a later save finds the prose unchanged", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }), row: FILING,
+				sources: [candidate({ id: "fresh", tier: "tier-1", shown: STALE })],
+				fresh: ["fresh"], mode: "save",
+			});
+			assert.deepEqual(shown, FILING);
+		});
+
+		it("keeps the row's title when a refresh's fresh tier-1 source finds the prose unchanged under another title", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }),
+				sources: [candidate({ id: "fresh", tier: "tier-1", shown: FILING })],
+				fresh: ["fresh"], mode: "refresh",
+			});
+			assert.deepEqual(shown, STALE);
+		});
+
+		it("keeps the row's title when an unchanged save's only fresh source is a capture", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }),
+				sources: [candidate({ id: "capture", tier: "tier-0", shown: FILING })],
+				fresh: ["capture"], mode: "save",
+			});
+			assert.deepEqual(shown, STALE);
+		});
+
+		it("keeps the row's title when a recrawl finds unchanged prose over a stored capture", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-0", shown: STALE }),
+				sources: [candidate({ id: "fresh", tier: "tier-1", shown: FILING })],
+				fresh: ["fresh"],
+			});
+			assert.deepEqual(shown, STALE);
+		});
+
+		it("keeps the row's title when the judge keeps the stored tier-1 canonical over a different fresh copy", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }),
+				sources: [candidate({ id: "fresh", tier: "tier-1", shown: FILING, html: "<p>A shorter teaser</p>" })],
+				fresh: ["fresh"],
+				judge: async () => ({ kind: "winner", candidateId: cid("stored"), reason: "More complete" }),
+			});
+			assert.deepEqual(shown, STALE);
+		});
+
+		it("keeps the row's title when the judge rejects every candidate beside a fresh 403 page", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }),
+				sources: [candidate({ id: "blocked", tier: "tier-1", shown: FILING, html: "<p>Access denied</p>", httpStatus: 403 })],
+				fresh: ["blocked"],
+				judge: async () => ({ kind: "none", reason: "Blocked responses" }),
+			});
+			assert.deepEqual(shown, STALE);
+		});
+
+		it("keeps the row's title when the fresh tier-1 source was fetched through a wrapper link", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }),
+				sources: [candidate({ id: "fresh", tier: "tier-1", shown: FILING, sourceUrl: "https://javascriptweekly.com/link/123/web" })],
+				fresh: ["fresh"],
+			});
+			assert.deepEqual(shown, STALE);
+		});
+
+		it("keeps the row's title when the only other tier-1 source came from an earlier event", async () => {
+			const shown = await shownAfter({
+				stored: candidate({ id: "stored", tier: "tier-1", shown: STALE }),
+				sources: [candidate({ id: "earlier", tier: "tier-1", shown: FILING }), candidate({ id: "capture", tier: "tier-0", shown: FILING })],
+				fresh: ["capture"],
+			});
+			assert.deepEqual(shown, STALE);
+		});
 	});
 });

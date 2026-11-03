@@ -8,7 +8,7 @@ import { readabilityAdditions } from "./readability-additions";
 import { initReadabilityParser } from "./readability-parser";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
-import { METADATA_EXCERPT_MAX_LENGTH } from "@packages/domain/article";
+import { METADATA_EXCERPT_MAX_LENGTH, articleFromHostTitle } from "@packages/domain/article";
 
 /* A test site specifies only the hooks a case exercises; the rest default to
  * the shared noops, mirroring how a real site opts out of a stage. */
@@ -490,7 +490,7 @@ describe("initReadabilityParser", () => {
 		}
 	});
 
-	it("falls back to the saved-url host for siteName so the read-time rule can rehost it to the destination", () => {
+	it("falls back to the host the redirect landed on for siteName, not the saved link's host", () => {
 		const htmlWithoutSiteName = `
 		<html><head><title>Post</title></head>
 		<body><article>
@@ -509,7 +509,7 @@ describe("initReadabilityParser", () => {
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.article.siteName).toBe("wrapper.example");
+			expect(result.article.siteName).toBe("dest.example");
 		}
 	});
 
@@ -550,6 +550,71 @@ describe("initReadabilityParser", () => {
 		if (!result.ok) {
 			expect(result.reason).toBe("Invalid URL");
 		}
+	});
+
+	describe("an untitled page's fallback host", () => {
+		const untitledHtml = `<html><head></head><body>${"<p>word </p>".repeat(100)}</body></html>`;
+		const fallbackOf = (params: { url: string; documentUrl: string }) => {
+			const result = initParser().parseHtml({ ...params, html: untitledHtml, thumbnailUrl: null });
+			assert(result.ok, "the page parses");
+			return { title: result.article.title, siteName: result.article.siteName };
+		};
+
+		it("names the host a tracking link redirected to", () => {
+			expect(
+				fallbackOf({
+					url: "https://link.mail.cautiousoptimism.news/ss/c/u001.abc/4kw/def/h1/ghi",
+					documentUrl: "https://www.sec.gov/Archives/edgar/data/1/000000000026000001/d0.htm",
+				}),
+			).toEqual({
+				title: articleFromHostTitle("www.sec.gov"),
+				siteName: "www.sec.gov",
+			});
+		});
+
+		it("names the original article's host for an archive capture", () => {
+			expect(
+				fallbackOf({
+					url: "https://publisher.example/article",
+					documentUrl: "https://web.archive.org/web/20240102123456/https://publisher.example/article",
+				}).siteName,
+			).toBe("publisher.example");
+		});
+
+		it("names the original article's host for a reader's capture of a wrapper page", () => {
+			expect(
+				fallbackOf({
+					url: "https://publisher.example/article",
+					documentUrl: "https://javascriptweekly.com/link/100000/rss",
+				}).siteName,
+			).toBe("publisher.example");
+		});
+
+		it("names the original article's host for an archive-host page with no capture in its path", () => {
+			expect(
+				fallbackOf({ url: "https://publisher.example/article", documentUrl: "https://web.archive.org/" }).siteName,
+			).toBe("publisher.example");
+		});
+
+		it("names the page's own host when its URL outgrows a reader's article row", () => {
+			expect(
+				fallbackOf({
+					url: "https://link.mail.cautiousoptimism.news/ss/c/u001.abc",
+					documentUrl: `https://www.sec.gov/Archives/edgar/data/1/${"a".repeat(1100)}.htm`,
+				}).siteName,
+			).toBe("www.sec.gov");
+		});
+
+		it("refuses a page whose document URL does not parse", () => {
+			const result = initParser().parseHtml({
+				url: "https://publisher.example/article",
+				documentUrl: "not-a-url",
+				html: untitledHtml,
+				thumbnailUrl: null,
+			});
+
+			expect(result).toEqual({ ok: false, reason: "Invalid URL" });
+		});
 	});
 
 	it("should use fallback values when readability returns empty fields", () => {

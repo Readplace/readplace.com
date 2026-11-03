@@ -3,14 +3,14 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { deriveEmailIssueMetadata, emailIssueArticleUrl, emailIssueReceivedAt } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import { EmailOutputSavedToAllEvent, SaveEmailIssueCommand, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { EmailOutputSavedToAllEvent, SaveEmailIssueCommand } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import type { SaveEmailIssue } from "./save-email-issue";
 
 const LOG_PREFIX = "[SaveEmailIssueCommand]";
@@ -25,6 +25,7 @@ export function initSaveEmailIssueCommandHandler(deps: {
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { logger } = deps;
+	const commitTierCandidate = initCommitTierCandidate(deps);
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -58,23 +59,18 @@ export function initSaveEmailIssueCommandHandler(deps: {
 				});
 				if (contentPending) {
 					const extractedAt = deps.now().toISOString();
-					const candidate = candidateProvenance({
-						metadata: { ...metadata, estimatedReadTime },
-						html: body,
-						evaluationHtml: body,
+					await commitTierCandidate({
+						url,
 						attemptId: detail.saveAttemptId,
 						originalUrl: detail.issueUrl,
 						sourceUrl: url,
-						kind: "extension",
 						fetchedAt: extractedAt,
-					});
-					await deps.putTierSource({ url, tier: "tier-0", html: body, metadata: candidate });
-					await deps.publishEvent(TierContentExtractedEvent, {
-						url,
-						userId,
-						saveAttemptId: detail.saveAttemptId,
-						candidates: [{ id: candidate.id, tier: "tier-0" }],
-						extractedAt,
+						leg: { tier: "tier-0", kind: "extension", captureTrigger: undefined },
+						metadata: { ...metadata, estimatedReadTime },
+						html: body,
+						evaluation: { hashed: body, stored: undefined },
+						crawlOutcome: { report: "none" },
+						announce: { event: "tier-content-extracted", userId, extractedAt: () => extractedAt },
 					});
 				}
 				try {

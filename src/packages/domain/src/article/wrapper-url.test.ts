@@ -1,8 +1,10 @@
 import {
+	hasWrapperShape,
 	isArchiveHost,
 	isStoredWrapperUrl,
 	isUnlockableTrackerUrl,
 	isWrapperUrl,
+	pageHostUrl,
 	stripRedirectAddedParams,
 	unwrapWrapperUrl,
 	wrapperFamilyOf,
@@ -156,6 +158,45 @@ describe("isWrapperUrl", () => {
 
 	it("does not recognise a publisher article", () => {
 		expect(isWrapperUrl("https://publisher.example/article")).toBe(false);
+	});
+});
+
+describe("hasWrapperShape", () => {
+	it.each([
+		"https://archive.is/",
+		WAYBACK,
+		"https://javascriptweekly.com/link/100000/rss",
+		"https://apple.news/AjYm3jdR0S4uhs9hRKpJ1Sg",
+		"https://x.com/intent/tweet?url=https://publisher.example/a",
+		"https://archive.ph/o/Ab1cD/https://publisher.example/a",
+	])("recognises %s", (url) => {
+		expect(hasWrapperShape(url)).toBe(true);
+	});
+
+	it("does not recognise a publisher page whose URL outgrows a reader's article row", () => {
+		expect(hasWrapperShape(`https://www.sec.gov/Archives/edgar/data/1/${"a".repeat(1100)}.htm`)).toBe(false);
+	});
+
+	it.each(["https://publisher.example/article", "not a url"])("does not recognise %s", (url) => {
+		expect(hasWrapperShape(url)).toBe(false);
+	});
+});
+
+describe("pageHostUrl", () => {
+	it("names a page by the document it was read from", () => {
+		expect(pageHostUrl({ savedUrl: "https://t.co/abc", documentUrl: "https://publisher.example/a" }).href).toBe(
+			"https://publisher.example/a",
+		);
+	});
+
+	it("names a page read through a wrapper by the saved link", () => {
+		expect(pageHostUrl({ savedUrl: "https://publisher.example/a", documentUrl: WAYBACK }).href).toBe(
+			"https://publisher.example/a",
+		);
+	});
+
+	it("rejects a document URL that does not parse", () => {
+		expect(() => pageHostUrl({ savedUrl: "https://publisher.example/a", documentUrl: "not a url" })).toThrow();
 	});
 });
 

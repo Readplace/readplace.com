@@ -1,4 +1,5 @@
 import type { Article } from "../article.types";
+import { type MetadataDisplay, displayedMetadata } from "./displayed-metadata";
 import type { CanonicalPublishedOn } from "../canonical-published-on";
 import type { Effect } from "../effects.types";
 import { stampReaderAvailability } from "../reader-availability";
@@ -7,6 +8,7 @@ import type { AggregateField } from "../storage.types";
 export interface RecrawlTieKeptCanonicalInput {
 	now: string;
 	publishedOn: CanonicalPublishedOn;
+	display: Extract<MetadataDisplay, { kind: "fresh" | "row" }>;
 }
 
 /* Tie kept canonical: the selector returned a tie and a canonical already
@@ -48,11 +50,16 @@ export function recrawlTieKeptCanonical(
 		nextSummary = article.summary;
 	}
 
-	let nextMetadata = article.metadata;
-	if (input.publishedOn !== undefined && input.publishedOn !== article.metadata.publishedOn) {
-		nextMetadata = { ...article.metadata, publishedOn: input.publishedOn };
-		writes.push("metadata");
-	}
+	const candidateMetadata = displayedMetadata({
+		article,
+		metadata: { ...article.metadata, publishedOn: input.publishedOn ?? article.metadata.publishedOn },
+		display: input.display,
+	});
+	const metadataChanged = (["title", "siteName", "excerpt", "publishedOn"] as const).some(
+		(field) => candidateMetadata[field] !== article.metadata[field],
+	);
+	const nextMetadata = metadataChanged ? candidateMetadata : article.metadata;
+	if (metadataChanged) writes.push("metadata");
 
 	const next: Article = {
 		...available.article,

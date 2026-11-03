@@ -37,6 +37,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 
 function buildInput(overrides: Omit<Partial<RefreshContentInput>, "metadata"> = {}): RefreshContentInput {
 	return {
+		display: { kind: "candidate" },
 		metadata: {
 			title: "New title",
 			siteName: "Example",
@@ -57,10 +58,22 @@ function buildInput(overrides: Omit<Partial<RefreshContentInput>, "metadata"> = 
 }
 
 describe("refreshContent", () => {
+	it("keeps the row's own title, siteName and excerpt when the stored canonical was retained", () => {
+		const before = buildArticle({ metadata: { title: "Repaired title", siteName: "www.sec.gov", excerpt: "Repaired excerpt", wordCount: 100 } });
+
+		const { article } = refreshContent(before, buildInput({ display: { kind: "row" } }));
+
+		assert.equal(article.metadata.title, "Repaired title");
+		assert.equal(article.metadata.siteName, "www.sec.gov");
+		assert.equal(article.metadata.excerpt, "Repaired excerpt");
+		assert.equal(article.metadata.wordCount, 250);
+	});
+
 	it("overwrites metadata, freshness, and estimated read time with the fetched values", () => {
 		const before = buildArticle();
 
 		const { article } = refreshContent(before, {
+			display: { kind: "candidate" },
 			metadata: {
 				title: "New title",
 				siteName: "Example",
@@ -324,6 +337,7 @@ describe("refreshContent", () => {
 		const beforeSnapshot = JSON.parse(JSON.stringify(before));
 
 		refreshContent(before, {
+			display: { kind: "candidate" },
 			metadata: {
 				title: "Different",
 				siteName: "Example",

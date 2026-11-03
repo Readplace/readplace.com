@@ -215,22 +215,34 @@ function trackerRuleOf(url: string): TrackerRule | undefined {
 	return NEWSLETTER_TRACKERS.find((rule) => matchesTracker(rule, host, parsed));
 }
 
-export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
-	const parsed = parseHttpUrl(url);
-	if (parsed === undefined) return undefined;
+function shapeFamilyOf(parsed: URL): WrapperFamily | undefined {
 	const host = hostnameOf(parsed);
 	if (archiveTodayOutbound(parsed) !== null) return "archive-outbound";
 	if (isTweetIntent(parsed)) return "share-intent";
 	if (NEWSLETTER_TRACKERS.some((rule) => matchesTracker(rule, host, parsed))) return "newsletter-tracker";
 	if (APPLE_NEWS_HOSTS.has(host) && OPAQUE_TOKEN_PATH.test(parsed.pathname)) return "apple-news";
 	if (unwrapArchive(parsed) !== undefined || isArchiveTodayShortId(parsed)) return "archive-snapshot";
-	if (outgrowsUserArticleKey(url)) return "newsletter-tracker";
 	return undefined;
+}
+
+export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
+	const parsed = parseHttpUrl(url);
+	if (parsed === undefined) return undefined;
+	return shapeFamilyOf(parsed) ?? (outgrowsUserArticleKey(url) ? "newsletter-tracker" : undefined);
 }
 
 export function isArchiveHost(url: string): boolean {
 	const parsed = parseHttpUrl(url);
 	return parsed !== undefined && ARCHIVE_HOSTS.has(hostnameOf(parsed));
+}
+
+export function hasWrapperShape(url: string): boolean {
+	const parsed = parseHttpUrl(url);
+	return parsed !== undefined && (ARCHIVE_HOSTS.has(hostnameOf(parsed)) || shapeFamilyOf(parsed) !== undefined);
+}
+
+export function pageHostUrl(page: { savedUrl: string; documentUrl: string }): URL {
+	return new URL(hasWrapperShape(page.documentUrl) ? page.savedUrl : page.documentUrl);
 }
 
 export function isWrapperUrl(url: string): boolean {

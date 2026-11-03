@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
 import { normalizeImplicitBody } from "./normalize-implicit-body";
 import { readabilityAdditions } from "./readability-additions";
@@ -109,5 +110,111 @@ describe("normalizeImplicitBody", () => {
 			'<html><head><title>Real</title><script>var a=1</script></head><body><p>Post body</p></body></html>',
 		);
 		expect(Array.from(document.childNodes).map((node) => node.nodeName)).toEqual(["#document-type", "HTML"]);
+	});
+	describe("an SEC EDGAR filing served inside its SGML wrapper", () => {
+		const edgarFiling = (documents: readonly { title: string; body: string }[]) =>
+			documents
+				.map(
+					({ title, body }, index) =>
+						`<DOCUMENT>\n<TYPE>S-1/A\n<SEQUENCE>${index + 1}\n<FILENAME>d${index}.htm\n<DESCRIPTION>S-1/A\n<TEXT>\n<html><head><title>${title}</title></head><body>${body}</body></html>\n</TEXT>\n</DOCUMENT>`,
+				)
+				.join("\n");
+
+		it("roots the document at the filing's own <html>, keeping its title and body", () => {
+			const { document } = parseHTML(
+				edgarFiling([{ title: "Anthropic, PBC - S-1/A-1", body: "<p>Filing body</p>" }]),
+			);
+
+			normalizeImplicitBody(document);
+
+			expect(document.title).toBe("Anthropic, PBC - S-1/A-1");
+			expect(document.documentElement.outerHTML).toBe(
+				"<html><head><title>Anthropic, PBC - S-1/A-1</title></head><body><p>Filing body</p></body></html>",
+			);
+		});
+
+		it("keeps only the first document of a multi-document file, which is the filing itself", () => {
+			const { document } = parseHTML(
+				edgarFiling([
+					{ title: "Anthropic, PBC - S-1/A-1", body: "<p>Filing body</p>" },
+					{ title: "Exhibit 23.1", body: "<p>Consent of auditors</p>" },
+				]),
+			);
+
+			normalizeImplicitBody(document);
+
+			expect(document.title).toBe("Anthropic, PBC - S-1/A-1");
+			expect(document.body.textContent).toBe("Filing body");
+		});
+
+		it("wraps an EDGAR document whose text holds no <html> as before", () => {
+			const { document } = parseHTML("<DOCUMENT>\n<TYPE>GRAPHIC\n<TEXT>\nbegin 644 chart.jpg\n</TEXT>\n</DOCUMENT>");
+
+			normalizeImplicitBody(document);
+
+			expect(document.documentElement.outerHTML).toBe(
+				"<html><head></head><body><document>\n<type>GRAPHIC\n<text>\nbegin 644 chart.jpg\n</text>\n</type></document></body></html>",
+			);
+		});
+
+		it("parses with the filing's title through Readability", () => {
+			const paragraph = "The registrant is offering shares of its common stock in this proposed public offering. ";
+			const url = "https://www.sec.gov/Archives/edgar/data/1/000000000026000001/d0.htm";
+			const parser = initReadabilityParser({
+				crawlArticle: async () => ({ status: "failed" }),
+				siteRules: [],
+				readabilityAdditions,
+				logError: () => {},
+			});
+
+			const result = parser.parseHtml({
+				url,
+				documentUrl: url,
+				html: edgarFiling([{ title: "Anthropic, PBC - S-1/A-1", body: `<p>${paragraph.repeat(20)}</p>` }]),
+				thumbnailUrl: null,
+			});
+
+			assert(result.ok, "the filing parses");
+			expect(result.article.title).toBe("Anthropic, PBC - S-1/A-1");
+			expect(result.article.content).toContain(paragraph.trim());
+		});
+	});
+
+	it("keeps a <div> fragment's nested <html> where it is, wrapping the fragment as before", () => {
+		const { document } = parseHTML("<div><p>Intro</p><html><p>Nested</p></html></div>");
+
+		normalizeImplicitBody(document);
+
+		expect(document.documentElement.outerHTML).toBe(
+			"<html><head></head><body><div><p>Intro</p><html><p>Nested</p></html></div></body></html>",
+		);
+	});
+
+	it("wraps a document rooted at <body> as before", () => {
+		const { document } = parseHTML("<body><p>Post body</p></body>");
+
+		normalizeImplicitBody(document);
+
+		expect(document.documentElement.outerHTML).toBe("<html><head></head><body><p>Post body</p></body></html>");
+	});
+
+	it("wraps a document rooted at <svg> as before", () => {
+		const { document } = parseHTML('<svg xmlns="http://www.w3.org/2000/svg"><text>Chart</text></svg>');
+
+		normalizeImplicitBody(document);
+
+		expect(document.documentElement.outerHTML).toBe(
+			'<html><head></head><body><svg xmlns="http://www.w3.org/2000/svg"><text>Chart</text></svg></body></html>',
+		);
+	});
+
+	it("wraps an RSS document as before", () => {
+		const { document } = parseHTML('<rss version="2.0"><channel><title>Feed</title><item><title>Post</title></item></channel></rss>');
+
+		normalizeImplicitBody(document);
+
+		expect(document.documentElement.outerHTML).toBe(
+			'<html><head></head><body><rss version="2.0"><channel><title>Feed</title><item><title>Post</title></item></channel></rss></body></html>',
+		);
 	});
 });

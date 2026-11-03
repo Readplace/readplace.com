@@ -46,6 +46,7 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported,
 		putTierSource: deps.putTierSource,
+		publishEvent,
 		updateFetchTimestamp: deps.updateFetchTimestamp,
 		transitionAndPersist: deps.transitionAndPersist,
 		markCrawlStage: deps.markCrawlStage,

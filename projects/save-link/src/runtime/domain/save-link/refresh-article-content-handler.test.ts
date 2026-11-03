@@ -1,3 +1,6 @@
+import assert from "node:assert/strict";
+import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { candidateProvenance } from "../select-content/candidate-provenance";
 import { createHash } from "node:crypto";
 import { noopLogger } from "@packages/hutch-logger";
 import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
@@ -299,4 +302,33 @@ it("rejects stale refresh original proof before reading or writing artifacts", a
 	await expect(handler(createSqsEvent({ ...DETAIL, sourceOriginalUrl: "https://different.example/article" }), buildLambdaContext(), () => {})).resolves.toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	expect(readRefreshHtml).not.toHaveBeenCalled();
 	expect(putTierSource).not.toHaveBeenCalled();
+});
+
+it("logs, writes the tier-1 candidate, announces it, then logs again, with exactly these arguments", async () => {
+	const trace: unknown[][] = [];
+	const record = (level: string) => (...args: unknown[]) => {
+		trace.push([level, ...args]);
+	};
+	const raw = "<html><body>Raw origin response</body></html>";
+	const handler = initRefreshArticleContentHandler({
+		resolveOriginalUrl: async () => URL,
+		readRefreshHtml: async (_url, options) => options?.representation === "evaluation" ? raw : HTML,
+		putTierSource: async (params) => {
+			trace.push(["putTierSource", params]);
+		},
+		publishEvent: async (event, detail) => {
+			trace.push(["publishEvent", event.detailType, detail]);
+		},
+		logger: { info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") },
+	});
+
+	await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
+
+	const metadata = candidateProvenance({ metadata: { ...DETAIL.metadata, estimatedReadTime: DETAIL.estimatedReadTime }, html: HTML, evaluationHtml: raw, attemptId: SaveAttemptIdSchema.parse("attempt-1"), originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: DETAIL.contentFetchedAt });
+	assert.deepEqual(trace, [
+		["info", "[RefreshArticleContent] processing", { url: URL }],
+		["putTierSource", { url: URL, tier: "tier-1", html: HTML, evaluationHtml: raw, metadata }],
+		["publishEvent", RefreshContentExtractedEvent.detailType, { saveAttemptId: "attempt-1", candidates: [{ id: metadata.id, tier: "tier-1" }], url: URL, etag: DETAIL.etag, lastModified: DETAIL.lastModified, contentFetchedAt: DETAIL.contentFetchedAt, bodyHash: DETAIL.bodyHash }],
+		["info", "[RefreshArticleContent] tier-1 source written + event published", { url: URL }],
+	]);
 });

@@ -1,5 +1,5 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
-import type { SaveAttemptId } from "@packages/domain/article";
+import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import { isBlockClassStatus } from "@packages/crawl-article";
 import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
@@ -13,6 +13,7 @@ import {
 	recrawlPromoteTier,
 	recrawlTieKeptCanonical,
 	refreshContent,
+	shownMetadataOf,
 } from "@packages/domain/article-aggregate";
 import type { ListAvailableTierSources, CandidateReference } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
@@ -43,13 +44,24 @@ export interface SelectContentDependencies {
 type SelectContentRequest = {
 	url: string;
 	saveAttemptId: SaveAttemptId;
-	candidates?: readonly CandidateReference[];
 	liveAttempt?: LiveAttempt;
 	extractedAt?: string;
 } & (
-	| { mode: "save" | "recrawl" }
-	| { mode: "refresh"; refresh: { etag?: string; lastModified?: string; contentFetchedAt: string; bodyHash: string } }
+	| { mode: "save"; candidates?: readonly CandidateReference[] }
+	| { mode: "recrawl"; candidates: readonly CandidateReference[] }
+	| { mode: "refresh"; candidates?: readonly CandidateReference[]; refresh: { etag?: string; lastModified?: string; contentFetchedAt: string; bodyHash: string } }
 );
+
+function freshTierOneDisplay(params: { selection: PreparedContentSelection; candidates: readonly CandidateReference[] }) {
+	const { selection } = params;
+	const candidateIds = new Set(params.candidates.map((candidate) => candidate.id));
+	const fresh = selection.selectionRule === "unchanged-content" && selection.selected?.tier === "tier-1"
+		? selection.sources.find((source) => source.tier === "tier-1" && candidateIds.has(source.metadata.id) && !hasWrapperShape(source.metadata.sourceUrl))
+		: undefined;
+	return fresh === undefined
+		? { kind: "row" } as const
+		: { kind: "fresh", shown: shownMetadataOf(fresh.metadata) } as const;
+}
 
 function noReadableReason(params: { selection: PreparedContentSelection; saveAttemptId: SaveAttemptId; liveAttempt?: LiveAttempt }): CrawlFailureReason {
 	const { selection, saveAttemptId } = params;
@@ -82,9 +94,10 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 		const canonicalContentHash = computeCanonicalContentHash(source.html);
 		const crawledAt = deps.now().toISOString();
 		const metadata = { ...source.metadata, imageUrl: resolveCanonicalImageUrl({ winner: source, candidates: selection.sources }), publishedOn: resolveCanonicalPublishedOn({ winner: source, candidates: selection.sources }) };
+		const display = selection.outcome === "retained" ? { kind: "row" } as const : { kind: "candidate" } as const;
 		const canonicalCommit = { ...(await deps.writeCanonicalContent({ url: params.url, source })), originalUrl: selection.originalUrl, expected };
 		if (params.mode === "recrawl" && selection.outcome === "retained") {
-			await deps.transitionAndPersist(recrawlTieKeptCanonical, { url: params.url, input: { now: crawledAt, publishedOn: metadata.publishedOn }, canonicalCommit });
+			await deps.transitionAndPersist(recrawlTieKeptCanonical, { url: params.url, input: { now: crawledAt, publishedOn: metadata.publishedOn, display: freshTierOneDisplay({ selection, candidates: params.candidates }) }, canonicalCommit });
 		} else if (params.mode === "recrawl") {
 			await deps.transitionAndPersist(recrawlPromoteTier, {
 				url: params.url,
@@ -94,13 +107,13 @@ export function initSelectContentWork(deps: SelectContentDependencies) {
 		} else if (params.mode === "refresh") {
 			await deps.transitionAndPersist(refreshContent, {
 				url: params.url,
-				input: { metadata, freshness: params.refresh, estimatedReadTime: source.metadata.estimatedReadTime, now: crawledAt, canonicalContentHash },
+				input: { display, metadata, freshness: params.refresh, estimatedReadTime: source.metadata.estimatedReadTime, now: crawledAt, canonicalContentHash },
 				canonicalCommit,
 			});
 		} else {
 			await deps.transitionAndPersist(promoteTier, {
 				url: params.url,
-				input: { tier: source.tier, metadata, estimatedReadTime: source.metadata.estimatedReadTime, contentFetchedAt: crawledAt, now: crawledAt, canonicalChanged: expected?.tier !== source.tier, canonicalContentHash },
+				input: { tier: source.tier, display, metadata, estimatedReadTime: source.metadata.estimatedReadTime, contentFetchedAt: crawledAt, now: crawledAt, canonicalChanged: expected?.tier !== source.tier, canonicalContentHash },
 				canonicalCommit,
 			});
 		}

@@ -1,12 +1,8 @@
-import {
-	type CrawlArticle,
-	type CrawlUnsupportedReason,
-	type FetchFailureClassification,
-	resolveDocumentUrl,
-} from "@packages/crawl-article";
+import type { CrawlArticle, CrawlUnsupportedReason, FetchFailureClassification } from "@packages/crawl-article";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { MediaWriteContext } from "./put-image-object.types";
 import { type FinalizeArticle, type FinalizedArticle, UNREADABLE_ARTICLE } from "./finalize-article";
+import { finalizeInputOfFetchedPage } from "./fetched-page";
 
 export type CrawlAndFinalizeResult =
 	| {
@@ -108,16 +104,14 @@ export function initCrawlAndFinalizeArticle(deps: {
 		const evaluationHtml = crawlResult.mediaType === "plain-text"
 			? crawlResult.plainText
 			: crawlResult.evaluationHtml ?? crawlResult.html;
-		const finalized = await finalizeArticle({
-			writeContext: params.writeContext,
-			url: params.url,
-			documentUrl: resolveDocumentUrl({ requestedUrl: fetchUrl, finalUrl: crawlResult.finalUrl }),
-			html: crawlResult.html,
-			resolvedThumbnail: crawlResult.thumbnail,
-			...(crawlResult.mediaType === "plain-text"
-				? { mediaType: crawlResult.mediaType, plainText: crawlResult.plainText }
-				: { mediaType: crawlResult.mediaType }),
-		});
+		const finalized = await finalizeArticle(
+			finalizeInputOfFetchedPage({
+				savedUrl: params.url,
+				requestedUrl: fetchUrl,
+				writeContext: params.writeContext,
+				fetched: crawlResult,
+			}),
+		);
 		if (!finalized.ok) {
 			if (!params.retainResponseBody || evaluationHtml.trim() === "") return { status: "failed", reason: finalized.reason, finalUrl: crawlResult.finalUrl };
 			return {

@@ -7,9 +7,11 @@ import { isCanonicalCandidateRevoked } from "../content-selection.types";
 import { stampReaderAvailability } from "../reader-availability";
 import type { AggregateField } from "../storage.types";
 import { pendingSummary } from "./mark-summary-pending";
+import { type MetadataDisplay, displayedMetadata } from "./displayed-metadata";
 
 export interface PromoteTierInput {
 	tier: ContentTier;
+	display: Extract<MetadataDisplay, { kind: "candidate" | "row" }>;
 	/** `imageUrl` is branded `CanonicalImageUrl` so the only way to populate it
 	 * is `resolveCanonicalImageUrl` (save-link/select-content), which rescues
 	 * an og:image from a losing tier when the winner has none. Passing
@@ -72,7 +74,7 @@ export function promoteTier(
 
 	const next: Article = {
 		...available.article,
-		metadata: input.metadata,
+		metadata: displayedMetadata({ article, metadata: input.metadata, display: input.display }),
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,
 		crawl: { kind: "ready" },

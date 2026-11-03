@@ -1,6 +1,6 @@
 import { wrapperFamilyOf } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import { initResolveSubmittedSource } from "../select-content/resolve-submitted-source";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
@@ -12,7 +12,6 @@ import {
 } from "@packages/domain/article-aggregate";
 import {
 	SaveLinkRawHtmlCommand,
-	TierContentExtractedEvent,
 	type LogCrawlOutcome,
 	type LogParseError,
 } from "@packages/hutch-infra-components";
@@ -41,8 +40,6 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 	const {
 		readPendingHtml,
 		finalizeArticle,
-		putTierSource,
-		publishEvent,
 		transitionAndPersist,
 		now,
 		logger,
@@ -52,6 +49,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 	} = deps;
 
 	const resolveSubmittedSource = initResolveSubmittedSource(deps);
+	const commitTierCandidate = initCommitTierCandidate(deps);
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
@@ -97,38 +95,28 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 				}
 
 				const article = finalized.ok ? finalized.article : UNREADABLE_ARTICLE;
-				const metadata = candidateProvenance({ metadata: { ...article.metadata, authorUserId: detail.userId }, html: article.html, evaluationHtml: rawHtml, attemptId: saveAttemptId, originalUrl, sourceUrl: detail.sourceUrl, kind: "extension", fetchedAt: capturedAt, captureTrigger: detail.captureTrigger });
-				await putTierSource({
+				await commitTierCandidate({
 					url: detail.url,
-					tier: TIER,
+					attemptId: saveAttemptId,
+					originalUrl,
+					sourceUrl: detail.sourceUrl,
+					fetchedAt: capturedAt,
+					leg: { tier: TIER, kind: "extension", captureTrigger: detail.captureTrigger },
+					metadata: { ...article.metadata, authorUserId: detail.userId },
 					html: article.html,
-					metadata,
-					evaluationHtml: rawHtml,
-				});
-				logger.info("[SaveLinkRawHtmlCommand] tier-0 source written", {
-					url: detail.url,
-					// Captured tab title from the extension — often includes site branding
-					// and may differ from the readability-extracted title. Useful in logs
-					// for correlating a save with what the user actually had open.
-					capturedTitle: detail.title,
-					captureTrigger: detail.captureTrigger,
-				});
-
-				const snapshot = await readTierSnapshot({ url: detail.url });
-				logCrawlOutcome({
-					url: detail.url,
-					thisTier: TIER,
-					thisTierStatus: "success",
-					otherTierStatus: snapshot.tier1Status,
-					pickedTier: snapshot.pickedTier,
-				});
-
-				await publishEvent(TierContentExtractedEvent, {
-					saveAttemptId,
-					candidates: [{ id: metadata.id, tier: TIER }],
-					url: detail.url,
-					userId: detail.userId,
-					extractedAt: now().toISOString(),
+					evaluation: { hashed: rawHtml, stored: rawHtml },
+					afterStore: () => {
+						logger.info("[SaveLinkRawHtmlCommand] tier-0 source written", {
+							url: detail.url,
+							// Captured tab title from the extension — often includes site branding
+							// and may differ from the readability-extracted title. Useful in logs
+							// for correlating a save with what the user actually had open.
+							capturedTitle: detail.title,
+							captureTrigger: detail.captureTrigger,
+						});
+					},
+					crawlOutcome: { report: "success", readSnapshot: () => readTierSnapshot({ url: detail.url }), logCrawlOutcome },
+					announce: { event: "tier-content-extracted", userId: detail.userId, extractedAt: () => now().toISOString() },
 				});
 			} catch (error) {
 				logger.error("[SaveLinkRawHtmlCommand] record failed", {

@@ -1,8 +1,7 @@
 import assert from "node:assert";
 import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { ReadRefreshHtml } from "@packages/provider-contracts/refresh-html";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
@@ -31,7 +30,8 @@ export function initRefreshArticleContentHandler(deps: {
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { readRefreshHtml, putTierSource, publishEvent, logger } = deps;
+	const { readRefreshHtml, logger } = deps;
+	const commitTierCandidate = initCommitTierCandidate(deps);
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -50,24 +50,24 @@ export function initRefreshArticleContentHandler(deps: {
 					readRefreshHtml(detail.url, { saveAttemptId }),
 					readRefreshHtml(detail.url, { saveAttemptId, representation: "evaluation" }),
 				]);
-				const metadata = candidateProvenance({ metadata: { ...detail.metadata, estimatedReadTime: detail.estimatedReadTime }, html, evaluationHtml, attemptId: saveAttemptId, originalUrl, sourceUrl: detail.sourceUrl, kind: "live", fetchedAt: detail.contentFetchedAt });
-
-				await putTierSource({
+				await commitTierCandidate({
 					url: detail.url,
-					tier: "tier-1",
+					attemptId: saveAttemptId,
+					originalUrl,
+					sourceUrl: detail.sourceUrl,
+					fetchedAt: detail.contentFetchedAt,
+					leg: { tier: "tier-1", kind: "live" },
+					metadata: { ...detail.metadata, estimatedReadTime: detail.estimatedReadTime },
 					html,
-					evaluationHtml,
-					metadata,
-				});
-
-				await publishEvent(RefreshContentExtractedEvent, {
-					saveAttemptId,
-					candidates: [{ id: metadata.id, tier: "tier-1" }],
-					url: detail.url,
-					etag: detail.etag,
-					lastModified: detail.lastModified,
-					contentFetchedAt: detail.contentFetchedAt,
-					bodyHash: detail.bodyHash,
+					evaluation: { hashed: evaluationHtml, stored: evaluationHtml },
+					crawlOutcome: { report: "none" },
+					announce: {
+						event: "refresh-content-extracted",
+						etag: detail.etag,
+						lastModified: detail.lastModified,
+						contentFetchedAt: detail.contentFetchedAt,
+						bodyHash: detail.bodyHash,
+					},
 				});
 
 				logger.info("[RefreshArticleContent] tier-1 source written + event published", {

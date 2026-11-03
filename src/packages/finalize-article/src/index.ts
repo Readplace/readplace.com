@@ -9,6 +9,7 @@ export type {
 	ProcessContent,
 } from "./finalize-article";
 export { initFinalizeArticle, UNREADABLE_ARTICLE } from "./finalize-article";
+export { finalizeInputOfFetchedPage, type FetchedPage } from "./fetched-page";
 export type { PutImageObject, MediaWriteContext } from "./put-image-object.types";
 export { decideTerminalAction } from "./decide-terminal-action";
 export { initRefreshArticleIfStale } from "./check-content-freshness";

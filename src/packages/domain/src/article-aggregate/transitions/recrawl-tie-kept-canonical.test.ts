@@ -27,10 +27,62 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 }
 
 function buildInput(overrides: Partial<RecrawlTieKeptCanonicalInput> = {}): RecrawlTieKeptCanonicalInput {
-	return { now: NOW, publishedOn: undefined, ...overrides };
+	return { now: NOW, publishedOn: undefined, display: { kind: "row" }, ...overrides };
 }
 
 describe("recrawlTieKeptCanonical", () => {
+	const unchanged = { kind: "fresh", shown: { title: "Title", siteName: "Example", excerpt: "Excerpt" } } as const;
+
+	it("takes this recrawl's fresh title, siteName and excerpt over the row's", () => {
+		const before = buildArticle({ metadata: { title: "Article from link.mail.example", siteName: "link.mail.example", excerpt: "Content saved from link.mail.example.", wordCount: 100 } });
+
+		const { article, writes } = recrawlTieKeptCanonical(
+			before,
+			buildInput({ display: { kind: "fresh", shown: { title: "Anthropic, PBC - S-1/A-1", siteName: "www.sec.gov", excerpt: "Filing excerpt" } } }),
+		);
+
+		assert.deepEqual(article.metadata, { title: "Anthropic, PBC - S-1/A-1", siteName: "www.sec.gov", excerpt: "Filing excerpt", wordCount: 100, publishedOn: undefined });
+		assert.ok(writes.includes("metadata"));
+	});
+
+	it("writes no metadata when the fresh metadata matches the row's", () => {
+		const before = buildArticle();
+
+		const { article, writes } = recrawlTieKeptCanonical(before, buildInput({ display: unchanged }));
+
+		assert.equal(article.metadata, before.metadata);
+		assert.ok(!writes.includes("metadata"));
+	});
+
+	it.each([
+		["title", { display: { ...unchanged, shown: { ...unchanged.shown, title: "Fresh title" } } }],
+		["siteName", { display: { ...unchanged, shown: { ...unchanged.shown, siteName: "Fresh site" } } }],
+		["excerpt", { display: { ...unchanged, shown: { ...unchanged.shown, excerpt: "Fresh excerpt" } } }],
+		["publishedOn", { display: unchanged, publishedOn: CanonicalPublishedOnSchema.parse("2025-10-08") }],
+	] as const)("rewrites the metadata when only %s differs", (_field, overrides) => {
+		const { writes } = recrawlTieKeptCanonical(buildArticle(), buildInput(overrides));
+
+		assert.ok(writes.includes("metadata"));
+	});
+
+	it("keeps the row's publish date when a title-only change resolves none", () => {
+		const before = buildArticle({ metadata: { title: "Title", siteName: "Example", excerpt: "Excerpt", wordCount: 100, publishedOn: "2025-10-08" } });
+
+		const { article } = recrawlTieKeptCanonical(before, buildInput({ display: { ...unchanged, shown: { ...unchanged.shown, title: "Fresh title" } }, publishedOn: undefined }));
+
+		assert.equal(article.metadata.title, "Fresh title");
+		assert.equal(article.metadata.publishedOn, "2025-10-08");
+	});
+
+	it("keeps the row's title, siteName and excerpt when there is no fresh tier-1 source to take them from", () => {
+		const before = buildArticle();
+
+		const { article, writes } = recrawlTieKeptCanonical(before, buildInput({ display: { kind: "row" } }));
+
+		assert.equal(article.metadata, before.metadata);
+		assert.ok(!writes.includes("metadata"));
+	});
+
 	it("flips crawl from pending to ready (unsticks the row admin/recrawl wrote pending)", () => {
 		const { article } = recrawlTieKeptCanonical(buildArticle(), buildInput());
 

@@ -1,16 +1,15 @@
 import type { SaveAttemptId } from "@packages/domain/article";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { type CandidateAnnouncement, initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import type { TierSourceMetadata } from "../select-content/tier-source.types";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { resolveDocumentUrl, type ThumbnailCascade } from "@packages/crawl-article";
+import type { ThumbnailCascade } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlBlocked, markCrawlFailed } from "@packages/domain/article-aggregate";
 import {
 	RecrawlContentExtractedEvent,
-	RefreshContentExtractedEvent,
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
@@ -19,7 +18,7 @@ import type { PutTierSource } from "../../providers/article-store/put-tier-sourc
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { ReadTierSnapshot } from "./read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "./emit-tier-1-failure-outcome";
-import { type FinalizeArticle, UNREADABLE_ARTICLE } from "@packages/finalize-article";
+import { type FinalizeArticle, finalizeInputOfFetchedPage, UNREADABLE_ARTICLE } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
 
 /* Returning this disposition forces each branch to declare which;
@@ -72,7 +71,6 @@ export function initCommitDeferredCrawl(deps: {
 }) {
 	const {
 		finalizeArticle,
-		putTierSource,
 		updateFetchTimestamp,
 		transitionAndPersist,
 		markCrawlStage,
@@ -85,6 +83,8 @@ export function initCommitDeferredCrawl(deps: {
 		readTierSnapshot,
 		logPrefix,
 	} = deps;
+
+	const commitTierCandidate = initCommitTierCandidate({ putTierSource: deps.putTierSource, publishEvent });
 
 	const { emitTier1FailureOutcome } = initEmitTier1FailureOutcome({
 		readTierSnapshot,
@@ -186,16 +186,14 @@ export function initCommitDeferredCrawl(deps: {
 	): Promise<CommitFetchedBodyOutcome> => {
 		const { url, originalUrl, refresh, recrawl, userId } = ctx;
 		const fetchedAt = now().toISOString();
-		const finalized = await finalizeArticle({
-			writeContext: { url, attemptId: ctx.saveAttemptId },
-			url: originalUrl,
-			documentUrl: resolveDocumentUrl({ requestedUrl: url, finalUrl: body.finalUrl }),
-			html: body.html,
-			resolvedThumbnail: body.thumbnail,
-			...(body.mediaType === "plain-text"
-				? { mediaType: body.mediaType, plainText: body.plainText }
-				: { mediaType: body.mediaType }),
-		});
+		const finalized = await finalizeArticle(
+			finalizeInputOfFetchedPage({
+				savedUrl: originalUrl,
+				requestedUrl: url,
+				writeContext: { url, attemptId: ctx.saveAttemptId },
+				fetched: body,
+			}),
+		);
 		if (!finalized.ok && (ctx.candidates === undefined || unreadable === "return")) {
 			return { via: "unreadable", reason: finalized.reason };
 		}
@@ -213,80 +211,56 @@ export function initCommitDeferredCrawl(deps: {
 			outcome: liveFailed ? { kind: "crawl-failed" } : { kind: "finalized", wordCount: article.metadata.wordCount },
 			recrawl: Boolean(recrawl || refresh),
 		});
-		const metadata = candidateProvenance({
-			metadata: article.metadata,
-			html: article.html,
-			evaluationHtml,
-			attemptId: ctx.saveAttemptId,
-			originalUrl: await deps.resolveOriginalUrl(url),
-			sourceUrl: body.finalUrl ?? originalUrl,
-			kind: "live",
-			fetchedAt,
-			httpStatus: body.httpStatus,
-			renderedThrough: body.renderedThrough,
-		});
-		const candidates = [...(ctx.candidates ?? []), { id: metadata.id, tier: "tier-1" as const }];
-		await putTierSource({
-			url,
-			tier: "tier-1",
-			html: article.html,
-			evaluationHtml,
-			metadata,
-		});
-		await markCrawlStage({ url, stage: "crawl-content-uploaded" });
-
-		const contentFetchedAt = now().toISOString();
-
-		/* Refresh chain carries freshness directly on the
-		 * RefreshContentExtractedEvent and the downstream
-		 * refresh-content-extracted handler sets it via the refreshContent
-		 * aggregate transition, mirroring the existing in-place refresh
-		 * Lambda. Save / recrawl chains have no aggregate write that
-		 * persists etag/lastModified, so they still go through the
-		 * UpdateFetchTimestampCommand → update-fetch-timestamp Lambda. */
-		if (!refresh && !liveFailed) {
-			await updateFetchTimestamp({
-				url,
-				contentFetchedAt,
-				etag: body.etag,
-				lastModified: body.lastModified,
-				bodyHash: body.bodyHash,
-			});
-		}
-
-		const successSnapshot = await readTierSnapshot({ url });
-		logCrawlOutcome({
-			url,
-			thisTier: "tier-1",
-			thisTierStatus: liveFailed ? "failed" : "success",
-			otherTierStatus: successSnapshot.tier0Status,
-			pickedTier: successSnapshot.pickedTier,
-		});
-
-		if (refresh) {
+		let contentFetchedAt = "";
+		const announcement = (): CandidateAnnouncement => {
 			// Stale-check refresh chain: a downstream handler runs the selector
 			// across all tier sources, picks a winner, and drives the transition
 			// that sets freshness and canonical content.
-			await publishEvent(RefreshContentExtractedEvent, {
-				url,
-				candidates,
-				saveAttemptId: ctx.saveAttemptId,
-				etag: body.etag,
-				lastModified: body.lastModified,
-				contentFetchedAt,
-				bodyHash: body.bodyHash,
-			});
-			logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
-		} else if (recrawl) {
+			if (refresh) return { event: "refresh-content-extracted", etag: body.etag, lastModified: body.lastModified, contentFetchedAt, bodyHash: body.bodyHash };
 			// Recrawl chain runs a clone of the selector that ALWAYS dispatches
 			// generate-summary regardless of canonical change. Emit the recrawl-
 			// specific event so admin recrawls of PDFs preserve that semantics.
-			await publishEvent(RecrawlContentExtractedEvent, { url, extractedAt: contentFetchedAt, candidates, saveAttemptId: ctx.saveAttemptId });
-			logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
-		} else {
-			await publishEvent(TierContentExtractedEvent, { url, userId, extractedAt: contentFetchedAt, candidates, saveAttemptId: ctx.saveAttemptId });
-			logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
-		}
+			if (recrawl) return { event: "recrawl-content-extracted", extractedAt: () => contentFetchedAt };
+			return { event: "tier-content-extracted", userId, extractedAt: () => contentFetchedAt };
+		};
+		await commitTierCandidate({
+			url,
+			attemptId: ctx.saveAttemptId,
+			originalUrl: await deps.resolveOriginalUrl(url),
+			sourceUrl: body.finalUrl ?? originalUrl,
+			fetchedAt,
+			leg: { tier: "tier-1", kind: "live", httpStatus: body.httpStatus, renderedThrough: body.renderedThrough },
+			metadata: article.metadata,
+			html: article.html,
+			evaluation: { hashed: evaluationHtml, stored: evaluationHtml },
+			afterStore: async () => {
+				await markCrawlStage({ url, stage: "crawl-content-uploaded" });
+				contentFetchedAt = now().toISOString();
+				/* Refresh chain carries freshness directly on the
+				 * RefreshContentExtractedEvent and the downstream
+				 * refresh-content-extracted handler sets it via the refreshContent
+				 * aggregate transition, mirroring the existing in-place refresh
+				 * Lambda. Save / recrawl chains have no aggregate write that
+				 * persists etag/lastModified, so they still go through the
+				 * UpdateFetchTimestampCommand → update-fetch-timestamp Lambda. */
+				if (!refresh && !liveFailed) {
+					await updateFetchTimestamp({
+						url,
+						contentFetchedAt,
+						etag: body.etag,
+						lastModified: body.lastModified,
+						bodyHash: body.bodyHash,
+					});
+				}
+			},
+			crawlOutcome: { report: liveFailed ? "failed" : "success", readSnapshot: () => readTierSnapshot({ url }), logCrawlOutcome },
+			priorCandidates: ctx.candidates,
+			announce: announcement,
+		});
+
+		if (refresh) logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
+		else if (recrawl) logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
+		else logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
 		return { via: "deferred-to-event" };
 	};
 

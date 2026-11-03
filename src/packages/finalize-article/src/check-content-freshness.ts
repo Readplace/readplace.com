@@ -1,4 +1,4 @@
-import { type CrawlArticle, type CrawlArticleResult, resolveDocumentUrl } from "@packages/crawl-article";
+import type { CrawlArticle, CrawlArticleResult } from "@packages/crawl-article";
 import type {
 	ContentFreshnessResult,
 	RefreshArticleIfStale,
@@ -9,6 +9,7 @@ import type { PublishRefreshArticleContent } from "@packages/provider-contracts/
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import { newSaveAttemptId, type SaveAttemptId } from "@packages/domain/article";
 import type { FinalizeArticle } from "./finalize-article";
+import { finalizeInputOfFetchedPage } from "./fetched-page";
 import { decideTerminalAction } from "./decide-terminal-action";
 
 export type { ContentFreshnessResult, RefreshArticleIfStale };
@@ -82,14 +83,14 @@ export function initRefreshArticleIfStale(deps: {
 		saveAttemptId: SaveAttemptId;
 	}): Promise<ContentFreshnessResult> {
 		const { url, originalUrl, result, saveAttemptId } = input;
-		const finalized = await deps.finalizeArticle({
-			url: originalUrl,
-			writeContext: { url, attemptId: saveAttemptId },
-			documentUrl: resolveDocumentUrl({ requestedUrl: originalUrl, finalUrl: result.finalUrl }),
-			html: result.html,
-			resolvedThumbnail: result.thumbnail,
-			...(result.mediaType === "plain-text" ? { mediaType: result.mediaType, plainText: result.plainText } : { mediaType: result.mediaType }),
-		});
+		const finalized = await deps.finalizeArticle(
+			finalizeInputOfFetchedPage({
+				savedUrl: originalUrl,
+				requestedUrl: originalUrl,
+				writeContext: { url, attemptId: saveAttemptId },
+				fetched: result,
+			}),
+		);
 		if (!finalized.ok) return { action: "skip" };
 		const { estimatedReadTime, ...metadata } = finalized.article.metadata;
 

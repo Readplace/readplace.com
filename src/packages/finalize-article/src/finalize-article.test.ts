@@ -620,6 +620,26 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
+	it.each([
+		{ documentUrl: "https://images.publisher.example/photos/sunset_beach.png", title: "sunset beach", host: "images.publisher.example" },
+		{ documentUrl: "https://web.archive.org/web/2024/https://images.publisher.example/x.png", title: "harbour view", host: "short.example" },
+	])("names a redirected image by the page it was read from: $documentUrl", async ({ documentUrl, title, host }) => {
+		const finalize = createFinalize();
+
+		const result = await finalize({
+			url: "https://short.example/harbour-view.png",
+			documentUrl,
+			html: "<html></html>",
+			mediaType: "image",
+			resolvedThumbnail: { image: { body: Buffer.from([0x89]), contentType: "image/png", url: documentUrl, extension: ".png" }, provenUnusable: [] },
+		});
+
+		assert(result.ok);
+		expect(result.article.metadata.title).toBe(title);
+		expect(result.article.metadata.siteName).toBe(host);
+		expect(result.article.metadata.excerpt).toBe(`Image saved from ${host}.`);
+	});
+
 	it("strips multi-MB inline base64 images from the body before it is persisted (#473)", async () => {
 		const oversized = "A".repeat(5000);
 		const parseHtml: ParseHtml = (params) => ({
@@ -700,6 +720,19 @@ describe("initFinalizeArticle plain-text resources", () => {
 		expect(result.article.metadata.wordCount).toBe(239);
 		expect(result.article.metadata.estimatedReadTime).toBe(2);
 		expect(result.article.metadata.excerpt).toBe(`${"word ".repeat(48).trim()}…`);
+	});
+
+	it.each([
+		{ documentUrl: "https://raw.publisher.example/", host: "raw.publisher.example" },
+		{ documentUrl: "https://web.archive.org/web/2024/https://raw.publisher.example/", host: "short.example" },
+	])("names redirected plain text by the page it was read from: $documentUrl", async ({ documentUrl, host }) => {
+		const finalize = createFinalize();
+
+		const result = await finalize({ url: "https://short.example/", documentUrl, html: "", mediaType: "plain-text", plainText: "text" });
+
+		assert(result.ok);
+		expect(result.article.metadata.title).toBe(`Article from ${host}`);
+		expect(result.article.metadata.siteName).toBe(host);
 	});
 
 	it.each(["", "\n\t  \r\n"])("rejects empty plain-text content %j", async (plainText) => {

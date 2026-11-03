@@ -1,4 +1,4 @@
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import { UserIdSchema } from "@packages/domain/user";
 import { initResolveSubmittedSource } from "../select-content/resolve-submitted-source";
 import type { VerifyWrapperSource } from "@packages/save-article";
@@ -16,7 +16,6 @@ import {
 } from "@packages/domain/article-aggregate";
 import {
 	SaveLinkRawPdfCommand,
-	TierContentExtractedEvent,
 	type LogCrawlOutcome,
 	type LogParseError,
 } from "@packages/hutch-infra-components";
@@ -53,8 +52,6 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 		parseHtml,
 		downloadMedia,
 		processContent,
-		putTierSource,
-		publishEvent,
 		transitionAndPersist,
 		now,
 		logger,
@@ -66,6 +63,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 	const logPrefix = "[SaveLinkRawPdfCommand]";
 
 	const resolveSubmittedSource = initResolveSubmittedSource(deps);
+	const commitTierCandidate = initCommitTierCandidate(deps);
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
@@ -159,7 +157,13 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					media,
 				});
 
-				const metadata = candidateProvenance({
+				await commitTierCandidate({
+					url: detail.url,
+					attemptId: saveAttemptId,
+					originalUrl,
+					sourceUrl: detail.sourceUrl,
+					fetchedAt: capturedAt,
+					leg: { tier: TIER, kind: "extension", captureTrigger: undefined },
 					metadata: {
 						title: parseResult.article.title,
 						siteName: parseResult.article.siteName,
@@ -170,30 +174,9 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 						authorUserId: detail.userId,
 					},
 					html: processedHtml,
-					evaluationHtml: processedHtml,
-					attemptId: saveAttemptId,
-					originalUrl,
-					sourceUrl: detail.sourceUrl,
-					kind: "extension",
-					fetchedAt: capturedAt,
-				});
-				await putTierSource({ url: detail.url, tier: TIER, html: processedHtml, metadata });
-
-				const snapshot = await readTierSnapshot({ url: detail.url });
-				logCrawlOutcome({
-					url: detail.url,
-					thisTier: TIER,
-					thisTierStatus: "success",
-					otherTierStatus: snapshot.tier1Status,
-					pickedTier: snapshot.pickedTier,
-				});
-
-				await publishEvent(TierContentExtractedEvent, {
-					saveAttemptId,
-					candidates: [{ id: metadata.id, tier: TIER }],
-					url: detail.url,
-					userId: detail.userId,
-					extractedAt: now().toISOString(),
+					evaluation: { hashed: processedHtml, stored: undefined },
+					crawlOutcome: { report: "success", readSnapshot: () => readTierSnapshot({ url: detail.url }), logCrawlOutcome },
+					announce: { event: "tier-content-extracted", userId: detail.userId, extractedAt: () => now().toISOString() },
 				});
 
 				logger.info(`${logPrefix} tier-0 source written`, {

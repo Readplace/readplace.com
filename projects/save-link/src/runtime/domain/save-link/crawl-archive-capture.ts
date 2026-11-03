@@ -8,7 +8,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { VerifyWrapperSource } from "@packages/save-article";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 
 export type CrawlArchiveCapture = (params: { url: string; captureUrl: string; saveAttemptId: SaveAttemptId; sourceOriginalUrl?: string }) => Promise<{ id: CandidateId; tier: "tier-2" } | undefined>;
 
@@ -28,6 +28,7 @@ export function initCrawlArchiveCapture(deps: {
 	verifyWrapperSource: VerifyWrapperSource;
 	now: () => Date;
 }): CrawlArchiveCapture {
+	const commitTierCandidate = initCommitTierCandidate(deps);
 	return async ({ url, captureUrl, saveAttemptId, sourceOriginalUrl }) => {
 		const verified = await deps.verifyWrapperSource({ articleUrl: url, sourceUrl: captureUrl, claimedOriginalUrl: sourceOriginalUrl });
 		if (verified === undefined) {
@@ -47,25 +48,18 @@ export function initCrawlArchiveCapture(deps: {
 		}
 		const evaluationHtml = result.evaluationHtml;
 		assert(evaluationHtml !== undefined, "archive capture crawl must retain the response body");
-		const metadata = candidateProvenance({
-			metadata: result.article.metadata,
-			html: result.article.html,
-			evaluationHtml,
+		return commitTierCandidate({
+			url,
 			attemptId: saveAttemptId,
 			originalUrl: verified.originalUrl,
 			sourceUrl: verified.sourceUrl,
-			kind: "wrapper",
 			fetchedAt,
-			httpStatus: result.httpStatus,
-		});
-		await deps.putTierSource({
-			url,
-			tier: ARCHIVE_TIER,
+			leg: { tier: ARCHIVE_TIER, kind: "wrapper", httpStatus: result.httpStatus },
+			metadata: result.article.metadata,
 			html: result.article.html,
-			evaluationHtml,
-			metadata,
+			evaluation: { hashed: evaluationHtml, stored: evaluationHtml },
+			crawlOutcome: { report: "success", readSnapshot: async () => snapshot, logCrawlOutcome: deps.logCrawlOutcome },
+			announce: { event: "none" },
 		});
-		deps.logCrawlOutcome({ ...outcome, thisTierStatus: "success" });
-		return { id: metadata.id, tier: "tier-2" };
 	};
 }

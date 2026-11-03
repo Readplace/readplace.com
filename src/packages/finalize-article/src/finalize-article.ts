@@ -7,7 +7,7 @@ import {
 	type ThumbnailImage,
 } from "@packages/crawl-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { articleFromHostTitle, clipMetadataExcerpt, imageSavedFromHostExcerpt } from "@packages/domain/article";
+import { articleFromHostTitle, clipMetadataExcerpt, imageSavedFromHostExcerpt, pageHostUrl } from "@packages/domain/article";
 import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
 import { mediaFilename } from "./media-filename";
 import type { PutImageObject, MediaWriteContext } from "./put-image-object.types";
@@ -187,22 +187,21 @@ function finalizePlainTextArticle(input: {
 }): FinalizeArticleResult {
 	const text = input.plainText;
 	if (text.trim() === "") return { ok: false, reason: "Plain-text response is empty" };
-	let identityUrl: URL;
-	let documentUrl: URL;
+	let pageUrl: URL;
 	try {
-		identityUrl = new URL(input.url);
-		documentUrl = new URL(input.documentUrl);
+		new URL(input.url);
+		pageUrl = pageHostUrl({ savedUrl: input.url, documentUrl: input.documentUrl });
 	} catch {
 		return { ok: false, reason: "Invalid URL" };
 	}
-	const hostname = identityUrl.hostname;
+	const { hostname, pathname } = pageUrl;
 	const wordCount = text.trim().split(/\s+/).length;
 	return {
 		ok: true,
 		article: {
 			html: `<pre><code>${escapeHtmlText(text)}</code></pre>`,
 			metadata: {
-				title: imageTitleFromPathname(documentUrl.pathname) || articleFromHostTitle(hostname),
+				title: imageTitleFromPathname(pathname) || articleFromHostTitle(hostname),
 				siteName: hostname,
 				excerpt: clipMetadataExcerpt(text.trim().replace(/\s+/g, " ")),
 				wordCount,
@@ -235,7 +234,7 @@ async function finalizeImageArticle(args: {
 	imagesCdnBaseUrl: string;
 }): Promise<{ ok: true; article: FinalizedArticle }> {
 	const { url, documentUrl, candidates, resolvedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
-	const { hostname, pathname } = new URL(url);
+	const { hostname, pathname } = pageHostUrl({ savedUrl: url, documentUrl });
 	const title = imageTitleFromPathname(pathname) || hostname;
 	const articleResourceUniqueId = ArticleResourceUniqueId.parse(args.writeContext?.url ?? url);
 
