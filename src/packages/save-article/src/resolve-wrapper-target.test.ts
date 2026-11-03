@@ -1,5 +1,12 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type FetchRedirectHop, initResolveWrapperTarget, neverResolveWrapperTarget } from "./resolve-wrapper-target";
+import {
+	type FetchRedirectHop,
+	type FetchTrackerHop,
+	initResolveWrapperTarget,
+	neverResolveChallengedTracker,
+	neverResolveWrapperTarget,
+	type TrackerHop,
+} from "./resolve-wrapper-target";
 
 const HEADERS = { "user-agent": "test" };
 const TRACKER = "https://javascriptweekly.com/link/100000/rss";
@@ -30,12 +37,31 @@ function scriptedHops(script: Record<string, () => Response | Promise<Response>>
 	return { fetchRedirectHop, requests };
 }
 
+function scriptedTrackerHops(script: Record<string, () => Response | TrackerHop>) {
+	const requests: Array<{ url: string; init: { headers: Record<string, string>; signal: AbortSignal } }> = [];
+	const fetchTrackerHop: FetchTrackerHop = async (url, init) => {
+		requests.push({ url, init });
+		const respond = script[url];
+		if (respond === undefined) throw new Error(`unscripted hop: ${url}`);
+		const answer = respond();
+		return answer instanceof Response ? { response: answer, pageTarget: undefined } : answer;
+	};
+	return { fetchTrackerHop, requests };
+}
+
 function createResolver(overrides: Partial<Parameters<typeof initResolveWrapperTarget>[0]> = {}) {
 	const { logger, lines } = capturingLogger();
 	const resolve = initResolveWrapperTarget({
 		fetchRedirectHop: async () => {
 			throw new Error("fetchRedirectHop invoked unexpectedly");
 		},
+		fetchTrackerHop: async () => {
+			throw new Error("fetchTrackerHop invoked unexpectedly");
+		},
+		resolveChallengedTracker: async () => {
+			throw new Error("resolveChallengedTracker invoked unexpectedly");
+		},
+		challengeBudgetMs: 3000,
 		resolveAppleNewsStoryUrl: async () => {
 			throw new Error("resolveAppleNewsStoryUrl invoked unexpectedly");
 		},
@@ -51,6 +77,17 @@ function createResolver(overrides: Partial<Parameters<typeof initResolveWrapperT
 function parsedLine(lines: Array<{ level: string; line: string }>, index = 0): Record<string, unknown> {
 	return JSON.parse(lines[index].line);
 }
+
+describe("neverResolveChallengedTracker", () => {
+	it("attempts nothing", async () => {
+		expect(
+			await neverResolveChallengedTracker("https://link.mail.beehiiv.com/ss/c/x", {
+				signal: new AbortController().signal,
+				budgetMs: 1,
+			}),
+		).toEqual({ kind: "not-attempted" });
+	});
+});
 
 describe("neverResolveWrapperTarget", () => {
 	it("resolves nothing", async () => {
@@ -68,8 +105,8 @@ describe("initResolveWrapperTarget", () => {
 
 	describe("newsletter trackers", () => {
 		it("returns the first hop that leaves the tracker family without fetching it", async () => {
-			const { fetchRedirectHop, requests } = scriptedHops({ [TRACKER]: () => redirect(PUBLISHER, 301) });
-			const { resolve, lines } = createResolver({ fetchRedirectHop });
+			const { fetchTrackerHop, requests } = scriptedTrackerHops({ [TRACKER]: () => redirect(PUBLISHER, 301) });
+			const { resolve, lines } = createResolver({ fetchTrackerHop });
 
 			expect(await resolve(TRACKER)).toEqual({ url: PUBLISHER });
 			expect(requests.map((request) => request.url)).toEqual([TRACKER]);
@@ -87,8 +124,8 @@ describe("initResolveWrapperTarget", () => {
 
 		it("never writes the wrapper or target URL into the log line", async () => {
 			const subscriberTracker = "https://leadershipintech.com/links/5134/0b1f0d9c-3b6e-4f9d-9a1e-6f0d5c8e2a11/email";
-			const { fetchRedirectHop } = scriptedHops({ [subscriberTracker]: () => redirect(PUBLISHER) });
-			const { resolve, lines } = createResolver({ fetchRedirectHop });
+			const { fetchTrackerHop } = scriptedTrackerHops({ [subscriberTracker]: () => redirect(PUBLISHER) });
+			const { resolve, lines } = createResolver({ fetchTrackerHop });
 
 			await resolve(subscriberTracker);
 
@@ -99,11 +136,11 @@ describe("initResolveWrapperTarget", () => {
 		it("follows a share.google link through Google's second hop to the publisher", async () => {
 			const share = "https://share.google/AbCdEf123";
 			const googleHop = "https://www.google.com/share.google?q=https%3A%2F%2Fpublisher.example%2Farticle";
-			const { fetchRedirectHop, requests } = scriptedHops({
+			const { fetchTrackerHop, requests } = scriptedTrackerHops({
 				[share]: () => redirect(googleHop),
 				[googleHop]: () => redirect("https://publisher.example/article"),
 			});
-			const { resolve, lines } = createResolver({ fetchRedirectHop });
+			const { resolve, lines } = createResolver({ fetchTrackerHop });
 
 			expect(await resolve(share)).toEqual({ url: "https://publisher.example/article" });
 			expect(requests.map((request) => request.url)).toEqual([share, googleHop]);
@@ -112,18 +149,18 @@ describe("initResolveWrapperTarget", () => {
 
 		it("follows a scheme upgrade of the same tracker before the real redirect", async () => {
 			const insecure = "http://javascriptweekly.com/link/100000/rss";
-			const { fetchRedirectHop } = scriptedHops({
+			const { fetchTrackerHop } = scriptedTrackerHops({
 				[insecure]: () => redirect(TRACKER, 301),
 				[TRACKER]: () => redirect(PUBLISHER),
 			});
-			const { resolve } = createResolver({ fetchRedirectHop });
+			const { resolve } = createResolver({ fetchTrackerHop });
 
 			expect(await resolve(insecure)).toEqual({ url: PUBLISHER });
 		});
 
 		it("resolves a relative Location against the hop that sent it", async () => {
-			const { fetchRedirectHop } = scriptedHops({ [TRACKER]: () => redirect("/issues/700") });
-			const { resolve } = createResolver({ fetchRedirectHop });
+			const { fetchTrackerHop } = scriptedTrackerHops({ [TRACKER]: () => redirect("/issues/700") });
+			const { resolve } = createResolver({ fetchTrackerHop });
 
 			expect(await resolve(TRACKER)).toEqual({ url: "https://javascriptweekly.com/issues/700" });
 		});
@@ -131,8 +168,8 @@ describe("initResolveWrapperTarget", () => {
 		it("hands back a Mailchimp 'tweet this' intent verbatim — unwrapping it is the caller's job", async () => {
 			const mailchimp = "https://us12.list-manage.com/track/click?u=abc&id=def&e=sub";
 			const intent = "https://twitter.com/intent/tweet?url=https%3A%2F%2Fpublisher.example%2Farticle";
-			const { fetchRedirectHop } = scriptedHops({ [mailchimp]: () => redirect(intent) });
-			const { resolve } = createResolver({ fetchRedirectHop });
+			const { fetchTrackerHop } = scriptedTrackerHops({ [mailchimp]: () => redirect(intent) });
+			const { resolve } = createResolver({ fetchTrackerHop });
 
 			expect(await resolve(mailchimp)).toEqual({ url: intent });
 		});
@@ -144,8 +181,8 @@ describe("initResolveWrapperTarget", () => {
 			{ label: "a non-HTTP Location", respond: () => redirect("mailto:editor@example.com"), outcome: "non-http-location" },
 			{ label: "an unparsable Location", respond: () => redirect("http://["), outcome: "non-http-location" },
 		])("gives up on $label", async ({ respond, outcome }) => {
-			const { fetchRedirectHop } = scriptedHops({ [TRACKER]: respond });
-			const { resolve, lines } = createResolver({ fetchRedirectHop });
+			const { fetchTrackerHop } = scriptedTrackerHops({ [TRACKER]: respond });
+			const { resolve, lines } = createResolver({ fetchTrackerHop });
 
 			expect(await resolve(TRACKER)).toBeUndefined();
 			expect(parsedLine(lines)).toMatchObject({ outcome, hops: 1 });
@@ -155,8 +192,8 @@ describe("initResolveWrapperTarget", () => {
 		it("gives up after five hops that never leave the tracker family", async () => {
 			const chain = Array.from({ length: 6 }, (_, index) => `https://javascriptweekly.com/link/${index}/rss`);
 			const script = Object.fromEntries(chain.map((url, index) => [url, () => redirect(chain[index + 1] ?? PUBLISHER)]));
-			const { fetchRedirectHop, requests } = scriptedHops(script);
-			const { resolve, lines } = createResolver({ fetchRedirectHop });
+			const { fetchTrackerHop, requests } = scriptedTrackerHops(script);
+			const { resolve, lines } = createResolver({ fetchTrackerHop });
 
 			expect(await resolve(chain[0])).toBeUndefined();
 			expect(requests).toHaveLength(5);
@@ -165,7 +202,7 @@ describe("initResolveWrapperTarget", () => {
 
 		it("gives up when a hop throws, logging the failure without the URL", async () => {
 			const { resolve, lines } = createResolver({
-				fetchRedirectHop: async () => {
+				fetchTrackerHop: async () => {
 					throw new Error("fetch failed");
 				},
 			});
@@ -183,7 +220,7 @@ describe("initResolveWrapperTarget", () => {
 
 		it("stringifies a non-Error rejection in the failure line", async () => {
 			const { resolve, lines } = createResolver({
-				fetchRedirectHop: async () => {
+				fetchTrackerHop: async () => {
 					throw "socket hang up";
 				},
 			});
@@ -195,7 +232,7 @@ describe("initResolveWrapperTarget", () => {
 		it("aborts a hop that outlives the per-hop budget", async () => {
 			const { resolve, lines } = createResolver({
 				hopBudgetMs: 10,
-				fetchRedirectHop: (_url, init) =>
+				fetchTrackerHop: (_url, init) =>
 					new Promise((_resolve, reject) => {
 						init.signal.addEventListener("abort", () => reject(init.signal.reason));
 					}),
@@ -203,6 +240,165 @@ describe("initResolveWrapperTarget", () => {
 
 			expect(await resolve(TRACKER)).toBeUndefined();
 			expect(parsedLine(lines)).toMatchObject({ outcome: "failed" });
+		});
+		describe("a tracker page that links onward instead of redirecting", () => {
+			const HUBSPOT = "https://tenant.na1.hubspotlinks.com/Ctc/R+113/tenant/TOKEN";
+			const HUBSPOT_TRACK =
+				"https://tenant.na1.hubspotlinks.com/events/public/v1/encoded/track/tc/R+113/tenant/TOKEN?_ud=TOKEN&_jss=0";
+
+			it("follows the page's fallback link to the tracker's own redirect", async () => {
+				const { fetchTrackerHop, requests } = scriptedTrackerHops({
+					[HUBSPOT]: () => ({ response: new Response(null, { status: 200 }), pageTarget: HUBSPOT_TRACK }),
+					[HUBSPOT_TRACK]: () => redirect("https://www.youtube.com/watch?v=VIDEO", 307),
+				});
+				const { resolve, lines } = createResolver({ fetchTrackerHop });
+
+				expect(await resolve(HUBSPOT)).toEqual({ url: "https://www.youtube.com/watch?v=VIDEO" });
+				expect(requests.map((request) => request.url)).toEqual([HUBSPOT, HUBSPOT_TRACK]);
+				expect(parsedLine(lines)).toEqual({
+					stream: "wrapper-resolve",
+					family: "newsletter-tracker",
+					wrapperHost: "tenant.na1.hubspotlinks.com",
+					targetHost: "www.youtube.com",
+					hops: 2,
+					outcome: "resolved",
+				});
+			});
+
+			it("stays unresolved when the page's link leaves the tracker family", async () => {
+				const { fetchTrackerHop, requests } = scriptedTrackerHops({
+					[HUBSPOT]: () => ({ response: new Response(null, { status: 200 }), pageTarget: "https://tenant.na1.hubspotlinks.com/" }),
+				});
+				const { resolve, lines } = createResolver({ fetchTrackerHop });
+
+				expect(await resolve(HUBSPOT)).toBeUndefined();
+				expect(requests).toHaveLength(1);
+				expect(parsedLine(lines)).toMatchObject({ outcome: "page-link-not-a-tracker", hops: 1, status: 200 });
+			});
+		});
+
+		describe("a tracker behind a Cloudflare challenge", () => {
+			const BEEHIIV = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN";
+
+			function challenge(): Response {
+				return new Response(null, { status: 403, headers: { "cf-mitigated": "challenge" } });
+			}
+
+			it("asks the unlocker for the destination under the challenge budget", async () => {
+				const { fetchTrackerHop } = scriptedTrackerHops({ [BEEHIIV]: challenge });
+				const asked: Array<{ url: string; budgetMs: number; signal: AbortSignal }> = [];
+				const { resolve, lines } = createResolver({
+					fetchTrackerHop,
+					challengeBudgetMs: 30_000,
+					resolveChallengedTracker: async (url, init) => {
+						asked.push({ url, ...init });
+						return { kind: "navigated", url: "https://publisher.example/article?utm_source=letter", status: 200 };
+					},
+				});
+
+				expect(await resolve(BEEHIIV)).toEqual({ url: "https://publisher.example/article?utm_source=letter" });
+				expect(asked.map(({ url, budgetMs }) => ({ url, budgetMs }))).toEqual([{ url: BEEHIIV, budgetMs: 30_000 }]);
+				expect(parsedLine(lines)).toEqual({
+					stream: "wrapper-resolve",
+					family: "newsletter-tracker",
+					wrapperHost: "link.mail.beehiiv.com",
+					targetHost: "publisher.example",
+					hops: 1,
+					outcome: "resolved",
+					status: 200,
+					transport: "proxy",
+				});
+			});
+
+			it("keeps the unlocker running after the direct hops' total deadline has passed", async () => {
+				const { fetchTrackerHop } = scriptedTrackerHops({ [BEEHIIV]: challenge });
+				const { resolve } = createResolver({
+					fetchTrackerHop,
+					totalBudgetMs: 10,
+					challengeBudgetMs: 5000,
+					resolveChallengedTracker: async (_url, init) => {
+						await new Promise((done) => setTimeout(done, 30));
+						expect(init.signal.aborted).toBe(false);
+						return { kind: "navigated", url: "https://publisher.example/article", status: 200 };
+					},
+				});
+
+				expect(await resolve(BEEHIIV)).toEqual({ url: "https://publisher.example/article" });
+			});
+
+			it("aborts the unlocker once the challenge budget runs out", async () => {
+				const { fetchTrackerHop } = scriptedTrackerHops({ [BEEHIIV]: challenge });
+				const { resolve, lines } = createResolver({
+					fetchTrackerHop,
+					challengeBudgetMs: 10,
+					resolveChallengedTracker: (_url, init) =>
+						new Promise((_resolve, reject) => {
+							init.signal.addEventListener("abort", () => reject(init.signal.reason));
+						}),
+				});
+
+				expect(await resolve(BEEHIIV)).toBeUndefined();
+				expect(parsedLine(lines)).toMatchObject({ outcome: "challenge-failed", transport: "proxy", hops: 1 });
+			});
+
+			it("stays unresolved when the unlocker reaches no destination", async () => {
+				const { fetchTrackerHop } = scriptedTrackerHops({ [BEEHIIV]: challenge });
+				const { resolve, lines } = createResolver({
+					fetchTrackerHop,
+					resolveChallengedTracker: async () => ({ kind: "not-navigated", status: 400 }),
+				});
+
+				expect(await resolve(BEEHIIV)).toBeUndefined();
+				expect(parsedLine(lines)).toEqual({
+					stream: "wrapper-resolve",
+					family: "newsletter-tracker",
+					wrapperHost: "link.mail.beehiiv.com",
+					hops: 1,
+					outcome: "challenge-unresolved",
+					status: 400,
+					transport: "proxy",
+				});
+			});
+
+			it("stays unresolved, logging the error, when the unlocker throws", async () => {
+				const { fetchTrackerHop } = scriptedTrackerHops({ [BEEHIIV]: challenge });
+				const { resolve, lines } = createResolver({
+					fetchTrackerHop,
+					resolveChallengedTracker: async () => {
+						throw new Error("proxy gateway 502");
+					},
+				});
+
+				expect(await resolve(BEEHIIV)).toBeUndefined();
+				expect(parsedLine(lines)).toMatchObject({ outcome: "challenge-failed", error: "proxy gateway 502", transport: "proxy" });
+			});
+
+			it("leaves a challenge the caller cannot unlock for a later attempt", async () => {
+				const { fetchTrackerHop } = scriptedTrackerHops({ [BEEHIIV]: challenge });
+				const { resolve, lines } = createResolver({ fetchTrackerHop, resolveChallengedTracker: neverResolveChallengedTracker });
+
+				expect(await resolve(BEEHIIV)).toBeUndefined();
+				expect(parsedLine(lines)).toMatchObject({ outcome: "challenge-deferred", hops: 1, status: 403 });
+			});
+
+			it("never sends a challenged tracker outside the unlockable set to the unlocker", async () => {
+				const { fetchTrackerHop } = scriptedTrackerHops({ [TRACKER]: challenge });
+				const { resolve, lines } = createResolver({ fetchTrackerHop });
+
+				expect(await resolve(TRACKER)).toBeUndefined();
+				expect(parsedLine(lines)).toMatchObject({ outcome: "not-a-redirect", hops: 1, status: 403 });
+			});
+
+			it.each([
+				{ label: "a 403 without the challenge marker", respond: () => new Response(null, { status: 403 }) },
+				{ label: "a 400", respond: () => new Response(null, { status: 400, headers: { "cf-mitigated": "challenge" } }) },
+			])("never sends $label to the unlocker", async ({ respond }) => {
+				const { fetchTrackerHop } = scriptedTrackerHops({ [BEEHIIV]: respond });
+				const { resolve, lines } = createResolver({ fetchTrackerHop });
+
+				expect(await resolve(BEEHIIV)).toBeUndefined();
+				expect(parsedLine(lines)).toMatchObject({ outcome: "not-a-redirect", hops: 1 });
+			});
 		});
 	});
 

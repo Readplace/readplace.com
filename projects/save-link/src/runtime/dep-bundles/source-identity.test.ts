@@ -7,6 +7,7 @@ describe("worker source identity", () => {
 			findIdentityRow: async (url) => url === "https://example.com/post" ? { kind: "article", url, originalUrl: url } : { kind: "absent" },
 			repairWrapperIdentity: async () => { throw new Error("direct original must not repair identity"); },
 			crawlFetch: async () => { throw new Error("direct original must not fetch a wrapper"); },
+			resolveChallengedTracker: async () => { throw new Error("direct original must not unlock a tracker"); },
 			logger: noopLogger,
 		});
 		expect(await bundle.resolveOriginalUrl("https://example.com/post")).toBe("https://example.com/post");
@@ -18,6 +19,7 @@ describe("worker source identity", () => {
 		findIdentityRow: async (url) => url === APPLE ? { kind: "article", url, originalUrl: url } : { kind: "absent" },
 		repairWrapperIdentity: async () => { throw new Error("own original must not repair identity"); },
 		crawlFetch: async () => shell(),
+		resolveChallengedTracker: async () => { throw new Error("Apple News must not unlock a tracker"); },
 		logger: noopLogger,
 	});
 
@@ -25,6 +27,19 @@ describe("worker source identity", () => {
 		const bundle = appleBundle(() => new Response("<html><body><script>redirectToUrl(url)</script></body></html>", { status: 200 }));
 		expect(await bundle.resolveOriginalUrl(APPLE)).toBe(APPLE);
 		expect(await bundle.prepareArticleIdentity(APPLE)).toEqual({ status: "resolved", url: APPLE, originalUrl: APPLE });
+	});
+
+	it("keeps a tracker link saved before its platform was recognised on its own article", async () => {
+		const beehiiv = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4kq/AbCd/h1/TOKEN";
+		const bundle = initSourceIdentityDepBundle({
+			findIdentityRow: async (url) => url === beehiiv ? { kind: "article", url, originalUrl: url } : { kind: "absent" },
+			repairWrapperIdentity: async () => { throw new Error("a pinned tracker row must not repair identity"); },
+			crawlFetch: async () => { throw new Error("a pinned tracker row must not fetch"); },
+			resolveChallengedTracker: async () => { throw new Error("a pinned tracker row must not unlock"); },
+			logger: noopLogger,
+		});
+		expect(await bundle.prepareArticleIdentity(beehiiv)).toEqual({ status: "resolved", url: beehiiv, originalUrl: beehiiv });
+		expect(await bundle.resolveOriginalUrl(beehiiv)).toBe(beehiiv);
 	});
 
 	it("keeps an Apple News story unresolved while its shell is unavailable", async () => {

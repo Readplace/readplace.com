@@ -472,6 +472,7 @@ const submitLinkLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		...crawlEgressProxyEnvironment,
 	},
 	policies: [
 		...submitLinkArticlesDynamodb.policies,

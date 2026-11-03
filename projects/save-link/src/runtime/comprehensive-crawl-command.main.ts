@@ -1,3 +1,4 @@
+import { neverResolveChallengedTracker } from "@packages/save-article";
 import { setTimeout as sleep } from "node:timers/promises";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { Agent } from "node:https";
@@ -87,7 +88,7 @@ const parser = initComprehensiveParserDepBundle({
 	extractPdf,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
-const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, logger: consoleLogger });
+const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, resolveChallengedTracker: neverResolveChallengedTracker, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({
 	parser,

@@ -1,7 +1,9 @@
 import assert from "node:assert";
 import {
 	DEFAULT_CRAWL_HEADERS,
+	fallbackLinkTarget,
 	initFetchRedirectHop,
+	initFetchTrackerHop,
 	initResolveAppleNewsStoryUrl,
 	type CrawlFetch,
 } from "@packages/crawl-article";
@@ -12,6 +14,7 @@ import {
 	initResolveWrapperTarget,
 	initVerifyWrapperSource,
 	initPrepareArticleIdentity,
+	type ResolveChallengedTracker,
 	type VerifyWrapperSource,
 } from "@packages/save-article";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -21,10 +24,13 @@ export function initSourceIdentityDepBundle(deps: {
 	findIdentityRow: FindIdentityRow;
 	repairWrapperIdentity: RepairWrapperIdentity;
 	crawlFetch: CrawlFetch;
+	resolveChallengedTracker: ResolveChallengedTracker;
 	logger: HutchLogger;
 }) {
 	const resolveWrapperTarget = initResolveWrapperTarget({
 		fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
+		fetchTrackerHop: initFetchTrackerHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress, pageTarget: fallbackLinkTarget }),
+		resolveChallengedTracker: deps.resolveChallengedTracker,
 		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch: deps.crawlFetch, logError: deps.logger.error.bind(deps.logger) }),
 		headers: DEFAULT_CRAWL_HEADERS,
 		...WRAPPER_RESOLVE_BUDGETS,

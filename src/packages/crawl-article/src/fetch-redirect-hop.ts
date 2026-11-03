@@ -9,7 +9,7 @@ export type FetchRedirectHop = (
 	init: { headers: Record<string, string>; signal: AbortSignal },
 ) => Promise<Response>;
 
-export function initFetchRedirectHop(deps: {
+export function initGuardedManualFetch(deps: {
 	fetch: typeof globalThis.fetch;
 	isBlocked: IsBlockedAddress;
 	resolve?: ResolveAll;
@@ -18,18 +18,29 @@ export function initFetchRedirectHop(deps: {
 		resolve: deps.resolve ?? defaultResolveAll,
 		isBlocked: deps.isBlocked,
 	});
-	return async (url, init) => {
+	return (url, init) => {
 		const target = new URL(url);
 		assert(
 			ALLOWED_PROTOCOLS.has(target.protocol),
 			`refusing to fetch non-HTTP(S) scheme "${target.protocol}"`,
 		);
-		const response = await deps.fetch(url, {
+		return deps.fetch(url, {
 			headers: init.headers,
 			signal: init.signal,
 			dispatcher,
 			redirect: "manual",
 		});
+	};
+}
+
+export function initFetchRedirectHop(deps: {
+	fetch: typeof globalThis.fetch;
+	isBlocked: IsBlockedAddress;
+	resolve?: ResolveAll;
+}): FetchRedirectHop {
+	const fetchOnce = initGuardedManualFetch(deps);
+	return async (url, init) => {
+		const response = await fetchOnce(url, init);
 		await response.body?.cancel();
 		return response;
 	};

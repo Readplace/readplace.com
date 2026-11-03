@@ -82,6 +82,8 @@ export {
 } from "./shown-summary";
 export {
 	isArchiveHost,
+	isStoredWrapperUrl,
+	isUnlockableTrackerUrl,
 	isWrapperUrl,
 	stripRedirectAddedParams,
 	unwrapWrapperUrl,

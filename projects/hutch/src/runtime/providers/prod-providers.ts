@@ -26,10 +26,11 @@ import {
 	initDynamoDbReadlistFitOverrides,
 	initDynamoDbSavedArticleStore,
 } from "@packages/article-store";
-import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, initCrawlFetch, initFetchRedirectHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
+import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, fallbackLinkTarget, initCrawlFetch, initFetchRedirectHop, initFetchTrackerHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import {
 	WRAPPER_RESOLVE_BUDGETS,
+	neverResolveChallengedTracker,
 	initResolveCanonicalIdentity,
 	initResolveSaveIdentity,
 	initResolveWrapperTarget,
@@ -209,6 +210,8 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ findIdentityRow: canonicalAlias.findIdentityRow });
 	const resolveWrapperTarget = initResolveWrapperTarget({
 		fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
+		fetchTrackerHop: initFetchTrackerHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress, pageTarget: fallbackLinkTarget }),
+		resolveChallengedTracker: neverResolveChallengedTracker,
 		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch, logError }),
 		headers: DEFAULT_CRAWL_HEADERS,
 		...WRAPPER_RESOLVE_BUDGETS,

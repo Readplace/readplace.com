@@ -77,3 +77,37 @@ it("fetches a stored plain article original unchanged", async () => {
 	const identity = await harness({ kind: "article", originalUrl: ORIGINAL }).prepare(ORIGINAL);
 	assert.deepEqual(identity, { status: "resolved", url: ORIGINAL, originalUrl: ORIGINAL });
 });
+
+const BEEHIIV = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN";
+const resolveNothing: ResolveWrapperTarget = async () => {
+	throw new Error("a row stored before its tracker was recognised must not be re-resolved");
+};
+
+it.each([
+	BEEHIIV,
+	"https://tenant.na1.hubspotlinks.com/Ctc/R+113/tenant/TOKEN",
+	"https://www.quora.com/qemail/track_click?id=TOKEN&src=1",
+])("keeps a row stored under %s before its tracker was recognised on its own link", async (url) => {
+	const h = harness({ kind: "article" }, true, resolveNothing);
+	assert.deepEqual(await h.prepare(url), { status: "resolved", url, originalUrl: url });
+	assert.deepEqual(h.repairs, []);
+});
+
+it("keeps a row pinned to a recognised tracker's link unchanged", async () => {
+	const h = harness({ kind: "article", originalUrl: BEEHIIV }, true, resolveNothing);
+	assert.deepEqual(await h.prepare(BEEHIIV), { status: "resolved", url: BEEHIIV, originalUrl: BEEHIIV });
+	assert.deepEqual(h.repairs, []);
+});
+
+it("repairs a row stored under a recognised tracker whose key cannot fit a reader's article row", async () => {
+	const overlong = `https://link.mail.beehiiv.com/ss/c/u001.${"a".repeat(1100)}`;
+	const h = harness({ kind: "article" }, true, async () => ({ url: ORIGINAL }));
+	assert.deepEqual(await h.prepare(overlong), {
+		status: "resolved",
+		url: overlong,
+		originalUrl: ORIGINAL,
+		contentSourceUrl: overlong,
+		sourceOriginalUrl: ORIGINAL,
+	});
+	assert.deepEqual(h.repairs, [{ articleUrl: overlong, expectedOriginalUrl: overlong, originalUrl: ORIGINAL, contentSourceUrl: undefined }]);
+});

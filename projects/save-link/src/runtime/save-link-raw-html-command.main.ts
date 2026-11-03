@@ -1,3 +1,4 @@
+import { neverResolveChallengedTracker } from "@packages/save-article";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
@@ -42,7 +43,7 @@ const parser = initParserDepBundle({
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
-const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, logger: consoleLogger });
+const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, resolveChallengedTracker: neverResolveChallengedTracker, logger: consoleLogger });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({
 	parser,

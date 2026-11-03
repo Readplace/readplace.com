@@ -6,7 +6,8 @@ import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
-import { validateSaveableUrl } from "@packages/domain/article";
+import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
+import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, initCrawlFetch, initResolveThroughUnlocker } from "@packages/crawl-article";
 import {
 	initCanonicalAliasStore,
 	initDynamoDbArticleCrawl,
@@ -37,6 +38,7 @@ const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const crawlEgressProxyUrl = requireEnv("CRAWL_EGRESS_PROXY_URL");
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -58,7 +60,19 @@ const parser = initParserDepBundle({
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
 	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 });
-const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch, logger: consoleLogger });
+const sourceIdentity = initSourceIdentityDepBundle({ findIdentityRow: canonicalAliasStore.findIdentityRow, repairWrapperIdentity: canonicalAliasStore.repairWrapperIdentity, crawlFetch: parser.crawlFetch,
+	resolveChallengedTracker: initResolveThroughUnlocker({
+		crawlFetch: initCrawlFetch({
+			fetch: globalThis.fetch,
+			personas: CRAWL_PERSONAS,
+			isBlocked: isBlockedIpAddress,
+			logInfo: observability.logInfo,
+			egress: { kind: "proxy-only", proxyUrl: crawlEgressProxyUrl },
+		}),
+		headers: DEFAULT_CRAWL_HEADERS,
+	}),
+	logger: consoleLogger,
+});
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({
 	parser,

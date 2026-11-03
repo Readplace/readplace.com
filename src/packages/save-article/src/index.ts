@@ -30,7 +30,10 @@ export {
 export {
 	WRAPPER_RESOLVE_BUDGETS,
 	initResolveWrapperTarget,
+	neverResolveChallengedTracker,
 	neverResolveWrapperTarget,
+	type FetchTrackerHop,
+	type ResolveChallengedTracker,
 	type ResolveWrapperTarget,
 } from "./resolve-wrapper-target";
 export {

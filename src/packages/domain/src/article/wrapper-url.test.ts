@@ -1,5 +1,7 @@
 import {
 	isArchiveHost,
+	isStoredWrapperUrl,
+	isUnlockableTrackerUrl,
 	isWrapperUrl,
 	stripRedirectAddedParams,
 	unwrapWrapperUrl,
@@ -20,6 +22,11 @@ const TRACKERS = [
 	"https://share.google/AbCdEf_12-3",
 	"https://www.google.com/share.google?q=https%3A%2F%2Fpublisher.example%2Farticle",
 	"https://semafor.com/s/a1b2c3d4e5?email=reader%40example.com",
+	"https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN",
+	"https://tenant.na1.hubspotlinks.com/Ctc/R+113/tenant/TOKEN",
+	"https://tenant.hubspotlinks.com/Ctc/R+113/tenant/TOKEN",
+	"https://tenant.na1.hubspotlinks.com/events/public/v1/encoded/track/tc/R+113/tenant/TOKEN?_ud=TOKEN&_jss=0",
+	"https://www.quora.com/qemail/track_click?id=TOKEN&src=1",
 ];
 
 const NEAR_MISSES = [
@@ -56,6 +63,18 @@ const NEAR_MISSES = [
 	"https://archive.ph/wip",
 	"https://archive.ph/timegate/https://publisher.example/article",
 	"https://publisher.example/article",
+	"https://link.mail.beehiiv.com/ss/c/",
+	"https://link.mail.beehiiv.com/p/a-post",
+	"https://mail.beehiiv.com/ss/c/u001.TOKEN",
+	"https://tenant.hubspotlinks.com.example.org/Ctc/R+113/x",
+	"https://hubspotlinks.com/Ctc/R+113/x",
+	"https://tenant.na1.hubspotlinks.com/Ctc/",
+	"https://tenant.na1.hubspotlinks.com/events/public/v1/encoded/track/tc/",
+	"https://publisher.example/Ctc/R+113/x",
+	"https://www.quora.com/What-is-a-good-question",
+	"https://www.quora.com/qemail/track_click_extra?id=x",
+	"https://quora.com/qemail/track_click?id=x",
+	"https://someone.quora.com/A-space-answer",
 ];
 
 const WAYBACK = "https://web.archive.org/web/20081203185222/http://www.onscreenasia.com/article-106.html";
@@ -368,5 +387,45 @@ describe("wrapper identity boundaries", () => {
 	it.each(["2020.04", "2020.04.21", "2020.04.21-13"])("recognises a dotted date %s without changing the requested snapshot", (date) => {
 		const capture = `https://archive.ph/${date}/publisher.example/article`;
 		expect(unwrapWrapperUrl(capture)).toEqual({ url: original, contentSourceUrl: capture });
+	});
+});
+
+describe("isStoredWrapperUrl", () => {
+	it.each([
+		"https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN",
+		"https://tenant.na1.hubspotlinks.com/Ctc/R+113/tenant/TOKEN",
+		"https://www.quora.com/qemail/track_click?id=TOKEN&src=1",
+	])("treats a row stored under %s before its tracker was recognised as the article itself", (url) => {
+		expect(isStoredWrapperUrl(url)).toBe(false);
+	});
+
+	it("treats a row stored under a tracker whose key cannot fit a reader's article row as a wrapper", () => {
+		expect(isStoredWrapperUrl(`https://link.mail.beehiiv.com/ss/c/u001.${"a".repeat(1100)}`)).toBe(true);
+	});
+
+	it.each(["https://share.google/AbCdEf_12-3", "https://archive.ph/Ab1cD", "https://archive.is/"])(
+		"treats a row stored under %s as a wrapper",
+		(url) => {
+			expect(isStoredWrapperUrl(url)).toBe(true);
+		},
+	);
+
+	it("treats a row stored under a publisher article as the article itself", () => {
+		expect(isStoredWrapperUrl("https://publisher.example/article")).toBe(false);
+	});
+});
+
+describe("isUnlockableTrackerUrl", () => {
+	it("allows the unlocker for a beehiiv tracking link", () => {
+		expect(isUnlockableTrackerUrl("https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4vf/TOKEN/h101/h001.TOKEN")).toBe(true);
+	});
+
+	it.each([
+		"https://tenant.na1.hubspotlinks.com/Ctc/R+113/tenant/TOKEN",
+		"https://share.google/AbCdEf_12-3",
+		"https://publisher.example/article",
+		"not a url",
+	])("keeps %s off the unlocker", (url) => {
+		expect(isUnlockableTrackerUrl(url)).toBe(false);
 	});
 });

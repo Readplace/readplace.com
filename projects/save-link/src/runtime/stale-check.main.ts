@@ -1,3 +1,4 @@
+import { neverResolveChallengedTracker } from "@packages/save-article";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import {
@@ -104,7 +105,7 @@ const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 	now,
 });
 
-const sourceIdentity = initSourceIdentityDepBundle({ ...canonicalAliasStore, crawlFetch: parser.crawlFetch, logger: consoleLogger });
+const sourceIdentity = initSourceIdentityDepBundle({ ...canonicalAliasStore, crawlFetch: parser.crawlFetch, resolveChallengedTracker: neverResolveChallengedTracker, logger: consoleLogger });
 
 export const handler = initStaleCheckHandler({
 	prepareArticleIdentity: sourceIdentity.prepareArticleIdentity,

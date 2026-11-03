@@ -40,4 +40,8 @@ describe("candidate provenance", () => {
 		const archive = "https://archive.ph/Ab1cD";
 		expect(await initResolveCandidateOriginal({ findIdentityRow: async () => ({ kind: "article", originalUrl: archive }) })(archive)).toBe(archive);
 	});
+	it("accepts a tracker link saved as its own article before its platform was recognised", async () => {
+		const beehiiv = "https://link.mail.beehiiv.com/ss/c/u001.TOKEN/4kq/AbCd/h1/TOKEN";
+		expect(await initResolveCandidateOriginal({ findIdentityRow: async () => ({ kind: "article", originalUrl: beehiiv }) })(beehiiv)).toBe(beehiiv);
+	});
 });

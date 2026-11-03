@@ -46,7 +46,9 @@ import {
 	initCrawlArticle,
 	initFetchPinnedCrawl,
 	initCrawlFetch,
+	fallbackLinkTarget,
 	initFetchRedirectHop,
+	initFetchTrackerHop,
 	initFetchThumbnailImage,
 	initResolveAppleNewsStoryUrl,
 	type ThumbnailNotDeliveredEvent,
@@ -126,6 +128,7 @@ import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pen
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import {
 	WRAPPER_RESOLVE_BUDGETS,
+	neverResolveChallengedTracker,
 	initResolveCanonicalIdentity,
 	initRefreshWithSaveIdentity,
 	initResolveSaveIdentity,
@@ -485,6 +488,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ findIdentityRow: articleStore.findIdentityRow });
 	const resolveWrapperTarget = initResolveWrapperTarget({
 		fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
+		fetchTrackerHop: initFetchTrackerHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress, pageTarget: fallbackLinkTarget }),
+		resolveChallengedTracker: neverResolveChallengedTracker,
 		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch, logError }),
 		headers: DEFAULT_CRAWL_HEADERS,
 		...WRAPPER_RESOLVE_BUDGETS,

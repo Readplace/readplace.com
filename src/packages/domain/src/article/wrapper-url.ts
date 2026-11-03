@@ -34,6 +34,11 @@ const OPAQUE_TOKEN_PATH = /^\/[A-Za-z0-9_-]+$/;
 const GOOGLE_SHARE_HOP_PATH = /^\/share\.google$/;
 const TWEET_INTENT_PATH = /^\/intent\/(?:tweet|post)$/;
 const SEMAFOR_SHORT_LINK_PATH = /^\/s\/[A-Za-z0-9]+$/;
+const BEEHIIV_LINK_PATH = /^\/ss\/c\/.+/;
+const HUBSPOT_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.hubspotlinks\.com$/;
+const HUBSPOT_CLICK_PATH = /^\/Ctc\/.+/;
+const HUBSPOT_TRACK_PATH = /^\/events\/public\/v1\/encoded\/track\/tc\/.+/;
+const QUORA_CLICK_PATH = /^\/qemail\/track_click$/;
 
 const WAYBACK_STAMPED_PATH = /^\/web\/([^/]+)\/(.+)$/;
 const WAYBACK_UNSTAMPED_PATH = /^\/(?:web|save)\/(.+)$/;
@@ -57,7 +62,13 @@ const PREFIX_WILDCARD = /(?:\*|%2a)$/i;
 const SUBSTACK_COMMENT_VIEW_PARAMS: readonly string[] = ["action", "comments"];
 const SUBSTACK_REDIRECT_PARAMS: readonly string[] = ["r", "publication_id", "post_id", "isFreemail", "triedRedirect"];
 
-type TrackerRule = { host: string | RegExp; path: RegExp; requiresParam?: string };
+type TrackerRule = {
+	host: string | RegExp;
+	path: RegExp;
+	requiresParam?: string;
+	newSavesOnly?: true;
+	unlockOnChallenge?: true;
+};
 
 const SUBSTACK_APP_LINK: TrackerRule = { host: "substack.com", path: SUBSTACK_APP_LINK_PATH };
 
@@ -74,6 +85,10 @@ const NEWSLETTER_TRACKERS: readonly TrackerRule[] = [
 	{ host: "share.google", path: OPAQUE_TOKEN_PATH },
 	{ host: "www.google.com", path: GOOGLE_SHARE_HOP_PATH, requiresParam: "q" },
 	{ host: "semafor.com", path: SEMAFOR_SHORT_LINK_PATH },
+	{ host: "link.mail.beehiiv.com", path: BEEHIIV_LINK_PATH, newSavesOnly: true, unlockOnChallenge: true },
+	{ host: HUBSPOT_HOST, path: HUBSPOT_CLICK_PATH, newSavesOnly: true },
+	{ host: HUBSPOT_HOST, path: HUBSPOT_TRACK_PATH, newSavesOnly: true },
+	{ host: "www.quora.com", path: QUORA_CLICK_PATH, newSavesOnly: true },
 ];
 
 function parseHttpUrl(value: string): URL | undefined {
@@ -193,6 +208,13 @@ function outgrowsUserArticleKey(url: string): boolean {
 	return new TextEncoder().encode(ArticleResourceUniqueId.parse(url).value).length > MAX_USER_ARTICLE_KEY_BYTES;
 }
 
+function trackerRuleOf(url: string): TrackerRule | undefined {
+	const parsed = parseHttpUrl(url);
+	if (parsed === undefined) return undefined;
+	const host = hostnameOf(parsed);
+	return NEWSLETTER_TRACKERS.find((rule) => matchesTracker(rule, host, parsed));
+}
+
 export function wrapperFamilyOf(url: string): WrapperFamily | undefined {
 	const parsed = parseHttpUrl(url);
 	if (parsed === undefined) return undefined;
@@ -213,6 +235,15 @@ export function isArchiveHost(url: string): boolean {
 
 export function isWrapperUrl(url: string): boolean {
 	return isArchiveHost(url) || wrapperFamilyOf(url) !== undefined;
+}
+
+export function isStoredWrapperUrl(url: string): boolean {
+	if (!isWrapperUrl(url)) return false;
+	return trackerRuleOf(url)?.newSavesOnly !== true || outgrowsUserArticleKey(url);
+}
+
+export function isUnlockableTrackerUrl(url: string): boolean {
+	return trackerRuleOf(url)?.unlockOnChallenge === true;
 }
 
 function unwrapTweetIntent(url: string, parsed: URL): UnwrappedUrl {
