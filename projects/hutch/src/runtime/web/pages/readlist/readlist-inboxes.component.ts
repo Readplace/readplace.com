@@ -38,7 +38,7 @@ const ROUTING_ACTIONS: Record<
 	}
 > = {
 	here: {
-		submitLabel: (names) => `Stop sending emails from ${names.inbox} to ${names.readlist}`,
+		submitLabel: (names) => `Stop sending emails from '${names.inbox}' inbox to this readlist`,
 		trackingContent: "unroute-inbox",
 		destination: () => DEFAULT_READLIST_SLUG,
 	},

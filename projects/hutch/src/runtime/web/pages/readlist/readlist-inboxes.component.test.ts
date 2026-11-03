@@ -108,7 +108,7 @@ describe("buildReadlistInboxes", () => {
 				name: "news",
 				address: "news-a7b2c9@read.place",
 				destination: "Saves to All and Work Reading",
-				button: "Stop sending emails from news to Work Reading",
+				button: "Stop sending emails from 'news' inbox to this readlist",
 			},
 			{
 				name: "old",
