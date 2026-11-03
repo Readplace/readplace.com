@@ -1118,7 +1118,7 @@ test.describe("Readlist preferences colour roles hold their WCAG contrast in bot
 		assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
 		const slug = new URL(created.url()).searchParams.get("queue");
 		assert(slug, "creating a readlist must land the reader on it");
-		const preferencesUrl = `${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`;
+		const preferencesUrl = `${BASE_URL}/queue/queues/${slug}/preferences`;
 		const preferences = "[data-test-readlist-preferences]";
 
 		for (const theme of ["light", "dark"] as const) {

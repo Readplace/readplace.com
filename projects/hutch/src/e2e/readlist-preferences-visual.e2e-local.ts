@@ -128,9 +128,8 @@ async function openPreferences(page: Page, stamp: string): Promise<{ userId: str
 	const userId = await createVerifiedUser(page, email);
 	await loginAs(page, email);
 
-	await page.goto(`${BASE_URL}/queue?feature=pref`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	const slug = await createReadlistFromRail(page, "New Readlist");
-	await page.goto(`${page.url()}&feature=pref`, { waitUntil: "domcontentloaded" });
 	await clickAndWaitForPageReload(page, page.locator(PREFERENCES_TAB));
 	await page.waitForSelector(PREFERENCES);
 	await page.mouse.move(5, 5);
@@ -148,7 +147,7 @@ async function seedInboxes(
 
 async function reopenPreferences(page: Page, input: { slug: string; query?: string }): Promise<void> {
 	await page.goto(
-		`${BASE_URL}/queue/queues/${input.slug}/preferences?feature=pref${input.query ?? ""}`,
+		`${BASE_URL}/queue/queues/${input.slug}/preferences${input.query ?? ""}`,
 		{ waitUntil: "domcontentloaded" },
 	);
 	await page.waitForSelector(INBOXES);
@@ -168,7 +167,7 @@ async function openPreferencesByRequest(page: Page, stamp: string): Promise<stri
 }
 
 async function seedPurpose(page: Page, slug: string): Promise<void> {
-	const saved = await page.request.post(`${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`, {
+	const saved = await page.request.post(`${BASE_URL}/queue/queues/${slug}/preferences`, {
 		form: { purpose: PURPOSE },
 	});
 	assert.equal(saved.status(), 200, "a saved purpose must land back on the preferences tab");
@@ -812,7 +811,7 @@ test.describe("Readlist preferences panel", () => {
 	test("lands a refused purpose on the inline form with its reason (light)", async ({ page }, testInfo) => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const { slug } = await openPreferences(page, `error-inline-light-${testInfo.workerIndex}-${Date.now()}`);
-		await reopenPreferences(page, { slug, query: "&preferences_error=invalid-purpose" });
+		await reopenPreferences(page, { slug, query: "?preferences_error=invalid-purpose" });
 		await captureCheckpoint(page, ERROR_INLINE_LIGHT);
 	});
 });
@@ -981,7 +980,7 @@ test.describe("Readlist preferences inboxes", () => {
 			page,
 			`inbox-unavailable-light-${testInfo.workerIndex}-${Date.now()}`,
 		);
-		await reopenPreferences(page, { slug, query: "&preferences_error=unknown-inbox" });
+		await reopenPreferences(page, { slug, query: "?preferences_error=unknown-inbox" });
 		await captureCheckpoint(page, INBOX_UNAVAILABLE_LIGHT);
 	});
 });

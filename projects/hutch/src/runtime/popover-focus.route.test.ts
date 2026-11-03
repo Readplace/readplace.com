@@ -28,7 +28,7 @@ const GUEST_PATHS = ["/", "/import", "/save"];
 const MEMBER_PATHS = [
 	"/queue",
 	"/queue?tab=done",
-	"/queue?feature=pref",
+	"/queue",
 	"/account",
 	"/account?section=subscription",
 	"/newsletters",
@@ -154,9 +154,9 @@ describe("every popup opens on its first decision", () => {
 		let drawerSeen = false;
 		for (const path of [
 			...MEMBER_PATHS,
-			`/queue?queue=${madeReadlist}&feature=pref`,
-			`/queue/queues/${madeReadlist}/preferences?feature=pref`,
-			`/queue/queues/${describedReadlist}/preferences?feature=pref`,
+			`/queue?queue=${madeReadlist}`,
+			`/queue/queues/${madeReadlist}/preferences`,
+			`/queue/queues/${describedReadlist}/preferences`,
 			readerHref,
 			`/queue/${issue.id.value}/view`,
 		]) {
@@ -251,7 +251,7 @@ describe("every popup opens on its first decision", () => {
 			(await agent.post("/queue/queues").type("form").send({ label: "New Readlist" })).headers.location,
 		);
 		const preferences = parse(
-			(await agent.get(`/queue/queues/${madeReadlist}/preferences?feature=pref`).set(BROWSER_REQUEST_HEADERS)).text,
+			(await agent.get(`/queue/queues/${madeReadlist}/preferences`).set(BROWSER_REQUEST_HEADERS)).text,
 		);
 		const inline = preferences.querySelector('[data-test-wizard-surface="inline"]');
 		const popover = preferences.querySelector('[data-test-wizard-surface="popover"]');

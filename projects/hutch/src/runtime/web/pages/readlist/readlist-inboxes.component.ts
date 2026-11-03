@@ -13,8 +13,8 @@ import {
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
 import { render, withInternalTracking } from "@packages/web-shell";
+import { readlistPreferencesInboxesPath } from "./readlist.url";
 
-import { preferencesInboxesUrl } from "./readlist-preferences-feature";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-inboxes.template.html"), "utf-8");
 
@@ -81,12 +81,8 @@ export function buildReadlistInboxes(input: {
 	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	inboxes: readonly InboxAddressEntry[];
 	readlists: readonly ReadlistRef[];
-	preferencesEnabled: boolean;
 }): ReadlistInboxesDisplayModel {
-	const action = preferencesInboxesUrl({
-		slug: input.readlist.slug,
-		enabled: input.preferencesEnabled,
-	});
+	const action = readlistPreferencesInboxesPath(input.readlist.slug);
 	const rows = input.inboxes
 		.filter((inbox) => isLiveAddress(inbox) && isCappedAddress(inbox))
 		.sort(

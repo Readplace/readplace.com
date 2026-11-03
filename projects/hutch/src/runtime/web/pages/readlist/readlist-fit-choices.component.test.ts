@@ -50,13 +50,11 @@ const SPONSOR = choice({
 function renderChoices(input: {
 	choices: readonly ReadlistFitOverride[];
 	purpose?: string;
-	preferencesEnabled?: boolean;
 }): Document {
 	return new JSDOM(
 		`<main>${renderReadlistFitChoices({
 			readlist: { slug: WORK, label: "Work", purpose: input.purpose },
 			choices: input.choices,
-			preferencesEnabled: input.preferencesEnabled ?? true,
 		})}</main>`,
 	).window.document;
 }
@@ -114,18 +112,7 @@ describe("renderReadlistFitChoices", () => {
 		expect(action.pathname).toBe(
 			"/queue/queues/a1b2c3d4/preferences/overrides/0009007199254740-%3Ca%23b%3E%40mail-0003/delete",
 		);
-		expect(action.searchParams.get("feature")).toBe("pref");
 		expect(action.searchParams.get("utm_content")).toBe("remove-choice");
-	});
-
-	it("leaves the preferences feature off the action when the feature is off", () => {
-		const doc = renderChoices({ choices: [DOVETAIL], purpose: "Woodworking", preferencesEnabled: false });
-		const action = new URL(
-			doc.querySelector("[data-test-readlist-choice] form")?.getAttribute("action") ?? "",
-			"https://readplace.test",
-		);
-
-		expect(action.searchParams.has("feature")).toBe(false);
 	});
 
 	it("renders nothing for a readlist without a purpose", () => {

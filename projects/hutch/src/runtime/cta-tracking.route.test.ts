@@ -78,7 +78,7 @@ const MEMBER_PATHS = [
 	"/import",
 	"/import?mode=upload",
 	"/newsletters",
-	"/queue?feature=pref",
+	"/queue",
 	"/mcp",
 	"/developers",
 	"/save",
@@ -164,11 +164,11 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		const readlistPaths =
 			madeReadlist && describedReadlist
 				? [
-						`/queue?queue=${madeReadlist}&feature=pref`,
-						`/queue/queues/${madeReadlist}/preferences?feature=pref`,
-						`/queue/queues/${madeReadlist}/preferences/inboxes?feature=pref`,
+						`/queue?queue=${madeReadlist}`,
+						`/queue/queues/${madeReadlist}/preferences`,
+						`/queue/queues/${madeReadlist}/preferences/inboxes`,
 						`/queue?moved_article=${articleId}&moved_from=default&moved_to=${madeReadlist}`,
-						`/queue/queues/${describedReadlist}/preferences?feature=pref`,
+						`/queue/queues/${describedReadlist}/preferences`,
 						`/queue/${articleId}/view?filed_readlist=${madeReadlist}`,
 					]
 				: [];

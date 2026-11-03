@@ -16,7 +16,6 @@ function discoveryDoc(input: Partial<Parameters<typeof buildReadlistDiscovery>[0
 	const model = buildReadlistDiscovery({
 		filters: UNFILTERED,
 		tabHoldsRows: true,
-		preferencesEnabled: false,
 		...input,
 	});
 	return new JSDOM(`<main>${renderReadlistDiscovery(model)}${renderReadlistFiltersDrawer(model)}</main>`).window
@@ -114,7 +113,6 @@ describe("buildReadlistDiscovery", () => {
 				page: 3,
 				discovery: { q: "focus", time: ["5-10", "10-20"], saved: ["month"] },
 			},
-			preferencesEnabled: true,
 		});
 
 		expect(hiddenFields(element(doc, '[data-test-form="readlist-search"]'))).toEqual([
@@ -124,7 +122,6 @@ describe("buildReadlistDiscovery", () => {
 			["time", "5-10"],
 			["time", "10-20"],
 			["saved", "month"],
-			["feature", "pref"],
 			["utm_source", "queue-search"],
 			["utm_medium", "internal"],
 			["utm_content", "search"],
@@ -257,7 +254,6 @@ describe("buildReadlistDiscovery", () => {
 				page: 2,
 				discovery: { q: "focus", time: ["5-10"], saved: [] },
 			},
-			preferencesEnabled: true,
 		});
 
 		const action: [string, [string, string][]] = [
@@ -267,7 +263,6 @@ describe("buildReadlistDiscovery", () => {
 				["tab", "done"],
 				["order", "asc"],
 				["q", "focus"],
-				["feature", "pref"],
 				["utm_source", "queue-filter-drawer"],
 				["utm_medium", "internal"],
 				["utm_content", "apply"],
@@ -277,7 +272,7 @@ describe("buildReadlistDiscovery", () => {
 		expect(hrefParts(element(doc, '[data-test-discovery-form="fallback"]').getAttribute("action"))).toEqual(action);
 	});
 
-	it("clears through a form of its own that posts no option but keeps the search, the place and the preferences flag", () => {
+	it("clears through a form of its own that posts no option but keeps the search and the place", () => {
 		const doc = discoveryDoc({
 			filters: {
 				readlist: WORK,
@@ -286,7 +281,6 @@ describe("buildReadlistDiscovery", () => {
 				page: 2,
 				discovery: { q: "focus", time: ["5-10"], saved: ["week"] },
 			},
-			preferencesEnabled: true,
 		});
 
 		for (const scope of ["popover", "fallback"]) {
@@ -300,7 +294,6 @@ describe("buildReadlistDiscovery", () => {
 					["tab", "done"],
 					["order", "asc"],
 					["q", "focus"],
-					["feature", "pref"],
 					["utm_source", "queue-filter-drawer"],
 					["utm_medium", "internal"],
 					["utm_content", "clear-all"],

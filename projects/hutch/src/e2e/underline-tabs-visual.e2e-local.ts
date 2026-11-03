@@ -88,7 +88,7 @@ async function gotoReadlistQueue(page: Page, query: string): Promise<void> {
 }
 
 async function createCustomReadlist(page: Page, openRail: (page: Page) => Promise<void>): Promise<string> {
-	await page.goto(`${BASE_URL}/queue?feature=pref`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
 	await openRail(page);
 	await clickAndWaitForPageReload(page, await nameNewReadlist(page, "New Readlist"));
 	await page.waitForFunction(() => new URL(window.location.href).searchParams.has("queue"));
@@ -98,12 +98,12 @@ async function createCustomReadlist(page: Page, openRail: (page: Page) => Promis
 }
 
 async function gotoCustomReadlist(page: Page, slug: string): Promise<void> {
-	await gotoReadlistQueue(page, `?queue=${encodeURIComponent(slug)}&feature=pref`);
+	await gotoReadlistQueue(page, `?queue=${encodeURIComponent(slug)}`);
 	await page.waitForSelector(PREFERENCES_TAB);
 }
 
 async function gotoCustomReadlistPreferences(page: Page, slug: string): Promise<void> {
-	await page.goto(`${BASE_URL}/queue/queues/${encodeURIComponent(slug)}/preferences?feature=pref`, {
+	await page.goto(`${BASE_URL}/queue/queues/${encodeURIComponent(slug)}/preferences`, {
 		waitUntil: "domcontentloaded",
 	});
 	await page.waitForSelector(PREFERENCES_PANEL);

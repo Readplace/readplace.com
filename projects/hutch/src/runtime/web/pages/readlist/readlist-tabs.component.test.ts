@@ -7,16 +7,14 @@ import { buildReadlistTabs, renderReadlistTabs } from "./readlist-tabs.component
 const WORK: ReadlistSlug = ReadlistSlugSchema.parse("work");
 
 function renderTabs(
-	input: Omit<Parameters<typeof buildReadlistTabs>[0], "readlist" | "preferencesEnabled"> & {
+	input: Omit<Parameters<typeof buildReadlistTabs>[0], "readlist"> & {
 		readlist?: ReadlistSlug;
-		preferencesEnabled?: boolean;
 	},
 ): Document {
 	return new JSDOM(
 		`<main>${renderReadlistTabs(
 			buildReadlistTabs({
 				readlist: DEFAULT_READLIST_SLUG,
-				preferencesEnabled: false,
 				...input,
 			}),
 		)}</main>`,
@@ -66,7 +64,7 @@ describe("buildReadlistTabs", () => {
 	});
 
 	it("renders every tab as an underline tab", () => {
-		const doc = renderTabs({ activeTab: "queue", readlist: WORK, preferencesEnabled: true });
+		const doc = renderTabs({ activeTab: "queue", readlist: WORK });
 
 		const classes = Array.from(doc.querySelectorAll("[data-test-filter]"), (tab) => [
 			tab.getAttribute("data-test-filter"),
@@ -80,7 +78,7 @@ describe("buildReadlistTabs", () => {
 	});
 
 	it("gives every underline tab a reserved label", () => {
-		const doc = renderTabs({ activeTab: "queue", readlist: WORK, preferencesEnabled: true });
+		const doc = renderTabs({ activeTab: "queue", readlist: WORK });
 
 		expect(doc.querySelectorAll(".underline-tabs__label[data-widest]")).toHaveLength(
 			doc.querySelectorAll(".underline-tabs__tab").length,
@@ -127,15 +125,10 @@ describe("buildReadlistTabs", () => {
 		}
 	});
 
-	it("keeps the preferences tab out of the strip until the feature is asked for", () => {
-		expect(tabKeys(renderTabs({ activeTab: "queue", readlist: WORK }))).toEqual(["unread", "read"]);
-	});
-
-	it("offers the preferences tab on a reader-made readlist once the feature is asked for", () => {
+	it("offers the preferences tab on a reader-made readlist", () => {
 		const doc = renderTabs({
 			activeTab: "preferences",
 			readlist: WORK,
-			preferencesEnabled: true,
 		});
 
 		expect(tabKeys(doc)).toEqual(["unread", "read", "preferences"]);
@@ -143,33 +136,18 @@ describe("buildReadlistTabs", () => {
 		const preferences = tabLink(doc, "preferences");
 		expect(preferences.getAttribute("aria-current")).toBe("page");
 		expect(hrefParts(preferences).path).toBe("/queue/queues/work/preferences");
-		expect(hrefParts(preferences).params.get("feature")).toBe("pref");
 		expect(hrefParts(preferences).params.get("utm_content")).toBe("filter-preferences");
 	});
 
-	it("still hides the preferences tab on the built-in readlist with the feature on", () => {
-		expect(tabKeys(renderTabs({ activeTab: "queue", preferencesEnabled: true }))).toEqual([
+	it("hides the preferences tab on the built-in readlist", () => {
+		expect(tabKeys(renderTabs({ activeTab: "queue" }))).toEqual([
 			"unread",
 			"read",
 		]);
 	});
 
-	it("carries the feature on the status tabs so the strip survives a hop between them", () => {
-		const doc = renderTabs({ activeTab: "queue", readlist: WORK, preferencesEnabled: true });
-
-		expect(hrefParts(tabLink(doc, "unread")).params.get("feature")).toBe("pref");
-		expect(hrefParts(tabLink(doc, "read")).params.get("feature")).toBe("pref");
-	});
-
-	it("leaves the status tabs untouched while the feature is off", () => {
-		const doc = renderTabs({ activeTab: "queue", readlist: WORK });
-
-		expect(hrefParts(tabLink(doc, "unread")).params.get("feature")).toBe(null);
-		expect(hrefParts(tabLink(doc, "read")).params.get("feature")).toBe(null);
-	});
-
 	it("reserves every tab's widest label, so the pressed tab's weight change never moves the row", () => {
-		const doc = renderTabs({ activeTab: "queue", readlist: WORK, preferencesEnabled: true });
+		const doc = renderTabs({ activeTab: "queue", readlist: WORK });
 
 		const reserved = Array.from(doc.querySelectorAll("[data-widest]"), (label) => [
 			label.closest("[data-test-filter]")?.getAttribute("data-test-filter"),

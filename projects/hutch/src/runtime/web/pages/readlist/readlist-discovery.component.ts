@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { READ_TIME_BUCKETS, SAVED_WINDOWS } from "@packages/domain/article";
 import { render, renderInFlightDots, withInternalTracking } from "@packages/web-shell";
 
-import { preferencesFeatureParams } from "./readlist-preferences-feature";
 import {
 	READLIST_PATH,
 	buildReadlistFiltersUrl,
@@ -90,13 +89,11 @@ function hiddenFieldsOf(href: string): HiddenField[] {
 export function buildReadlistDiscovery(input: {
 	filters: ReadlistUrlState;
 	tabHoldsRows: boolean;
-	preferencesEnabled: boolean;
 }): ReadlistDiscoveryDisplayModel {
 	const discovery = input.filters.discovery ?? NO_DISCOVERY;
 	const place = { readlist: input.filters.readlist, tab: input.filters.tab, order: input.filters.order };
-	const featureParams = preferencesFeatureParams(input.preferencesEnabled);
-	const searchUrl = buildReadlistUrl({ ...place, discovery: { ...discovery, q: undefined } }, featureParams);
-	const filtersUrl = buildReadlistFiltersUrl({ ...place, discovery: { ...NO_DISCOVERY, q: discovery.q } }, featureParams);
+	const searchUrl = buildReadlistUrl({ ...place, discovery: { ...discovery, q: undefined } });
+	const filtersUrl = buildReadlistFiltersUrl({ ...place, discovery: { ...NO_DISCOVERY, q: discovery.q } });
 	const ticked = tickedFacetCount(discovery);
 	return {
 		stateClass: input.tabHoldsRows ? ROW_STATE_CLASSES.visible : ROW_STATE_CLASSES.hidden,

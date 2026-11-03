@@ -35,7 +35,6 @@ function page(overrides: {
 	inboxAlert?: AlertContent;
 	canEdit?: boolean;
 	canCreate?: boolean;
-	preferencesEnabled?: boolean;
 	accessIsReadOnly?: boolean;
 	subscriptionBanner?: SubscriptionBannerState;
 	query?: Record<string, unknown>;
@@ -57,7 +56,6 @@ function page(overrides: {
 		inboxes: overrides.inboxes ?? [],
 		choices: overrides.choices ?? [],
 		inboxAlert: overrides.inboxAlert,
-		preferencesEnabled: overrides.preferencesEnabled ?? true,
 		accessIsReadOnly: overrides.accessIsReadOnly ?? false,
 		subscriptionBanner: overrides.subscriptionBanner ?? { state: "none" },
 		onboarding: {
@@ -94,7 +92,7 @@ function testActionsOf(root: ParentNode, selector: string): (string | null)[] {
 	return Array.from(root.querySelectorAll(selector), (control) => control.getAttribute("data-test-action"));
 }
 
-const PURPOSE_DELETE_ACTION = `/queue/queues/${WORK}/preferences/purpose/delete?feature=pref&utm_source=queue-preferences&utm_medium=internal`;
+const PURPOSE_DELETE_ACTION = `/queue/queues/${WORK}/preferences/purpose/delete?utm_source=queue-preferences&utm_medium=internal`;
 
 describe("ReadlistPreferencesPage", () => {
 	it("titles the tab with the readlist, so the inline rename keeps rewriting a title it recognises", () => {
@@ -259,11 +257,11 @@ describe("ReadlistPreferencesPage", () => {
 		);
 
 		expect(actions).toEqual([
-			`/queue/queues/${WORK}/preferences?feature=pref&utm_source=queue-preferences&utm_medium=internal&utm_content=save-purpose`,
-			`/queue/queues/${WORK}/preferences?feature=pref&utm_source=queue-preferences&utm_medium=internal&utm_content=save-purpose`,
+			`/queue/queues/${WORK}/preferences?utm_source=queue-preferences&utm_medium=internal&utm_content=save-purpose`,
+			`/queue/queues/${WORK}/preferences?utm_source=queue-preferences&utm_medium=internal&utm_content=save-purpose`,
 		]);
 		expect(hrefs).toEqual([
-			`/queue/queues/${WORK}/preferences?feature=pref&utm_source=queue-preferences&utm_medium=internal&utm_content=cancel`,
+			`/queue/queues/${WORK}/preferences?utm_source=queue-preferences&utm_medium=internal&utm_content=cancel`,
 		]);
 	});
 
@@ -485,23 +483,5 @@ describe("ReadlistPreferencesPage", () => {
 		expect(alert.querySelector("[data-test-alert-message]")?.textContent).toBe(
 			"It may have been disabled. Pick another custom email.",
 		);
-	});
-
-	it("drops the feature from the flow when the reader never asked for it", () => {
-		const doc = documentOf(page({ preferencesEnabled: false }).content.html);
-		const actions = Array.from(doc.querySelectorAll("[data-test-wizard-surface]"), (form) =>
-			form.getAttribute("action"),
-		);
-		const hrefs = Array.from(doc.querySelectorAll("[data-test-wizard-surface] a[href]"), (link) =>
-			link.getAttribute("href"),
-		);
-
-		expect(actions).toEqual([
-			`/queue/queues/${WORK}/preferences?utm_source=queue-preferences&utm_medium=internal&utm_content=save-purpose`,
-			`/queue/queues/${WORK}/preferences?utm_source=queue-preferences&utm_medium=internal&utm_content=save-purpose`,
-		]);
-		expect(hrefs).toEqual([
-			`/queue/queues/${WORK}/preferences?utm_source=queue-preferences&utm_medium=internal&utm_content=cancel`,
-		]);
 	});
 });

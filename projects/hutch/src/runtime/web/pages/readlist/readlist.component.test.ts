@@ -518,7 +518,7 @@ describe("ReadlistPage", () => {
 					discovery: { q: "focus", time: ["5-10"], saved: [] },
 				},
 			},
-			{ readlistHoldsArticles: true, tabHoldsRows: true, query: { feature: "pref" } },
+			{ readlistHoldsArticles: true, tabHoldsRows: true },
 		);
 
 		const action = doc.querySelector('[data-test-empty-action="clear-discovery"]');
@@ -529,7 +529,6 @@ describe("ReadlistPage", () => {
 			["queue", WORK.slug],
 			["tab", "done"],
 			["order", "asc"],
-			["feature", "pref"],
 			["utm_source", "queue-empty"],
 			["utm_medium", "internal"],
 			["utm_content", "clear-discovery"],
@@ -618,28 +617,18 @@ describe("ReadlistPage", () => {
 		expect(header.classList.contains("readlist-listing__header--visible")).toBe(true);
 	});
 
-	it("offers the Preferences tab on a custom readlist the reader asked to configure", () => {
-		const doc = pageDoc(
-			{ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } },
-			{ query: { feature: "pref" } },
-		);
+	it("offers the Preferences tab on a custom readlist", () => {
+		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } });
 
 		expect(tabKeys(doc)).toEqual(["unread", "read", "preferences"]);
 		const preferences = doc.querySelector('[data-test-filter="preferences"]');
-		assert(preferences, "the Preferences tab must render once it is asked for");
+		assert(preferences, "the Preferences tab must render on a custom readlist");
 		const href = new URL(preferences.getAttribute("href") ?? "", "https://internal.invalid");
 		expect(href.pathname).toBe(`/queue/queues/${WORK.slug}/preferences`);
-		expect(href.searchParams.get("feature")).toBe("pref");
 	});
 
 	it("keeps the Preferences tab off the readlist every save lands in", () => {
-		const doc = pageDoc({}, { query: { feature: "pref" } });
-
-		expect(tabKeys(doc)).toEqual(["unread", "read"]);
-	});
-
-	it("keeps the Preferences tab out of a custom readlist until it is asked for", () => {
-		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } });
+		const doc = pageDoc({});
 
 		expect(tabKeys(doc)).toEqual(["unread", "read"]);
 	});
