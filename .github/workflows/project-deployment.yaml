@@ -9,7 +9,7 @@ on:
 
 jobs:
   deploy-staging:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: staging
     env:
       AWS_REGION: ap-southeast-2
@@ -59,7 +59,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Docker Buildx + AWS CLI are pre-installed on ubuntu-latest, but buildx
+      # Docker Buildx + AWS CLI are pre-installed, but buildx
       # requires explicit setup for the multi-platform builder. save-link's
       # deploy-infra script runs build-image.mjs before pulumi up; that
       # script does its own `aws ecr get-login-password | docker login`.
@@ -96,7 +96,7 @@ jobs:
 
   deploy-prod:
     needs: [deploy-staging]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: prod
     env:
       AWS_REGION: ap-southeast-2
