@@ -80,6 +80,7 @@ config:
     domain: readplace-staging.com
     apexTxt:
       - v=spf1 include:_spf.google.com ~all
+      - google-site-verification=ymC_Zdez_ANAdHs101pRjc5XZb2Btqu1SDPiZhG5d6I
     # Prod's readplace.com key: inert for deliverability on this zone (nothing
     # signs as readplace-staging.com) — published only to exercise the DKIM
     # record path of this rig.
