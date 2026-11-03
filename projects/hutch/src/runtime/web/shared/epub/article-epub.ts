@@ -14,6 +14,8 @@ export type ArticleEpubBuild = {
 	skippedOverBudget: readonly SkippedImage[];
 };
 
+const COLOPHON_XHTML = "<hr /><p>Read the Web, not the Slop.</p>";
+
 export type BuildArticleEpub = (
 	params: ArticleFrontMatter & { articleUrl: string; contentHtml: ArticleBody },
 ) => Promise<ArticleEpubBuild>;
@@ -72,7 +74,7 @@ export function initBuildArticleEpub(deps: BuildArticleEpubDependencies): BuildA
 		});
 
 		const xhtml = articleEpubXhtml({
-			contentHtml: frontMatter + params.contentHtml,
+			contentHtml: frontMatter + params.contentHtml + COLOPHON_XHTML,
 			title: params.title,
 			articleUrl: params.articleUrl,
 			embeddedFilenames: images.map((image) => image.filename),

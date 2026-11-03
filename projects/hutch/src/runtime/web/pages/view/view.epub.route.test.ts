@@ -248,6 +248,8 @@ describe("GET /view/<url>?format=<download>", () => {
 			["hr", ""],
 			["p", "Body copy."],
 			["p", ""],
+			["hr", ""],
+			["p", "Read the Web, not the Slop."],
 		]);
 	});
 
@@ -279,6 +281,8 @@ describe("GET /view/<url>?format=<download>", () => {
 			["hr", ""],
 			["p", "Body copy."],
 			["p", ""],
+			["hr", ""],
+			["p", "Read the Web, not the Slop."],
 		]);
 		expect(contentOutline(new Uint8Array(afterSummary.body))).toEqual([
 			["h1", "Hello World"],
@@ -290,6 +294,8 @@ describe("GET /view/<url>?format=<download>", () => {
 			["hr", ""],
 			["p", "Body copy."],
 			["p", ""],
+			["hr", ""],
+			["p", "Read the Web, not the Slop."],
 		]);
 	});
 

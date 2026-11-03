@@ -238,10 +238,34 @@ describe("initBuildArticleEpub", () => {
 			["p", "Second point."],
 			["hr", ""],
 			["p", "Body copy."],
+			["hr", ""],
+			["p", "Read the Web, not the Slop."],
 		]);
 		const files = unzipSync(bytes);
 		expect(strFromU8(files["OEBPS/content.xhtml"])).toContain("<title>The Article</title>");
 		expect(strFromU8(files["OEBPS/content.opf"])).toContain("<dc:title>The Article</dc:title>");
+	});
+
+	it("closes the article with the colophon after the body copy", async () => {
+		const build = initBuildArticleEpub({
+			readArticleImage: readerFor({}),
+			logError: jest.fn(),
+			now: NOW,
+		});
+
+		const { bytes } = await build({
+			articleUrl: ARTICLE_URL,
+			title: "The Article",
+			siteName: "example.com",
+			excerpt: "Parsed blurb.",
+			summary: undefined,
+			contentHtml: articleBody("<p>Body copy.</p>"),
+		});
+
+		const paragraphs = contentOutline(bytes)
+			.filter(([element]) => element === "p")
+			.map(([, text]) => text);
+		expect(paragraphs.slice(-2)).toEqual(["Body copy.", "Read the Web, not the Slop."]);
 	});
 });
 
