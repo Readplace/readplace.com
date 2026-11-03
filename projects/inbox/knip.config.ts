@@ -1,12 +1,8 @@
 import baseConfig from "../../knip.config.base";
 import type { KnipConfig } from "knip";
 
-// Strip `workspaces` from the base config because knip is invoked from inside
-// this project's directory; the workspaces map is for monorepo-rooted runs.
-const { workspaces: _workspaces, ...base } = baseConfig;
-
 export default {
-	...base,
+	...baseConfig,
 	entry: [
 		// Lambda + local server entry points referenced by Pulumi infra / start
 		// script — knip can't follow those references, so list the convention here.

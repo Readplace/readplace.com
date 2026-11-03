@@ -858,9 +858,6 @@ importers:
       '@packages/site-rules':
         specifier: workspace:*
         version: link:../../src/packages/site-rules
-      '@packages/test-fixtures':
-        specifier: workspace:*
-        version: link:../../src/packages/test-fixtures
       '@packages/tier-source':
         specifier: workspace:*
         version: link:../../src/packages/tier-source
@@ -892,6 +889,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../../src/packages/test-fixtures
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../src/packages/test-phase-runner
@@ -1722,9 +1722,9 @@ importers:
       '@packages/hutch-infra-components':
         specifier: workspace:*
         version: link:../hutch-infra-components
-      '@packages/test-fixtures':
+      '@packages/provider-contracts':
         specifier: workspace:*
-        version: link:../test-fixtures
+        version: link:../provider-contracts
     devDependencies:
       '@aws-sdk/client-s3':
         specifier: 3.1057.0

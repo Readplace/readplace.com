@@ -41,7 +41,6 @@
     "@packages/retriable": "workspace:*",
     "@packages/save-article": "workspace:*",
     "@packages/site-rules": "workspace:*",
-    "@packages/test-fixtures": "workspace:*",
     "@packages/tier-source": "workspace:*",
     "@smithy/node-http-handler": "4.7.5",
     "@sparticuz/chromium": "153.0.0",
@@ -54,6 +53,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",

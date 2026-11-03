@@ -24,7 +24,7 @@ The client's job is to interpret the Siren format and follow what the server say
 - Readlist list: the builder that turns the reader's readlists into `readlists` entries, choosing `rel` `current` or `readlist` — grep the server for `"current" : "readlist"`
 - Sort list: the builder that turns the sort orders into `sort` entries, choosing `rel` `current` or `sort` — grep the server for `"current" : "sort"`
 - Content negotiation: the Siren content-negotiation predicate — the one call to Express's `req.accepts(...)` made with the Siren media type; grep the server for `.accepts(`
-- Client implementations: see [Per-Client Implementations](#per-client-implementations)
+- Client implementations: see [Per-Client Implementations](references/client-conformance.md#per-client-implementations)
 
 ## Content Negotiation, Not Parallel APIs
 
@@ -36,40 +36,7 @@ One URL per capability serves both the browser (HTML) and a programmatic client 
 
 Why 303 over the entry point: the server decides where the collection lives; renaming `/queue` to something else is a server-internal change because the client only followed the redirect.
 
-## An Article's Markdown Is Its `read` Link, Negotiated
-
-A client that wants an article as a document needs no URL of its own and no Siren affordance: the article's `read` link is the URL the browser already opens, so the client follows it with `Accept: text/markdown` and the OAuth bearer token it already sends for the collection. The server still owns the URL, and the client learns one more media type (last row of [What a Client Must Know vs Discover](#what-a-client-must-know-vs-discover)).
-
-- **No Siren vocabulary was added for it.** The `read` link already is the document's URL, so a client needs no affordance of its own to fetch it. The article entity's title-less actions are machine capabilities (the readlist ones in [Readlists Are Server-Owned](#readlists-are-server-owned--propertiesreadlists)), and a client that follows the **Label** rule in [Rendering & Invoking Affordances](#rendering--invoking-affordances) shows no control for one it does not handle. Extension builds before 1.0.706 (Firefox) and 1.0.713 (Chrome) show a control for every item action, labelled with a humanised name; iOS builds from 104 and Android builds from f66dc81b3 skip a title-less action they do not recognise, and no Android build renders an action whose field has no value. An item-level link or action for machine use — `add-to-readlist` and `remove-from-readlist` included — does not wait for such builds to leave the store, because extension builds wait on store review: the server instead withholds the action from the OAuth client whose shipped builds render it, in each representation whose item actions those builds turn into controls, choosing per client the way it chooses a [page size](#pagination-is-server-owned--propertiespages), and advertises it to that client once those builds are gone. `add-to-readlist` is withheld this way from the rows of a collection sent to the Firefox extension, because the newest build Mozilla has signed turns every item action into a control (grep the server for `"hutch-firefox-extension": "withheld"`; [#1293](https://github.com/Readplace/readplace.com/issues/1293) tracks lifting it). In the extension, the walker module anchored under [Browser extension](#browser-extension-the-walker-pattern) hands every item affordance to the popup, titled or not; the popup is what skips them.
-- **Every `read` href returns the same document.** An article held by several readlists has a `read` href in each readlist's collection. The server builds the document from one canonical copy of the article and puts nothing per-request in it, so the same stored state always gives the same bytes, and a client may follow whichever href it saw first.
-
-Only the account that holds the article gets the document, so the answer depends on who asks:
-
-| Markdown request | Answer |
-|---|---|
-| Valid bearer token (or the owner's session cookie) for an article the account holds, in any readlist | `200` with the document |
-| Valid bearer token, but the article is not the account's or the id is malformed | `404` with a Markdown body |
-| Invalid or expired bearer token | `401` with `WWW-Authenticate: Bearer error="invalid_token"` and a Markdown body |
-| No bearer token, and anonymous or another account's session cookie | Unchanged: the redirect to the public reader |
-
-A token belongs to a client acting for one account, so a valid token for someone else's article is refused rather than redirected: the public reader's Markdown has a different shape (a `# title` heading instead of YAML frontmatter), and a client would silently accept it as the article's document.
-
-- **Check the status, then the `Content-Type`.** The `401` and `404` bodies are Markdown too, so a `text/markdown` body alone does not make a document. Verify the type before parsing, as [Client Conformance](#client-conformance) requires, and treat any other type as unsupported: the server falls back to HTML where a URL has no Markdown form.
-- **A still-processing article is answered at once.** Every article the account holds returns a document whatever its state, with the state recorded in the frontmatter, so a client writes its copy straight away and fills it in on a later fetch instead of waiting for processing to finish. A document is **final** once nothing in the article's processing can still change it: the content status is `failed` or `not-an-article`, or it is `ready` and the summary status has settled to `ready`, `failed` or `skipped`. Every other combination is incomplete, so the client fetches it again later. Final is not frozen: the reader's read state, readlist membership and a re-crawl still change the bytes.
-- **Caching is ordinary HTTP.** The response is `Cache-Control: private, no-cache`, so a client may keep a copy but must revalidate before reusing it: a later fetch can return different bytes. Express may add a weak `ETag` and answer `304` to a matching `If-None-Match` on its own; the contract promises neither, so a client may use them when they appear and must not depend on them.
-
-### The Frontmatter Keys Are a Published Interface
-
-The document opens with YAML frontmatter. This is a **published interface**: the key names, their types and when each is present are the contract, and renaming, retyping or removing a key is a breaking change for every client and for every reader's own vault queries — the same rule [Evolvability Rules](#evolvability-rules) applies to Siren `properties`. The server module that assembles the document (frontmatter, summary callout and body) is the only non-test server hit for `matter.stringify`, the frontmatter library's serialiser call; grep for it and read the key set there rather than restating it here.
-
-| Rule | Why |
-|---|---|
-| Use Obsidian Web Clipper's name for a concept Readplace shares with it ([preset variables](https://obsidian.md/help/web-clipper/variables)) | A note sorts and filters alongside the reader's existing clippings |
-| Give every other key the `readplace_` prefix | Obsidian gives a property name [one type across the whole vault](https://obsidian.md/help/properties), so a plain name can collide with one the reader already uses |
-| Never emit `author`, `tags`, `highlights` or `notes`, not even empty | Readplace holds none of them, and a note must not imply it does; a client adds none on its side either |
-| Write the publish date under `published`, Obsidian Web Clipper's name for it, as the `YYYY-MM-DD` calendar date the article holds, and omit it when none is known | A byline is a calendar date in the publisher's calendar; an instant would move it a day for a reader in another zone |
-| Omit a key whose value is absent; never write `null` | Absence has one encoding |
-| Write timestamps as ISO 8601 UTC strings | The form Siren's timestamps use |
+[An Article's Markdown Is Its `read` Link, Negotiated](references/markdown-read-link.md) — read when changing how an article's Markdown is served or how a client reads it.
 
 ## What a Client Must Know vs Discover
 
@@ -111,182 +78,12 @@ Renaming an action is a breaking change — both sides must ship together. Renam
 | Remove a field with no server `value` that no client authors (`search`'s `order`) | No | Nothing can supply it — no `value` for the generic invoker, no bespoke handler — so no conforming client can reach it |
 | Rename a property in `properties` that clients read | **Yes** | Treat known property names as the contract |
 | Change an action's `method` | No | Client follows what the server declares |
-| Change an action's `href` | No | Same reason, bounded by discovery freshness: a warm client may still hold the old `href` until its cached representation expires, and the re-discover-and-retry rule in [Client Conformance](#client-conformance) closes that window |
+| Change an action's `href` | No | Same reason, bounded by discovery freshness: a warm client may still hold the old `href` until its cached representation expires, and the re-discover-and-retry rule in [Client Conformance](references/client-conformance.md#client-conformance) closes that window |
 | Change the URL structure of the site | No | As long as entry point and self-links stay consistent |
 
 When a breaking change is necessary, add the new capability alongside the old one, wait for clients to migrate, then remove the old. Versioned URLs (`/v2/queue`) are banned — they are a symptom of an API that doesn't evolve via the message format.
 
-## State Lives in the Network
-
-HTTP caching (`ETag` + `If-None-Match`) is the authoritative cache layer. Do not build a parallel in-client cache of "what articles exist" as the source of truth. A client may keep a short-lived cache of *bound actions* (items the server returned with their `update-status` action attached) as a performance optimisation, but the canonical state is always whatever the server returns next.
-
-- Cache wrapper: the HTTP-cache decorator around an understanding, exported by the extension core's Siren walker module (the extension core is the shared package both extensions consume — `pnpm nx show projects` lists it; the walker module is anchored under [Browser extension](#browser-extension-the-walker-pattern))
-- Short-lived action cache: the legacy reading-list adapter's map of known items (cleared on every mutation — the walker module's one `.clear()`)
-
-**Discovery freshness is server-defined.** The responses a client reads only to *discover* affordances — the entry-point `303` and the collection `GET` behind it — carry an explicit cache policy, so a warm client invokes an action it already holds without spending a re-discovery round trip first. The lifetime is granted per client: the collection's `max-age` goes only to the native iOS and Android apps, and every other Siren client is held to `private, no-cache` revalidation, because entity mutations post to per-article URIs and would never auto-invalidate a cached collection on already-shipped clients. Only the server knows how long its own action vocabulary stays valid, so the client honours ordinary HTTP caching and never invents a TTL: the server's discovery-lifetime constant — in the one non-test server module that both builds a `private, max-age=` directive and varies the collection on `Authorization`; grep the server for files containing both strings — is the only place that lifetime is set. The two mechanisms are not interchangeable: `max-age` is what removes the warm round trip (the client answers from its own store), while `ETag`/`304` still costs a request and only cheapens revalidation when the body is unchanged — rare for a collection, which any save changes.
-
-After a mutation, the server drives the client back to the collection via `303 See Other`. `fetch` follows the redirect automatically; the client parses the new collection and that becomes the new truth. Do not synthesise "the new list after delete" client-side — read it from the response.
-
-## Form Fields Are Declared, Not Assumed
-
-The server declares what an action needs via `action.fields`, and **the input VALUES come from the server too** — each field may carry a `value` (the server-suggested/target value). The generic invoker builds the request body by posting each declared field's `value`, ENCODED per the action's `type` (`application/x-www-form-urlencoded` → `URLSearchParams`; `application/json` → JSON). A bare `(id, name)` / `(entity, action)` invocation is therefore sufficient: the client supplies no field knowledge and never hardcodes a field value.
-
-A field-requiring action whose field carries no server-provided `value` is **not invokable by a bare control** — only a bespoke handler that produces that value (e.g. a search box's typed query) can invoke it.
-
-**A field name enters the contract exactly when a client must author its value.** A server-valued field is copied `name`→`value` by the generic invoker, so renaming it is invisible to every client. A field only a bespoke handler can fill has its name hardcoded in that handler, so renaming it is breaking — and breaking *silently*, because the handler's callable looks each declared field up by name in the values it was given: a renamed field stops matching and the request goes out **without** that input instead of failing. A field that is neither — no server `value`, no handler — is inert, and removing it breaks nothing.
-
-A query parameter the server bakes into an `href` (`?order=asc` in `self`/`next`/`pages[].href`) is **not** a field and is not contract. The client treats the href as opaque and never parses it, which is exactly what keeps "change an action's `href`" non-breaking.
-
-When adding a new required input to an action:
-
-1. Server: add a new entry to `fields` (carrying its `value` when the value is server-known) and validate it in the route handler.
-2. Client: nothing for server-valued fields — the generic invoker already posts the declared `value`. Only an input the *user* must supply needs a bespoke handler.
-
-When adding an optional input, only the server changes; old clients keep working.
-
-## Server-Driven Messages Are Trusted HTML
-
-The server can refuse or annotate an action with a generic, feature-agnostic message channel instead of a bespoke error code. The shape is a stable published interface:
-
-```jsonc
-"properties": {
-  "messages": [
-    { "type": "success" | "warning" | "error",
-      "content": { "type": "text/html", "body": "…server-authored HTML…" } }
-  ]
-}
-```
-
-The client owns **no** knowledge of what a message means — it only knows how to render one. The web/extension clients inject `content.body` as HTML (so an `<a href="mailto:…">` renders); iOS strips it to plain text. A locked-account save refusal is the first producer (the server's locked-account refusal builder — the one Siren emitter that interpolates a `mailto:` address into its body; grep the server for `mailto:${` and take the non-test hit that builds a Siren message, not the report-article link builder), but the channel is deliberately generic so any future "show the user this, let them keep reading, but block the save" interceptor reuses it rather than adding another bespoke surface.
-
-**The client renders only media types it understands.** `content.type` is the body's media type. Every client renders exactly one — `text/html` — and **ignores any other media type**: an unrecognised `content.type` is dropped, never displayed, never injected. Be liberal in what you accept (the envelope parses regardless of `content.type`, so a refusal carrying an unknown type still drops the user back into the list rather than failing generically) and conservative in what you render (only the media types the client knows). This makes a new media type a forward-compatible change — older clients skip a body they can't interpret instead of mis-rendering it. The extension filters in the extension core's message-view builder (the pure module that also picks the live-region `role` — grep the extension core for `"alert" : "status"`); iOS filters in its API client's refusal decoder (the step that runs right after the `401` check — grep the iOS Swift sources for `status == 401` — which keeps only renderable messages and still treats a refusal left with none as a refusal, so the app shows its own words instead of a generic failure).
-
-**Invariant — `content.body` is trusted, server-authored, server-side-escaped HTML.** The server is the *only* author. Because the extension renders it via `innerHTML`, a body that interpolates any untrusted or user-derived value — a saved URL, an article title, an email address — **without escaping it server-side** is markup injection into the popup. This is safe today only because the single producer builds from a static constant. Before a message body ever interpolates dynamic data:
-
-1. Escape it server-side. The body is HTML; treat every interpolation as untrusted until escaped.
-2. Only `text/html` bodies are ever injected — the client ignores any other `content.type` (see "The client renders only media types it understands" above), so an unknown media type can never be mis-rendered as HTML. A `text/html` body, by contrast, is *always* injected, so the escaping in (1) is mandatory for it.
-3. Never move escaping to the client — the server owns the protocol, and "the client only renders" is what stops every client (extension, iOS, Android, future) re-implementing sanitisation differently.
-
-The client-side render decisions (per-`type` variant class, the `role` politeness, empty/hidden, and which media types are renderable) live in the extension core's message-view builder (anchored above) — pure and unit-tested; the popup glue only paints its output.
-
-## Pagination Is Server-Owned — `properties.pages`
-
-Page size is **server policy, not a client parameter.** No client sends a page size and no client re-pages what it received: a client renders exactly the items one response carried. The server may pick a different size per client (it knows which client from the OAuth token the request carries), so "how many items is a page" is never derivable client-side.
-
-Sequential paging keeps the registered rels — `prev` and `next` (RFC 8288) — which a client **follows** as structural navigation, never renders as a control. But IANA registers nothing for numbered/arbitrary page access, so a numbered pager is custom vocabulary in any encoding. It cannot ride links or actions here: a *titled* affordance is this contract's "render me as a control" signal, so N titled page links become N mystery controls on every already-shipped client, and a *title-less* link has nowhere legal to carry the human label. It therefore rides collection `properties`, where an unknown key is inert on every shipped client:
-
-```jsonc
-"properties": {
-  "pages": [
-    { "label": "1", "rel": "prev",    "href": "/queue?status=unread&page=1" },
-    { "label": "2", "rel": "current", "href": "/queue?status=unread&page=2" },
-    { "label": "3", "rel": "next",    "href": "/queue?status=unread&page=3" }
-  ]
-}
-```
-
-This is a **published interface**: `pages`, `label`, `rel`, and `href` are the contract, and renaming any of them is a breaking change.
-
-- **Pages only, never their contents.** An entry describes a page; a page's articles arrive only when the client follows that entry's `href`. Adding items to an entry would make every response carry the whole collection.
-- **`rel` is relative to the page that carried it** — every page before the current one is `prev`, every page after is `next`, the current one is `current`. These are the registered relation names (RFC 8288) applied to pages rather than to Siren `links`, so an entry says how a page relates to the one in hand. Relations repeat, and a response for an out-of-range page carries no `current` at all.
-- **`label` is the server's display string.** A client renders it verbatim and never parses it, derives it from array position, or reads a page number out of an `href` — that is what keeps the server free to change page identity or elide entries later.
-- **`href` is opaque and server-built**, resolved through the client's one href resolver like any other. A client that builds `?page=` itself has reintroduced the coupling this removes.
-- **Which entries to display is client presentation.** The server sends the full list; windowing it (a few around the current page, plus the first and last) is the client's own layout decision, and `rel` is never used as a CSS class.
-
-## Infinite Scroll Is Stitched Pages — Re-read and Adopt After a Mutation
-
-A list that grew by following `next` is the client's own concatenation of several responses; the server never emitted it and cannot update it. After **any** mutation the client learns of — one it invoked, or one another surface reports (an in-app reader's bridge, a share-sheet save) — the stitched list is stale and only the server's post-mutation collection is the truth.
-
-| Rule | Why |
-|---|---|
-| Re-read **and adopt** at every scroll depth: replace the stitched list with the post-mutation first page, or re-follow the collection from its first page through the *fresh* responses' `next` links, one hop per page held, and replace the list with what came back. | A read whose body is then discarded is the same failure as no read: the row the user just acted on stays on screen. Choosing between the two is presentation (viewport reset vs held position); doing neither is a correctness bug. |
-| Scroll depth chooses *how* the client re-reads, never *whether* the collection is applied. | A "has paginated" flag that gates adoption turns a viewport nicety into a hole that opens only past page 1 — where no test looked. |
-| Never patch the stitched list by id instead. | It is the synthesise-after-mutation anti-pattern, and the id the client holds may be wrong: an in-app reader can navigate to another article before the mutation lands. |
-| Page boundaries move after a removal; render exactly what each re-followed response carried. | A row from page N+1 joining page N is the server's paging, not a client reconciliation problem. |
-
-The rule exists because the iOS reader's mark-read fetched the tab's collection and then discarded it whenever the list was past page 1, so the row just read stayed until a pull-to-refresh.
-
-## Status Tabs Are Server-Owned — `properties.tabs`
-
-The queue is partitioned by status into tabs — today *To Read* and *Read* — and the tab set, each tab's label, and where each tab lives are **server policy**. A rename or a new tab reaches every client without a release only if no client holds that list itself. The same reasoning as `pages` rules out links and actions as the vehicle (a titled affordance phantom-renders as a control on every shipped build; a title-less one has nowhere to carry the label), so tabs ride collection `properties`, where an unknown key is inert on every shipped client:
-
-```jsonc
-"properties": {
-  "tabs": [
-    { "label": "To Read", "rel": "tab",     "href": "/queue?status=unread" },
-    { "label": "Read",    "rel": "current", "href": "/queue?status=read" }
-  ]
-}
-```
-
-This is a **published interface**: `tabs`, `label`, `rel`, and `href` are the contract, and renaming any of them is a breaking change. Entries carry no counts; the listed tab's count rides `total` (see [Count and Sort](#count-and-sort-are-server-owned--propertiestotal-and-propertiessort)).
-
-- **`rel` is `current` for the tab the response lists and `tab` for every other.** A collection that is not filtered by status (the invalid-URL save refusal lists every status) carries no `current` entry at all — the same rule as an out-of-range page in `pages` — and a client keeps whatever tab it had selected.
-- **`label` is the server's display string**, rendered verbatim and never parsed.
-- **`href` is opaque and server-built** — resolved through the client's one href resolver, never assembled from a status the client knows. The server carries the request's sort order into each tab's href; a client that builds `?status=` itself has reintroduced the coupling this removes.
-- **A tab's contents arrive only by following its `href`.** An entry describes a tab, not its items.
-- **Entity mutation hrefs carry the tab.** Each embedded item's `update-status` `href` is built with the collection's own status (and order) baked in, so the `303` the mutation answers with lands the client back on the tab it acted from — a client stays on *Read* after toggling an item unread there, without ever knowing how the server encodes a tab. The href is opaque, so this is non-breaking for every shipped client; the save response's entity (no collection context) keeps the bare href.
-- **Presentation is the client's.** A segmented control, a tab bar, or a menu is a layout decision; `rel` is never used as a style token.
-
-## Readlists Are Server-Owned — `properties.readlists`
-
-A reader's queue is partitioned again, into readlists: the default one every account has, plus the ones the reader created. Which readlists exist, what each is called, and where each one lives are **server policy**, for the same reason as `pages` and `tabs` — so they ride collection `properties`, where an unknown key is inert on every shipped client:
-
-```jsonc
-"properties": {
-  "readlists": [
-    { "label": "All",  "rel": "current",  "href": "/queue" },
-    { "label": "Work", "rel": "readlist", "href": "/queue?readlist=3f9a…" }
-  ]
-}
-```
-
-This is a **published interface**: `readlists`, `label`, `rel`, and `href` are the contract, and renaming any of them is a breaking change. The default readlist comes first, then the reader's own in the order they were created; entries carry no counts.
-
-- **`rel` is `current` for the readlist the response lists and `readlist` for every other**, and **exactly one** entry is `current`. A request naming a readlist the reader does not own is answered by the default readlist's collection, so a current entry is always there to point at — unlike `pages` and `tabs`, which can legitimately carry none.
-- **`label` is the server's display string**, rendered verbatim and never parsed. It is text the reader typed, so wherever it reaches server-authored HTML copy the server escapes it; a client never escapes or unescapes it itself.
-- **`href` is opaque and server-built** — an entry's href is that readlist's default view, carrying no tab, order, or page. A client follows the href it was given, never assembles `?readlist=`, and never stores, parses, or compares the slug or label inside one. An iPhone build before 134 is the one client still served `?queue=` on every href, and a `GET` from it that names `?queue=` is answered in place; every other Siren client that names `?queue=` gets a `303` to the same listing under `?readlist=`.
-- **The addressed readlist rides every href the collection builds** — `self`, `prev`, `next`, every `pages`, `tabs` and `sort` entry, each item's `read` link and `update-status` href, the collection's `save-article` href, and the `collection` link on a save response. A client therefore holds **one** pointer, the href it last followed, and stays inside a readlist across paging, tab switches and mutations without knowing how a readlist is encoded. The default readlist adds nothing to a query, so a bare collection URL and one naming the default are the same representation — which is what keeps this additive for clients that never learned about readlists.
-- **A save lands in every readlist it named**, as well as in the reader's whole queue. A save names a readlist two ways, and the server files into the union of both: the readlist whose collection the save action came from, carried in the action's own href; and the readlists listed in the save action's `readlists` field, whose values are `properties.readlists` entry hrefs echoed back as the server advertised them — the client composes none of them, exactly as it echoes a pagination cursor. The field is how one save reaches several readlists in one round trip; a client that sends none behaves as though it named only what the href did.
-- **The confirmation names every readlist the save landed in** — `Saved to '<label>'`, `Saved to '<label>' and '<label>'`, and so on — whenever the reader keeps more than one readlist. A reader with only the default one keeps the unqualified copy. The wording is server-authored like every other message, so no client composes it and no client decides where a save went.
-- **Some affordances are deliberately readlist-agnostic**: `root`, `account`, `add-links-help`, `create-session`, `create-readlist`, `save-articles`, `save-content`, and `search`. A GET action's fields *replace* the href's query when a client submits it, so a readlist baked into `search` would vanish on submit. A readlist field is only ever additive and only ever client-authored: a shipped client posts the fields it already knows and simply omits it, which is why the href remains the way a single readlist is addressed.
-- **Presentation is the client's.** A menu, a sidebar, or a segmented control is a layout decision; `rel` is never used as a style token.
-
-**Readlist management is title-less actions.** A client invokes each one by name and authors only the field the table names; the action carries everything else. None carries a `title`, so a client that does not handle one shows nothing for it (the **Label** rule in [Rendering & Invoking Affordances](#rendering--invoking-affordances)). A success answers `303 See Other` to the collection to read next, which the client follows instead of building it. A refusal answers with a Siren `error` entity and changes nothing: `code` says why, and `message` is server-authored copy that carries no reader data. `create-readlist`, `rename-readlist`, `delete-readlist` and `add-to-readlist` share the save's account gates: a locked account's `403` and an inactive subscription's `402` carry no `code`, and their copy rides the [message channel](#server-driven-messages-are-trusted-html).
-
-| Action | Advertised on | Field the client authors | `303` lands on | Refusal `code` (status) |
-|---|---|---|---|---|
-| `create-readlist` | every collection | `label` | the new readlist's collection; the server mints the readlist's address, so the `Location` is where a client learns it | `invalid-name`, `reserved-name`, `name-taken`, `limit-reached` (`422`) |
-| `rename-readlist` | the collection of a readlist the reader created | `label` | the renamed readlist's collection | `unknown-readlist` (`404`); `invalid-name`, `name-taken` (`422`). A label another readlist carries is numbered instead, and refused only when the numbered label would be too long |
-| `delete-readlist` | the collection of a readlist the reader created | none | the default readlist's collection | `unknown-readlist` (`404`) |
-| `add-to-readlist` | every article entity, including the one a save answers with, except the rows of a collection sent to the Firefox extension ([why](#an-articles-markdown-is-its-read-link-negotiated)) | `readlists` | the collection its href was built for | `unknown-readlist` when `readlists` names none of the reader's own readlists, `unknown-article` when the readlist its href addresses no longer holds the article (`404`) |
-| `remove-from-readlist` | an article entity listed in a readlist the reader created | none | the same readlist and tab, on its first page | `unknown-readlist`, and `unknown-article`, which a second removal of the same article also gets (`404`) |
-
-The `add-to-readlist` and `remove-from-readlist` hrefs carry the addressed readlist, tab and order the way the `update-status` href does, so a client acting inside a readlist lands back where it acted without knowing how a readlist is encoded. `add-to-readlist` fills its `readlists` field the way `save-article` fills its own, with entry hrefs echoed from `properties.readlists`, and filing an article where it already is succeeds. Removing an article takes it out of that one readlist and leaves the reader's whole queue as it was.
-
-## Count and Sort Are Server-Owned — `properties.total` and `properties.sort`
-
-A collection filtered by status says how many articles the listed tab holds and which orders it can be read in. The count's wording and the order names are server policy, like `tabs`, so they ride collection `properties`, where an unknown key is inert on every shipped client:
-
-```jsonc
-"properties": {
-  "total": { "label": "4 Saved Articles" },
-  "sort": [
-    { "label": "Newest first", "rel": "current", "order": "desc", "href": "/queue?status=unread&order=desc" },
-    { "label": "Oldest first", "rel": "sort",    "order": "asc",  "href": "/queue?status=unread&order=asc" }
-  ]
-}
-```
-
-This is a **published interface**: `total`, `sort`, `label`, `rel`, `order` and `href` are the contract, and renaming any of them is a breaking change.
-
-- **`label` is a display string**, rendered verbatim and never parsed: a client never reads a number out of the count.
-- **`order` is a vocabulary token** a client maps to its own glyph; a client skips an entry whose token it does not know, as it skips a malformed one.
-- **`href` is opaque and server-built.** It carries the readlist, the status and the order but no page and no `url` filter, so following it lands on the first page of the same readlist and tab.
-- **Exactly one entry is `current`**, the order the response lists; every other entry is `sort`.
-- **A client asks for a sort by position across the popup–background boundary.** The extension's popup never holds an href: it names the entry by its index in the list it was shown, as it does for `pages`, and the background follows the href it kept.
-- **A collection not filtered by status carries neither `total` nor `sort`** (the invalid-URL save refusal lists every status), so a client hides its count and sort until the next listing.
-- **Presentation is the client's.** A toggle, a menu or a segmented control is a layout decision; `rel` and `order` are never used as style tokens.
+[Server-owned state](references/server-owned-state.md) — read when a client keeps state, fills a form, shows a server message, or shows pagination, infinite scroll, status tabs, readlists, a count or a sort.
 
 ## Entity-Level vs Collection-Level Actions
 
@@ -297,100 +94,14 @@ This is a **published interface**: `total`, `sort`, `label`, `rel`, `order` and 
 
 A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `update-status`). Put an action at the level where it makes sense — "mark this article read" belongs on the article entity, not the collection. Readlist actions split the same way: a readlist's own create, rename and delete ride its collection, and filing or removing one article rides that article.
 
-## Rendering & Invoking Affordances
+[Rendering & Invoking Affordances](references/client-rendering.md) — read when a client renders or invokes an affordance; it ends with the anti-patterns.
 
-A client loops over the current response's `actions` and renders **one control per action** — never a fixed set of named controls gated by booleans. The loop is the contract: a server affordance added later renders with zero client change, and one the client doesn't recognise still renders (default presentation) rather than vanishing.
-
-**Actions and links are symmetric affordances.** A client iterates **both** `actions` **and** semantic (non-structural) `links`, rendering **one control per affordance** from either collection — same loop, same rules. Both carry a Siren `title` for the label and a `name`/`rel` the client maps to its own presentation/placement (e.g. the `read` link becomes a row's primary open anchor). An action is invoked via its `href`/`method`/`fields`; a semantic link is opened/navigated via its `href`. The only asymmetry is structural rels (below), which links can carry but actions cannot.
-
-**Structural vs control affordances.** Not every link is a user control. **Structural** navigation link rels (`self`, `root`, `prev`, `next`, `item`) are followed by the client for its **own** navigation — pagination, identity, item resolution — and MUST NOT be rendered as tappable controls. Render controls for **actions** and for **semantic** (non-structural) links the client understands (e.g. `read`). An unrecognised link rel is neither structural nor a known control, so it produces no control.
-
-**Label** — comes from the affordance's Siren `title` (present on actions *and* links). The same string doubles as the control's `aria-label`/tooltip; the client never invents copy per action name. When a *recognised* affordance carries no `title`, the client humanizes the token (action `name` / link `rel`) consistently, so it renders the same human label across clients.
-
-**A `title` is also the server's signal that an affordance is a user control.** A title-less affordance the client does **not** recognise is a **machine capability** — advertised for the client to invoke bespoke (e.g. `create-session`, which mints a reader session cookie), never surfaced as a control. So an unrecognised affordance is rendered as a control **only when the server titled it**; a title-less unrecognised one is skipped. This is what reconciles "clients skip an action they don't handle" (Evolvability) with "an unknown name/rel still renders with a default presentation" (below): the default presentation is for an *unrecognised but titled* affordance. Without this rule, every machine capability the server adds later surfaces as a mystery control on already-shipped clients — which is exactly what a field-less, title-less `create-session` did until clients special-cased it, then generalised to this rule.
-
-**Presentation is one client-side mapping.** The server sends no style, class, icon, or placement. The client derives **both** style **and** icon/glyph from a single mapping of the action `name` (or a semantic link `rel`) to its **own** design tokens, with a default for any unknown name/rel. An inline `name === "delete"` branch chosen for presentation is the same smell as the gated booleans — forbidden; route every presentation decision through the one mapping. A server string is never used as a CSS class verbatim — that would couple styling to wire vocabulary and break on a rename.
-
-> Optional, not required: if a future server ever needs to hint *semantic* role for an action a client can't recognise by `name` (e.g. "this is destructive"), it would ride Siren's `class` array as a **semantic token** the client maps to its own tokens — still client-mapped, never emitted as a CSS class. Do not add this until a real client need exists.
-
-**Invocation** — invoke an action via **its own** `href`/`method`/`type`/`fields` through one generic invoker: post each declared field's server-provided `value`, encoded per the action's `type` (urlencoded → form-encoded body, json → JSON body). The bare `(id, name)` is sufficient because the value rides the field (see [Form Fields Are Declared, Not Assumed](#form-fields-are-declared-not-assumed)); keep bespoke handlers only for inputs the user supplies or special bodies (e.g. file uploads). **Follow** a structural navigation link (`self`/`root`/`prev`/`next`/`item`) for the client's own navigation; **open/navigate** a semantic link's `href` as a control. Resolve every href through the single scheme-aware resolver (see the resolver rule in [Client Conformance](#client-conformance)); never hardcode the host.
-
-**Extension popup ↔ background boundary** — the action descriptor can't always be passed live across the messaging boundary, so serialize a minimal descriptor (`{name, title}`) as plain data and invoke **by name** on the other side; the walker retains the full `href`/`method` and performs the actual request. This keeps the popup free of any hardcoded route while staying within the structured-clone limits of the messaging channel.
-
-## Anti-Patterns
-
-| Avoid | Why |
-|---|---|
-| Hard-coding URLs in a client (e.g. `\`${apiBase}/queue/${id}/delete\``) | Makes URL changes a coordinated deploy |
-| A `/api/v1/...` route tree parallel to the HTML pages | Two things to keep in sync; versioning creep |
-| Returning JSON with a bespoke shape (`{items: [...], nextPage: ...}`) | Forces every client to re-implement Siren badly |
-| Client-owned pagination URLs (`?page=${current+1}`) | Server can't change pagination without breaking clients; follow the `next` link instead |
-| Action names that describe implementation (`filter-by-status`, `query-v2`) | Domain drift renames the action; clients break |
-| CORS misses for `OPTIONS` on a Siren entry point | Firefox extensions send a preflight for `Accept: application/vnd.siren+json`; without `OPTIONS` it 404s and the fetch aborts with `NetworkError` |
-| Synthesising state after a mutation (`allItems.filter(i => i.id !== deletedId)`) | Server is the source of truth; follow the 303 and read the new collection |
-| Holding a stitched infinite-scroll list against a post-mutation read (a `hasPaginated` guard around adopting the collection) | The stitched list is client-assembled and the server cannot update it; a fetched collection that is then discarded leaves the acted row on screen. Re-read and adopt at every depth — see [Infinite Scroll Is Stitched Pages](#infinite-scroll-is-stitched-pages--re-read-and-adopt-after-a-mutation) |
-| Exporting an `/api` SDK that knows resource URLs | Becomes another versioned surface; expose only the walker and the entry point |
-| Interpolating unescaped user data into a `messages[].content.body` | The client injects it via `innerHTML`; unescaped server output is markup injection (see "Server-Driven Messages Are Trusted HTML") |
-| Naming a concrete server route or method in client code or comments (`POST /queue/save-content`, "303s to `/queue`") | The client reads `href`/`method` from the response; a route baked into a comment rots and reintroduces the URL coupling the contract removes |
-| Asserting a specific server response body/URL/shape in a client test | A client test should exercise generic protocol handling — follow whatever action/link the response carries — not pin the server's current URLs or shapes |
-| Gating controls behind per-capability boolean flags (`canSave`/`canMarkRead`/`canRemove` consulted in an `if`) or otherwise conditionally loading controls by hardcoded action name | The boolean hardcodes which affordances exist, so a newly-added server affordance never renders without a client change; iterate the response's `actions`/`links` and render one control each instead |
-| Using a server `name`/`rel` string verbatim as a CSS class, or letting the server send style/class | Presentation is 100% client-side; the client maps `name`/`rel` to its own design tokens. A server-string class couples styling to wire vocabulary and breaks on a rename |
-| An inline `name === "delete"` (or any per-name) branch to pick a style/icon | The same smell as the gated booleans — it hardcodes one affordance's presentation; route style AND icon/glyph through the single name/rel→token mapping with a default |
-| Rendering structural navigation rels (`self`/`next`/`prev`/`root`/`item`) as tappable controls | These are the client's own navigation (pagination/identity/item resolution), not user affordances; follow them for navigation and render controls only for actions and semantic links |
-| Hardcoding a field's value in a client invocation (`body: { status: "read" }`) | The value rides the field's `value` from the server; the generic invoker posts it encoded per `type`. A client-baked value goes stale on a server change and defeats the bare `(id, name)` invocation |
-
-## Client Conformance
-
-These rules make any client (extension, iOS, Android, MCP, future) behave like a browser over the contract above — "the app is a browser, Siren is HTML." Each prevents a real cross-client failure mode.
-
-| Rule | Why |
-|---|---|
-| Render one control (button, swipe, menu item, tap target) **per advertised affordance** by **iterating** the current response's `actions` and `links` — one control each. Never gate a control behind a per-capability boolean (`canSave`/`canMarkRead`/`canRemove`) or any "does the client know action X" `if`. | A boolean hardcodes which affordances exist, so a newly-added server affordance never renders without a client change; the loop renders whatever the server offered, and an absent action simply produces no control (no phantom affordance — the worst HATEOAS failure mode). |
-| Label a control from the affordance's Siren `title` (the same string doubles as `aria-label`/tooltip). Derive **all presentation** — style AND icon/glyph AND placement — client-side through **one** mapping of action `name` / link `rel` to the client's own design tokens, with a default for an unknown name/rel. Never branch on a single name (`name === "delete"`) to choose presentation. | The server owns the protocol, not the look. A server string used verbatim as a CSS class couples styling to wire vocabulary and breaks on a rename; a per-name presentation branch is the gated-boolean smell in disguise. One mapping keeps presentation a pure client concern and an unknown affordance still renders (default style) instead of vanishing. |
-| Treat structural navigation rels (`self`/`root`/`prev`/`next`/`item`) as the client's **own** navigation (pagination/identity/item resolution) — follow them, never render them as user controls. Render controls for actions and for semantic (non-structural) links the client understands. | A structural rel is how the server steers the client's paging and identity, not a thing the user taps; rendering `next` as a button turns plumbing into a phantom affordance and double-handles paging. |
-| Navigate by the server-supplied link (`rel`), not by a domain property. | Opening a raw `url` property instead of following the `read` link discards the server's chosen destination; if the server re-points the link, the client never follows it. |
-| Resolve every href through one helper: use an `http(s)://` href verbatim, resolve a scheme-less href against the base, treat any other scheme as no href (unactionable). | Per-call-site `base + href` concatenation corrupts an absolute href and mis-resolves other schemes — yet the Evolvability table promises changing an `href` is non-breaking. |
-| Verify the response `Content-Type` is the negotiated media type before parsing; render a standard "unsupported media type" view for anything else. | Negotiating with `Accept` but blind-decoding any 200 body turns a proxy HTML page or a future media type into an opaque "couldn't read the response" instead of an honest "I don't understand this type." The message-content gate already does this — apply it to the response envelope too. |
-| Parse leniently: one malformed link/action must degrade to unactionable, never fail the whole response decode. | An atomic decode that rejects a single odd control blanks the entire page — extend the same tolerance the entity `properties` already get. (Note: Siren requires `href` on links/actions, so a hrefless control is a malformed control, not a valid one.) |
-| Drive search, filter, sort, and pagination from the server's `fields` and links — never client-built params or client-side re-paging. | Hardcoding `?page=` or re-paginating one fetched page client-side hides items past the first page and breaks when the server changes paging; hardcoding a filter field name breaks on a rename. |
-| Don't duplicate server policy (size caps, validation thresholds) in the client; attempt the action and follow the server's fallback/refusal. | A client copy of a server constant goes stale on a server change and mis-routes; the server already advertises the fallback action to follow. |
-| Bind a response's actions through one generic path that posts each declared field's server-provided `value`, encoded per the action's `type` (urlencoded → form body, json → JSON body). Don't cherry-pick named affordances into per-operation code with hardcoded shapes or hardcoded field values. | The invocation values come from the server (the field `value`), so a bare `(id, name)` invocation suffices; per-operation bespoke handling or a client-baked value means each new server capability needs new client code and goes stale on a server change. |
-| When an action discovered from a **cached** representation is invoked and the invocation fails for any reason other than a server refusal (the `messages` channel, or the `error` entity a [readlist-management action](#readlists-are-server-owned--propertiesreadlists) answers with) or `401`/`403`, bypass the cache, re-discover from the entry point, and retry once. | Freshness lets a client hold an affordance the server has already moved, so this retry is what keeps "changing an `href` is non-breaking" true once caching delays the client's re-read. Refusals and auth failures are excluded because those are the server's answer, not a stale address — re-posting them would repeat a mutation the server deliberately rejected. Any other `error` entity, such as a save's invalid-URL answer, still re-discovers and retries once. |
-| A post-mutation collection read is **not** a discovery read: revalidate it, and treat the mutation response's own body as the post-mutation truth. | Extends "follow the `303` and read the new collection": a cached collection is by definition pre-mutation, so honouring freshness there would resurrect the very list the mutation just changed. |
-| An infinite-scroll list re-reads **and adopts** the collection after every mutation it learns of, at every scroll depth — replace it with the post-mutation first page, or re-follow the fresh `next` links to the depth held. Scroll depth chooses which; it never gates adoption. | The stitched list is the client's own concatenation of N responses, not a server representation; keeping it to hold the viewport discards the truth the read just fetched, and patching it by id is the synthesise-after-mutation anti-pattern. |
-
-## Per-Client Implementations
-
-Every client interprets the same Siren contract above; only the mechanics differ. The contract is shared; the notes below are client-specific.
-
-### Accepted client-shape differences
-
-A client surfaces the affordances relevant to **its** UX and may present them differently — clients are not required to render identical control sets. For example, the browser extension's save is current-tab-capture-driven (it does not render the collection's save actions as a toolbar), while the iOS app has a manual collection toolbar. This is allowed **provided** each client renders whatever it does surface by **looping advertised affordances** (`actions` + semantic `links`) — never per-capability booleans, never hardcoded action-name conditionals — and never hardcodes URLs/methods. The contract mandates the discovery+loop discipline, not an identical control set across clients.
-
-### Browser extension (the walker pattern)
-
-The browser-extension client separates three concerns:
-
-1. **Understandings** — one handler per action name the client knows how to invoke, each built by an initialiser named for that action. Each handler receives the Siren action descriptor and a context, returns a bound callable.
-2. **Composition** — a grouping combinator merges multiple understandings; an HTTP-cache decorator wraps them with ETag caching.
-3. **Walker** — the extension initialiser takes the composed understandings plus deps and returns a no-arg function that fetches the entry point, resolves the `self` link, and parses each collection into the walker's navigation result: its items, each with its own bound actions, plus the collection's affordances and server-owned properties. The walker module's exported result type (found below) has the full shape.
-
-For the full flow see the source — it is the spec: the extension core's Siren walker module, the one that declares the structural link rels as a set (grep the extension core for `"root", "prev", "next", "item"`). The legacy reading-list adapter (the walker module's export that owns the known-items map its one `.clear()` empties) exists only to bridge this walker to the per-operation interface (save a URL, find by URL, list items, …) that the popup consumes. New consumers should call the walker directly.
-
-When adding a capability the extension supports: add an understanding keyed by the action name, compose it with the grouping combinator, wrap it with the HTTP-cache decorator for cacheable GETs, and drive the walker directly rather than adding a method to the legacy adapter.
-
-### iOS app
-
-iOS honours the discovery freshness headers only on the **share extension's** session, through a persistent `URLCache` — the share sheet is where a re-discovery round trip is latency the user watches, and the extension is killed between invocations, so the cache has to outlive the process to be worth anything. The main app's API session keeps a disk cache of its own, but its online list reads always revalidate or reload (offline, the app shows a stored copy of the list under a banner), which is what keeps its list views from painting a pre-mutation queue back over a save the user just made. Source: the shared iOS discovery cache — the `URLCache` stored in the on-device directory `discovery-http-cache`; grep the iOS Swift sources for that name and take the non-test hit.
-
-### MCP: the same doctrine over a different transport
-
-MCP at `/mcp` follows this doctrine over a different transport. The Siren-to-MCP mapping, the divergences an MCP client must respect and the tool-catalogue rule are in the [MCP skill](../mcp/SKILL.md).
+[Client Conformance](references/client-conformance.md) — read when building or changing a client; it ends with the per-client implementation notes.
 
 ## Checklist — Adding a New Capability to the API
 
 1. **Name the action as a capability**, not a domain fact. Check the Evolvability table before picking a name.
 2. **Emit the capability on the server** — Siren: an action in the collection emitter (collection-level) or the article-entity emitter (entity-level) — both anchored under [References](#references) — with its `fields` declared as Siren field types; MCP: a tool in the tool catalogue, with its `inputSchema`, following the [MCP skill](../mcp/SKILL.md).
 3. **Implement the route handler** behind the Siren content-negotiation predicate; return `303` for mutations that should land the client back on a collection.
-4. **Add a handler for the action name on each client** that should expose the capability — see [Per-Client Implementations](#per-client-implementations).
+4. **Add a handler for the action name on each client** that should expose the capability — see [Per-Client Implementations](references/client-conformance.md#per-client-implementations).
 5. **Test server and client independently** — server integration tests, plus each client's own tests. The contract surface (action name + fields + method + response class) is what both sides pin down.

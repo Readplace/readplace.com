@@ -1,10 +1,8 @@
 import baseConfig from "../../knip.config.base";
 import type { KnipConfig } from "knip";
 
-const { workspaces: _workspaces, ...base } = baseConfig;
-
 export default {
-	...base,
+	...baseConfig,
 	entry: [
 		"**/*.main.ts",
 		"tools/*.mjs",

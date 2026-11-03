@@ -1,12 +1,8 @@
 import baseConfig from "../../knip.config.base";
 import type { KnipConfig } from "knip";
 
-// Strip `workspaces` from the base config because knip is invoked from inside
-// this project's directory; the workspaces map is for monorepo-rooted runs.
-const { workspaces: _workspaces, ...base } = baseConfig;
-
 export default {
-	...base,
+	...baseConfig,
 	entry: [
 		// Standalone composition root booted by the playwright webServer and the
 		// (future) production deployment — knip can't follow those references.

@@ -1,0 +1,34 @@
+## An Article's Markdown Is Its `read` Link, Negotiated
+
+A client that wants an article as a document needs no URL of its own and no Siren affordance: the article's `read` link is the URL the browser already opens, so the client follows it with `Accept: text/markdown` and the OAuth bearer token it already sends for the collection. The server still owns the URL, and the client learns one more media type (last row of [What a Client Must Know vs Discover](../SKILL.md#what-a-client-must-know-vs-discover)).
+
+- **No Siren vocabulary was added for it.** The `read` link already is the document's URL, so a client needs no affordance of its own to fetch it. The article entity's title-less actions are machine capabilities (the readlist ones in [Readlists Are Server-Owned](server-owned-state.md#readlists-are-server-owned--propertiesreadlists)), and a client that follows the **Label** rule in [Rendering & Invoking Affordances](client-rendering.md#rendering--invoking-affordances) shows no control for one it does not handle. Extension builds before 1.0.706 (Firefox) and 1.0.713 (Chrome) show a control for every item action, labelled with a humanised name; iOS builds from 104 and Android builds from f66dc81b3 skip a title-less action they do not recognise, and no Android build renders an action whose field has no value. An item-level link or action for machine use — `add-to-readlist` and `remove-from-readlist` included — does not wait for such builds to leave the store, because extension builds wait on store review: the server instead withholds the action from the OAuth client whose shipped builds render it, in each representation whose item actions those builds turn into controls, choosing per client the way it chooses a [page size](server-owned-state.md#pagination-is-server-owned--propertiespages), and advertises it to that client once those builds are gone. `add-to-readlist` is withheld this way from the rows of a collection sent to the Firefox extension, because the newest build Mozilla has signed turns every item action into a control (grep the server for `"hutch-firefox-extension": "withheld"`; [#1293](https://github.com/Readplace/readplace.com/issues/1293) tracks lifting it). In the extension, the walker module anchored under [Browser extension](client-conformance.md#browser-extension-the-walker-pattern) hands every item affordance to the popup, titled or not; the popup is what skips them.
+- **Every `read` href returns the same document.** An article held by several readlists has a `read` href in each readlist's collection. The server builds the document from one canonical copy of the article and puts nothing per-request in it, so the same stored state always gives the same bytes, and a client may follow whichever href it saw first.
+
+Only the account that holds the article gets the document, so the answer depends on who asks:
+
+| Markdown request | Answer |
+|---|---|
+| Valid bearer token (or the owner's session cookie) for an article the account holds, in any readlist | `200` with the document |
+| Valid bearer token, but the article is not the account's or the id is malformed | `404` with a Markdown body |
+| Invalid or expired bearer token | `401` with `WWW-Authenticate: Bearer error="invalid_token"` and a Markdown body |
+| No bearer token, and anonymous or another account's session cookie | Unchanged: the redirect to the public reader |
+
+A token belongs to a client acting for one account, so a valid token for someone else's article is refused rather than redirected: the public reader's Markdown has a different shape (a `# title` heading instead of YAML frontmatter), and a client would silently accept it as the article's document.
+
+- **Check the status, then the `Content-Type`.** The `401` and `404` bodies are Markdown too, so a `text/markdown` body alone does not make a document. Verify the type before parsing, as [Client Conformance](client-conformance.md#client-conformance) requires, and treat any other type as unsupported: the server falls back to HTML where a URL has no Markdown form.
+- **A still-processing article is answered at once.** Every article the account holds returns a document whatever its state, with the state recorded in the frontmatter, so a client writes its copy straight away and fills it in on a later fetch instead of waiting for processing to finish. A document is **final** once nothing in the article's processing can still change it: the content status is `failed` or `not-an-article`, or it is `ready` and the summary status has settled to `ready`, `failed` or `skipped`. Every other combination is incomplete, so the client fetches it again later. Final is not frozen: the reader's read state, readlist membership and a re-crawl still change the bytes.
+- **Caching is ordinary HTTP.** The response is `Cache-Control: private, no-cache`, so a client may keep a copy but must revalidate before reusing it: a later fetch can return different bytes. Express may add a weak `ETag` and answer `304` to a matching `If-None-Match` on its own; the contract promises neither, so a client may use them when they appear and must not depend on them.
+
+### The Frontmatter Keys Are a Published Interface
+
+The document opens with YAML frontmatter. This is a **published interface**: the key names, their types and when each is present are the contract, and renaming, retyping or removing a key is a breaking change for every client and for every reader's own vault queries — the same rule [Evolvability Rules](../SKILL.md#evolvability-rules) applies to Siren `properties`. The server module that assembles the document (frontmatter, summary callout and body) is the only non-test server hit for `matter.stringify`, the frontmatter library's serialiser call; grep for it and read the key set there rather than restating it here.
+
+| Rule | Why |
+|---|---|
+| Use Obsidian Web Clipper's name for a concept Readplace shares with it ([preset variables](https://obsidian.md/help/web-clipper/variables)) | A note sorts and filters alongside the reader's existing clippings |
+| Give every other key the `readplace_` prefix | Obsidian gives a property name [one type across the whole vault](https://obsidian.md/help/properties), so a plain name can collide with one the reader already uses |
+| Never emit `author`, `tags`, `highlights` or `notes`, not even empty | Readplace holds none of them, and a note must not imply it does; a client adds none on its side either |
+| Write the publish date under `published`, Obsidian Web Clipper's name for it, as the `YYYY-MM-DD` calendar date the article holds, and omit it when none is known | A byline is a calendar date in the publisher's calendar; an instant would move it a day for a reader in another zone |
+| Omit a key whose value is absent; never write `null` | Absence has one encoding |
+| Write timestamps as ISO 8601 UTC strings | The form Siren's timestamps use |

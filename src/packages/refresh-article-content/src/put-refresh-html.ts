@@ -1,7 +1,7 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { PutRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
+import type { PutRefreshHtml } from "@packages/provider-contracts/refresh-html";
 
 export function initPutRefreshHtml(deps: {
 	client: Pick<S3Client, "send">;

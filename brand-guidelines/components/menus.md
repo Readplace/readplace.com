@@ -1,0 +1,11 @@
+### Menus
+
+> Defined in `src/packages/web-shell/src/shared/menu/menu.styles.ts`.
+
+An overflow menu is a `<details>`/`<summary>` kebab: `ellipsis` on a content row or `ellipsis-vertical` in a narrow rail row. Its 24px `--foreground` glyph is always visible inside a ≥36px hit box, with no fill at rest, on hover or while open. The focus ring sits 2px outside the trigger.
+
+The action panel sits flush below the trigger's hit box with trailing edges aligned. It has a `--card` fill, 1px `--border` edge, `--radius-md` corners, `--shadow-menu`, no inner padding, and a 120px minimum width that grows to fit its content. Full-bleed 44px rows are separated by 1px `--border` hairlines. Each row has 12px side padding, a 20px `--foreground` icon, a 12px gap, and a 14px/500 `--foreground` label. Hover and active fill the whole row with `--muted`; focus draws an inset 2px `--ring`. Delete looks and hovers like every other item; the [dialog](dialogs.md#dialogs) it opens handles the commit. A content row's menu lists its filing action first — "Move to readlist" on a custom readlist, "Add to readlist" on All, drawn with `folder-input` — and Delete last. The reader's menu is the exception to the kebab: its toggle is a neutral icon-only L button on the toolbar row, and its panel hangs 4px below it. A settings card (a readlist's purpose) uses the same kebab and panel, with Edit then Delete.
+
+The desktop header account dropdown uses the same panel and row values without the shared classes. Gmail sender and destination pickers and the reader's Add to readlist picker are selection lists: they use the panel tokens with a 4px inset, undivided 8px-radius options and a divider above the create row. The reader's picker hangs from the trigger's leading edge, 4px below it, at least the trigger's width and at most 20rem wide. Its 44px rows hold 20px `--foreground` folders and 14/400 labels, and one full-bleed hairline sits before its muted "Create a readlist" row, which opens the naming dialog.
+
+A menu moves no focus when it opens; focus stays on its toggle. The reader's picker and the Gmail pickers open on their first option: the Gmail readlist picker on its new-name box while a readlist can still be created, and on its first tickable readlist once capped.

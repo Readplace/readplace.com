@@ -614,6 +614,10 @@ Monorepo at the repository root; `pnpm nx show projects` is the authoritative li
 - `src/runtime/` — Application code (Express SSR app and Lambda entry points)
 - `src/infra/` — Infrastructure as Code (Pulumi)
 
+New workspace packages and projects start from `pnpm generate-package` and
+`pnpm generate-project`: they emit the standard config set, including the
+package/project difference in whether jest and knip extend the root bases.
+
 ### Runtime vs Infra Code
 
 A module belongs under an `infra` directory only if it imports Pulumi. Everything else belongs under `runtime` — including Lambda entry points and composition roots that wire dependencies but have no test-worthy logic. Nothing outside `infra` should import from `infra`.

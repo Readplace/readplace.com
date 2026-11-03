@@ -9,7 +9,7 @@ MCP-specific rules only. Every rule that is not MCP-specific — hypermedia doct
 
 ## The same doctrine over a different transport
 
-Readplace also exposes its domain over MCP (Model Context Protocol) at `/mcp`; the external AI assistant is the client. MCP shares the [hypermedia skill](../hypermedia-api-design/SKILL.md)'s core stance — **the server owns the protocol; the client hardcodes one connection and discovers everything else** — so its [Client Conformance](../hypermedia-api-design/SKILL.md#client-conformance) rules apply to an MCP client too. It diverges in transport and statefulness, so the mapping is partial, not 1:1.
+Readplace also exposes its domain over MCP (Model Context Protocol) at `/mcp`; the external AI assistant is the client. MCP shares the [hypermedia skill](../hypermedia-api-design/SKILL.md)'s core stance — **the server owns the protocol; the client hardcodes one connection and discovers everything else** — so its [Client Conformance](../hypermedia-api-design/references/client-conformance.md#client-conformance) rules apply to an MCP client too. It diverges in transport and statefulness, so the mapping is partial, not 1:1.
 
 | Siren / HATEOAS | MCP |
 |---|---|

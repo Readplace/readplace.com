@@ -1,7 +1,7 @@
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { RefreshArticleContentCommand } from "@packages/hutch-infra-components";
-import type { PublishRefreshArticleContent } from "@packages/test-fixtures/providers/events";
-import type { PutRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
+import type { PublishRefreshArticleContent } from "@packages/provider-contracts/events";
+import type { PutRefreshHtml } from "@packages/provider-contracts/refresh-html";
 
 export function initEventBridgeRefreshArticleContent(deps: {
 	publishEvent: PublishEvent;

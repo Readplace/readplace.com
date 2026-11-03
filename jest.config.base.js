@@ -23,7 +23,7 @@ module.exports = {
   // so a plain non-coverage `jest` only happens on a manual local `pnpm test`,
   // where jest's default worker pool is fine.
   ...(process.env.NODE_V8_COVERAGE ? { maxWorkers: 1 } : {}),
-  // jest.retryTimes lives in this setup file. Attaching here so every
-  // project picks it up without each having to reference it explicitly.
+  // jest.retryTimes lives in this setup file. Only configs that spread this
+  // base receive it; the packages deliberately do not extend the base.
   setupFilesAfterEnv: [path.resolve(__dirname, 'jest.setup.base.js')],
 };
