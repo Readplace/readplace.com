@@ -63,6 +63,89 @@ describe("extractUrls", () => {
 		]);
 	});
 
+	it("extracts URLs from a Netscape bookmarks file Chrome, Firefox, Safari and Edge export", () => {
+		const html = [
+			"<!DOCTYPE NETSCAPE-Bookmark-file-1>",
+			"<TITLE>Bookmarks</TITLE>",
+			"<DL><p>",
+			'<DT><H3 ADD_DATE="1700000000">Reading</H3>',
+			"<DL><p>",
+			'<DT><A HREF="https://example.com/a" ADD_DATE="1700000001">A</A>',
+			"<DL><p>",
+			'<DT><A HREF="https://example.com/b" ADD_DATE="1700000002">B</A>',
+			"</DL><p>",
+			"</DL><p>",
+			'<DT><A HREF="https://example.org/c" ADD_DATE="1700000003">C</A>',
+			"</DL><p>",
+		].join("\n");
+
+		const result = extractUrls(Buffer.from(html));
+
+		expect(result.urls).toEqual([
+			"https://example.com/a",
+			"https://example.com/b",
+			"https://example.org/c",
+		]);
+	});
+
+	it("extracts both the feed and site URLs from an OPML subscription list", () => {
+		const opml =
+			'<opml version="2.0"><body>' +
+			'<outline text="Example" xmlUrl="https://example.com/feed.xml" htmlUrl="https://example.com/"/>' +
+			"</body></opml>";
+
+		const result = extractUrls(Buffer.from(opml));
+
+		expect(result.urls).toEqual([
+			"https://example.com/feed.xml",
+			"https://example.com/",
+		]);
+	});
+
+	it("extracts the target of Markdown inline links", () => {
+		const markdown =
+			"Read [Post](https://example.com/post) and <https://example.com/angle> later.";
+
+		const result = extractUrls(Buffer.from(markdown));
+
+		expect(result.urls).toEqual([
+			"https://example.com/post",
+			"https://example.com/angle",
+		]);
+	});
+
+	it("extracts the URL column from an Instapaper-style CSV export", () => {
+		const csv = [
+			"URL,Title,Selection,Folder,Timestamp",
+			'https://example.com/a,"A title, with a comma",,Unread,1700000000',
+			"https://example.com/b,Plain title,,Unread,1700000001",
+		].join("\n");
+
+		const result = extractUrls(Buffer.from(csv));
+
+		expect(result.urls).toEqual([
+			"https://example.com/a",
+			"https://example.com/b",
+		]);
+	});
+
+	it("extracts the url column of a Pocket CSV export, where it is not the first column", () => {
+		const csv = [
+			"title,url,time_added,tags,status",
+			"Plain title,https://example.com/a,1700000000,,unread",
+		].join("\r\n");
+
+		const result = extractUrls(Buffer.from(csv));
+
+		expect(result.urls).toEqual(["https://example.com/a"]);
+	});
+
+	it("keeps a comma inside a URL path", () => {
+		const result = extractUrls(Buffer.from("see https://example.com/a,b/c today"));
+
+		expect(result.urls).toEqual(["https://example.com/a,b/c"]);
+	});
+
 	it("returns an empty list when the buffer contains no URLs", () => {
 		const result = extractUrls(Buffer.from("No links here. Just prose."));
 
