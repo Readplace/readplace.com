@@ -16,8 +16,10 @@ export const SELECT_CONTENT_SYSTEM_PROMPT = [
 	"A tie is only for equally readable candidates whose substantive content is identical or differs only cosmetically; media URL changes do not by themselves break a substantive content tie.",
 	'Every response must include "readability":[{"candidate":"<label>","readable":true|false}] with exactly one assessment for every supplied candidate.',
 	"Assess readability independently of ranking: a readable candidate can lose to a more complete readable candidate. Do not label a candidate unreadable merely because it loses.",
-	'Reply with strict JSON only, including readability alongside {"kind":"winner","candidate":"<label>","reason":"<short>"},',
-	'{"kind":"tie","candidates":["<label>","<label>"],"reason":"<short>"}, or {"kind":"none","reason":"<short>"}.',
+	'Reply with strict JSON only, in exactly one of these shapes:',
+	'{"readability":[{"candidate":"<label>","readable":true|false}],"kind":"winner","candidate":"<label>","reason":"<short>"},',
+	'{"readability":[{"candidate":"<label>","readable":true|false}],"kind":"tie","candidates":["<label>","<label>"],"reason":"<short>"}, or',
+	'{"readability":[{"candidate":"<label>","readable":true|false}],"kind":"none","reason":"<short>"}.',
 	"Use only the candidate labels (A, B, …) shown below. A tie must name at least two readable candidates and exclude all unreadable candidates.",
 ].join(" ");
 
