@@ -34,7 +34,7 @@ function imgSrcsOf(xhtml: string): string[] {
 }
 
 describe("initBuildBookEpub", () => {
-	it("sets each article in its own chapter, in the given order, each opening with that article's front matter", async () => {
+	it("sets each article in its own chapter, in the given order, each opening with that article's front matter, and closes the book with the colophon once", async () => {
 		const store = initInMemoryArticleStore();
 		const build = initBuildBookEpub({ readArticleImage: store.readArticleImage, maxImageBytes: 1_000 });
 
@@ -59,7 +59,7 @@ describe("initBuildBookEpub", () => {
 		});
 		expect(outline).toEqual([
 			["Second saved", "example.org", "", "Second body."],
-			["First saved", "example.com", "", "First body."],
+			["First saved", "example.com", "", "First body.", "", "Read the Web, not the Slop."],
 		]);
 		const opf = strFromU8(files["OEBPS/content.opf"]);
 		expect(opf).toContain("<dc:title>Waiting in your readlist — Oct 12, 2026</dc:title>");

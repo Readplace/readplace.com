@@ -5,6 +5,8 @@ import { escapeXmlText } from "./epub-xhtml";
 const SUMMARY_HEADING = "Summary (TL;DR)";
 const PARAGRAPH_BREAK = "\n\n";
 
+export const COLOPHON_XHTML = "<hr /><p>Read the Web, not the Slop.</p>";
+
 export interface ArticleFrontMatter {
 	title: string;
 	siteName: string;

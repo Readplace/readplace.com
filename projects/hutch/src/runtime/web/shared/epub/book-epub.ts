@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
-import { type ArticleFrontMatter, articleFrontMatterXhtml } from "./article-front-matter";
+import { type ArticleFrontMatter, articleFrontMatterXhtml, COLOPHON_XHTML } from "./article-front-matter";
 import { type EpubChapter, type EpubImage, packageEpub } from "./epub-package";
 import { chapterEpubXhtml, collectArticleImages } from "./epub-xhtml";
 import type { ArticleBody } from "@packages/domain/article";
@@ -40,7 +40,7 @@ export function initBuildBookEpub(deps: {
 				href: `chapter-${number}.xhtml`,
 				title: chapter.title,
 				xhtml: chapterEpubXhtml({
-					contentHtml: articleFrontMatterXhtml(chapter) + chapter.contentHtml,
+					contentHtml: articleFrontMatterXhtml(chapter) + chapter.contentHtml + (index === params.chapters.length - 1 ? COLOPHON_XHTML : ""),
 					title: chapter.title,
 					articleUrl: chapter.articleUrl,
 					imageHrefs,

@@ -1,7 +1,7 @@
 import { type ArticleBody, type ArticleDestinationUrl, articleDestinationHost } from "@packages/domain/article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
 import { articleEpubXhtml, collectArticleImages } from "./epub-xhtml";
-import { type ArticleFrontMatter, articleFrontMatterXhtml } from "./article-front-matter";
+import { type ArticleFrontMatter, articleFrontMatterXhtml, COLOPHON_XHTML } from "./article-front-matter";
 import { buildEpub } from "./epub-package";
 
 const MAX_EPUB_IMAGE_BYTES = 3_500_000;
@@ -13,8 +13,6 @@ export type ArticleEpubBuild = {
 	embeddedBytes: number;
 	skippedOverBudget: readonly SkippedImage[];
 };
-
-const COLOPHON_XHTML = "<hr /><p>Read the Web, not the Slop.</p>";
 
 export type BuildArticleEpub = (
 	params: ArticleFrontMatter & { articleUrl: string; contentHtml: ArticleBody },
