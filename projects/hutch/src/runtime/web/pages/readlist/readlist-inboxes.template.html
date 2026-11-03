@@ -17,6 +17,9 @@
     </li>
     {{/each}}
   </ul>
+  <div class="readlist-inboxes__manage">
+    <a class="btn btn--neutral btn--m" href="{{manageInboxesHref}}" data-test-action="manage-inboxes">Manage custom emails</a>
+  </div>
   <div class="readlist-inboxes__empty" data-test-inboxes-empty>
     <h3 class="readlist-inboxes__empty-title">No custom emails yet</h3>
     <a class="btn btn--neutral" href="{{createInboxHref}}" data-test-action="create-inbox">Create a custom email</a>

@@ -1082,10 +1082,10 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(inboxRows(doc)).toEqual([
-			{ name: "deals", destination: "Saves to All", button: "Send here" },
-			{ name: "news", destination: "Saves to All and New Readlist", button: "Send to All only" },
-			{ name: "old", destination: "Saves to All", button: "Send here" },
-			{ name: "tech", destination: "Saves to All and New Readlist 2", button: "Send here" },
+			{ name: "deals", destination: "Saves to All", button: "Send here ('New Readlist' readlist)" },
+			{ name: "news", destination: "Saves to All and New Readlist", button: "Stop sending emails from news to New Readlist" },
+			{ name: "old", destination: "Saves to All", button: "Send here ('New Readlist' readlist)" },
+			{ name: "tech", destination: "Saves to All and New Readlist 2", button: "Send here ('New Readlist' readlist)" },
 		]);
 	});
 
@@ -1162,7 +1162,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		expect(response.headers.location).toBe(preferencesPath(slug));
 		expect(await routingOf(fixture, address)).toBe(slug);
 		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
-			{ name: "news", destination: "Saves to All and New Readlist", button: "Send to All only" },
+			{ name: "news", destination: "Saves to All and New Readlist", button: "Stop sending emails from news to New Readlist" },
 		]);
 	});
 
@@ -1199,7 +1199,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		expect(response.headers.location).toBe(preferencesPath(slug));
 		expect(await routingOf(fixture, address)).toBeUndefined();
 		expect(inboxRows(parse((await agent.get(response.headers.location)).text))).toEqual([
-			{ name: "news", destination: "Saves to All", button: "Send here" },
+			{ name: "news", destination: "Saves to All", button: "Send here ('New Readlist' readlist)" },
 		]);
 	});
 

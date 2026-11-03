@@ -32,18 +32,18 @@ type InboxRouting = "here" | "elsewhere";
 const ROUTING_ACTIONS: Record<
 	InboxRouting,
 	{
-		submitLabel: string;
+		submitLabel: (names: { inbox: string; readlist: string }) => string;
 		trackingContent: string;
 		destination: (readlist: ReadlistSlug) => ReadlistSlug;
 	}
 > = {
 	here: {
-		submitLabel: `Send to ${DEFAULT_READLIST_LABEL} only`,
+		submitLabel: (names) => `Stop sending emails from ${names.inbox} to ${names.readlist}`,
 		trackingContent: "unroute-inbox",
 		destination: () => DEFAULT_READLIST_SLUG,
 	},
 	elsewhere: {
-		submitLabel: "Send here",
+		submitLabel: (names) => `Send here ('${names.readlist}' readlist)`,
 		trackingContent: "route-inbox",
 		destination: (readlist) => readlist,
 	},
@@ -74,6 +74,7 @@ export interface ReadlistInboxesDisplayModel {
 	description: string;
 	rows: readonly ReadlistInboxRow[];
 	createInboxHref: string;
+	manageInboxesHref: string;
 }
 
 export function buildReadlistInboxes(input: {
@@ -110,7 +111,7 @@ export function buildReadlistInboxes(input: {
 					content: routingAction.trackingContent,
 				}),
 				destination: routingAction.destination(input.readlist.slug),
-				submitLabel: routingAction.submitLabel,
+				submitLabel: routingAction.submitLabel({ inbox: inbox.name, readlist: input.readlist.label }),
 				testAction: routingAction.trackingContent,
 			};
 		});
@@ -125,6 +126,10 @@ export function buildReadlistInboxes(input: {
 		createInboxHref: withInternalTracking(CUSTOM_EMAILS_PATH, {
 			source: INBOXES_SOURCE,
 			content: "create-inbox",
+		}),
+		manageInboxesHref: withInternalTracking(CUSTOM_EMAILS_PATH, {
+			source: INBOXES_SOURCE,
+			content: "manage-inboxes",
 		}),
 	};
 }

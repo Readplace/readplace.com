@@ -102,25 +102,25 @@ describe("buildReadlistInboxes", () => {
 				name: "deals",
 				address: "deals-c9d4e1@read.place",
 				destination: "Saves to All",
-				button: "Send here",
+				button: "Send here ('Work Reading' readlist)",
 			},
 			{
 				name: "news",
 				address: "news-a7b2c9@read.place",
 				destination: "Saves to All and Work Reading",
-				button: "Send to All only",
+				button: "Stop sending emails from news to Work Reading",
 			},
 			{
 				name: "old",
 				address: "old-d0e5f2@read.place",
 				destination: "Saves to All",
-				button: "Send here",
+				button: "Send here ('Work Reading' readlist)",
 			},
 			{
 				name: "tech",
 				address: "tech-b8c3d0@read.place",
 				destination: "Saves to All and Later",
-				button: "Send here",
+				button: "Send here ('Work Reading' readlist)",
 			},
 		]);
 	});
@@ -248,6 +248,17 @@ describe("buildReadlistInboxes", () => {
 		expect(create.textContent).toBe("Create a custom email");
 		expect(create.getAttribute("href")).toBe(
 			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=create-inbox",
+		);
+	});
+
+	it("offers a tracked way to manage the reader's custom emails once there are some to route", () => {
+		const doc = renderInboxes({ inboxes: [inbox({ name: "news", token: "a7b2c9" })] });
+		const manage = doc.querySelector('[data-test-action="manage-inboxes"]');
+		assert(manage, "the listed state must offer to manage custom emails");
+
+		expect(manage.textContent).toBe("Manage custom emails");
+		expect(manage.getAttribute("href")).toBe(
+			"/newsletters/custom-emails?utm_source=queue-preferences&utm_medium=internal&utm_content=manage-inboxes",
 		);
 	});
 

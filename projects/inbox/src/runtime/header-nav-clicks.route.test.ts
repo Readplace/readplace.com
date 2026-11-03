@@ -25,6 +25,7 @@ const INBOX_ITEMS = [
 const LINKS_FROM_OTHER_SURFACES = [
 	{ key: "onboarding see-inbox-address", source: "onboarding", content: "see-inbox-address" },
 	{ key: "queue-preferences create-inbox", source: "queue-preferences", content: "create-inbox" },
+	{ key: "queue-preferences manage-inboxes", source: "queue-preferences", content: "manage-inboxes" },
 ].map((link) => ({ ...link, href: withInternalTracking(CUSTOM_EMAILS_PATH, link) }));
 
 function clicksFor(events: AnalyticsEvent[], tag: { source: string; content: string }): AnalyticsClick[] {
