@@ -157,7 +157,7 @@ describe("initBuildBannerState", () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "dark", displayName: undefined }),
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "dark", displayName: undefined, signupOAuthClientId: null }),
 		});
 
 		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
@@ -174,6 +174,7 @@ describe("initBuildBannerState", () => {
 				email: "james.davis@example.com",
 				emailVerified: true,
 				displayName: DisplayNameSchema.parse("James Davis"),
+				signupOAuthClientId: null,
 			}),
 		});
 
@@ -197,7 +198,7 @@ describe("initBuildBannerState", () => {
 		const access: EffectiveAccess = { tier: "founding", access: "full", banner: "none" };
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
-			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, displayName: undefined }),
+			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null }),
 		});
 
 		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
@@ -215,7 +216,7 @@ describe("initBuildBannerState", () => {
 
 		const result = await build(
 			{ userId: USER_ID, cspNonce: CSP_NONCE },
-			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "light", displayName: undefined } },
+			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "light", displayName: undefined, signupOAuthClientId: null } },
 		);
 
 		expect(result.appearance).toBe("light");

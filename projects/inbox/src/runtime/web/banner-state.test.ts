@@ -164,6 +164,7 @@ describe("initBuildBannerState (signed-in user)", () => {
 				email: "james.davis@example.com",
 				emailVerified: true,
 				displayName: DisplayNameSchema.parse("James Davis"),
+				signupOAuthClientId: null,
 			}),
 		});
 
@@ -184,6 +185,7 @@ describe("initBuildBannerState (signed-in appearance)", () => {
 				emailVerified: true,
 				appearance: "dark",
 				displayName: undefined,
+				signupOAuthClientId: null,
 			}),
 		});
 

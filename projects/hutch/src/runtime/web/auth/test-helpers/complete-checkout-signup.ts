@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import request from "supertest";
 import type {
+	CheckoutOffer,
 	CheckoutSessionId,
 	CheckoutVariant,
+	SubscribePlansSource,
 } from "@packages/provider-contracts/hosted-checkout";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
@@ -39,6 +41,8 @@ export async function completeCheckoutSignup(params: {
 	trialEndsAt?: string;
 	variant?: CheckoutVariant;
 	plan?: BillingPlan;
+	entrySource?: SubscribePlansSource | null;
+	offer?: CheckoutOffer;
 	agent?: ReturnType<typeof request.agent>;
 }): Promise<{
 	successResponse: import("supertest").Response;
@@ -66,6 +70,8 @@ export async function completeCheckoutSignup(params: {
 			...(params.trialEndsAt ? { trialEndsAt: params.trialEndsAt } : {}),
 			...(params.variant ? { variant: params.variant } : {}),
 			...(params.plan ? { plan: params.plan } : {}),
+			entrySource: params.entrySource ?? null,
+			offer: params.offer ?? "none",
 		},
 		createdAt: 1735000000,
 	});

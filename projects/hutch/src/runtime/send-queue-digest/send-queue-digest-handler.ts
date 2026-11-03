@@ -34,7 +34,8 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
 import type { QueueDigestKind } from "@packages/web-analytics";
-import { STRIPE_TRIAL_PERIOD_DAYS, isPayDigestDue } from "../domain/stripe/stripe-trial-config";
+import { isPayDigestDue } from "../domain/stripe/stripe-trial-config";
+import { trialDayOf } from "../domain/trial/trial-day";
 import type {
 	EmitQueueDigestEvent,
 	QueueDigestSentKind,
@@ -53,7 +54,6 @@ import {
 const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
 const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
 const CONSENT_SEED_ARTICLE_KEY = ArticleResourceUniqueId.parse(CONSENT_SEED_ARTICLE_URL).value;
 
 export interface SendQueueDigestDeps {
@@ -232,7 +232,7 @@ async function processQueueDigest(params: {
 		itemCount: items.length,
 		previouslyEmailedCount: items.filter((item) => item.candidate.emailSentAt !== undefined).length,
 		tier,
-		trialDay: trialDayOf({ row, tier, sendInstant }),
+		trialDay: trialDayOfRecipient({ row, tier, sendInstant }),
 	});
 	await finishDigest({
 		urls: items.map((item) => item.candidate.article.url),
@@ -417,12 +417,10 @@ function toBookChapter({ candidate, summary, contentHtml }: ReadyItem): BookChap
 	};
 }
 
-function trialDayOf(input: { row: SubscriptionRecord; tier: "trial" | "paid"; sendInstant: Date }): number | null {
+function trialDayOfRecipient(input: { row: SubscriptionRecord; tier: "trial" | "paid"; sendInstant: Date }): number | null {
 	if (input.tier === "paid") return null;
 	assert(input.row.trialEndsAt, "a trial tier is always resolved from a row carrying trialEndsAt");
-	const msToTrialEnd = Date.parse(input.row.trialEndsAt) - input.sendInstant.getTime();
-	const trialDay = STRIPE_TRIAL_PERIOD_DAYS + 1 - Math.ceil(msToTrialEnd / DAY_MS);
-	return trialDay >= 1 ? trialDay : null;
+	return trialDayOf({ trialEndsAt: input.row.trialEndsAt, at: input.sendInstant });
 }
 
 async function finishDigest(params: {

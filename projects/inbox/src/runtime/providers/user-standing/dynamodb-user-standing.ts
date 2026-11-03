@@ -5,6 +5,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { AppearancePreferenceSchema, DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
+import { OAuthClientIdSchema } from "@packages/domain/oauth";
 import { SessionRow } from "@packages/web-session";
 import type {
 	FindUserById,
@@ -21,6 +22,7 @@ const UserStandingRow = z.object({
 	registeredAt: dynamoField(z.string()),
 	appearance: dynamoField(AppearancePreferenceSchema),
 	displayName: dynamoField(DisplayNameSchema),
+	signupOAuthClientId: dynamoField(OAuthClientIdSchema),
 });
 
 /** Read/heal access to the user and session rows hutch owns. */
@@ -44,7 +46,7 @@ export function initDynamoDbUserStanding(deps: {
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
 			ExpressionAttributeValues: { ":userId": userId },
-			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance, displayName",
+			ProjectionExpression: "userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId",
 			Limit: 1,
 		});
 		const row = items[0];
@@ -56,6 +58,7 @@ export function initDynamoDbUserStanding(deps: {
 			registeredAt: row.registeredAt,
 			appearance: row.appearance,
 			displayName: row.displayName,
+			signupOAuthClientId: row.signupOAuthClientId ?? null,
 		};
 	};
 

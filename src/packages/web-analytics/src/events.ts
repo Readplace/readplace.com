@@ -35,6 +35,9 @@ export const ANALYTICS_EVENTS = {
 	saveRefused: "save_refused",
 	pageDepth: "page_depth",
 	plansPageViewed: "plans_page_viewed",
+	activationThresholdReached: "activation_threshold_reached",
+	keepOfferShown: "keep_offer_shown",
+	keepOfferClicked: "keep_offer_clicked",
 	queueDigestUnsubscribed: "queue_digest_unsubscribed",
 	mcpRequestRefused: "mcp_request_refused",
 	mcpSessionInitialized: "mcp_session_initialized",
@@ -42,6 +45,12 @@ export const ANALYTICS_EVENTS = {
 	oauthTokenRevoked: "oauth_token_revoked",
 	epubImagesOverBudget: "epub_images_over_budget",
 } as const;
+
+export const KEEP_OFFER_SURFACES = {
+	readlistPanel: "readlist-panel",
+} as const;
+
+export type KeepOfferSurface = (typeof KEEP_OFFER_SURFACES)[keyof typeof KEEP_OFFER_SURFACES];
 
 export const PLANS_PAGE_TERMS = {
 	trialPreserved: "trial_preserved",

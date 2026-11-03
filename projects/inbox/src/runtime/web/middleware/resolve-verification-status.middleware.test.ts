@@ -103,6 +103,7 @@ describe("initResolveVerificationStatus", () => {
 			emailVerified: true,
 			registeredAt: "2020-01-01T00:00:00.000Z",
 			displayName: undefined,
+			signupOAuthClientId: null,
 		}));
 		expect(nextCalls).toBe(1);
 		expect(req.emailVerified).toBe(true);
@@ -123,6 +124,7 @@ describe("initResolveVerificationStatus", () => {
 			emailVerified: true,
 			registeredAt: "2020-01-01T00:00:00.000Z",
 			displayName: undefined,
+			signupOAuthClientId: null,
 		}));
 		expect(req.emailVerified).toBe(true);
 		expect(markedSessions).toEqual(["session-abc"]);
@@ -131,14 +133,14 @@ describe("initResolveVerificationStatus", () => {
 	it("sets a counting-down status within the verification window", async () => {
 		const registeredAt = new Date(NOW.getTime() - 2 * ONE_DAY_MS).toISOString();
 		const req: Partial<Request> = { userId: USER_ID, emailVerified: false };
-		await run(req, async () => ({ userId: USER_ID, email: "user@example.com", emailVerified: false, registeredAt, displayName: undefined }));
+		await run(req, async () => ({ userId: USER_ID, email: "user@example.com", emailVerified: false, registeredAt, displayName: undefined, signupOAuthClientId: null }));
 		expect(req.verificationStatus).toEqual({ state: "counting-down", daysLeft: 5 });
 	});
 
 	it("sets a locked status once the window has lapsed", async () => {
 		const registeredAt = new Date(NOW.getTime() - 8 * ONE_DAY_MS).toISOString();
 		const req: Partial<Request> = { userId: USER_ID, emailVerified: false };
-		await run(req, async () => ({ userId: USER_ID, email: "user@example.com", emailVerified: false, registeredAt, displayName: undefined }));
+		await run(req, async () => ({ userId: USER_ID, email: "user@example.com", emailVerified: false, registeredAt, displayName: undefined, signupOAuthClientId: null }));
 		expect(req.verificationStatus).toEqual({ state: "locked" });
 	});
 
@@ -153,6 +155,7 @@ describe("initResolveVerificationStatus", () => {
 			emailVerified: false,
 			registeredAt,
 			displayName: undefined,
+			signupOAuthClientId: null,
 		}));
 		await run(req, finder.findUserById);
 		expect(finder.calls()).toBe(1);

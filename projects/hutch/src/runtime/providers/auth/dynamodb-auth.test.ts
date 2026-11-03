@@ -5,7 +5,7 @@ import {
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
 } from "@packages/hutch-storage-client";
-import { OAuthGrantIdSchema } from "@packages/domain/oauth";
+import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";
 
@@ -74,6 +74,25 @@ function createWriteFakeClient(opts: { fail?: Error } = {}): {
 			if (opts.fail) throw opts.fail;
 			if (command.constructor.name === "ScanCommand") return { Count: 3 };
 			return {};
+		}) as DynamoDBDocumentClient["send"],
+	};
+	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+}
+
+function createCounterFakeClient(opts: {
+	row?: Record<string, unknown>;
+	onUpdate?: () => Record<string, unknown>;
+}): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+	const commands: CapturedCommand[] = [];
+	const client = {
+		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+			commands.push({ name: command.constructor.name, input: command.input });
+			if (command.constructor.name === "QueryCommand") {
+				const rows = opts.row ? [opts.row] : [];
+				return { Items: rows, Count: rows.length };
+			}
+			assert(opts.onUpdate, "the fake only expects an update when one is scripted");
+			return { Attributes: opts.onUpdate() };
 		}) as DynamoDBDocumentClient["send"],
 	};
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
@@ -405,6 +424,83 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("countEarlyIntentionalSave", () => {
+		const AT = new Date("2026-11-04T00:00:00.000Z");
+		const ROW = { email: "user@example.com", userId: "abc123" };
+
+		it("adds to the counter on the row the userId-index names, guarded by the 72 h window", async () => {
+			const { client, commands } = createCounterFakeClient({
+				row: ROW,
+				onUpdate: () => ({
+					...ROW,
+					registeredAt: "2026-11-03T00:00:00.000Z",
+					earlyIntentionalSaves: 2,
+					signupOAuthClientId: "hutch-firefox-extension",
+				}),
+			});
+
+			const result = await initAuth(client).countEarlyIntentionalSave({ userId: USER, at: AT });
+
+			expect(result).toEqual({
+				inWindow: true,
+				count: 2,
+				registeredAt: "2026-11-03T00:00:00.000Z",
+				signupOAuthClientId: OAuthClientIdSchema.parse("hutch-firefox-extension"),
+			});
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand", "UpdateCommand"]);
+			expect(commands[0].input.IndexName).toBe("userId-index");
+			const update = commands[1].input;
+			expect(update.Key).toEqual({ email: "user@example.com" });
+			expect(update.UpdateExpression).toContain("ADD earlyIntentionalSaves");
+			expect(update.ConditionExpression).toContain("registeredAt >= :windowStart");
+			expect(update.ReturnValues).toBe("ALL_NEW");
+			expect(update.ExpressionAttributeValues).toEqual({
+				":one": 1,
+				":windowStart": "2026-11-01T00:00:00.000Z",
+			});
+		});
+
+		it("reports a null client for a row with no signup client", async () => {
+			const { client } = createCounterFakeClient({
+				row: ROW,
+				onUpdate: () => ({ ...ROW, registeredAt: "2026-11-03T00:00:00.000Z", earlyIntentionalSaves: 1 }),
+			});
+
+			const result = await initAuth(client).countEarlyIntentionalSave({ userId: USER, at: AT });
+
+			expect(result).toMatchObject({ inWindow: true, count: 1, signupOAuthClientId: null });
+		});
+
+		it("reports out of the window when the condition fails, as on a legacy row with no registeredAt", async () => {
+			const { client } = createCounterFakeClient({
+				row: ROW,
+				onUpdate: () => {
+					throw new ConditionalCheckFailedException({ $metadata: {}, message: "outside" });
+				},
+			});
+
+			expect(await initAuth(client).countEarlyIntentionalSave({ userId: USER, at: AT })).toEqual({ inWindow: false });
+		});
+
+		it("rethrows any other update failure", async () => {
+			const { client } = createCounterFakeClient({
+				row: ROW,
+				onUpdate: () => {
+					throw new Error("throttled");
+				},
+			});
+
+			await expect(initAuth(client).countEarlyIntentionalSave({ userId: USER, at: AT })).rejects.toThrow("throttled");
+		});
+
+		it("sends no update when the userId-index finds no row", async () => {
+			const { client, commands } = createCounterFakeClient({});
+
+			expect(await initAuth(client).countEarlyIntentionalSave({ userId: USER, at: AT })).toEqual({ inWindow: false });
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
+	});
+
 	describe("findUserById", () => {
 		it("returns id, verification status, and registeredAt via the userId-index", async () => {
 			const { client, commands } = createQueryFakeClient({
@@ -423,8 +519,26 @@ describe("initDynamoDbAuth", () => {
 				email: "user@example.com",
 				emailVerified: true,
 				registeredAt: "2026-04-20T00:00:00.000Z",
+				signupOAuthClientId: null,
 			});
 			expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
+		});
+
+		it("returns the OAuth client the user signed up through", async () => {
+			const { client } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					registeredAt: "2026-04-20T00:00:00.000Z",
+					signupOAuthClientId: "ios-app",
+				},
+			});
+
+			const user = await initAuth(client).findUserById(USER);
+
+			assert(user, "user must be returned");
+			expect(user.signupOAuthClientId).toBe("ios-app");
 		});
 
 		it("returns null when no row exists for the id", async () => {
@@ -470,6 +584,7 @@ describe("initDynamoDbAuth", () => {
 				emailVerified: true,
 				registeredAt: "2026-04-20T00:00:00.000Z",
 				displayName: "James Davis",
+				signupOAuthClientId: null,
 			});
 		});
 	});
@@ -657,6 +772,7 @@ describe("initDynamoDbAuth", () => {
 				email: "user@example.com",
 				passwordHash: "hashed",
 				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 
 			const item = commands.find((c) => c.name === "PutCommand")?.input.Item;
@@ -664,6 +780,35 @@ describe("initDynamoDbAuth", () => {
 			const { registeredAt, passwordUpdatedAt } = Object.fromEntries(Object.entries(item));
 			expect(typeof registeredAt).toBe("string");
 			expect(passwordUpdatedAt).toBe(registeredAt);
+		});
+
+		it("stores the OAuth client the user signed up through", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).createUserWithPasswordHash({
+				email: "user@example.com",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: OAuthClientIdSchema.parse("ios-app"),
+			});
+
+			const put = commands.find((c) => c.name === "PutCommand");
+			expect(put?.input).toMatchObject({ Item: { signupOAuthClientId: "ios-app" } });
+		});
+
+		it("keeps the attribute off the row when the signup came through no OAuth client", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).createUserWithPasswordHash({
+				email: "user@example.com",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: null,
+			});
+
+			const put = commands.find((c) => c.name === "PutCommand");
+			assert(put, "expected a PutCommand");
+			expect(put.input.Item).not.toHaveProperty("signupOAuthClientId");
 		});
 	});
 
@@ -675,6 +820,7 @@ describe("initDynamoDbAuth", () => {
 				email: "User@Example.com",
 				userId: USER,
 				appleRefreshToken: "apple-refresh-1",
+				signupOAuthClientId: null,
 			});
 
 			assert(result.ok, "create should succeed");
@@ -689,12 +835,40 @@ describe("initDynamoDbAuth", () => {
 			});
 		});
 
+		it("stores the OAuth client the Apple user signed up through", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).createAppleUser({
+				email: "user@example.com",
+				userId: USER,
+				appleRefreshToken: "apple-refresh-1",
+				signupOAuthClientId: OAuthClientIdSchema.parse("ios-app"),
+			});
+
+			const put = commands.find((c) => c.name === "PutCommand");
+			expect(put?.input).toMatchObject({ Item: { signupOAuthClientId: "ios-app" } });
+		});
+
+		it("stores the OAuth client the Google user signed up through", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).createGoogleUser({
+				email: "user@example.com",
+				userId: USER,
+				signupOAuthClientId: OAuthClientIdSchema.parse("hutch-chrome-extension"),
+			});
+
+			const put = commands.find((c) => c.name === "PutCommand");
+			expect(put?.input).toMatchObject({ Item: { signupOAuthClientId: "hutch-chrome-extension" } });
+		});
+
 		it("keeps Google rows free of the appleRefreshToken attribute", async () => {
 			const { client, commands } = createWriteFakeClient();
 
 			const result = await initAuth(client).createGoogleUser({
 				email: "user@example.com",
 				userId: USER,
+				signupOAuthClientId: null,
 			});
 
 			assert(result.ok, "create should succeed");
@@ -706,7 +880,7 @@ describe("initDynamoDbAuth", () => {
 		it("writes a federated row with no password and so no record of a password change", async () => {
 			const { client, commands } = createWriteFakeClient();
 
-			await initAuth(client).createGoogleUser({ email: "user@example.com", userId: USER });
+			await initAuth(client).createGoogleUser({ email: "user@example.com", userId: USER, signupOAuthClientId: null });
 
 			const put = commands.find((c) => c.name === "PutCommand");
 			assert(put, "expected a PutCommand");

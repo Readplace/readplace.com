@@ -941,6 +941,7 @@ describe("delete-account handler", () => {
 			email: "siwa@example.com",
 			userId: UserIdSchema.parse("siwa-user-1"),
 			appleRefreshToken: "stored-apple-refresh-token",
+			signupOAuthClientId: null,
 		});
 		assert(created.ok, "expected the Apple user to be created");
 

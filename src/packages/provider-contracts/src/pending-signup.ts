@@ -1,5 +1,10 @@
 import type { UserId } from "@packages/domain/user";
-import type { CheckoutSessionId, CheckoutVariant } from "./hosted-checkout";
+import type {
+	CheckoutOffer,
+	CheckoutSessionId,
+	CheckoutVariant,
+	SubscribePlansSource,
+} from "./hosted-checkout";
 import type { BillingPlan } from "./subscription-providers";
 
 /** An already-signed-in user clicked Subscribe on /account. There is no
@@ -14,6 +19,12 @@ export type PendingSignup = {
 	/** Optional: rows written before the funnel was instrumented carry no variant. */
 	variant?: CheckoutVariant;
 	plan?: BillingPlan;
+	entrySource: SubscribePlansSource | null;
+	offer: CheckoutOffer;
+};
+
+export type ConsumedPendingSignup = Omit<PendingSignup, "offer"> & {
+	offer: CheckoutOffer | null;
 };
 
 export type StorePendingSignup = (params: {
@@ -24,7 +35,7 @@ export type StorePendingSignup = (params: {
 
 export type ConsumePendingSignup = (
 	checkoutSessionId: CheckoutSessionId,
-) => Promise<PendingSignup | null>;
+) => Promise<ConsumedPendingSignup | null>;
 
 /** Erase every abandoned-checkout row a user left behind, as part of account
  * deletion. This table has no TTL, so an un-consumed pending-signup row keeps the

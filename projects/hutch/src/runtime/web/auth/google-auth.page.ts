@@ -20,6 +20,7 @@ import {
 } from "../../domain/trial/start-trial";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
+import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
@@ -79,6 +80,7 @@ interface GoogleAuthDependencies {
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
+	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
@@ -100,6 +102,8 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		baseUrl: deps.baseUrl,
 		staticBaseUrl: deps.staticBaseUrl,
 		logError: deps.logError,
+		emitLifecycleEmailSent: deps.emitLifecycleEmailSent,
+		now: deps.now,
 	});
 
 	router.get("/auth/google", (req: Request, res: Response) => {
@@ -197,6 +201,8 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const newUserId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const safeReturnUrl = extractReturnUrl({ return: stateData.returnUrl });
+		const oauthClientId = oauthClientIdFrom(safeReturnUrl);
+		const signupOAuthClientId = oauthClientId ?? null;
 
 		const userCount = await fetchUserCount();
 		/* Read once, then persisted on the user row (durable) AND emitted on the
@@ -207,6 +213,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				email: tokenResult.email,
 				userId: newUserId,
 				attribution,
+				signupOAuthClientId,
 			});
 			if (!created.ok) {
 				const lookup = await deps.findUserByEmail(tokenResult.email);
@@ -225,7 +232,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 			signIn(res, sessionId);
-			await sendWelcomeEmail(tokenResult.email);
+			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, tier: "free" });
 			deps.recordConversionEvent(
 				req,
 				buildUserCreatedEvent(
@@ -239,7 +246,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 						homepageVariant: readHomepageVariantSlug(req),
 						visitorId: req.visitorId,
 						pendingSaveId: consumePendingSaveId({ req, res }),
-						oauthClientId: oauthClientIdFrom(safeReturnUrl),
+						oauthClientId,
 					},
 				),
 			);
@@ -257,6 +264,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			email: tokenResult.email,
 			userId: newUserId,
 			attribution,
+			signupOAuthClientId,
 		});
 		if (!created.ok) {
 			const lookup = await deps.findUserByEmail(tokenResult.email);
@@ -273,10 +281,11 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			return;
 		}
 
+		const trialEndsAt = trialEndsAtFromNow(deps.now());
 		await startTrial({
 			mode: "signup",
 			userId: created.userId,
-			trialEndsAt: trialEndsAtFromNow(deps.now()),
+			trialEndsAt,
 			now: deps.now(),
 			upsertTrialing: deps.upsertTrialing,
 			trialScheduler: deps.trialScheduler,
@@ -285,7 +294,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		signIn(res, sessionId);
-		await sendWelcomeEmail(tokenResult.email);
+		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, tier: "trial", trialEndsAt });
 		deps.recordConversionEvent(
 			req,
 			buildUserCreatedEvent(
@@ -299,7 +308,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					homepageVariant: readHomepageVariantSlug(req),
 					visitorId: req.visitorId,
 					pendingSaveId: consumePendingSaveId({ req, res }),
-					oauthClientId: oauthClientIdFrom(safeReturnUrl),
+					oauthClientId,
 				},
 			),
 		);

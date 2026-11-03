@@ -233,6 +233,54 @@ describe("GET /auth/checkout/success", () => {
 		expect(evt.variant).toBe("card_decline_fallback");
 	});
 
+	it("carries the entry source and the offer stored at checkout start onto checkout_completed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, hostedCheckout, pendingSignup } = harness;
+
+		await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "attribution-carried@example.com",
+			password: "password123",
+			entrySource: "keep-panel",
+			offer: "first-year-49",
+		});
+
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_completed");
+		expect(evt.entry_source).toBe("keep-panel");
+		expect(evt.offer).toBe("first-year-49");
+	});
+
+	it("records explicit nulls on checkout_completed when the row was stored before attribution existed", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const consumePendingSignup = fixture.pendingSignup.consumePendingSignup;
+		fixture.pendingSignup.consumePendingSignup = async (checkoutSessionId) => {
+			const consumed = await consumePendingSignup(checkoutSessionId);
+			return consumed && { ...consumed, entrySource: null, offer: null };
+		};
+		const harness = useApp(fixture);
+		const { auth, hostedCheckout, pendingSignup } = harness;
+
+		await completeCheckoutSignup({
+			server: harness.server,
+			auth,
+			hostedCheckout,
+			pendingSignup,
+			email: "attribution-null@example.com",
+			password: "password123",
+		});
+
+		expect(harness.subscriptionEvents.events).toHaveLength(1);
+		const evt = harness.subscriptionEvents.events[0];
+		expect(evt.event).toBe("checkout_completed");
+		expect(evt).toHaveProperty("entry_source", null);
+		expect(evt).toHaveProperty("offer", null);
+	});
+
 	it("still completes the checkout when clearing the trial schedules throws — the user has already paid, so a scheduler fault must not 500 them or lose the conversion", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.trialScheduler.deleteTrialEndSchedule = async () => {
@@ -306,6 +354,8 @@ describe("GET /auth/checkout/success", () => {
 				email: "trial-capture@example.com",
 				userId: created.userId,
 				trialEndsAt: new Date(Date.now() + 10 * 86_400_000).toISOString(),
+				entrySource: null,
+				offer: "none",
 			},
 			createdAt: 1735000000,
 		});

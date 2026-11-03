@@ -12,6 +12,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import type { CountEarlyIntentionalSave } from "@packages/provider-contracts/auth";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_CONTENT_BYTES, MAX_BULK_PAGE_CONTENT_BYTES, MAX_UPLOAD_REQUEST_BYTES } from "@packages/domain/article";
 
@@ -71,6 +72,32 @@ function setup(): {
 }
 
 describe("POST /queue/save-articles", () => {
+	it("leaves activation untouched for two new pages in one Save All Tabs POST", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const counted: Parameters<CountEarlyIntentionalSave>[0][] = [];
+		const testApp = useApp({
+			...fixture,
+			auth: {
+				...fixture.auth,
+				countEarlyIntentionalSave: async (params) => {
+					counted.push(params);
+					return fixture.auth.countEarlyIntentionalSave(params);
+				},
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([{ url: "https://example.com/tab-one" }, { url: "https://example.com/tab-two" }]));
+
+		expect(response.status).toBeLessThan(300);
+		expect(testApp.funnelEvents.events).toEqual([]);
+		expect(counted).toEqual([]);
+	});
+
 	it("tags each saved row with the extension whose token sent the batch", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const provenances: unknown[] = [];

@@ -10,6 +10,7 @@ import {
 	ANALYTICS_EVENTS,
 	EMAIL_CLICK_MEDIUM,
 	INTERNAL_CLICK_MEDIUM,
+	type KeepOfferSurface,
 	MALFORMED_PROTOCOL_VERSION,
 	MCP_UA_CLIENTS,
 	type McpRequestRefusalReason,
@@ -490,8 +491,27 @@ export interface SaveRefusedEvent {
 	status: number;
 	client: SaveClient;
 	is_authenticated: 0 | 1;
+	user_id?: UserId;
 	request_id?: string;
 	visitor_hash: string | null;
+}
+
+interface KeepOfferEventFields {
+	stream: typeof STREAMS.analytics;
+	timestamp: string;
+	user_id: UserId;
+	surface: KeepOfferSurface;
+	trial_day: number;
+	request_id?: string;
+	visitor_hash: string | null;
+}
+
+export interface KeepOfferShownEvent extends KeepOfferEventFields {
+	event: typeof ANALYTICS_EVENTS.keepOfferShown;
+}
+
+export interface KeepOfferClickedEvent extends KeepOfferEventFields {
+	event: typeof ANALYTICS_EVENTS.keepOfferClicked;
 }
 
 /**
@@ -610,6 +630,8 @@ export type AnalyticsEvent =
 	| OAuthTokenIssuedEvent
 	| OAuthTokenRefusedEvent
 	| SaveRefusedEvent
+	| KeepOfferShownEvent
+	| KeepOfferClickedEvent
 	| PageDepthEvent
 	| PlansPageViewedEvent
 	| QueueDigestUnsubscribedEvent
@@ -821,9 +843,49 @@ export function buildSaveRefusedEvent(
 		status: params.status,
 		client: params.client,
 		is_authenticated: params.req.userId ? 1 : 0,
+		...(params.req.userId ? { user_id: params.req.userId } : {}),
 		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
 		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
 	};
+}
+
+type KeepOfferEventDeps = { now: () => Date; salt: string };
+
+type KeepOfferEventParams = {
+	req: Request;
+	userId: UserId;
+	surface: KeepOfferSurface;
+	trialDay: number;
+};
+
+function keepOfferEventFields(
+	deps: KeepOfferEventDeps,
+	params: KeepOfferEventParams,
+): KeepOfferEventFields {
+	const gatewayRequestId = gatewayRequestIdOf(params.req);
+	return {
+		stream: STREAMS.analytics,
+		timestamp: deps.now().toISOString(),
+		user_id: params.userId,
+		surface: params.surface,
+		trial_day: params.trialDay,
+		...(gatewayRequestId === undefined ? {} : { request_id: gatewayRequestId }),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+	};
+}
+
+export function buildKeepOfferShownEvent(
+	deps: KeepOfferEventDeps,
+	params: KeepOfferEventParams,
+): KeepOfferShownEvent {
+	return { ...keepOfferEventFields(deps, params), event: ANALYTICS_EVENTS.keepOfferShown };
+}
+
+export function buildKeepOfferClickedEvent(
+	deps: KeepOfferEventDeps,
+	params: KeepOfferEventParams,
+): KeepOfferClickedEvent {
+	return { ...keepOfferEventFields(deps, params), event: ANALYTICS_EVENTS.keepOfferClicked };
 }
 
 /**

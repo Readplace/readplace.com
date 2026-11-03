@@ -3,6 +3,10 @@ import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
 import { authenticatedUserIdFrom, type AuthenticatedUserId } from "@packages/domain/user";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
+import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
+import type { AnalyticsEvent } from "@packages/web-analytics";
+import { SIREN_MEDIA_TYPE } from "../api/siren";
+import { initObserveSaveRefusal } from "../shared/save-refusal";
 import { initRequireWriteAccess } from "./require-write-access.middleware";
 
 const serve = useLoopbackServer();
@@ -29,7 +33,61 @@ function buildApp(userId: AuthenticatedUserId, now: Date = NOW) {
 	return { app, providers };
 }
 
+function buildObservedApp() {
+	const providers = initInMemorySubscriptionProviders({ now: () => NOW });
+	const events: AnalyticsEvent[] = [];
+	const app = express();
+	app.use(createViewerIdentityMiddleware({ edgeSecret: "" }));
+	app.post(
+		"/protected",
+		initObserveSaveRefusal({
+			recordUngatedAnalyticsEvent: (event) => {
+				events.push(event);
+			},
+			now: () => NOW,
+			salt: "test-salt",
+			path: "/protected",
+		}),
+		(req: Request, _res, next) => {
+			req.userId = TEST_USER_ID;
+			next();
+		},
+		initRequireWriteAccess({ findSubscriptionByUserId: providers.findByUserId, now: () => NOW }),
+		(_req, res) => {
+			res.status(200).type("text/plain").send("ok");
+		},
+	);
+	return { app, providers, events };
+}
+
 describe("requireWriteAccess middleware", () => {
+	it.each([
+		{ accept: "text/html", status: 303 },
+		{ accept: SIREN_MEDIA_TYPE, status: 402 },
+	])("tags the refusal an observer records for $accept at $status", async ({ accept, status }) => {
+		const { app, providers, events } = buildObservedApp();
+		await providers.upsertTrialing({
+			userId: TEST_USER_ID,
+			trialEndsAt: new Date(NOW.getTime() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await request(serve(app)).post("/protected").set("Accept", accept);
+
+		expect(response.status).toBe(status);
+		expect(events).toEqual([
+			expect.objectContaining({ event: "save_refused", status, code: "no_write_access", user_id: TEST_USER_ID }),
+		]);
+	});
+
+	it("tags nothing for a reader with write access", async () => {
+		const { app, events } = buildObservedApp();
+
+		const response = await request(serve(app)).post("/protected").set("Accept", "text/html");
+
+		expect(response.status).toBe(200);
+		expect(events).toEqual([]);
+	});
+
 	it("calls next() and allows a founding member (no subscription row) through", async () => {
 		const { app } = buildApp(TEST_USER_ID);
 

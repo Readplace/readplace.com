@@ -1,4 +1,6 @@
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
+import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 import { initAuthDiagnosticMiddleware } from "./auth-diagnostics/middleware";
 import { initIngestAuthDiagnostics } from "./auth-diagnostics/ingest";
@@ -16,6 +18,7 @@ import express from "express";
 import { isbot } from "isbot";
 import type { ClientNameInGroup } from "@packages/supported-clients";
 import type {
+	CountEarlyIntentionalSave,
 	CountUsers,
 	CreateAppleUser,
 	CreateGoogleUser,
@@ -390,6 +393,7 @@ interface AppDependencies {
 	findSessionReadlistFilter: FindSessionReadlistFilter;
 	findSessionOAuthGrant: FindSessionOAuthGrant;
 	findUserById: FindUserById;
+	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
@@ -578,6 +582,7 @@ interface AppDependencies {
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	subscriptionLogger: HutchLogger.Typed<SubscriptionLogEvent>;
+	funnelLogger: HutchLogger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	authDiagnosticsLogger: HutchLogger.Typed<Record<string, unknown>>;
 	salt: string;
@@ -609,6 +614,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		analytics,
 		conversionLogger,
 		subscriptionLogger,
+		funnelLogger,
 		...providers
 	} = dependencies;
 	const recordEngagementActivity: RecordEngagementActivity = async (input) => {
@@ -621,7 +627,11 @@ export function createApp(dependencies: AppDependencies): Express {
 	const deps = {
 		...providers,
 		recordEngagementActivity,
-		...initRecordPersonalSaves({ ...providers, recordEngagementActivity }),
+		...initRecordPersonalSaves({
+			...providers,
+			recordEngagementActivity,
+			recordActivationThresholdReached: (event) => funnelLogger.info(event),
+		}),
 		importSessionStore: {
 			...providers.importSessionStore,
 			createImportSession: initRecordImportRequest({
@@ -635,6 +645,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const recordAnalyticsEvent = initRecordAudienceEvent({ logger: analytics });
 	const recordConversionEvent = initRecordAudienceEvent({ logger: conversionLogger });
 	const recordSubscriptionEvent = initRecordAudienceEvent({ logger: subscriptionLogger });
+	const emitLifecycleEmailSent = initEmitLifecycleEmailSent({ logger: funnelLogger, now: providers.now });
 	const recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent> = (event) => analytics.info(event);
 	const app: Express = express();
 	const authDiagnostics = initAuthDiagnosticRecorder({ salt: deps.salt, now: deps.now, logger: deps.authDiagnosticsLogger });
@@ -1328,6 +1339,8 @@ export function createApp(dependencies: AppDependencies): Express {
 	};
 
 	const authRouter = initAuthRoutes({
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		emitLifecycleEmailSent,
 		hashPassword: deps.hashPassword,
 		createUserWithPasswordHash,
 		findUserByEmail: deps.findUserByEmail,
@@ -1385,6 +1398,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	if (deps.googleAuth) {
 		const googleAuthRouter = initGoogleAuthRoutes({
+			emitLifecycleEmailSent,
 			googleClientId: deps.googleAuth.clientId,
 			googleClientSecret: deps.googleAuth.clientSecret,
 			appOrigin,
@@ -1411,6 +1425,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	}
 
 	const appleAuthRouter = initAppleAuthRoutes({
+		emitLifecycleEmailSent,
 		appleClientId: deps.appleAuth.clientId,
 		stateSigningSecret: deps.appleAuth.stateSigningSecret,
 		appOrigin,
@@ -1597,6 +1612,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		pinContentSource: deps.pinContentSource,
 		logError: deps.logError,
 		recordAnalyticsEvent,
+		recordUngatedAnalyticsEvent,
 		salt: deps.salt,
 		now: deps.now,
 		buildBannerState,

@@ -18,6 +18,7 @@ import {
 	CONVERSION_EVENTS,
 	ERRORS_LOG_GROUP,
 	LAMBDA_NAMES,
+	LIFECYCLE_EMAIL_EVENTS,
 	LOG_GROUPS,
 	METRICS,
 	QUEUE_DIGEST_EVENTS,
@@ -88,9 +89,56 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 73 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter, 1 deepseek-cost) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 77 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 5 save-funnel, 1 summary-engagement, 2 audience-device, 1 errors, 3 homepage, 1 landing-path-signups, 1 arm-tier-signups, 2 page-depth, 1 blog-traffic, 2 signup-form, 2 checkout-funnel, 1 paid-conversions, 1 first-article-autosave, 3 mcp, 1 oauth-client-acquisition, 1 oauth-token-grants, 1 save-refusals, 1 oauth-token-revocations, 1 mcp-refusals, 1 mcp-handshakes, 2 public-reader-controls, 1 public-save-limit-funnel, 1 epub-downloads, 5 queue-digest, 3 key-event-counters, 2 gmail-failure-counters, 1 gmail-failures-by-reason, 6 starter, 1 deepseek-cost, 1 checkout-by-source-and-offer, 1 activation-threshold, 1 trial-emails, 1 keep-offer) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(73);
+		expect(body.widgets).toHaveLength(77);
+	});
+
+	it.each([
+		{
+			title: "Checkout by source and offer",
+			layout: { x: 0, y: 318, width: 12, height: 8 },
+			view: "table",
+			clauses: [
+				`filter stream = "${STREAMS.subscriptions}" and event in ["${SUBSCRIPTION_EVENTS.checkoutStarted}","${SUBSCRIPTION_EVENTS.checkoutCompleted}"]`,
+				'| stats count_distinct(user_id) as users by event, coalesce(entry_source, "-") as source, coalesce(offer, "-") as offer_applied',
+			],
+		},
+		{
+			title: "Activation threshold by signup client",
+			layout: { x: 12, y: 318, width: 12, height: 8 },
+			view: "bar",
+			clauses: [
+				`filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.activationThresholdReached}"`,
+				'| stats count_distinct(user_id) as users, avg(hours_since_signup) as avg_hours by coalesce(oauth_client_id, "web/email") as client',
+			],
+		},
+		{
+			title: "Trial emails sent per day by kind",
+			layout: { x: 0, y: 326, width: 12, height: 8 },
+			view: "timeSeries",
+			clauses: [
+				`filter stream = "${STREAMS.analytics}" and event = "${LIFECYCLE_EMAIL_EVENTS.sent}"`,
+				"| stats count(*) as sends by bin(1d), kind",
+			],
+		},
+		{
+			title: "Keep offer shown vs clicked",
+			layout: { x: 12, y: 326, width: 12, height: 8 },
+			view: "table",
+			clauses: [
+				`filter stream = "${STREAMS.analytics}" and event in ["${ANALYTICS_EVENTS.keepOfferShown}","${ANALYTICS_EVENTS.keepOfferClicked}"]`,
+				"| stats count_distinct(user_id) as users by event, surface",
+			],
+		},
+	])("places $title at its slot in the band above the counter row, with its query", ({ title, layout, view, clauses }) => {
+		const widget = buildBody().widgets.find((w) => w.properties.title === title);
+		assert(widget, `the "${title}" widget must exist`);
+		expect(widget).toMatchObject({ type: "log", ...layout, properties: { view } });
+		const query = widget.properties.query;
+		assert(typeof query === "string");
+		expect(query.startsWith(`SOURCE '${ANALYTICS_LOG_GROUP}' | `)).toBe(true);
+		for (const clause of clauses) expect(query).toContain(clause);
 	});
 
 	it("counts EPUB visitor/article pairs after a public render or directly from the owner reader, by device, OS family and browser, preferring click labels over historical pageviews", () => {
@@ -611,6 +659,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			...Object.values(SUBSCRIPTION_EVENTS),
 			...Object.values(QUEUE_DIGEST_EVENTS),
 			...Object.values(ENGAGEMENT_EVENTS),
+			...Object.values(LIFECYCLE_EMAIL_EVENTS),
 		];
 		const missing = declared.filter((e) => !referenced.has(e) && !queryOnly.has(e));
 		expect(missing).toEqual([]);
@@ -631,6 +680,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			...Object.values(SUBSCRIPTION_EVENTS),
 			...Object.values(QUEUE_DIGEST_EVENTS),
 			...Object.values(ENGAGEMENT_EVENTS),
+			...Object.values(LIFECYCLE_EMAIL_EVENTS),
 			GMAIL_FILTER_REWRITE_FAILED_EVENT,
 			GMAIL_FORWARDING_CONFIRM_FAILED_EVENT,
 		]);
@@ -767,7 +817,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 
 	it("both checkout-funnel widgets read the analytics group — checkout events are web-app-emitted subscriptions-stream data now forwarded there", () => {
 		const checkoutQueries = widgetQueries().filter((x) =>
-			x.includes(SUBSCRIPTION_EVENTS.checkoutStarted),
+			x.includes(SUBSCRIPTION_EVENTS.checkoutReturnFailed),
 		);
 		expect(checkoutQueries).toHaveLength(2);
 		for (const q of checkoutQueries) {

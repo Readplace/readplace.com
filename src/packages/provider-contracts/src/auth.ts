@@ -1,5 +1,5 @@
 import type { ReadlistFilter } from "@packages/domain/article";
-import type { OAuthGrantId } from "@packages/domain/oauth";
+import type { OAuthClientId, OAuthGrantId } from "@packages/domain/oauth";
 import type { AppearancePreference, AuthenticatedUserId, DisplayName, UserId } from "@packages/domain/user";
 
 export type CreateUserResult =
@@ -37,6 +37,7 @@ export type CreateUserWithPasswordHash = (credentials: {
 	email: string;
 	passwordHash: string;
 	attribution: UserAcquisitionAttribution | undefined;
+	signupOAuthClientId: OAuthClientId | null;
 }) => Promise<CreateUserResult>;
 
 export type VerifyCredentials = (credentials: {
@@ -111,11 +112,17 @@ export type FindUserByIdResult =
 			registeredAt?: string;
 			appearance?: AppearancePreference;
 			displayName: DisplayName | undefined;
+			signupOAuthClientId: OAuthClientId | null;
 			deletedAt?: string;
 		}
 	| null;
 
 export type FindUserById = (userId: UserId) => Promise<FindUserByIdResult>;
+
+export type CountEarlyIntentionalSave = (params: { userId: UserId; at: Date }) => Promise<
+	| { inWindow: false }
+	| { inWindow: true; count: number; registeredAt: string; signupOAuthClientId: OAuthClientId | null }
+>;
 
 export type SetUserAppearance = (input: {
 	userId: UserId;
@@ -151,6 +158,7 @@ export type CreateGoogleUser = (user: {
 	email: string;
 	userId: UserId;
 	attribution?: UserAcquisitionAttribution;
+	signupOAuthClientId: OAuthClientId | null;
 }) => Promise<CreateUserResult>;
 
 export type CreateAppleUser = (user: {
@@ -158,6 +166,7 @@ export type CreateAppleUser = (user: {
 	userId: UserId;
 	appleRefreshToken: string;
 	attribution?: UserAcquisitionAttribution;
+	signupOAuthClientId: OAuthClientId | null;
 }) => Promise<CreateUserResult>;
 
 /** Upserts the Apple refresh_token onto an existing user's row. Apple mints a

@@ -2119,6 +2119,46 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 		expect(pending.plan).toBe("triennial");
 	});
 
+	it("remembers the entry source and the offer on the pending signup, so returning from Stripe attributes the completion to what opened the checkout", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, pendingSignup, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "remembers-source@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		await agent.post("/account/subscribe?utm_source=day3-email").type("form").send({ plan: "yearly" });
+
+		const [session] = hostedCheckout.createdCheckoutSessions();
+		const pending = await pendingSignup.consumePendingSignup(session.id);
+		assert(pending, "pending signup must be stored for the checkout session");
+		expect(pending.entrySource).toBe("day3-email");
+		expect(pending.offer).toBe("none");
+		const started = harness.subscriptionEvents.events.filter(
+			(e) => e.event === "checkout_started",
+		);
+		expect(started.map((e) => e.entry_source)).toEqual(["day3-email"]);
+		expect(started.map((e) => e.offer)).toEqual(["none"]);
+	});
+
+	it("stores a null entry source on the pending signup when the checkout came from no known plan surface", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, pendingSignup, hostedCheckout } = harness;
+		const { agent, userId } = await loginUser(harness, "unknown-source@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		await agent.post("/account/subscribe?utm_source=newsletter").type("form").send({ plan: "yearly" });
+
+		const [session] = hostedCheckout.createdCheckoutSessions();
+		const pending = await pendingSignup.consumePendingSignup(session.id);
+		assert(pending, "pending signup must be stored for the checkout session");
+		expect(pending.entrySource).toBeNull();
+	});
+
 	it("charges the featured plan when the form carries none, so the no-JS fallback and an older client still land on the plan the page pushes", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders, hostedCheckout } = harness;
@@ -2226,6 +2266,16 @@ describe("POST /account/subscribe (where the plan was chosen)", () => {
 
 		expect(response.status).toBe(303);
 		expect(entrySources()).toEqual(["plans-page"]);
+	});
+
+	it("records the plans link's source as the checkout's entry source when the reader arrived from a known campaign", async () => {
+		const { agent, entrySources } = await trialingReader("entry-founder-note@example.com");
+
+		const page = await agent.get("/account/plans?utm_source=founder-note");
+		const response = await agent.post(planFormAction(page.text)).type("form").send({ plan: "yearly" });
+
+		expect(response.status).toBe(303);
+		expect(entrySources()).toEqual(["founder-note"]);
 	});
 
 	it("records the account page as the checkout's entry source when the reader chose a plan from its popover", async () => {
@@ -4174,7 +4224,7 @@ describe("GET /account (security section)", () => {
 
 	async function signInWithGoogle(harness: ReturnType<ReturnType<typeof useTestServer>>) {
 		const userId = UserIdSchema.parse("google-account-reader");
-		await harness.auth.createGoogleUser({ email: "google-account-reader@example.com", userId });
+		await harness.auth.createGoogleUser({ email: "google-account-reader@example.com", userId, signupOAuthClientId: null });
 		const sessionId = await harness.auth.createSession({ userId, emailVerified: true });
 		return { cookie: `hutch_sid=${sessionId}` };
 	}

@@ -8,6 +8,10 @@ import type { FindArticlesByUser } from "@packages/test-fixtures/providers/artic
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import {
+	initEmitLifecycleEmailSent,
+	type LifecycleEmailSentEvent,
+} from "../observability/lifecycle-email-events";
+import {
 	initSendTrialFeedbackEmailHandler,
 	type SendTrialFeedbackEmailDeps,
 } from "./send-trial-feedback-email-handler";
@@ -70,6 +74,7 @@ interface SubjectOverrides {
 	now?: Date;
 	markAutomationSavesHeldEmailSent?: MarkAutomationSavesHeldEmailSent;
 	logger?: HutchLogger;
+	sendEmail?: SendTrialFeedbackEmailDeps["sendEmail"];
 }
 
 function buildSubject(overrides: SubjectOverrides = {}) {
@@ -79,6 +84,8 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 	const email = initInMemoryEmail();
 	const findEmailByUserId = overrides.findEmail ?? (async () => "user@example.com");
 	const now = overrides.now ?? SENT_AT;
+	const lifecycleEvents: LifecycleEmailSentEvent[] = [];
+	const captureLifecycleEvent = (event: LifecycleEmailSentEvent) => { lifecycleEvents.push(event); };
 	const deps: SendTrialFeedbackEmailDeps = {
 		findSubscriptionByUserId: providers.findByUserId,
 		findEmailByUserId,
@@ -89,14 +96,18 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent:
 			overrides.markAutomationSavesHeldEmailSent ?? providers.markAutomationSavesHeldEmailSent,
-		sendEmail: email.sendEmail,
+		sendEmail: overrides.sendEmail ?? email.sendEmail,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		appOrigin: "https://readplace.com",
 		now: () => now,
 		logger: overrides.logger ?? HutchLogger.from(noopLogger),
+		emitLifecycleEmailSent: initEmitLifecycleEmailSent({
+			logger: { info: captureLifecycleEvent, error: captureLifecycleEvent, warn: captureLifecycleEvent, debug: captureLifecycleEvent },
+			now: () => now,
+		}),
 	};
 	const handler = initSendTrialFeedbackEmailHandler(deps);
-	return { handler, providers, email };
+	return { handler, providers, email, lifecycleEvents };
 }
 
 async function seedCancelledTrial(
@@ -450,6 +461,7 @@ describe("send-trial-feedback-email handler", () => {
 			appOrigin: "https://readplace.com",
 			now: () => SENT_AT,
 			logger: HutchLogger.from(noopLogger),
+			emitLifecycleEmailSent: () => {},
 		});
 
 		const result = await handler(
@@ -953,5 +965,121 @@ describe("send-trial-feedback-email handler", () => {
 
 			assert.equal(subject.email.getSentEmails().length, 0);
 		});
+	});
+});
+
+describe("lifecycle_email_sent", () => {
+	const CHARGE_AT = "2026-06-06T00:00:00.000Z";
+	const TRIAL_ENDS_TWO_DAYS_AFTER_SEND = "2026-06-06T10:00:00.000Z";
+	const baseEvent = {
+		stream: "analytics",
+		event: "lifecycle_email_sent",
+		timestamp: SENT_AT.toISOString(),
+		user_id: USER_ID,
+		delivery: "automated",
+	};
+
+	function deliver(subject: ReturnType<typeof buildSubject>, body: string) {
+		return subject.handler(
+			buildSqsEvent([{ messageId: "msg-lifecycle", body }]),
+			buildLambdaContext(),
+			() => {},
+		);
+	}
+
+	async function seedActiveSubscriber(subject: ReturnType<typeof buildSubject>): Promise<void> {
+		await subject.providers.upsertActive({
+			userId: USER_ID,
+			subscriptionId: "sub_lifecycle",
+			customerId: "cus_lifecycle",
+		});
+	}
+
+	it("records trial-reminder with the trial day of the row's trialEndsAt", async () => {
+		const subject = buildSubject();
+		await subject.providers.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TWO_DAYS_AFTER_SEND });
+
+		await deliver(subject, buildReminderBody(USER_ID));
+
+		assert.deepEqual(subject.lifecycleEvents, [
+			{ ...baseEvent, kind: "trial-reminder", trial_day: 13, utm_source: "trial-reminder" },
+		]);
+	});
+
+	it("records charge-reminder with the trial day of the command's chargeAt, as an active row has no trialEndsAt", async () => {
+		const subject = buildSubject();
+		await seedActiveSubscriber(subject);
+
+		await deliver(subject, buildChargeReminderBody(USER_ID, CHARGE_AT));
+
+		const row = await subject.providers.findByUserId(USER_ID);
+		assert.equal(row?.trialEndsAt, undefined);
+		assert.deepEqual(subject.lifecycleEvents, [
+			{ ...baseEvent, kind: "charge-reminder", trial_day: 13, utm_source: "charge-reminder" },
+		]);
+	});
+
+	it("records trial-feedback with no trial day and no utm source, as a cancelled row has no trialEndsAt and the email no tagged link", async () => {
+		const subject = buildSubject();
+		await seedCancelledTrial(subject.providers);
+
+		await deliver(subject, buildEventBridgeBody(USER_ID));
+
+		assert.deepEqual(subject.lifecycleEvents, [
+			{ ...baseEvent, kind: "trial-feedback", trial_day: null, utm_source: null },
+		]);
+	});
+
+	it("records nothing for payment_failed, which is not a trial email", async () => {
+		const subject = buildSubject();
+		await seedActiveSubscriber(subject);
+
+		await deliver(subject, buildPaymentFailedBody(USER_ID));
+
+		assert.equal(subject.email.getSentEmails().length, 1);
+		assert.deepEqual(subject.lifecycleEvents, []);
+	});
+
+	it("records nothing for automation_saves_held, which is not a trial email", async () => {
+		const subject = buildSubject();
+		await seedCancelledTrial(subject.providers);
+
+		await deliver(subject, buildAutomationSavesHeldBody(USER_ID));
+
+		assert.equal(subject.email.getSentEmails().length, 1);
+		assert.deepEqual(subject.lifecycleEvents, []);
+	});
+
+	it.each([
+		{
+			kind: "trial-reminder",
+			body: buildReminderBody(USER_ID),
+			seed: async (subject: ReturnType<typeof buildSubject>) => {
+				await subject.providers.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TWO_DAYS_AFTER_SEND });
+			},
+		},
+		{
+			kind: "charge-reminder",
+			body: buildChargeReminderBody(USER_ID, CHARGE_AT),
+			seed: seedActiveSubscriber,
+		},
+		{
+			kind: "trial-feedback",
+			body: buildEventBridgeBody(USER_ID),
+			seed: (subject: ReturnType<typeof buildSubject>) => seedCancelledTrial(subject.providers),
+		},
+	])("records nothing for $kind when sendEmail throws", async ({ body, seed }) => {
+		const subject = buildSubject({
+			sendEmail: async () => {
+				throw new Error("Resend rejected");
+			},
+		});
+		await seed(subject);
+
+		const result = await deliver(subject, body);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 1);
+		assert.deepEqual(subject.lifecycleEvents, []);
 	});
 });

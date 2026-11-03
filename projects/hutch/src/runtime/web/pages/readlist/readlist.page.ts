@@ -1472,6 +1472,46 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		}),
 	);
 
+	router.post(
+		SAVE_ROUTE.saveArticle,
+		initObserveSaveRefusal({
+			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
+			now: deps.now,
+			salt: deps.salt,
+			path: SAVE_INTENT_PATH.saveArticle,
+		}),
+	);
+
+	router.post(
+		SAVE_ROUTE.save,
+		initObserveSaveRefusal({
+			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
+			now: deps.now,
+			salt: deps.salt,
+			path: SAVE_INTENT_PATH.save,
+		}),
+	);
+
+	router.post(
+		SAVE_ROUTE.saveContent,
+		initObserveSaveRefusal({
+			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
+			now: deps.now,
+			salt: deps.salt,
+			path: SAVE_INTENT_PATH.saveContent,
+		}),
+	);
+
+	router.post(
+		"/:id/issue-links",
+		initObserveSaveRefusal({
+			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
+			now: deps.now,
+			salt: deps.salt,
+			path: "/queue/:id/issue-links",
+		}),
+	);
+
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
 

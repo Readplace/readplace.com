@@ -1,9 +1,12 @@
 import type { UserId } from "@packages/domain/user";
+import type {
+	CheckoutOffer,
+	SubscribePlansSource,
+} from "@packages/provider-contracts/hosted-checkout";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { STREAMS, SUBSCRIPTION_EVENTS } from "./events";
 import type { CheckoutReturnFailureReason, CheckoutVariant } from "./events";
-import type { SubscribePlansSource } from "../web/shared/subscribe-plans/subscribe-plans.component";
 
 interface SubscriptionEventBase {
 	stream: typeof STREAMS.subscriptions;
@@ -34,6 +37,7 @@ export type SubscriptionLogEvent =
 			checkout_session_id: string;
 			plan: BillingPlan;
 			entry_source: SubscribePlansSource | null;
+			offer: CheckoutOffer;
 		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.checkoutCompleted;
@@ -42,6 +46,8 @@ export type SubscriptionLogEvent =
 			checkout_session_id: string;
 			paid_now: boolean;
 			variant?: CheckoutVariant;
+			entry_source: SubscribePlansSource | null;
+			offer: CheckoutOffer | null;
 		})
 	| (SubscriptionEventBase & {
 			event: typeof SUBSCRIPTION_EVENTS.checkoutReturnFailed;
@@ -72,6 +78,7 @@ export interface SubscriptionLogEventView {
 	paid_now?: boolean;
 	plan?: BillingPlan;
 	entry_source?: SubscribePlansSource | null;
+	offer?: CheckoutOffer | null;
 }
 
 export interface EmitSubscriptionEvent {
@@ -88,6 +95,7 @@ export function buildCheckoutStartedEvent(
 		checkoutSessionId: string;
 		plan: BillingPlan;
 		entrySource: SubscribePlansSource | null;
+		offer: CheckoutOffer;
 	},
 ): SubscriptionLogEvent {
 	return {
@@ -99,6 +107,7 @@ export function buildCheckoutStartedEvent(
 		checkout_session_id: params.checkoutSessionId,
 		plan: params.plan,
 		entry_source: params.entrySource,
+		offer: params.offer,
 	};
 }
 
@@ -110,6 +119,8 @@ export function buildCheckoutCompletedEvent(
 		checkoutSessionId: string;
 		paidNow: boolean;
 		variant?: CheckoutVariant;
+		entrySource: SubscribePlansSource | null;
+		offer: CheckoutOffer | null;
 	},
 ): SubscriptionLogEvent {
 	return {
@@ -121,6 +132,8 @@ export function buildCheckoutCompletedEvent(
 		checkout_session_id: params.checkoutSessionId,
 		paid_now: params.paidNow,
 		...(params.variant ? { variant: params.variant } : {}),
+		entry_source: params.entrySource,
+		offer: params.offer,
 	};
 }
 

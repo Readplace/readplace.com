@@ -13,6 +13,8 @@ import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-pr
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
+import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { httpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
@@ -37,6 +39,7 @@ type AssemblyProvidedKeys =
 	| "botDefenseLogger"
 	| "conversionLogger"
 	| "subscriptionLogger"
+	| "funnelLogger"
 	| "analytics"
 	| "authDiagnosticsLogger"
 	| "salt"
@@ -93,6 +96,7 @@ export function assembleReadplaceApp(input: {
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
 		subscriptionLogger: HutchLogger.fromJSON<SubscriptionLogEvent>(),
+		funnelLogger: HutchLogger.fromJSON<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>(),
 		analytics: analyticsLogger,
 		authDiagnosticsLogger: HutchLogger.fromJSON<Record<string, unknown>>(),
 		salt,

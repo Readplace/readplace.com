@@ -253,4 +253,93 @@ describe("Email verification", () => {
 			expect(sent[0].subject).toContain("Verify");
 		});
 	});
+
+	describe("lifecycle_email_sent for the welcome email", () => {
+		const FOUNDING_MEMBER_LIMIT = 3;
+
+		function tokenOf(html: string): string {
+			const tokenMatch = html.match(/token&#x3D;([a-f0-9]+)/);
+			assert(tokenMatch, "Expected token in verification email");
+			return tokenMatch[1];
+		}
+
+		async function exhaustFoundingAllocation(harness: ReturnType<typeof useApp>): Promise<void> {
+			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+		}
+
+		it("records one send at verification for a reader with a trialing row", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await exhaustFoundingAllocation(harness);
+			await signup(harness.server, "trial@example.com");
+			const lookup = await harness.auth.findUserByEmail("trial@example.com");
+			assert(lookup, "signup must persist the user");
+			assert.equal((await harness.subscriptionProviders.findByUserId(lookup.userId))?.status, "trialing");
+
+			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
+
+			expect(harness.funnelEvents.events).toEqual([
+				expect.objectContaining({
+					event: "lifecycle_email_sent",
+					user_id: lookup.userId,
+					kind: "welcome",
+					trial_day: 1,
+					utm_source: "welcome-email",
+					delivery: "automated",
+				}),
+			]);
+		});
+
+		it("records nothing for a verify with no subscription row", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await signup(harness.server, "free@example.com");
+
+			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
+
+			expect(harness.email.getSentEmails()[1].subject).toBe("Welcome to Readplace");
+			expect(harness.funnelEvents.events).toEqual([]);
+		});
+
+		it("records nothing for a verify whose subscription row is no longer trialing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await exhaustFoundingAllocation(harness);
+			await signup(harness.server, "cancelled@example.com");
+			const lookup = await harness.auth.findUserByEmail("cancelled@example.com");
+			assert(lookup, "signup must persist the user");
+			await harness.subscriptionProviders.markCancelledByUserId({ userId: lookup.userId });
+
+			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
+
+			expect(harness.email.getSentEmails()[1].subject).toBe("Welcome to Readplace");
+			expect(harness.funnelEvents.events).toEqual([]);
+		});
+
+		it("records nothing and logs when the welcome email fails, and the verification still succeeds", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const loggedErrors: string[] = [];
+			const harness = useApp({
+				...fixture,
+				email: {
+					...fixture.email,
+					sendEmail: async (message) => {
+						if (message.subject === "Welcome to Readplace") throw new Error("Email service down");
+						await fixture.email.sendEmail(message);
+					},
+				},
+				shared: {
+					...fixture.shared,
+					logError: (message) => { loggedErrors.push(message); },
+				},
+			});
+			await exhaustFoundingAllocation(harness);
+			await signup(harness.server, "trial-fail@example.com");
+
+			const response = await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
+
+			expect(response.status).toBe(200);
+			expect(loggedErrors).toEqual(["[Email] Welcome email failed"]);
+			expect(harness.funnelEvents.events).toEqual([]);
+		});
+	});
 });

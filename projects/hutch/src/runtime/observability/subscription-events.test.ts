@@ -102,6 +102,7 @@ describe("buildCheckoutStartedEvent", () => {
 			checkoutSessionId: "cs_test_1",
 			plan: "triennial",
 			entrySource: "plans-page",
+			offer: "none",
 		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_started",
@@ -111,6 +112,7 @@ describe("buildCheckoutStartedEvent", () => {
 			checkout_session_id: "cs_test_1",
 			plan: "triennial",
 			entry_source: "plans-page",
+			offer: "none",
 		});
 	});
 
@@ -121,9 +123,10 @@ describe("buildCheckoutStartedEvent", () => {
 			checkoutSessionId: "cs_test_1",
 			plan: "yearly",
 			entrySource: null,
+			offer: "first-year-49",
 		});
 
-		expect(JSON.parse(JSON.stringify(event))).toMatchObject({ entry_source: null });
+		expect(JSON.parse(JSON.stringify(event))).toMatchObject({ entry_source: null, offer: "first-year-49" });
 	});
 });
 
@@ -134,6 +137,8 @@ describe("buildCheckoutCompletedEvent", () => {
 			subscriptionId: "sub_123",
 			checkoutSessionId: "cs_test_1",
 			paidNow: true,
+			entrySource: "queue-banner",
+			offer: "none",
 		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
@@ -142,6 +147,8 @@ describe("buildCheckoutCompletedEvent", () => {
 			subscription_id: "sub_123",
 			checkout_session_id: "cs_test_1",
 			paid_now: true,
+			entry_source: "queue-banner",
+			offer: "none",
 		});
 	});
 
@@ -151,6 +158,8 @@ describe("buildCheckoutCompletedEvent", () => {
 			subscriptionId: "sub_123",
 			checkoutSessionId: "cs_test_1",
 			paidNow: false,
+			entrySource: "queue-banner",
+			offer: "none",
 		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
@@ -159,6 +168,8 @@ describe("buildCheckoutCompletedEvent", () => {
 			subscription_id: "sub_123",
 			checkout_session_id: "cs_test_1",
 			paid_now: false,
+			entry_source: "queue-banner",
+			offer: "none",
 		});
 	});
 
@@ -169,6 +180,8 @@ describe("buildCheckoutCompletedEvent", () => {
 			checkoutSessionId: "cs_test_1",
 			paidNow: true,
 			variant: CHECKOUT_VARIANTS.cancelledResubscribe,
+			entrySource: "queue-banner",
+			offer: "none",
 		})).toEqual({
 			stream: "subscriptions",
 			event: "checkout_completed",
@@ -178,7 +191,33 @@ describe("buildCheckoutCompletedEvent", () => {
 			checkout_session_id: "cs_test_1",
 			paid_now: true,
 			variant: "cancelled_resubscribe",
+			entry_source: "queue-banner",
+			offer: "none",
 		});
+	});
+
+	it("carries the entry source and the offer that opened the checkout", () => {
+		expect(buildCheckoutCompletedEvent({ now: NOW }, {
+			userId: USER_ID,
+			subscriptionId: "sub_123",
+			checkoutSessionId: "cs_test_1",
+			paidNow: false,
+			entrySource: "keep-panel",
+			offer: "first-year-49",
+		})).toMatchObject({ entry_source: "keep-panel", offer: "first-year-49" });
+	});
+
+	it("writes a null entry_source and a null offer, so both stay visible in Logs Insights rather than missing", () => {
+		const event = buildCheckoutCompletedEvent({ now: NOW }, {
+			userId: USER_ID,
+			subscriptionId: "sub_123",
+			checkoutSessionId: "cs_test_1",
+			paidNow: false,
+			entrySource: null,
+			offer: null,
+		});
+
+		expect(JSON.parse(JSON.stringify(event))).toMatchObject({ entry_source: null, offer: null });
 	});
 });
 

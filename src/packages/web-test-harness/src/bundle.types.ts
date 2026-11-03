@@ -65,6 +65,7 @@ import type {
 	ContentProvider,
 	ConversionEvent,
 	CountArticlesByUser,
+	CountEarlyIntentionalSave,
 	CountUsers,
 	CreateAppleUser,
 	CreateChargeReminderSchedule,
@@ -268,6 +269,7 @@ export interface AuthBundle {
 	destroyOAuthGrantSessions: DestroyOAuthGrantSessions;
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
+	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;

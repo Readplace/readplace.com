@@ -3,8 +3,8 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, classifyOsFamily, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
-import { MCP_REQUEST_REFUSAL_REASONS, MCP_UA_CLIENTS, OAUTH_TOKEN_GRANT_TYPES, OAUTH_TOKEN_KINDS, OAUTH_TOKEN_REVOCATION_OUTCOMES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
+import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildKeepOfferClickedEvent, buildKeepOfferShownEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, classifyOsFamily, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { KEEP_OFFER_SURFACES, MCP_REQUEST_REFUSAL_REASONS, MCP_UA_CLIENTS, OAUTH_TOKEN_GRANT_TYPES, OAUTH_TOKEN_KINDS, OAUTH_TOKEN_REVOCATION_OUTCOMES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
 const SHARE_EXTENSION_USER_AGENT = "ShareExtension/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1181,6 +1181,7 @@ describe("buildSaveRefusedEvent", () => {
 			status: 402,
 			client: "chrome_extension",
 			is_authenticated: 1,
+			user_id: "user-1",
 			request_id: "Req-9=",
 			visitor_hash: expect.any(String),
 		});
@@ -1196,6 +1197,45 @@ describe("buildSaveRefusedEvent", () => {
 		});
 		expect(event).toMatchObject({ is_authenticated: 0, code: "unauthenticated", status: 401 });
 		expect("request_id" in event).toBe(false);
+		expect("user_id" in event).toBe(false);
+	});
+});
+
+describe.each([
+	{ name: "buildKeepOfferShownEvent", build: buildKeepOfferShownEvent, event: "keep_offer_shown" },
+	{ name: "buildKeepOfferClickedEvent", build: buildKeepOfferClickedEvent, event: "keep_offer_clicked" },
+])("$name", ({ build, event }) => {
+	const deps = { now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" };
+	const userId = UserIdSchema.parse("00000000000000000000000000000042");
+
+	it("records the user, surface, trial day and salted visitor hash with a request id", () => {
+		const result = build(deps, {
+			req: createReq({ requestContext: { requestId: "Req-9=" } }) as Request,
+			userId,
+			surface: KEEP_OFFER_SURFACES.readlistPanel,
+			trialDay: 12,
+		});
+		expect(result).toEqual({
+			stream: "analytics",
+			event,
+			timestamp: "2026-04-21T10:00:00.000Z",
+			user_id: userId,
+			surface: "readlist-panel",
+			trial_day: 12,
+			request_id: "Req-9=",
+			visitor_hash: expect.any(String),
+		});
+	});
+
+	it("omits request_id when the gateway sent none", () => {
+		const result = build(deps, {
+			req: createReq() as Request,
+			userId,
+			surface: KEEP_OFFER_SURFACES.readlistPanel,
+			trialDay: 0,
+		});
+		expect(result).toMatchObject({ event, trial_day: 0 });
+		expect("request_id" in result).toBe(false);
 	});
 });
 

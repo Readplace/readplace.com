@@ -32,6 +32,27 @@ export const CheckoutVariantSchema = z.enum([
 
 export type CheckoutVariant = z.infer<typeof CheckoutVariantSchema>;
 
+export const SUBSCRIBE_PLANS_SOURCES = [
+	"queue-banner",
+	"account",
+	"plans-page",
+	"queue-preferences-banner",
+	"founder-note",
+	"keep-panel",
+	"day3-email",
+	"day7-email",
+] as const;
+
+export const SubscribePlansSourceSchema = z.enum(SUBSCRIBE_PLANS_SOURCES);
+
+export type SubscribePlansSource = z.infer<typeof SubscribePlansSourceSchema>;
+
+export const CHECKOUT_OFFERS = { none: "none", firstYear49: "first-year-49" } as const;
+
+export const CheckoutOfferSchema = z.enum([CHECKOUT_OFFERS.none, CHECKOUT_OFFERS.firstYear49]);
+
+export type CheckoutOffer = z.infer<typeof CheckoutOfferSchema>;
+
 export type RetrieveCheckoutSession = (id: CheckoutSessionId) => Promise<
 	| {
 			ok: true;

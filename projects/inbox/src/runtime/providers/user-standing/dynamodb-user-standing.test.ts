@@ -64,11 +64,12 @@ describe("initDynamoDbUserStanding", () => {
 				email: "user@example.com",
 				emailVerified: true,
 				registeredAt: "2026-01-01T00:00:00.000Z",
+				signupOAuthClientId: null,
 			});
 			expect(captured.TableName).toBe(TABLES.users);
 			expect(captured.IndexName).toBe("userId-index");
 			expect(captured.ProjectionExpression).toBe(
-				"userId, email, emailVerified, registeredAt, appearance, displayName",
+				"userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId",
 			);
 			expect(captured.ExpressionAttributeValues).toEqual({ ":userId": USER_ID });
 		});
@@ -109,6 +110,25 @@ describe("initDynamoDbUserStanding", () => {
 
 			assert(user, "user must be returned");
 			expect(user.displayName).toBe("James Davis");
+		});
+
+		it("reads the OAuth client the reader signed up through", async () => {
+			const { findUserById } = initWithFake(() => ({
+				Items: [
+					{
+						userId: USER_ID,
+						email: "user@example.com",
+						emailVerified: true,
+						registeredAt: "2026-01-01T00:00:00.000Z",
+						signupOAuthClientId: "ios-app",
+					},
+				],
+			}));
+
+			const user = await findUserById(USER_ID);
+
+			assert(user, "user must be returned");
+			expect(user.signupOAuthClientId).toBe("ios-app");
 		});
 
 		it("reads an absent emailVerified attribute as false (legacy row)", async () => {

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { SubscribePlansSource } from "@packages/provider-contracts/hosted-checkout";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -18,7 +19,7 @@ const PLANS_PAGE_HEADING = "Choose a plan";
 
 const PLANS_PAGE_TITLE_ID = "plans-page-title";
 
-export function PlansPage(vm: PlansPageViewModel): PageBody {
+export function PlansPage(vm: PlansPageViewModel, input: { entrySource: SubscribePlansSource }): PageBody {
 	return {
 		seo: {
 			title: `${PLANS_PAGE_HEADING} — Readplace`,
@@ -36,7 +37,7 @@ export function PlansPage(vm: PlansPageViewModel): PageBody {
 				termsNote: vm.termsNote,
 				savesStayStatement: SAVES_STAY_STATEMENT,
 				plansFormHtml: renderSubscribePlansForm({
-					source: "plans-page",
+					source: input.entrySource,
 					labelledBy: PLANS_PAGE_TITLE_ID,
 					surface: "inline",
 					checkedPlan: vm.checkedPlan,

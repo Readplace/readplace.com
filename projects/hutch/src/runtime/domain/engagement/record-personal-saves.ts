@@ -1,5 +1,7 @@
 import { ReaderArticleHashId } from "@packages/domain/article";
+import type { SaveProvenance } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
+import type { CountEarlyIntentionalSave } from "@packages/provider-contracts/auth";
 import type {
 	AssignSavedArticleToReadlist,
 	FindArticleById,
@@ -8,6 +10,17 @@ import type {
 	SaveReadlistArticle,
 } from "@packages/provider-contracts/article-store";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
+import {
+	type ActivationThresholdReachedEvent,
+	buildActivationThresholdReachedEvent,
+} from "../../observability/funnel-events";
+
+const NOT_INTENTIONAL_FOR_ACTIVATION: ReadonlySet<SaveProvenance["kind"]> = new Set([
+	"email",
+	"hn-suggestion",
+	"founder-seed",
+	"import",
+]);
 
 export function initRecordPersonalSaves(deps: {
 	saveArticle: SaveArticle;
@@ -18,6 +31,9 @@ export function initRecordPersonalSaves(deps: {
 	findReadlistArticleById: FindReadlistArticleById;
 	recordEngagementActivity: RecordEngagementActivity;
 	now: () => Date;
+	logError: (message: string, error?: Error) => void;
+	countEarlyIntentionalSave: CountEarlyIntentionalSave;
+	recordActivationThresholdReached: (event: ActivationThresholdReachedEvent) => void;
 }): {
 	saveArticle: SaveArticle;
 	saveArticleKeepingPosition: SaveArticle;
@@ -43,10 +59,40 @@ export function initRecordPersonalSaves(deps: {
 		}
 		return result;
 	};
+	const countIntentionalSave = async (
+		params: Parameters<SaveArticle>[0],
+		result: Awaited<ReturnType<SaveArticle>>,
+	) => {
+		if (!result.createdUserArticle || NOT_INTENTIONAL_FOR_ACTIVATION.has(params.provenance.kind)) return;
+		try {
+			const counted = await deps.countEarlyIntentionalSave({ userId: params.userId, at: deps.now() });
+			if (counted.inWindow && counted.count === 2) {
+				deps.recordActivationThresholdReached(
+					buildActivationThresholdReachedEvent(
+						{ now: deps.now },
+						{
+							userId: params.userId,
+							registeredAt: counted.registeredAt,
+							signupOAuthClientId: counted.signupOAuthClientId,
+						},
+					),
+				);
+			}
+		} catch (error) {
+			deps.logError("Failed to count early intentional save", error instanceof Error ? error : undefined);
+		}
+	};
 	return {
-		saveArticleKeepingPosition: async (params) =>
-			record(params, await deps.saveArticleKeepingPosition(params)),
-		saveArticle: async (params) => record(params, await deps.saveArticle(params)),
+		saveArticleKeepingPosition: async (params) => {
+			const result = await record(params, await deps.saveArticleKeepingPosition(params));
+			await countIntentionalSave(params, result);
+			return result;
+		},
+		saveArticle: async (params) => {
+			const result = await record(params, await deps.saveArticle(params));
+			await countIntentionalSave(params, result);
+			return result;
+		},
 		saveReadlistArticle: async (params) => record(params, await deps.saveReadlistArticle(params)),
 		assignSavedArticleToReadlist: async (params) => {
 			const id = ReaderArticleHashId.from(params.url);

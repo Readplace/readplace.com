@@ -1288,6 +1288,24 @@ describe("Import routes", () => {
 			const commit = await agent.post(`${reviewPath}/commit`).set("Accept", "text/html");
 			expect(commit.status).toBe(303);
 			expect(commit.headers.location).toBe("/queue?inactive=1");
+			expect(harness.analytics.events.filter((e) => e.event === "save_refused")).toEqual([
+				expect.objectContaining({
+					path: "/import/:id/commit",
+					status: 303,
+					code: "no_write_access",
+					user_id: userId,
+				}),
+			]);
+		});
+
+		it("records no refusal when the anonymous commit is sent to sign up", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const commit = await request(harness.server).post("/import/not-a-session/commit");
+
+			expect(commit.status).toBe(303);
+			expect(commit.headers.location).toBe("/signup");
+			expect(harness.analytics.events.filter((e) => e.event === "save_refused")).toEqual([]);
 		});
 	});
 

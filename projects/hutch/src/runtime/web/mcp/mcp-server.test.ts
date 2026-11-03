@@ -16,7 +16,7 @@ import { TOOL_DEFINITIONS } from "./tool-definitions";
 import { articleBody } from "@packages/test-fixtures";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
-const context = { userId, oauthClientId: "dyn-registered-mcp-client", uaClient: MCP_UA_CLIENTS.other };
+const context = { userId, oauthClientId: "dyn-registered-mcp-client", uaClient: MCP_UA_CLIENTS.other, recordSaveRefused: () => {} };
 
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {
@@ -1513,6 +1513,48 @@ describe("initMcpServer", () => {
 				outcome: "paywalled",
 				submittedUrl: "https://example.com/a",
 			});
+		});
+
+		function callRecordingRefusals(params: { access: Awaited<ReturnType<McpServerDeps["resolveToolAccess"]>>; name: string; args: unknown }) {
+			const server = initMcpServer(fakeDeps({ resolveToolAccess: async () => params.access }));
+			let refusals = 0;
+			const response = server.handle(
+				{ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: params.name, arguments: params.args } },
+				{ ...context, recordSaveRefused: () => { refusals += 1; } },
+			);
+			return { response, refusals: () => refusals };
+		}
+
+		it("records save_refused once for an inactive save_link and answers with the same tool error", async () => {
+			const { response, refusals } = callRecordingRefusals({
+				access: { state: "inactive", message: "lapsed" },
+				name: "save_link",
+				args: { url: "https://example.com/a" },
+			});
+			expect(await response).toMatchObject({
+				result: { isError: true, content: [{ type: "text", text: "lapsed" }] },
+			});
+			expect(refusals()).toBe(1);
+		});
+
+		it("records no save_refused for an inactive create_readlist, which is not a save", async () => {
+			const { response, refusals } = callRecordingRefusals({
+				access: { state: "inactive", message: "lapsed" },
+				name: "create_readlist",
+				args: { name: "Work" },
+			});
+			await response;
+			expect(refusals()).toBe(0);
+		});
+
+		it("records no save_refused when save_link is refused for a reason other than an inactive subscription", async () => {
+			const { response, refusals } = callRecordingRefusals({
+				access: { state: "unverified", message: "verify" },
+				name: "save_link",
+				args: { url: "https://example.com/a" },
+			});
+			await response;
+			expect(refusals()).toBe(0);
 		});
 
 		it("distinguishes a save refused by a failed subscription check as outcome=access_check_failed", async () => {

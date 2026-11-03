@@ -23,9 +23,11 @@ import {
 	type UserId,
 	type CanonicalEmail,
 } from "@packages/domain/user";
+import { type OAuthClientId, OAuthClientIdSchema } from "@packages/domain/oauth";
 import { SESSION_TTL_SECONDS, SessionRow, initGetSessionUserId } from "@packages/web-session";
 import type {
 	CloseUserAccount,
+	CountEarlyIntentionalSave,
 	CountUsers,
 	CreateAppleUser,
 	CreateGoogleUser,
@@ -86,8 +88,12 @@ const UserRow = z.object({
 	deletedAt: dynamoField(z.string()),
 	appearance: dynamoField(AppearancePreferenceSchema),
 	displayName: dynamoField(DisplayNameSchema),
+	signupOAuthClientId: dynamoField(OAuthClientIdSchema),
 	queueDigestOptOutAt: dynamoField(z.string()),
+	earlyIntentionalSaves: dynamoField(z.number()),
 });
+
+const EARLY_INTENTIONAL_SAVE_WINDOW_MS = 72 * 3_600_000;
 
 /* Gmail uniqueness claims live in the users table under this PK prefix. Zod
  * rejects "#" in emails, so a claim PK can never collide with a delivery-email
@@ -122,6 +128,7 @@ export function initDynamoDbAuth(deps: {
 	closeUserAccount: CloseUserAccount;
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
+	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
@@ -237,7 +244,7 @@ export function initDynamoDbAuth(deps: {
 		return result.ok ? { ok: true, userId } : result;
 	};
 
-	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash, attribution }) => {
+	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash, attribution, signupOAuthClientId }) => {
 		const normalizedEmail = normalizeEmail(email);
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
@@ -252,6 +259,7 @@ export function initDynamoDbAuth(deps: {
 				emailVerified: false,
 				registeredAt: at,
 				canonicalEmail: canonicalizeEmail(email),
+				...(signupOAuthClientId === null ? {} : { signupOAuthClientId }),
 				...(attribution ?? {}),
 			},
 			userId,
@@ -271,11 +279,13 @@ export function initDynamoDbAuth(deps: {
 		userId,
 		attribution,
 		appleRefreshToken,
+		signupOAuthClientId,
 	}: {
 		email: string;
 		userId: UserId;
 		attribution?: UserAcquisitionAttribution;
 		appleRefreshToken?: string;
+		signupOAuthClientId: OAuthClientId | null;
 	}) => {
 		const normalizedEmail = normalizeEmail(email);
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
@@ -288,6 +298,7 @@ export function initDynamoDbAuth(deps: {
 				registeredAt: new Date().toISOString(),
 				canonicalEmail: canonicalizeEmail(email),
 				...(appleRefreshToken === undefined ? {} : { appleRefreshToken }),
+				...(signupOAuthClientId === null ? {} : { signupOAuthClientId }),
 				...(attribution ?? {}),
 			},
 			userId,
@@ -576,8 +587,44 @@ export function initDynamoDbAuth(deps: {
 			registeredAt: row.registeredAt,
 			appearance: row.appearance,
 			displayName: row.displayName,
+			signupOAuthClientId: row.signupOAuthClientId ?? null,
 			deletedAt: row.deletedAt,
 		};
+	};
+
+	const countEarlyIntentionalSave: CountEarlyIntentionalSave = async ({ userId, at }) => {
+		const { items } = await users.query({
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+			Limit: 1,
+		});
+		const row = items[0];
+		if (!row) return { inWindow: false };
+		try {
+			const { Attributes } = await users.update({
+				Key: { email: row.email },
+				UpdateExpression: "ADD earlyIntentionalSaves :one",
+				ConditionExpression: "registeredAt >= :windowStart",
+				ExpressionAttributeValues: {
+					":one": 1,
+					":windowStart": new Date(at.getTime() - EARLY_INTENTIONAL_SAVE_WINDOW_MS).toISOString(),
+				},
+				ReturnValues: "ALL_NEW",
+			});
+			assert(Attributes, "an update with ReturnValues ALL_NEW always returns the item");
+			assert(Attributes.earlyIntentionalSaves, "ADD always leaves the counter on the row");
+			assert(Attributes.registeredAt, "the window condition only passes on a row with registeredAt");
+			return {
+				inWindow: true,
+				count: Attributes.earlyIntentionalSaves,
+				registeredAt: Attributes.registeredAt,
+				signupOAuthClientId: Attributes.signupOAuthClientId ?? null,
+			};
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return { inWindow: false };
+			throw error;
+		}
 	};
 
 	const findUserPasswordStatus: FindUserPasswordStatus = async (userId) => {
@@ -671,6 +718,7 @@ export function initDynamoDbAuth(deps: {
 		closeUserAccount,
 		markAccountDeleted,
 		countUsers,
+		countEarlyIntentionalSave,
 		markEmailVerified,
 		markSessionEmailVerified,
 		setSessionReadlistFilter,

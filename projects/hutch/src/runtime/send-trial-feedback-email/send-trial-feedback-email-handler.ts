@@ -40,6 +40,8 @@ import {
 	AutomationSavesHeldEmail,
 	AUTOMATION_SAVES_HELD_EMAIL_SUBJECT,
 } from "../web/auth/automation-saves-held-email";
+import { trialDayOf } from "../domain/trial/trial-day";
+import type { EmitLifecycleEmailSent } from "../observability/lifecycle-email-events";
 
 const EMAIL_FROM = "Readplace <readplace@readplace.com>";
 const EMAIL_REPLY_TO = "fayner@readplace.com";
@@ -61,6 +63,7 @@ export interface SendTrialFeedbackEmailDeps {
 	appOrigin: string;
 	now: () => Date;
 	logger: HutchLogger;
+	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
 
 export function initSendTrialFeedbackEmailHandler(
@@ -165,6 +168,14 @@ async function processCommand(
 		subject: TRIAL_FEEDBACK_EMAIL_SUBJECT,
 		html: component.to("text/html"),
 		text: component.to("text/plain"),
+	});
+
+	deps.emitLifecycleEmailSent({
+		userId,
+		kind: "trial-feedback",
+		trialDay: null,
+		utmSource: null,
+		delivery: "automated",
 	});
 
 	const sentAt = deps.now().toISOString();
@@ -334,6 +345,14 @@ async function processReminder(
 		text: component.to("text/plain"),
 	});
 
+	deps.emitLifecycleEmailSent({
+		userId,
+		kind: "trial-reminder",
+		trialDay: trialDayOf({ trialEndsAt: row.trialEndsAt, at: deps.now() }),
+		utmSource: "trial-reminder",
+		delivery: "automated",
+	});
+
 	const sentAt = deps.now().toISOString();
 	await deps.markTrialReminderEmailSent({ userId, sentAt });
 	deps.logger.info("[send-trial-feedback-email] reminder sent", {
@@ -409,6 +428,14 @@ async function processChargeReminder(
 		subject: component.subject,
 		html: component.to("text/html"),
 		text: component.to("text/plain"),
+	});
+
+	deps.emitLifecycleEmailSent({
+		userId,
+		kind: "charge-reminder",
+		trialDay: trialDayOf({ trialEndsAt: chargeAt, at: deps.now() }),
+		utmSource: "charge-reminder",
+		delivery: "automated",
 	});
 
 	const sentAt = deps.now().toISOString();

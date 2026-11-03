@@ -38,6 +38,10 @@ export const QUEUE_DIGEST_EVENTS = {
 	skipped: "queue_digest_skipped",
 } as const;
 
+export const LIFECYCLE_EMAIL_EVENTS = {
+	sent: "lifecycle_email_sent",
+} as const;
+
 // The variant union lives in provider-contracts because it is persisted on the
 // pending signup; `satisfies` keeps this lookup table from drifting off it.
 export const CHECKOUT_VARIANTS = {

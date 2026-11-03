@@ -587,6 +587,11 @@ describe("Google auth routes", () => {
 			expect(event.tier).toBe("free");
 			expect(event.homepage_variant).toBe("variant-c");
 			expect(event.oauth_client_id).toBe("hutch-chrome-extension");
+			const signedUp = await harness.auth.findUserByEmail("consent-google@example.com");
+			assert(signedUp, "signup must create the user");
+			const stored = await harness.auth.findUserById(signedUp.userId);
+			assert(stored, "signup must create the user");
+			expect(stored.signupOAuthClientId).toBe("hutch-chrome-extension");
 			expect(JSON.stringify(event)).not.toContain("xyz");
 		});
 
@@ -670,6 +675,11 @@ describe("Google auth routes", () => {
 			const event = harness.conversions.events.find((e) => e.method === "google" && e.tier === "trial");
 			assert(event, "Google trial signup must emit a conversion event");
 			expect(event.oauth_client_id).toBe("ios-app");
+			const signedUp = await harness.auth.findUserByEmail("consent-google-trial@example.com");
+			assert(signedUp, "signup must create the user");
+			const stored = await harness.auth.findUserById(signedUp.userId);
+			assert(stored, "signup must create the user");
+			expect(stored.signupOAuthClientId).toBe("ios-app");
 			const emitted = JSON.stringify(event);
 			expect(emitted).not.toContain("xyz");
 			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
@@ -793,6 +803,84 @@ describe("Google auth routes", () => {
 
 			const passwordCheck = await auth.verifyCredentials({ email: "unverified@example.com", password: "password123" });
 			expect(passwordCheck.ok).toBe(true);
+		});
+	});
+
+	describe("lifecycle_email_sent for the welcome email", () => {
+		function googleWith(email: string) {
+			return {
+				exchangeGoogleCode: stubExchange({ email }),
+				clientId: TEST_CLIENT_ID,
+				clientSecret: TEST_CLIENT_SECRET,
+			};
+		}
+
+		async function exhaustFoundingAllocation(harness: ReturnType<typeof useApp>): Promise<void> {
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+		}
+
+		function callback(harness: ReturnType<typeof useApp>) {
+			const state = signState(freshState());
+			return request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+		}
+
+		it("records one send for a trial signup", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, google: googleWith("trial-google@example.com") });
+			await exhaustFoundingAllocation(harness);
+
+			await callback(harness);
+
+			const lookup = await harness.auth.findUserByEmail("trial-google@example.com");
+			assert(lookup, "trial Google signup must persist a user");
+			expect(harness.funnelEvents.events).toEqual([
+				expect.objectContaining({
+					event: "lifecycle_email_sent",
+					user_id: lookup.userId,
+					kind: "welcome",
+					trial_day: 1,
+					utm_source: "welcome-email",
+					delivery: "automated",
+				}),
+			]);
+		});
+
+		it("records nothing for a free-tier signup", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, google: googleWith("free-google@example.com") });
+
+			await callback(harness);
+
+			expect(harness.email.getSentEmails().map((sent) => sent.subject)).toEqual(["Welcome to Readplace"]);
+			expect(harness.funnelEvents.events).toEqual([]);
+		});
+
+		it("records nothing and logs when the welcome email fails, and the signup still succeeds", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const loggedErrors: string[] = [];
+			const harness = useApp({
+				...fixture,
+				google: googleWith("trial-fail-google@example.com"),
+				email: {
+					...fixture.email,
+					sendEmail: async () => { throw new Error("Email service down"); },
+				},
+				shared: {
+					...fixture.shared,
+					logError: (message) => { loggedErrors.push(message); },
+				},
+			});
+			await exhaustFoundingAllocation(harness);
+
+			const response = await callback(harness);
+
+			expect(response.status).toBe(303);
+			expect(loggedErrors).toEqual(["[Email] Welcome email failed"]);
+			expect(harness.funnelEvents.events).toEqual([]);
 		});
 	});
 });

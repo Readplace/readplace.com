@@ -21,6 +21,7 @@ import {
 } from "../../domain/trial/start-trial";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
+import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
@@ -91,6 +92,7 @@ interface AppleAuthDependencies {
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
+	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
 
 export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
@@ -119,6 +121,8 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		baseUrl: deps.baseUrl,
 		staticBaseUrl: deps.staticBaseUrl,
 		logError: deps.logError,
+		emitLifecycleEmailSent: deps.emitLifecycleEmailSent,
+		now: deps.now,
 	});
 
 	router.get("/auth/apple", (req: Request, res: Response) => {
@@ -249,6 +253,8 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 
 		const newUserId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const safeReturnUrl = extractReturnUrl({ return: stateData.returnUrl });
+		const oauthClientId = oauthClientIdFrom(safeReturnUrl);
+		const signupOAuthClientId = oauthClientId ?? null;
 
 		/* Tunneled from GET /auth/apple — the cross-site callback carries none of
 		 * the cookies these came from, so reading them off `req` here would record
@@ -259,7 +265,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			visitorId: stateData.visitorId,
 			homepageVariant: stateData.homepageVariant,
 			pendingSaveId: stateData.pendingSaveId,
-			oauthClientId: oauthClientIdFrom(safeReturnUrl),
+			oauthClientId,
 		};
 		/* hutch_psid is same-site so it is not sent on this cross-site POST, but
 		 * the response Set-Cookie still applies to readplace.com — clear it so the
@@ -278,6 +284,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 				userId: newUserId,
 				appleRefreshToken: tokenResult.appleRefreshToken,
 				attribution,
+				signupOAuthClientId,
 			});
 			if (!created.ok) {
 				const lookup = await deps.findUserByEmail(tokenResult.email);
@@ -302,7 +309,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			signIn(res, sessionId);
 			clearPendingSave();
 			clearLastView();
-			await sendWelcomeEmail(tokenResult.email);
+			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, tier: "free" });
 			deps.recordConversionEvent(
 				req,
 				buildUserCreatedEvent(
@@ -330,6 +337,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			userId: newUserId,
 			appleRefreshToken: tokenResult.appleRefreshToken,
 			attribution,
+			signupOAuthClientId,
 		});
 		if (!created.ok) {
 			const lookup = await deps.findUserByEmail(tokenResult.email);
@@ -350,10 +358,11 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			return;
 		}
 
+		const trialEndsAt = trialEndsAtFromNow(deps.now());
 		await startTrial({
 			mode: "signup",
 			userId: created.userId,
-			trialEndsAt: trialEndsAtFromNow(deps.now()),
+			trialEndsAt,
 			now: deps.now(),
 			upsertTrialing: deps.upsertTrialing,
 			trialScheduler: deps.trialScheduler,
@@ -364,7 +373,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		signIn(res, sessionId);
 		clearPendingSave();
 		clearLastView();
-		await sendWelcomeEmail(tokenResult.email);
+		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, tier: "trial", trialEndsAt });
 		deps.recordConversionEvent(
 			req,
 			buildUserCreatedEvent(

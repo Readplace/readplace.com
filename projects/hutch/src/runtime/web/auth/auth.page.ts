@@ -25,6 +25,7 @@ import { VerificationTokenSchema } from "@packages/provider-contracts/email-veri
 import assert from "node:assert";
 import type { ConsumePendingSignup } from "@packages/provider-contracts/pending-signup";
 import type {
+	FindSubscriptionByUserId,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
@@ -63,6 +64,7 @@ import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
 import { initSendWelcomeEmail } from "./send-welcome-email";
+import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
 import { createBotDefenseEvent } from "./bot-defense-event";
 import { initValidateSignup } from "./validate-signup";
 import { initSignInWithPassword } from "./sign-in-with-password";
@@ -120,6 +122,7 @@ interface AuthDependencies {
 		upsertActive: UpsertActiveSubscription;
 		upsertTrialing: UpsertTrialingSubscription;
 	};
+	findSubscriptionByUserId: FindSubscriptionByUserId;
 	trialScheduler: TrialSchedulerPort & {
 		createChargeReminderSchedule: CreateChargeReminderSchedule;
 	};
@@ -137,6 +140,7 @@ interface AuthDependencies {
 	buildBannerState: BuildBannerState;
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRules: Pick<RateLimitRules, "login" | "loginAccount" | "signup">;
+	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
@@ -163,6 +167,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		baseUrl: deps.baseUrl,
 		staticBaseUrl: deps.staticBaseUrl,
 		logError: deps.logError,
+		emitLifecycleEmailSent: deps.emitLifecycleEmailSent,
+		now: deps.now,
 	});
 
 	const sendVerificationEmail = (userId: UserId, email: string): Promise<void> => {
@@ -371,9 +377,11 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		/* Read once, then persisted on the user row (durable) AND emitted on the
 		 * user_created conversion event (30-day retention). */
 		const attribution = readClickAttribution(req);
+		const oauthClientId = oauthClientIdFrom(returnUrl);
+		const signupOAuthClientId = oauthClientId ?? null;
 
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
-			const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution });
+			const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution, signupOAuthClientId });
 			if (!created.ok) {
 				await signInExistingAccount({ email, password });
 				return;
@@ -397,7 +405,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						homepageVariant: readHomepageVariantSlug(req),
 						visitorId: req.visitorId,
 						pendingSaveId: consumePendingSaveId({ req, res }),
-						oauthClientId: oauthClientIdFrom(returnUrl),
+						oauthClientId,
 					},
 				),
 			);
@@ -411,7 +419,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution });
+		const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution, signupOAuthClientId });
 		if (!created.ok) {
 			await signInExistingAccount({ email, password });
 			return;
@@ -445,7 +453,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					homepageVariant: readHomepageVariantSlug(req),
 					visitorId: req.visitorId,
 					pendingSaveId: consumePendingSaveId({ req, res }),
-					oauthClientId: oauthClientIdFrom(returnUrl),
+					oauthClientId,
 				},
 			),
 		);
@@ -550,6 +558,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					checkoutSessionId,
 					paidNow: session.paymentStatus === "paid",
 					variant: pending.variant,
+					entrySource: pending.entrySource,
+					offer: pending.offer,
 				},
 			),
 		);
@@ -611,7 +621,13 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		await deps.markEmailVerified(verifyResult.email);
-		await sendWelcomeEmail(verifyResult.email);
+		const subscription = await deps.findSubscriptionByUserId(verifyResult.userId);
+		if (subscription?.status === "trialing") {
+			assert(subscription.trialEndsAt, "a trialing subscription row always carries trialEndsAt");
+			await sendWelcomeEmail({ email: verifyResult.email, userId: verifyResult.userId, tier: "trial", trialEndsAt: subscription.trialEndsAt });
+		} else {
+			await sendWelcomeEmail({ email: verifyResult.email, userId: verifyResult.userId, tier: "free" });
+		}
 
 		const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
 		if (sessionId) {

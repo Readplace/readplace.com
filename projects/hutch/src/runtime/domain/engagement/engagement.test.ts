@@ -96,6 +96,7 @@ async function subject(
 			emailVerified: true,
 			registeredAt: "2026-10-01T00:00:00.000Z",
 			displayName: undefined,
+			signupOAuthClientId: null,
 		}),
 		findUserContactByUserId: async () => contact,
 		getEffectiveAccess: async () =>
@@ -233,6 +234,7 @@ describe("starter eligibility and insertion", () => {
 					emailVerified: true,
 					registeredAt,
 					displayName: undefined,
+					signupOAuthClientId: null,
 				}),
 			},
 		});
@@ -258,6 +260,7 @@ describe("starter eligibility and insertion", () => {
 					email: "x",
 					emailVerified: true,
 					displayName: undefined,
+					signupOAuthClientId: null,
 				}),
 			},
 		],
@@ -302,6 +305,7 @@ describe("starter eligibility and insertion", () => {
 					registeredAt: "2026-10-01T00:00:00.000Z",
 					deletedAt: NOW.toISOString(),
 					displayName: undefined,
+					signupOAuthClientId: null,
 				}),
 			},
 		],

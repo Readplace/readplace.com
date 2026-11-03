@@ -21,6 +21,8 @@ describe("initInMemoryPendingSignup", () => {
 				email: "subscriber@example.com",
 				userId,
 				returnUrl: "/save",
+				entrySource: null,
+				offer: "none",
 			},
 			createdAt: 1735000000,
 		});
@@ -35,6 +37,27 @@ describe("initInMemoryPendingSignup", () => {
 		expect(second).toBeNull();
 	});
 
+	it("hands back the entry source and the offer the signup was stored with", async () => {
+		const { storePendingSignup, consumePendingSignup } = initInMemoryPendingSignup();
+		const checkoutSessionId = CheckoutSessionIdSchema.parse("cs_test_attribution");
+		await storePendingSignup({
+			checkoutSessionId,
+			signup: {
+				method: "existing-user-subscribe",
+				email: "attributed@example.com",
+				userId: UserIdSchema.parse("u-attributed"),
+				entrySource: "keep-panel",
+				offer: "first-year-49",
+			},
+			createdAt: 1735000000,
+		});
+
+		const consumed = await consumePendingSignup(checkoutSessionId);
+		assert(consumed, "consume should return the stored signup");
+		expect(consumed.entrySource).toBe("keep-panel");
+		expect(consumed.offer).toBe("first-year-49");
+	});
+
 	it("deletes every abandoned-checkout row for a user and leaves other users' rows intact", async () => {
 		const { storePendingSignup, consumePendingSignup, deleteByUser } = initInMemoryPendingSignup();
 		const targetUser = UserIdSchema.parse("u-del-target");
@@ -43,12 +66,12 @@ describe("initInMemoryPendingSignup", () => {
 		const otherSession = CheckoutSessionIdSchema.parse("cs_test_del_other");
 		await storePendingSignup({
 			checkoutSessionId: targetSession,
-			signup: { method: "existing-user-subscribe", email: "t@example.com", userId: targetUser },
+			signup: { method: "existing-user-subscribe", email: "t@example.com", userId: targetUser, entrySource: null, offer: "none" },
 			createdAt: 1,
 		});
 		await storePendingSignup({
 			checkoutSessionId: otherSession,
-			signup: { method: "existing-user-subscribe", email: "o@example.com", userId: otherUser },
+			signup: { method: "existing-user-subscribe", email: "o@example.com", userId: otherUser, entrySource: null, offer: "none" },
 			createdAt: 2,
 		});
 
@@ -69,12 +92,12 @@ describe("initInMemoryPendingSignup", () => {
 		const otherSession = CheckoutSessionIdSchema.parse("cs_test_del_keep");
 		await storePendingSignup({
 			checkoutSessionId: targetSession,
-			signup: { method: "existing-user-subscribe", email: "Deleted@Example.com", userId: staleUser },
+			signup: { method: "existing-user-subscribe", email: "Deleted@Example.com", userId: staleUser, entrySource: null, offer: "none" },
 			createdAt: 1,
 		});
 		await storePendingSignup({
 			checkoutSessionId: otherSession,
-			signup: { method: "existing-user-subscribe", email: "someone-else@example.com", userId: staleUser },
+			signup: { method: "existing-user-subscribe", email: "someone-else@example.com", userId: staleUser, entrySource: null, offer: "none" },
 			createdAt: 2,
 		});
 

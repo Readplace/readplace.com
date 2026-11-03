@@ -23,9 +23,13 @@ import type {
 	RevokeAllUserOAuthTokens,
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
-import type {
-	CreateCheckoutSession,
-	CheckoutSessionId,
+import {
+	CHECKOUT_OFFERS,
+	type CheckoutOffer,
+	type CheckoutSessionId,
+	type CreateCheckoutSession,
+	type SubscribePlansSource,
+	SubscribePlansSourceSchema,
 } from "@packages/provider-contracts/hosted-checkout";
 import {
 	BillingPlanSchema,
@@ -122,10 +126,6 @@ import {
 	isNativeSurface,
 	nativeSurfaceOf,
 } from "../../onboarding/native-client";
-import {
-	SUBSCRIBE_PLANS_SOURCES,
-	type SubscribePlansSource,
-} from "../../shared/subscribe-plans/subscribe-plans.component";
 import {
 	ACCOUNT_CONNECTED_APPS_ANCHOR,
 	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
@@ -376,7 +376,14 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			req,
 			buildPlansPageViewedEvent({ req, userId: req.userId, viewModel: outcome.viewModel, now }),
 		);
-		sendComponent(req, res, Base(PlansPage(outcome.viewModel), await deps.buildBannerState(req)));
+		sendComponent(
+			req,
+			res,
+			Base(
+				PlansPage(outcome.viewModel, { entrySource: entrySourceOf(req) ?? "plans-page" }),
+				await deps.buildBannerState(req),
+			),
+		);
 	});
 
 	router.get("/status", async (req: Request, res: Response) => {
@@ -784,6 +791,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			trialEndsAt: string | undefined;
 			variant: CheckoutVariant;
 			plan: BillingPlan;
+			offer: CheckoutOffer;
 		},
 	): Promise<{ id: CheckoutSessionId; url: string }> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -799,6 +807,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			trialEndsAt: params.trialEndsAt,
 		});
 
+		const entrySource = entrySourceOf(req);
+
 		await deps.storePendingSignup({
 			checkoutSessionId: checkout.id,
 			signup: {
@@ -809,6 +819,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				trialEndsAt: params.trialEndsAt,
 				variant: params.variant,
 				plan: params.plan,
+				entrySource,
+				offer: params.offer,
 			},
 			createdAt: deps.now().getTime(),
 		});
@@ -822,7 +834,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					variant: params.variant,
 					checkoutSessionId: checkout.id,
 					plan: params.plan,
-					entrySource: entrySourceOf(req),
+					entrySource,
+					offer: params.offer,
 				},
 			),
 		);
@@ -862,6 +875,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				trialEndsAt: trialEndToPreserve({ row, now: deps.now() }),
 				variant: CHECKOUT_VARIANTS.trialCheckout,
 				plan: chosenPlan ?? DEFAULT_BILLING_PLAN,
+				offer: CHECKOUT_OFFERS.none,
 			});
 			redirectFullPage(req, res, checkout.url);
 		},
@@ -879,6 +893,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					trialEndsAt: undefined,
 					variant: CHECKOUT_VARIANTS.cancelledResubscribe,
 					plan,
+					offer: CHECKOUT_OFFERS.none,
 				});
 				redirectFullPage(req, res, checkout.url);
 				return;
@@ -901,6 +916,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					trialEndsAt: undefined,
 					variant: CHECKOUT_VARIANTS.cardDeclineFallback,
 					plan,
+					offer: CHECKOUT_OFFERS.none,
 				});
 				redirectFullPage(req, res, checkout.url);
 				return;
@@ -992,8 +1008,6 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	return router;
 }
-
-const SubscribePlansSourceSchema = z.enum(SUBSCRIBE_PLANS_SOURCES);
 
 function entrySourceOf(req: Request): SubscribePlansSource | null {
 	const parsed = SubscribePlansSourceSchema.safeParse(req.query.utm_source);

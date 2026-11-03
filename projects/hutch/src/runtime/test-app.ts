@@ -42,6 +42,8 @@ import type {
 	SubscriptionLogEvent,
 	SubscriptionLogEventView,
 } from "./observability/subscription-events";
+import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 
 export type {
 	AdminBundle,
@@ -105,6 +107,11 @@ export interface SubscriptionEventsBundle {
 	events: SubscriptionLogEventView[];
 }
 
+export interface FunnelEventsBundle {
+	logger: HutchLogger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
+	events: (ActivationThresholdReachedEvent | LifecycleEmailSentEvent)[];
+}
+
 export interface TestAppResult {
 	app: Express;
 	auth: AuthBundle;
@@ -129,12 +136,14 @@ export interface TestAppResult {
 	conversions: ConversionsBundle;
 	analytics: AnalyticsBundle;
 	subscriptionEvents: SubscriptionEventsBundle;
+	funnelEvents: FunnelEventsBundle;
 }
 
 function flattenFixtureToAppDependencies(
 	fixture: TestAppFixture,
 	analyticsBundle: AnalyticsBundle,
 	subscriptionBundle: SubscriptionEventsBundle,
+	funnelBundle: FunnelEventsBundle,
 ): Parameters<typeof createApp>[0] {
 	const saveIdentityDeps = {
 		validateUrl: fixture.shared.validateSaveableUrl,
@@ -173,6 +182,7 @@ function flattenFixtureToAppDependencies(
 		destroyOAuthGrantSessions: fixture.auth.destroyOAuthGrantSessions,
 		markAccountDeleted: fixture.auth.markAccountDeleted,
 		countUsers: fixture.auth.countUsers,
+		countEarlyIntentionalSave: fixture.auth.countEarlyIntentionalSave,
 		markEmailVerified: fixture.auth.markEmailVerified,
 		markSessionEmailVerified: fixture.auth.markSessionEmailVerified,
 		setSessionReadlistFilter: fixture.auth.setSessionReadlistFilter,
@@ -365,6 +375,7 @@ function flattenFixtureToAppDependencies(
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,
 		subscriptionLogger: subscriptionBundle.logger,
+		funnelLogger: funnelBundle.logger,
 		analytics: analyticsBundle.logger,
 		authDiagnosticsLogger: noopLogger,
 		salt: "test-analytics-salt",
@@ -405,6 +416,12 @@ export function createTestApp(
 		logger: { info: captureSubscription, error: captureSubscription, warn: captureSubscription, debug: captureSubscription },
 		events: subscriptionLogEvents,
 	};
+	const funnelLogEvents: FunnelEventsBundle["events"] = [];
+	const captureFunnel = (data: ActivationThresholdReachedEvent | LifecycleEmailSentEvent) => { funnelLogEvents.push(data); };
+	const funnelBundle: FunnelEventsBundle = {
+		logger: { info: captureFunnel, error: captureFunnel, warn: captureFunnel, debug: captureFunnel },
+		events: funnelLogEvents,
+	};
 	const app = express()
 		.use(createViewerIdentityMiddleware({ edgeSecret: TEST_EDGE_SECRET }))
 		.use(createAnalyticsMiddleware({
@@ -414,7 +431,7 @@ export function createTestApp(
 			isStaticAssetPath: isStaticAssetRequestPath,
 			ownHost: new URL(fixture.shared.appOrigin).hostname,
 		}))
-		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle, subscriptionBundle), ...overrides }));
+		.use(createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle, subscriptionBundle, funnelBundle), ...overrides }));
 	return {
 		app,
 		auth: fixture.auth,
@@ -439,6 +456,7 @@ export function createTestApp(
 		conversions: fixture.conversions,
 		analytics: analyticsBundle,
 		subscriptionEvents: subscriptionBundle,
+		funnelEvents: funnelBundle,
 	};
 }
 

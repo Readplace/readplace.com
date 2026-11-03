@@ -369,7 +369,7 @@ describe("/account/password signed out", () => {
 describe("/account/password for an account with no password", () => {
 	async function signInWithGoogle(harness: Harness) {
 		const userId = UserIdSchema.parse("google-reader");
-		await harness.auth.createGoogleUser({ email: "google-reader@example.com", userId });
+		await harness.auth.createGoogleUser({ email: "google-reader@example.com", userId, signupOAuthClientId: null });
 		const sessionId = await harness.auth.createSession({ userId, emailVerified: true });
 		return { cookie: `hutch_sid=${sessionId}` };
 	}

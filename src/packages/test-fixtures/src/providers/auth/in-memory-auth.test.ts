@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { OAuthGrantIdSchema } from "@packages/domain/oauth";
+import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
 import type { UserId } from "@packages/domain/user";
 import { DisplayNameSchema, UserIdSchema, hashPassword, verifyPassword } from "@packages/domain/user";
 import { SESSION_TTL_SECONDS } from "@packages/web-session";
@@ -78,6 +78,7 @@ describe("initInMemoryAuth", () => {
 			const result = await auth.createGoogleUser({
 				email: "johndoe+promo@gmail.com",
 				userId: UserIdSchema.parse("google-dupe"),
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -92,12 +93,58 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("countEarlyIntentionalSave", () => {
+		const WINDOW_MS = 72 * 3_600_000;
+		const registeredUser = async () => {
+			const auth = makeAuth();
+			const created = await auth.createUserWithPasswordHash({
+				email: "early@example.com",
+				passwordHash: "stored",
+				attribution: undefined,
+				signupOAuthClientId: OAuthClientIdSchema.parse("hutch-firefox-extension"),
+			});
+			assert(created.ok, "the user must be created");
+			const user = await auth.findUserById(created.userId);
+			assert(user?.registeredAt, "a created user always has registeredAt");
+			return { auth, userId: created.userId, registeredAt: new Date(user.registeredAt) };
+		};
+
+		it("increments per call up to the window's edge and carries the signup details", async () => {
+			const { auth, userId, registeredAt } = await registeredUser();
+			const edge = new Date(registeredAt.getTime() + WINDOW_MS);
+
+			expect(await auth.countEarlyIntentionalSave({ userId, at: registeredAt })).toMatchObject({ inWindow: true, count: 1 });
+			expect(await auth.countEarlyIntentionalSave({ userId, at: edge })).toEqual({
+				inWindow: true,
+				count: 2,
+				registeredAt: registeredAt.toISOString(),
+				signupOAuthClientId: OAuthClientIdSchema.parse("hutch-firefox-extension"),
+			});
+		});
+
+		it("does not count a save past the window", async () => {
+			const { auth, userId, registeredAt } = await registeredUser();
+			const late = new Date(registeredAt.getTime() + WINDOW_MS + 1);
+
+			expect(await auth.countEarlyIntentionalSave({ userId, at: late })).toEqual({ inWindow: false });
+			expect(await auth.countEarlyIntentionalSave({ userId, at: registeredAt })).toMatchObject({ count: 1 });
+		});
+
+		it("reports an unknown user as out of the window", async () => {
+			const auth = makeAuth();
+
+			expect(await auth.countEarlyIntentionalSave({ userId: UserIdSchema.parse("nobody"), at: new Date() })).toEqual({
+				inWindow: false,
+			});
+		});
+	});
+
 	describe("createUserWithPasswordHash", () => {
 		it("creates a user from a precomputed hash", async () => {
 			const auth = makeAuth();
 			const passwordHash = await hashPassword("password123");
 
-			const result = await auth.createUserWithPasswordHash({ email: "hashed@example.com", passwordHash, attribution: undefined });
+			const result = await auth.createUserWithPasswordHash({ email: "hashed@example.com", passwordHash, attribution: undefined, signupOAuthClientId: null });
 
 			expect(result.ok).toBe(true);
 			const verified = await auth.verifyCredentials({ email: "hashed@example.com", password: "password123" });
@@ -109,7 +156,7 @@ describe("initInMemoryAuth", () => {
 			const passwordHash = await hashPassword("password123");
 			await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
 
-			const result = await auth.createUserWithPasswordHash({ email: "johndoe@gmail.com", passwordHash, attribution: undefined });
+			const result = await auth.createUserWithPasswordHash({ email: "johndoe@gmail.com", passwordHash, attribution: undefined, signupOAuthClientId: null });
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
 		});
@@ -508,7 +555,7 @@ describe("initInMemoryAuth", () => {
 			const auth = makeAuth();
 			const userId = UserIdSchema.parse("google-user-rt");
 			const before = Date.now();
-			await auth.createGoogleUser({ email: "google@example.com", userId });
+			await auth.createGoogleUser({ email: "google@example.com", userId, signupOAuthClientId: null });
 			const after = Date.now();
 
 			const result = await auth.findUserByEmail("google@example.com");
@@ -542,6 +589,7 @@ describe("initInMemoryAuth", () => {
 				email: "test@example.com",
 				emailVerified: false,
 				registeredAt: expect.any(String),
+				signupOAuthClientId: null,
 			});
 		});
 
@@ -595,6 +643,7 @@ describe("initInMemoryAuth", () => {
 				email: "test@example.com",
 				passwordHash: await hashPassword("password123"),
 				attribution: undefined,
+				signupOAuthClientId: null,
 			});
 			assert(created.ok, "User creation failed");
 			const user = await auth.findUserById(created.userId);
@@ -608,7 +657,7 @@ describe("initInMemoryAuth", () => {
 		it("reports no password for an account that signs in with Google", async () => {
 			const auth = makeAuth();
 			const userId = UserIdSchema.parse("google-user-123");
-			await auth.createGoogleUser({ email: "google@example.com", userId });
+			await auth.createGoogleUser({ email: "google@example.com", userId, signupOAuthClientId: null });
 
 			const status = await auth.findUserPasswordStatus(userId);
 
@@ -643,7 +692,7 @@ describe("initInMemoryAuth", () => {
 			const auth = makeAuth();
 			const userId = UserIdSchema.parse("google-user-123");
 
-			const result = await auth.createGoogleUser({ email: "google@example.com", userId });
+			const result = await auth.createGoogleUser({ email: "google@example.com", userId, signupOAuthClientId: null });
 
 			expect(result).toEqual({ ok: true, userId });
 			const lookup = await auth.findUserByEmail("google@example.com");
@@ -661,6 +710,7 @@ describe("initInMemoryAuth", () => {
 			const result = await auth.createGoogleUser({
 				email: "test@example.com",
 				userId: UserIdSchema.parse("other-id"),
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -671,11 +721,13 @@ describe("initInMemoryAuth", () => {
 			await auth.createGoogleUser({
 				email: "Google@Example.COM",
 				userId: UserIdSchema.parse("google-user-1"),
+				signupOAuthClientId: null,
 			});
 
 			const result = await auth.createGoogleUser({
 				email: "google@example.com",
 				userId: UserIdSchema.parse("google-user-2"),
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -686,6 +738,7 @@ describe("initInMemoryAuth", () => {
 			await auth.createGoogleUser({
 				email: "google-only@example.com",
 				userId: UserIdSchema.parse("google-user-only"),
+				signupOAuthClientId: null,
 			});
 
 			const result = await auth.verifyCredentials({
@@ -694,6 +747,60 @@ describe("initInMemoryAuth", () => {
 			});
 
 			expect(result).toEqual({ ok: false, reason: "invalid-credentials" });
+		});
+	});
+
+	describe("signupOAuthClientId", () => {
+		const clientId = OAuthClientIdSchema.parse("ios-app");
+
+		it("stores the client a hashed-password signup came through", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUserWithPasswordHash({
+				email: "hashed-client@example.com",
+				passwordHash: "hashed",
+				attribution: undefined,
+				signupOAuthClientId: clientId,
+			});
+			assert(created.ok, "User creation failed");
+
+			const user = await auth.findUserById(created.userId);
+			assert(user, "user must be returned");
+			expect(user.signupOAuthClientId).toBe("ios-app");
+		});
+
+		it("stores the client a Google signup came through", async () => {
+			const auth = makeAuth();
+			const userId = UserIdSchema.parse("google-client");
+			await auth.createGoogleUser({ email: "google-client@example.com", userId, signupOAuthClientId: clientId });
+
+			const user = await auth.findUserById(userId);
+			assert(user, "user must be returned");
+			expect(user.signupOAuthClientId).toBe("ios-app");
+		});
+
+		it("stores the client an Apple signup came through", async () => {
+			const auth = makeAuth();
+			const userId = UserIdSchema.parse("apple-client");
+			await auth.createAppleUser({
+				email: "apple-client@example.com",
+				userId,
+				appleRefreshToken: "apple-refresh-123",
+				signupOAuthClientId: clientId,
+			});
+
+			const user = await auth.findUserById(userId);
+			assert(user, "user must be returned");
+			expect(user.signupOAuthClientId).toBe("ios-app");
+		});
+
+		it("holds no client for a user made through createUser", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "plain@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			const user = await auth.findUserById(created.userId);
+			assert(user, "user must be returned");
+			expect(user.signupOAuthClientId).toBeNull();
 		});
 	});
 
@@ -706,6 +813,7 @@ describe("initInMemoryAuth", () => {
 				email: "apple@example.com",
 				userId,
 				appleRefreshToken: "apple-refresh-123",
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: true, userId });
@@ -725,6 +833,7 @@ describe("initInMemoryAuth", () => {
 				email: "test@example.com",
 				userId: UserIdSchema.parse("other-id"),
 				appleRefreshToken: "apple-refresh-dup",
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -736,12 +845,14 @@ describe("initInMemoryAuth", () => {
 				email: "Apple@Example.COM",
 				userId: UserIdSchema.parse("apple-user-1"),
 				appleRefreshToken: "apple-refresh-1",
+				signupOAuthClientId: null,
 			});
 
 			const result = await auth.createAppleUser({
 				email: "apple@example.com",
 				userId: UserIdSchema.parse("apple-user-2"),
 				appleRefreshToken: "apple-refresh-2",
+				signupOAuthClientId: null,
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
@@ -756,6 +867,7 @@ describe("initInMemoryAuth", () => {
 				email: "apple@example.com",
 				userId,
 				appleRefreshToken: "apple-refresh-123",
+				signupOAuthClientId: null,
 			});
 
 			expect(await auth.findAppleRefreshTokenByUserId(userId)).toBe("apple-refresh-123");
@@ -782,6 +894,7 @@ describe("initInMemoryAuth", () => {
 				email: "apple@example.com",
 				userId,
 				appleRefreshToken: "apple-refresh-old",
+				signupOAuthClientId: null,
 			});
 
 			await auth.saveAppleRefreshToken({
@@ -818,7 +931,7 @@ describe("initInMemoryAuth", () => {
 		it("reports emailVerified=true for Google users", async () => {
 			const auth = makeAuth();
 			const userId = UserIdSchema.parse("google-contact");
-			await auth.createGoogleUser({ email: "g@example.com", userId });
+			await auth.createGoogleUser({ email: "g@example.com", userId, signupOAuthClientId: null });
 
 			const contact = await auth.findUserContactByUserId(userId);
 
@@ -867,6 +980,7 @@ describe("initInMemoryAuth", () => {
 				appearance: undefined,
 				displayName: undefined,
 				deletedAt: undefined,
+				signupOAuthClientId: null,
 			});
 		});
 
@@ -889,6 +1003,7 @@ describe("initInMemoryAuth", () => {
 				appearance: undefined,
 				displayName: undefined,
 				deletedAt: undefined,
+				signupOAuthClientId: null,
 			});
 		});
 	});

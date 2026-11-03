@@ -285,6 +285,7 @@ interface McpRequestContext {
 	readonly userId: AuthenticatedUserId;
 	readonly oauthClientId: string;
 	readonly uaClient: McpUaClient;
+	readonly recordSaveRefused: () => void;
 }
 
 type JsonRpcId = string | number | null;
@@ -1207,6 +1208,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 
 		if (access.state !== "ok" && PAYWALLED_TOOLS.has(parsed.data.name)) {
 			record(GATE_OUTCOMES[access.state]);
+			if (access.state === "inactive" && parsed.data.name === "save_link") context.recordSaveRefused();
 			return success(id, toolError(access.message));
 		}
 

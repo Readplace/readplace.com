@@ -199,6 +199,37 @@ describe("MCP transport routes", () => {
 		expect(response.headers.allow).toBe("POST");
 	});
 
+	describe("save_refused", () => {
+		it("records an inactive save_link at the JSON-RPC status with the caller's user id", async () => {
+			const { app, captured } = buildObservedApp({
+				resolveToolAccess: async () => ({ state: "inactive", message: "lapsed" }),
+			});
+
+			const response = await post(app, {
+				jsonrpc: "2.0",
+				id: 1,
+				method: "tools/call",
+				params: { name: "save_link", arguments: { url: "https://example.com/a" } },
+			});
+
+			expect(response.status).toBe(200);
+			expect(captured).toEqual([
+				{
+					stream: "analytics",
+					event: "save_refused",
+					timestamp: "2026-09-12T04:47:00.000Z",
+					path: "/mcp",
+					code: "no_write_access",
+					status: 200,
+					client: "mcp",
+					is_authenticated: 1,
+					user_id: userId,
+					visitor_hash: expect.any(String),
+				},
+			]);
+		});
+	});
+
 	describe("refusal analytics", () => {
 		it("records a missing bearer with the classified client and never the raw User-Agent", async () => {
 			const { app, captured } = buildObservedApp();

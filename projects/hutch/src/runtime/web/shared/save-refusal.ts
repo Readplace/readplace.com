@@ -31,7 +31,7 @@ export function initObserveSaveRefusal(deps: {
 }): RequestHandler {
 	return (req, res, next) => {
 		res.on("finish", () => {
-			if (res.statusCode < 400) return;
+			if (res.statusCode < 400 && !refusalTags.has(res)) return;
 			deps.recordUngatedAnalyticsEvent(
 				buildSaveRefusedEvent(
 					{ now: deps.now, salt: deps.salt },

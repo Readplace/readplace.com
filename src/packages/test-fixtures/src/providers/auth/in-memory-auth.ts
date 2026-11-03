@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import type { ReadlistFilter } from "@packages/domain/article";
-import type { OAuthGrantId } from "@packages/domain/oauth";
+import type { OAuthClientId, OAuthGrantId } from "@packages/domain/oauth";
 import type { AppearancePreference, DisplayName, UserId } from "@packages/domain/user";
 import {
 	UserIdSchema,
@@ -11,6 +11,7 @@ import {
 } from "@packages/domain/user";
 import type {
 	CloseUserAccount,
+	CountEarlyIntentionalSave,
 	CountUsers,
 	CreateAppleUser,
 	CreateGoogleUser,
@@ -57,6 +58,7 @@ interface StoredUser {
 	attribution?: UserAcquisitionAttribution;
 	appearance?: AppearancePreference;
 	displayName?: DisplayName;
+	signupOAuthClientId: OAuthClientId | null;
 	queueDigestOptOutAt?: string;
 }
 
@@ -67,6 +69,8 @@ interface StoredSession {
 	readlistFilter?: ReadlistFilter;
 	oauthGrantId: OAuthGrantId | undefined;
 }
+
+const EARLY_INTENTIONAL_SAVE_WINDOW_MS = 72 * 3_600_000;
 
 function liveUserRow<T extends { deletedAt?: string }>(row: T | undefined): T | undefined {
 	return row && !row.deletedAt ? row : undefined;
@@ -94,6 +98,7 @@ export function initInMemoryAuth(opts: {
 	closeUserAccount: CloseUserAccount;
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
+	countEarlyIntentionalSave: CountEarlyIntentionalSave;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
@@ -118,6 +123,7 @@ export function initInMemoryAuth(opts: {
 	const users = new Map<string, StoredUser>();
 	const sessions = new Map<string, StoredSession>();
 	const gmailClaims = new Map<string, UserId>();
+	const earlyIntentionalSaves = new Map<UserId, number>();
 
 	/** Reserves the identity atomically: rejects when either the delivery key or
 	 * the Gmail identity claim is already taken, and reserves the claim on success.
@@ -152,12 +158,13 @@ export function initInMemoryAuth(opts: {
 			emailVerified: false,
 			registeredAt: at,
 			attribution,
+			signupOAuthClientId: null,
 		});
 
 		return { ok: true, userId };
 	};
 
-	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash, attribution }) => {
+	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash, attribution, signupOAuthClientId }) => {
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const normalizedEmail = reserveIdentity(email, userId);
 		if (normalizedEmail === null) {
@@ -174,6 +181,7 @@ export function initInMemoryAuth(opts: {
 			emailVerified: false,
 			registeredAt: at,
 			attribution,
+			signupOAuthClientId,
 		});
 
 		return { ok: true, userId };
@@ -187,11 +195,13 @@ export function initInMemoryAuth(opts: {
 		userId,
 		attribution,
 		appleRefreshToken,
+		signupOAuthClientId,
 	}: {
 		email: string;
 		userId: UserId;
 		attribution?: UserAcquisitionAttribution;
 		appleRefreshToken?: string;
+		signupOAuthClientId: OAuthClientId | null;
 	}) => {
 		const normalizedEmail = reserveIdentity(email, userId);
 		if (normalizedEmail === null) {
@@ -207,6 +217,7 @@ export function initInMemoryAuth(opts: {
 			emailVerified: true,
 			registeredAt: new Date().toISOString(),
 			attribution,
+			signupOAuthClientId,
 		});
 
 		return { ok: true as const, userId };
@@ -391,11 +402,26 @@ export function initInMemoryAuth(opts: {
 					registeredAt: user.registeredAt,
 					appearance: user.appearance,
 					displayName: user.displayName,
+					signupOAuthClientId: user.signupOAuthClientId,
 					deletedAt: user.deletedAt,
 				};
 			}
 		}
 		return null;
+	};
+
+	const countEarlyIntentionalSave: CountEarlyIntentionalSave = async ({ userId, at }) => {
+		const user = [...users.values()].find((candidate) => candidate.id === userId);
+		const windowStart = new Date(at.getTime() - EARLY_INTENTIONAL_SAVE_WINDOW_MS).toISOString();
+		if (!user || user.registeredAt < windowStart) return { inWindow: false };
+		const count = (earlyIntentionalSaves.get(userId) ?? 0) + 1;
+		earlyIntentionalSaves.set(userId, count);
+		return {
+			inWindow: true,
+			count,
+			registeredAt: user.registeredAt,
+			signupOAuthClientId: user.signupOAuthClientId,
+		};
 	};
 
 	const findUserPasswordStatus: FindUserPasswordStatus = async (userId) => {
@@ -474,6 +500,7 @@ export function initInMemoryAuth(opts: {
 		closeUserAccount,
 		markAccountDeleted,
 		countUsers,
+		countEarlyIntentionalSave,
 		markEmailVerified,
 		markSessionEmailVerified,
 		setSessionReadlistFilter,

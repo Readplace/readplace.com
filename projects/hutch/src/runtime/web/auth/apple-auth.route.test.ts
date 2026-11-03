@@ -811,6 +811,11 @@ describe("Apple auth routes", () => {
 			assert(event, "Apple signup must emit a conversion event");
 			expect(event.tier).toBe("free");
 			expect(event.oauth_client_id).toBe("ios-app");
+			const signedUp = await harness.auth.findUserByEmail("consent-apple@example.com");
+			assert(signedUp, "signup must create the user");
+			const stored = await harness.auth.findUserById(signedUp.userId);
+			assert(stored, "signup must create the user");
+			expect(stored.signupOAuthClientId).toBe("ios-app");
 			const emitted = JSON.stringify(event);
 			expect(emitted).not.toContain("xyz");
 			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
@@ -838,7 +843,83 @@ describe("Apple auth routes", () => {
 			const event = harness.conversions.events.find((e) => e.method === "apple" && e.tier === "trial");
 			assert(event, "Apple trial signup must emit a conversion event");
 			expect(event.oauth_client_id).toBe("hutch-firefox-extension");
+			const signedUp = await harness.auth.findUserByEmail("consent-apple-trial@example.com");
+			assert(signedUp, "signup must create the user");
+			const stored = await harness.auth.findUserById(signedUp.userId);
+			assert(stored, "signup must create the user");
+			expect(stored.signupOAuthClientId).toBe("hutch-firefox-extension");
 			expect(JSON.stringify(event)).not.toContain("xyz");
 		}, 30000);
+	});
+
+	describe("lifecycle_email_sent for the welcome email", () => {
+		async function exhaustFoundingAllocation(harness: ReturnType<typeof useApp>): Promise<void> {
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+		}
+
+		function callback(harness: ReturnType<typeof useApp>) {
+			const state = signState(freshState());
+			return postCallback(harness.server, {
+				state,
+				cookie: `hutch_astate=${encodeURIComponent(state)}`,
+			});
+		}
+
+		it("records one send for a trial signup", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "trial-apple@example.com" })) });
+			await exhaustFoundingAllocation(harness);
+
+			await callback(harness);
+
+			const lookup = await harness.auth.findUserByEmail("trial-apple@example.com");
+			assert(lookup, "trial Apple signup must persist a user");
+			expect(harness.funnelEvents.events).toEqual([
+				expect.objectContaining({
+					event: "lifecycle_email_sent",
+					user_id: lookup.userId,
+					kind: "welcome",
+					trial_day: 1,
+					utm_source: "welcome-email",
+					delivery: "automated",
+				}),
+			]);
+		});
+
+		it("records nothing for a free-tier signup", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, apple: appleWith(stubExchange({ email: "free-apple@example.com" })) });
+
+			await callback(harness);
+
+			expect(harness.email.getSentEmails().map((sent) => sent.subject)).toEqual(["Welcome to Readplace"]);
+			expect(harness.funnelEvents.events).toEqual([]);
+		});
+
+		it("records nothing and logs when the welcome email fails, and the signup still succeeds", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const loggedErrors: string[] = [];
+			const harness = useApp({
+				...fixture,
+				apple: appleWith(stubExchange({ email: "trial-fail-apple@example.com" })),
+				email: {
+					...fixture.email,
+					sendEmail: async () => { throw new Error("Email service down"); },
+				},
+				shared: {
+					...fixture.shared,
+					logError: (message) => { loggedErrors.push(message); },
+				},
+			});
+			await exhaustFoundingAllocation(harness);
+
+			const response = await callback(harness);
+
+			expect(response.status).toBe(303);
+			expect(loggedErrors).toEqual(["[Email] Welcome email failed"]);
+			expect(harness.funnelEvents.events).toEqual([]);
+		});
 	});
 });

@@ -20,12 +20,13 @@ import type { RecordEngagementActivity } from "@packages/provider-contracts/enga
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { createRateLimitMiddleware } from "../../middleware/rate-limit";
+import { initObserveSaveRefusal } from "../../shared/save-refusal";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "@packages/save-article";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
-import { type AnalyticsEvent, hashIp, type RecordAudienceEvent } from "@packages/web-analytics";
+import { type AnalyticsEvent, hashIp, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {
@@ -51,6 +52,7 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	recordEngagementActivity: RecordEngagementActivity;
 	logError: (message: string, error?: Error) => void;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
+	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
@@ -292,6 +294,16 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const page = parseImportPage(req.query);
 		res.redirect(303, page > 1 ? `/import/${parsedId.data}?page=${page}` : `/import/${parsedId.data}`);
 	});
+
+	router.post(
+		"/:id/commit",
+		initObserveSaveRefusal({
+			recordUngatedAnalyticsEvent: deps.recordUngatedAnalyticsEvent,
+			now: deps.now,
+			salt: deps.salt,
+			path: "/import/:id/commit",
+		}),
+	);
 
 	router.post("/:id/commit", redirectAnonymousToSignup, deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - redirectAnonymousToSignup guarantees an authenticated identity here");

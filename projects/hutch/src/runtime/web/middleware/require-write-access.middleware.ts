@@ -2,9 +2,11 @@ import assert from "node:assert";
 import type { RequestHandler } from "express";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 import { resolveWriteAccess } from "@packages/subscription-access";
+import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { SIREN_MEDIA_TYPE } from "../api/siren";
 import { subscriptionInactiveSirenError } from "../api/subscription-inactive-siren";
 import { wantsSiren } from "../content-negotiation";
+import { tagSaveRefusal } from "../shared/save-refusal";
 
 /**
  * Save-gate for an inactive (read-only) subscription. Content-negotiated like the
@@ -25,6 +27,7 @@ export function initRequireWriteAccess(deps: {
 			next();
 			return;
 		}
+		tagSaveRefusal(res, SAVE_REFUSAL_CODES.noWriteAccess);
 		if (wantsSiren(req)) {
 			res.status(402).type(SIREN_MEDIA_TYPE).json(subscriptionInactiveSirenError());
 			return;

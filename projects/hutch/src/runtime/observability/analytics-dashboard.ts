@@ -18,6 +18,7 @@ import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
 	PAGE_EXIT_KINDS,
+	LIFECYCLE_EMAIL_EVENTS,
 	LOG_GROUPS,
 	METRICS,
 	QUEUE_DIGEST_EVENTS,
@@ -1110,7 +1111,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	widgets.push(
 		...Object.values(ANALYTICS_METRIC_FILTERS).map((filter, index) => ({
 			type: "metric",
-			x: index * 8, y: 318, width: 8, height: 4,
+			x: index * 8, y: 334, width: 8, height: 4,
 			properties: {
 				region,
 				title: filter.widgetTitle,
@@ -1256,6 +1257,57 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats sum(screens) as screens_shown, count(*) as visitors_shown, sum(signup_clicks > 0) as visitors_clicked_create_account, sum(login_clicks > 0) as visitors_clicked_log_in, sum(last_signup_ms > first_seen_ms) as signups_after_screen",
 			].join(" "),
 			x: 0, y: 312, width: 24, height: 6,
+			view: "table",
+		}),
+	);
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Checkout by source and offer",
+			logGroupNames: analyticsSource,
+			query: [
+				`filter stream = "${STREAMS.subscriptions}" and event in ["${SUBSCRIPTION_EVENTS.checkoutStarted}","${SUBSCRIPTION_EVENTS.checkoutCompleted}"]`,
+				...exclude,
+				'| stats count_distinct(user_id) as users by event, coalesce(entry_source, "-") as source, coalesce(offer, "-") as offer_applied',
+			].join(" "),
+			x: 0, y: 318, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Activation threshold by signup client",
+			logGroupNames: analyticsSource,
+			query: [
+				`filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.activationThresholdReached}"`,
+				...exclude,
+				'| stats count_distinct(user_id) as users, avg(hours_since_signup) as avg_hours by coalesce(oauth_client_id, "web/email") as client',
+			].join(" "),
+			x: 12, y: 318, width: 12, height: 8,
+			view: "bar",
+		}),
+		logWidget({
+			region,
+			title: "Trial emails sent per day by kind",
+			logGroupNames: analyticsSource,
+			query: [
+				`filter stream = "${STREAMS.analytics}" and event = "${LIFECYCLE_EMAIL_EVENTS.sent}"`,
+				...exclude,
+				"| stats count(*) as sends by bin(1d), kind",
+			].join(" "),
+			x: 0, y: 326, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+		logWidget({
+			region,
+			title: "Keep offer shown vs clicked",
+			logGroupNames: analyticsSource,
+			query: [
+				`filter stream = "${STREAMS.analytics}" and event in ["${ANALYTICS_EVENTS.keepOfferShown}","${ANALYTICS_EVENTS.keepOfferClicked}"]`,
+				...exclude,
+				"| stats count_distinct(user_id) as users by event, surface",
+			].join(" "),
+			x: 12, y: 326, width: 12, height: 8,
 			view: "table",
 		}),
 	);

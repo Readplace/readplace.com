@@ -48,6 +48,8 @@ describe("initDynamoDbPendingSignup", () => {
 			await storePendingSignup({
 				checkoutSessionId: SESSION_ID,
 				signup: {
+					entrySource: null,
+					offer: "none",
 					method: "existing-user-subscribe",
 					email: "e@b.com",
 					userId: USER_ID,
@@ -62,6 +64,7 @@ describe("initDynamoDbPendingSignup", () => {
 				email: "e@b.com",
 				createdAt: 300,
 				userId: USER_ID,
+				offer: "none",
 				returnUrl: "/queue",
 			});
 		});
@@ -77,6 +80,8 @@ describe("initDynamoDbPendingSignup", () => {
 			await storePendingSignup({
 				checkoutSessionId: SESSION_ID,
 				signup: {
+					entrySource: null,
+					offer: "none",
 					method: "existing-user-subscribe",
 					email: "e@b.com",
 					userId: USER_ID,
@@ -92,6 +97,7 @@ describe("initDynamoDbPendingSignup", () => {
 				email: "e@b.com",
 				createdAt: 300,
 				userId: USER_ID,
+				offer: "none",
 				returnUrl: "/queue",
 				trialEndsAt: "2026-07-24T00:00:00.000Z",
 			});
@@ -108,6 +114,8 @@ describe("initDynamoDbPendingSignup", () => {
 			await storePendingSignup({
 				checkoutSessionId: SESSION_ID,
 				signup: {
+					entrySource: null,
+					offer: "none",
 					method: "existing-user-subscribe",
 					email: "e@b.com",
 					userId: USER_ID,
@@ -122,6 +130,7 @@ describe("initDynamoDbPendingSignup", () => {
 				email: "e@b.com",
 				createdAt: 300,
 				userId: USER_ID,
+				offer: "none",
 				variant: "cancelled_resubscribe",
 			});
 		});
@@ -137,6 +146,8 @@ describe("initDynamoDbPendingSignup", () => {
 			await storePendingSignup({
 				checkoutSessionId: SESSION_ID,
 				signup: {
+					entrySource: null,
+					offer: "none",
 					method: "existing-user-subscribe",
 					email: "e@b.com",
 					userId: USER_ID,
@@ -151,7 +162,39 @@ describe("initDynamoDbPendingSignup", () => {
 				email: "e@b.com",
 				createdAt: 300,
 				userId: USER_ID,
+				offer: "none",
 				plan: "monthly",
+			});
+		});
+
+		it("persists the entry source and the offer so the completion can be attributed to what opened the checkout", async () => {
+			const { client, inputs } = createClient(() => ({}));
+			const { storePendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			await storePendingSignup({
+				checkoutSessionId: SESSION_ID,
+				signup: {
+					entrySource: "keep-panel",
+					offer: "first-year-49",
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+				},
+				createdAt: 300,
+			});
+
+			expect(inputs[0]?.Item).toEqual({
+				checkoutSessionId: SESSION_ID,
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				createdAt: 300,
+				userId: USER_ID,
+				entrySource: "keep-panel",
+				offer: "first-year-49",
 			});
 		});
 
@@ -166,6 +209,8 @@ describe("initDynamoDbPendingSignup", () => {
 			await storePendingSignup({
 				checkoutSessionId: SESSION_ID,
 				signup: {
+					entrySource: null,
+					offer: "none",
 					method: "existing-user-subscribe",
 					email: "e@b.com",
 					userId: USER_ID,
@@ -179,6 +224,7 @@ describe("initDynamoDbPendingSignup", () => {
 				email: "e@b.com",
 				createdAt: 300,
 				userId: USER_ID,
+				offer: "none",
 			});
 		});
 	});
@@ -216,6 +262,8 @@ describe("initDynamoDbPendingSignup", () => {
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toEqual({
+				entrySource: null,
+				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
@@ -241,6 +289,8 @@ describe("initDynamoDbPendingSignup", () => {
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toEqual({
+				entrySource: null,
+				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
@@ -266,6 +316,8 @@ describe("initDynamoDbPendingSignup", () => {
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toEqual({
+				entrySource: null,
+				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
@@ -292,6 +344,8 @@ describe("initDynamoDbPendingSignup", () => {
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toEqual({
+				entrySource: null,
+				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
@@ -318,6 +372,8 @@ describe("initDynamoDbPendingSignup", () => {
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toEqual({
+				entrySource: null,
+				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
@@ -344,6 +400,8 @@ describe("initDynamoDbPendingSignup", () => {
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toEqual({
+				entrySource: null,
+				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,
@@ -369,6 +427,64 @@ describe("initDynamoDbPendingSignup", () => {
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toEqual({
+				entrySource: null,
+				offer: null,
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
+			});
+		});
+
+		it("reconstructs the entry source and the offer of a row that carries them", async () => {
+			const { client } = createClient(() => ({
+				Attributes: {
+					checkoutSessionId: SESSION_ID,
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					entrySource: "day3-email",
+					offer: "first-year-49",
+				},
+			}));
+			const { consumePendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			const result = await consumePendingSignup(SESSION_ID);
+
+			expect(result).toEqual({
+				entrySource: "day3-email",
+				offer: "first-year-49",
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
+			});
+		});
+
+		it("reads an unknown entry source and an unknown offer as nulls instead of throwing, because the row is already deleted by then", async () => {
+			const { client } = createClient(() => ({
+				Attributes: {
+					checkoutSessionId: SESSION_ID,
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					entrySource: "a_source_from_the_future",
+					offer: "an_offer_from_the_future",
+				},
+			}));
+			const { consumePendingSignup } = initDynamoDbPendingSignup({
+				client,
+				tableName: TABLE,
+				logger: noopLogger,
+			});
+
+			const result = await consumePendingSignup(SESSION_ID);
+
+			expect(result).toEqual({
+				entrySource: null,
+				offer: null,
 				method: "existing-user-subscribe",
 				email: "e@b.com",
 				userId: USER_ID,

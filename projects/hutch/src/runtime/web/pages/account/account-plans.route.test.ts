@@ -285,6 +285,30 @@ describe("GET /account/plans (trialing, the trial can still be kept)", () => {
 		expect(response.status).toBe(200);
 		expect(sideEffects).toEqual([]);
 	});
+
+	it.each([
+		["keeps a known source on the checkout form", "founder-note", "founder-note"],
+		["falls back to the plans page for a source no plan surface knows", "newsletter", "plans-page"],
+	])("%s while the view records the raw value", async (_name, utmSource, formSource) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await signedInReader(harness, `plans-source-${utmSource}@example.com`);
+		harness.subscriptionProviders.seedRow(
+			subscriptionRow(userId, {
+				status: "trialing",
+				trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+			}),
+		);
+
+		const response = await agent.get(`/account/plans?utm_source=${utmSource}`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const form = doc.querySelector('[data-test-plans-page] [data-test-form="subscribe-plans"]');
+		assert(form, "the plans page must render its plan form");
+		const action = new URL(form.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect(action.searchParams.get("utm_source")).toBe(formSource);
+		expect(plansPageViews(harness).map((view) => view.utm_source)).toEqual([utmSource]);
+	});
 });
 
 describe("GET /account/plans (the first charge is today)", () => {

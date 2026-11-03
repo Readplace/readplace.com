@@ -7,14 +7,16 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
 import { UserIdSchema, normalizeEmail } from "@packages/domain/user";
 import {
+	CheckoutOfferSchema,
 	CheckoutSessionIdSchema,
 	CheckoutVariantSchema,
+	SubscribePlansSourceSchema,
 } from "@packages/provider-contracts/hosted-checkout";
 import { BillingPlanSchema } from "@packages/provider-contracts/subscription-providers";
 import type {
 	ConsumePendingSignup,
+	ConsumedPendingSignup,
 	DeletePendingSignupsByUser,
-	PendingSignup,
 	StorePendingSignup,
 } from "@packages/provider-contracts/pending-signup";
 
@@ -34,6 +36,8 @@ const PendingSignupRow = z.object({
 	 * leftover row must not throw during the post-delete parse. Narrowed on read. */
 	variant: dynamoField(z.string()),
 	plan: dynamoField(z.string()),
+	entrySource: dynamoField(z.string()),
+	offer: dynamoField(z.string()),
 	createdAt: dynamoField(z.number()),
 });
 
@@ -78,7 +82,9 @@ export function initDynamoDbPendingSignup(deps: {
 				...(signup.returnUrl ? { returnUrl: signup.returnUrl } : {}),
 				...(signup.trialEndsAt ? { trialEndsAt: signup.trialEndsAt } : {}),
 				...(signup.variant ? { variant: signup.variant } : {}),
-				...(signup.plan ? { plan: signup.plan } : {})
+				...(signup.plan ? { plan: signup.plan } : {}),
+				...(signup.entrySource ? { entrySource: signup.entrySource } : {}),
+				offer: signup.offer,
 			},
 		});
 	};
@@ -103,7 +109,9 @@ export function initDynamoDbPendingSignup(deps: {
 		const trialEndsAt = Attributes.trialEndsAt ?? undefined;
 		const variant = CheckoutVariantSchema.safeParse(Attributes.variant);
 		const plan = BillingPlanSchema.safeParse(Attributes.plan);
-		const signup: PendingSignup = {
+		const entrySource = SubscribePlansSourceSchema.safeParse(Attributes.entrySource);
+		const offer = CheckoutOfferSchema.safeParse(Attributes.offer);
+		const signup: ConsumedPendingSignup = {
 			method: "existing-user-subscribe",
 			email: Attributes.email,
 			userId,
@@ -111,6 +119,8 @@ export function initDynamoDbPendingSignup(deps: {
 			...(trialEndsAt ? { trialEndsAt } : {}),
 			...(variant.success ? { variant: variant.data } : {}),
 			...(plan.success ? { plan: plan.data } : {}),
+			entrySource: entrySource.success ? entrySource.data : null,
+			offer: offer.success ? offer.data : null,
 		};
 		return signup;
 	};

@@ -776,6 +776,11 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(conversions.events[0]).toMatchObject({ tier: "free", oauth_client_id: "ios-app" });
+			const signedUp = await harness.auth.findUserByEmail("consent-signup@example.com");
+			assert(signedUp, "signup must create the user");
+			const stored = await harness.auth.findUserById(signedUp.userId);
+			assert(stored, "signup must create the user");
+			expect(stored.signupOAuthClientId).toBe("ios-app");
 			const emitted = JSON.stringify(conversions.events[0]);
 			expect(emitted).not.toContain("abc123");
 			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
@@ -806,6 +811,11 @@ describe("Auth routes", () => {
 				tier: "trial",
 				oauth_client_id: "hutch-chrome-extension",
 			});
+			const signedUp = await harness.auth.findUserByEmail("consent-trial@example.com");
+			assert(signedUp, "signup must create the user");
+			const stored = await harness.auth.findUserById(signedUp.userId);
+			assert(stored, "signup must create the user");
+			expect(stored.signupOAuthClientId).toBe("hutch-chrome-extension");
 			const emitted = JSON.stringify(conversions.events[0]);
 			expect(emitted).not.toContain("abc123");
 			expect(emitted).not.toContain("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
@@ -823,6 +833,11 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(conversions.events[0]).not.toHaveProperty("oauth_client_id");
+			const signedUp = await harness.auth.findUserByEmail("organic-conversion@example.com");
+			assert(signedUp, "signup must create the user");
+			const stored = await harness.auth.findUserById(signedUp.userId);
+			assert(stored, "signup must create the user");
+			expect(stored.signupOAuthClientId).toBeNull();
 		});
 
 		it("persists the hutch_click acquisition attribution on the user row at signup", async () => {
@@ -1133,7 +1148,7 @@ describe("Auth routes", () => {
 
 		it("shows the same already-registered error for an account that signed up with Google and has no password", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await harness.auth.createGoogleUser({ email: "google-user@example.com", userId: UserIdSchema.parse("user_google") });
+			await harness.auth.createGoogleUser({ email: "google-user@example.com", userId: UserIdSchema.parse("user_google"), signupOAuthClientId: null });
 
 			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "google-user@example.com",

@@ -8,6 +8,7 @@ import { initDynamoDbSubscriptionProviders } from "./providers/subscription-prov
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initSendTrialFeedbackEmailHandler } from "./send-trial-feedback-email/send-trial-feedback-email-handler";
+import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import { requireEnv } from "@packages/require-env";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -61,5 +62,9 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	appOrigin,
 	now: () => new Date(),
 	logger: HutchLogger.from(consoleLogger),
+	emitLifecycleEmailSent: initEmitLifecycleEmailSent({
+		logger: HutchLogger.fromJSON<LifecycleEmailSentEvent>(),
+		now: () => new Date(),
+	}),
 });
 /* c8 ignore stop */

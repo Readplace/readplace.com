@@ -10,10 +10,13 @@ import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import {
 	type AnalyticsEvent,
 	buildMcpRequestRefusedEvent,
+	buildSaveRefusedEvent,
 	MCP_REQUEST_REFUSAL_REASONS,
 	type McpRequestRefusalReason,
 	mcpUaClientOf,
 	type RecordUngatedEvent,
+	SAVE_CLIENTS,
+	SAVE_REFUSAL_CODES,
 } from "@packages/web-analytics";
 import type { McpServer } from "./mcp-server";
 import { MCP_PROTOCOL_VERSION, MCP_RESOURCE_METADATA_PATH } from "./protocol";
@@ -154,6 +157,20 @@ export function initMcpRoutes(deps: McpRoutesDeps): Router {
 				userId: req.userId,
 				oauthClientId,
 				uaClient: mcpUaClientOf(req.get("user-agent")),
+				recordSaveRefused: () => {
+					deps.recordUngatedAnalyticsEvent(
+						buildSaveRefusedEvent(
+							{ now: deps.now, salt: deps.salt },
+							{
+								req,
+								path: "/mcp",
+								status: 200,
+								code: SAVE_REFUSAL_CODES.noWriteAccess,
+								client: SAVE_CLIENTS.mcp,
+							},
+						),
+					);
+				},
 			});
 			if (!response) {
 				res.status(202).end();
