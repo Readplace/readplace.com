@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { neverResolveChallengedTracker } from "@packages/save-article";
 import { setTimeout as sleep } from "node:timers/promises";
 import { join } from "node:path";
@@ -7,7 +8,7 @@ import chromium from "@sparticuz/chromium";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { CRAWL_PERSONAS, PROXIED_FETCH_TIMEOUTS, defaultResolveAll, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
+import { CRAWL_PERSONAS, defaultResolveAll, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { requireEnv } from "@packages/require-env";
@@ -19,6 +20,8 @@ import { initPuppeteerRenderPage } from "./providers/render-page/puppeteer-rende
 import { initRenderRequestFilter, initShouldAbortRequest } from "./providers/render-page/render-request-filter";
 import { classifyRenderedDocument } from "./providers/render-page/classify-rendered-document";
 import { parseRenderProxy } from "./providers/render-page/parse-render-proxy";
+import { initResidentialEgress } from "./providers/render-page/residential-egress";
+import { RENDER_CRAWL_TIMEOUTS } from "./domain/render-crawl/timeouts";
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -37,6 +40,7 @@ const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 const renderCrawlBudget = parseRateLimitRule(requireEnv("RENDER_CRAWL_BUDGET"));
 const crawlEgressProxyUrl = requireEnv("CRAWL_EGRESS_PROXY_URL");
+const crawlResidentialProxyUrl = requireEnv("CRAWL_RESIDENTIAL_PROXY_URL");
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -117,7 +121,7 @@ const proxiedCrawlArticle = initCrawlArticle({
 	logError: observability.logError,
 	logInfo: observability.logInfo,
 	logThumbnailNotDelivered: observability.logThumbnailNotDelivered,
-	fetchTimeouts: { headersMs: 100_000, bodyMs: PROXIED_FETCH_TIMEOUTS.bodyMs },
+	fetchTimeouts: RENDER_CRAWL_TIMEOUTS.webUnlockerFetch,
 });
 
 export const handler = initRenderCrawlHandler({
@@ -133,6 +137,10 @@ export const handler = initRenderCrawlHandler({
 	consumeRenderCrawlBudget,
 	adoptCanonicalIdentity,
 	renderPage,
-	renderProxy: parseRenderProxy(crawlEgressProxyUrl),
+	residentialEgress: initResidentialEgress({
+		proxy: parseRenderProxy(crawlResidentialProxyUrl),
+		newSessionToken: () => randomBytes(8).toString("hex"),
+	}),
+	webUnlockerEgress: { kind: "web-unlocker", proxy: parseRenderProxy(crawlEgressProxyUrl) },
 	now,
 });

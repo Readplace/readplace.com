@@ -197,6 +197,42 @@ describe("initCommitDeferredCrawl", () => {
 		});
 	});
 
+	describe("commitReadableBody", () => {
+		it("returns unreadable without writing anything when finalize fails, even beside existing candidates", async () => {
+			const { deps, commitReadableBody } = createCommit({
+				finalizeArticle: async () => ({ ok: false, reason: "no readable content" }),
+			});
+			const archived = { id: CandidateIdSchema.parse("archive-candidate"), tier: "tier-2" as const };
+
+			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, candidates: [archived] });
+
+			expect(outcome).toEqual({ via: "unreadable", reason: "no readable content" });
+			expect(deps.putTierSource).not.toHaveBeenCalled();
+			expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+			expect(deps.publishEvent).not.toHaveBeenCalled();
+		});
+
+		it("commits a readable body as a tier-1 live candidate the same way commitFetchedBody does", async () => {
+			const { deps, commitReadableBody } = createCommit();
+
+			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: "user-1" });
+
+			expect(outcome).toEqual({ via: "deferred-to-event" });
+			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+				url,
+				tier: "tier-1",
+				html: renderedArticle.html,
+				metadata: expect.objectContaining({ kind: "live", httpStatus: 200, sourceUrl: url }),
+			}));
+			expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+				url,
+				userId: "user-1",
+				saveAttemptId,
+				candidates: [expect.objectContaining({ tier: "tier-1" })],
+			}));
+		});
+	});
+
 	describe("resolveUnreadable", () => {
 		it("marks the crawl failed with a parse-error carrying the given detail", async () => {
 			const { deps, resolveUnreadable } = createCommit();

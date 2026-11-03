@@ -22,10 +22,19 @@ import {
 	initCommitDeferredCrawl,
 } from "../crawl-article-state/commit-deferred-crawl";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
-import type { RenderPage, RenderProxy } from "../../providers/render-page/render-page.types";
-import { escalateThroughProxy, type ProxiedFetchAttempt, type RenderLadderLegs, type RenderLadderResult, runRenderLadder } from "./render-ladder";
+import type { RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
+import {
+	type Escalation,
+	type FetchLegReport,
+	type LadderRender,
+	type ProxiedFetchAttempt,
+	type RenderCommit,
+	type RenderLadderResult,
+	type RenderLegReport,
+	runRenderLadder,
+} from "./render-ladder";
 
-type SettledWithoutBody = Exclude<RenderLadderResult, { kind: "fetched-through-proxy" | "settled-by-proxied-fetch" | "budget-exhausted" }>;
+type Unrendered = Extract<RenderLadderResult, { kind: "unrendered" }>;
 
 export function initRenderCrawlHandler(deps: {
 	resolveOriginalUrl: (url: string) => Promise<string>;
@@ -42,7 +51,8 @@ export function initRenderCrawlHandler(deps: {
 	adoptCanonicalIdentity: AdoptCanonicalIdentity;
 	publishEvent: PublishEvent;
 	renderPage: RenderPage;
-	renderProxy: RenderProxy;
+	residentialEgress: () => ResidentialEgress;
+	webUnlockerEgress: WebUnlockerEgress;
 	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
@@ -65,6 +75,7 @@ export function initRenderCrawlHandler(deps: {
 
 	const {
 		commitFetchedBody,
+		commitReadableBody,
 		resolveUnreadable,
 		resolveBudgetExhausted,
 		resolveBlocked,
@@ -128,7 +139,7 @@ export function initRenderCrawlHandler(deps: {
 		return { kind: "settled" };
 	};
 
-	const fetchThroughProxy = async (ctx: DeferredCrawlContext): Promise<ProxiedFetchAttempt> => {
+	const fetchThroughWebUnlocker = async (ctx: DeferredCrawlContext): Promise<ProxiedFetchAttempt> => {
 		const { url } = ctx;
 		const result = await proxiedCrawlAndFinalize({
 			url: ctx.originalUrl,
@@ -146,10 +157,10 @@ export function initRenderCrawlHandler(deps: {
 			bodyHash: result.bodyHash,
 			finalUrl: result.finalUrl,
 			httpStatus,
-			renderedThrough: "residential-proxy" as const,
+			renderedThrough: "web-unlocker-fetch" as const,
 		};
 		const { directResourceKind } = result.article.metadata;
-		const committed = await commitFetchedBody(
+		const committed = await commitReadableBody(
 			directResourceKind === "image"
 				? { ...fetched, html: result.article.html, mediaType: "image" }
 				: directResourceKind === "plain-text"
@@ -158,78 +169,97 @@ export function initRenderCrawlHandler(deps: {
 			ctx,
 		);
 		if (committed.via === "unreadable") return { kind: "no-body", outcome: "unreadable" };
-		logger.info(`${logPrefix} fetched`, { url, fetchedThrough: "residential-proxy", httpStatus });
+		logger.info(`${logPrefix} fetched`, { url, fetchedThrough: "web-unlocker-fetch", httpStatus });
 		return { kind: "committed" };
 	};
 
-	const settleWithoutBody = async (rendered: SettledWithoutBody, ctx: DeferredCrawlContext): Promise<CrawlTermination> => {
+	const settleTooLarge = async (render: LadderRender, ctx: DeferredCrawlContext): Promise<void> => {
+		const { url } = ctx;
+		if (ctx.candidates !== undefined) {
+			await publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+			return;
+		}
+		const bytes = Buffer.byteLength(render.html);
+		logParseError({
+			url,
+			reason: `crawl-unsupported: content body too large after render (${render.renderedThrough}): ${bytes} bytes (cap ${MAX_HTML_BYTES.bytes} bytes)`,
+		});
+		await emitTier1FailureOutcome({ url });
+		await transitionAndPersist(markCrawlUnsupported, { url, input: { reason: { kind: "content-too-large", bytes } } });
+	};
+
+	const commitRender = async (render: LadderRender, escalation: Escalation, ctx: DeferredCrawlContext): Promise<RenderCommit> => {
+		const { url } = ctx;
+		const { renderedThrough } = render;
+		logger.info(`${logPrefix} rendered`, { url, renderedThrough, httpStatus: render.httpStatus, requests: render.requests });
+		if (Buffer.byteLength(render.html) > MAX_HTML_BYTES.bytes) {
+			await settleTooLarge(render, ctx);
+			await backOffRefresh(ctx);
+			return { kind: "settled" };
+		}
+		const body = {
+			html: render.html,
+			bodyHash: createHash("sha256").update(render.html).digest("hex"),
+			finalUrl: render.finalUrl,
+			httpStatus: render.httpStatus,
+			renderedThrough,
+		};
+		const committed = escalation === "available" ? await commitReadableBody(body, ctx) : await commitFetchedBody(body, ctx);
+		if (committed.via !== "unreadable") return { kind: "settled" };
+		const detail = `no readable article after render (${renderedThrough}): ${committed.reason}`;
+		if (escalation === "available") return { kind: "unreadable", detail };
+		await resolveUnreadable({ url, detail });
+		await backOffRefresh(ctx);
+		return { kind: "settled" };
+	};
+
+	const legDetail = (report: Exclude<RenderLegReport | FetchLegReport, { kind: "blocked" }>): string =>
+		report.kind === "skipped" ? `skipped (${report.reason})` : report.kind === "no-body" ? report.outcome : report.detail;
+
+	const settleWithoutBody = async (rendered: Unrendered, ctx: DeferredCrawlContext): Promise<CrawlTermination> => {
 		const { url } = ctx;
 		if (ctx.candidates !== undefined) return publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
-		if (rendered.kind === "rendered") {
-			const bytes = Buffer.byteLength(rendered.html);
-			logParseError({
-				url,
-				reason: `crawl-unsupported: content body too large after render (${rendered.renderedThrough}): ${bytes} bytes (cap ${MAX_HTML_BYTES.bytes} bytes)`,
-			});
-			await emitTier1FailureOutcome({ url });
-			await transitionAndPersist(markCrawlUnsupported, { url, input: { reason: { kind: "content-too-large", bytes } } });
-			return { via: "committed-in-process" };
-		}
-		const { direct, proxied } = rendered;
-		if (proxied.kind === "blocked") return resolveBlocked({ url, httpStatus: proxied.httpStatus });
+		const { direct, residential, webUnlockerFetch, webUnlockerRender } = rendered;
+		if (webUnlockerRender.kind === "blocked") return resolveBlocked({ url, httpStatus: webUnlockerRender.httpStatus });
+		if (residential.kind === "blocked") return resolveBlocked({ url, httpStatus: residential.httpStatus });
 		if (direct.kind === "blocked") return resolveBlocked({ url, httpStatus: direct.httpStatus });
-		const detail = `render-failed: direct-egress: ${direct.detail}; residential-proxy: ${proxied.detail}`;
+		const renderLegs = [webUnlockerRender, residential, direct];
+		const detail = [
+			`render-failed: direct-egress: ${legDetail(direct)}`,
+			`residential-per-gb: ${legDetail(residential)}`,
+			`web-unlocker-fetch: ${legDetail(webUnlockerFetch)}`,
+			`web-unlocker-render: ${legDetail(webUnlockerRender)}`,
+		].join("; ");
+		const httpStatus = renderLegs.find((leg) => leg.kind === "failed" && leg.httpStatus !== undefined);
 		logParseError({ url, reason: detail });
 		await emitTier1FailureOutcome({ url });
 		await transitionAndPersist(markCrawlFailed, {
 			url,
-			input: { reason: { kind: "fetch-failed", detail, httpStatus: proxied.httpStatus ?? direct.httpStatus } },
+			input: { reason: { kind: "fetch-failed", detail, httpStatus: httpStatus?.kind === "failed" ? httpStatus.httpStatus : undefined } },
 		});
 		return { via: "committed-in-process" };
 	};
 
-	const resolveRender = async (rendered: RenderLadderResult, ctx: DeferredCrawlContext, legs: RenderLadderLegs): Promise<void> => {
+	const resolveLadder = async (rendered: RenderLadderResult, ctx: DeferredCrawlContext): Promise<void> => {
 		const { url } = ctx;
-		if (rendered.kind === "fetched-through-proxy" || rendered.kind === "settled-by-proxied-fetch") return;
+		if (rendered.kind === "settled") return;
 		if (rendered.kind === "budget-exhausted") {
-			logger.warn(`${logPrefix} render-crawl budget exhausted — failing crawl gracefully`, { url, direct: rendered.direct, proxiedFetch: rendered.proxiedFetch });
+			logger.warn(`${logPrefix} render-crawl budget exhausted — failing crawl gracefully`, { url, direct: rendered.direct });
 			await resolveBudgetExhausted(ctx);
 			await backOffRefresh(ctx);
 			return;
 		}
-		if (rendered.kind === "rendered") {
-			logger.info(`${logPrefix} rendered`, { url, renderedThrough: rendered.renderedThrough, httpStatus: rendered.httpStatus, requests: rendered.requests });
-		} else {
-			logger.info(`${logPrefix} not rendered on either leg`, { url, direct: rendered.direct, proxied: rendered.proxied, proxiedFetch: rendered.proxiedFetch });
-		}
-		if (rendered.kind !== "rendered" || Buffer.byteLength(rendered.html) > MAX_HTML_BYTES.bytes) {
-			await settleWithoutBody(rendered, ctx);
-			await backOffRefresh(ctx);
-			return;
-		}
-		const { renderedThrough } = rendered;
-		const committed = await commitFetchedBody(
-			{
-				html: rendered.html,
-				bodyHash: createHash("sha256").update(rendered.html).digest("hex"),
-				finalUrl: rendered.finalUrl,
-				httpStatus: rendered.httpStatus,
-				renderedThrough,
-			},
-			ctx,
-		);
-		if (committed.via !== "unreadable") return;
-		const detail = `no readable article after render (${renderedThrough}): ${committed.reason}`;
-		if (renderedThrough === "direct-egress" && legs.unsupportedReason === "blocked") {
-			const direct = { kind: "failed" as const, detail, httpStatus: rendered.httpStatus, requests: rendered.requests };
-			await resolveRender(await escalateThroughProxy({ ...legs, direct }), ctx, legs);
-			return;
-		}
-		await resolveUnreadable({ url, detail });
+		const { direct, residential, webUnlockerFetch, webUnlockerRender } = rendered;
+		logger.info(`${logPrefix} not rendered on any leg`, { url, direct, residential, webUnlockerFetch, webUnlockerRender });
+		const outOfTime = Object.entries({ residential, webUnlockerFetch, webUnlockerRender })
+			.filter(([, report]) => report.kind === "skipped" && report.reason === "time-exhausted")
+			.map(([leg]) => leg);
+		if (outOfTime.length > 0) logger.warn(`${logPrefix} render ladder ran out of time`, { url, skippedLegs: outOfTime });
+		await settleWithoutBody(rendered, ctx);
 		await backOffRefresh(ctx);
 	};
 
-	return async (event): Promise<SQSBatchResponse> => {
+	return async (event, context): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 
 		for (const record of event.Records) {
@@ -266,15 +296,18 @@ export function initRenderCrawlHandler(deps: {
 					userId,
 					previousBodyHash,
 				};
-				const legs: RenderLadderLegs = {
+				const rendered = await runRenderLadder({
 					renderPage: deps.renderPage,
 					url: identity.originalUrl,
-					proxy: deps.renderProxy,
+					residentialEgress: deps.residentialEgress,
+					webUnlockerEgress: deps.webUnlockerEgress,
 					unsupportedReason,
-					fetchThroughProxy: () => fetchThroughProxy(ctx),
+					commitRender: (render, escalation) => commitRender(render, escalation, ctx),
+					fetchThroughWebUnlocker: () => fetchThroughWebUnlocker(ctx),
 					consumeBudget: () => deps.consumeRenderCrawlBudget({ messageId: record.messageId }),
-				};
-				await resolveRender(await runRenderLadder(legs), ctx, legs);
+					remainingMilliseconds: () => context.getRemainingTimeInMillis(),
+				});
+				await resolveLadder(rendered, ctx);
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {
 					messageId: record.messageId,

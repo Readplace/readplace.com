@@ -179,9 +179,10 @@ export function initCommitDeferredCrawl(deps: {
 		return { via: "committed-in-process" };
 	};
 
-	const commitFetchedBody = async (
+	const commitBody = async (
 		body: DeferredCrawlBody,
 		ctx: DeferredCrawlContext,
+		unreadable: "publish-when-comparing" | "return",
 	): Promise<CommitFetchedBodyOutcome> => {
 		const { url, originalUrl, refresh, recrawl, userId } = ctx;
 		const fetchedAt = now().toISOString();
@@ -195,7 +196,7 @@ export function initCommitDeferredCrawl(deps: {
 				? { mediaType: body.mediaType, plainText: body.plainText }
 				: { mediaType: body.mediaType }),
 		});
-		if (!finalized.ok && ctx.candidates === undefined) {
+		if (!finalized.ok && (ctx.candidates === undefined || unreadable === "return")) {
 			return { via: "unreadable", reason: finalized.reason };
 		}
 		const article = finalized.ok ? finalized.article : UNREADABLE_ARTICLE;
@@ -289,8 +290,12 @@ export function initCommitDeferredCrawl(deps: {
 		return { via: "deferred-to-event" };
 	};
 
+	const commitFetchedBody = (body: DeferredCrawlBody, ctx: DeferredCrawlContext) => commitBody(body, ctx, "publish-when-comparing");
+	const commitReadableBody = (body: DeferredCrawlBody, ctx: DeferredCrawlContext) => commitBody(body, ctx, "return");
+
 	return {
 		commitFetchedBody,
+		commitReadableBody,
 		resolveUnreadable,
 		resolveBudgetExhausted,
 		resolveBlocked,

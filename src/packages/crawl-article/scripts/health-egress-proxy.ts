@@ -14,6 +14,7 @@
  *   - CRAWL_EGRESS_PROXY_URL
  */
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { test } from "node:test";
 import { ProxyAgent } from "undici";
 import { requireEnv } from "@packages/require-env";
@@ -44,5 +45,27 @@ test("egress proxy credential answers through the proxy", async () => {
 		body,
 		/Country:/,
 		`egress proxy returned no geo echo (${body.length} bytes) — zone is reachable but not serving traffic`,
+	);
+});
+
+test("residential proxy credential answers a sticky session under normal TLS", async () => {
+	const proxyUrl = new URL(requireEnv("CRAWL_RESIDENTIAL_PROXY_URL"));
+	proxyUrl.username = `${proxyUrl.username}-session-${randomBytes(8).toString("hex")}`;
+	const dispatcher = new ProxyAgent({ uri: proxyUrl.toString() });
+	const response = await fetch(ECHO_URL, {
+		dispatcher,
+		signal: AbortSignal.timeout(TIMEOUT_MS),
+	});
+	const body = await response.text();
+
+	assert.equal(
+		response.status,
+		200,
+		`residential proxy answered HTTP ${response.status} — credential rejected, zone disabled or session syntax refused`,
+	);
+	assert.match(
+		body,
+		/Country:/,
+		`residential proxy returned no geo echo (${body.length} bytes) — zone is reachable but not serving traffic`,
 	);
 });

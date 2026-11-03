@@ -1,49 +1,202 @@
 import type { RenderCrawlDetail } from "@packages/hutch-infra-components";
-import type { RenderOutcome, RenderPage, RenderProxy } from "../../providers/render-page/render-page.types";
+import type {
+	RenderOutcome,
+	RenderPage,
+	ResidentialEgress,
+	WebUnlockerEgress,
+} from "../../providers/render-page/render-page.types";
+import { RENDER_CRAWL_TIMEOUTS } from "./timeouts";
 
-export type RenderedThrough = "direct-egress" | "residential-proxy";
+export type RenderedThrough =
+	| "direct-egress"
+	| "residential-per-gb"
+	| "web-unlocker-render";
+export type SettledThrough = RenderedThrough | "web-unlocker-fetch";
 
 type RenderedPage = Extract<RenderOutcome, { kind: "rendered" }>;
-export type TerminalRenderOutcome = Exclude<RenderOutcome, { kind: "rendered" }>;
+export type TerminalRenderOutcome = Exclude<
+	RenderOutcome,
+	{ kind: "rendered" }
+>;
+export type LadderRender = RenderedPage & { renderedThrough: RenderedThrough };
 
-export type ProxiedFetchAttempt = { kind: "committed" } | { kind: "settled" } | { kind: "no-body"; outcome: string };
-type ProxiedFetchReport = Extract<ProxiedFetchAttempt, { kind: "no-body" }> | { kind: "not-attempted" };
+export type Escalation = "available" | "exhausted";
+export type RenderCommit =
+	| { kind: "settled" }
+	| { kind: "unreadable"; detail: string };
 
-const DIRECT_NAVIGATION_TIMEOUT_MILLISECONDS = 30_000;
-const PROXIED_NAVIGATION_TIMEOUT_MILLISECONDS = 90_000;
+export type ProxiedFetchAttempt =
+	| { kind: "committed" }
+	| { kind: "settled" }
+	| { kind: "no-body"; outcome: string };
+
+export type SkippedLeg = {
+	kind: "skipped";
+	reason: "time-exhausted" | "no-block-evidence";
+};
+export type RenderLegReport = TerminalRenderOutcome | SkippedLeg;
+export type FetchLegReport =
+	| Extract<ProxiedFetchAttempt, { kind: "no-body" }>
+	| SkippedLeg;
+
+type UnrenderedLadder = {
+	kind: "unrendered";
+	direct: TerminalRenderOutcome;
+	residential: RenderLegReport;
+	webUnlockerFetch: FetchLegReport;
+	webUnlockerRender: RenderLegReport;
+};
 
 export type RenderLadderResult =
-	| (RenderedPage & { renderedThrough: RenderedThrough })
-	| { kind: "fetched-through-proxy" }
-	| { kind: "settled-by-proxied-fetch" }
-	| { kind: "budget-exhausted"; direct: TerminalRenderOutcome; proxiedFetch: ProxiedFetchReport }
-	| { kind: "unrendered"; direct: TerminalRenderOutcome; proxied: TerminalRenderOutcome; proxiedFetch: ProxiedFetchReport };
+	| { kind: "settled"; settledThrough: SettledThrough }
+	| { kind: "budget-exhausted"; direct: TerminalRenderOutcome }
+	| UnrenderedLadder;
 
 export type RenderLadderLegs = {
 	renderPage: RenderPage;
 	url: string;
-	proxy: RenderProxy;
+	residentialEgress: () => ResidentialEgress;
+	webUnlockerEgress: WebUnlockerEgress;
 	unsupportedReason: RenderCrawlDetail["unsupportedReason"];
-	fetchThroughProxy: () => Promise<ProxiedFetchAttempt>;
+	commitRender: (
+		render: LadderRender,
+		escalation: Escalation,
+	) => Promise<RenderCommit>;
+	fetchThroughWebUnlocker: () => Promise<ProxiedFetchAttempt>;
 	consumeBudget: () => Promise<{ allowed: boolean }>;
+	remainingMilliseconds: () => number;
 };
 
-export async function runRenderLadder(legs: RenderLadderLegs): Promise<RenderLadderResult> {
-	const { renderPage, url } = legs;
-	const direct = await renderPage({ url, navigationTimeoutMilliseconds: DIRECT_NAVIGATION_TIMEOUT_MILLISECONDS });
-	if (direct.kind === "rendered") return { ...direct, renderedThrough: "direct-egress" };
-	return escalateThroughProxy({ ...legs, direct });
-}
+const TIME_EXHAUSTED: SkippedLeg = {
+	kind: "skipped",
+	reason: "time-exhausted",
+};
+const NO_BLOCK_EVIDENCE: SkippedLeg = {
+	kind: "skipped",
+	reason: "no-block-evidence",
+};
 
-export async function escalateThroughProxy(params: RenderLadderLegs & { direct: TerminalRenderOutcome }): Promise<RenderLadderResult> {
-	const { renderPage, url, proxy, direct } = params;
-	const fetchIsWorthwhile = params.unsupportedReason === "blocked" || direct.kind === "blocked";
-	const proxiedFetchAttempt: ProxiedFetchAttempt | ProxiedFetchReport = fetchIsWorthwhile ? await params.fetchThroughProxy() : { kind: "not-attempted" };
-	if (proxiedFetchAttempt.kind === "committed") return { kind: "fetched-through-proxy" };
-	if (proxiedFetchAttempt.kind === "settled") return { kind: "settled-by-proxied-fetch" };
-	const budget = await params.consumeBudget();
-	if (!budget.allowed) return { kind: "budget-exhausted", direct, proxiedFetch: proxiedFetchAttempt };
-	const proxied = await renderPage({ url, proxy, navigationTimeoutMilliseconds: PROXIED_NAVIGATION_TIMEOUT_MILLISECONDS });
-	if (proxied.kind === "rendered") return { ...proxied, renderedThrough: "residential-proxy" };
-	return { kind: "unrendered", direct, proxied, proxiedFetch: proxiedFetchAttempt };
+const renderAllowance = (navigationTimeoutMilliseconds: number) =>
+	navigationTimeoutMilliseconds + RENDER_CRAWL_TIMEOUTS.renderOverheadMs;
+const WEB_UNLOCKER_FETCH_ALLOWANCE =
+	RENDER_CRAWL_TIMEOUTS.webUnlockerFetch.headersMs +
+	RENDER_CRAWL_TIMEOUTS.webUnlockerFetch.bodyMs;
+
+type LegOutcome =
+	| { kind: "settled" }
+	| { kind: "continue"; report: TerminalRenderOutcome };
+
+export async function runRenderLadder(
+	legs: RenderLadderLegs,
+): Promise<RenderLadderResult> {
+	const fitsInTime = (allowanceMilliseconds: number) =>
+		legs.remainingMilliseconds() >=
+		allowanceMilliseconds + RENDER_CRAWL_TIMEOUTS.finalizationReserveMs;
+
+	const renderLeg = async (leg: {
+		egress: Parameters<RenderPage>[0]["egress"];
+		navigationTimeoutMilliseconds: number;
+		renderedThrough: RenderedThrough;
+		escalation: Escalation;
+	}): Promise<LegOutcome> => {
+		const outcome = await legs.renderPage({
+			url: legs.url,
+			egress: leg.egress,
+			navigationTimeoutMilliseconds: leg.navigationTimeoutMilliseconds,
+		});
+		if (outcome.kind !== "rendered")
+			return { kind: "continue", report: outcome };
+		const commit = await legs.commitRender(
+			{ ...outcome, renderedThrough: leg.renderedThrough },
+			leg.escalation,
+		);
+		if (commit.kind === "settled") return { kind: "settled" };
+		return {
+			kind: "continue",
+			report: {
+				kind: "failed",
+				detail: commit.detail,
+				httpStatus: outcome.httpStatus,
+				requests: outcome.requests,
+			},
+		};
+	};
+
+	const direct = await renderLeg({
+		egress: { kind: "direct" },
+		navigationTimeoutMilliseconds: RENDER_CRAWL_TIMEOUTS.directNavigationMs,
+		renderedThrough: "direct-egress",
+		escalation:
+			legs.unsupportedReason === "blocked" ? "available" : "exhausted",
+	});
+	if (direct.kind === "settled")
+		return { kind: "settled", settledThrough: "direct-egress" };
+
+	if (
+		!fitsInTime(renderAllowance(RENDER_CRAWL_TIMEOUTS.residentialNavigationMs))
+	) {
+		return {
+			kind: "unrendered",
+			direct: direct.report,
+			residential: TIME_EXHAUSTED,
+			webUnlockerFetch: TIME_EXHAUSTED,
+			webUnlockerRender: TIME_EXHAUSTED,
+		};
+	}
+	const budget = await legs.consumeBudget();
+	if (!budget.allowed)
+		return { kind: "budget-exhausted", direct: direct.report };
+
+	const residential = await renderLeg({
+		egress: legs.residentialEgress(),
+		navigationTimeoutMilliseconds:
+			RENDER_CRAWL_TIMEOUTS.residentialNavigationMs,
+		renderedThrough: "residential-per-gb",
+		escalation: "available",
+	});
+	if (residential.kind === "settled")
+		return { kind: "settled", settledThrough: "residential-per-gb" };
+
+	const blockEvidence =
+		legs.unsupportedReason === "blocked" ||
+		direct.report.kind === "blocked" ||
+		residential.report.kind === "blocked";
+	const webUnlockerFetch: ProxiedFetchAttempt | SkippedLeg = !blockEvidence
+		? NO_BLOCK_EVIDENCE
+		: fitsInTime(WEB_UNLOCKER_FETCH_ALLOWANCE)
+			? await legs.fetchThroughWebUnlocker()
+			: TIME_EXHAUSTED;
+	if (
+		webUnlockerFetch.kind === "committed" ||
+		webUnlockerFetch.kind === "settled"
+	)
+		return { kind: "settled", settledThrough: "web-unlocker-fetch" };
+
+	if (
+		!fitsInTime(renderAllowance(RENDER_CRAWL_TIMEOUTS.webUnlockerNavigationMs))
+	) {
+		return {
+			kind: "unrendered",
+			direct: direct.report,
+			residential: residential.report,
+			webUnlockerFetch,
+			webUnlockerRender: TIME_EXHAUSTED,
+		};
+	}
+	const webUnlockerRender = await renderLeg({
+		egress: legs.webUnlockerEgress,
+		navigationTimeoutMilliseconds:
+			RENDER_CRAWL_TIMEOUTS.webUnlockerNavigationMs,
+		renderedThrough: "web-unlocker-render",
+		escalation: "exhausted",
+	});
+	if (webUnlockerRender.kind === "settled")
+		return { kind: "settled", settledThrough: "web-unlocker-render" };
+	return {
+		kind: "unrendered",
+		direct: direct.report,
+		residential: residential.report,
+		webUnlockerFetch,
+		webUnlockerRender: webUnlockerRender.report,
+	};
 }

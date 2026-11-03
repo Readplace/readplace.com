@@ -337,6 +337,9 @@ describe("initSelectContentWork", () => {
 	it.each([
 		{ renderedThrough: "direct-egress" as const },
 		{ renderedThrough: "residential-proxy" as const },
+		{ renderedThrough: "residential-per-gb" as const },
+		{ renderedThrough: "web-unlocker-fetch" as const },
+		{ renderedThrough: "web-unlocker-render" as const },
 	])("records that this save's live page had nothing readable even after rendering it through $renderedThrough", async ({ renderedThrough }) => {
 		const rendered = source();
 		rendered.metadata.httpStatus = 200;

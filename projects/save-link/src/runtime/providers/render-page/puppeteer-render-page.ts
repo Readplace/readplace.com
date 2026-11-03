@@ -1,6 +1,7 @@
 /* c8 ignore start -- thin headless-browser wrapper, exercised by the pipeline-health canary */
 import puppeteer, { type Browser, type HTTPResponse, type LaunchOptions, type Page, type Target, TargetType, TimeoutError } from "puppeteer-core";
 import type { ClassifyRenderedDocument } from "./classify-rendered-document";
+import { browserLaunchArgs } from "./browser-launch-args";
 import type { RenderOutcome, RenderPage } from "./render-page.types";
 import { type CreateRenderRequestFilter, isMainFrameNavigation } from "./render-request-filter";
 
@@ -8,7 +9,6 @@ const PROTOCOL_MARGIN_MILLISECONDS = 10_000;
 const CONTENT_DEADLINE_MILLISECONDS = 10_000;
 const CLOSE_DEADLINE_MILLISECONDS = 5_000;
 const NETWORK_QUIET_MILLISECONDS = 1_000;
-const LAUNCH_ARGS = ["--block-new-web-contents"];
 
 const DEADLINE_PASSED = Symbol("deadline-passed");
 
@@ -51,10 +51,10 @@ export function initPuppeteerRenderPage(deps: {
 	createRenderRequestFilter: CreateRenderRequestFilter;
 	classifyRenderedDocument: ClassifyRenderedDocument;
 }): RenderPage {
-	return async ({ url, proxy, navigationTimeoutMilliseconds }) => {
+	return async ({ url, egress, navigationTimeoutMilliseconds }) => {
 		let browser: Browser | undefined;
 		let mainDocument: HTTPResponse | undefined;
-		const requestFilter = deps.createRenderRequestFilter({ proxied: proxy !== undefined });
+		const requestFilter = deps.createRenderRequestFilter({ proxied: egress.kind !== "direct" });
 		const failed = (detail: string): RenderOutcome =>
 			mainDocument === undefined
 				? { kind: "failed", detail, requests: requestFilter.tally() }
@@ -64,11 +64,7 @@ export function initPuppeteerRenderPage(deps: {
 				executablePath: await deps.executablePath(),
 				headless: deps.headless,
 				protocolTimeout: navigationTimeoutMilliseconds + PROTOCOL_MARGIN_MILLISECONDS,
-				args: [
-					...deps.launchArgs,
-					...LAUNCH_ARGS,
-					...(proxy ? [`--proxy-server=${proxy.server}`, "--ignore-certificate-errors"] : []),
-				],
+				args: browserLaunchArgs({ inheritedArgs: deps.launchArgs, egress }),
 			});
 			const page = await browser.newPage();
 			browser.on("targetcreated", closeStrayTargets(page));
@@ -76,7 +72,7 @@ export function initPuppeteerRenderPage(deps: {
 				dialog.dismiss().catch(() => undefined);
 			});
 			await page.setBypassServiceWorker(true);
-			if (proxy) await page.authenticate({ username: proxy.username, password: proxy.password });
+			if (egress.kind !== "direct") await page.authenticate({ username: egress.proxy.username, password: egress.proxy.password });
 			await page.setRequestInterception(true);
 			page.on("request", (request) => {
 				if (request.isInterceptResolutionHandled()) return;

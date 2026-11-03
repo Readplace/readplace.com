@@ -51,6 +51,7 @@ import {
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
+import { RENDER_CRAWL_TIMEOUTS } from "../runtime/domain/render-crawl/timeouts";
 import { OWN_CAPTURE_FAILED_METRIC } from "../runtime/domain/select-content/comparison-log";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "../runtime/domain/generate-summary/max-receive-count";
 import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "../runtime/domain/select-content/max-receive-count";
@@ -937,7 +938,7 @@ eventBus.subscribe(ComprehensiveCrawlCommand, comprehensiveCrawlCommandLambdaWit
 const renderCrawlCommandQueue = new HutchSQS(
 	SAVE_LINK_DLQ_SOURCES.renderCrawlCommand,
 	{
-		visibilityTimeoutSeconds: 600,
+		visibilityTimeoutSeconds: RENDER_CRAWL_TIMEOUTS.sqsVisibilitySeconds,
 		dlqMaxReceiveCount: 1,
 		sharedDlq: failuresDlq,
 	},
@@ -954,10 +955,11 @@ const renderCrawlCommandDynamodb = new HutchDynamoDBAccess("render-crawl-command
 const renderCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCommand, {
 	memorySize: 3008,
 	ephemeralStorageSize: 1024,
-	timeout: 420,
+	timeout: RENDER_CRAWL_TIMEOUTS.lambdaSeconds,
 	containerImage: { imageUri: ocrImageTags["render-crawl-command"] },
 	environment: {
 		...crawlEgressProxyEnvironment,
+		CRAWL_RESIDENTIAL_PROXY_URL: pulumi.secret(requireEnv("CRAWL_RESIDENTIAL_PROXY_URL")),
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
 		RENDER_CRAWL_BUDGET: renderCrawlBudget,
