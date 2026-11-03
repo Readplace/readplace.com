@@ -294,6 +294,17 @@ describe("initCanonicalAliasStore", () => {
 			expect(await findAdoptedFetchUrl("https://site.com/page")).toBeUndefined();
 		});
 
+		it("reads the pin strongly consistently, so a render crawl cannot mistake a just-written pin for its absence and start elsewhere", async () => {
+			const client = createFakeClient((command) => ({
+				Item: CapturedCommand.parse(command).input.ConsistentRead === true
+					? { url: "tracker.example/r/1", routeId: "a".repeat(32), originalUrl: "https://tracker.example/r/1", displayUrl: "https://publisher.example/story" }
+					: { url: "tracker.example/r/1", routeId: "a".repeat(32), originalUrl: "https://tracker.example/r/1" },
+			}));
+			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });
+
+			expect(await findAdoptedFetchUrl("https://tracker.example/r/1")).toBe("https://publisher.example/story");
+		});
+
 		it("returns undefined for a missing row", async () => {
 			const client = createFakeClient(() => ({ Item: undefined }));
 			const { findAdoptedFetchUrl } = initCanonicalAliasStore({ client, tableName: TABLE });

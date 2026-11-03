@@ -40,7 +40,7 @@ export function initCrawlSaveCandidates(deps: {
 		const liveCandidate = liveValue !== undefined && "candidate" in liveValue ? liveValue.candidate : undefined;
 		const candidates = [...(liveCandidate === undefined ? [] : [liveCandidate]), ...(wrapper.value === undefined ? [] : [wrapper.value])];
 		if (liveValue !== undefined && "deferred" in liveValue) {
-			await deps.emitSimpleCrawlUnsupported({ url: params.url, unsupportedReason: liveValue.deferred, userId: params.userId, recrawl: params.recrawl, saveAttemptId: params.saveAttemptId, candidates });
+			await deps.emitSimpleCrawlUnsupported({ url: params.url, unsupportedReason: liveValue.deferred, userId: params.userId, recrawl: params.recrawl, saveAttemptId: params.saveAttemptId, candidates, finalUrl: liveValue.finalUrl });
 			return { deferredTo: "simple-crawl-unsupported", carriedCandidates: candidates.length };
 		}
 		if (failureReason !== undefined) return { candidates, liveAttempt: { outcome: "no-body", failureReason } };

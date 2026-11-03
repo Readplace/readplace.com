@@ -126,6 +126,7 @@ const proxiedCrawlArticle = initCrawlArticle({
 
 export const handler = initRenderCrawlHandler({
 	...sourceIdentity,
+	findAdoptedFetchUrl: canonicalAliasStore.findAdoptedFetchUrl,
 	crawlArticle: parser.crawlArticle,
 	proxiedCrawlArticle,
 	finalizeArticle: crawlAndFinalize.finalizeArticle,

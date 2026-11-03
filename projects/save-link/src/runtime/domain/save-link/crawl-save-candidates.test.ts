@@ -84,6 +84,12 @@ describe("archive attempt orchestration", () => {
 		expect(await save(params)).toEqual({ deferredTo: "simple-crawl-unsupported", carriedCandidates: 0 });
 		expect(emit).toHaveBeenCalledWith(expect.objectContaining({ url, unsupportedReason: "blocked", candidates: [] }));
 	});
+	it("keeps the page the live crawl reached on the deferral it emits once the archive capture finishes", async () => {
+		const emit = jest.fn().mockResolvedValue(undefined);
+		const save = initCrawlSaveCandidates({ crawlArchiveCapture: async () => wrapper, saveLinkWork: async () => ({ deferred: "blocked", finalUrl: "https://publisher.example/story" }), emitSimpleCrawlUnsupported: emit });
+		await save({ ...params, userId: "user-1" });
+		expect(emit).toHaveBeenCalledWith({ url, unsupportedReason: "blocked", userId: "user-1", saveAttemptId: params.saveAttemptId, candidates: [wrapper], finalUrl: "https://publisher.example/story" });
+	});
 	it("records an empty live response as a live failure while the extracted archive still reaches selection", async () => {
 		const crawlArticle = initCrawlArticle({ crawlFetch: async (target) => new Response(target === url ? "" : `<html><head><title>Archived report</title></head><body><article><p>${"A real article contains important facts and readable paragraphs. ".repeat(30)}</p></article></body></html>`, { status: 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 		const { parseHtml } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });

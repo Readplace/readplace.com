@@ -10,6 +10,7 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import { initFinalizeArticle, type FinalizeArticle, type FinalizedArticle } from "@packages/finalize-article";
+import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
@@ -38,6 +39,7 @@ function createSqsEvent(detail: {
 	refresh?: boolean;
 	previousBodyHash?: string;
 	unsupportedReason?: "javascript-required" | "blocked";
+	finalUrl?: string;
 }): SQSEvent {
 	return {
 		Records: [{
@@ -133,6 +135,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initRenderCrawlHandler({
 		resolveOriginalUrl: async (url) => url,
 		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
+		findAdoptedFetchUrl: async () => undefined,
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
 		crawlArticle: unusedCrawl,
 		proxiedCrawlArticle: refusedProxiedCrawl,
@@ -1135,6 +1138,150 @@ describe("initRenderCrawlHandler", () => {
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			expect(crawlArticle).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("a new save the free crawl followed to another page", () => {
+		const TRACKER = "https://links.tracker.example/r/abc?mid=1";
+		const PUBLISHER = "https://publisher.example/story";
+		const trackerIdentity: HandlerDeps["prepareArticleIdentity"] = async (url) => ({ status: "resolved", url, originalUrl: TRACKER });
+
+		function recordingProxiedCrawl(result: Awaited<ReturnType<CrawlArticle>>) {
+			return jest.fn<ReturnType<CrawlArticle>, Parameters<CrawlArticle>>(async () => result);
+		}
+
+		it("starts the direct render, the residential render, the Web Unlocker fetch and the Web Unlocker render at that page, so no paid leg pays for the tracker again", async () => {
+			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: rendered({ finalUrl: PUBLISHER }) });
+			const proxiedCrawlArticle = recordingProxiedCrawl({ status: "blocked", httpStatus: 403 });
+			const handler = createHandler({ prepareArticleIdentity: trackerIdentity, renderPage, proxiedCrawlArticle });
+
+			await run(handler, { url: TRACKER, unsupportedReason: "blocked", finalUrl: PUBLISHER });
+
+			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([PUBLISHER, PUBLISHER, PUBLISHER]);
+			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([PUBLISHER]);
+		});
+
+		it("marks the processing log line as resumed, so render attempts that skipped the tracker can be counted", async () => {
+			const info = jest.fn();
+			const handler = createHandler({ prepareArticleIdentity: trackerIdentity, renderPage: renderPageAnswering({ direct: rendered({ finalUrl: PUBLISHER }) }), logger: { ...noopLogger, info } });
+
+			await run(handler, { url: TRACKER, finalUrl: PUBLISHER });
+			await run(handler, { url: TRACKER });
+
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] processing", { url: TRACKER, recrawl: 0, refresh: 0, resumedAtObservedPage: 1 });
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] processing", { url: TRACKER, recrawl: 0, refresh: 0, resumedAtObservedPage: 0 });
+		});
+
+		it("keeps the stored row, the save attempt and the selection hand-off on the tracker's identity", async () => {
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				prepareArticleIdentity: trackerIdentity,
+				renderPage: renderPageAnswering({ direct: rendered({ finalUrl: PUBLISHER }) }),
+				putTierSource,
+				publishEvent,
+				updateFetchTimestamp,
+			});
+
+			await run(handler, { url: TRACKER, userId: "user-1", finalUrl: PUBLISHER });
+
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({ url: TRACKER, metadata: expect.objectContaining({ attemptId: "attempt-1", sourceUrl: PUBLISHER }) }));
+			expect(updateFetchTimestamp).toHaveBeenCalledWith(expect.objectContaining({ url: TRACKER }));
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ url: TRACKER, userId: "user-1", saveAttemptId: "attempt-1" }));
+		});
+
+		it("escalates unreadable direct and residential renders of that page through the Web Unlocker fetch of the same page", async () => {
+			const proxiedCrawlArticle = recordingProxiedCrawl({ status: "fetched", html: RENDERED_HTML, bodyHash: "proxied-hash", httpStatus: 200, finalUrl: PUBLISHER });
+			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
+				.mockResolvedValueOnce({ ok: false, reason: "empty document" })
+				.mockResolvedValueOnce({ ok: false, reason: "empty document" })
+				.mockResolvedValue({ ok: true, article: finalizedArticle });
+			const handler = createHandler({
+				prepareArticleIdentity: trackerIdentity,
+				renderPage: renderPageAnswering({ direct: rendered({ finalUrl: PUBLISHER }), residential: rendered({ finalUrl: PUBLISHER }) }),
+				proxiedCrawlArticle,
+				finalizeArticle,
+			});
+
+			await run(handler, { url: TRACKER, unsupportedReason: "blocked", finalUrl: PUBLISHER });
+
+			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([PUBLISHER]);
+		});
+
+		it("resolves a proxied body's relative links and images, and records its source, against the page it was fetched from", async () => {
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const article = `<p>${"A readable publisher paragraph with plenty of words in it. ".repeat(20)}<a href="/next">Next</a></p><img src="/photo.jpg">`;
+			const html = `<html><head><title>Story</title></head><body><article>${article}</article></body></html>`;
+			const { parseHtml } = initReadabilityParser({ crawlArticle: unusedCrawl, siteRules: [], readabilityAdditions, logError: () => {} });
+			const finalizeArticle = initFinalizeArticle({
+				parseHtml,
+				downloadMedia: async () => [],
+				processContent: async ({ html: content }) => content,
+				fetchThumbnailImage: async () => ({ image: undefined, provenUnusable: [] }),
+				putImageObject: async () => {},
+				imagesCdnBaseUrl: CDN_BASE_URL,
+			});
+			const handler = createHandler({
+				prepareArticleIdentity: trackerIdentity,
+				renderPage: renderPageAnswering({ direct: blocked(403), residential: blocked(403) }),
+				proxiedCrawlArticle: async () => ({ status: "fetched", html, bodyHash: "proxied-hash", httpStatus: 200 }),
+				finalizeArticle,
+				putTierSource,
+			});
+
+			await run(handler, { url: TRACKER, unsupportedReason: "blocked", finalUrl: PUBLISHER });
+
+			const [[stored]] = putTierSource.mock.calls;
+			expect(stored.url).toBe(TRACKER);
+			expect(stored.metadata.sourceUrl).toBe(PUBLISHER);
+			expect(stored.html).toContain('href="https://publisher.example/next"');
+			expect(stored.html).toContain('src="https://publisher.example/photo.jpg"');
+		});
+
+		it("keeps every leg on the destination already pinned to the article, whatever page the queued message names", async () => {
+			const PINNED = "https://pinned.example/story";
+			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: rendered({ finalUrl: PINNED }) });
+			const proxiedCrawlArticle = recordingProxiedCrawl({ status: "blocked", httpStatus: 403 });
+			const findAdoptedFetchUrl = jest.fn(async () => PINNED);
+			const handler = createHandler({
+				prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: PINNED }),
+				findAdoptedFetchUrl,
+				renderPage,
+				proxiedCrawlArticle,
+			});
+
+			await run(handler, { url: TRACKER, unsupportedReason: "blocked", finalUrl: "https://attacker.example/elsewhere" });
+
+			expect(findAdoptedFetchUrl).toHaveBeenCalledWith(TRACKER);
+			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([PINNED, PINNED, PINNED]);
+			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([PINNED]);
+		});
+
+		it.each([{ recrawl: true }, { refresh: true }])("ignores the observed page on a %j crawl, which keeps its existing pin resolution", async (flag) => {
+			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: rendered() });
+			const proxiedCrawlArticle = recordingProxiedCrawl({ status: "blocked", httpStatus: 403 });
+			const findAdoptedFetchUrl = jest.fn(async () => undefined);
+			const handler = createHandler({ prepareArticleIdentity: trackerIdentity, findAdoptedFetchUrl, renderPage, proxiedCrawlArticle });
+
+			await run(handler, { url: TRACKER, unsupportedReason: "blocked", finalUrl: PUBLISHER, ...flag });
+
+			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([TRACKER, TRACKER, TRACKER]);
+			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([TRACKER]);
+			expect(findAdoptedFetchUrl).toHaveBeenCalledTimes(0);
+		});
+
+		it("starts at the resolved original, with no extra pin read, when the message names no observed page", async () => {
+			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: rendered() });
+			const proxiedCrawlArticle = recordingProxiedCrawl({ status: "blocked", httpStatus: 403 });
+			const findAdoptedFetchUrl = jest.fn(async () => undefined);
+			const handler = createHandler({ prepareArticleIdentity: trackerIdentity, findAdoptedFetchUrl, renderPage, proxiedCrawlArticle });
+
+			await run(handler, { url: TRACKER, unsupportedReason: "blocked" });
+
+			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([TRACKER, TRACKER, TRACKER]);
+			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([TRACKER]);
+			expect(findAdoptedFetchUrl).toHaveBeenCalledTimes(0);
 		});
 	});
 

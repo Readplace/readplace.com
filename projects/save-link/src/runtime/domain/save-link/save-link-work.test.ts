@@ -9,6 +9,7 @@ import { initAdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { PutTierSource } from "@packages/tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import { candidateProvenance } from "@packages/tier-source";
+import { deferJavascriptShells } from "./javascript-shell";
 
 const notFoundCrawl = (httpStatus: 404 | 410): CrawlAndFinalizeArticle => async () => ({ status: "not-found", httpStatus });
 
@@ -537,7 +538,7 @@ describe("initSaveLinkWork", () => {
 			emitSimpleCrawlUnsupported: jest.fn().mockResolvedValue(undefined),
 		});
 
-		await expect(saveLinkWork("https://wrapper.example/link/188518", { saveAttemptId })).resolves.toEqual({ deferred: "blocked" });
+		await expect(saveLinkWork("https://wrapper.example/link/188518", { saveAttemptId })).resolves.toEqual({ deferred: "blocked", finalUrl: "https://dest.example/article" });
 
 		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
 			url: "https://wrapper.example/link/188518",
@@ -707,5 +708,143 @@ describe("initSaveLinkWork — the tier-1 commit tail", () => {
 			["logCrawlOutcome", { url: "https://site.com/page", thisTier: "tier-1", thisTierStatus: status, otherTierStatus: "success", pickedTier: "tier-0" }],
 			["logger.info", "[save-link-work.test] tier-1 source written", { url: "https://site.com/page", imageUrl: "https://site.com/i.png" }],
 		]);
+	});
+});
+
+describe("initSaveLinkWork — the page the free crawl reached", () => {
+	const TRACKER = "https://links.tracker.example/r/abc?mid=1";
+	const PUBLISHER = "https://publisher.example/story";
+
+	function respondingFrom(params: { url: string; status: number; body: string }): Response {
+		const response = new Response(params.body, { status: params.status, headers: { "content-type": "text/html" } });
+		Object.defineProperty(response, "url", { value: params.url });
+		return response;
+	}
+
+	function realCrawl(crawlFetch: (url: string) => Promise<Response>, finalizeArticle: FinalizeArticle): CrawlAndFinalizeArticle {
+		const crawlArticle = initCrawlArticle({
+			crawlFetch: async (url) => crawlFetch(url),
+			siteRules: [],
+			logError: () => {},
+			logInfo: () => {},
+			logThumbnailNotDelivered: () => {},
+		});
+		return deferJavascriptShells({ crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle }) });
+	}
+
+	const unusedFinalize: FinalizeArticle = async () => {
+		throw new Error("a block page must not reach finalize");
+	};
+
+	it("hands the render crawl the publisher a tracker redirected to when the publisher blocked the free crawl, so the paid legs skip the tracker", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const crawlAndFinalizeArticle = realCrawl(async () => respondingFrom({ url: PUBLISHER, status: 403, body: "<html><body>Access denied</body></html>" }), unusedFinalize);
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported });
+
+		await expect(saveLinkWork(TRACKER, { userId: "user-1", saveAttemptId })).resolves.toEqual({ deferred: "blocked", finalUrl: PUBLISHER });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
+			url: TRACKER,
+			unsupportedReason: "blocked",
+			userId: "user-1",
+			saveAttemptId,
+			finalUrl: PUBLISHER,
+		});
+	});
+
+	it("keeps the last redirect hop the free crawl reached before an ordinary timeout", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const timedOutAfterHop: CrawlAndFinalizeArticle = async () => ({
+			status: "failed",
+			reason: "crawl-failed",
+			finalUrl: PUBLISHER,
+			cause: Object.assign(new Error("timed out"), { name: "TimeoutError" }),
+		});
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: timedOutAfterHop, emitSimpleCrawlUnsupported });
+
+		await expect(saveLinkWork(TRACKER, { saveAttemptId })).resolves.toEqual({ deferred: "blocked", finalUrl: PUBLISHER });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ finalUrl: PUBLISHER }));
+	});
+
+	it.each([
+		{ label: "a response that did not redirect", finalUrl: TRACKER },
+		{ label: "a response whose URL differs only in host case", finalUrl: "https://LINKS.tracker.example/r/abc?mid=1" },
+		{ label: "a failure with no response", finalUrl: undefined },
+	])("names no changed target for $label, so the render starts where it always did", async ({ finalUrl }) => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const blockedAt: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403, finalUrl });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAt, emitSimpleCrawlUnsupported });
+
+		await saveLinkWork(TRACKER, { saveAttemptId });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", saveAttemptId });
+	});
+
+	it("compares the terminal with the URL actually requested, the resolved original, not the stored row key", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const blockedAtOriginal: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403, finalUrl: PUBLISHER });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAtOriginal, emitSimpleCrawlUnsupported, resolveOriginalUrl: async () => PUBLISHER });
+
+		await saveLinkWork(TRACKER, { saveAttemptId });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", saveAttemptId });
+	});
+
+	it("keeps a same-host redirect, which is still a different page to start from", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const blockedAfterSameHostHop: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403, finalUrl: "https://links.tracker.example/landing" });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAfterSameHostHop, emitSimpleCrawlUnsupported });
+
+		await saveLinkWork(TRACKER, { saveAttemptId });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ finalUrl: "https://links.tracker.example/landing" }));
+	});
+
+	it("leaves an admin recrawl on its pinned path with no observed target", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const blockedAtPublisher: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403, finalUrl: PUBLISHER });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAtPublisher, emitSimpleCrawlUnsupported });
+
+		await expect(saveLinkWork(TRACKER, { saveAttemptId, recrawl: true })).resolves.toEqual({ deferred: "blocked" });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", recrawl: true, saveAttemptId });
+	});
+
+	it("still settles a dead destination as not-found rather than paying to retry it", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const goneAtPublisher: CrawlAndFinalizeArticle = async () => ({ status: "not-found", httpStatus: 404, finalUrl: PUBLISHER });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: goneAtPublisher, transitionAndPersist });
+
+		await expect(saveLinkWork(TRACKER, { saveAttemptId })).resolves.toBe("tier-1-terminal");
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlNotFound, { url: TRACKER, input: { reason: { kind: "not-found", httpStatus: 404 } } });
+	});
+
+	it("hands the render crawl the publisher of a redirected javascript shell without adopting the zero-word page as the article's identity", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const adoptCanonicalIdentity = jest.fn().mockResolvedValue(undefined);
+		const emptyShell: FinalizeArticle = async () => ({
+			ok: true,
+			article: { html: "<div></div>", metadata: { title: "App", siteName: "publisher.example", excerpt: "", wordCount: 0, estimatedReadTime: 0 } },
+		});
+		const crawlAndFinalizeArticle = realCrawl(
+			async () => respondingFrom({ url: PUBLISHER, status: 200, body: '<html><head><title>App</title><script src="/app.js"></script></head><body><div id="root"></div></body></html>' }),
+			emptyShell,
+		);
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported, adoptCanonicalIdentity });
+
+		await expect(saveLinkWork(TRACKER, { saveAttemptId })).resolves.toEqual({ deferred: "javascript-required", finalUrl: PUBLISHER });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "javascript-required", saveAttemptId, finalUrl: PUBLISHER });
+		expect(adoptCanonicalIdentity).toHaveBeenCalledTimes(0);
+	});
+
+	it("returns the observed target to a paired save that emits the deferral itself", async () => {
+		const blockedAtPublisher: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403, finalUrl: PUBLISHER });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAtPublisher });
+
+		await expect(saveLinkWork(TRACKER, { saveAttemptId, deferUnsupported: true })).resolves.toEqual({ deferred: "blocked", finalUrl: PUBLISHER });
 	});
 });

@@ -37,6 +37,7 @@ export type EmitSimpleCrawlUnsupported = (params: {
 	previousBodyHash?: string;
 	saveAttemptId: SaveAttemptId;
 	candidates?: CandidateReference[];
+	finalUrl?: string;
 }) => Promise<void>;
 
 export type EventsDepBundle = {
@@ -68,7 +69,7 @@ export function initEventsDepBundle(deps: {
 export function initEmitSimpleCrawlUnsupported(deps: {
 	publishEvent: PublishEvent;
 }): EmitSimpleCrawlUnsupported {
-	return ({ url, unsupportedReason, userId, recrawl, refresh, previousBodyHash, saveAttemptId, candidates }) =>
+	return ({ url, unsupportedReason, userId, recrawl, refresh, previousBodyHash, saveAttemptId, candidates, finalUrl }) =>
 		deps.publishEvent(SimpleCrawlUnsupportedEvent, {
 			url,
 			unsupportedReason,
@@ -78,5 +79,6 @@ export function initEmitSimpleCrawlUnsupported(deps: {
 			previousBodyHash,
 			saveAttemptId,
 			candidates,
+			finalUrl,
 		});
 }

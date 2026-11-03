@@ -39,6 +39,7 @@ type Unrendered = Extract<RenderLadderResult, { kind: "unrendered" }>;
 export function initRenderCrawlHandler(deps: {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	prepareArticleIdentity: PrepareArticleIdentity;
+	findAdoptedFetchUrl: (url: string) => Promise<string | undefined>;
 	verifyWrapperSource: VerifyWrapperSource;
 	crawlArticle: CrawlArticle;
 	proxiedCrawlArticle: CrawlArticle;
@@ -139,10 +140,16 @@ export function initRenderCrawlHandler(deps: {
 		return { kind: "settled" };
 	};
 
-	const fetchThroughWebUnlocker = async (ctx: DeferredCrawlContext): Promise<ProxiedFetchAttempt> => {
+	const resumableTarget = async (params: { url: string; observedUrl: string | undefined }): Promise<string | undefined> => {
+		if (params.observedUrl === undefined) return undefined;
+		const pinned = await deps.findAdoptedFetchUrl(params.url);
+		return pinned === undefined ? params.observedUrl : undefined;
+	};
+
+	const fetchThroughWebUnlocker = async (ctx: DeferredCrawlContext, target: { fetchUrl: string; resumedAt: string | undefined }): Promise<ProxiedFetchAttempt> => {
 		const { url } = ctx;
 		const result = await proxiedCrawlAndFinalize({
-			url: ctx.originalUrl,
+			url: target.fetchUrl,
 			writeContext: { url, attemptId: ctx.saveAttemptId },
 			retainResponseBody: true,
 		});
@@ -155,7 +162,7 @@ export function initRenderCrawlHandler(deps: {
 			etag: result.etag,
 			lastModified: result.lastModified,
 			bodyHash: result.bodyHash,
-			finalUrl: result.finalUrl,
+			finalUrl: result.finalUrl ?? target.resumedAt,
 			httpStatus,
 			renderedThrough: "web-unlocker-fetch" as const,
 		};
@@ -269,7 +276,7 @@ export function initRenderCrawlHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = RenderCrawlCommand.detailSchema.parse(envelope.detail);
-				const { url, userId, recrawl, refresh, saveAttemptId, previousBodyHash, unsupportedReason } = detail;
+				const { url, userId, recrawl, refresh, saveAttemptId, previousBodyHash, unsupportedReason, finalUrl } = detail;
 				const identity = await deps.prepareArticleIdentity(url);
 				assert(identity.status === "resolved", "queued render article original is unresolved");
 				let candidates = detail.candidates;
@@ -283,12 +290,6 @@ export function initRenderCrawlHandler(deps: {
 					candidates = capture === undefined ? [] : [capture];
 				}
 
-				logger.info(`${logPrefix} processing`, {
-					url,
-					recrawl: recrawl ? 1 : 0,
-					refresh: refresh ? 1 : 0,
-				});
-
 				const ctx: DeferredCrawlContext = {
 					url,
 					originalUrl: identity.originalUrl,
@@ -299,14 +300,22 @@ export function initRenderCrawlHandler(deps: {
 					userId,
 					previousBodyHash,
 				};
+				const resumedAt = await resumableTarget({ url, observedUrl: recrawl || refresh ? undefined : finalUrl });
+				const fetchUrl = resumedAt ?? identity.originalUrl;
+				logger.info(`${logPrefix} processing`, {
+					url,
+					recrawl: recrawl ? 1 : 0,
+					refresh: refresh ? 1 : 0,
+					resumedAtObservedPage: resumedAt === undefined ? 0 : 1,
+				});
 				const rendered = await runRenderLadder({
 					renderPage: deps.renderPage,
-					url: identity.originalUrl,
+					url: fetchUrl,
 					residentialEgress: deps.residentialEgress,
 					webUnlockerEgress: deps.webUnlockerEgress,
 					unsupportedReason,
 					commitRender: (render, escalation) => commitRender(render, escalation, ctx),
-					fetchThroughWebUnlocker: () => fetchThroughWebUnlocker(ctx),
+					fetchThroughWebUnlocker: () => fetchThroughWebUnlocker(ctx, { fetchUrl, resumedAt }),
 					consumeBudget: () => deps.consumeRenderCrawlBudget({ messageId: record.messageId }),
 					remainingMilliseconds: () => context.getRemainingTimeInMillis(),
 				});

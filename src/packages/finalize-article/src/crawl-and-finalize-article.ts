@@ -29,7 +29,7 @@ export type CrawlAndFinalizeResult =
 		}
 	| { status: "blocked"; httpStatus: number; finalUrl?: string }
 	| { status: "not-found"; httpStatus: 404 | 410; finalUrl?: string }
-	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason };
+	| { status: "unsupported"; reason: string; unsupportedReason?: CrawlUnsupportedReason; finalUrl?: string };
 
 export type CrawlAndFinalizeArticle = (params: {
 	writeContext?: MediaWriteContext;
