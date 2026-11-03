@@ -1505,6 +1505,9 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
+      '@packages/media-contracts':
+        specifier: workspace:*
+        version: link:../media-contracts
       zod:
         specifier: 4.4.3
         version: 4.4.3

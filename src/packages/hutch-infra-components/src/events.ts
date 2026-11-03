@@ -1,4 +1,5 @@
 import { CrawlFailureReasonSchema } from "@packages/article-state-types";
+import { MediaFailureReasonSchema, MediaKindNameSchema, PrivateItemUrlSchema, UploadIdSchema } from "@packages/media-contracts";
 import { z } from "zod";
 
 type HutchEvent<T extends z.ZodTypeAny> = {
@@ -1566,3 +1567,31 @@ export const GmailNewsletterNoticeProcessedEvent = defineEvent({
 	name: "gmail-newsletter-notice-processed", source: "hutch.app", detailType: "GmailNewsletterNoticeProcessed",
 	detailSchema: z.object({ userId: z.string(), senderEmail: z.string(), outcome: z.enum(["sent", "suppressed"]) }),
 });
+
+export const MediaUploadCommittedEvent = defineEvent({
+	name: "media-upload-committed", source: "hutch.media", detailType: "MediaUploadCommitted",
+	detailSchema: z.object({
+		uploadId: UploadIdSchema,
+		kind: MediaKindNameSchema,
+		url: PrivateItemUrlSchema,
+		userId: z.string().min(1),
+		saveAttemptId: SaveAttemptId,
+		etag: z.string().min(1),
+		attempt: z.number().int().positive(),
+	}),
+});
+export type MediaUploadCommittedDetail = z.infer<typeof MediaUploadCommittedEvent.detailSchema>;
+
+export const MediaProcessingFailedEvent = defineEvent({
+	name: "media-processing-failed", source: "hutch.media", detailType: "MediaProcessingFailed",
+	detailSchema: z.object({
+		uploadId: UploadIdSchema,
+		kind: MediaKindNameSchema,
+		url: PrivateItemUrlSchema,
+		saveAttemptId: SaveAttemptId,
+		attempt: z.number().int().positive(),
+		reason: MediaFailureReasonSchema,
+		notice: z.string().min(1),
+	}),
+});
+export type MediaProcessingFailedDetail = z.infer<typeof MediaProcessingFailedEvent.detailSchema>;

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_declared_events" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_declared_events" name="declared-events" isExecutable="false">
+    <bpmn:serviceTask id="n_M" name="Media contracts: upload id, private item URL, kind name, failure reason">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_C" name="MediaUploadCommittedEvent">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="n_F" name="MediaProcessingFailedEvent">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="n_B" name="Shared event bus, source hutch.media">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_M" targetRef="n_C" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_M" targetRef="n_F" />
+    <bpmn:sequenceFlow id="f_2" name="declared, unwired" sourceRef="n_C" targetRef="n_B" />
+    <bpmn:sequenceFlow id="f_3" name="declared, unwired" sourceRef="n_F" targetRef="n_B" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_declared_events">
+    <bpmndi:BPMNPlane id="Plane_declared_events" bpmnElement="Process_declared_events">
+      <bpmndi:BPMNShape id="n_M_di" bpmnElement="n_M">
+        <dc:Bounds x="28" y="84" width="197.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="336.54" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_F_di" bpmnElement="n_F">
+        <dc:Bounds x="336.54" y="136" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_B_di" bpmnElement="n_B">
+        <dc:Bounds x="487.58" y="92" width="184.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="225.5" y="118" />
+        <di:waypoint x="281.02" y="118" />
+        <di:waypoint x="281.02" y="48" />
+        <di:waypoint x="336.54" y="48" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="225.5" y="118" />
+        <di:waypoint x="281.02" y="118" />
+        <di:waypoint x="281.02" y="156" />
+        <di:waypoint x="336.54" y="156" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="376.54" y="48" />
+        <di:waypoint x="432.06" y="48" />
+        <di:waypoint x="432.06" y="118" />
+        <di:waypoint x="487.58" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="376.54" y="156" />
+        <di:waypoint x="432.06" y="156" />
+        <di:waypoint x="432.06" y="118" />
+        <di:waypoint x="487.58" y="118" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -229,3 +229,10 @@ export {
 	GmailMarkBackfillPageProcessedEvent,
 	type GmailMarkBackfillPageProcessedDetail,
 } from "./events";
+
+export {
+	MediaUploadCommittedEvent,
+	type MediaUploadCommittedDetail,
+	MediaProcessingFailedEvent,
+	type MediaProcessingFailedDetail,
+} from "./events";
