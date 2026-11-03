@@ -733,25 +733,6 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 			expect(closes).toEqual(["popover"]);
 		});
 
-		it("carries the preferences flag through both forms and both clear links on a custom readlist", async () => {
-			const harness = useApp(pinnedFixture());
-			const agent = await loginAgent(harness.server, harness.auth);
-			const work = await createReadlist(agent, "Work");
-			await seed(harness, { url: "https://example.com/focus", title: "Focus", readlist: work });
-
-			const flagged = await page(agent, `/queue?queue=${work}&q=no-such-words-anywhere&feature=pref`);
-			const plain = await page(agent, `/queue?queue=${work}&q=no-such-words-anywhere`);
-
-			const featureOf = (doc: Document) => [
-				hiddenFields(element(doc, '[data-test-form="readlist-search"]')).find(([name]) => name === "feature")?.[1] ?? null,
-				params(actionOf(element(doc, '[data-test-discovery-form="popover"]'))).get("feature"),
-				params(actionOf(element(doc, "#readlist-filters-clear"))).get("feature"),
-				params(actionOf(element(doc, ".readlist-empty__cta"))).get("feature"),
-			];
-			expect(featureOf(flagged)).toEqual(["pref", "pref", "pref", "pref"]);
-			expect(featureOf(plain)).toEqual([null, null, null, null]);
-		});
-
 		it("still offers the search row and the drawer to a read-only reader", async () => {
 			const harness = useApp(pinnedFixture());
 			const agent = await loginAgent(harness.server, harness.auth);

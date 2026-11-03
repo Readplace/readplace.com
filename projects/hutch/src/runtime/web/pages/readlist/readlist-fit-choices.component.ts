@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { type ReadlistSlug, readlistFitChoiceLabel } from "@packages/domain/readlist";
 import type { ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import { type LocalTime, render, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
+import { readlistFitOverrideDeletePath } from "./readlist.url";
 
-import { fitChoiceRemoveUrl } from "./readlist-preferences-feature";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-fit-choices.template.html"), "utf-8");
 
@@ -23,7 +23,6 @@ interface ReadlistFitChoiceRow {
 export function renderReadlistFitChoices(input: {
 	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	choices: ReadlistFitChoices;
-	preferencesEnabled: boolean;
 }): string {
 	if (input.readlist.purpose === undefined || input.choices.length === 0) return "";
 	const rows = input.choices.map((choice): ReadlistFitChoiceRow => {
@@ -34,7 +33,7 @@ export function renderReadlistFitChoices(input: {
 			parts: [label, ...anchorParts, choice.host],
 			createdAt: toAbsoluteDate({ iso: choice.createdAt.toISOString() }),
 			action: withInternalTracking(
-				fitChoiceRemoveUrl({ slug: input.readlist.slug, id: choice.id, enabled: input.preferencesEnabled }),
+				readlistFitOverrideDeletePath(input.readlist.slug, choice.id),
 				{ source: CHOICES_SOURCE, content: "remove-choice" },
 			),
 			removeLabel: `Remove ${label}: ${choice.anchorText === "" ? choice.host : choice.anchorText}`,

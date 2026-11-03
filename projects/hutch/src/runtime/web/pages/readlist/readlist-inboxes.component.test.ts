@@ -38,7 +38,6 @@ function inbox(input: {
 function renderInboxes(input: {
 	inboxes: readonly InboxAddressEntry[];
 	purpose?: string;
-	preferencesEnabled?: boolean;
 }): Document {
 	return new JSDOM(
 		`<main>${renderReadlistInboxes(
@@ -50,7 +49,6 @@ function renderInboxes(input: {
 					{ slug: WORK, label: "Work Reading" },
 					{ slug: LATER, label: "Later" },
 				],
-				preferencesEnabled: input.preferencesEnabled ?? true,
 			}),
 		)}</main>`,
 	).window.document;
@@ -179,7 +177,7 @@ describe("buildReadlistInboxes", () => {
 
 		expect(form.getAttribute("method")).toBe("POST");
 		expect(form.getAttribute("action")).toBe(
-			`/queue/queues/${WORK}/preferences/inboxes?feature=pref&utm_source=queue-preferences&utm_medium=internal&utm_content=unroute-inbox`,
+			`/queue/queues/${WORK}/preferences/inboxes?utm_source=queue-preferences&utm_medium=internal&utm_content=unroute-inbox`,
 		);
 		expect(formFields(form)).toEqual({
 			address: "news-a7b2c9@read.place",
@@ -193,7 +191,7 @@ describe("buildReadlistInboxes", () => {
 		assert(form, "every row must carry its routing form");
 
 		expect(form.getAttribute("action")).toBe(
-			`/queue/queues/${WORK}/preferences/inboxes?feature=pref&utm_source=queue-preferences&utm_medium=internal&utm_content=route-inbox`,
+			`/queue/queues/${WORK}/preferences/inboxes?utm_source=queue-preferences&utm_medium=internal&utm_content=route-inbox`,
 		);
 		expect(formFields(form)).toEqual({ address: "tech-b8c3d0@read.place", destination: WORK });
 	});
@@ -201,7 +199,6 @@ describe("buildReadlistInboxes", () => {
 	it("drops the feature from the routing form when the reader never asked for it", () => {
 		const doc = renderInboxes({
 			inboxes: [inbox({ name: "news", token: "a7b2c9" })],
-			preferencesEnabled: false,
 		});
 
 		expect(

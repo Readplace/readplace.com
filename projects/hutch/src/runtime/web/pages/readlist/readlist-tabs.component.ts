@@ -4,9 +4,8 @@ import { render, withInternalTracking } from "@packages/web-shell";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
 import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
 
-import { preferencesFeatureParams, preferencesUrl } from "./readlist-preferences-feature";
 import { READLIST_TABS, type TabId } from "./readlist.tabs";
-import { buildReadlistUrl, type ReadlistDiscovery } from "./readlist.url";
+import { buildReadlistUrl, type ReadlistDiscovery, readlistPreferencesPath } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-tabs.template.html"), "utf-8");
 
@@ -35,14 +34,12 @@ const PREFERENCES_TAB = {
 function preferencesTabs(input: {
 	activeTab: ReadlistTabSelection;
 	readlist: ReadlistSlug;
-	preferencesEnabled: boolean;
 }): readonly ReadlistTab[] {
-	if (!input.preferencesEnabled) return [];
 	if (input.readlist === DEFAULT_READLIST_SLUG) return [];
 	const isActive = input.activeTab === "preferences";
 	return [
 		{
-			href: withInternalTracking(preferencesUrl({ slug: input.readlist, enabled: true }), {
+			href: withInternalTracking(readlistPreferencesPath(input.readlist), {
 				source: TABS_SOURCE,
 				content: PREFERENCES_TAB.trackingContent,
 			}),
@@ -59,7 +56,6 @@ export function buildReadlistTabs(input: {
 	readlist: ReadlistSlug;
 	order?: SortOrder;
 	discovery?: ReadlistDiscovery;
-	preferencesEnabled: boolean;
 }): ReadlistTabsDisplayModel {
 	return {
 		tabs: [
@@ -67,7 +63,6 @@ export function buildReadlistTabs(input: {
 				href: withInternalTracking(
 					buildReadlistUrl(
 						{ readlist: input.readlist, tab: tab.id, order: input.order, discovery: input.discovery },
-						preferencesFeatureParams(input.preferencesEnabled),
 					),
 					{ source: TABS_SOURCE, content: tab.trackingContent },
 				),

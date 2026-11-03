@@ -195,7 +195,6 @@ import {
 	readlistToFileInto,
 	sessionIdOf,
 } from "./readlist-context";
-import { preferencesFeatureParams, readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import { readlistScopedStore } from "./readlist-scoped-store";
 import { MARK_STATUS_ACK_NEVER } from "./mark-status-confirm.component";
@@ -1988,7 +1987,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			303,
 			buildReadlistUrl(
 				{ ...place, discovery: { q: place.discovery?.q, time: filter.time, saved: filter.saved }, page: 1 },
-				preferencesFeatureParams(readlistPreferencesEnabled(req.query)),
 			),
 		);
 	});

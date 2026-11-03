@@ -41,14 +41,13 @@ import {
 	READLIST_PREFERENCES_WIZARD_KEY,
 	type ReadlistPreferencesWizardViewModel,
 } from "./readlist-preferences-wizard.component";
-import { preferencesUrl, purposeDeleteUrl } from "./readlist-preferences-feature";
 import { READLIST_PREFERENCES_STYLES } from "./readlist-preferences.styles";
 import {
 	READLIST_PURPOSE_DELETE_ID,
 	renderPurposeDeleteConfirm,
 } from "./readlist-purpose-delete-confirm.component";
 import type { ReadlistRailViewModel } from "./readlist-rail";
-import { readlistReturnQuery } from "./readlist.url";
+import { readlistReturnQuery, readlistPreferencesPath, readlistPurposeDeletePath } from "./readlist.url";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-preferences.template.html"), "utf-8");
@@ -107,7 +106,6 @@ interface PanelControls {
 
 interface PanelControlsInput {
 	readlist: { slug: ReadlistSlug; label: string };
-	preferencesEnabled: boolean;
 	wizard: WizardRender;
 	wizardOpenClasses: readonly string[];
 }
@@ -133,7 +131,7 @@ function purposeMenu(input: PanelControlsInput): PurposeMenu {
 				iconName: "trash",
 				text: "Delete",
 				url: withInternalTracking(
-					purposeDeleteUrl({ slug: input.readlist.slug, enabled: input.preferencesEnabled }),
+					readlistPurposeDeletePath(input.readlist.slug),
 					{ source: PREFERENCES_SOURCE, content: "delete-purpose-fallback" },
 				),
 				testAction: "readlist-preferences-delete-fallback",
@@ -160,7 +158,7 @@ const PANEL_CONTROLS: Record<PurposeState | "read-only", (input: PanelControlsIn
 		purposeDeleteConfirmHtml: renderPurposeDeleteConfirm({
 			label: input.readlist.label,
 			action: withInternalTracking(
-				purposeDeleteUrl({ slug: input.readlist.slug, enabled: input.preferencesEnabled }),
+				readlistPurposeDeletePath(input.readlist.slug),
 				{ source: PREFERENCES_SOURCE, content: "delete-purpose" },
 			),
 		}),
@@ -181,14 +179,10 @@ function purposeStateOf(readlist: { purpose?: string }): PurposeState {
 
 export function renderReadlistPurposeWizard(input: {
 	readlist: { slug: ReadlistSlug; purpose?: string };
-	preferencesEnabled: boolean;
 	values: Partial<ReadlistPreferencesWizardViewModel>;
 	error?: string;
 }): WizardRender {
-	const preferencesHref = preferencesUrl({
-		slug: input.readlist.slug,
-		enabled: input.preferencesEnabled,
-	});
+	const preferencesHref = readlistPreferencesPath(input.readlist.slug);
 	return renderWizard({
 		id: READLIST_PREFERENCES_WIZARD_ID,
 		key: READLIST_PREFERENCES_WIZARD_KEY,
@@ -212,7 +206,6 @@ export interface ReadlistPreferencesViewModel {
 	inboxes: readonly InboxAddressEntry[];
 	choices: ReadlistFitChoices;
 	inboxAlert?: AlertContent;
-	preferencesEnabled: boolean;
 	accessIsReadOnly: boolean;
 	subscriptionBanner: SubscriptionBannerState;
 	onboarding: ReadlistOnboarding;
@@ -224,10 +217,8 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 	const state = purposeStateOf(vm.readlist);
 	const controls = PANEL_CONTROLS[vm.accessIsReadOnly ? "read-only" : state]({
 		readlist: vm.readlist,
-		preferencesEnabled: vm.preferencesEnabled,
 		wizard: renderReadlistPurposeWizard({
 			readlist: vm.readlist,
-			preferencesEnabled: vm.preferencesEnabled,
 			values: vm.values,
 			error: vm.purposeError,
 		}),
@@ -257,7 +248,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			buildReadlistTabs({
 				activeTab: "preferences",
 				readlist: vm.readlist.slug,
-				preferencesEnabled: vm.preferencesEnabled,
 			}),
 		),
 		panelClass: [PANEL_CLASS[state], ...controls.modifierClasses].join(" "),
@@ -273,13 +263,11 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				readlist: vm.readlist,
 				inboxes: vm.inboxes,
 				readlists: vm.rail.readlists,
-				preferencesEnabled: vm.preferencesEnabled,
 			}),
 		),
 		choicesHtml: renderReadlistFitChoices({
 			readlist: vm.readlist,
 			choices: vm.choices,
-			preferencesEnabled: vm.preferencesEnabled,
 		}),
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,

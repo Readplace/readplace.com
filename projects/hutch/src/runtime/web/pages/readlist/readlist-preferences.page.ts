@@ -34,12 +34,11 @@ import type { ReadlistOnboarding } from "./readlist.component";
 import { readerReadlists } from "./readlist-context";
 import type { FindNonEmptyReadlists } from "./readlist-holdings";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
-import { preferencesUrl, readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import { READLIST_PREFERENCES_WIZARD_ID } from "./readlist-preferences-wizard.component";
 import { ReadlistPreferencesPage, renderReadlistPurposeWizard } from "./readlist-preferences.component";
 import { buildReadlistRail } from "./readlist-rail";
 import { READLIST_ERROR_UNKNOWN_READLIST, READLIST_PURPOSE_INVALID_MESSAGE } from "./readlist.error";
-import { buildReadlistUrl } from "./readlist.url";
+import { buildReadlistUrl, readlistPreferencesPath } from "./readlist.url";
 import { toSubscriptionBannerState } from "./readlist.viewmodel";
 
 const PREFERENCES_ERROR_CODES = ["invalid-purpose", "unknown-inbox"] as const;
@@ -145,7 +144,6 @@ export function initReadlistPreferencesRoutes(deps: {
 					inboxes,
 					inboxAlert: error.inboxAlert,
 					choices,
-					preferencesEnabled: readlistPreferencesEnabled(req.query),
 					accessIsReadOnly,
 					subscriptionBanner: toSubscriptionBannerState(access, deps.now()),
 					onboarding,
@@ -173,23 +171,17 @@ export function initReadlistPreferencesRoutes(deps: {
 				return;
 			}
 			const slug = requested.data;
-			const enabled = readlistPreferencesEnabled(req.query);
 			const typed = typeof req.body?.purpose === "string" ? req.body.purpose : "";
 			const definitions = await deps.listReadlistDefinitions(userId);
 			const rejections: Record<ReadlistPurposeRejection, () => ReadlistNaming> = {
 				"unknown-readlist": () => unknownReadlistNaming,
 				"invalid-purpose": () => ({
-					refusal: preferencesUrl({
-						slug,
-						enabled,
-						extra: [["preferences_error", "invalid-purpose"]],
-					}),
+					refusal: `${readlistPreferencesPath(slug)}?preferences_error=invalid-purpose`,
 					form: () => {
 						const stored = definitions.find((owned) => owned.slug === slug);
 						assert(stored, "a purpose is refused only for a readlist the reader owns");
 						return renderReadlistPurposeWizard({
 							readlist: stored,
-							preferencesEnabled: enabled,
 							values: { purpose: typed },
 							error: READLIST_PURPOSE_INVALID_MESSAGE,
 						}).popoverFormHtml;
@@ -216,7 +208,7 @@ export function initReadlistPreferencesRoutes(deps: {
 				answer(unknownReadlistNaming);
 				return;
 			}
-			answer({ landing: preferencesUrl({ slug: decision.slug, enabled }), scroll: "stay-put" });
+			answer({ landing: readlistPreferencesPath(decision.slug), scroll: "stay-put" });
 		},
 	);
 
@@ -248,7 +240,7 @@ export function initReadlistPreferencesRoutes(deps: {
 			}
 			res.redirect(
 				303,
-				preferencesUrl({ slug: decision.slug, enabled: readlistPreferencesEnabled(req.query) }),
+				readlistPreferencesPath(decision.slug),
 			);
 		},
 	);
@@ -275,7 +267,7 @@ export function initReadlistPreferencesRoutes(deps: {
 			if (id.success) {
 				await deps.deleteReadlistFitOverride({ userId, readlist: slug, id: id.data });
 			}
-			res.redirect(303, preferencesUrl({ slug, enabled: readlistPreferencesEnabled(req.query) }));
+			res.redirect(303, readlistPreferencesPath(slug));
 		},
 	);
 
@@ -292,11 +284,10 @@ export function initReadlistPreferencesRoutes(deps: {
 				return;
 			}
 			const slug = requested.data;
-			const enabled = readlistPreferencesEnabled(req.query);
 			const unavailableInbox = (): void => {
 				res.redirect(
 					303,
-					preferencesUrl({ slug, enabled, extra: [["preferences_error", "unknown-inbox"]] }),
+					`${readlistPreferencesPath(slug)}?preferences_error=unknown-inbox`,
 				);
 			};
 			const rejections: Record<InboxRoutingRejection, () => void> = {
@@ -327,7 +318,7 @@ export function initReadlistPreferencesRoutes(deps: {
 				address: decision.address,
 				readlist: decision.readlist,
 			});
-			res.redirect(303, preferencesUrl({ slug, enabled }));
+			res.redirect(303, readlistPreferencesPath(slug));
 		},
 	);
 

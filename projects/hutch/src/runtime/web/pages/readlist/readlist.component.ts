@@ -46,7 +46,6 @@ import {
 	tickedFacetCount,
 } from "./readlist-discovery.component";
 import { READLIST_DISCOVERY_STYLES } from "./readlist-discovery.styles";
-import { preferencesFeatureParams, readlistPreferencesEnabled } from "./readlist-preferences-feature";
 import {
 	renderReadlistSaveSkeleton,
 	toReadlistSaveSkeletonDisplayModel,
@@ -400,11 +399,9 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		iconName: effectiveOrder === "desc" ? "arrow-down" : "arrow-up",
 	};
 	const alert = readlistAlertFor(options.query);
-	const preferencesEnabled = readlistPreferencesEnabled(options.query);
 	const discovery = buildReadlistDiscovery({
 		filters,
 		tabHoldsRows: options.tabHoldsRows,
-		preferencesEnabled,
 	});
 	const panels = readlistPanels(options.rail);
 	const side = readlistSideColumn({
@@ -426,7 +423,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		clearDiscoveryUrl: withInternalTracking(
 			buildReadlistFiltersUrl(
 				{ readlist: filters.readlist, tab: filters.tab, order: filters.order },
-				preferencesFeatureParams(preferencesEnabled),
 			),
 			{ source: "queue-empty", content: "clear-discovery" },
 		),
@@ -483,7 +479,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				readlist: filters.readlist,
 				order: filters.order,
 				discovery: filters.discovery,
-				preferencesEnabled,
 			}),
 		),
 		discoveryHtml: renderReadlistDiscovery(discovery),

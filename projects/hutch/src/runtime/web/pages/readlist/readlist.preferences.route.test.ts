@@ -19,7 +19,7 @@ import request from "supertest";
 import { z } from "zod";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { seedInto } from "../../test-helpers/readlist-seed";
-import { fitChoiceRemoveUrl } from "./readlist-preferences-feature";
+import { readlistFitOverrideDeletePath } from "./readlist.url";
 
 const useApp = useTestServer();
 
@@ -42,10 +42,6 @@ async function createReadlist(agent: TestAgent, label: string): Promise<string> 
 
 function preferencesPath(slug: string): string {
 	return `/queue/queues/${slug}/preferences`;
-}
-
-function withPreferencesFeature(path: string): string {
-	return `${path}${path.includes("?") ? "&" : "?"}feature=pref`;
 }
 
 function filterTabs(doc: Document): (string | null)[] {
@@ -319,7 +315,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
-		const doc = parse((await agent.get(withPreferencesFeature(preferencesPath(slug)))).text);
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(filterTabs(doc)).toEqual(["unread", "read", "preferences"]);
 		const preferences = doc.querySelector('[data-test-filter="preferences"]');
@@ -332,7 +328,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const doc = parse((await agent.get(withPreferencesFeature("/queue"))).text);
+		const doc = parse((await agent.get("/queue")).text);
 
 		expect(filterTabs(doc)).toEqual(["unread", "read"]);
 	});
@@ -342,45 +338,11 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
-		const doc = parse((await agent.get(withPreferencesFeature(`/queue?queue=${slug}`))).text);
+		const doc = parse((await agent.get(`/queue?queue=${slug}`)).text);
 		const preferences = doc.querySelector('[data-test-filter="preferences"]');
 		assert(preferences, "a reader-made readlist's listing must offer the preferences tab");
 
 		expect(preferences.getAttribute("href")).toContain(preferencesPath(slug));
-	});
-
-	it("keeps the tab out of a reader-made readlist's listing until the feature is asked for", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-
-		const doc = parse((await agent.get(`/queue?queue=${slug}`)).text);
-
-		expect(filterTabs(doc)).toEqual(["unread", "read"]);
-	});
-
-	it("keeps the tab out of its own page until the feature is asked for", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
-
-		expect(filterTabs(doc)).toEqual(["unread", "read"]);
-		expect(panel(doc).getAttribute("data-test-preferences-state")).toBe("unset");
-	});
-
-	it("carries the feature forward on every tab, so the strip survives a hop back to the listing", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-		const slug = await createReadlist(agent, "New Readlist");
-
-		const doc = parse((await agent.get(withPreferencesFeature(preferencesPath(slug)))).text);
-		const hrefs = Array.from(doc.querySelectorAll("[data-test-filter]"), (tab) =>
-			tab.getAttribute("href"),
-		);
-
-		expect(hrefs.every((href) => href?.includes("feature=pref"))).toBe(true);
 	});
 
 	it("sends a reader asking for a readlist they do not have back to the default one", async () => {
@@ -557,11 +519,11 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
-			.post(withPreferencesFeature(preferencesPath(slug)))
+			.post(preferencesPath(slug))
 			.type("form")
 			.send({ purpose: PURPOSE });
 
-		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(response.headers.location).toBe(preferencesPath(slug));
 		const doc = parse((await agent.get(response.headers.location)).text);
 		expect(filterTabs(doc)).toEqual(["unread", "read", "preferences"]);
 	});
@@ -572,12 +534,12 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
-			.post(withPreferencesFeature(preferencesPath(slug)))
+			.post(preferencesPath(slug))
 			.type("form")
 			.send({ purpose: "   " });
 
 		expect(response.headers.location).toBe(
-			`${preferencesPath(slug)}?preferences_error=invalid-purpose&feature=pref`,
+			`${preferencesPath(slug)}?preferences_error=invalid-purpose`,
 		);
 	});
 
@@ -586,10 +548,10 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 
-		const response = await agent.post(withPreferencesFeature(preferencesPath(slug))).type("form").send({});
+		const response = await agent.post(preferencesPath(slug)).type("form").send({});
 
 		expect(response.headers.location).toBe(
-			`${preferencesPath(slug)}?preferences_error=invalid-purpose&feature=pref`,
+			`${preferencesPath(slug)}?preferences_error=invalid-purpose`,
 		);
 	});
 
@@ -704,11 +666,11 @@ describe("POST /queue/queues/:slug/preferences", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
-		const action = await wizardAction(agent, withPreferencesFeature(preferencesPath(slug)));
+		const action = await wizardAction(agent, preferencesPath(slug));
 
 		const response = await savePurposeFromDialog(agent, { action, purpose: PURPOSE });
 
-		expect(hxLocation(response).path).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(hxLocation(response).path).toBe(preferencesPath(slug));
 	});
 
 	it.each([
@@ -772,9 +734,9 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 		await savePurpose(agent, slug, PURPOSE);
 
-		const response = await agent.post(withPreferencesFeature(purposeDeletePath(slug)));
+		const response = await agent.post(purposeDeletePath(slug));
 
-		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(response.headers.location).toBe(preferencesPath(slug));
 		expect(filterTabs(parse((await agent.get(response.headers.location)).text))).toEqual([
 			"unread",
 			"read",
@@ -952,9 +914,9 @@ describe("POST /queue/queues/:slug/preferences/overrides/:id/delete", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 		const id = await recordChoice(harness, { readlist: slug, minute: 1 });
 
-		const response = await agent.post(withPreferencesFeature(choiceRemovePath(slug, id)));
+		const response = await agent.post(choiceRemovePath(slug, id));
 
-		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(response.headers.location).toBe(preferencesPath(slug));
 	});
 
 	it("leaves the article the choice was about in the readlist", async () => {
@@ -1004,10 +966,10 @@ describe("POST /queue/queues/:slug/preferences/overrides/:id/delete", () => {
 		});
 		expect(id).toMatch(/#<issue@news\.example\.com>/);
 
-		const response = await agent.post(fitChoiceRemoveUrl({ slug, id, enabled: true }));
+		const response = await agent.post(readlistFitOverrideDeletePath(slug, id));
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(response.headers.location).toBe(preferencesPath(slug));
 		expect(await rememberedChoices(harness, slug)).toEqual([kept]);
 	});
 
@@ -1209,7 +1171,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
-		const doc = parse((await agent.get(withPreferencesFeature(preferencesPath(slug)))).text);
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
 		const form = doc.querySelector(`[data-test-preferences-inbox="${address}"] form`);
 		assert(form, "the inbox's row must carry its routing form");
 		const action = form.getAttribute("action");
@@ -1227,7 +1189,7 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 				),
 			);
 
-		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(response.headers.location).toBe(preferencesPath(slug));
 		expect(await routingOf(fixture, address)).toBe(slug);
 	});
 
@@ -1327,11 +1289,11 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const address = await mintInbox(fixture, { userId: await readerId(harness), name: "news" });
 
 		const response = await agent
-			.post(withPreferencesFeature(inboxesPath(slug)))
+			.post(inboxesPath(slug))
 			.type("form")
 			.send({ address, destination: slug });
 
-		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(response.headers.location).toBe(preferencesPath(slug));
 		expect(filterTabs(parse((await agent.get(response.headers.location)).text))).toEqual([
 			"unread",
 			"read",
@@ -1345,12 +1307,12 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 
 		const response = await agent
-			.post(withPreferencesFeature(inboxesPath(slug)))
+			.post(inboxesPath(slug))
 			.type("form")
 			.send({ address: "ghost-a1b2c3@read.place", destination: slug });
 
 		expect(response.headers.location).toBe(
-			`${preferencesPath(slug)}?preferences_error=unknown-inbox&feature=pref`,
+			`${preferencesPath(slug)}?preferences_error=unknown-inbox`,
 		);
 	});
 

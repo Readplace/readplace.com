@@ -316,7 +316,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
 		const slug = new URL(created.url()).searchParams.get("queue");
 		assert(slug, "creating a readlist must land the reader on it");
-		await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`, { waitUntil: "domcontentloaded" });
+		await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences`, { waitUntil: "domcontentloaded" });
 		const preferences = page.locator("[data-test-readlist-preferences]");
 		await expect(preferences).toHaveAttribute("data-test-preferences-state", "unset");
 

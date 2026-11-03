@@ -757,11 +757,11 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 			await loginAs(page, email);
 			const slug = await createReadlist(page, "Weekend");
-			const saved = await page.request.post(`${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`, {
+			const saved = await page.request.post(`${BASE_URL}/queue/queues/${slug}/preferences`, {
 				form: { purpose: "Long-form essays about how teams actually ship software, kept for a slow weekend read." },
 			});
 			assert.equal(saved.status(), 200, "a saved purpose must land back on the preferences tab");
-			await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences?feature=pref`, { waitUntil: "domcontentloaded" });
+			await page.goto(`${BASE_URL}/queue/queues/${slug}/preferences`, { waitUntil: "domcontentloaded" });
 			await expect(page.locator(READLIST_PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
 			await expect(page.locator(SETUP_GUIDE)).toBeVisible();
 			await page.locator('[data-test-action="readlist-preferences-menu"]').click();
