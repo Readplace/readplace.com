@@ -1,0 +1,15 @@
+<section class="readlist-listing readlist-choices" aria-labelledby="readlist-choices-title" data-test-readlist-choices>
+  <header class="readlist-choices__header">
+    <h3 class="readlist-choices__title" id="readlist-choices-title">Your choices</h3>
+  </header>
+  <ul class="readlist-choices__list">
+    {{#each rows}}
+    <li class="readlist-choices__row" data-test-readlist-choice="{{id}}">
+      <p class="readlist-choices__text" data-test-choice-text>{{#each parts}}<span>{{this}}</span> · {{/each}}<time datetime="{{createdAt.iso}}" data-local-time="{{createdAt.mode}}">{{createdAt.label}}</time></p>
+      <form class="readlist-choices__form" method="POST" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+        <button class="btn btn--neutral btn--m" type="submit" aria-label="{{removeLabel}}" data-test-action="remove-choice">Remove</button>
+      </form>
+    </li>
+    {{/each}}
+  </ul>
+</section>

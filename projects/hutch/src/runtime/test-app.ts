@@ -221,6 +221,8 @@ function flattenFixtureToAppDependencies(
 		createReadlistDefinition: fixture.articleStore.createReadlistDefinition,
 		deleteReadlistDefinition: fixture.articleStore.deleteReadlistDefinition,
 		purgeReadlistFitOverrides: fixture.articleStore.purgeReadlistFitOverrides,
+		listReadlistFitOverrides: fixture.articleStore.listReadlistFitOverrides,
+		deleteReadlistFitOverride: fixture.articleStore.deleteReadlistFitOverride,
 		markSummaryToggled: fixture.articleStore.markSummaryToggled,
 		recordEngagementActivity: fixture.engagementStarter.recordEngagementActivity,
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,

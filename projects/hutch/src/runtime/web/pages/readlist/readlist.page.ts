@@ -49,6 +49,8 @@ import type {
 	CountReadlistArticles,
 	DeleteReadlistDefinition,
 	PurgeReadlistFitOverrides,
+	ListReadlistFitOverrides,
+	DeleteReadlistFitOverride,
 	DeleteArticle,
 	DeleteReadlistArticle,
 	FindArticleById,
@@ -434,6 +436,8 @@ interface ReadlistDependencies {
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
+	listReadlistFitOverrides: ListReadlistFitOverrides;
+	deleteReadlistFitOverride: DeleteReadlistFitOverride;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
 	markSummaryToggled: MarkSummaryToggled;
@@ -1593,6 +1597,8 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
+			listReadlistFitOverrides: deps.listReadlistFitOverrides,
+			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
 			listInboxAddresses: deps.listInboxAddresses,
 			setInboxAddressReadlist: deps.setInboxAddressReadlist,
 			getEffectiveAccess: deps.getEffectiveAccess,

@@ -5,6 +5,7 @@ import {
 	type InboxRoutingRejection,
 } from "@packages/domain/inbox";
 import {
+	ReadlistFitOverrideIdSchema,
 	ReadlistSlugSchema,
 	decideReadlistPurpose,
 	decideReadlistPurposeClear,
@@ -13,7 +14,9 @@ import {
 import type { UserId } from "@packages/domain/user";
 import type {
 	ClearReadlistDefinitionPurpose,
+	DeleteReadlistFitOverride,
 	ListReadlistDefinitions,
+	ListReadlistFitOverrides,
 	SetReadlistDefinitionPurpose,
 } from "@packages/provider-contracts/article-store";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
@@ -69,6 +72,8 @@ export function initReadlistPreferencesRoutes(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
+	listReadlistFitOverrides: ListReadlistFitOverrides;
+	deleteReadlistFitOverride: DeleteReadlistFitOverride;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
 	getEffectiveAccess: GetEffectiveAccess;
@@ -106,11 +111,12 @@ export function initReadlistPreferencesRoutes(deps: {
 		const parsed = PreferencesQuerySchema.parse(req.query);
 		const readlists = readerReadlists(definitions);
 		const accessPromise = deps.getEffectiveAccess(userId);
-		const [access, onboarding, inboxes, nonEmptyReadlists] = await Promise.all([
+		const [access, onboarding, inboxes, nonEmptyReadlists, choices] = await Promise.all([
 			accessPromise,
 			accessPromise.then((resolved) => deps.resolveOnboarding(req, userId, resolved)),
 			deps.listInboxAddresses(userId),
 			deps.findNonEmptyReadlists({ userId, readlists }),
+			deps.listReadlistFitOverrides({ userId, readlist: definition.slug }),
 		]);
 		const accessIsReadOnly = access.access === "read-only";
 		const activeReadlist = { slug: definition.slug, label: definition.label };
@@ -138,6 +144,7 @@ export function initReadlistPreferencesRoutes(deps: {
 					wizardOpen: draft !== undefined || error.purposeError !== undefined,
 					inboxes,
 					inboxAlert: error.inboxAlert,
+					choices,
 					preferencesEnabled: readlistPreferencesEnabled(req.query),
 					accessIsReadOnly,
 					subscriptionBanner: toSubscriptionBannerState(access, deps.now()),
@@ -243,6 +250,32 @@ export function initReadlistPreferencesRoutes(deps: {
 				303,
 				preferencesUrl({ slug: decision.slug, enabled: readlistPreferencesEnabled(req.query) }),
 			);
+		},
+	);
+
+	router.post(
+		"/queues/:slug/preferences/overrides/:id/delete",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
+			if (!requested.success) {
+				unknownReadlist(res);
+				return;
+			}
+			const slug = requested.data;
+			const definitions = await deps.listReadlistDefinitions(userId);
+			if (!definitions.some((owned) => owned.slug === slug)) {
+				unknownReadlist(res);
+				return;
+			}
+			const id = ReadlistFitOverrideIdSchema.safeParse(req.params.id);
+			if (id.success) {
+				await deps.deleteReadlistFitOverride({ userId, readlist: slug, id: id.data });
+			}
+			res.redirect(303, preferencesUrl({ slug, enabled: readlistPreferencesEnabled(req.query) }));
 		},
 	);
 

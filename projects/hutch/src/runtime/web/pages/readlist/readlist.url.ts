@@ -5,7 +5,12 @@ import {
 	type ArticleDiscoveryQuery,
 	type ReadlistFilter,
 } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	type ReadlistFitOverrideId,
+	ReadlistSlugSchema,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
 import { TAB_IDS, type TabId, tabQuery } from "./readlist.tabs";
 
@@ -155,6 +160,10 @@ export function readlistPreferencesInboxesPath(readlist: ReadlistSlug): string {
 
 export function readlistPurposeDeletePath(readlist: ReadlistSlug): string {
 	return `${readlistPreferencesPath(readlist)}/purpose/delete`;
+}
+
+export function readlistFitOverrideDeletePath(readlist: ReadlistSlug, id: ReadlistFitOverrideId): string {
+	return `${readlistPreferencesPath(readlist)}/overrides/${encodeURIComponent(id)}/delete`;
 }
 
 export function readlistDeletePath(readlist: ReadlistSlug): string {

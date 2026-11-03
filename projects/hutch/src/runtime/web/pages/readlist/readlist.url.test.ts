@@ -1,9 +1,10 @@
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { DEFAULT_READLIST_SLUG, ReadlistFitOverrideIdSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
 	buildReadlistCountsUrl,
 	buildReadlistUrl,
 	canonicalReadlistPageRedirect,
 	parseReadlistUrl,
+	readlistFitOverrideDeletePath,
 	toArticleDiscoveryQuery,
 } from "./readlist.url";
 
@@ -266,5 +267,15 @@ describe("search and filters in the readlist URL", () => {
 		expect(toArticleDiscoveryQuery({ time: [], saved: ["today"] }, now).savedAtRanges).toEqual([
 			{ from: new Date("2026-10-09T12:00:00.000Z") },
 		]);
+	});
+});
+
+describe("readlistFitOverrideDeletePath", () => {
+	it("encodes the remembered choice's id so the action keeps every character of it", () => {
+		const id = ReadlistFitOverrideIdSchema.parse("0009007199254740-<a#b>@mail-0003");
+
+		expect(readlistFitOverrideDeletePath(ReadlistSlugSchema.parse("a1b2c3d4"), id)).toBe(
+			"/queue/queues/a1b2c3d4/preferences/overrides/0009007199254740-%3Ca%23b%3E%40mail-0003/delete",
+		);
 	});
 });

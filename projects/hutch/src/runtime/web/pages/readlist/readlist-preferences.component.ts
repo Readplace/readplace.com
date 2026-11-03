@@ -17,6 +17,7 @@ import { SUBSCRIBE_PLANS_STYLES } from "../../shared/subscribe-plans/subscribe-p
 import { WIZARD_STYLES, type WizardRender, renderWizard } from "../../shared/wizard/wizard.component";
 import type { WizardHeading } from "../../shared/wizard/wizard.types";
 import { readlistAlertFor } from "./readlist-alerts";
+import { type ReadlistFitChoices, renderReadlistFitChoices } from "./readlist-fit-choices.component";
 import { buildReadlistInboxes, renderReadlistInboxes } from "./readlist-inboxes.component";
 import {
 	buildReadlistNav,
@@ -209,6 +210,7 @@ export interface ReadlistPreferencesViewModel {
 	wizardOpen: boolean;
 	purposeError?: string;
 	inboxes: readonly InboxAddressEntry[];
+	choices: ReadlistFitChoices;
 	inboxAlert?: AlertContent;
 	preferencesEnabled: boolean;
 	accessIsReadOnly: boolean;
@@ -274,6 +276,11 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				preferencesEnabled: vm.preferencesEnabled,
 			}),
 		),
+		choicesHtml: renderReadlistFitChoices({
+			readlist: vm.readlist,
+			choices: vm.choices,
+			preferencesEnabled: vm.preferencesEnabled,
+		}),
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,

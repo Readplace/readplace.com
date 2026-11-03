@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import {
 	AliasNameSchema,
+	EmailLinkOrdinalSchema,
 	type InboxAddressEntry,
 	InboxAddressSchema,
 	InboxTokenSchema,
 } from "@packages/domain/inbox";
-import { ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
+import { ReadlistFitOverrideIdSchema, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
+import type { ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import { UserIdSchema } from "@packages/domain/user";
 import { JSDOM } from "jsdom";
 import {
@@ -29,6 +31,7 @@ function page(overrides: {
 	wizardOpen?: boolean;
 	purposeError?: string;
 	inboxes?: readonly InboxAddressEntry[];
+	choices?: readonly ReadlistFitOverride[];
 	inboxAlert?: AlertContent;
 	canEdit?: boolean;
 	canCreate?: boolean;
@@ -52,6 +55,7 @@ function page(overrides: {
 		wizardOpen: overrides.wizardOpen ?? false,
 		purposeError: overrides.purposeError,
 		inboxes: overrides.inboxes ?? [],
+		choices: overrides.choices ?? [],
 		inboxAlert: overrides.inboxAlert,
 		preferencesEnabled: overrides.preferencesEnabled ?? true,
 		accessIsReadOnly: overrides.accessIsReadOnly ?? false,
@@ -444,6 +448,24 @@ describe("ReadlistPreferencesPage", () => {
 				'[data-test-preferences-inbox="news-a7b2c9@read.place"] [data-test-inbox-destination]',
 			)?.textContent,
 		).toBe("Saves to All and Later");
+	});
+
+	it("stacks the readlist's remembered choices under its inboxes", () => {
+		const dovetail: ReadlistFitOverride = {
+			id: ReadlistFitOverrideIdSchema.parse("0009007199254740-1760000000000-message-0001"),
+			url: "https://finewoodworking.com/dovetail",
+			anchorText: "How to cut a dovetail by hand",
+			host: "finewoodworking.com",
+			readerVerdict: "keep",
+			receivedAtMessageId: "1760000000000-message",
+			ordinal: EmailLinkOrdinalSchema.parse("0001"),
+			createdAt: new Date("2026-10-12T09:00:00.000Z"),
+		};
+		const doc = documentOf(page({ purpose: "Woodworking", choices: [dovetail] }).content.html);
+		const inboxes = doc.querySelector("[data-test-readlist-inboxes]");
+		assert(inboxes, "the inboxes section renders in every state");
+
+		expect(inboxes.nextElementSibling?.hasAttribute("data-test-readlist-choices")).toBe(true);
 	});
 
 	it("raises a refused inbox routing as the page's alert, ahead of any other", () => {

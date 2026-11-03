@@ -1,7 +1,8 @@
 import { QuerystringFeatureToggle } from "@packages/web-shell";
-import type { ReadlistSlug } from "@packages/domain/readlist";
+import type { ReadlistFitOverrideId, ReadlistSlug } from "@packages/domain/readlist";
 
 import {
+	readlistFitOverrideDeletePath,
 	readlistPreferencesInboxesPath,
 	readlistPreferencesPath,
 	readlistPurposeDeletePath,
@@ -54,6 +55,17 @@ export function preferencesInboxesUrl(input: { slug: ReadlistSlug; enabled: bool
 export function purposeDeleteUrl(input: { slug: ReadlistSlug; enabled: boolean }): string {
 	return withPreferencesFeature({
 		path: readlistPurposeDeletePath(input.slug),
+		enabled: input.enabled,
+	});
+}
+
+export function fitChoiceRemoveUrl(input: {
+	slug: ReadlistSlug;
+	id: ReadlistFitOverrideId;
+	enabled: boolean;
+}): string {
+	return withPreferencesFeature({
+		path: readlistFitOverrideDeletePath(input.slug, input.id),
 		enabled: input.enabled,
 	});
 }

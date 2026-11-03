@@ -3,8 +3,15 @@ import {
 	AliasNameSchema,
 	type InboxAddress,
 	type InboxAddressPurpose,
+	formatEmailLinkOrdinal,
 } from "@packages/domain/inbox";
-import { READLIST_PURPOSE_MAX_LENGTH, ReadlistSlugSchema } from "@packages/domain/readlist";
+import {
+	READLIST_FIT_OVERRIDES_KEPT,
+	READLIST_PURPOSE_MAX_LENGTH,
+	type ReadlistFitOverrideId,
+	type ReadlistSlug,
+	ReadlistSlugSchema,
+} from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
@@ -12,6 +19,7 @@ import request from "supertest";
 import { z } from "zod";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { seedInto } from "../../test-helpers/readlist-seed";
+import { fitChoiceRemoveUrl } from "./readlist-preferences-feature";
 
 const useApp = useTestServer();
 
@@ -861,6 +869,200 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
 			"Send a custom email here and the articles each issue links to are saved to All and New Readlist.",
 		);
+	});
+});
+
+const DAY = 86_400_000;
+
+async function recordChoice(
+	harness: TestHarness,
+	input: { readlist: string; url?: string; minute: number; receivedAtMessageId?: string },
+): Promise<ReadlistFitOverrideId> {
+	const createdAt = new Date(Date.UTC(2026, 10, 3, 8, input.minute));
+	return harness.articleStore.recordReadlistFitOverride({
+		userId: await readerId(harness),
+		readlist: ReadlistSlugSchema.parse(input.readlist),
+		override: {
+			url: input.url ?? `https://example.com/post-${input.minute}`,
+			anchorText: `Post ${input.minute}`,
+			host: "example.com",
+			readerVerdict: "keep",
+			receivedAtMessageId: input.receivedAtMessageId ?? `${createdAt.toISOString()}#msg-${input.minute}`,
+			ordinal: formatEmailLinkOrdinal(1),
+			createdAt,
+		},
+	});
+}
+
+async function rememberedChoices(harness: TestHarness, readlist: string): Promise<ReadlistFitOverrideId[]> {
+	const choices = await harness.articleStore.listReadlistFitOverrides({
+		userId: await readerId(harness),
+		readlist: ReadlistSlugSchema.parse(readlist),
+	});
+	return choices.map((choice) => choice.id);
+}
+
+function choiceRows(doc: Document): (string | null)[] {
+	return Array.from(doc.querySelectorAll("[data-test-readlist-choice]"), (row) =>
+		row.getAttribute("data-test-readlist-choice"),
+	);
+}
+
+function choiceRemovePath(slug: string, id: string): string {
+	return `${preferencesPath(slug)}/overrides/${encodeURIComponent(id)}/delete`;
+}
+
+describe("GET /queue/queues/:slug/preferences choices", () => {
+	it("lists the newest remembered choices first, up to the kept number", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+		const recorded: ReadlistFitOverrideId[] = [];
+		for (let minute = 0; minute <= READLIST_FIT_OVERRIDES_KEPT; minute++) {
+			recorded.push(await recordChoice(harness, { readlist: slug, minute }));
+		}
+
+		const rows = choiceRows(parse((await agent.get(preferencesPath(slug))).text));
+
+		expect(rows).toEqual(recorded.slice(1).reverse());
+	});
+});
+
+describe("POST /queue/queues/:slug/preferences/overrides/:id/delete", () => {
+	it("forgets one choice, keeps the others and lands the reader back on the tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+		const kept = await recordChoice(harness, { readlist: slug, minute: 1 });
+		const removed = await recordChoice(harness, { readlist: slug, minute: 2 });
+
+		const response = await agent.post(choiceRemovePath(slug, removed));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(await rememberedChoices(harness, slug)).toEqual([kept]);
+		expect(choiceRows(parse((await agent.get(response.headers.location)).text))).toEqual([kept]);
+	});
+
+	it("keeps the feature on the redirect, so the tab survives the removal", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const id = await recordChoice(harness, { readlist: slug, minute: 1 });
+
+		const response = await agent.post(withPreferencesFeature(choiceRemovePath(slug, id)));
+
+		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+	});
+
+	it("leaves the article the choice was about in the readlist", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const url = "https://example.com/kept-article";
+		await seedInto(harness, { readlist: slug, url });
+		const id = await recordChoice(harness, { readlist: slug, url, minute: 1 });
+
+		await agent.post(choiceRemovePath(slug, id));
+
+		expect(await rememberedChoices(harness, slug)).toEqual([]);
+		expect(
+			await harness.articleStore.countReadlistArticles({
+				userId: await readerId(harness),
+				readlist: ReadlistSlugSchema.parse(slug),
+			}),
+		).toBe(1);
+	});
+
+	it.each([
+		["a choice that is already gone", "0000000000000001-gone-0001"],
+		["a malformed choice id", "not-a-choice"],
+	])("lands the reader back on the tab for %s, touching nothing", async (_case, id) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const kept = await recordChoice(harness, { readlist: slug, minute: 1 });
+
+		const response = await agent.post(choiceRemovePath(slug, id));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(await rememberedChoices(harness, slug)).toEqual([kept]);
+	});
+
+	it("removes a choice whose id holds characters a URL would otherwise cut or mangle", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug: ReadlistSlug = ReadlistSlugSchema.parse(await createReadlist(agent, "New Readlist"));
+		const kept = await recordChoice(harness, { readlist: slug, minute: 1 });
+		const id = await recordChoice(harness, {
+			readlist: slug,
+			minute: 2,
+			receivedAtMessageId: "2026-11-03T08:02:00.000Z#<issue@news.example.com>",
+		});
+		expect(id).toMatch(/#<issue@news\.example\.com>/);
+
+		const response = await agent.post(fitChoiceRemoveUrl({ slug, id, enabled: true }));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(withPreferencesFeature(preferencesPath(slug)));
+		expect(await rememberedChoices(harness, slug)).toEqual([kept]);
+	});
+
+	it.each([
+		["the built-in readlist", "default"],
+		["a readlist the reader does not have", "a1b2c3d4"],
+		["a malformed readlist id", "Not A Slug"],
+	])("refuses %s", async (_case, slug) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.post(choiceRemovePath(slug, "0000000000000001-msg-0001"));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+	});
+
+	it("turns a read-only reader away, keeping the choice", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const id = await recordChoice(harness, { readlist: slug, minute: 1 });
+		await makeReadOnly(harness);
+
+		const response = await agent.post(choiceRemovePath(slug, id));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(await rememberedChoices(harness, slug)).toEqual([id]);
+	});
+
+	it("shows a locked account the locked page, keeping the choice", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		let offset = 0;
+		fixture.shared.now = () => new Date(Date.now() + offset);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const id = await recordChoice(harness, { readlist: slug, minute: 1 });
+		offset = 8 * DAY;
+
+		const response = await agent.post(choiceRemovePath(slug, id)).set("Accept", "text/html");
+
+		expect(response.status).toBe(403);
+		expect(parse(response.text).querySelector("h1")?.textContent).toBe("Your account is locked");
+		expect(await rememberedChoices(harness, slug)).toEqual([id]);
+	});
+
+	it("asks a signed-out visitor to log in rather than removing anything", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server).post(choiceRemovePath("a1b2c3d4", "0000000000000001-msg-0001"));
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toContain("/login");
 	});
 });
 

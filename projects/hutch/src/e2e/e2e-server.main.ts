@@ -28,9 +28,15 @@ import {
 	gmailHistoryImportRawKey,
 	settledCount,
 } from '@packages/domain/gmail'
-import { AliasNameSchema, type InboxAddress, InboxAddressSchema } from '@packages/domain/inbox'
+import { AliasNameSchema, type InboxAddress, InboxAddressSchema, formatEmailLinkOrdinal } from '@packages/domain/inbox'
 import { NewsletterCatalogDocumentSchema, NewsletterCatalogRecordSchema } from '@packages/domain/newsletter-catalog'
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug, ReadlistSlugSchema, generateReadlistSlug } from '@packages/domain/readlist'
+import {
+	DEFAULT_READLIST_SLUG,
+	type ReadlistSlug,
+	ReadlistSlugSchema,
+	generateReadlistSlug,
+	readlistFitOverrideHost,
+} from '@packages/domain/readlist'
 import {
 	GMAIL_METADATA_SCOPE,
 	GMAIL_MODIFY_SCOPE,
@@ -680,6 +686,42 @@ server.post('/e2e/seed-inbox-addresses', async (req, res) => {
 		addresses.push(entry.address)
 	}
 	res.status(201).json({ ok: true, addresses })
+})
+
+const SeedReadlistFitOverridesBody = z.object({
+	userId: UserIdSchema,
+	readlist: ReadlistSlugSchema,
+	choices: z
+		.array(
+			z.object({
+				url: z.string().url(),
+				anchorText: z.string(),
+				readerVerdict: z.enum(['keep', 'drop']),
+				createdAt: z.coerce.date(),
+			}),
+		)
+		.min(1),
+})
+server.post('/e2e/seed-readlist-fit-overrides', async (req, res) => {
+	const parsed = SeedReadlistFitOverridesBody.safeParse(req.body)
+	if (!parsed.success) {
+		res.status(400).json({ error: parsed.error.flatten() })
+		return
+	}
+	const { userId, readlist, choices } = parsed.data
+	for (const [index, choice] of choices.entries()) {
+		await fixture.articleStore.recordReadlistFitOverride({
+			userId,
+			readlist,
+			override: {
+				...choice,
+				host: readlistFitOverrideHost(choice.url),
+				receivedAtMessageId: `${choice.createdAt.toISOString()}#e2e-seed`,
+				ordinal: formatEmailLinkOrdinal(index + 1),
+			},
+		})
+	}
+	res.status(201).json({ ok: true })
 })
 
 const SEEDED_GMAIL_ACCOUNT_EMAIL = GmailAccountEmailSchema.parse('reader@gmail.com')

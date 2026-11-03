@@ -76,11 +76,28 @@ const INBOX_ROWS = "[data-test-preferences-inbox]";
 const INBOXES_DESCRIPTION = "[data-test-inboxes-description]";
 const CREATE_INBOX = '[data-test-action="create-inbox"]';
 const TABS = "[data-test-filters]";
+const CHOICES = "[data-test-readlist-choices]";
+const CHOICE_ROWS = "[data-test-readlist-choice]";
+const CHOICE_REMOVE = '[data-test-action="remove-choice"]';
 const ALERT = '[data-test-alert="readlist"]';
 const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 const SeededInboxes = z.object({ ok: z.literal(true), addresses: z.array(z.string()) });
+const SEEDED_CHOICES = [
+	{
+		url: "https://www.finewoodworking.com/project-guides/joinery/how-to-cut-a-dovetail-by-hand",
+		anchorText: "How to cut a dovetail by hand",
+		readerVerdict: "drop",
+		createdAt: "2026-10-12T09:30:00.000Z",
+	},
+	{
+		url: "https://staffeng.com/guides/writing-engineering-strategy",
+		anchorText: "Writing an engineering strategy",
+		readerVerdict: "keep",
+		createdAt: "2026-10-14T18:05:00.000Z",
+	},
+] as const;
 
 async function createVerifiedUser(page: Page, email: string): Promise<string> {
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
@@ -851,6 +868,65 @@ test.describe("Readlist preferences at the reflow minimum", () => {
 		await expect(page.locator(PREFERENCES)).toHaveAttribute("data-test-preferences-state", "set");
 		await neverScrollsSideways(page);
 	});
+});
+
+async function choicesListed(page: Page): Promise<void> {
+	await expect(page.locator(`${CHOICE_ROWS} [data-test-choice-text]`)).toHaveText([
+		"Kept in New Readlist · Writing an engineering strategy · staffeng.com · Oct 14, 2026",
+		"Not in New Readlist · How to cut a dovetail by hand · finewoodworking.com · Oct 12, 2026",
+	]);
+	await waitForBrandFonts(page, ["Inter"]);
+	await page.mouse.move(0, 0);
+}
+
+async function eachChoiceEndsWithItsRemove(page: Page): Promise<void> {
+	const [inboxes, choices] = [await measuredBox(page, INBOXES), await measuredBox(page, CHOICES)];
+	assert.ok(choices.y >= inboxes.y + inboxes.height, "Your choices must stack under the inboxes section");
+	assert.equal(choices.x, inboxes.x, "Your choices must share the inboxes section's column");
+	assert.equal(choices.width, inboxes.width, "Your choices must span the inboxes section's width");
+	for (let position = 1; position <= SEEDED_CHOICES.length; position++) {
+		const row = `${CHOICE_ROWS}:nth-child(${position})`;
+		const [box, remove] = [await measuredBox(page, row), await measuredBox(page, `${row} ${CHOICE_REMOVE}`)];
+		assert.ok(
+			remove.x + remove.width <= box.x + box.width && remove.x + remove.width >= box.x + box.width - 24,
+			`choice ${position} must end with its Remove, measured ${box.x + box.width - (remove.x + remove.width)}px short of the row's edge`,
+		);
+	}
+}
+
+function choicesListedCheckpoint(theme: (typeof THEMES)[number]): VisualCheckpoint {
+	return {
+		name: `readlist-preferences-choices-listed-${theme}`,
+		settled: choicesListed,
+		geometry: eachChoiceEndsWithItsRemove,
+		target: CHOICES,
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
+async function openRememberedChoices(page: Page, stamp: string): Promise<void> {
+	const { userId, slug } = await openPreferences(page, stamp);
+	await seedPurpose(page, slug);
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-readlist-fit-overrides`, {
+		data: { userId, readlist: slug, choices: SEEDED_CHOICES },
+	});
+	assert.equal(seeded.status(), 201, "the e2e choices fixture must answer the seed request");
+	await reopenPreferences(page, { slug });
+}
+
+test.describe("Readlist preferences choices", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	for (const theme of THEMES) {
+		test(`lists the reader's remembered choices, newest first, each with Remove (${theme})`, async ({
+			page,
+		}, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			await openRememberedChoices(page, `choices-listed-${theme}-${testInfo.workerIndex}-${Date.now()}`);
+			await captureCheckpoint(page, choicesListedCheckpoint(theme));
+		});
+	}
 });
 
 test.describe("Readlist preferences inboxes", () => {

@@ -177,3 +177,60 @@
 .readlist-inboxes--listed .readlist-inboxes__empty {
   display: none;
 }
+
+.readlist-choices__header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.readlist-choices__title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.readlist-choices__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readlist-choices__row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.readlist-choices__row:last-child {
+  border-bottom: none;
+}
+
+.readlist-choices__text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
+.readlist-choices__form {
+  display: flex;
+}
+
+@media (min-width: 768px) {
+  .readlist-choices__row {
+    flex-direction: row;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .readlist-choices__text {
+    flex: 1;
+  }
+}
