@@ -178,3 +178,24 @@ export type FindPastReads = (params: {
 	url: string;
 	sourceReadlist?: ReadlistSlug;
 }) => Promise<PastReads>;
+
+export type RelatedPassRequestState =
+	| { saved: false }
+	| {
+			saved: true;
+			requestedAt?: Date;
+			nextRead?: "ready" | "skipped";
+			pastReadsComputedAt?: Date;
+		};
+
+export type ReadRelatedPassRequestState = (params: {
+	userId: UserId;
+	url: string;
+}) => Promise<RelatedPassRequestState>;
+
+export type MarkRelatedPassesRequestedOutcome = "marked" | "row-absent";
+
+export type MarkRelatedPassesRequested = (params: {
+	userId: UserId;
+	url: string;
+}) => Promise<MarkRelatedPassesRequestedOutcome>;

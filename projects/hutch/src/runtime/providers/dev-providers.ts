@@ -92,6 +92,7 @@ import {
 } from "@packages/test-fixtures/providers/events";
 import {
 	initInMemoryComputeRelatedPastReads,
+	initInMemoryComputeRelatedPasses,
 	initInMemoryQueueEntryCreated,
 	initInMemoryLinkDequeued,
 	initInMemoryLinkQueued,
@@ -100,6 +101,7 @@ import {
 import {
 	initInMemoryPastReads,
 	initInMemoryRelatedArticles,
+	initInMemoryRelatedPassRequests,
 } from "@packages/test-fixtures/providers/related-articles";
 import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveAnonymousLink, initInMemorySubmitLink } from "@packages/test-fixtures/providers/events";
@@ -450,13 +452,25 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const { publishComputeRelatedPastReads } = initInMemoryComputeRelatedPastReads({
 		logger: consoleLogger,
 	});
-	const { findRelatedArticles } = initInMemoryRelatedArticles({
+	const { publishComputeRelatedPasses } = initInMemoryComputeRelatedPasses({
+		logger: consoleLogger,
+	});
+	const { findRelatedArticles, readSettledNextRead, forgetRow: forgetNextReadRow } = initInMemoryRelatedArticles({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
 	});
-	const { findPastReads } = initInMemoryPastReads({
+	const { findPastReads, readPastReadsState, forgetRow: forgetPastReadsRow } = initInMemoryPastReads({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
+	});
+	articleStore.onDefaultRowDeleted(forgetNextReadRow);
+	articleStore.onDefaultRowDeleted(forgetPastReadsRow);
+	const { readRelatedPassRequestState, markRelatedPassesRequested } = initInMemoryRelatedPassRequests({
+		readSavedRowRelatedRequest: articleStore.readSavedRowRelatedRequest,
+		stampRelatedPassesRequested: articleStore.stampRelatedPassesRequested,
+		readSettledNextRead,
+		readPastReadsState,
+		now: () => new Date(),
 	});
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
@@ -609,6 +623,9 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		publishLinkDequeued,
 		publishQueueEntryCreated,
 		publishComputeRelatedPastReads,
+		publishComputeRelatedPasses,
+		readRelatedPassRequestState,
+		markRelatedPassesRequested,
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,

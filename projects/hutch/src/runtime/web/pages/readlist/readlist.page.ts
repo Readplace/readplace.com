@@ -134,8 +134,10 @@ import {
 	type ResolveSaveIdentity,
 } from "@packages/save-article";
 import type { PublishQueueEntryCreated } from "@packages/provider-contracts/events";
-import type { PublishComputeRelatedPastReads } from "@packages/provider-contracts/events";
+import type { PublishComputeRelatedPastReads, PublishComputeRelatedPasses } from "@packages/provider-contracts/events";
 import type {
+	MarkRelatedPassesRequested,
+	ReadRelatedPassRequestState,
 	FindPastReads,
 	FindRelatedArticles,
 	PastReads,
@@ -447,6 +449,9 @@ interface ReadlistDependencies {
 	publishLinkDequeued: PublishLinkDequeued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
+	publishComputeRelatedPasses: PublishComputeRelatedPasses;
+	readRelatedPassRequestState: ReadRelatedPassRequestState;
+	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
 	listIssueLinks: InboxEmailLinkStore["listLinksByEmail"];

@@ -14,6 +14,8 @@ import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
+	ComputeRelatedPassesCommand,
+	ComputeRelatedPastReadsCommand,
 	EmailOutputSavedToAllEvent,
 	LinkQueuedEvent,
 	LinkQueueFailedEvent,
@@ -53,6 +55,8 @@ export function initSubmitLinkCommandHandler(deps: {
 	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	pinContentSource: SaveArticleFromUrlDependencies["pinContentSource"];
+	readRelatedPassRequestState: SaveArticleFromUrlDependencies["readRelatedPassRequestState"];
+	markRelatedPassesRequested: SaveArticleFromUrlDependencies["markRelatedPassesRequested"];
 	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
 	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
 	putTierSource: PutTierSource;
@@ -177,6 +181,12 @@ export function initSubmitLinkCommandHandler(deps: {
 					publishLinkQueued: (params) => deps.publishEvent(LinkQueuedEvent, params),
 					publishQueueEntryCreated: (params) =>
 						deps.publishEvent(QueueEntryCreatedEvent, params),
+					publishComputeRelatedPasses: (params) =>
+						deps.publishEvent(ComputeRelatedPassesCommand, params),
+					publishComputeRelatedPastReads: (params) =>
+						deps.publishEvent(ComputeRelatedPastReadsCommand, params),
+					readRelatedPassRequestState: deps.readRelatedPassRequestState,
+					markRelatedPassesRequested: deps.markRelatedPassesRequested,
 				});
 
 				const saveArticleAtReadlistTop = initSaveArticleAtReadlistTop({

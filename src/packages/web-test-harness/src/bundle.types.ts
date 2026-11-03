@@ -42,6 +42,9 @@ import type {
 	FindPastReads,
 	FindRelatedArticles,
 	MarkPastReadsReady,
+	MarkRelatedPassesRequested,
+	MarkRelatedPassesRequestedOutcome,
+	ReadRelatedPassRequestState,
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 } from "@packages/provider-contracts/related-articles";
@@ -181,6 +184,7 @@ import type {
 	SetPrimaryCard,
 	PublishCancelSubscriptionCommand,
 	PublishComputeRelatedPastReads,
+	PublishComputeRelatedPasses,
 	PublishDeleteAccountCommand,
 	PublishExportUserDataCommand,
 	PublishLinkDequeued,
@@ -409,6 +413,15 @@ export interface ArticleStoreBundle {
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;
+	readSavedRowRelatedRequest: (params: {
+		userId: UserId;
+		url: string;
+	}) => Promise<{ requestedAt?: Date } | undefined>;
+	stampRelatedPassesRequested: (params: {
+		userId: UserId;
+		url: string;
+		at: Date;
+	}) => Promise<MarkRelatedPassesRequestedOutcome>;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
 	markSummaryToggled: MarkSummaryToggled;
@@ -498,6 +511,7 @@ export interface EventsBundle {
 	publishLinkDequeued: PublishLinkDequeued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
+	publishComputeRelatedPasses: PublishComputeRelatedPasses;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishRemoveMyContent: PublishRemoveMyContent;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -535,6 +549,8 @@ export interface SummaryBundle {
 }
 
 export interface RelatedArticlesBundle {
+	readRelatedPassRequestState: ReadRelatedPassRequestState;
+	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
 	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
@@ -730,6 +746,8 @@ export interface TestAppFixture {
 	parser: ParserBundle;
 	events: EventsBundle;
 	publishedQueueEntryCreated: { url: string; userId: UserId }[];
+	publishedComputeRelatedPasses: { url: string; userId: UserId }[];
+	publishedComputeRelatedPastReads: { url: string; userId: UserId; readlist?: string }[];
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
 	pendingUpload: PendingUploadBundle;

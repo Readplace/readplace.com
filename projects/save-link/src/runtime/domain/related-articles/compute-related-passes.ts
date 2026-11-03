@@ -7,6 +7,7 @@ import type {
 import {
 	CanonicalContentChangedEvent,
 	ComputeRelatedPastReadsCommand,
+	ComputeRelatedPassesCommand,
 	QueueEntryCreatedEvent,
 } from "@packages/hutch-infra-components";
 
@@ -18,24 +19,26 @@ export function initComputeRelatedPasses(deps: {
 	pastReadsHandler: Handler<SQSEvent, SQSBatchResponse>;
 	recomputeNextReadHandler: Handler<SQSEvent, SQSBatchResponse>;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	// One queue feeds both computations. A new save (QueueEntryCreated) precomputes
-	// Next read AND, independently, the past-reads topic section; the explicit
-	// ComputeRelatedPastReads command re-runs only the past-reads section for an
-	// existing or stale save. A record that fails either pass is retried whole; both
-	// passes are idempotent (Next read is terminal-once, past reads is
-	// fingerprint-guarded), so re-running the succeeded pass is a no-op.
+	// A record that fails either pass is retried whole; both passes are idempotent
+	// (Next read is terminal-once, past reads is fingerprint-guarded), so re-running
+	// the succeeded pass is a no-op.
 	const handler: Handler<SQSEvent, SQSBatchResponse> = async (
 		event,
 		context,
 		callback,
 	) => {
-		const nextReadRecords = event.Records.filter(
-			(record) => detailTypeOf(record) === QueueEntryCreatedEvent.detailType,
-		);
+		const nextReadRecords = event.Records.filter((record) => {
+			const detailType = detailTypeOf(record);
+			return (
+				detailType === QueueEntryCreatedEvent.detailType ||
+				detailType === ComputeRelatedPassesCommand.detailType
+			);
+		});
 		const pastReadsRecords = event.Records.filter((record) => {
 			const detailType = detailTypeOf(record);
 			return (
 				detailType === QueueEntryCreatedEvent.detailType ||
+				detailType === ComputeRelatedPassesCommand.detailType ||
 				detailType === ComputeRelatedPastReadsCommand.detailType
 			);
 		});

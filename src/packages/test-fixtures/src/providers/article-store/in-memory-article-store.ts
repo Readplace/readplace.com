@@ -1,3 +1,4 @@
+import type { MarkRelatedPassesRequestedOutcome } from "@packages/provider-contracts/related-articles";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type {
@@ -127,6 +128,7 @@ interface UserArticle {
 	provenance?: SaveProvenance;
 	relatedDismissedAt?: Date;
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
+	relatedPassesRequestedAt?: Date;
 }
 
 function servedBodyOf(article: GlobalArticle): ServedBody {
@@ -186,6 +188,16 @@ export function initInMemoryArticleStore(): {
 	findArticlesAcrossReadlists: FindArticlesAcrossReadlists;
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
+	onDefaultRowDeleted: (listener: (row: { userId: UserId; url: string }) => void) => void;
+	readSavedRowRelatedRequest: (params: {
+		userId: UserId;
+		url: string;
+	}) => Promise<{ requestedAt?: Date } | undefined>;
+	stampRelatedPassesRequested: (params: {
+		userId: UserId;
+		url: string;
+		at: Date;
+	}) => Promise<MarkRelatedPassesRequestedOutcome>;
 	deleteAllUserArticles: DeleteAllUserArticles;
 	listUserArticleUrls: ListUserArticleUrls;
 	updateArticleStatus: UpdateArticleStatus;
@@ -255,6 +267,10 @@ export function initInMemoryArticleStore(): {
 	const articles = new Map<string, GlobalArticle>();
 	const articleImages = new Map<string, { body: Buffer; contentType: string }>();
 	const userArticles = new Map<string, UserArticle>();
+	const defaultRowDeletedListeners: ((row: { userId: UserId; url: string }) => void)[] = [];
+	const announceDefaultRowDeleted = (row: { userId: UserId; url: string }) => {
+		for (const listener of defaultRowDeletedListeners) listener(row);
+	};
 	const saveCursors = new Map<UserId, number>();
 	const readlistDefinitions = new Map<
 		string,
@@ -672,10 +688,25 @@ export function initInMemoryArticleStore(): {
 		if (!userArticles.has(uaKey)) return false;
 
 		userArticles.delete(uaKey);
+		if (readlist === undefined) announceDefaultRowDeleted({ userId, url: article.originalUrl });
 		return true;
 	};
 
 	const deleteArticle: DeleteArticle = async (id, userId) => deleteFrom(undefined, id, userId);
+
+	const readSavedRowRelatedRequest = async ({ userId, url }: { userId: UserId; url: string }) => {
+		const row = userArticles.get(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value));
+		if (row === undefined) return undefined;
+		return row.relatedPassesRequestedAt === undefined ? {} : { requestedAt: row.relatedPassesRequestedAt };
+	};
+
+	const stampRelatedPassesRequested = async ({ userId, url, at }: { userId: UserId; url: string; at: Date }) => {
+		const key = userArticleKey(userId, ArticleResourceUniqueId.parse(url).value);
+		const row = userArticles.get(key);
+		if (row === undefined) return "row-absent" as const;
+		userArticles.set(key, { ...row, relatedPassesRequestedAt: row.relatedPassesRequestedAt ?? at });
+		return "marked" as const;
+	};
 
 	const deleteReadlistArticle: DeleteReadlistArticle = async ({ id, userId, readlist }) =>
 		deleteFrom(readlist, id, userId);
@@ -720,7 +751,8 @@ export function initInMemoryArticleStore(): {
 		const targetKey = partitionKey(readlist);
 		if (userArticles.has(targetKey)) return { assigned: false };
 		const targetReadlist = readlist === DEFAULT_READLIST_SLUG ? undefined : readlist;
-		userArticles.set(targetKey, { ...source, readlist: targetReadlist, savedAt });
+		const { relatedPassesRequestedAt: _assignedAcknowledgement, ...assigned } = source;
+		userArticles.set(targetKey, { ...assigned, readlist: targetReadlist, savedAt });
 		return { assigned: true };
 	};
 
@@ -730,7 +762,8 @@ export function initInMemoryArticleStore(): {
 			if (source.userId !== userId || source.readlist !== from) continue;
 			const targetKey = userArticleKey(userId, source.url, to);
 			if (!userArticles.has(targetKey)) {
-				userArticles.set(targetKey, { ...source, readlist: to });
+				const { relatedPassesRequestedAt: _movedAcknowledgement, ...moving } = source;
+				userArticles.set(targetKey, { ...moving, readlist: to });
 				moved += 1;
 			}
 			userArticles.delete(userArticleKey(userId, source.url, from));
@@ -1172,6 +1205,11 @@ export function initInMemoryArticleStore(): {
 		findArticlesAcrossReadlists,
 		countArticlesByUser,
 		deleteArticle,
+		onDefaultRowDeleted: (listener) => {
+			defaultRowDeletedListeners.push(listener);
+		},
+		readSavedRowRelatedRequest,
+		stampRelatedPassesRequested,
 		deleteAllUserArticles,
 		listUserArticleUrls,
 		updateArticleStatus,

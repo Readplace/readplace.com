@@ -937,6 +937,32 @@ describe("Import routes", () => {
 			const result = await harness.articleStore.findArticlesByUser({ userId });
 			expect(result.articles).toHaveLength(2);
 			expect(fixture.publishedQueueEntryCreated).toEqual([]);
+			expect(fixture.publishedComputeRelatedPasses).toEqual([]);
+		});
+
+		it("requests both passes once when the reader taps Save on a link an import queued silently", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const url = "https://example.com/imported-then-tapped";
+			const { body, contentType } = multipartBody("urls.txt", Buffer.from(url));
+			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
+
+			const commit = await agent.post(`${create.headers.location}/commit`);
+
+			expect(commit.status).toBe(303);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			expect(fixture.publishedQueueEntryCreated).toEqual([]);
+			expect(fixture.publishedComputeRelatedPasses).toEqual([]);
+			expect(fixture.publishedComputeRelatedPastReads).toEqual([]);
+			expect(await fixture.relatedArticles.readRelatedPassRequestState({ userId, url })).not.toHaveProperty("requestedAt");
+
+			await agent.post("/queue/save").type("form").send({ url });
+
+			expect(fixture.publishedComputeRelatedPasses).toEqual([{ url, userId }]);
+			expect(fixture.publishedQueueEntryCreated).toEqual([]);
+			expect(await fixture.relatedArticles.readRelatedPassRequestState({ userId, url })).toHaveProperty("requestedAt");
 		});
 
 		it("stamps the URLs of one commit batch with consecutive allocator instants in file order, minted only after the batch's freshness checks resolved", async () => {

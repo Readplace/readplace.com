@@ -33,6 +33,7 @@ import {
 	CanonicalContentChangedEvent,
 	QueueEntryCreatedEvent,
 	ComputeRelatedPastReadsCommand,
+	ComputeRelatedPassesCommand,
 	EmailLinksTriagedEvent,
 	StaleCheckRequestedEvent,
 	SummaryGeneratedEvent,
@@ -1575,6 +1576,7 @@ eventBus.subscribeAll(
 	[
 		{ ...QueueEntryCreatedEvent, name: "compute-related-articles" },
 		ComputeRelatedPastReadsCommand,
+		ComputeRelatedPassesCommand,
 		{ ...CanonicalContentChangedEvent, name: "compute-related-articles-content-changed" },
 	],
 	computeRelatedArticlesLambdaWithSQS,

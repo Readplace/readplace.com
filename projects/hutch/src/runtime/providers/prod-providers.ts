@@ -52,6 +52,7 @@ import {
 	initDynamoDbGeneratedSummary,
 	initDynamoDbPastReads,
 	initDynamoDbRelatedArticles,
+	initDynamoDbRelatedPassRequests,
 } from "@packages/article-store";
 import { initDynamoDbArticleCrawl } from "@packages/article-store";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -66,6 +67,7 @@ import { initCanonicalAliasStore } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkDequeued } from "./events/eventbridge-link-dequeued";
 import { initEventBridgeQueueEntryCreated } from "./events/eventbridge-queue-entry-created";
+import { initEventBridgeComputeRelatedPasses } from "./events/eventbridge-compute-related-passes";
 import { initEventBridgeComputeRelatedPastReads } from "./events/eventbridge-compute-related-past-reads";
 import { initEventBridgeLinkQueued } from "./events/eventbridge-link-queued";
 import { initEventBridgeLinkSaved } from "./events/eventbridge-link-saved";
@@ -267,6 +269,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 		tableName: articlesTable,
 		userArticlesTableName: userArticlesTable,
 	});
+	const relatedPassRequests = initDynamoDbRelatedPassRequests({
+		client,
+		userArticlesTableName: userArticlesTable,
+		now: () => new Date(),
+	});
 	const pastReadsStore = initDynamoDbPastReads({
 		client,
 		tableName: articlesTable,
@@ -286,6 +293,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { publishLinkDequeued } = initEventBridgeLinkDequeued({ publishEvent });
 	const { publishQueueEntryCreated } = initEventBridgeQueueEntryCreated({ publishEvent });
 	const { publishComputeRelatedPastReads } = initEventBridgeComputeRelatedPastReads({ publishEvent });
+	const { publishComputeRelatedPasses } = initEventBridgeComputeRelatedPasses({ publishEvent });
 	const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 	const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 	const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
@@ -591,6 +599,9 @@ export function initProdProviders(input: { appOrigin: string }) {
 		publishLinkDequeued,
 		publishQueueEntryCreated,
 		publishComputeRelatedPastReads,
+		publishComputeRelatedPasses,
+		readRelatedPassRequestState: relatedPassRequests.readRelatedPassRequestState,
+		markRelatedPassesRequested: relatedPassRequests.markRelatedPassesRequested,
 		publishRecrawlLinkInitiated,
 		publishRemoveMyContent,
 		publishSaveAnonymousLink,

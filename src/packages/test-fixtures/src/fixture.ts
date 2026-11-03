@@ -67,7 +67,9 @@ import { initInMemoryQueueEntryCreated } from "./providers/events/in-memory-queu
 import { initInMemoryLinkQueued } from "./providers/events/in-memory-link-queued";
 import { initInMemoryRelatedArticles } from "./providers/related-articles/in-memory-related-articles";
 import { initInMemoryPastReads } from "./providers/related-articles/in-memory-past-reads";
+import { initInMemoryRelatedPassRequests } from "./providers/related-articles/in-memory-related-pass-requests";
 import { initInMemoryComputeRelatedPastReads } from "./providers/events/in-memory-compute-related-past-reads";
+import { initInMemoryComputeRelatedPasses } from "./providers/events/in-memory-compute-related-passes";
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
@@ -175,7 +177,7 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 }
 
 export function createFakeApplyParseResult(deps: {
-	articleStore: ReturnType<typeof initInMemoryArticleStore>;
+	articleStore: Omit<ReturnType<typeof initInMemoryArticleStore>, "onDefaultRowDeleted">;
 	articleCrawl: ReturnType<typeof initInMemoryArticleCrawl>;
 	parseArticle: ParseArticle;
 }): (url: string) => Promise<void> {
@@ -258,6 +260,17 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const articleCrawl = initInMemoryArticleCrawl();
 	const queueEntryCreated = initInMemoryQueueEntryCreated({ logger: noopLogger });
 	const computeRelatedPastReads = initInMemoryComputeRelatedPastReads({ logger: noopLogger });
+	const computeRelatedPasses = initInMemoryComputeRelatedPasses({ logger: noopLogger });
+	const relatedArticlesMemory = initInMemoryRelatedArticles({
+		findArticleByUrl: articleStoreMemory.findArticleByUrl,
+		findArticleById: articleStoreMemory.findArticleById,
+	});
+	const pastReadsMemory = initInMemoryPastReads({
+		findArticleByUrl: articleStoreMemory.findArticleByUrl,
+		findArticleById: articleStoreMemory.findArticleById,
+	});
+	articleStoreMemory.onDefaultRowDeleted(relatedArticlesMemory.forgetRow);
+	articleStoreMemory.onDefaultRowDeleted(pastReadsMemory.forgetRow);
 	const crawlArticle = stubCrawlArticle;
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
@@ -383,6 +396,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			saveArticleGlobally: articleStoreMemory.saveArticleGlobally,
 			bumpArticleSavedAt: articleStoreMemory.bumpArticleSavedAt,
 			deleteArticle: articleStoreMemory.deleteArticle,
+			readSavedRowRelatedRequest: articleStoreMemory.readSavedRowRelatedRequest,
+			stampRelatedPassesRequested: articleStoreMemory.stampRelatedPassesRequested,
 			updateArticleStatus: articleStoreMemory.updateArticleStatus,
 			markArticleViewed: articleStoreMemory.markArticleViewed,
 			markSummaryToggled: articleStoreMemory.markSummaryToggled,
@@ -447,12 +462,15 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		},
 		parser: { parseArticle, crawlArticle },
 		publishedQueueEntryCreated: queueEntryCreated.publishedQueueEntryCreated,
+		publishedComputeRelatedPasses: computeRelatedPasses.publishedComputeRelatedPasses,
+		publishedComputeRelatedPastReads: computeRelatedPastReads.publishedComputeRelatedPastReads,
 		events: {
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 			publishLinkQueued: initInMemoryLinkQueued({ logger: noopLogger }).publishLinkQueued,
 			publishLinkDequeued: initInMemoryLinkDequeued({ logger: noopLogger }).publishLinkDequeued,
 			publishQueueEntryCreated: queueEntryCreated.publishQueueEntryCreated,
 			publishComputeRelatedPastReads: computeRelatedPastReads.publishComputeRelatedPastReads,
+			publishComputeRelatedPasses: computeRelatedPasses.publishComputeRelatedPasses,
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,
@@ -475,14 +493,17 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		},
 		pendingUpload,
 		summary,
-		relatedArticles: initInMemoryRelatedArticles({
-			findArticleByUrl: articleStoreMemory.findArticleByUrl,
-			findArticleById: articleStoreMemory.findArticleById,
-		}),
-		pastReads: initInMemoryPastReads({
-			findArticleByUrl: articleStoreMemory.findArticleByUrl,
-			findArticleById: articleStoreMemory.findArticleById,
-		}),
+		relatedArticles: {
+			...relatedArticlesMemory,
+			...initInMemoryRelatedPassRequests({
+				readSavedRowRelatedRequest: articleStoreMemory.readSavedRowRelatedRequest,
+				stampRelatedPassesRequested: articleStoreMemory.stampRelatedPassesRequested,
+				readSettledNextRead: relatedArticlesMemory.readSettledNextRead,
+				readPastReadsState: pastReadsMemory.readPastReadsState,
+				now: () => new Date(),
+			}),
+		},
+		pastReads: pastReadsMemory,
 		freshness: { refreshArticleIfStale: createNoopRefreshArticleIfStale() },
 		oauth: {
 			oauthModel,

@@ -10,6 +10,7 @@ import type {
 	MarkPastReadsReady,
 	PastReadDisplay,
 	PastReadLink,
+	ReadPastReadsState,
 } from "@packages/provider-contracts/related-articles";
 
 function keyOf(userId: UserId, url: string): string {
@@ -25,8 +26,11 @@ export function initInMemoryPastReads(deps: {
 }): {
 	findPastReads: FindPastReads;
 	markPastReadsReady: MarkPastReadsReady;
+	readPastReadsState: ReadPastReadsState;
+	forgetRow: (params: { userId: UserId; url: string }) => void;
 } {
 	const settled = new Map<string, readonly PastReadLink[]>();
+	const computations = new Map<string, { fingerprint: string; computedAt: Date }>();
 
 	const findPastReads: FindPastReads = async ({ userId, url }) => {
 		const links = settled.get(keyOf(userId, url));
@@ -55,10 +59,19 @@ export function initInMemoryPastReads(deps: {
 		return { status: "ready", items };
 	};
 
-	const markPastReadsReady: MarkPastReadsReady = async ({ userId, url, pastReads }) => {
+	const markPastReadsReady: MarkPastReadsReady = async ({ userId, url, pastReads, fingerprint, at }) => {
 		settled.set(keyOf(userId, url), pastReads);
+		computations.set(keyOf(userId, url), { fingerprint, computedAt: at });
 		return "stored";
 	};
 
-	return { findPastReads, markPastReadsReady };
+	const readPastReadsState: ReadPastReadsState = async ({ userId, url }) =>
+		computations.get(keyOf(userId, url)) ?? {};
+
+	const forgetRow = ({ userId, url }: { userId: UserId; url: string }) => {
+		settled.delete(keyOf(userId, url));
+		computations.delete(keyOf(userId, url));
+	};
+
+	return { findPastReads, markPastReadsReady, readPastReadsState, forgetRow };
 }

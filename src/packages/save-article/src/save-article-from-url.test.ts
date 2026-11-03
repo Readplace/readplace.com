@@ -2,6 +2,7 @@ import { ReaderArticleHashIdSchema, SaveAttemptIdSchema, SaveableUrlSchema, arti
 import { MinutesSchema } from "@packages/domain/article";
 import type { SaveProvenance, SaveTrigger, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
+import type { RelatedPassRequestState } from "@packages/provider-contracts/related-articles";
 import {
 	initSaveArticleFromUrl,
 	type SaveArticleFromUrlDependencies,
@@ -48,13 +49,24 @@ interface CallTracker {
 	};
 	queueEntryCreated: Array<{ url: string; userId: string }>;
 	crawlPendingMarks: Array<{ url: string; measured: boolean }>;
+	computeRelatedPasses: Array<{ url: string; userId: string }>;
+	computeRelatedPastReads: Array<{ url: string; userId: string }>;
+	relatedStateReads: Array<{ url: string; userId: string }>;
+	relatedAcks: Array<{ url: string; userId: string }>;
 	deps: SaveArticleFromUrlDependencies;
 }
 
-function makeTracker(savedOverride?: SavedArticle): CallTracker {
+function makeTracker(
+	savedOverride?: SavedArticle,
+	relatedState: RelatedPassRequestState = { saved: true },
+): CallTracker {
 	const saved = savedOverride ?? makeSaved();
 	const queueEntryCreated: Array<{ url: string; userId: string }> = [];
 	const crawlPendingMarks: Array<{ url: string; measured: boolean }> = [];
+	const computeRelatedPasses: Array<{ url: string; userId: string }> = [];
+	const computeRelatedPastReads: Array<{ url: string; userId: string }> = [];
+	const relatedStateReads: Array<{ url: string; userId: string }> = [];
+	const relatedAcks: Array<{ url: string; userId: string }> = [];
 	const calls = {
 		markCrawlPending: 0,
 		markSummaryPending: 0,
@@ -91,11 +103,35 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 			calls.publishQueueEntryCreated += 1;
 			queueEntryCreated.push({ url: params.url, userId: params.userId });
 		},
+		publishComputeRelatedPasses: async (params) => {
+			computeRelatedPasses.push(params);
+		},
+		publishComputeRelatedPastReads: async (params) => {
+			computeRelatedPastReads.push(params);
+		},
+		readRelatedPassRequestState: async (params) => {
+			relatedStateReads.push(params);
+			return relatedState;
+		},
+		markRelatedPassesRequested: async (params) => {
+			relatedAcks.push(params);
+			return "marked";
+		},
 		pinContentSource: async () => {
 			calls.pinContentSource += 1;
 		},
 	};
-	return { saved, calls, queueEntryCreated, crawlPendingMarks, deps };
+	return {
+		saved,
+		calls,
+		queueEntryCreated,
+		crawlPendingMarks,
+		computeRelatedPasses,
+		computeRelatedPastReads,
+		relatedStateReads,
+		relatedAcks,
+		deps,
+	};
 }
 
 describe("saveArticleFromUrl", () => {
@@ -204,20 +240,7 @@ describe("saveArticleFromUrl", () => {
 		]);
 	});
 
-	it("asks nothing when the save landed on a row the reader already had", async () => {
-		const tracker = makeTracker();
-		const deps: SaveArticleFromUrlDependencies = {
-			...tracker.deps,
-			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
-		};
-
-		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
-
-		expect(tracker.queueEntryCreated).toEqual([]);
-		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured: false }]);
-	});
-
-	it("asks nothing when a tapped save lands on the row an automatic save created", async () => {
+	it("requests both passes when a tapped save lands on the row an automatic save created", async () => {
 		const tracker = makeTracker();
 		const deps: SaveArticleFromUrlDependencies = {
 			...tracker.deps,
@@ -226,8 +249,159 @@ describe("saveArticleFromUrl", () => {
 
 		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
 
+		expect(tracker.computeRelatedPasses).toEqual([{ url: exampleUrl, userId }]);
+		expect(tracker.relatedAcks).toEqual([{ url: exampleUrl, userId }]);
 		expect(tracker.queueEntryCreated).toEqual([]);
-		expect(tracker.calls.publishLinkQueued).toBe(1);
+		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured: false }]);
+	});
+
+	describe("requests only the related work a tapped save still lacks", () => {
+		const pastReadsComputedAt = new Date("2026-10-01T00:00:00.000Z");
+		const requestedAt = new Date("2026-10-02T00:00:00.000Z");
+		const cases: {
+			name: string;
+			created: boolean;
+			state: RelatedPassRequestState;
+			fact: number;
+			both: number;
+			pastOnly: number;
+			acks: number;
+		}[] = [
+			{ name: "new row, nothing settled", created: true, state: { saved: true }, fact: 1, both: 0, pastOnly: 0, acks: 1 },
+			{ name: "existing row, nothing settled", created: false, state: { saved: true }, fact: 0, both: 1, pastOnly: 0, acks: 1 },
+			{ name: "existing row already acknowledged", created: false, state: { saved: true, requestedAt }, fact: 0, both: 0, pastOnly: 0, acks: 0 },
+			{ name: "row deleted before the read", created: false, state: { saved: false }, fact: 0, both: 0, pastOnly: 0, acks: 0 },
+			{ name: "Next read ready and Past reads computed", created: false, state: { saved: true, nextRead: "ready", pastReadsComputedAt }, fact: 0, both: 0, pastOnly: 0, acks: 0 },
+			{ name: "Next read skipped and Past reads computed", created: false, state: { saved: true, nextRead: "skipped", pastReadsComputedAt }, fact: 0, both: 0, pastOnly: 0, acks: 0 },
+			{ name: "Next read ready, Past reads absent", created: false, state: { saved: true, nextRead: "ready" }, fact: 0, both: 0, pastOnly: 1, acks: 1 },
+			{ name: "Next read skipped, Past reads absent", created: false, state: { saved: true, nextRead: "skipped" }, fact: 0, both: 0, pastOnly: 1, acks: 1 },
+			{ name: "Past reads computed, Next read absent", created: false, state: { saved: true, pastReadsComputedAt }, fact: 0, both: 1, pastOnly: 0, acks: 1 },
+		];
+
+		it.each(cases)("$name", async ({ created, state, fact, both, pastOnly, acks }) => {
+			const tracker = makeTracker(undefined, state);
+			const deps: SaveArticleFromUrlDependencies = {
+				...tracker.deps,
+				saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: created, wroteUserArticle: true }),
+			};
+
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+
+			expect({
+				fact: tracker.queueEntryCreated.length,
+				both: tracker.computeRelatedPasses.length,
+				pastOnly: tracker.computeRelatedPastReads.length,
+				acks: tracker.relatedAcks.length,
+			}).toEqual({ fact, both, pastOnly, acks });
+		});
+	});
+
+	it("reads no related state for an automatic save, new or existing", async () => {
+		for (const created of [true, false]) {
+			const tracker = makeTracker();
+			const deps: SaveArticleFromUrlDependencies = {
+				...tracker.deps,
+				saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: created, wroteUserArticle: true }),
+			};
+
+			await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "automatic", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+
+			expect(tracker.relatedStateReads).toEqual([]);
+			expect(tracker.computeRelatedPasses).toEqual([]);
+			expect(tracker.queueEntryCreated).toEqual([]);
+			expect(tracker.relatedAcks).toEqual([]);
+		}
+	});
+
+	it("requests the passes under the canonical URL on the path that skips the crawl", async () => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "skip", identity: canonicalIdentity } });
+
+		expect(tracker.relatedStateReads).toEqual([{ url: "https://example.com/canonical", userId }]);
+		expect(tracker.computeRelatedPasses).toEqual([{ url: "https://example.com/canonical", userId }]);
+		expect(tracker.relatedAcks).toEqual([{ url: "https://example.com/canonical", userId }]);
+	});
+
+	it("announces the save, then publishes, then acknowledges", async () => {
+		const tracker = makeTracker();
+		const order: string[] = [];
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
+			publishLinkQueued: async () => {
+				order.push("link-queued");
+			},
+			readRelatedPassRequestState: async () => {
+				order.push("read-state");
+				return { saved: true };
+			},
+			publishComputeRelatedPasses: async () => {
+				order.push("publish-passes");
+			},
+			markRelatedPassesRequested: async () => {
+				order.push("ack");
+				return "marked";
+			},
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+
+		expect(order).toEqual(["link-queued", "read-state", "publish-passes", "ack"]);
+	});
+
+	it("leaves the row unacknowledged when the publish fails, so the next tap retries", async () => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
+			publishComputeRelatedPasses: async () => {
+				throw new Error("event bus down");
+			},
+		};
+		const saveFromUrl = initSaveArticleFromUrl(deps);
+		const params = { userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } } as const;
+
+		await expect(saveFromUrl(params)).rejects.toThrow("event bus down");
+		expect(tracker.relatedAcks).toEqual([]);
+
+		await initSaveArticleFromUrl({ ...deps, publishComputeRelatedPasses: tracker.deps.publishComputeRelatedPasses })(params);
+		expect(tracker.computeRelatedPasses).toEqual([{ url: exampleUrl, userId }]);
+		expect(tracker.relatedAcks).toEqual([{ url: exampleUrl, userId }]);
+	});
+
+	it("propagates an acknowledgement failure after the publish, so the retry may repeat the request", async () => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
+			markRelatedPassesRequested: async () => {
+				throw new Error("table throttled");
+			},
+		};
+
+		await expect(
+			initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } }),
+		).rejects.toThrow("table throttled");
+		expect(tracker.computeRelatedPasses).toEqual([{ url: exampleUrl, userId }]);
+	});
+
+	it("finishes the save when the row is deleted between the publish and the acknowledgement", async () => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			saveArticle: async () => ({ saved: tracker.saved, createdUserArticle: false, wroteUserArticle: true }),
+			markRelatedPassesRequested: async () => "row-absent",
+		};
+
+		const result = await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "manual", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+
+		expect(result.canonicalUrl).toBe(exampleUrl);
+		expect(tracker.computeRelatedPasses).toEqual([{ url: exampleUrl, userId }]);
 	});
 
 	describe("precomputes related passes only for a link a person picked", () => {

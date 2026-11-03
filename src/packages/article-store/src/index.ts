@@ -7,6 +7,7 @@ export { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
 export { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 export { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";
 export { initDynamoDbPastReads } from "./dynamodb-past-reads";
+export { initDynamoDbRelatedPassRequests } from "./dynamodb-related-pass-requests";
 export {
 	initCanonicalAliasStore,
 	type ClaimCanonicalAlias,

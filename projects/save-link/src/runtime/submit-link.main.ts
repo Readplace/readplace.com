@@ -12,6 +12,7 @@ import {
 	initCanonicalAliasStore,
 	initDynamoDbArticleCrawl,
 	initDynamoDbGeneratedSummary,
+	initDynamoDbRelatedPassRequests,
 	initDynamoDbSavedArticleStore,
 } from "@packages/article-store";
 import { initSubmitLinkCommandHandler } from "./domain/submit-link/submit-link-command-handler";
@@ -131,7 +132,13 @@ const { refreshArticleIfStale } = initSubmitFreshness({
 	publishStaleCheckRequested: (params) => events.publishEvent(StaleCheckRequestedEvent, params),
 });
 
+const relatedPassRequests = initDynamoDbRelatedPassRequests({
+	client: dynamoClient,
+	userArticlesTableName: userArticlesTable,
+	now,
+});
 export const handler = initSubmitLinkCommandHandler({
+	...relatedPassRequests,
 	...articleStore,
 	...sourceIdentity,
 	...events,

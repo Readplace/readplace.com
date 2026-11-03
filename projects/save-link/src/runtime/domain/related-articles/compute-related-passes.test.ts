@@ -2,6 +2,7 @@ import type { SQSEvent, SQSRecord } from "aws-lambda";
 import {
 	CanonicalContentChangedEvent,
 	ComputeRelatedPastReadsCommand,
+	ComputeRelatedPassesCommand,
 	QueueEntryCreatedEvent,
 } from "@packages/hutch-infra-components";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -69,6 +70,33 @@ describe("related computation passes", () => {
 			{ Records: [contentChanged] },
 		]);
 	});
+	it("sends a ComputeRelatedPasses record to the Next read and Past reads passes", async () => {
+		const bothPasses = record({ messageId: "both", detailType: ComputeRelatedPassesCommand.detailType });
+		const calls: Record<string, SQSEvent[]> = { nextRead: [], pastReads: [], recompute: [] };
+		const handler = initComputeRelatedPasses({
+			nextReadHandler: async (e) => {
+				calls.nextRead?.push(e);
+				return { batchItemFailures: [] };
+			},
+			pastReadsHandler: async (e) => {
+				calls.pastReads?.push(e);
+				return { batchItemFailures: [] };
+			},
+			recomputeNextReadHandler: async (e) => {
+				calls.recompute?.push(e);
+				return { batchItemFailures: [] };
+			},
+		});
+
+		await handler({ Records: [bothPasses] }, buildLambdaContext(), () => {});
+
+		expect(calls).toEqual({
+			nextRead: [{ Records: [bothPasses] }],
+			pastReads: [{ Records: [bothPasses] }],
+			recompute: [{ Records: [] }],
+		});
+	});
+
 	it("sends a CanonicalContentChanged record only to the recompute pass", async () => {
 		const received: Record<string, SQSRecord[]> = {};
 		const handler = initComputeRelatedPasses({

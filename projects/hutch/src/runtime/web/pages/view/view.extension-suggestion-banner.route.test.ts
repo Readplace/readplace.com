@@ -97,6 +97,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 				publishLinkDequeued: fixture.events.publishLinkDequeued,
 				publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 				publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
+				publishComputeRelatedPasses: fixture.events.publishComputeRelatedPasses,
 				publishRecrawlLinkInitiated:
 					createFakePublishRecrawlLinkInitiated(applyParseResult),
 				publishSaveAnonymousLink:
@@ -133,6 +134,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 				publishLinkDequeued: fixture.events.publishLinkDequeued,
 				publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 				publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
+				publishComputeRelatedPasses: fixture.events.publishComputeRelatedPasses,
 				publishRecrawlLinkInitiated:
 					createFakePublishRecrawlLinkInitiated(applyParseResult),
 				publishSaveAnonymousLink:

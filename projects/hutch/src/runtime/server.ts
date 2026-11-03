@@ -162,12 +162,15 @@ import type {
 } from "@packages/provider-contracts/article-summary";
 import type {
 	PublishComputeRelatedPastReads,
+	PublishComputeRelatedPasses,
 	PublishQueueEntryCreated,
 	PublishLinkDequeued,
 	PublishLinkQueued,
 	PublishLinkSaved,
 } from "@packages/provider-contracts/events";
 import type {
+	MarkRelatedPassesRequested,
+	ReadRelatedPassRequestState,
 	FindPastReads,
 	FindRelatedArticles,
 } from "@packages/provider-contracts/related-articles";
@@ -486,6 +489,9 @@ interface AppDependencies {
 	publishLinkDequeued: PublishLinkDequeued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
+	publishComputeRelatedPasses: PublishComputeRelatedPasses;
+	readRelatedPassRequestState: ReadRelatedPassRequestState;
+	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
 	findPastReads: FindPastReads;
 	listIssueLinks: InboxEmailLinkStore["listLinksByEmail"];
@@ -1544,6 +1550,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkDequeued: deps.publishLinkDequeued,
 		publishQueueEntryCreated: deps.publishQueueEntryCreated,
 		publishComputeRelatedPastReads: deps.publishComputeRelatedPastReads,
+		publishComputeRelatedPasses: deps.publishComputeRelatedPasses,
+		readRelatedPassRequestState: deps.readRelatedPassRequestState,
+		markRelatedPassesRequested: deps.markRelatedPassesRequested,
 		findRelatedArticles: deps.findRelatedArticles,
 		findPastReads: deps.findPastReads,
 		listIssueLinks: deps.listIssueLinks,
@@ -1622,6 +1631,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkSaved: deps.publishLinkSaved,
 		publishLinkQueued: deps.publishLinkQueued,
 		publishQueueEntryCreated: deps.publishQueueEntryCreated,
+		publishComputeRelatedPastReads: deps.publishComputeRelatedPastReads,
+		publishComputeRelatedPasses: deps.publishComputeRelatedPasses,
+		readRelatedPassRequestState: deps.readRelatedPassRequestState,
+		markRelatedPassesRequested: deps.markRelatedPassesRequested,
 		refreshArticleIfStale: deps.refreshArticleIfStaleStored,
 		publishSubmitLink: deps.publishSubmitLink,
 		allocateSavedAtSequence: deps.allocateSavedAtSequence,

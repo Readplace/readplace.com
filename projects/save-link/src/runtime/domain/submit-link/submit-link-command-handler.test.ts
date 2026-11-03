@@ -15,6 +15,8 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/read
 import {
 	EmailLinksFilteredEvent,
 	FileArticleIntoReadlistCommand,
+	ComputeRelatedPassesCommand,
+	ComputeRelatedPastReadsCommand,
 	QueueEntryCreatedEvent,
 	TierContentExtractedEvent,
 	EmailOutputSavedToAllEvent,
@@ -147,6 +149,8 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		refreshArticleIfStale: refreshAs("new"),
 		pinContentSource: jest.fn().mockResolvedValue(undefined),
+		readRelatedPassRequestState: jest.fn().mockResolvedValue({ saved: true }),
+		markRelatedPassesRequested: jest.fn().mockResolvedValue("marked"),
 		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
@@ -379,6 +383,52 @@ describe("initSubmitLinkCommandHandler", () => {
 		});
 	});
 
+	it("requests both passes when the reader taps Save on a newsletter link the system already queued", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const markRelatedPassesRequested = jest.fn().mockResolvedValue("marked");
+		const handler = createHandler({
+			publishEvent,
+			markRelatedPassesRequested,
+			saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: false, wroteUserArticle: true }),
+			fileArticleIntoReadlist: jest.fn().mockResolvedValue({ createdUserArticle: false, wroteUserArticle: true, resurfacedFromRead: false }),
+			refreshArticleIfStale: refreshAs("new"),
+		});
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "manual" }]));
+
+		expect(publishEvent).toHaveBeenCalledWith(ComputeRelatedPassesCommand, { url: exampleUrl, userId });
+		expect(markRelatedPassesRequested).toHaveBeenCalledWith({ url: exampleUrl, userId });
+	});
+
+	it("requests only Past reads when the reader taps Save on a queued newsletter link whose Next read already settled", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const markRelatedPassesRequested = jest.fn().mockResolvedValue("marked");
+		const handler = createHandler({
+			publishEvent,
+			markRelatedPassesRequested,
+			readRelatedPassRequestState: jest.fn().mockResolvedValue({ saved: true, nextRead: "ready" }),
+			saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: false, wroteUserArticle: true }),
+			fileArticleIntoReadlist: jest.fn().mockResolvedValue({ createdUserArticle: false, wroteUserArticle: true, resurfacedFromRead: false }),
+			refreshArticleIfStale: refreshAs("new"),
+		});
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "manual" }]));
+
+		expect(publishEvent).toHaveBeenCalledWith(ComputeRelatedPastReadsCommand, { url: exampleUrl, userId });
+		expect(publishEvent).not.toHaveBeenCalledWith(ComputeRelatedPassesCommand, expect.anything());
+		expect(publishEvent).not.toHaveBeenCalledWith(QueueEntryCreatedEvent, expect.anything());
+		expect(markRelatedPassesRequested).toHaveBeenCalledTimes(1);
+	});
+
+	it("reads no related state for a newsletter link the system saved", async () => {
+		const readRelatedPassRequestState = jest.fn().mockResolvedValue({ saved: true });
+		const handler = createHandler({ readRelatedPassRequestState, refreshArticleIfStale: refreshAs("new") });
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
+
+		expect(readRelatedPassRequestState.mock.calls).toEqual([]);
+	});
+
 	it("asks nothing for a newsletter link the system saved on the reader's behalf", async () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
@@ -391,10 +441,11 @@ describe("initSubmitLinkCommandHandler", () => {
 		expect(publishedDetailTypes(publishEvent)).not.toContain("QueueEntryCreated");
 	});
 
-	it("asks nothing for a newsletter link already sitting in the reader's queue", async () => {
+	it("asks nothing for a newsletter link whose related passes were already requested", async () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const handler = createHandler({
 			publishEvent,
+			readRelatedPassRequestState: jest.fn().mockResolvedValue({ saved: true, requestedAt: new Date("2026-10-01T00:00:00.000Z") }),
 			saveArticle: jest.fn().mockResolvedValue({ saved: makeSaved(), createdUserArticle: false, wroteUserArticle: true }),
 		});
 

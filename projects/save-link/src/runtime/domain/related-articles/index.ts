@@ -3,6 +3,7 @@ export {
 	type QueueEntryCreatedDetail,
 	RelatedArticlesComputedEvent,
 	type RelatedArticlesComputedDetail,
+	ComputeRelatedPassesCommand,
 	ComputeRelatedPastReadsCommand,
 	type ComputeRelatedPastReadsDetail,
 	RelatedPastReadsComputedEvent,

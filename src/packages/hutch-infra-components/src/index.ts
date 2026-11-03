@@ -144,6 +144,7 @@ export {
 	RelatedArticlesComputedEvent,
 	type RelatedArticlesComputedDetail,
 	ComputeRelatedPastReadsCommand,
+	ComputeRelatedPassesCommand,
 	type ComputeRelatedPastReadsDetail,
 	RelatedPastReadsComputedEvent,
 	type RelatedPastReadsComputedDetail,

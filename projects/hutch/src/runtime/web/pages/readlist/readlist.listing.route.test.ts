@@ -231,6 +231,7 @@ describe("Readlist routes", () => {
 					publishLinkDequeued: fixture.events.publishLinkDequeued,
 					publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 					publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
+					publishComputeRelatedPasses: fixture.events.publishComputeRelatedPasses,
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,

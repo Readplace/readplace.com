@@ -51,6 +51,11 @@ export type PublishQueueEntryCreated = (params: {
 	userId: UserId;
 }) => Promise<void>;
 
+export type PublishComputeRelatedPasses = (params: {
+	url: string;
+	userId: UserId;
+}) => Promise<void>;
+
 export type PublishComputeRelatedPastReads = (params: {
 	url: string;
 	userId: UserId;

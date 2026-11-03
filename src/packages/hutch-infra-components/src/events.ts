@@ -372,6 +372,16 @@ export type ComputeRelatedPastReadsDetail = z.infer<
 	typeof ComputeRelatedPastReadsCommand.detailSchema
 >;
 
+export const ComputeRelatedPassesCommand = defineEvent({
+	name: "compute-related-passes",
+	source: "hutch.save-article",
+	detailType: "ComputeRelatedPasses",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+	}),
+});
+
 export const RelatedPastReadsComputedEvent = defineEvent({
 	name: "related-past-reads-computed",
 	source: "hutch.save-link",

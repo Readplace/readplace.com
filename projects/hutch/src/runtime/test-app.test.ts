@@ -45,6 +45,8 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			parser: fixture.parser,
 			events: fixture.events,
 			publishedQueueEntryCreated: fixture.publishedQueueEntryCreated,
+			publishedComputeRelatedPasses: fixture.publishedComputeRelatedPasses,
+			publishedComputeRelatedPastReads: fixture.publishedComputeRelatedPastReads,
 			pendingHtml: fixture.pendingHtml,
 			pendingPdf: fixture.pendingPdf,
 			pendingUpload: fixture.pendingUpload,

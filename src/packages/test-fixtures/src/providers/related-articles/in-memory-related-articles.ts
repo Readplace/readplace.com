@@ -34,6 +34,8 @@ export function initInMemoryRelatedArticles(deps: {
 	findRelatedArticles: FindRelatedArticles;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
 	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
+	readSettledNextRead: (params: { userId: UserId; url: string }) => "ready" | "skipped" | undefined;
+	forgetRow: (params: { userId: UserId; url: string }) => void;
 } {
 	const states = new Map<string, SettledRelatedArticles>();
 
@@ -94,5 +96,9 @@ export function initInMemoryRelatedArticles(deps: {
 		findRelatedArticles,
 		markRelatedArticlesReady,
 		markRelatedArticlesSkipped,
+		readSettledNextRead: ({ userId, url }) => states.get(keyOf(userId, url))?.status,
+		forgetRow: ({ userId, url }) => {
+			states.delete(keyOf(userId, url));
+		},
 	};
 }
