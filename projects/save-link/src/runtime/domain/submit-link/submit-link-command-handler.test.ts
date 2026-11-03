@@ -241,6 +241,7 @@ describe("initSubmitLinkCommandHandler", () => {
 		};
 		const filter = initFilterEmailLinksHandler({
 			listReadlistDefinitions: store.listReadlistDefinitions,
+			listReadlistFitOverrides: store.listReadlistFitOverrides,
 			decideReadlistFit,
 			publishEvent,
 			logger: noopLogger,

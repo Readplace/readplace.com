@@ -21,7 +21,7 @@ import {
 	readlistPurposeVersion,
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
-import { UserIdSchema } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import {
 	EmailLinksFilteredEvent,
 	EmailLinksFilterFailedEvent,
@@ -33,9 +33,16 @@ import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	ListReadlistDefinitions,
+	ListReadlistFitOverrides,
 	ReadlistDefinitionData,
 } from "@packages/provider-contracts/article-store";
-import type { DecideReadlistFit, ReadlistFitEngine, ReadlistFitVerdict } from "@packages/readlist-fit";
+import {
+	type DecideReadlistFit,
+	READLIST_FIT_EXAMPLES_MAX,
+	type ReadlistFitEngine,
+	type ReadlistFitExample,
+	type ReadlistFitVerdict,
+} from "@packages/readlist-fit";
 import { FILTER_EMAIL_LINKS_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import type { ReadlistFitDecidedLine, ReadlistFitUnsureLine } from "./readlist-fit-log-lines.types";
 
@@ -79,6 +86,7 @@ function countVerdict(input: { fit: FitEntry[]; verdict: ReadlistFitVerdict }): 
 
 export function initFilterEmailLinksHandler(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
+	listReadlistFitOverrides: ListReadlistFitOverrides;
 	decideReadlistFit: DecideReadlistFit;
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
@@ -89,6 +97,7 @@ export function initFilterEmailLinksHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		listReadlistDefinitions,
+		listReadlistFitOverrides,
 		decideReadlistFit,
 		publishEvent,
 		logger,
@@ -99,7 +108,7 @@ export function initFilterEmailLinksHandler(deps: {
 	} = deps;
 
 	const decideFor = async (input: {
-		userId: string;
+		userId: UserId;
 		receivedAtMessageId: string;
 		readlist: ReadlistSlug;
 		definition: ReadlistDefinitionData | undefined;
@@ -131,10 +140,19 @@ export function initFilterEmailLinksHandler(deps: {
 			return { ...NO_MODEL_CALL, readlistLabel: definition.label, decision: "filtered", purposeVersion };
 		}
 
+		const overrides = await listReadlistFitOverrides({ userId, readlist });
+		const examples = overrides.slice(0, READLIST_FIT_EXAMPLES_MAX).map(
+			(override): ReadlistFitExample => ({
+				text: override.anchorText,
+				host: override.host,
+				verdict: override.readerVerdict,
+			}),
+		);
+
 		const startedAt = now();
 		const { decisions, engine, model, usage } = await decideReadlistFit({
 			purpose: { ...parseReadlistPurposeFields(purpose), version: purposeVersion },
-			examples: [],
+			examples,
 			candidates: links.map((link) => ({ id: link.ordinal, url: link.url, text: link.anchorText })),
 			context: { subject, senderEmail },
 		});

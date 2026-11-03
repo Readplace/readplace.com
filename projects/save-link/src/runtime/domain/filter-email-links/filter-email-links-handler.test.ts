@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
+import { EmailLinkOrdinalSchema } from "@packages/domain/inbox";
 import {
 	composeReadlistPurposeText,
+	type ReadlistSlug,
 	ReadlistSlugSchema,
+	readlistFitOverrideId,
 	readlistPurposeVersion,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
+import type { ReadlistDefinitionData, ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import type { DecideReadlistFit, ReadlistFitResult } from "@packages/readlist-fit";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -44,6 +47,30 @@ function workDefinition(purpose: string | undefined): ReadlistDefinitionData {
 	};
 }
 
+function choice(params: {
+	minutesAgo: number;
+	anchorText: string;
+	host: string;
+	readerVerdict: "keep" | "drop";
+}): ReadlistFitOverride {
+	const createdAt = new Date(Date.parse("2026-09-23T09:00:00.000Z") - params.minutesAgo * 60_000);
+	const ordinal = EmailLinkOrdinalSchema.parse(String(params.minutesAgo % 10_000).padStart(4, "0"));
+	const receivedAtMessageId = `2026-09-20T09:00:00.000Z#<m-${params.minutesAgo}@example.com>`;
+	return {
+		id: readlistFitOverrideId({ createdAt, receivedAtMessageId, ordinal }),
+		url: `https://${params.host}/${params.minutesAgo}`,
+		anchorText: params.anchorText,
+		host: params.host,
+		engineVerdict: params.readerVerdict === "keep" ? "drop" : "keep",
+		engineReason: "The judge's earlier call.",
+		readerVerdict: params.readerVerdict,
+		purposeVersion: PURPOSE_VERSION,
+		receivedAtMessageId,
+		ordinal,
+		createdAt,
+	};
+}
+
 function fitResult(decisions: ReadlistFitResult["decisions"]): ReadlistFitResult {
 	return {
 		decisions,
@@ -71,6 +98,7 @@ function captureLines<T>() {
 
 function makeHarness(opts: {
 	definitions?: ReadlistDefinitionData[];
+	overrides?: ReadlistFitOverride[];
 	decideReadlistFit?: DecideReadlistFit;
 	publishEvent?: PublishEvent;
 	receiveCount?: number;
@@ -78,6 +106,7 @@ function makeHarness(opts: {
 	const published: { detailType: string; detail: unknown }[] = [];
 	const decisions: Parameters<DecideReadlistFit>[0][] = [];
 	const definitionReads: UserId[] = [];
+	const overrideReads: { userId: UserId; readlist: ReadlistSlug }[] = [];
 	const decide = opts.decideReadlistFit ?? oneOfEachVerdict;
 	const fitDecided = captureLines<ReadlistFitDecidedLine>();
 	const fitUnsure = captureLines<ReadlistFitUnsureLine>();
@@ -87,6 +116,10 @@ function makeHarness(opts: {
 		listReadlistDefinitions: async (userId) => {
 			definitionReads.push(userId);
 			return opts.definitions ?? [workDefinition(PURPOSE)];
+		},
+		listReadlistFitOverrides: async (params) => {
+			overrideReads.push(params);
+			return opts.overrides ?? [];
 		},
 		decideReadlistFit: async (input) => {
 			decisions.push(input);
@@ -124,6 +157,7 @@ function makeHarness(opts: {
 		published,
 		decisions,
 		definitionReads,
+		overrideReads,
 		run,
 		runBody,
 		decidedLines: fitDecided.lines,
@@ -187,6 +221,40 @@ describe("initFilterEmailLinksHandler", () => {
 				},
 			]);
 			expect(harness.definitionReads).toEqual([USER]);
+		});
+
+		it("sends the reader's remembered choices as examples, newest first, as text, host and verdict", async () => {
+			const harness = makeHarness({
+				overrides: [
+					choice({ minutesAgo: 1, anchorText: "How to cut a dovetail by hand", host: "finewoodworking.com", readerVerdict: "keep" }),
+					choice({ minutesAgo: 2, anchorText: "Spring tool sale", host: "shop.example.com", readerVerdict: "drop" }),
+					choice({ minutesAgo: 3, anchorText: "", host: "c.test", readerVerdict: "keep" }),
+				],
+			});
+
+			await harness.run(TRIAGED);
+
+			expect(harness.overrideReads).toEqual([{ userId: USER, readlist: WORK }]);
+			expect(harness.decisions.map((decision) => decision.examples)).toEqual([
+				[
+					{ text: "How to cut a dovetail by hand", host: "finewoodworking.com", verdict: "keep" },
+					{ text: "Spring tool sale", host: "shop.example.com", verdict: "drop" },
+					{ text: "", host: "c.test", verdict: "keep" },
+				],
+			]);
+		});
+
+		it("sends the newest 20 choices when the readlist remembers more", async () => {
+			const remembered = Array.from({ length: 23 }, (_, index) =>
+				choice({ minutesAgo: index + 1, anchorText: `Choice ${index + 1}`, host: "a.test", readerVerdict: "keep" }),
+			);
+			const harness = makeHarness({ overrides: remembered });
+
+			await harness.run(TRIAGED);
+
+			expect(harness.decisions.map((decision) => decision.examples.map((example) => example.text))).toEqual([
+				Array.from({ length: 20 }, (_, index) => `Choice ${index + 1}`),
+			]);
 		});
 
 		it("announces the decision last, with every verdict, the engine, model, version and tokens", async () => {
@@ -385,6 +453,7 @@ describe("initFilterEmailLinksHandler", () => {
 		await harness.run(TRIAGED);
 
 		expect(harness.decisions).toEqual([]);
+		expect(harness.overrideReads).toEqual([]);
 		expect(submissions(harness.published)).toEqual([]);
 		expect(filings(harness.published)).toEqual(
 			TRIAGED.links.map((link) => ({
@@ -416,6 +485,7 @@ describe("initFilterEmailLinksHandler", () => {
 		await harness.run(TRIAGED);
 
 		expect(harness.decisions).toEqual([]);
+		expect(harness.overrideReads).toEqual([]);
 		expect(harness.published).toEqual([
 			{
 				detailType: "EmailLinksFiltered",
@@ -454,6 +524,7 @@ describe("initFilterEmailLinksHandler", () => {
 		assert(result);
 		expect(result.batchItemFailures).toEqual([]);
 		expect(harness.decisions).toEqual([]);
+		expect(harness.overrideReads).toEqual([]);
 		expect(harness.decidedLines).toEqual([]);
 		expect(harness.published).toEqual([{ detailType: "EmailLinksFiltered", detail: {
 			userId: USER,

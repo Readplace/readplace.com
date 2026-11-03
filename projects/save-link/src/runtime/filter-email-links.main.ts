@@ -1,5 +1,5 @@
 import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initDeepseekClient } from "@packages/ai-message";
-import { initDynamoDbReadlistDefinitions } from "@packages/article-store";
+import { initDynamoDbReadlistDefinitions, initDynamoDbReadlistFitOverrides } from "@packages/article-store";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
@@ -45,6 +45,11 @@ const { listReadlistDefinitions } = initDynamoDbReadlistDefinitions({
 	userArticlesTableName: userArticlesTable,
 });
 
+const { listReadlistFitOverrides } = initDynamoDbReadlistFitOverrides({
+	client: createDynamoDocumentClient(),
+	userArticlesTableName: userArticlesTable,
+});
+
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
@@ -52,6 +57,7 @@ const { publishEvent } = initEventBridgePublisher({
 
 export const handler = initFilterEmailLinksHandler({
 	listReadlistDefinitions,
+	listReadlistFitOverrides,
 	decideReadlistFit,
 	publishEvent,
 	logger,
