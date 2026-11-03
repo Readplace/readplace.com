@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { mediaIdentity } from "@packages/finalize-article";
 import { parseHTML } from "linkedom";
-import type { TierSource } from "./tier-source.types";
+import type { TierSource } from "@packages/tier-source";
 
 /**
  * The content selector treats two candidates whose prose is identical as a

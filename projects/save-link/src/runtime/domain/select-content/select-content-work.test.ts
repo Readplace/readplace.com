@@ -4,11 +4,10 @@ import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCom
 import { noopLogger } from "@packages/hutch-logger";
 import { type Article, type CanonicalCommit, type TransitionAndPersist, initTransitionAndPersist, requestRecrawl, promoteTier, recrawlPromoteTier, recrawlTieKeptCanonical, refreshContent } from "@packages/domain/article-aggregate";
 import { initSelectContentWork, type SelectContentDependencies } from "./select-content-work";
-import { candidateProvenance } from "./candidate-provenance";
+import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { markNoReadableArticle } from "./mark-no-readable-article";
-import type { VerifiedTierSource } from "./tier-source.types";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 

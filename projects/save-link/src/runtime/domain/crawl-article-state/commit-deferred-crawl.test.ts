@@ -8,7 +8,7 @@ import {
 } from "@packages/hutch-infra-components";
 import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
 import { initCommitDeferredCrawl } from "./commit-deferred-crawl";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { candidateProvenance } from "@packages/tier-source";
 
 type CommitDeps = Parameters<typeof initCommitDeferredCrawl>[0];
 

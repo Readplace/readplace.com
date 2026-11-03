@@ -1,5 +1,5 @@
 import { tiersDifferInMedia } from "./tiers-differ-in-media";
-import type { TierSource } from "./tier-source.types";
+import type { TierSource } from "@packages/tier-source";
 
 function source(html: string): TierSource {
 	return {

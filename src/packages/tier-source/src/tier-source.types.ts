@@ -1,6 +1,8 @@
 import { CandidateIdSchema, CaptureTriggerSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import { z } from "zod";
-import type { Tier } from "./tier.types";
+import type { ContentTier } from "@packages/article-state-types";
+
+export type Tier = ContentTier;
 
 export const TierSourceMetadataSchema = z.object({
 	title: z.string(),

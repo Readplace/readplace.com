@@ -18,7 +18,7 @@ import assert from "node:assert";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 
 export function initRecrawlLinkInitiatedHandler(deps: {

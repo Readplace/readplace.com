@@ -1,3 +1,4 @@
+import type { PutTierSource } from "@packages/tier-source";
 import assert from "node:assert";
 import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
@@ -5,7 +6,6 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { ReadRefreshHtml } from "@packages/provider-contracts/refresh-html";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import { RefreshArticleContentCommand } from "./index";
 
 /**

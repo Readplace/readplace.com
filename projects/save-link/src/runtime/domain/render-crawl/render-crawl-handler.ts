@@ -13,7 +13,7 @@ import { deferJavascriptShells } from "../save-link/javascript-shell";
 import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-reason";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { ConsumePaidCrawlBudget } from "../../providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import {

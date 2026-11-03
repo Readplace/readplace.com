@@ -3,9 +3,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 import type { CandidateId } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { Tier } from "../../domain/select-content/tier.types";
-import { type TierSource, TierSourceMetadataSchema } from "../../domain/select-content/tier-source.types";
-import { candidateManifestKey } from "./candidate-object-keys";
+import { TierSourceMetadataSchema, candidateManifestKey, type Tier, type TierSource } from "@packages/tier-source";
 
 export type ReadTierSource = (params: { url: string; tier: Tier; candidateId?: CandidateId }) => Promise<TierSource | undefined>;
 

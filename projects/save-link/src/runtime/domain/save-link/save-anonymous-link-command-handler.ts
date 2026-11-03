@@ -18,7 +18,7 @@ import { initCrawlSaveCandidates } from "./crawl-save-candidates";
 import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 
 export function initSaveAnonymousLinkCommandHandler(deps: {

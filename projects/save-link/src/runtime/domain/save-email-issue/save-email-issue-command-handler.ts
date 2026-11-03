@@ -9,7 +9,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import type { SaveEmailIssue } from "./save-email-issue";
 

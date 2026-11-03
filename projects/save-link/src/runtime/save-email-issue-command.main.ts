@@ -14,7 +14,7 @@ import { requireEnv } from "@packages/require-env";
 import { initFileArticleIntoReadlist } from "@packages/save-article";
 import { initSaveEmailIssue } from "./domain/save-email-issue/save-email-issue";
 import { initSaveEmailIssueCommandHandler } from "./domain/save-email-issue/save-email-issue-command-handler";
-import { initPutTierSource } from "./providers/article-store/put-tier-source";
+import { initPutTierSource } from "@packages/tier-source";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");

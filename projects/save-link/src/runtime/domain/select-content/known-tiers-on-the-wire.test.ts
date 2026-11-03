@@ -1,5 +1,5 @@
 import { ReaderViewLoadingSucceeded, TierContentExtractedEvent } from "@packages/hutch-infra-components";
-import { KNOWN_TIERS } from "./tier.types";
+import { KNOWN_TIERS } from "@packages/article-state-types";
 
 describe("content tiers on the wire", () => {
 	it("lets the tier-extracted event carry a candidate of every tier the selector judges", () => {

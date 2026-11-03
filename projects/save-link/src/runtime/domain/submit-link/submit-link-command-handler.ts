@@ -30,7 +30,7 @@ import {
 } from "@packages/save-article";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";

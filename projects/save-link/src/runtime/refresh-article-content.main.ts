@@ -1,10 +1,10 @@
 import { initCanonicalAliasStore } from "@packages/article-store";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { initResolveCandidateOriginal } from "./domain/select-content/candidate-provenance";
+import { initResolveCandidateOriginal } from "./domain/select-content/resolve-candidate-original";
+import { initPutTierSource } from "@packages/tier-source";
 import { S3Client } from "@aws-sdk/client-s3";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
-import { initPutTierSource } from "./providers/article-store/put-tier-source";
 import { initReadRefreshHtml } from "./providers/refresh-html/read-refresh-html";
 import { requireEnv } from "@packages/require-env";
 import { initRefreshArticleContentHandler } from "./domain/save-link/refresh-article-content-handler";

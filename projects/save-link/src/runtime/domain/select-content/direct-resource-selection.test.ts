@@ -1,10 +1,9 @@
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import type { Article } from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/hutch-logger";
-import { candidateProvenance } from "./candidate-provenance";
+import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@packages/tier-source";
 import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import type { SelectMostCompleteContent } from "./select-content";
-import type { TierSource, VerifiedTierSource } from "./tier-source.types";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 
 const URL = "https://example.com/resource";

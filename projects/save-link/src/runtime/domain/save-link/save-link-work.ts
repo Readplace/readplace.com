@@ -13,7 +13,7 @@ import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-failure-outcome";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { DeferredUnsupportedKind, EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import { isProxyWorthyError } from "@packages/crawl-article";

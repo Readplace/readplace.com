@@ -1,3 +1,4 @@
+import type { PutTierSource } from "@packages/tier-source";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import { UserIdSchema } from "@packages/domain/user";
 import { initResolveSubmittedSource } from "../select-content/resolve-submitted-source";
@@ -24,7 +25,6 @@ import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id
 import { estimatedReadTimeFromWordCount, type DownloadMedia, type ProcessContent } from "@packages/finalize-article";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { ReadPendingPdf } from "../../providers/article-store/read-pending-pdf";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 
 const TIER = "tier-0";
 

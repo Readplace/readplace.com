@@ -1,5 +1,5 @@
 import { type CanonicalPublishedOn, CanonicalPublishedOnSchema } from "@packages/domain/article-aggregate";
-import type { TierSource } from "./tier-source.types";
+import type { TierSource } from "@packages/tier-source";
 
 export function resolveCanonicalPublishedOn(params: {
 	winner: TierSource;

@@ -18,7 +18,7 @@ import {
 	type VerifyWrapperSource,
 } from "@packages/save-article";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { initResolveCandidateOriginal } from "../domain/select-content/candidate-provenance";
+import { initResolveCandidateOriginal } from "../domain/select-content/resolve-candidate-original";
 
 export function initSourceIdentityDepBundle(deps: {
 	findIdentityRow: FindIdentityRow;

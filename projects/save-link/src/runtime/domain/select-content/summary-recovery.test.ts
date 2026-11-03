@@ -17,8 +17,7 @@ import { computeCanonicalContentHash } from "../../providers/article-store/compu
 import { initLinkSummariser, type SummarizeArticle } from "../generate-summary/link-summariser";
 import { stripHtml } from "../generate-summary/strip-html";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
-import { candidateProvenance } from "./candidate-provenance";
-import type { VerifiedTierSource } from "./tier-source.types";
+import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import type { Handler, SQSBatchResponse, SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 

@@ -5,7 +5,7 @@ import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult } from "@packages/
 import { ArchiveCaptureCrawlFailedEvent, type LogCrawlOutcome } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";

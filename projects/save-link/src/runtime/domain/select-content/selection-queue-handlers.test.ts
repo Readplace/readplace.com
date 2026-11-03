@@ -7,8 +7,7 @@ import type { SQSEvent } from "aws-lambda";
 import { initSelectMostCompleteContentHandler } from "./select-most-complete-content-handler";
 import { initRecrawlContentExtractedHandler } from "./recrawl-content-extracted-handler";
 import { initRefreshContentExtractedHandler } from "./refresh-content-extracted-handler";
-import { candidateProvenance } from "./candidate-provenance";
-import type { VerifiedTierSource } from "./tier-source.types";
+import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "./max-receive-count";
 

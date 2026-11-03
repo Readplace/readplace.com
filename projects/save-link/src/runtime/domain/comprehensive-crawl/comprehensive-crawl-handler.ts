@@ -19,7 +19,7 @@ import type {
 	RefundPaidCrawlBudget,
 } from "../../providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initProgressThrottle } from "../crawl-article-state/init-progress-throttle";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";

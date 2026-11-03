@@ -7,7 +7,7 @@ import {
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import type { Article } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import type { TierSource } from "../select-content/tier-source.types";
+import type { TierSource } from "@packages/tier-source";
 import { initRemoveMyContentCommandHandler } from "./remove-my-content-command-handler";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);

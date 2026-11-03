@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { candidateProvenance } from "@packages/tier-source";
 import { createHash } from "node:crypto";
 import { noopLogger } from "@packages/hutch-logger";
 import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { ReadRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import { initRefreshArticleContentHandler } from "./refresh-article-content-handler";
 
 const stubAttributes: SQSRecordAttributes = {

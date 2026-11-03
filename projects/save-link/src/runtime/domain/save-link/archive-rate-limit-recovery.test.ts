@@ -7,12 +7,11 @@ import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/fina
 import { noopLogger } from "@packages/hutch-logger";
 import { initVerifyWrapperSource } from "@packages/save-article";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { initListAvailableTierSources } from "../select-content/list-available-tier-sources";
 import { initPrepareContentSelection } from "../select-content/prepare-content-selection";
 import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
-import type { VerifiedTierSource } from "../select-content/tier-source.types";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
 
 const ORIGINAL = "https://example.com/article";

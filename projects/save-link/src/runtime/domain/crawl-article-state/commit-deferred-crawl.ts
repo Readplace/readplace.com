@@ -1,7 +1,7 @@
 import type { SaveAttemptId } from "@packages/domain/article";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import { type CandidateAnnouncement, initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
-import type { TierSourceMetadata } from "../select-content/tier-source.types";
+import type { PutTierSource, TierSourceMetadata } from "@packages/tier-source";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ThumbnailCascade } from "@packages/crawl-article";
@@ -14,7 +14,6 @@ import {
 } from "@packages/hutch-infra-components";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { ReadTierSnapshot } from "./read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "./emit-tier-1-failure-outcome";

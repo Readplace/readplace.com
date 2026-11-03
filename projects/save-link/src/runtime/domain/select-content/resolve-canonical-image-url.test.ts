@@ -1,5 +1,5 @@
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
-import type { TierSource } from "./tier-source.types";
+import type { TierSource } from "@packages/tier-source";
 
 function source(overrides: { tier: TierSource["tier"]; imageUrl?: string }): TierSource {
 	return {

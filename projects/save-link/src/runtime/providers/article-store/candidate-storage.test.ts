@@ -4,13 +4,9 @@ import { NoSuchKey, S3ServiceException, type S3Client } from "@aws-sdk/client-s3
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { noopLogger } from "@packages/hutch-logger";
-import { initPutTierSource } from "./put-tier-source";
+import { initPutTierSource, candidateBodyKeys, CandidateProvenanceSchema, candidateProvenance, type CandidateProvenance } from "@packages/tier-source";
 import { initReadTierSource } from "./read-tier-source";
 import { initWriteCanonicalContent } from "./promote-tier-to-canonical";
-import { initPersistCandidateArtifact } from "./persist-candidate-artifact";
-import { candidateBodyKeys, candidateManifestKey } from "./candidate-object-keys";
-import { CandidateProvenanceSchema, type CandidateProvenance } from "../../domain/select-content/tier-source.types";
-import { candidateProvenance } from "../../domain/select-content/candidate-provenance";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 
@@ -139,50 +135,6 @@ describe("immutable content candidates", () => {
 		const denied = new S3ServiceException({ name: "AccessDenied", $fault: "client", $metadata: {}, message: "denied" });
 		const forbidden = { send: async () => { throw denied; } } as unknown as Pick<S3Client, "send">;
 		await expect(initReadTierSource({ client: forbidden, bucketName: "content", logger: noopLogger }).readTierSource({ url: URL, tier: "tier-1" })).rejects.toBe(denied);
-	});
-});
-
-describe("candidate manifest identity", () => {
-	it("keeps the first manifest unchanged on redelivery while preserving the exact body", async () => {
-		const { client, objects } = storage();
-		const { putTierSource } = initPutTierSource({ client, bucketName: "content" });
-		await putTierSource({ url: URL, tier: "tier-1", html: "stable body", metadata: metadata("same") });
-		await putTierSource({ url: URL, tier: "tier-1", html: "stable body", metadata: { ...metadata("same"), fetchedAt: "2026-10-06T00:00:00Z" } });
-		const key = candidateManifestKey({ url: URL, tier: "tier-1", candidateId: cid("same") });
-		expect(JSON.parse(objects.get(key) ?? "{}").fetchedAt).toBe("2026-10-05T00:00:00Z");
-	});
-	it("propagates manifest storage failures instead of overwriting the current source", async () => {
-		for (const failure of [new Error("offline"), new S3ServiceException({ name: "AccessDenied", $fault: "client", $metadata: {}, message: "denied" })]) {
-			const { send } = storage();
-			const failing = { send: async (command: unknown) => {
-				const input = CommandSchema.parse(command).input;
-				if (input.Key.endsWith("metadata.json")) throw failure;
-				return send(command);
-			} } as unknown as Pick<S3Client, "send">;
-			const put = initPutTierSource({ client: failing, bucketName: "content" }).putTierSource;
-			await expect(put({ url: URL, tier: "tier-1", html: "body", metadata: metadata("failure") })).rejects.toBe(failure);
-		}
-	});
-});
-
-describe("immutable candidate upload", () => {
-	it("uses separate immutable candidate IDs when a retry localizes media differently", async () => {
-		const { client, objects } = storage();
-		const persist = initPersistCandidateArtifact({ client, bucketName: "content" });
-		const first = await persist(params);
-		const html = HTML.replace("https://example.com/photo.jpg", "https://cdn.example/photo.jpg");
-		const metadata = candidateProvenance({ metadata: params.metadata, html, evaluationHtml: HTML, attemptId: SaveAttemptIdSchema.parse("attempt"), originalUrl: URL, sourceUrl: URL, kind: "extension", fetchedAt: params.metadata.fetchedAt });
-		const second = await persist({ ...params, html, metadata });
-		expect(first.id).toBe(params.metadata.id);
-		expect(second.id).toBe(metadata.id);
-		expect(objects.get(first.htmlLocation ?? "")).toBe(HTML);
-		expect(objects.get(second.htmlLocation ?? "")).toBe(html);
-		expect(second.contentHash).toBe(first.contentHash);
-	});
-	it("keeps the ownership manifest when a body upload fails", async () => {
-		const { client, objects } = storage((input) => { if (input.Key.endsWith("content.html")) throw new Error("body upload interrupted"); });
-		await expect(initPersistCandidateArtifact({ client, bucketName: "content" })(params)).rejects.toThrow("body upload interrupted");
-		expect([...objects.keys()]).toEqual([candidateManifestKey({ ...params, candidateId: params.metadata.id })]);
 	});
 });
 

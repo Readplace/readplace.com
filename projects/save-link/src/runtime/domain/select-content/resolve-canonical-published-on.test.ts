@@ -1,5 +1,5 @@
 import { resolveCanonicalPublishedOn } from "./resolve-canonical-published-on";
-import type { TierSource } from "./tier-source.types";
+import type { TierSource } from "@packages/tier-source";
 
 function source(overrides: { tier: TierSource["tier"]; publishedOn?: string }): TierSource {
 	return {

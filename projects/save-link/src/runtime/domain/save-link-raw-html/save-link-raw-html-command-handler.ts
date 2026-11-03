@@ -1,3 +1,4 @@
+import type { PutTierSource } from "@packages/tier-source";
 import { wrapperFamilyOf } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
@@ -18,7 +19,6 @@ import {
 import { type FinalizeArticle, UNREADABLE_ARTICLE } from "@packages/finalize-article";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { ReadPendingHtml } from "../../providers/article-store/read-pending-html";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 
 const TIER = "tier-0";
 

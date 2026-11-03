@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import { GetObjectCommand, PutObjectCommand, S3ServiceException, type S3Client } from "@aws-sdk/client-s3";
-import { CandidateProvenanceSchema, type CandidateProvenance } from "../../domain/select-content/tier-source.types";
-import type { Tier } from "../../domain/select-content/tier.types";
+import { CandidateProvenanceSchema, type CandidateProvenance, type Tier } from "./tier-source.types";
 import { candidateBodyKeys, candidateManifestKey } from "./candidate-object-keys";
 
 export function initPersistCandidateArtifact(deps: { client: Pick<S3Client, "send">; bucketName: string }) {

@@ -8,11 +8,9 @@ import {
 	type TierContentExtractedDetail,
 } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { TierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
-import { candidateProvenance } from "../select-content/candidate-provenance";
-import type { TierSourceMetadata } from "../select-content/tier-source.types";
+import { candidateProvenance, type PutTierSource, type TierSourceMetadata } from "@packages/tier-source";
 
 export type CandidateLeg =
 	| { tier: "tier-0"; kind: "extension"; captureTrigger: CaptureTrigger | undefined }

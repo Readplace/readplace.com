@@ -1,6 +1,6 @@
 import { type CandidateId, isWrapperUrl } from "@packages/domain/article";
 import { tiersDifferInMedia } from "./tiers-differ-in-media";
-import type { VerifiedTierSource } from "./tier-source.types";
+import type { VerifiedTierSource } from "@packages/tier-source";
 
 export function chooseTiedCandidate(params: {
 	sources: readonly VerifiedTierSource[];

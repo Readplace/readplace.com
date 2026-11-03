@@ -7,13 +7,11 @@ import type { Article, LoadArticle } from "@packages/domain/article-aggregate";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlFailureReason } from "@packages/article-state-types";
-import { CandidateProvenanceSchema, type CandidateProvenance, type VerifiedTierSource } from "./tier-source.types";
-import type { Tier } from "./tier.types";
+import { CandidateProvenanceSchema, KIND_BY_TIER, candidateProvenance, type CandidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import type { ListAvailableTierSources, CandidateReference } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent, SelectionAudit } from "./select-content";
 import { chooseTiedCandidate } from "./resolve-tie";
 import { COMPARISON_COMPLETED } from "./comparison-log";
-import { candidateProvenance } from "./candidate-provenance";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 
@@ -31,7 +29,6 @@ export interface PreparedContentSelection {
 	legacyCanonicalWithheld: boolean;
 }
 
-const KIND_BY_TIER: Record<Tier, CandidateProvenance["kind"]> = { "tier-0": "extension", "tier-1": "live", "tier-2": "wrapper" };
 const EMPTY_TEXT_HASH = computeCanonicalContentHash("");
 
 function candidateIsReadable(source: VerifiedTierSource): boolean {

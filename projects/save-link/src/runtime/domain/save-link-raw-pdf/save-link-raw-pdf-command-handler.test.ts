@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { candidateProvenance } from "@packages/tier-source";
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
@@ -11,7 +11,7 @@ import { initProcessContentWithLocalMedia } from "../save-link/process-content-w
 import type { ParseHtml } from "@packages/article-parser";
 import type { ExtractPdf } from "@packages/crawl-article";
 import type { DownloadMedia } from "@packages/finalize-article";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 

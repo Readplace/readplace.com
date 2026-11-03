@@ -42,6 +42,7 @@
     "@packages/save-article": "workspace:*",
     "@packages/site-rules": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
+    "@packages/tier-source": "workspace:*",
     "@smithy/node-http-handler": "4.7.5",
     "@sparticuz/chromium": "153.0.0",
     "@types/parse-srcset": "1.0.0",

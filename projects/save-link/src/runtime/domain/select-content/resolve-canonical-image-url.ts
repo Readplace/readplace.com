@@ -1,5 +1,5 @@
 import { type CanonicalImageUrl, CanonicalImageUrlSchema } from "@packages/domain/article-aggregate";
-import type { TierSource } from "./tier-source.types";
+import type { TierSource } from "@packages/tier-source";
 
 /**
  * The selector chooses a winning tier based on body completeness, but

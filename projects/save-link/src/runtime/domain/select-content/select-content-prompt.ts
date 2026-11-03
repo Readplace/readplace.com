@@ -3,7 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { condenseCandidateHtml } from "./condense-candidate-html";
 import { DEEPSEEK_CONTEXT_TOKENS, DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 import type { CandidateId } from "@packages/domain/article";
-import type { Tier } from "./tier.types";
+import type { Tier } from "@packages/tier-source";
 
 export const SELECT_CONTENT_SYSTEM_PROMPT = [
 	"Select readable content for the given original URL from the supplied candidates.",

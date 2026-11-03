@@ -2,7 +2,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import type { PutImageObject } from "@packages/finalize-article";
 import { initS3PutImageObject } from "../providers/article-store/s3-put-image-object";
-import { initPutTierSource, type PutTierSource } from "../providers/article-store/put-tier-source";
+import { initPutTierSource, type PutTierSource } from "@packages/tier-source";
 import { initCheckTier0SourceExistsS3 } from "../providers/article-store/check-tier-0-source-exists-s3";
 import { initReadArticleCrawlStateDynamoDb } from "../providers/article-store/read-article-crawl-state-dynamodb";
 import {

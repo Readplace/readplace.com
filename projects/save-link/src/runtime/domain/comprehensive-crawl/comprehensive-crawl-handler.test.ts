@@ -14,7 +14,7 @@ import {
 } from "@packages/hutch-infra-components";
 import { initComprehensiveCrawlHandler } from "./comprehensive-crawl-handler";
 import { initFinalizeArticle, type FinalizeArticle, type FinalizedArticle } from "@packages/finalize-article";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 

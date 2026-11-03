@@ -1,7 +1,6 @@
 import { type CandidateId, CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import { chooseTiedCandidate } from "./resolve-tie";
-import { candidateProvenance } from "./candidate-provenance";
-import type { VerifiedTierSource } from "./tier-source.types";
+import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 

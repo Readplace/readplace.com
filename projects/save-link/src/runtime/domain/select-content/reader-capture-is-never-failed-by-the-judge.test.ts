@@ -6,11 +6,10 @@ import type { SQSEvent } from "aws-lambda";
 import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
 import { initSelectMostCompleteContent } from "./select-content";
 import { initSelectMostCompleteContentHandler } from "./select-most-complete-content-handler";
-import { candidateProvenance } from "./candidate-provenance";
+import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
-import type { VerifiedTierSource } from "./tier-source.types";
 
 const URL = "https://example.com/article";
 const NOW = "2026-10-09T00:00:00.000Z";

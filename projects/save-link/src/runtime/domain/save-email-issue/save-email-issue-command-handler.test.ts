@@ -5,7 +5,7 @@ import { EmailOutputSavedToAllEvent, TierContentExtractedEvent } from "@packages
 import type { HutchLogger } from "@packages/hutch-logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { SaveEmailIssue } from "./save-email-issue";
 import { initSaveEmailIssueCommandHandler } from "./save-email-issue-command-handler";
 

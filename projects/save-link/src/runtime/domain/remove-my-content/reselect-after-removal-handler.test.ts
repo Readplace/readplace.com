@@ -5,7 +5,7 @@ import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { markCrawlExhausted, promoteTier, type Article, type TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "../select-content/max-receive-count";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { candidateProvenance } from "@packages/tier-source";
 import { initReselectAfterRemovalHandler } from "./reselect-after-removal-handler";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);

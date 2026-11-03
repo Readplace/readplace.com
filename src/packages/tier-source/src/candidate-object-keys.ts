@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { CandidateId } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { Tier } from "../../domain/select-content/tier.types";
+import type { Tier } from "./tier-source.types";
 
 function candidatePrefix(params: { url: string; tier: Tier; candidateId: CandidateId }): string {
 	const id = ArticleResourceUniqueId.parse(params.url);

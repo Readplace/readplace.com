@@ -6,9 +6,9 @@ import { type CrawlAndFinalizeArticle, type FinalizeArticle, initCrawlAndFinaliz
 import { type CrawlArticle, initCrawlArticle, initFetchPinnedCrawl } from "@packages/crawl-article";
 import type { AdoptArticleDestination } from "@packages/article-store";
 import { initAdoptCanonicalIdentity } from "./adopt-canonical-identity";
-import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { PutTierSource } from "@packages/tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
-import { candidateProvenance } from "../select-content/candidate-provenance";
+import { candidateProvenance } from "@packages/tier-source";
 
 const notFoundCrawl = (httpStatus: 404 | 410): CrawlAndFinalizeArticle => async () => ({ status: "not-found", httpStatus });
 

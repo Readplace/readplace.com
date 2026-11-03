@@ -1,8 +1,7 @@
 import type { CandidateId } from "@packages/domain/article";
 import type { ReadTierSource } from "../../providers/article-store/read-tier-source";
-import type { TierSource } from "./tier-source.types";
-import { KNOWN_TIERS } from "./tier.types";
-import type { Tier } from "./tier.types";
+import { KNOWN_TIERS } from "@packages/article-state-types";
+import type { TierSource, Tier } from "@packages/tier-source";
 
 export type CandidateReference = { id: CandidateId; tier: Tier };
 export type ListAvailableTierSources = (url: string, options?: {

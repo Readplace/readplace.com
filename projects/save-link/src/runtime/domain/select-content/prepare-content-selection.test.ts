@@ -2,12 +2,11 @@ import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article
 import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/hutch-logger";
 import type { Article } from "@packages/domain/article-aggregate";
-import { candidateProvenance } from "./candidate-provenance";
+import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
 import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import { OWN_CAPTURE_FAILED_METRIC } from "./comparison-log";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
-import type { TierSource, VerifiedTierSource } from "./tier-source.types";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 
