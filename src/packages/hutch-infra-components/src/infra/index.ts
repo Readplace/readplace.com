@@ -13,6 +13,7 @@ export { HutchSQS } from "./hutch-sqs";
 export { HutchSharedDlq } from "./hutch-shared-dlq";
 export type { AlarmedDeadLetterQueue } from "./hutch-shared-dlq";
 export { HutchSQSBackedLambda } from "./hutch-sqs-backed-lambda";
+export { HutchMediaProcessor } from "./hutch-media-processor";
 export { HutchDLQEventHandler } from "./hutch-dlq-event-handler";
 export { attachDlqConsumer } from "./attach-dlq-consumer";
 export { HutchStripeWebhookReceiver } from "./hutch-stripe-webhook-receiver";
