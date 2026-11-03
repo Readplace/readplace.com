@@ -311,6 +311,30 @@ describe("Inbox link save route", () => {
 		expect(feedback).not.toHaveProperty("userId");
 	});
 
+	it("saves a skipped social link as a manual save and confirms it on the followed redirect", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await seed(fixture, {
+			status: "skipped",
+			skipReason: "social-host",
+			title: undefined,
+			url: "https://x.com/someone/status/1",
+		});
+
+		const response = await agent.post(savePath);
+		const confirmation = await agent.get(response.headers.location);
+
+		expect(harness.submittedLinks).toEqual([
+			{ userId, url: "https://x.com/someone/status/1", provenance: EMAIL_PROVENANCE, saveTrigger: "manual", readlist: DEFAULT_READLIST_SLUG },
+		]);
+		expect(
+			new JSDOM(confirmation.text).window.document
+				.querySelector("[data-test-toast-message]")
+				?.textContent?.trim(),
+		).toBe("Adding to All…");
+	});
+
 	it("returns 404 for a skipped link the save pipeline would reject, publishing nothing", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

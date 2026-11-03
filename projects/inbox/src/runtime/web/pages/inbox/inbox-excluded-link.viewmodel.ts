@@ -19,6 +19,7 @@ const SKIP_REASON_LABELS: Record<EmailLinkSkipReason, string> = {
 	"llm-ad": "Advertisement",
 	"llm-menu": "Site navigation",
 	"llm-subscription": "Subscription management",
+	"social-host": "Social link — not saved automatically",
 };
 
 const GENERIC_EXCLUDED_LABEL = "Not an article";

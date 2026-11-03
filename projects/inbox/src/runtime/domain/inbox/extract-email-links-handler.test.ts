@@ -1871,3 +1871,191 @@ describe("frozen All selection for Gmail-mapped mail", () => {
 		expect(harness.submitted).toHaveLength(1);
 	});
 });
+
+describe("direct social links in forwarded mail", () => {
+	const LINKEDIN_FEED = "https://www.linkedin.com/feed/update/activity-1";
+	const X_POST = "https://x.com/someone/status/1";
+	const ARTICLE = "https://blog.example.com/a-substantive-article";
+	const WRAPPED_HEADLINE = "https://link.mail.example.com/c/opaque-token";
+	const NEWSLETTER = [LINKEDIN_FEED, ARTICLE, X_POST, WRAPPED_HEADLINE].join(" ");
+
+	const storedRows = async (harness: ReturnType<typeof makeHarness>) => {
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		return links.map((link) => [link.ordinal, link.url, link.status, link.skipReason]);
+	};
+
+	const SOCIAL_SKIPPED_ROWS = [
+		["0000", LINKEDIN_FEED, "skipped", "social-host"],
+		["0001", ARTICLE, "pending", undefined],
+		["0002", X_POST, "skipped", "social-host"],
+		["0003", WRAPPED_HEADLINE, "pending", undefined],
+	];
+
+	it("stores them skipped and sends only the newsletter's other links downstream", async () => {
+		const harness = makeHarness({ derivedHtml: NEWSLETTER });
+
+		await harness.run(eventBody());
+
+		expect(await storedRows(harness)).toEqual(SOCIAL_SKIPPED_ROWS);
+		expect(harness.published.map((p) => p.url)).toEqual([ARTICLE, WRAPPED_HEADLINE]);
+		expect(harness.submitted.map((s) => s.url)).toEqual([ARTICLE, WRAPPED_HEADLINE]);
+		expect(harness.triageCalls.map((call) => call.links.map((l) => l.url))).toEqual([
+			[ARTICLE, WRAPPED_HEADLINE],
+		]);
+		expect(harness.countsWrites).toEqual([{ kept: 2, skipped: 2, truncated: false }]);
+	});
+
+	it("leaves them out of what a routed readlist is asked to decide", async () => {
+		const harness = makeHarness({
+			derivedHtml: NEWSLETTER,
+			inboxAddress: makeInboxAddress({ readlist: WORK }),
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.triaged.map((event) => event.links.map((l) => l.url))).toEqual([
+			[ARTICLE, WRAPPED_HEADLINE],
+		]);
+	});
+
+	it("skips them without asking the triage when nothing else is left to judge", async () => {
+		const harness = makeHarness({ derivedHtml: `${LINKEDIN_FEED} ${X_POST}` });
+
+		await harness.run(eventBody());
+
+		expect(harness.triageCalls).toEqual([]);
+		expect(harness.published).toEqual([]);
+		expect(harness.submitted).toEqual([]);
+		expect(harness.countsWrites).toEqual([{ kept: 0, skipped: 2, truncated: false }]);
+	});
+
+	it("still skips them while the other links fail open on an unavailable triage", async () => {
+		const harness = makeHarness({
+			derivedHtml: NEWSLETTER,
+			triageEmailLinks: async () => ({ status: "unavailable" }),
+		});
+
+		await harness.run(eventBody());
+
+		expect(await storedRows(harness)).toEqual(SOCIAL_SKIPPED_ROWS);
+		expect(harness.published.map((p) => p.url)).toEqual([ARTICLE, WRAPPED_HEADLINE]);
+	});
+
+	it("skips them for a read-only reader whose other saves are held", async () => {
+		const harness = makeHarness({
+			derivedHtml: NEWSLETTER,
+			subscription: READ_ONLY_SUBSCRIPTION,
+		});
+
+		await harness.run(eventBody());
+
+		expect(await storedRows(harness)).toEqual(SOCIAL_SKIPPED_ROWS);
+		expect(harness.published.map((p) => p.url)).toEqual([ARTICLE, WRAPPED_HEADLINE]);
+		expect(harness.submitted).toEqual([]);
+	});
+
+	it.each<{
+		scope: string;
+		origin: EmailReceivedDetail["origin"];
+		routing: EmailReceivedDetail["routing"];
+	}>([
+		{
+			scope: "a Gmail import",
+			origin: "gmail-import",
+			routing: { kind: "gmail", destinationAddresses: ["in-3f9a2c@read.place"], deliveryMode: "links" },
+		},
+		{
+			scope: "mail received through a Gmail mapping",
+			origin: "receive",
+			routing: { kind: "gmail", destinationAddresses: ["in-3f9a2c@read.place"], deliveryMode: "links" },
+		},
+		{ scope: "a backfill replay", origin: "backfill", routing: { kind: "inbox" } },
+	])("keeps crawling them for $scope", async ({ origin, routing }) => {
+		const harness = makeHarness({ derivedHtml: `${LINKEDIN_FEED} ${ARTICLE}` });
+
+		await harness.run(eventBody({ origin, routing }));
+
+		expect(harness.published.map((p) => p.url)).toEqual([LINKEDIN_FEED, ARTICLE]);
+		const { links } = await harness.linkStore.listLinksByEmail({
+			userId: USER,
+			receivedAtMessageId: RAM,
+		});
+		expect(links.map((link) => link.skipReason)).toEqual([undefined, undefined]);
+	});
+
+	it("keeps crawling them for unrouted audit mail", async () => {
+		const harness = makeHarness({
+			derivedHtml: LINKEDIN_FEED,
+			getEmail: async () => makeEmail({ userId: UserIdSchema.parse("__unrouted__") }),
+		});
+
+		await harness.run(eventBody({ userId: "__unrouted__" }));
+
+		expect(harness.published.map((p) => p.url)).toEqual([LINKEDIN_FEED]);
+	});
+
+	it("never publishes them across a re-delivery, while a pending article keeps its retry", async () => {
+		const harness = makeHarness({
+			derivedHtml: `${X_POST} ${ARTICLE}`,
+			failMeta: true,
+		});
+
+		const interrupted = await harness.run(eventBody());
+		const redelivered = await harness.run(eventBody());
+
+		assert(interrupted);
+		assert(redelivered);
+		expect(interrupted.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		expect(redelivered.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
+		expect(harness.published.map((p) => p.url)).toEqual([ARTICLE, ARTICLE]);
+		expect(harness.submitted.map((s) => s.url)).toEqual([ARTICLE, ARTICLE]);
+		expect(await storedRows(harness)).toEqual([
+			["0000", X_POST, "skipped", "social-host"],
+			["0001", ARTICLE, "pending", undefined],
+		]);
+	});
+
+	it("does not rewrite a row an earlier delivery already crawled", async () => {
+		const harness = makeHarness({ derivedHtml: X_POST });
+		await harness.linkStore.putLink({
+			userId: USER,
+			receivedAtMessageId: RAM,
+			ordinal: EmailLinkOrdinalSchema.parse("0000"),
+			url: X_POST,
+			resolvedUrl: undefined,
+			status: "crawled",
+			title: "An old post",
+			excerpt: undefined,
+			siteName: undefined,
+			imageUrl: undefined,
+			failureReason: undefined,
+			skipReason: undefined,
+			anchorText: undefined,
+		});
+
+		await harness.run(eventBody());
+
+		expect(await storedRows(harness)).toEqual([["0000", X_POST, "crawled", undefined]]);
+		expect(harness.published).toEqual([]);
+		expect(harness.countsWrites).toEqual([{ kept: 1, skipped: 0, truncated: false }]);
+	});
+
+	it("takes the cap before skipping them, so a skip never pulls a later link into the first N", async () => {
+		const harness = makeHarness({
+			derivedHtml: `${X_POST} ${ARTICLE} ${WRAPPED_HEADLINE}`,
+			maxLinks: 2,
+		});
+
+		await harness.run(eventBody());
+
+		expect(await storedRows(harness)).toEqual([
+			["0000", X_POST, "skipped", "social-host"],
+			["0001", ARTICLE, "pending", undefined],
+		]);
+		expect(harness.published.map((p) => p.url)).toEqual([ARTICLE]);
+		expect(harness.countsWrites).toEqual([{ kept: 1, skipped: 1, truncated: true }]);
+	});
+});

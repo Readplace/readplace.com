@@ -74,6 +74,16 @@ describe("toInboxExcludedLinkViewModel", () => {
 		);
 	});
 
+	it("names a social link as one that is not saved automatically, and still offers its save", () => {
+		const vm = build({
+			link: link({ skipReason: "social-host", url: "https://www.linkedin.com/posts/someone" }),
+		});
+
+		expect(vm.reasonLabel).toBe("Social link — not saved automatically");
+		expect(vm.url).toBe("https://www.linkedin.com/posts/someone");
+		expect(saveActionOf(vm).method).toBe("POST");
+	});
+
 	it("labels a row with no recorded reason generically", () => {
 		expect(build({ link: link({ skipReason: undefined }) }).reasonLabel).toBe("Not an article");
 	});

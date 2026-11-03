@@ -104,6 +104,7 @@ export {
 } from "./inbox-email-link.schema";
 export { isExcludedLink } from "./inbox-email-link.excluded";
 export { classifyEmailLink } from "./classify-email-link";
+export { classifyForwardedEmailLink } from "./classify-forwarded-email-link";
 export type {
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,

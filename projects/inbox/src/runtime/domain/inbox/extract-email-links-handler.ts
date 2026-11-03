@@ -6,6 +6,7 @@ import { extractUrls } from "@packages/domain/import-session";
 import {
 	capEmailLinks,
 	classifyEmailLink,
+	classifyForwardedEmailLink,
 	type EmailImportCompletionStore,
 	type EmailOutputKey,
 	type EmailOutputSelection,
@@ -68,9 +69,7 @@ const SUBMITTING_ORIGINS: Record<EmailReceivedDetail["origin"], boolean> = {
  * link plus — for a routed user's saveable links — one `SubmitLinkCommand` per
  * link, which lands the article in the reader's unread queue through the same
  * entry point every save surface uses (mirroring how /queue fans each import
- * URL into its own save command). Links classified as action links (a GET could
- * unsubscribe or confirm on the reader's behalf) are written as terminal
- * `skipped` rows and never fanned out.
+ * URL into its own save command).
  *
  * The body is RE-DERIVED from the immutable raw `.eml` on every run — read raw →
  * re-parse → re-sanitize — so a future parse/sanitize change applies to
@@ -273,10 +272,14 @@ export function initExtractEmailLinksHandler(deps: {
 				);
 				const { urls, truncated } = capEmailLinks(extracted, { maxLinks });
 
+				const classifyLink =
+					origin === "receive" && routing.kind === "inbox" && userId !== UNROUTED_USER_ID
+						? classifyForwardedEmailLink
+						: classifyEmailLink;
 				const links = urls.map((url, index) => ({
 					url,
 					ordinal: formatEmailLinkOrdinal(index),
-					classification: classifyEmailLink({
+					classification: classifyLink({
 						url,
 						listUnsubscribeUrls: parsedEmail.email.listUnsubscribeUrls,
 					}),

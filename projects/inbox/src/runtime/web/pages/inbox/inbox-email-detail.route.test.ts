@@ -842,6 +842,41 @@ describe("Inbox email detail Skipped tab", () => {
 		expect(doc.querySelector("[data-test-inbox-email-iframe]")).toBeNull();
 	});
 
+	it("lists a social link byte-exact with its reason, count and Save form, alongside the email's kept article", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "crawled", title: "Kept article" },
+			{
+				ordinal: EmailLinkOrdinalSchema.parse("0001"),
+				url: "https://www.linkedin.com/posts/someone?utm_source=share",
+				status: "skipped",
+				skipReason: "social-host",
+			},
+		]);
+
+		const doc = parseDoc((await agent.get(excludedTabPath)).text);
+
+		expect(panelCount(doc)).toBe("1 Skipped");
+		expect(doc.querySelector('[data-test-inbox-tab="view"]')?.textContent).toBe("View");
+		expect(doc.querySelector('[data-test-inbox-tab="articles"]')?.textContent).toBe(
+			"Extracted Articles (1)",
+		);
+		const row = doc.querySelector('[data-test-inbox-excluded-link="0001"]');
+		assert(row, "the social link must stay listed on the Skipped tab");
+		expect(row.querySelector("[data-test-inbox-excluded-url]")?.textContent).toContain(
+			"https://www.linkedin.com/posts/someone?utm_source=share",
+		);
+		expect(row.querySelector("[data-test-inbox-excluded-reason]")?.textContent).toBe(
+			"Social link — not saved automatically",
+		);
+		const saveButton = row.querySelector("[data-test-inbox-excluded-save]");
+		assert(saveButton, "the social link must offer its Save action");
+		expect(saveButton.getAttribute("data-test-save-state")).toBe("unsaved");
+	});
+
 	it("shows a skipped link the reader saved as saved, and keeps it on this tab", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
