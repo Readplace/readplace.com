@@ -17,6 +17,7 @@ import {
 	describeAiProviderError,
 	deepseekCallFailedLogLine,
 } from "@packages/ai-message";
+import { retriable } from "@packages/retriable";
 import { DEEPSEEK_MAX_OUTPUT_TOKENS } from "./deepseek-limits";
 
 export type ContentDecision =
@@ -47,6 +48,13 @@ const invalidResponse = (reason: string): never => assert.fail(`judge returned a
 
 const NonRetryableRejectionSchema = z.object({ status: z.literal(400) });
 
+const JUDGE_MAX_ATTEMPTS = 2;
+
+type JudgeAttempt =
+	| { outcome: "judged"; decision: ContentDecision; readability: CandidateReadability }
+	| { outcome: "invalid"; reason: string; issues: string[]; text: string | undefined }
+	| { outcome: "rejected" };
+
 export function initSelectMostCompleteContent(deps: {
 	createChatCompletion: CreateDeepseekChatCompletion;
 	logger: HutchLogger;
@@ -67,65 +75,81 @@ export function initSelectMostCompleteContent(deps: {
 				responseStatus,
 			},
 		});
-		let response: DeepseekChatResponse;
-		try {
-			response = await createChatCompletion({
-				feature: DEEPSEEK_FEATURES.contentSelection,
-				temperature: 0,
-				max_tokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
-				response_format: { type: "json_object" },
-				messages,
-			});
-		} catch (error) {
-			if (!NonRetryableRejectionSchema.safeParse(error).success) throw error;
-			const failure = describeAiProviderError(error);
-			assert(failure.kind !== "unknown", "a 400 rejection is an http provider error");
-			deepseekCallFailedLog.error(deepseekCallFailedLogLine({ feature: "select-content", failure, ids: {} }));
-			return audited({ kind: "none", reason: "provider rejected request" }, "rejected");
-		}
-		logger.info("[SelectContent] completed", {
-			url: params.url,
-			inputTokens: response.usage?.prompt_tokens ?? "unknown",
-			outputTokens: response.usage?.completion_tokens ?? "unknown",
-			cacheHitInputTokens: response.usage?.prompt_cache_hit_tokens ?? "unknown",
-			cacheMissInputTokens: response.usage?.prompt_cache_miss_tokens ?? "unknown",
-		});
-		const text = response.choices[0]?.message?.content?.trim();
-		if (!text) return invalidResponse("empty response");
-		let json: unknown;
-		try {
-			json = JSON.parse(text);
-		} catch {
-			return invalidResponse("malformed response");
-		}
-		const parsed = ResponseSchema.safeParse(json);
-		if (!parsed.success) return invalidResponse("schema mismatch");
-		const answer = parsed.data;
-		const idByLabel = new Map(params.candidates.map((candidate, index) => [labelForIndex(index), candidate.id]));
-		const idsOf = (labels: readonly string[]): CandidateId[] => labels.flatMap((label) => idByLabel.get(label.trim().toUpperCase()) ?? []);
-		let decision: ContentDecision = { kind: "none", reason: answer.reason };
-		if (answer.kind === "winner") {
-			const [candidateId] = idsOf([answer.candidate]);
-			if (candidateId === undefined) return invalidResponse("unknown winner candidate");
-			decision = { kind: "winner", candidateId, reason: answer.reason };
-		}
-		if (answer.kind === "tie") {
-			const candidateIds = idsOf(answer.candidates);
-			if (candidateIds.length !== answer.candidates.length || new Set(candidateIds).size !== candidateIds.length) {
-				return invalidResponse("invalid tied candidates");
+		const judgeOnce = async (): Promise<JudgeAttempt> => {
+			let response: DeepseekChatResponse;
+			try {
+				response = await createChatCompletion({
+					feature: DEEPSEEK_FEATURES.contentSelection,
+					temperature: 0,
+					max_tokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
+					response_format: { type: "json_object" },
+					messages,
+				});
+			} catch (error) {
+				if (!NonRetryableRejectionSchema.safeParse(error).success) throw error;
+				const failure = describeAiProviderError(error);
+				assert(failure.kind !== "unknown", "a 400 rejection is an http provider error");
+				deepseekCallFailedLog.error(deepseekCallFailedLogLine({ feature: "select-content", failure, ids: {} }));
+				return { outcome: "rejected" };
 			}
-			decision = { kind: "tie", candidateIds, reason: answer.reason };
-		}
-		const readability = answer.readability.flatMap((assessment) => idsOf([assessment.candidate]).map((candidateId) => ({ candidateId, readable: assessment.readable })));
-		if (answer.readability.length !== idByLabel.size || new Set(readability.map((assessment) => assessment.candidateId)).size !== idByLabel.size) {
-			return invalidResponse("incomplete candidate readability");
-		}
-		const readableIds = new Set(readability.filter((assessment) => assessment.readable).map((assessment) => assessment.candidateId));
-		const eligibleIds = decision.kind === "winner" ? [decision.candidateId] : decision.kind === "tie" ? decision.candidateIds : [];
-		if (eligibleIds.some((id) => !readableIds.has(id)) || (decision.kind === "none" && readableIds.size > 0)) {
-			return invalidResponse("decision contradicts candidate readability");
-		}
-		return audited(decision, "completed", readability);
+			logger.info("[SelectContent] completed", {
+				url: params.url,
+				inputTokens: response.usage?.prompt_tokens ?? "unknown",
+				outputTokens: response.usage?.completion_tokens ?? "unknown",
+				cacheHitInputTokens: response.usage?.prompt_cache_hit_tokens ?? "unknown",
+				cacheMissInputTokens: response.usage?.prompt_cache_miss_tokens ?? "unknown",
+			});
+			const text = response.choices[0]?.message?.content?.trim();
+			const invalid = (reason: string, issues: string[] = []): JudgeAttempt => ({ outcome: "invalid", reason, issues, text });
+			if (!text) return invalid("empty response");
+			let json: unknown;
+			try {
+				json = JSON.parse(text);
+			} catch {
+				return invalid("malformed response");
+			}
+			const parsed = ResponseSchema.safeParse(json);
+			if (!parsed.success) return invalid("schema mismatch", parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`));
+			const answer = parsed.data;
+			const idByLabel = new Map(params.candidates.map((candidate, index) => [labelForIndex(index), candidate.id]));
+			const idsOf = (labels: readonly string[]): CandidateId[] => labels.flatMap((label) => idByLabel.get(label.trim().toUpperCase()) ?? []);
+			let decision: ContentDecision = { kind: "none", reason: answer.reason };
+			if (answer.kind === "winner") {
+				const [candidateId] = idsOf([answer.candidate]);
+				if (candidateId === undefined) return invalid("unknown winner candidate");
+				decision = { kind: "winner", candidateId, reason: answer.reason };
+			}
+			if (answer.kind === "tie") {
+				const candidateIds = idsOf(answer.candidates);
+				if (candidateIds.length !== answer.candidates.length || new Set(candidateIds).size !== candidateIds.length) {
+					return invalid("invalid tied candidates");
+				}
+				decision = { kind: "tie", candidateIds, reason: answer.reason };
+			}
+			const readability = answer.readability.flatMap((assessment) => idsOf([assessment.candidate]).map((candidateId) => ({ candidateId, readable: assessment.readable })));
+			if (answer.readability.length !== idByLabel.size || new Set(readability.map((assessment) => assessment.candidateId)).size !== idByLabel.size) {
+				return invalid("incomplete candidate readability");
+			}
+			const readableIds = new Set(readability.filter((assessment) => assessment.readable).map((assessment) => assessment.candidateId));
+			const eligibleIds = decision.kind === "winner" ? [decision.candidateId] : decision.kind === "tie" ? decision.candidateIds : [];
+			if (eligibleIds.some((id) => !readableIds.has(id)) || (decision.kind === "none" && readableIds.size > 0)) {
+				return invalid("decision contradicts candidate readability");
+			}
+			return { outcome: "judged", decision, readability };
+		};
+		let attempt = 0;
+		const judgeWithRetry = retriable(async () => {
+			attempt += 1;
+			const result = await judgeOnce();
+			if (result.outcome === "invalid") {
+				logger.warn("[SelectContent] invalid response", { url: params.url, attempt, maxAttempts: JUDGE_MAX_ATTEMPTS, reason: result.reason, issues: result.issues, text: result.text ?? "" });
+			}
+			return result;
+		}, { maxAttempts: JUDGE_MAX_ATTEMPTS, retryDelayMs: 0, shouldRetry: (result) => result.outcome === "invalid" });
+		const result = await judgeWithRetry();
+		if (result.outcome === "rejected") return audited({ kind: "none", reason: "provider rejected request" }, "rejected");
+		if (result.outcome === "invalid") return invalidResponse(result.reason);
+		return audited(result.decision, "completed", result.readability);
 	};
 	return { selectMostCompleteContent };
 }

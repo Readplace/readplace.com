@@ -139,13 +139,15 @@ describe("initSelectMostCompleteContent", () => {
 		const info = jest.fn();
 		const error = jest.fn();
 		const deepseekCallFailed = jest.fn();
+		const createChatCompletion = jest.fn(async () => { throw rejection; });
 		const { selectMostCompleteContent } = initSelectMostCompleteContent({
-			createChatCompletion: async () => { throw rejection; }, logger: { ...noopLogger, info, error }, deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
+			createChatCompletion, logger: { ...noopLogger, info, error }, deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed },
 		});
 		expect(await selectMostCompleteContent(request)).toMatchObject({ kind: "none", reason: "provider rejected request", audit: { responseStatus: "rejected", judgedCandidates: expect.arrayContaining([{ id: "archive", contentHash: createHash("sha256").update(candidates[2].html).digest("hex") }]) } });
 		expect(info).not.toHaveBeenCalledWith("[SelectContent] completed", expect.anything());
 		expect(error).not.toHaveBeenCalled();
 		expect(deepseekCallFailed).toHaveBeenCalledTimes(1);
+		expect(createChatCompletion).toHaveBeenCalledTimes(1);
 		const line = deepseekCallFailed.mock.calls[0][0];
 		expect(line).toMatchObject({ level: "ERROR", event: "deepseek-call-failed", feature: "select-content", status: 400, kind: "http" });
 		expect(line).not.toHaveProperty("url");
@@ -157,8 +159,37 @@ describe("initSelectMostCompleteContent", () => {
 	it("rethrows a transient provider failure so the queue can retry", async () => {
 		const failure = Object.assign(new Error("internal error"), { status: 500 });
 		const deepseekCallFailed = jest.fn();
-		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion: async () => { throw failure; }, logger: noopLogger, deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed } });
+		const createChatCompletion = jest.fn(async () => { throw failure; });
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger, deepseekCallFailedLog: { ...noopLogger, error: deepseekCallFailed } });
 		await expect(selectMostCompleteContent(request)).rejects.toBe(failure);
 		expect(deepseekCallFailed).not.toHaveBeenCalled();
+		expect(createChatCompletion).toHaveBeenCalledTimes(1);
+	});
+
+	const missingReadability = JSON.stringify({ kind: "winner", candidate: "B", reason: "Article" });
+
+	it("asks the judge once more when its reply is invalid, and logs the invalid reply", async () => {
+		const createChatCompletion = jest.fn(fakeChat(missingReadability))
+			.mockImplementationOnce(fakeChat(missingReadability))
+			.mockImplementationOnce(fakeChat(modelResponse({ kind: "winner", candidate: "B", reason: "Article" }, { readable: ["A", "B"] })));
+		const warn = jest.fn();
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, warn }, deepseekCallFailedLog: noopLogger });
+		expect(await selectMostCompleteContent(request)).toMatchObject({ kind: "winner", candidateId: cid("live"), audit: { responseStatus: "completed" } });
+		expect(createChatCompletion).toHaveBeenCalledTimes(2);
+		expect(createChatCompletion.mock.calls[1]?.[0]).toEqual(createChatCompletion.mock.calls[0]?.[0]);
+		expect(warn).toHaveBeenCalledTimes(1);
+		expect(warn).toHaveBeenCalledWith("[SelectContent] invalid response", {
+			url: request.url, attempt: 1, maxAttempts: 2, reason: "schema mismatch",
+			issues: ["readability: Invalid input: expected array, received undefined"], text: missingReadability,
+		});
+	});
+
+	it("fails closed when the judge's second reply is also invalid, logging both", async () => {
+		const createChatCompletion = jest.fn(fakeChat(null));
+		const warn = jest.fn();
+		const { selectMostCompleteContent } = initSelectMostCompleteContent({ createChatCompletion, logger: { ...noopLogger, warn }, deepseekCallFailedLog: noopLogger });
+		await expect(selectMostCompleteContent(request)).rejects.toThrow("judge returned an invalid response: empty response");
+		expect(createChatCompletion).toHaveBeenCalledTimes(2);
+		expect(warn.mock.calls.map(([, line]) => [line.attempt, line.reason, line.text])).toEqual([[1, "empty response", ""], [2, "empty response", ""]]);
 	});
 });
