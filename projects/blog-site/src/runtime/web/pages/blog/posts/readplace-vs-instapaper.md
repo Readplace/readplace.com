@@ -5,12 +5,12 @@ excerpt: "Instapaper has a free tier and Kobo sync, while Readplace is paid and 
 tldr: "Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, paid plans and no free tier, an iPhone app that also runs on Mac but nothing on Android, and no offline reading. Pick Instapaper for stability and the wider spread of devices. Pick Readplace for AI triage and active development."
 slug: "readplace-vs-instapaper"
 date: "2026-05-01"
-lastModified: "2026-10-01"
+lastModified: "2026-11-03"
 author: "Fayner Brack"
 keywords: "instapaper alternative, read it later, readplace vs instapaper, pocket replacement, AI summaries"
 ---
 
-Pocket shut down in July 2025, and a lot of readers lost their go-to save-for-later tool overnight. Some moved to Omnivore, but that shut down too. Many of them landed on Instapaper, which has been running since 2008.
+Pocket shut down in July 2025, and a lot of readers lost their go-to save-for-later tool. Omnivore had already shut down in November 2024. Many of those readers landed on Instapaper, which has been running since 2008.
 
 If you are one of those readers, you now have to choose a tool without much to go on. Instapaper and Readplace both save articles for later, and that is most of what they have in common.
 
@@ -122,6 +122,8 @@ If you save more than you can read and want AI summaries to sort the pile, Readp
 Both solve the same problem from opposite starting points.
 
 The right pick is the one whose trade-offs you can live with.
+
+For the other common picks, see [Readplace vs Readwise Reader](/blog/readplace-vs-readwise-reader?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=post-readplace-vs-readwise-reader) for highlights that sync into notes, and [Karakeep vs hosted Readplace](/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later?utm_source=blog-readplace-vs-instapaper&utm_medium=internal&utm_content=post-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later) for running your own server.
 
 ---
 

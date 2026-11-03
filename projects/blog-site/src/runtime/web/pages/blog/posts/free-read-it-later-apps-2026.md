@@ -1,11 +1,11 @@
 ---
-title: "Free Read-It-Later Apps in 2026: 5 Options and Their Costs"
+title: "Free Read-It-Later Apps: 5 Options and Their Costs"
 description: "Instapaper and Raindrop free tiers, self-hosted Karakeep and Wallabag, and bookmarks, with the catch in each: shutdown risk, a server bill or no reader view."
 excerpt: "Instapaper and Raindrop run free tiers, and Pocket and Omnivore were free until both shut down."
-tldr: "Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, is paid, and the subscription is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there."
+tldr: "Free read-it-later options sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers, but Pocket and Omnivore were free too and both shut down, so a free hosted tier carries a shutdown risk you should price in. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Readplace, which I build, is paid, and the subscription is the business model: no ads, no investors, no data selling. There is a 14-day free trial with no credit card, and if it ends without a subscription nothing is charged. The account just drops to read-only. For most readers I'd start there."
 slug: "free-read-it-later-apps-2026"
 date: "2026-05-06"
-lastModified: "2026-10-01"
+lastModified: "2026-11-03"
 author: "Fayner Brack"
 keywords: "free read it later app, read it later free, instapaper free, wallabag, karakeep, raindrop free tier"
 ---
@@ -58,9 +58,9 @@ The reading experience is whatever the original website gives you, ads and paywa
 
 A free hosted service still has to pay for servers, storage, bandwidth, and the engineers who keep it running. If you are not paying, something else is, whether that is ads, your data, venture capital, or a parent company that has decided to absorb the cost for now. That funding source is the second axis, and it is the one that predicts how the service ends.
 
-**Pocket** was free. Mozilla acquired it in 2017, ran it for 8 years, and shut it down in 2025. Millions of users scrambled to export their libraries, and some lost articles they had saved for years.
+**Pocket** was free. Mozilla acquired it in 2017, ran it for 8 years, and shut it down on July 8, 2025. Exports stayed open until November 12, 2025. Millions of users scrambled to export their libraries, and some lost articles they had saved for years.
 
-**Omnivore** was free in the strongest sense: open-source, with a hosted version that cost users nothing. In late 2024 ElevenLabs acqui-hired the team and the service closed. Users got two weeks' notice.
+**Omnivore** was free in the strongest sense: open-source, with a hosted version that cost users nothing. ElevenLabs acqui-hired the team, and the service closed in November 2024. Users got 2 weeks' notice.
 
 After the Omnivore shutdown, Steph Ango, the founder of Obsidian, made a point that stuck with me. A product with no clear revenue survives only as long as the founders' runway lasts, or until an acquirer shows up, or until whoever is subsidising it stops.
 

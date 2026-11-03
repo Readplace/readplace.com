@@ -1,11 +1,11 @@
 ---
-title: "Best Read-It-Later Apps in 2026: 7 Compared, Pros and Cons"
+title: "Best Read-It-Later Apps: 7 Compared, Pros and Cons"
 description: "7 read-it-later apps compared on AI, offline reading, platforms and price: Readwise Reader, Instapaper, Raindrop.io, Karakeep, Wallabag, Matter, Readplace."
 excerpt: "After Pocket and Omnivore shut down, 7 alternatives get compared on price, AI and offline reading."
-tldr: "Pocket and Omnivore both shut down, so here are the real 2026 alternatives. For most readers I would start with Readplace: AI TL;DR summaries included on every plan ([current plans](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing)), funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading."
+tldr: "Pocket and Omnivore both shut down, so here are the real alternatives. For most readers I would start with Readplace: AI TL;DR summaries included on every plan ([current plans](/?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=pricing#pricing)), funded entirely by subscriptions (no ads, no investors, no data selling), and a 14-day free trial that needs no credit card. If the trial ends without subscribing, nothing is charged, and the account just drops to read-only. The narrower fits: Readwise Reader ($119.88/year) if you need highlight sync to Obsidian or Notion. Instapaper (free tier) if you read on a Kobo. Karakeep (free, self-hosted) for developers who want to run their own stack. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for the longest open source track record. Matter ($60/year) for social reading."
 slug: "best-read-it-later-apps-2026"
 date: "2026-05-06"
-lastModified: "2026-10-06"
+lastModified: "2026-11-03"
 author: "Fayner Brack"
 keywords: "read it later apps, Pocket alternative, Omnivore alternative, best read it later 2026, Readwise Reader, Instapaper, Karakeep, Wallabag, Raindrop, Matter, Readplace"
 ---
@@ -99,6 +99,8 @@ Readwise Reader packs in more than any other read-it-later app I have used. It f
 - The feature density can feel like a lot if all you want is to save articles and read them.
 
 **Good fit for:** Power users who want highlights synced into their note-taking system and will pay for a feature-complete experience.
+
+[Readplace vs Readwise Reader](/blog/readplace-vs-readwise-reader?utm_source=blog-best-read-it-later-apps-2026&utm_medium=internal&utm_content=post-readplace-vs-readwise-reader) goes through both apps row by row.
 
 ## Instapaper
 
@@ -215,11 +217,11 @@ If none of the narrower profiles fits, my suggestion is the one I am biased abou
 
 ### What happened to Pocket?
 
-Mozilla acquired Pocket in 2017 and let it slide down the priority list over the following years. Feature development slowed, the team was restructured, and by 2025 Pocket was in maintenance mode. That was the point at which most users started looking for somewhere else to save their reading. The lesson I took from it: a reading app's future should not depend on a parent company's priorities.
+Mozilla acquired Pocket in 2017 and let it slide down the priority list over the following years. Feature development slowed, the team was restructured, and by 2025 Pocket was in maintenance mode. That was the point at which most users started looking for somewhere else to save their reading. Mozilla announced the shutdown on May 22, 2025. The app went offline on July 8, 2025, and exports stayed open until November 12, 2025. The lesson I took from it: a reading app's future should not depend on a parent company's priorities.
 
 ### What happened to Omnivore?
 
-Omnivore was an open source read-it-later app with a loyal following. In late 2024, ElevenLabs acqui-hired the team and the service shut down with little notice, leaving users a short window to export their data before the whole thing went dark. Open source projects can disappear too, once the people behind them move on.
+Omnivore was an open source read-it-later app with a loyal following. ElevenLabs acqui-hired the team, and the service shut down in November 2024 with little notice. Users had a short window to export their data before the whole thing went dark. Open source projects can disappear too, once the people behind them move on.
 
 ### Do any of these apps import from Pocket?
 

@@ -5,12 +5,12 @@ excerpt: "Self-hosting Karakeep, Readeck or wallabag leaves updates, backups and
 tldr: "Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readeck and wallabag are 2 more open-source, self-hosted options, compared with Karakeep in their own table. Readplace is a paid hosted service with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"
-lastModified: "2026-10-01"
+lastModified: "2026-11-03"
 author: "Fayner Brack"
 keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative, readeck, wallabag"
 ---
 
-Pocket shut down in July 2025, and Omnivore shut down 2 weeks after its team joined ElevenLabs, so the developers who depended on those tools are now shopping for a read-it-later app they actually control. Two names keep coming up: **Karakeep** (formerly Hoarder) and **Readplace**.
+Pocket shut down in July 2025, and Omnivore shut down in November 2024, 2 weeks after its team joined ElevenLabs, so the developers who depended on those tools are now shopping for a read-it-later app they actually control. Two names keep coming up: **Karakeep** (formerly Hoarder) and **Readplace**.
 
 Both target developers who read a lot, both have AI features, and both care about data ownership. Where they part ways is how the software reaches you, and who is on the hook for keeping it running when something breaks.
 
@@ -130,6 +130,8 @@ Both tools answer the same question with different philosophies: how much of the
 - [Turning an article into an EPUB](/article-to-epub?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=article-to-epub): a file for a Kobo or Kindle, with no account.
 - [Saving newsletter links](/save-newsletter-links?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=save-newsletter-links): an address per newsletter, and only the articles are kept.
 - [Compared with Readwise Reader](/readwise-reader-alternative?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=readwise-reader-alternative): the gaps in one table.
+
+[Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=post-readplace-vs-instapaper) and [Readplace vs Readwise Reader](/blog/readplace-vs-readwise-reader?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=post-readplace-vs-readwise-reader) compare the hosted apps. [The comparison of 7 apps](/blog/best-read-it-later-apps-2026?utm_source=blog-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026) puts every option in one table.
 
 ---
 

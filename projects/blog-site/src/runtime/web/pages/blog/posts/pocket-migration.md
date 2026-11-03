@@ -5,12 +5,12 @@ excerpt: "Pocket went offline on July 8, 2025, and old emails and browser histor
 tldr: "Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, open the Import Links page and use the \"Upload a file\" tab. Pick the file, untick anything you don't want, then click Import. An account is needed only for that last click. Files over 4.5 MB or above 2,000 links have to be split into smaller files first."
 slug: "pocket-migration"
 date: "2026-05-06"
-lastModified: "2026-10-28"
+lastModified: "2026-11-03"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
 
-I went to getpocket.com in July 2025 to grab the export I had put off for years, and the site was already gone. Pocket had shut down on July 8. Mozilla acquired it back in 2017, slowed the work down over the years, and then pulled the plug. There had been a window to export before the servers went offline, and I had walked right past it.
+I went to getpocket.com in July 2025 to grab the export I had put off for years, and the app was already gone. Pocket had shut down on July 8. Mozilla acquired it back in 2017, slowed the work down over the years, and then pulled the plug. The export stayed open until November 12, 2025, and I did not find that out in time.
 
 So this is the story of getting that reading list back without the export tool, and what I learned moving it into Readplace.
 
@@ -18,7 +18,7 @@ So this is the story of getting that reading list back without the export tool, 
 
 Mozilla bought Pocket for an undisclosed amount in 2017. The team stayed small and the roadmap thinned out, and feature updates came less and less often.
 
-By early 2025 Pocket was running in maintenance mode. Mozilla posted the shutdown notice in April 2025 and gave people until July 8 to export their data.
+By early 2025 Pocket was running in maintenance mode. Mozilla posted the shutdown notice on May 22, 2025. The app went offline on July 8, 2025, and exports stayed open until November 12, 2025.
 
 The export tool produced one HTML file with every saved URL and its title in it.
 
@@ -26,7 +26,7 @@ If you grabbed that file, you already have what you need and you can skip ahead.
 
 ## Recovering a library with no export file
 
-The Pocket servers were offline. But the articles I had saved over the years had left copies in a handful of other places, and that is what I went after, one source at a time.
+The Pocket app was offline. But the articles I had saved over the years had left copies in a handful of other places, and that is what I went after, one source at a time.
 
 I started with email.
 
@@ -76,12 +76,12 @@ The [Pocket alternative page](/pocket-alternative?utm_source=blog-pocket-migrati
 | Full-text search | Yes (Premium) | No |
 | Offline reading | Yes (mobile) | Planned |
 | Mobile app | iOS, Android | iPhone and Mac (App Store), mobile web elsewhere |
-| Data export | Yes (before shutdown) | Anytime, even after cancelling |
+| Data export | Yes (until November 12, 2025) | Anytime, even after cancelling |
 | Dark mode | Yes | Yes |
 
 Readplace is smaller than Pocket was. It has no tags, and its app covers iPhone and Mac.
 
-What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026). [Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-readplace-vs-instapaper) sets Readplace against the app many Pocket readers moved to.
+What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps](/blog/best-read-it-later-apps-2026?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-best-read-it-later-apps-2026). [Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=post-readplace-vs-instapaper) sets Readplace against the app many Pocket readers moved to.
 
 ## AI summaries for imported articles
 
@@ -95,9 +95,9 @@ The work runs in the background and wraps up within a few hours for most librari
 
 **Can I still export from Pocket?**
 
-No. The servers went offline on July 8, 2025, and the export tool went with them.
+No. The app went offline on July 8, 2025, and the export closed on November 12, 2025.
 
-If you downloaded the HTML export file before the shutdown, it still works fine. If you did not, the recovery steps above are your best shot.
+If you downloaded the export file before November 12, 2025, it still works fine. If you did not, the recovery steps above are your best shot.
 
 **How do I import Pocket articles into another app?**
 

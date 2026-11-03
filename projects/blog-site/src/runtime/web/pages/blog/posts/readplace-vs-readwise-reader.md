@@ -5,7 +5,7 @@ excerpt: "Readwise Reader costs $119.88 a year and does more, so the question is
 tldr: "Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, or anything beyond reading text. Pick Readplace if you want AI summaries and privacy at a lower price."
 slug: "readplace-vs-readwise-reader"
 date: "2026-04-06"
-lastModified: "2026-10-06"
+lastModified: "2026-11-03"
 author: "Fayner Brack"
 keywords: "readplace vs readwise, read it later app, read it later AI"
 ---
@@ -138,5 +138,7 @@ Readwise Reader does more than Readplace on most rows of the table above. Highli
 Readplace covers a narrower job. It saves articles, PDFs and newsletter links, puts a TL;DR on top of each, and keeps them readable if the subscription ends.
 
 The whole comparison comes down to one question: do you want the deepest feature set, or the simplest tool that still does the core job? If you want the depth, especially highlighting that syncs into your notes, Readwise is the better choice today. If you want a simpler, cheaper reading app with AI summaries and stronger privacy, that's the one I'm building.
+
+For other apps, see [Readplace vs Instapaper](/blog/readplace-vs-instapaper?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=post-readplace-vs-instapaper) for a free tier and Kobo sync, and [Karakeep vs hosted Readplace](/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=post-readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later) for running your own server.
 
 You can try Readplace at [readplace.com](https://readplace.com).
