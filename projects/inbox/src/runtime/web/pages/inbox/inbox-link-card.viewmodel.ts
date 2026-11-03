@@ -1,15 +1,24 @@
 import { withInternalTracking } from "@packages/web-shell";
+import { type LocalTime, toAbsoluteDate } from "@packages/web-shell/local-time.format";
 import { validateSaveableUrl } from "@packages/domain/article";
 import type { InboxEmailLinkEntry, InboxLinkSaveState } from "@packages/domain/inbox";
+import {
+	type ReadlistFitReaderVerdict,
+	type ReadlistSlug,
+	readlistFitChoiceLabel,
+} from "@packages/domain/readlist";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
+import { type InboxEmailFilter, writeInboxEmailFilter } from "./inbox-email-filter";
 import { buildInboxLinkFeedbackUrl } from "./inbox-link-feedback-url";
+import { buildInboxLinkFitUrl } from "./inbox-link-fit-url";
 import { buildInboxLinkPollUrl } from "./inbox-link-poll-url";
 import { buildInboxLinkSaveUrl } from "./inbox-link-save-url";
+import type { InboxLinkCardReadlistFit } from "./inbox-readlist-fit";
 import { type SaveButtonState, toInboxSaveButtonViewModel } from "./inbox-save-button.viewmodel";
 
 const INBOX_LINK_CARD_SOURCE = "inbox-link-card";
 
-type InboxCardActionKey = "save" | "feedback-exclude";
+type InboxCardActionKey = "save" | "feedback-exclude" | "fit-keep" | "fit-drop";
 
 export interface InboxCardAction {
 	key: InboxCardActionKey;
@@ -33,6 +42,19 @@ export interface InboxCardMenuAction extends InboxCardAction {
 	iconName: string;
 }
 
+export interface InboxCardFitAction extends InboxCardAction {
+	readlist: ReadlistSlug;
+	inPlaceTargetId: string;
+}
+
+export interface InboxCardFitMarker {
+	readlist: ReadlistSlug;
+	text: string;
+	accent: boolean;
+	reason: string | undefined;
+	chosenOn: LocalTime | undefined;
+}
+
 export interface InboxLinkCardViewModel {
 	ordinal: string;
 	url: string;
@@ -47,6 +69,8 @@ export interface InboxLinkCardViewModel {
 	statusLabel: string;
 	actions: InboxCardSaveAction[];
 	menuActions: InboxCardMenuAction[];
+	fitMarkers: InboxCardFitMarker[];
+	fitActions: InboxCardFitAction[];
 }
 
 /** `none` still renders, hidden by its modifier, so a test asserts which state a
@@ -84,6 +108,7 @@ function saveSettlePollUrl(input: {
 	link: InboxEmailLinkEntry;
 	emailId: string;
 	shown: number;
+	filter: InboxEmailFilter | undefined;
 	saveState: InboxLinkSaveState | undefined;
 	pollContext: LinkCardSavePollContext;
 }): string | undefined {
@@ -97,7 +122,58 @@ function saveSettlePollUrl(input: {
 		pollCount: pollContext.pollCount,
 		shown: input.shown,
 		awaitSave: true,
+		filter: input.filter,
 	});
+}
+
+type ReadlistFitView = {
+	marker: Omit<InboxCardFitMarker, "readlist"> | undefined;
+	offer: ReadlistFitReaderVerdict | undefined;
+};
+
+const NO_READLIST_FIT_VIEW: ReadlistFitView = { marker: undefined, offer: undefined };
+
+function readlistFitView(input: {
+	fit: InboxLinkCardReadlistFit;
+	ordinal: InboxEmailLinkEntry["ordinal"];
+}): ReadlistFitView {
+	const { outcome, override, label } = input.fit;
+	if (outcome.decision === "no-purpose" || outcome.decision === "readlist-missing") {
+		return NO_READLIST_FIT_VIEW;
+	}
+	if (override !== undefined) {
+		return {
+			marker: {
+				text: readlistFitChoiceLabel({ readerVerdict: override.readerVerdict, label }),
+				accent: override.readerVerdict === "keep",
+				reason: undefined,
+				chosenOn: toAbsoluteDate({ iso: override.createdAt.toISOString() }),
+			},
+			offer: override.readerVerdict === "keep" ? "drop" : "keep",
+		};
+	}
+	if (outcome.decision === "failed") return { marker: undefined, offer: "keep" };
+	const entry = outcome.fit.find((candidate) => candidate.ordinal === input.ordinal);
+	if (entry === undefined) return NO_READLIST_FIT_VIEW;
+	if (entry.verdict === "keep") {
+		return {
+			marker: { text: `Fits ${label}`, accent: true, reason: entry.reason, chosenOn: undefined },
+			offer: "drop",
+		};
+	}
+	return {
+		marker: {
+			text: `Not for ${label}`,
+			accent: false,
+			reason: entry.verdict === "drop" ? entry.reason : undefined,
+			chosenOn: undefined,
+		},
+		offer: "keep",
+	};
+}
+
+function fitActionText(input: { verdict: ReadlistFitReaderVerdict; label: string }): string {
+	return input.verdict === "keep" ? `Keep in ${input.label}` : `Doesn't fit ${input.label}`;
 }
 
 function buildCardActions(input: {
@@ -105,19 +181,24 @@ function buildCardActions(input: {
 	emailId: string;
 	displayUrl: string;
 	shown: number;
+	filter: InboxEmailFilter | undefined;
+	fit: readonly InboxLinkCardReadlistFit[];
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	whenNotSaved: "saving" | "unsaved";
-}): Pick<InboxLinkCardViewModel, "actions" | "menuActions"> {
-	const { link, emailId, displayUrl, shown, linkSaveStates, whenNotSaved } = input;
+}): Pick<InboxLinkCardViewModel, "actions" | "menuActions" | "fitMarkers" | "fitActions"> {
+	const { link, emailId, displayUrl, shown, filter, linkSaveStates, whenNotSaved } = input;
 	const buttonId = (key: string) => `${cardDomId(link.ordinal)}-${key}`;
 	// Posted back so the redirect can rebuild the same page of cards. Without it
 	// a save from an expanded list returns a first page that no longer holds the
 	// card just acted on, which reads as the page discarding the reader's place.
-	const shownParam = { shown: String(shown) };
+	const pageParams = new URLSearchParams({ shown: String(shown) });
+	writeInboxEmailFilter({ search: pageParams, filter });
+	const shownParam = Object.fromEntries(pageParams);
 	const actions: InboxCardSaveAction[] = [];
 	// Crawl state does not gate saving: the queue save runs its own crawl, so a
 	// link whose preview is still pending or failed is still worth saving.
-	if (validateSaveableUrl(link.url).status === "SUCCESS") {
+	const saveable = validateSaveableUrl(link.url).status === "SUCCESS";
+	if (saveable) {
 		actions.push({
 			key: "save",
 			...toInboxSaveButtonViewModel({
@@ -136,8 +217,37 @@ function buildCardActions(input: {
 			inPlaceTargetId: cardDomId(link.ordinal),
 		});
 	}
+	const fitMarkers: InboxCardFitMarker[] = [];
+	const fitActions: InboxCardFitAction[] = [];
+	for (const fit of input.fit) {
+		const view = readlistFitView({ fit, ordinal: link.ordinal });
+		if (view.marker !== undefined) fitMarkers.push({ readlist: fit.readlist, ...view.marker });
+		if (view.offer === undefined || !saveable) continue;
+		const key = view.offer === "keep" ? "fit-keep" : "fit-drop";
+		const text = fitActionText({ verdict: view.offer, label: fit.label });
+		fitActions.push({
+			key,
+			readlist: fit.readlist,
+			label: text,
+			ariaLabel: `${text}: ${displayUrl}`,
+			buttonId: buttonId(`${key}-${fit.readlist}`),
+			href: withInternalTracking(
+				buildInboxLinkFitUrl({
+					emailId,
+					ordinal: link.ordinal,
+					pageState: { tab: "articles", shown, filter },
+				}),
+				{ source: INBOX_LINK_CARD_SOURCE, content: key },
+			),
+			method: "POST",
+			hiddenParams: { readlist: fit.readlist, verdict: view.offer },
+			inPlaceTargetId: cardDomId(link.ordinal),
+		});
+	}
 	return {
 		actions,
+		fitMarkers,
+		fitActions,
 		menuActions: [
 			{
 				key: "feedback-exclude",
@@ -164,15 +274,18 @@ export function toInboxLinkCardViewModel(input: {
 	/** How many cards the panel this card sits in is showing. Carried through the
 	 * card's own poll URL so a re-rendered pending card keeps posting it back. */
 	shown: number;
+	filter: InboxEmailFilter | undefined;
+	fit: readonly InboxLinkCardReadlistFit[];
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
 	savePollContext: LinkCardSavePollContext;
 }): InboxLinkCardViewModel {
-	const { link, emailId, pollCount, maxPolls, shown, linkSaveStates } = input;
+	const { link, emailId, pollCount, maxPolls, shown, filter, linkSaveStates } = input;
 	const reachedTerminal = link.status !== "pending";
 	const savePollUrl = saveSettlePollUrl({
 		link,
 		emailId,
 		shown,
+		filter,
 		saveState: linkSaveStates.get(link.url),
 		pollContext: input.savePollContext,
 	});
@@ -180,7 +293,7 @@ export function toInboxLinkCardViewModel(input: {
 		savePollUrl ??
 		(reachedTerminal || pollCount > maxPolls
 			? undefined
-			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount, shown }));
+			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount, shown, filter }));
 	const title = link.title ?? "";
 	// A pending link is often an opaque ESP wrapper whose destination lives in a
 	// path token and which may sign its own query, so it is shown byte-exact;
@@ -205,6 +318,8 @@ export function toInboxLinkCardViewModel(input: {
 			emailId,
 			displayUrl: url,
 			shown,
+			filter,
+			fit: input.fit,
 			linkSaveStates,
 			whenNotSaved: savePollUrl === undefined ? "unsaved" : "saving",
 		}),

@@ -22,11 +22,24 @@
               <span class="inbox-article-card__url" title="{{url}}" data-test-inbox-article-url>{{icon "globe"}}<span class="inbox-article-card__url-text">{{url}}</span></span>
             </div>
             {{/if}}
+            {{#each fitMarkers}}
+            <div class="inbox-article-card__fit" data-test-fit-marker="{{readlist}}">
+              <span class="chip{{#if accent}} chip--accent{{/if}}" data-test-fit-marker-label>{{text}}</span>
+              {{#if reason}}<p class="inbox-article-card__fit-detail" data-test-fit-marker-reason>{{reason}}</p>{{/if}}
+              {{#if chosenOn}}<p class="inbox-article-card__fit-detail" data-test-fit-marker-chosen>You chose this on <time datetime="{{chosenOn.iso}}" data-local-time="{{chosenOn.mode}}">{{chosenOn.label}}</time>.</p>{{/if}}
+            </div>
+            {{/each}}
             <span class="{{statusClass}}" data-test-card-status="{{statusState}}">{{#if statusIconName}}{{icon statusIconName}}{{/if}}<span>{{statusLabel}}</span></span>
             {{#each actions}}
             <form class="inbox-article-card__action" method="{{method}}" action="{{href}}" hx-post="{{href}}" hx-target="#{{inPlaceTargetId}}" hx-swap="outerHTML" hx-disabled-elt="find button">
               {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
               <button type="submit" id="{{buttonId}}" class="{{buttonClass}}" aria-label="{{ariaLabel}}" data-test-save-state="{{saveState}}" data-test-card-action="{{key}}"><span class="btn__label-stack" data-reserve-1="{{reserve1}}" data-reserve-2="{{reserve2}}"><span class="inbox-article-card__action-label">{{#if iconName}}{{icon iconName}}{{/if}}{{label}}</span></span>{{{loaderHtml}}}</button>
+            </form>
+            {{/each}}
+            {{#each fitActions}}
+            <form class="inbox-article-card__action" method="{{method}}" action="{{href}}" hx-post="{{href}}" hx-target="#{{inPlaceTargetId}}" hx-swap="outerHTML" hx-disabled-elt="find button">
+              {{#each hiddenParams}}<input type="hidden" name="{{@key}}" value="{{this}}">{{/each}}
+              <button type="submit" id="{{buttonId}}" class="btn btn--secondary btn--m" aria-label="{{ariaLabel}}" data-test-card-action="{{key}}" data-test-fit-readlist="{{readlist}}">{{label}}</button>
             </form>
             {{/each}}
           </article>

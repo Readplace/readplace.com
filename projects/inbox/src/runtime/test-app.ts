@@ -3,6 +3,10 @@ import type { Server } from "node:http";
 import type { Express } from "express";
 import request from "supertest";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { initFindSavedArticleForLink } from "@packages/article-store";
+import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
+import type { FileArticleIntoReadlistDetail } from "@packages/hutch-infra-components";
+import { initResolveCanonicalIdentity } from "@packages/save-article";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import type {
 	AuthBundle,
@@ -25,6 +29,8 @@ export interface TestAppResult {
 	auth: AuthBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
 	submittedLinks: Array<{ userId: string; url: string; readlist: string }>;
+	filedArticles: FileArticleIntoReadlistDetail[];
+	fitChoiceLines: ReadlistFitOverriddenLogLine[];
 }
 
 /** Fixed CDN origin the test app pins into the email iframe's CSP, exported so
@@ -47,6 +53,11 @@ export function createInboxTestApp(
 		}),
 	});
 	const submittedLinks: Array<{ userId: string; url: string; readlist: string }> = [];
+	const filedArticles: FileArticleIntoReadlistDetail[] = [];
+	const fitChoiceLines: ReadlistFitOverriddenLogLine[] = [];
+	const captureFitChoice = (line: ReadlistFitOverriddenLogLine) => {
+		fitChoiceLines.push(line);
+	};
 	const analyticsEvents: AnalyticsEvent[] = [];
 	const captureAnalytics = (event: AnalyticsEvent) => {
 		analyticsEvents.push(event);
@@ -81,6 +92,25 @@ export function createInboxTestApp(
 				// chip can appear; route tests leave it recording-only.
 				await overrides?.publishSubmitLink?.(input);
 			},
+			publishFileArticleIntoReadlist: async (detail) => {
+				filedArticles.push(detail);
+			},
+			findSavedArticleForLink: initFindSavedArticleForLink({
+				resolveCanonicalIdentity: initResolveCanonicalIdentity({
+					findIdentityRow: fixture.articleStore.findIdentityRow,
+				}),
+				findArticleById: fixture.articleStore.findArticleById,
+			}),
+			listReadlistFitOverrides: fixture.articleStore.listReadlistFitOverrides,
+			recordReadlistFitOverride: fixture.articleStore.recordReadlistFitOverride,
+			deleteReadlistFitOverride: fixture.articleStore.deleteReadlistFitOverride,
+			deleteReadlistArticleByUrl: fixture.articleStore.deleteReadlistArticleByUrl,
+			fitChoiceLog: {
+				info: captureFitChoice,
+				error: captureFitChoice,
+				warn: captureFitChoice,
+				debug: captureFitChoice,
+			},
 			recordEngagementActivity: (input) => fixture.engagementStarter.recordEngagementActivity(input),
 			logError: fixture.shared.logError,
 			now: fixture.shared.now,
@@ -98,6 +128,8 @@ export function createInboxTestApp(
 		auth: fixture.auth,
 		subscriptionProviders: fixture.subscriptionProviders,
 		submittedLinks,
+		filedArticles,
+		fitChoiceLines,
 	};
 }
 

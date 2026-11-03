@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
+	EmailLinkOrdinalSchema,
 	type InboxEmailEntry,
 	type InboxEmailLinkEntry,
 	InboxAddressSchema,
 	MessageIdSchema,
 	formatEmailLinkOrdinal,
 } from "@packages/domain/inbox";
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -198,5 +200,62 @@ describe("Inbox Extracted Articles Show more fragment", () => {
 
 		const doc = parseDoc(response.text);
 		expect(rowKeys(doc)).toEqual(["card:0021"]);
+	});
+
+	it("pages only the cards that fit the readlist and keeps the filter on the next control", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, crawled(50));
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist");
+		const work = ReadlistSlugSchema.parse("work");
+		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				selectedReadlists: [{ readlist: work, label: "Work" }],
+				eligibleArticleCount: 50,
+				savesHeld: false,
+			},
+		});
+
+		await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+			outcome: {
+				readlist: work,
+				readlistLabel: "Work",
+				decision: "filtered",
+				fit: Array.from({ length: 50 }, (_unused, index) => ({
+					ordinal: EmailLinkOrdinalSchema.parse(formatEmailLinkOrdinal(index)),
+					verdict: index < 45 ? ("keep" as const) : ("drop" as const),
+					reason: "Engineering practice",
+				})),
+			},
+		});
+
+		const response = await agent.get(
+			`${morePath}?shown=40&readlist=work&show=fit`,
+		);
+
+		expect(response.status).toBe(200);
+		const doc = parseDoc(response.text);
+		expect(cardOrdinals(doc)).toEqual(
+			Array.from({ length: 20 }, (_unused, index) =>
+				formatEmailLinkOrdinal(20 + index),
+			),
+		);
+		expect(showMoreLabels(doc)).toEqual(["Show 5 more"]);
+		const control = doc.querySelector("[data-test-articles-show-more]");
+		assert(control, "a control must re-offer the remaining fitting cards");
+		expect(control.getAttribute("hx-get")).toBe(
+			`${morePath}?shown=60&readlist=work&show=fit&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
+		);
+		expect(control.getAttribute("href")).toBe(
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&shown=60&readlist=work&show=fit&utm_source=inbox-email-detail&utm_medium=internal&utm_content=show-more-articles`,
+		);
 	});
 });

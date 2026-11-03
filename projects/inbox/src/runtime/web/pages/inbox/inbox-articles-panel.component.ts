@@ -4,6 +4,7 @@ import { render, renderAlert, renderIllustration } from "@packages/web-shell";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { panelStatusFor } from "./inbox-panel-status";
 import { renderInboxShowMore } from "./inbox-articles-show-more.component";
+import { renderInboxReadlistLine } from "./inbox-readlist-line.component";
 import type { ArticlesPanelViewModel } from "./inbox-email-detail.viewmodel";
 
 const INBOX_ARTICLES_PANEL_TEMPLATE = readFileSync(
@@ -35,6 +36,7 @@ export function renderInboxArticlesPanel(vm: ArticlesPanelViewModel): string {
 			)
 			.join(""),
 		articleHtmls: vm.cards.map(renderInboxArticleCard),
+		readlistLineHtmls: vm.readlistLines.map(renderInboxReadlistLine),
 		showMoreHtml: vm.showMore === undefined ? "" : renderInboxShowMore(vm.showMore),
 		panelStatus: panelStatusFor(vm),
 		emptyIllustrationHtml: EMPTY_ILLUSTRATION_HTML,

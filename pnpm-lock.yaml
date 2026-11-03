@@ -649,6 +649,9 @@ importers:
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env
+      '@packages/save-article':
+        specifier: workspace:*
+        version: link:../../src/packages/save-article
       '@packages/subscription-access':
         specifier: workspace:*
         version: link:../../src/packages/subscription-access

@@ -138,3 +138,57 @@ test.describe("Inbox address copy control", () => {
 		await expect(copyButton).toHaveText("Copy");
 	});
 });
+
+test.describe("A readlist call is reversible without client JavaScript", () => {
+	test.use({ timezoneId: "UTC", javaScriptEnabled: false });
+
+	test("Keep in Work, then the toast's Undo, puts the engine's call back", async ({ page }) => {
+		await page.request.post("/e2e/session");
+		await page.request.post("/e2e/seed-address", { data: { name: "e2e" } });
+		const seeded = await page.request.post("/e2e/seed-email", {
+			data: {
+				messageId: "<fit-no-js@e2e>",
+				receivedAt: RECEIVED_AT,
+				senderEmail: "news@example.com",
+				subject: "Weekly digest",
+				links: [
+					{ url: "https://example.com/practice", status: "crawled", title: "Engineering practice" },
+					{ url: "https://example.com/launch", status: "crawled", title: "Our spring launch" },
+				],
+				selectedReadlists: [{ readlist: "work", label: "Work" }],
+				eligibleArticleCount: 2,
+				savesHeld: false,
+				readlistOutcomes: [
+					{
+						readlist: "work",
+						readlistLabel: "Work",
+						decision: "filtered",
+						fit: [
+							{ ordinal: "0000", verdict: "keep", reason: "Engineering practice" },
+							{ ordinal: "0001", verdict: "drop", reason: "A product announcement" },
+						],
+					},
+				],
+			},
+		});
+		assert.equal(seeded.status(), 200, await seeded.text());
+		const { emailId } = (await seeded.json()) as { emailId: string };
+		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
+
+		const launchMarker = page.locator("#inbox-card-0001 [data-test-fit-marker-label]");
+		await expect(launchMarker).toHaveText("Not for Work");
+
+		await page.locator('#inbox-card-0001 [data-test-card-action="fit-keep"]').click();
+
+		await expect(page.locator("[data-test-toast-message]")).toHaveText("Adding to Work…");
+		await expect(launchMarker).toHaveText("Kept in Work");
+
+		await page.locator("[data-test-toast-action]").click();
+
+		await expect(launchMarker).toHaveText("Not for Work");
+		await expect(page.locator("#inbox-card-0001 [data-test-fit-marker-reason]")).toHaveText(
+			"A product announcement",
+		);
+		await expect(page.locator("[data-test-toast]")).toHaveCount(0);
+	});
+});

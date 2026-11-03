@@ -7,7 +7,9 @@ import {
 	MessageIdSchema,
 } from "@packages/domain/inbox";
 import type { InboxEmailEntry } from "@packages/domain/inbox";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { type ReadlistFitOverriddenLogLine, ReadlistSlugSchema } from "@packages/domain/readlist";
+import { initFindSavedArticleForLink } from "@packages/article-store";
+import { initResolveCanonicalIdentity } from "@packages/save-article";
 import type { UserId } from "@packages/domain/user";
 import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
 import { SESSION_COOKIE_NAME, initResolveLogin } from "@packages/web-session";
@@ -206,6 +208,20 @@ async function main(): Promise<void> {
 				logger.info("[dev] submit-link", input);
 				await fixture.inboxEmail.inboxSavedLinkStore.markLinkSaved(input);
 			},
+			publishFileArticleIntoReadlist: async (detail) => {
+				logger.info("[dev] file-article-into-readlist", detail);
+			},
+			findSavedArticleForLink: initFindSavedArticleForLink({
+				resolveCanonicalIdentity: initResolveCanonicalIdentity({
+					findIdentityRow: fixture.articleStore.findIdentityRow,
+				}),
+				findArticleById: fixture.articleStore.findArticleById,
+			}),
+			listReadlistFitOverrides: fixture.articleStore.listReadlistFitOverrides,
+			recordReadlistFitOverride: fixture.articleStore.recordReadlistFitOverride,
+			deleteReadlistFitOverride: fixture.articleStore.deleteReadlistFitOverride,
+			deleteReadlistArticleByUrl: fixture.articleStore.deleteReadlistArticleByUrl,
+			fitChoiceLog: HutchLogger.fromJSON<ReadlistFitOverriddenLogLine>(),
 			recordEngagementActivity: fixture.engagementStarter.recordEngagementActivity,
 			logError: (message, error) =>
 				logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),

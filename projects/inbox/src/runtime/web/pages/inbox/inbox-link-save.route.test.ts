@@ -193,6 +193,19 @@ describe("Inbox link save route", () => {
 		expect(new JSDOM(plain.text).window.document.querySelector("[data-test-toast]")).toBe(null);
 	});
 
+	it("carries the readlist filter back so the reader returns to the same filtered list", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture);
+
+		const response = await agent.post(savePath).type("form").send({ readlist: "work", show: "rest" });
+
+		expect(response.headers.location).toBe(
+			`/inbox/${encodeURIComponent(SK)}?tab=articles&readlist=work&show=rest&saved=1`,
+		);
+	});
+
 	it("carries the expanded page size back so the saved card keeps its place in the list", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

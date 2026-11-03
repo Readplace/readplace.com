@@ -12,17 +12,33 @@ import {
 } from "@packages/domain/inbox";
 import { newSaveAttemptId, validateSaveableUrl } from "@packages/domain/article";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
-import { DEFAULT_READLIST_SLUG, type ReadlistSlug } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	type ReadlistFitOverriddenLogLine,
+	type ReadlistSlug,
+	ReadlistSlugSchema,
+	readlistFitOverrideHost,
+} from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type {
 	InboxAddressStore,
 	InboxEmailLinkEntry,
+	InboxEmailLinksMeta,
 	InboxEmailLinkStore,
 	InboxEmailStore,
 	InboxLinkSaveState,
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
-import type { ContentProvider } from "@packages/provider-contracts/article-store";
+import type {
+	ContentProvider,
+	DeleteReadlistArticleByUrl,
+	DeleteReadlistFitOverride,
+	FindSavedArticleForLink,
+	ListReadlistFitOverrides,
+	RecordReadlistFitOverride,
+} from "@packages/provider-contracts/article-store";
+import type { FileArticleIntoReadlistDetail } from "@packages/hutch-infra-components";
+import type { HutchLogger } from "@packages/hutch-logger";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
@@ -43,9 +59,16 @@ import {
 	toInboxExcludedLinkViewModel,
 } from "./inbox-excluded-link.viewmodel";
 import { renderInboxExcludedPanel } from "./inbox-excluded-panel.component";
-import { InboxEmailDetailPage } from "./inbox-email-detail.component";
-import { buildInboxEmailDetailUrl, parseMailTab } from "./inbox-email-detail.url";
-import type { MailTabKey } from "./inbox-email-detail.url";
+import {
+	InboxEmailDetailPage,
+	renderInboxStatusToast,
+} from "./inbox-email-detail.component";
+import {
+	buildInboxEmailDetailUrl,
+	parseInboxEmailFilter,
+	parseMailTab,
+} from "./inbox-email-detail.url";
+import type { InboxEmailPageState, MailTabKey } from "./inbox-email-detail.url";
 import {
 	buildCardResolvedAnnouncement,
 	buildSaveSettledAnnouncement,
@@ -53,8 +76,10 @@ import {
 } from "./inbox-live-status.component";
 import { renderInboxMailTabs } from "./inbox-mail-tabs.component";
 import {
+	fitStatusToast,
 	toInboxArticlesMoreViewModel,
 	toInboxEmailDetailViewModel,
+	toInboxLinkFitViewModel,
 } from "./inbox-email-detail.viewmodel";
 import type { InboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
@@ -70,8 +95,24 @@ import {
 	toInboxLinkCardViewModel,
 } from "./inbox-link-card.viewmodel";
 import { parsePollParam } from "@packages/web-shell";
+import {
+	cardReadlistFits,
+	currentReadlistFitOverride,
+	type ReadlistFitOverridesByReadlist,
+} from "./inbox-readlist-fit";
+import { renderInboxReadlistLine } from "./inbox-readlist-line.component";
 
-interface InboxDependencies {
+export interface InboxReadlistFitDependencies {
+	findSavedArticleForLink: FindSavedArticleForLink;
+	listReadlistFitOverrides: ListReadlistFitOverrides;
+	recordReadlistFitOverride: RecordReadlistFitOverride;
+	deleteReadlistFitOverride: DeleteReadlistFitOverride;
+	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
+	publishFileArticleIntoReadlist: (detail: FileArticleIntoReadlistDetail) => Promise<void>;
+	fitChoiceLog: HutchLogger.Typed<ReadlistFitOverriddenLogLine>;
+}
+
+interface InboxDependencies extends InboxReadlistFitDependencies {
 	inboxAddressStore: InboxAddressStore;
 	inboxEmailStore: InboxEmailStore;
 	inboxEmailLinkStore: InboxEmailLinkStore;
@@ -145,6 +186,22 @@ function sendInboxExcludedRow(
 		.send(`${renderInboxExcludedLink(input.vm)}${liveStatusHtml}`);
 }
 
+const LinkFitChoiceSchema = z.object({
+	readlist: ReadlistSlugSchema,
+	verdict: z.enum(["keep", "drop", "undo"]),
+});
+
+const FitConfirmationQuerySchema = z.object({
+	fit: z.enum(["keep", "drop"]),
+	in: ReadlistSlugSchema,
+	link: EmailLinkOrdinalSchema,
+});
+
+function withQuery(url: string, params: Record<string, string>): string {
+	const query = new URLSearchParams(params).toString();
+	return `${url}${url.includes("?") ? "&" : "?"}${query}`;
+}
+
 const LinkFeedbackSchema = z.object({
 	verdict: z.enum(["should-be-included", "should-be-excluded"]),
 });
@@ -175,6 +232,13 @@ function logLinkClassificationFeedback(input: {
 	);
 }
 
+function parseFitConfirmation(query: unknown) {
+	const parsed = FitConfirmationQuerySchema.safeParse(query);
+	return parsed.success
+		? { verdict: parsed.data.fit, readlist: parsed.data.in, ordinal: parsed.data.link }
+		: undefined;
+}
+
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
 
@@ -186,6 +250,22 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			userId: input.userId,
 			urls: input.links.map((link) => link.url),
 		});
+
+	const readFitOverrides = async (input: {
+		userId: UserId;
+		meta: InboxEmailLinksMeta | undefined;
+	}): Promise<ReadlistFitOverridesByReadlist> =>
+		new Map(
+			await Promise.all(
+				(input.meta?.selectedReadlists ?? []).map(
+					async ({ readlist }) =>
+						[
+							readlist,
+							await deps.listReadlistFitOverrides({ userId: input.userId, readlist }),
+						] as const,
+				),
+			),
+		);
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -257,6 +337,12 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			shown: parseArticlesShown(req.query),
 			feedbackConfirmed: req.query.feedback === "sent",
 			savedConfirmed: req.query.saved === "1",
+			fitConfirmed: parseFitConfirmation(req.query),
+			fitOverrides: await readFitOverrides({
+				userId: req.userId,
+				meta: linkData.source === "rows" ? linkData.meta : undefined,
+			}),
+			filter: parseInboxEmailFilter(req.query),
 		});
 		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
 	});
@@ -291,6 +377,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				linkSaveStates: await findLinkSaveStates({ userId, links }),
 				maxPolls: MAX_POLLS,
 				panelPollCount: requestedPoll + 1,
+				fitOverrides: await readFitOverrides({ userId, meta }),
+				filter: parseInboxEmailFilter(req.query),
 			});
 			// The swap only replaces this one panel, so pair it with an out-of-band
 			// swap of the tab strip — otherwise its counts would lag the swapped-in
@@ -317,16 +405,19 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			res.status(404).type("html").send("");
 			return;
 		}
-		const { links } = await deps.inboxEmailLinkStore.listLinksByEmail({
+		const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
 			userId,
 			receivedAtMessageId,
 		});
 		const vm = toInboxArticlesMoreViewModel({
 			links,
+			meta,
 			emailId: receivedAtMessageId,
 			shown: parseArticlesShown(req.query),
 			maxPolls: MAX_POLLS,
 			linkSaveStates: await findLinkSaveStates({ userId, links }),
+			fitOverrides: await readFitOverrides({ userId, meta }),
+			filter: parseInboxEmailFilter(req.query),
 		});
 		res.status(200).type("html").send(renderInboxArticlesMore(vm));
 	});
@@ -340,19 +431,27 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			const userId = req.userId;
 			const receivedAtMessageId = req.params.id;
 			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
-			const link = parsedOrdinal.success
-				? await deps.inboxEmailLinkStore.getLink({
-						userId,
-						receivedAtMessageId,
-						ordinal: parsedOrdinal.data,
-					})
-				: undefined;
+			if (!parsedOrdinal.success) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+				userId,
+				receivedAtMessageId,
+			});
+			const link = links.find((entry) => entry.ordinal === parsedOrdinal.data);
 			// A skipped link renders only as the inert excluded row — never as a live
 			// card — so the fragment route refuses it like a missing link.
 			if (link === undefined || isExcludedLink(link)) {
 				res.status(404).type("html").send("");
 				return;
 			}
+			const fit = cardReadlistFits({
+				meta,
+				fitOverrides: await readFitOverrides({ userId, meta }),
+				emailId: receivedAtMessageId,
+				ordinal: link.ordinal,
+			});
 			// Read before the ETag so the save state is part of what the ETag covers;
 			// computing it after would let a card that just became saved answer 304
 			// with its pre-save validator.
@@ -360,6 +459,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			const etag = computeInboxLinkCardEtag({
 				link,
 				saveState: linkSaveStates.get(link.url),
+				fit,
 			});
 			res.set("Cache-Control", "private, no-cache");
 			res.set("Vary", "Cookie");
@@ -379,6 +479,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				pollCount: requestedPoll + 1,
 				maxPolls: MAX_POLLS,
 				shown: parseArticlesShown(req.query),
+				filter: parseInboxEmailFilter(req.query),
+				fit,
 				linkSaveStates,
 				savePollContext: awaitSave
 					? {
@@ -486,6 +588,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					emailId: receivedAtMessageId,
 					tab,
 					shown: parseArticlesShown(req.body),
+					filter: parseInboxEmailFilter(req.body),
 				})}&feedback=sent`,
 			);
 		},
@@ -563,12 +666,23 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					});
 					return;
 				}
+				const { meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+					userId,
+					receivedAtMessageId,
+				});
 				const cardVm = toInboxLinkCardViewModel({
 					link,
 					emailId: receivedAtMessageId,
 					pollCount: INITIAL_SAVE_POLL_COUNT,
 					maxPolls: MAX_POLLS,
 					shown: parseArticlesShown(req.body),
+					filter: parseInboxEmailFilter(req.body),
+					fit: cardReadlistFits({
+						meta,
+						fitOverrides: await readFitOverrides({ userId, meta }),
+						emailId: receivedAtMessageId,
+						ordinal: link.ordinal,
+					}),
 					linkSaveStates,
 					savePollContext: {
 						mode: "save-poll",
@@ -591,7 +705,177 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 					emailId: receivedAtMessageId,
 					tab: tabForLinkRow(link),
 					shown: parseArticlesShown(req.body),
+					filter: parseInboxEmailFilter(req.body),
 				})}&saved=1`,
+			);
+		},
+	);
+
+	router.post(
+		"/:id/links/:ordinal/fit",
+		deps.requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const receivedAtMessageId = req.params.id;
+			const notFound = () => res.status(404).type("html").send("");
+			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
+			if (!parsedOrdinal.success) return notFound();
+			const ordinal = parsedOrdinal.data;
+			const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+				userId,
+				receivedAtMessageId,
+			});
+			const link = links.find((entry) => entry.ordinal === ordinal);
+			if (
+				link === undefined ||
+				isExcludedLink(link) ||
+				validateSaveableUrl(link.url).status !== "SUCCESS"
+			) {
+				return notFound();
+			}
+			const email = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+			if (email === undefined) return notFound();
+			const parsedBody = LinkFitChoiceSchema.safeParse(req.body);
+			if (!parsedBody.success) return notFound();
+			const { readlist, verdict } = parsedBody.data;
+			const routed = meta?.selectedReadlists?.find((entry) => entry.readlist === readlist);
+			const outcome = meta?.readlistOutcomes?.find((entry) => entry.readlist === readlist);
+			const engineFit = outcome?.fit.find((entry) => entry.ordinal === ordinal);
+			if (
+				meta?.savesHeld === true ||
+				routed === undefined ||
+				outcome === undefined ||
+				(outcome.decision !== "filtered" && outcome.decision !== "failed") ||
+				(outcome.decision === "filtered" && engineFit === undefined)
+			) {
+				return notFound();
+			}
+			const current = currentReadlistFitOverride({
+				overrides: await deps.listReadlistFitOverrides({ userId, readlist }),
+				emailId: receivedAtMessageId,
+				ordinal,
+			});
+			if (verdict === "undo" && current === undefined) return notFound();
+			const saved = await deps.findSavedArticleForLink({ userId, url: link.url });
+			const provenance = { kind: "email", senderEmail: email.senderEmail };
+			const removeFromReadlist = async () => {
+				if (saved.kind === "saved") {
+					await deps.deleteReadlistArticleByUrl({ userId, readlist, url: saved.resolvedUrl });
+				}
+			};
+			if (verdict === "undo") {
+				assert(current, "an undo reverses the reader's current choice");
+				if (current.engineVerdict === "keep") {
+					assert(current.engineReason, "an engine keep carries its reason");
+					assert(current.purposeVersion, "an engine keep carries its purpose version");
+					await deps.publishFileArticleIntoReadlist({
+						userId,
+						url: link.url,
+						readlist,
+						provenance,
+						fit: {
+							verdict: "keep",
+							reason: current.engineReason,
+							purposeVersion: current.purposeVersion,
+							source: { kind: "email", receivedAtMessageId, ordinal },
+						},
+					});
+				} else {
+					await removeFromReadlist();
+				}
+				await deps.deleteReadlistFitOverride({ userId, readlist, id: current.id });
+			} else {
+				if (verdict === "keep") {
+					await deps.publishFileArticleIntoReadlist({
+						userId,
+						url: link.url,
+						readlist,
+						provenance,
+						fit: {
+							verdict: "keep",
+							purposeVersion:
+								outcome.decision === "filtered" ? outcome.purposeVersion : undefined,
+							source: { kind: "reader" },
+						},
+					});
+				} else {
+					await removeFromReadlist();
+				}
+				if (current !== undefined) {
+					await deps.deleteReadlistFitOverride({ userId, readlist, id: current.id });
+				}
+				await deps.recordReadlistFitOverride({
+					userId,
+					readlist,
+					override: {
+						url: saved.resolvedUrl,
+						anchorText: link.anchorText ?? "",
+						host: readlistFitOverrideHost(saved.resolvedUrl),
+						engineVerdict: engineFit?.verdict,
+						engineReason: engineFit?.reason,
+						readerVerdict: verdict,
+						purposeVersion: outcome.purposeVersion,
+						receivedAtMessageId,
+						ordinal,
+						createdAt: deps.now(),
+					},
+				});
+			}
+			deps.fitChoiceLog.info({
+				level: "INFO",
+				event: "readlist-fit-overridden",
+				userId,
+				readlist,
+				receivedAtMessageId,
+				ordinal,
+				engineVerdict: engineFit?.verdict,
+				readerVerdict: verdict,
+			});
+			const pageState: InboxEmailPageState = {
+				tab: parseMailTab(req.query.tab),
+				shown: parseArticlesShown(req.query),
+				filter: parseInboxEmailFilter(req.query),
+			};
+			if (isNonBoostedHtmxRequest(req)) {
+				const fitView = toInboxLinkFitViewModel({
+					links,
+					meta,
+					link,
+					emailId: receivedAtMessageId,
+					readlist,
+					shown: parseArticlesShown(req.query),
+					filter: pageState.filter,
+					maxPolls: MAX_POLLS,
+					linkSaveStates: await findLinkSaveStates({ userId, links: [link] }),
+					fitOverrides: await readFitOverrides({ userId, meta }),
+				});
+				const cardHtml = fitView.card === undefined ? "" : renderInboxArticleCard(fitView.card);
+				const lineHtml = renderInboxReadlistLine(fitView.line).replace(
+					"<div ",
+					'<div hx-swap-oob="outerHTML" ',
+				);
+				const toastHtml =
+					verdict === "undo"
+						? ""
+						: `<div id="status-toast" class="inbox-email-detail__toast-mount" hx-swap-oob="outerHTML">${renderInboxStatusToast(
+								fitStatusToast({
+									emailId: receivedAtMessageId,
+									pageState,
+									confirmation: { verdict, readlist, ordinal },
+									label: routed.label,
+								}),
+							)}</div>`;
+				res.status(200).type("html").send(`${cardHtml}${lineHtml}${toastHtml}`);
+				return;
+			}
+			const detailUrl = buildInboxEmailDetailUrl({ emailId: receivedAtMessageId, ...pageState });
+			res.redirect(
+				303,
+				verdict === "undo"
+					? detailUrl
+					: withQuery(detailUrl, { fit: verdict, in: readlist, link: ordinal }),
 			);
 		},
 	);

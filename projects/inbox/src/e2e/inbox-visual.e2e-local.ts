@@ -38,6 +38,24 @@ const TWO_CRAWLED_LINKS: readonly SeedLink[] = [
 	{ url: "https://example.com/second", status: "crawled", title: "Another article" },
 ];
 
+interface SeedFitOverride {
+	readlist: string;
+	ordinal: string;
+	readerVerdict: "keep" | "drop";
+	createdAt: string;
+}
+
+const WORK_FIT_WITH_UNSURE: SeedReadlistOutcome = {
+	readlist: WORK_READLIST,
+	readlistLabel: "Work",
+	decision: "filtered",
+	fit: [
+		{ ordinal: "0000", verdict: "keep", reason: "Engineering practice" },
+		{ ordinal: "0001", verdict: "drop", reason: "A product announcement, not engineering practice" },
+		{ ordinal: "0002", verdict: "unsure", reason: "" },
+	],
+};
+
 const ROUTED_LINKS: readonly SeedLink[] = [
 	{ url: "https://example.com/first", status: "crawled", title: "An example article" },
 	{ url: "https://example.com/spring-launch", status: "crawled", title: "Our spring launch" },
@@ -96,6 +114,7 @@ async function seedEmail(
 		links: readonly SeedLink[];
 		selectedReadlists?: { readlist: string; label: string }[];
 		readlistOutcomes?: SeedReadlistOutcome[];
+		fitOverrides?: SeedFitOverride[];
 		eligibleArticleCount?: number;
 		savesHeld?: boolean;
 	},
@@ -270,7 +289,7 @@ const articlesDecided: VisualCheckpoint = {
 	name: "inbox-articles-decided",
 	settled: articlesPanelSettled({
 		status: "terminal",
-		region: '[data-test-panel-notice="decided"]:has-text("saved to Work;")',
+		region: '[data-test-readlist-line="work"]:has-text("1 of 3 also fit Work.")',
 	}),
 	geometry: NO_GEOMETRY,
 	target: "main",
@@ -282,8 +301,108 @@ const articlesDecisionFailed: VisualCheckpoint = {
 	name: "inbox-articles-decision-failed",
 	settled: articlesPanelSettled({
 		status: "terminal",
-		region: '[data-test-panel-notice="decided"]:has-text("Couldn\'t choose articles for")',
+		region: '[data-test-readlist-line="work"]:has-text("Couldn\'t choose articles for Work.")',
 	}),
+	geometry: NO_GEOMETRY,
+	target: "main",
+	capture: "element",
+	pinnedText: PINNED_DETAIL_RECIPIENT,
+};
+
+const articlesFitMarkers: VisualCheckpoint = {
+	name: "inbox-articles-fit-markers",
+	settled: async (page) => {
+		await articlesPanelSettled({
+			status: "terminal",
+			region: '[data-test-readlist-line="work"]:has-text("1 of 3 also fit Work.")',
+		})(page);
+		await expect(page.locator("[data-test-fit-marker-label]")).toHaveText([
+			"Fits Work",
+			"Not for Work",
+			"Not for Work",
+		]);
+		await expect(page.locator("[data-test-fit-marker-reason]")).toHaveText([
+			"Engineering practice",
+			"A product announcement, not engineering practice",
+		]);
+		await expect(page.locator('[data-test-card-action^="fit-"]')).toHaveText([
+			"Doesn't fit Work",
+			"Keep in Work",
+			"Keep in Work",
+		]);
+	},
+	geometry: NO_GEOMETRY,
+	target: "[data-test-panel-listing]",
+	capture: "element",
+	pinnedText: [],
+};
+
+const keptCard: VisualCheckpoint = {
+	name: "inbox-article-card-kept",
+	settled: async (page) => {
+		const card = page.locator('[data-test-inbox-article-card="0001"]');
+		await expect(card.locator("[data-test-fit-marker-label]")).toHaveText("Kept in Work");
+		await expect(card.locator("[data-test-fit-marker-chosen]")).toHaveText(
+			"You chose this on Oct 14, 2026.",
+		);
+		await expect(card.locator("[data-test-fit-marker-reason]")).toHaveCount(0);
+		await expect(card.locator('[data-test-card-action="fit-drop"]')).toHaveText("Doesn't fit Work");
+	},
+	geometry: NO_GEOMETRY,
+	target: '[data-test-inbox-article-card="0001"]',
+	capture: "element",
+	pinnedText: [],
+};
+
+const fitKeepToast: VisualCheckpoint = {
+	name: "inbox-fit-keep-toast",
+	settled: async (page) => {
+		const toast = page.locator("[data-test-toast]");
+		await expect(toast).toBeVisible();
+		await expect(toast.locator("[data-test-toast-message]")).toHaveText("Adding to Work…");
+		await expect(toast.locator("[data-test-toast-action]")).toHaveText("Undo");
+	},
+	geometry: NO_GEOMETRY,
+	target: "[data-test-toast]",
+	capture: "element",
+	pinnedText: [],
+};
+
+const failedKeepControls: VisualCheckpoint = {
+	name: "inbox-articles-failed-keep-controls",
+	settled: async (page) => {
+		await articlesPanelSettled({
+			status: "terminal",
+			region: '[data-test-readlist-line="work"]:has-text("Use Keep in Work on any article you want there.")',
+		})(page);
+		await expect(page.locator("[data-test-fit-marker]")).toHaveCount(0);
+		await expect(page.locator('[data-test-card-action="fit-keep"]')).toHaveText([
+			"Keep in Work",
+			"Keep in Work",
+		]);
+		await expect(
+			page.locator('[data-test-inbox-article-card="0002"] [data-test-card-action^="fit-"]'),
+		).toHaveCount(0);
+	},
+	geometry: NO_GEOMETRY,
+	target: "main",
+	capture: "element",
+	pinnedText: PINNED_DETAIL_RECIPIENT,
+};
+
+const articlesShowFit: VisualCheckpoint = {
+	name: "inbox-articles-show-fit",
+	settled: async (page) => {
+		await articlesPanelSettled({
+			status: "terminal",
+			region: '[data-test-readlist-filter="fit"][aria-current="true"]',
+		})(page);
+		await expect(page.locator("[data-test-inbox-article-card]")).toHaveCount(1);
+		await expect(page.locator('[data-test-inbox-article-card="0000"]')).toBeVisible();
+		await expect(page.locator('[data-test-readlist-filter="rest"]')).not.toHaveAttribute(
+			"aria-current",
+		);
+	},
 	geometry: NO_GEOMETRY,
 	target: "main",
 	capture: "element",
@@ -455,6 +574,95 @@ test.describe("Inbox visual checkpoints", () => {
 		await captureCheckpoint(page, articlesDecided);
 	});
 
+	test("captures each article's readlist call, with a reason under the engine's keep and drop", async ({
+		page,
+	}) => {
+		const emailId = await seedEmail(page, {
+			links: ROUTED_LINKS,
+			selectedReadlists: [{ readlist: WORK_READLIST, label: "Work" }],
+			eligibleArticleCount: 3,
+			savesHeld: false,
+			readlistOutcomes: [WORK_FIT_WITH_UNSURE],
+		});
+		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
+		await captureCheckpoint(page, articlesFitMarkers);
+	});
+
+	test("captures a card the reader kept in a readlist, with the day they chose it", async ({ page }) => {
+		const emailId = await seedEmail(page, {
+			links: ROUTED_LINKS,
+			selectedReadlists: [{ readlist: WORK_READLIST, label: "Work" }],
+			eligibleArticleCount: 3,
+			savesHeld: false,
+			readlistOutcomes: [WORK_FIT_WITH_UNSURE],
+			fitOverrides: [
+				{
+					readlist: WORK_READLIST,
+					ordinal: "0001",
+					readerVerdict: "keep",
+					createdAt: "2026-10-14T09:00:00.000Z",
+				},
+			],
+		});
+		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
+		await captureCheckpoint(page, keptCard);
+	});
+
+	test("captures the toast after Keep in Work, with its Undo", async ({ page }) => {
+		const emailId = await seedEmail(page, {
+			links: ROUTED_LINKS,
+			selectedReadlists: [{ readlist: WORK_READLIST, label: "Work" }],
+			eligibleArticleCount: 3,
+			savesHeld: false,
+			readlistOutcomes: [WORK_FIT_WITH_UNSURE],
+			fitOverrides: [
+				{
+					readlist: WORK_READLIST,
+					ordinal: "0001",
+					readerVerdict: "keep",
+					createdAt: "2026-10-14T09:00:00.000Z",
+				},
+			],
+		});
+		await page.goto(
+			`/inbox/${encodeURIComponent(emailId)}?tab=articles&fit=keep&in=${WORK_READLIST}&link=0001`,
+		);
+		await captureCheckpoint(page, fitKeepToast);
+	});
+
+	test("captures a failed readlist call offering Keep in Work on every saveable card", async ({
+		page,
+	}) => {
+		const emailId = await seedEmail(page, {
+			links: [
+				...TWO_CRAWLED_LINKS,
+				{ url: "http://localhost/intranet-note", status: "crawled", title: "An intranet note" },
+			],
+			selectedReadlists: [{ readlist: WORK_READLIST, label: "Work" }],
+			eligibleArticleCount: 3,
+			savesHeld: false,
+			readlistOutcomes: [
+				{ readlist: WORK_READLIST, readlistLabel: "Work", decision: "failed", fit: [] },
+			],
+		});
+		await page.goto(`/inbox/${encodeURIComponent(emailId)}?tab=articles`);
+		await captureCheckpoint(page, failedKeepControls);
+	});
+
+	test("captures the Articles tab showing only the articles that fit a readlist", async ({ page }) => {
+		const emailId = await seedEmail(page, {
+			links: ROUTED_LINKS,
+			selectedReadlists: [{ readlist: WORK_READLIST, label: "Work" }],
+			eligibleArticleCount: 3,
+			savesHeld: false,
+			readlistOutcomes: [WORK_FIT_WITH_UNSURE],
+		});
+		await page.goto(
+			`/inbox/${encodeURIComponent(emailId)}?tab=articles&readlist=${WORK_READLIST}&show=fit`,
+		);
+		await captureCheckpoint(page, articlesShowFit);
+	});
+
 	test("captures the Articles tab when its readlist could not decide", async ({ page }) => {
 		const emailId = await seedEmail(page, {
 			links: TWO_CRAWLED_LINKS,
@@ -519,9 +727,11 @@ test.describe("Inbox visual checkpoints", () => {
 						);
 						await expect(settling.locator("[data-test-panel-notice]")).toHaveText([
 							"Saved to All.",
-							"1 article saved to Work; 1 didn't fit.",
-							"Couldn't choose articles for Science. Articles remain in All.",
 							"Choosing articles for Weekend reading…",
+						]);
+						await expect(settling.locator("[data-test-readlist-line] span")).toHaveText([
+							"1 of 2 also fit Work.",
+							"Couldn't choose articles for Science. Everything stays in All. Use Keep in Science on any article you want there.",
 						]);
 						await expect(settling.locator("[data-test-inbox-article-card]")).toHaveCount(2);
 					},

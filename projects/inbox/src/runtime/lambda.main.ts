@@ -15,8 +15,17 @@ import {
 	initDynamoDbInboxEmailLink,
 	initDynamoDbInboxSavedLink,
 } from "@packages/inbox-store";
-import { initDynamoDbEngagementActivity, initS3ReadContent } from "@packages/article-store";
-import { SubmitLinkCommand } from "@packages/hutch-infra-components";
+import {
+	initCanonicalAliasStore,
+	initDynamoDbEngagementActivity,
+	initDynamoDbReadlistFitOverrides,
+	initDynamoDbSavedArticleStore,
+	initFindSavedArticleForLink,
+	initS3ReadContent,
+} from "@packages/article-store";
+import { FileArticleIntoReadlistCommand, SubmitLinkCommand } from "@packages/hutch-infra-components";
+import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
+import { initResolveCanonicalIdentity } from "@packages/save-article";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
@@ -55,6 +64,23 @@ const subscriptionRead = initDynamoDbSubscriptionRead({
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName: requireEnv("EVENT_BUS_NAME"),
+});
+
+const articlesTableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
+const userArticlesTableName = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
+const readlistFitOverrides = initDynamoDbReadlistFitOverrides({ client, userArticlesTableName });
+const savedArticleStore = initDynamoDbSavedArticleStore({
+	client,
+	tableName: articlesTableName,
+	userArticlesTableName,
+	logger,
+	now: () => new Date(),
+});
+const findSavedArticleForLink = initFindSavedArticleForLink({
+	resolveCanonicalIdentity: initResolveCanonicalIdentity({
+		findIdentityRow: initCanonicalAliasStore({ client, tableName: articlesTableName }).findIdentityRow,
+	}),
+	findArticleById: savedArticleStore.findArticleById,
 });
 
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
@@ -103,6 +129,13 @@ const application = express()
 				}),
 				readEmailContent,
 				publishSubmitLink: (input) => publishEvent(SubmitLinkCommand, input),
+				publishFileArticleIntoReadlist: (detail) => publishEvent(FileArticleIntoReadlistCommand, detail),
+				findSavedArticleForLink,
+				listReadlistFitOverrides: readlistFitOverrides.listReadlistFitOverrides,
+				recordReadlistFitOverride: readlistFitOverrides.recordReadlistFitOverride,
+				deleteReadlistFitOverride: readlistFitOverrides.deleteReadlistFitOverride,
+				deleteReadlistArticleByUrl: readlistFitOverrides.deleteReadlistArticleByUrl,
+				fitChoiceLog: HutchLogger.fromJSON<ReadlistFitOverriddenLogLine>(),
 				recordEngagementActivity: initDynamoDbEngagementActivity({
 					client,
 					onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),

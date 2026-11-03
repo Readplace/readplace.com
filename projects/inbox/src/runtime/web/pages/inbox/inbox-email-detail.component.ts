@@ -10,7 +10,10 @@ import { buildInboxEmailIframeSrcdoc } from "./inbox-email-iframe-srcdoc";
 import { renderInboxLiveStatus } from "./inbox-live-status.component";
 import { renderInboxMailTabs } from "./inbox-mail-tabs.component";
 import { INBOX_EMAIL_DETAIL_STYLES } from "./inbox-email-detail.styles";
-import type { InboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
+import type {
+	InboxEmailDetailViewModel,
+	InboxStatusToast,
+} from "./inbox-email-detail.viewmodel";
 
 const INBOX_EMAIL_DETAIL_TEMPLATE = readFileSync(
 	join(__dirname, "inbox-email-detail.template.html"),
@@ -52,20 +55,24 @@ const PANEL_RENDERERS: Record<MailTabKey, (vm: InboxEmailDetailViewModel) => str
  * not to sit over the card list. Matches the queue's status toast. */
 const STATUS_TOAST_DISMISS_MS = 6000;
 
+export function renderInboxStatusToast(toast: InboxStatusToast): string {
+	return renderToast({
+		message: toast.message,
+		dismissMs: STATUS_TOAST_DISMISS_MS,
+		actions:
+			toast.undo === undefined
+				? []
+				: [{ method: "POST", url: toast.undo.url, label: "Undo", fields: toast.undo.fields }],
+	});
+}
+
 export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 	const panelHtml = PANEL_RENDERERS[vm.activeTab](vm);
 	const tabsHtml = renderInboxMailTabs({ tabs: vm.tabs, oob: false });
 	// Empty on load and never a swap target: the poll routes write into it.
 	const liveStatusHtml = renderInboxLiveStatus({ message: "", oob: false });
-	// No actions: the inbox has no unsave or undo-report route to offer.
 	const statusToastHtml =
-		vm.statusToastMessage === undefined
-			? ""
-			: renderToast({
-					message: vm.statusToastMessage,
-					dismissMs: STATUS_TOAST_DISMISS_MS,
-					actions: [],
-				});
+		vm.statusToast === undefined ? "" : renderInboxStatusToast(vm.statusToast);
 	return {
 		seo: {
 			title: "Email — Readplace",

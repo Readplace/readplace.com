@@ -1326,6 +1326,10 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		return Array.from(doc.querySelectorAll("[data-test-panel-notice]"), (notice) => notice.textContent);
 	}
 
+	function readlistLineTexts(doc: ReturnType<typeof parseDoc>): (string | null)[] {
+		return Array.from(doc.querySelectorAll("[data-test-readlist-line] p > span"), (line) => line.textContent);
+	}
+
 	it("says every article went to All and keeps polling while the readlist chooses", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
@@ -1344,7 +1348,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		expect(doc.querySelector('[data-test-inbox-tab="excluded"]')?.textContent).toBe("Skipped (1)");
 	});
 
-	it("ends on the count line once the readlist decided, every article still listed", async () => {
+	it("ends on the readlist line once the readlist decided, every article still listed", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -1358,7 +1362,9 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("terminal");
 		expect(panel.getAttribute("hx-get")).toBeNull();
-		expect(noticeTexts(doc)).toEqual(["Saved to All.", "1 article saved to Work; 1 didn't fit."]);
+		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
+		expect(readlistLineTexts(doc)).toEqual(["1 of 2 also fit Work."]);
+		expect(doc.querySelector("#inbox-readlist-line-work")).not.toBeNull();
 		expect(
 			Array.from(doc.querySelectorAll("[data-test-inbox-article-card]")).map((card) =>
 				card.getAttribute("data-test-inbox-article-card"),
@@ -1366,7 +1372,7 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		).toEqual(["0000", "0001"]);
 	});
 
-	it("shows the count line, not the failed line, once a decision replaces a failed one", async () => {
+	it("shows the readlist line, not the failed line, once a decision replaces a failed one", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -1386,7 +1392,8 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 
 		const doc = parseDoc((await agent.get(articlesTabPath)).text);
 
-		expect(noticeTexts(doc)).toEqual(["Saved to All.", "1 article saved to Work; 1 didn't fit."]);
+		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
+		expect(readlistLineTexts(doc)).toEqual(["1 of 2 also fit Work."]);
 	});
 
 	it("renders an unsure link like a drop, with no marker", async () => {
@@ -1410,7 +1417,8 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 
 		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the Articles panel must render");
-		expect(noticeTexts(doc)).toEqual(["Saved to All.", "1 article saved to Work; 1 didn't fit."]);
+		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
+		expect(readlistLineTexts(doc)).toEqual(["1 of 2 also fit Work."]);
 		expect(panel.outerHTML).not.toMatch(/unsure/i);
 		expect(panel.outerHTML).not.toContain("The page gives too little to tell");
 		expect(doc.querySelectorAll("[data-test-inbox-article-card]")).toHaveLength(2);
@@ -1451,9 +1459,9 @@ describe("Inbox email detail for an inbox routed to a readlist", () => {
 		assert(panel, "the Articles panel must render");
 		expect(panel.getAttribute("hx-get")).toBeNull();
 		expect(panelAlerts(doc)).toEqual([]);
-		expect(noticeTexts(doc)).toEqual([
-			"Saved to All.",
-			"Couldn't choose articles for Work. Articles remain in All.",
+		expect(noticeTexts(doc)).toEqual(["Saved to All."]);
+		expect(readlistLineTexts(doc)).toEqual([
+			"Couldn't choose articles for Work. Everything stays in All. Use Keep in Work on any article you want there.",
 		]);
 	});
 });
@@ -1666,5 +1674,167 @@ describe("Inbox link feedback route", () => {
 
 		expect(response.status).toBe(303);
 		expect(errors).toHaveLength(0);
+	});
+});
+
+describe("Inbox email detail filtered by a readlist's call", () => {
+	const SCIENCE = ReadlistSlugSchema.parse("science");
+	const WORK_CALL: InboxReadlistOutcome = {
+		readlist: WORK,
+		readlistLabel: "Work",
+		decision: "filtered",
+		fit: [
+			{ ordinal: EmailLinkOrdinalSchema.parse("0000"), verdict: "keep", reason: "Engineering practice" },
+			{ ordinal: EmailLinkOrdinalSchema.parse("0001"), verdict: "drop", reason: "A product launch" },
+		],
+	};
+
+	function cardOrdinals(doc: ReturnType<typeof parseDoc>): (string | null)[] {
+		return Array.from(doc.querySelectorAll("[data-test-inbox-article-card]"), (card) =>
+			card.getAttribute("data-test-inbox-article-card"),
+		);
+	}
+
+	async function setUpDecided(input: { links: Partial<InboxEmailLinkEntry>[]; outcome: InboxReadlistOutcome }) {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.shared.logError = () => {};
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, input.links);
+		await seedRoutedSnapshot(fixture, { eligibleArticleCount: input.links.length, outcome: input.outcome });
+		return { agent };
+	}
+
+	it.each([
+		{ show: "fit", ordinals: ["0000"] },
+		{ show: "rest", ordinals: ["0001"] },
+	])("lists only the cards that match show=$show", async ({ show, ordinals }) => {
+		const { agent } = await setUpDecided({ links: ROUTED_LINKS, outcome: WORK_CALL });
+
+		const doc = parseDoc((await agent.get(`${articlesTabPath}&readlist=work&show=${show}`)).text);
+
+		expect(cardOrdinals(doc)).toEqual(ordinals);
+		expect(doc.querySelector(`[data-test-readlist-filter="${show}"]`)?.getAttribute("aria-current")).toBe("true");
+	});
+
+	it("pages the filtered cards and keeps the filter on Show more", async () => {
+		const links = manyCrawledLinks(25);
+		const { agent } = await setUpDecided({
+			links,
+			outcome: {
+				...WORK_CALL,
+				fit: links.map((_link, index) => ({
+					ordinal: formatEmailLinkOrdinal(index),
+					verdict: index < 22 ? ("keep" as const) : ("drop" as const),
+					reason: "Engineering practice",
+				})),
+			},
+		});
+
+		const doc = parseDoc((await agent.get(`${articlesTabPath}&readlist=work&show=fit`)).text);
+
+		expect(cardOrdinals(doc)).toHaveLength(20);
+		const control = doc.querySelector("[data-test-articles-show-more]");
+		assert(control, "the Show more control must offer the remaining fitting cards");
+		expect(control.textContent).toBe("Show 2 more");
+		const href = new URL(control.getAttribute("href") ?? "", TEST_APP_ORIGIN);
+		expect(href.searchParams.get("readlist")).toBe("work");
+		expect(href.searchParams.get("show")).toBe("fit");
+		const revealed = parseDoc((await agent.get(`${articlesTabPath}&shown=40&readlist=work&show=fit`)).text);
+		expect(cardOrdinals(revealed)).toHaveLength(22);
+		const rest = parseDoc((await agent.get(`${articlesTabPath}&readlist=work&show=rest`)).text);
+		expect(cardOrdinals(rest)).toEqual(["0022", "0023", "0024"]);
+	});
+
+	it("keeps the filter on the next poll of the Articles panel while another readlist decides", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+		await seedLinks(fixture, ROUTED_LINKS);
+		const user = await fixture.auth.findUserByEmail("test@example.com");
+		assert(user, "logged-in user must exist");
+		await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+			meta: {
+				truncated: false,
+				extractionFailed: false,
+				selectedReadlists: [
+					{ readlist: WORK, label: "Work" },
+					{ readlist: SCIENCE, label: "Science" },
+				],
+				eligibleArticleCount: 2,
+				savesHeld: false,
+			},
+		});
+		await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
+			userId: user.userId,
+			receivedAtMessageId: SK,
+			outcome: WORK_CALL,
+		});
+
+		const doc = parseDoc((await agent.get(`${articlesPath}?poll=1&readlist=work&show=fit`)).text);
+
+		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
+		assert(panel, "the panel fragment must render");
+		expect(panel.getAttribute("hx-get")).toBe(`${articlesPath}?poll=2&readlist=work&show=fit`);
+		expect(cardOrdinals(doc)).toEqual(["0000"]);
+	});
+
+	it("mounts an empty status toast when nothing was just chosen", async () => {
+		const { agent } = await setUpDecided({ links: ROUTED_LINKS, outcome: WORK_CALL });
+
+		const doc = parseDoc((await agent.get(articlesTabPath)).text);
+
+		const mount = doc.querySelector("#status-toast");
+		assert(mount, "the page must carry the status toast mount the fit route swaps");
+		expect(mount.textContent?.trim()).toBe("");
+	});
+
+	it("confirms a keep with an Undo form that posts the reversal with the page state", async () => {
+		const { agent } = await setUpDecided({ links: ROUTED_LINKS, outcome: WORK_CALL });
+
+		const doc = parseDoc(
+			(await agent.get(`${articlesTabPath}&readlist=work&show=rest&fit=keep&in=work&link=0001`)).text,
+		);
+
+		const toast = doc.querySelector("#status-toast");
+		assert(toast, "the page must carry the status toast");
+		expect(toast.querySelector("[data-test-toast-message]")?.textContent).toBe("Adding to Work…");
+		const undo = toast.querySelector("form");
+		assert(undo, "the toast must offer Undo");
+		expect(undo.getAttribute("method")?.toUpperCase()).toBe("POST");
+		const action = new URL(undo.getAttribute("action") ?? "", TEST_APP_ORIGIN);
+		expect(action.pathname).toBe(`/inbox/${encodeURIComponent(SK)}/links/0001/fit`);
+		expect(Object.fromEntries(action.searchParams)).toEqual({
+			tab: "articles",
+			readlist: "work",
+			show: "rest",
+			utm_source: "inbox-toast",
+			utm_medium: "internal",
+			utm_content: "undo-fit",
+		});
+		expect(
+			Object.fromEntries(
+				Array.from(undo.querySelectorAll('input[type="hidden"]'), (input) => [
+					input.getAttribute("name"),
+					input.getAttribute("value"),
+				]),
+			),
+		).toEqual({ readlist: "work", verdict: "undo" });
+	});
+
+	it("carries the filter back from the feedback form", async () => {
+		const { agent } = await setUpDecided({ links: ROUTED_LINKS, outcome: WORK_CALL });
+
+		const response = await agent
+			.post(`/inbox/${encodeURIComponent(SK)}/links/0000/feedback`)
+			.type("form")
+			.send({ verdict: "should-be-excluded", readlist: "work", show: "fit" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`${detailPath}?tab=articles&readlist=work&show=fit&feedback=sent`);
 	});
 });

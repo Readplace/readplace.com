@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+	type InboxEmailFilter,
+	writeInboxEmailFilter,
+} from "./inbox-email-filter";
 
 export const ARTICLES_PAGE_SIZE = 20;
 
@@ -6,7 +10,9 @@ export const ARTICLES_PAGE_SIZE = 20;
 // strings: a POST that carries no body at all leaves `req.body` undefined, and
 // an absent page size is the default page, not a request to reject.
 const ArticlesShownSchema = z
-	.looseObject({ shown: z.coerce.number().int().min(1).optional().catch(undefined) })
+	.looseObject({
+		shown: z.coerce.number().int().min(1).optional().catch(undefined),
+	})
 	.catch({});
 
 export function parseArticlesShown(source: unknown): number {
@@ -14,8 +20,13 @@ export function parseArticlesShown(source: unknown): number {
 	return Math.max(ARTICLES_PAGE_SIZE, parsed.shown ?? ARTICLES_PAGE_SIZE);
 }
 
-export function buildInboxArticlesMoreUrl(params: { emailId: string; shown: number }): string {
+export function buildInboxArticlesMoreUrl(params: {
+	emailId: string;
+	shown: number;
+	filter?: InboxEmailFilter;
+}): string {
 	const search = new URLSearchParams();
 	search.set("shown", String(params.shown));
+	writeInboxEmailFilter({ search, filter: params.filter });
 	return `/inbox/${encodeURIComponent(params.emailId)}/articles/more?${search.toString()}`;
 }

@@ -4,6 +4,7 @@ import {
 	EmailLinkOrdinalSchema,
 	type InboxEmailLinkEntry,
 } from "@packages/domain/inbox";
+import { ReadlistPurposeVersionSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -699,6 +700,153 @@ describe("Inbox link card route", () => {
 
 			expect(whileSaving).toEqual({ card: "inbox-card-0000", button: "inbox-card-0000-save" });
 			expect(onceSaved).toEqual(whileSaving);
+		});
+	});
+
+	describe("the readlist call", () => {
+		const WORK = ReadlistSlugSchema.parse("work");
+		const PURPOSE_VERSION = ReadlistPurposeVersionSchema.parse("0123456789ab");
+
+		async function setUpRouted() {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			await seed(fixture, {
+				status: "crawled",
+				title: "Refactoring in small steps",
+			});
+			const user = await fixture.auth.findUserByEmail("test@example.com");
+			assert(user, "logged-in user must exist");
+			await fixture.inboxEmail.inboxEmailLinkStore.putLinksMeta({
+				userId: user.userId,
+				receivedAtMessageId: SK,
+				meta: {
+					truncated: false,
+					extractionFailed: false,
+					selectedReadlists: [{ readlist: WORK, label: "Work" }],
+					eligibleArticleCount: 1,
+					savesHeld: false,
+				},
+			});
+			await fixture.inboxEmail.inboxEmailLinkStore.putReadlistOutcome({
+				userId: user.userId,
+				receivedAtMessageId: SK,
+				outcome: {
+					readlist: WORK,
+					readlistLabel: "Work",
+					decision: "filtered",
+					fit: [
+						{
+							ordinal: EmailLinkOrdinalSchema.parse("0000"),
+							verdict: "keep",
+							reason: "Engineering practice",
+						},
+					],
+					purposeVersion: PURPOSE_VERSION,
+				},
+			});
+			const recordDrop = (createdAt: Date) =>
+				fixture.articleStore.recordReadlistFitOverride({
+					userId: user.userId,
+					readlist: WORK,
+					override: {
+						url: "https://example.com/post",
+						anchorText: "",
+						host: "example.com",
+						engineVerdict: "keep",
+						engineReason: "Engineering practice",
+						readerVerdict: "drop",
+						purposeVersion: PURPOSE_VERSION,
+						receivedAtMessageId: SK,
+						ordinal: EmailLinkOrdinalSchema.parse("0000"),
+						createdAt,
+					},
+				});
+			const removeChoice = async (id: Awaited<ReturnType<typeof recordDrop>>) =>
+				fixture.articleStore.deleteReadlistFitOverride({
+					userId: user.userId,
+					readlist: WORK,
+					id,
+				});
+			return { agent, recordDrop, removeChoice };
+		}
+
+		function cardDoc(html: string) {
+			return new JSDOM(html).window.document;
+		}
+
+		it("renders the engine's marker, its reason and the control that reverses it", async () => {
+			const { agent } = await setUpRouted();
+
+			const doc = cardDoc((await agent.get(cardPath)).text);
+
+			expect(
+				doc.querySelector(
+					'[data-test-fit-marker="work"] [data-test-fit-marker-label]',
+				)?.textContent,
+			).toBe("Fits Work");
+			expect(
+				doc.querySelector("[data-test-fit-marker-reason]")?.textContent,
+			).toBe("Engineering practice");
+			const control = doc.querySelector('[data-test-card-action="fit-drop"]');
+			assert(control, "the card must offer the reversal");
+			expect(control.textContent).toBe("Doesn't fit Work");
+		});
+
+		it("keeps the page's filter on the save, feedback and fit forms", async () => {
+			const { agent } = await setUpRouted();
+
+			const doc = cardDoc(
+				(await agent.get(`${cardPath}?readlist=work&show=fit`)).text,
+			);
+
+			for (const key of ["save", "feedback-exclude"]) {
+				const form = doc
+					.querySelector(`[data-test-card-action="${key}"]`)
+					?.closest("form");
+				assert(form, `the ${key} form must render`);
+				expect(
+					form.querySelector('input[name="readlist"]')?.getAttribute("value"),
+				).toBe("work");
+				expect(
+					form.querySelector('input[name="show"]')?.getAttribute("value"),
+				).toBe("fit");
+			}
+			const fitForm = doc
+				.querySelector('[data-test-card-action="fit-drop"]')
+				?.closest("form");
+			assert(fitForm, "the fit form must render");
+			const action = new URL(
+				fitForm.getAttribute("action") ?? "",
+				TEST_APP_ORIGIN,
+			);
+			expect(action.searchParams.get("readlist")).toBe("work");
+			expect(action.searchParams.get("show")).toBe("fit");
+		});
+
+		it("serves a fresh card rather than a 304 when the reader's choice is made again on a later day", async () => {
+			const { agent, recordDrop, removeChoice } = await setUpRouted();
+			const firstChoice = await recordDrop(
+				new Date("2026-10-14T10:00:00.000Z"),
+			);
+			const first = await agent.get(cardPath);
+			const etag = first.headers.etag;
+			assert(etag, "the card response must carry an ETag");
+			expect(
+				cardDoc(first.text).querySelector("[data-test-fit-marker-label]")
+					?.textContent,
+			).toBe("Not in Work");
+			await removeChoice(firstChoice);
+			await recordDrop(new Date("2026-10-20T10:00:00.000Z"));
+
+			const second = await agent.get(cardPath).set("If-None-Match", etag);
+
+			expect(second.status).toBe(200);
+			expect(
+				cardDoc(second.text)
+					.querySelector("[data-test-fit-marker-chosen] time")
+					?.getAttribute("datetime"),
+			).toBe("2026-10-20T10:00:00.000Z");
 		});
 	});
 });

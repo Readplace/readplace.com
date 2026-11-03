@@ -1,3 +1,7 @@
+import {
+	type InboxEmailFilter,
+	writeInboxEmailFilter,
+} from "./inbox-email-filter";
 
 /**
  * Polling URL for the whole Articles panel while extraction is still running.
@@ -9,8 +13,10 @@
 export function buildInboxArticlesPollUrl(params: {
 	emailId: string;
 	pollCount: number;
+	filter?: InboxEmailFilter;
 }): string {
 	const search = new URLSearchParams();
 	search.set("poll", String(params.pollCount));
+	writeInboxEmailFilter({ search, filter: params.filter });
 	return `/inbox/${encodeURIComponent(params.emailId)}/articles?${search.toString()}`;
 }

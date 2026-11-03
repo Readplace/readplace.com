@@ -1,3 +1,4 @@
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { buildInboxLinkPollUrl } from "./inbox-link-poll-url";
 
 describe("buildInboxLinkPollUrl", () => {
@@ -25,6 +26,20 @@ describe("buildInboxLinkPollUrl", () => {
 
 		expect(url).toBe(
 			"/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E/links/0007/card?poll=3&shown=40&awaitSave=1",
+		);
+	});
+
+	it("keeps the readlist filter so the card answers for the filtered list", () => {
+		const url = buildInboxLinkPollUrl({
+			emailId: "2026-06-24T09:00:00.000Z#<m@x>",
+			ordinal: "0007",
+			pollCount: 3,
+			shown: 40,
+			filter: { readlist: ReadlistSlugSchema.parse("work"), show: "fit" },
+		});
+
+		expect(url).toBe(
+			"/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E/links/0007/card?poll=3&shown=40&readlist=work&show=fit",
 		);
 	});
 });

@@ -1,12 +1,18 @@
+import assert from "node:assert";
 import type {
+	EmailLinkOrdinal,
 	InboxEmailEntry,
 	InboxEmailLinkCounts,
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 	InboxLinkSaveState,
+	InboxReadlistOutcome,
 } from "@packages/domain/inbox";
 import { INBOX_PATH, isExcludedLink } from "@packages/domain/inbox";
-import { DEFAULT_READLIST_LABEL } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_LABEL,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import {
 	type LocalTime,
 	toAbsoluteDateTime,
@@ -19,6 +25,7 @@ import {
 import { buildInboxArticlesPollUrl } from "./inbox-articles-poll-url";
 import {
 	buildInboxEmailDetailUrl,
+	type InboxEmailPageState,
 	type MailTabKey,
 } from "./inbox-email-detail.url";
 import {
@@ -26,11 +33,18 @@ import {
 	toInboxExcludedLinkViewModel,
 } from "./inbox-excluded-link.viewmodel";
 import { buildInboxExcludedPollUrl } from "./inbox-excluded-poll-url";
+import type { InboxEmailFilter } from "./inbox-email-filter";
 import {
 	type InboxLinkCardViewModel,
 	toInboxLinkCardViewModel,
 } from "./inbox-link-card.viewmodel";
+import { buildInboxLinkFitUrl } from "./inbox-link-fit-url";
 import { type InboxPanelStatus, panelStatusFor } from "./inbox-panel-status";
+import {
+	cardReadlistFits,
+	fitsReadlist,
+	type ReadlistFitOverridesByReadlist,
+} from "./inbox-readlist-fit";
 import { buildMailTabs, type MailTab } from "./mail-tabs";
 
 /** Initial poll count for a card on first page render: the first htmx tick then
@@ -47,12 +61,7 @@ export interface PanelAlert extends AlertCopy {
 }
 
 export interface PanelNotice {
-	key:
-		| "extracting"
-		| "deciding"
-		| "truncated"
-		| "decided"
-		| "skipped-note";
+	key: "extracting" | "deciding" | "truncated" | "decided" | "skipped-note";
 	text: string;
 	iconName: "loader" | undefined;
 }
@@ -112,7 +121,11 @@ function readlistSaveNotices(input: {
 			: [];
 	for (const { readlist, label } of input.selectedReadlists) {
 		if (input.savesHeld) {
-			notices.push({ key: "decided", text: `No articles were saved to ${label} because this account is read-only.`, iconName: undefined });
+			notices.push({
+				key: "decided",
+				text: `No articles were saved to ${label} because this account is read-only.`,
+				iconName: undefined,
+			});
 			continue;
 		}
 		const outcome = input.outcomes?.find(
@@ -126,14 +139,10 @@ function readlistSaveNotices(input: {
 					: `Still choosing articles for ${label}. Reload later to see the result.`,
 				iconName: input.withinPollBudget ? "loader" : undefined,
 			});
-		} else if (outcome.decision === "failed") {
-			notices.push({
-				key: "decided",
-				text: `Couldn't choose articles for ${label}. Articles remain in All.`,
-				iconName: undefined,
-			});
-		} else {
-			const dropped = outcome.fit.filter(({ verdict }) => verdict !== "keep").length;
+		} else if (outcome.decision === "no-purpose") {
+			const dropped = outcome.fit.filter(
+				({ verdict }) => verdict !== "keep",
+			).length;
 			const saved = Math.max(0, input.articles - dropped);
 			notices.push({
 				key: "decided",
@@ -143,6 +152,189 @@ function readlistSaveNotices(input: {
 		}
 	}
 	return notices;
+}
+
+export interface ReadlistLineFilter {
+	show: InboxEmailFilter["show"];
+	text: string;
+	href: string;
+	current: boolean;
+}
+
+export interface ReadlistLineViewModel {
+	readlist: ReadlistSlug;
+	elementId: string;
+	text: string;
+	filters: ReadlistLineFilter[];
+}
+
+interface ReadlistFitContext {
+	emailId: string;
+	cards: InboxEmailLinkEntry[];
+	selectedReadlists: NonNullable<InboxEmailLinksMeta["selectedReadlists"]>;
+	outcomes: InboxReadlistOutcome[];
+	fitOverrides: ReadlistFitOverridesByReadlist;
+}
+
+function readlistFitContext(input: {
+	emailId: string;
+	cards: InboxEmailLinkEntry[];
+	meta: InboxEmailLinksMeta | undefined;
+	fitOverrides: ReadlistFitOverridesByReadlist;
+}): ReadlistFitContext {
+	return {
+		emailId: input.emailId,
+		cards: input.cards,
+		selectedReadlists:
+			input.meta?.savesHeld === true
+				? []
+				: (input.meta?.selectedReadlists ?? []),
+		outcomes: input.meta?.readlistOutcomes ?? [],
+		fitOverrides: input.fitOverrides,
+	};
+}
+
+function fittingCards(input: {
+	context: ReadlistFitContext;
+	readlist: ReadlistSlug;
+	outcome: InboxReadlistOutcome;
+}): Set<InboxEmailLinkEntry> {
+	const overrides = input.context.fitOverrides.get(input.readlist) ?? [];
+	return new Set(
+		input.context.cards.filter((card) =>
+			fitsReadlist({
+				outcome: input.outcome,
+				overrides,
+				emailId: input.context.emailId,
+				ordinal: card.ordinal,
+			}),
+		),
+	);
+}
+
+function filteredOutcome(input: {
+	context: ReadlistFitContext;
+	readlist: ReadlistSlug;
+}): InboxReadlistOutcome | undefined {
+	const routed = input.context.selectedReadlists.some(
+		({ readlist }) => readlist === input.readlist,
+	);
+	const outcome = input.context.outcomes.find(
+		(entry) => entry.readlist === input.readlist,
+	);
+	return routed && outcome?.decision === "filtered" ? outcome : undefined;
+}
+
+function applyReadlistFilter(input: {
+	context: ReadlistFitContext;
+	filter: InboxEmailFilter | undefined;
+}): { cards: InboxEmailLinkEntry[]; filter: InboxEmailFilter | undefined } {
+	const unfiltered = { cards: input.context.cards, filter: undefined };
+	const filter = input.filter;
+	if (filter === undefined) return unfiltered;
+	const outcome = filteredOutcome({
+		context: input.context,
+		readlist: filter.readlist,
+	});
+	if (outcome === undefined) return unfiltered;
+	const fitting = fittingCards({
+		context: input.context,
+		readlist: filter.readlist,
+		outcome,
+	});
+	const cards = input.context.cards.filter(
+		(card) => fitting.has(card) === (filter.show === "fit"),
+	);
+	return cards.length === 0 ? unfiltered : { cards, filter };
+}
+
+function readlistFilterLink(input: {
+	emailId: string;
+	filter: InboxEmailFilter;
+	text: string;
+	activeFilter: InboxEmailFilter | undefined;
+}): ReadlistLineFilter {
+	return {
+		show: input.filter.show,
+		text: input.text,
+		href: withInternalTracking(
+			buildInboxEmailDetailUrl({
+				emailId: input.emailId,
+				tab: "articles",
+				filter: input.filter,
+			}),
+			{
+				source: "inbox-email-detail",
+				content: `readlist-filter-${input.filter.show}`,
+			},
+		),
+		current:
+			input.activeFilter?.readlist === input.filter.readlist &&
+			input.activeFilter.show === input.filter.show,
+	};
+}
+
+function readlistLines(input: {
+	context: ReadlistFitContext;
+	activeFilter: InboxEmailFilter | undefined;
+}): ReadlistLineViewModel[] {
+	const lines: ReadlistLineViewModel[] = [];
+	for (const { readlist, label } of input.context.selectedReadlists) {
+		const outcome = input.context.outcomes.find(
+			(entry) => entry.readlist === readlist,
+		);
+		const line = {
+			readlist,
+			elementId: `inbox-readlist-line-${readlist}`,
+		};
+		if (outcome?.decision === "failed") {
+			lines.push({
+				...line,
+				text: `Couldn't choose articles for ${label}. Everything stays in All. Use Keep in ${label} on any article you want there.`,
+				filters: [],
+			});
+		} else if (outcome?.decision === "filtered") {
+			const total = input.context.cards.length;
+			const fit = fittingCards({
+				context: input.context,
+				readlist,
+				outcome,
+			}).size;
+			if (fit === 0) {
+				lines.push({
+					...line,
+					text: `Nothing in this issue fit ${label}.`,
+					filters: [],
+				});
+			} else if (fit === total) {
+				lines.push({
+					...line,
+					text: `All ${total} also fit ${label}.`,
+					filters: [],
+				});
+			} else {
+				lines.push({
+					...line,
+					text: `${fit} of ${total} also fit ${label}.`,
+					filters: [
+						readlistFilterLink({
+							emailId: input.context.emailId,
+							filter: { readlist, show: "fit" },
+							text: `Show the ${fit} that fit`,
+							activeFilter: input.activeFilter,
+						}),
+						readlistFilterLink({
+							emailId: input.context.emailId,
+							filter: { readlist, show: "rest" },
+							text: `Show the ${total - fit} that didn't`,
+							activeFilter: input.activeFilter,
+						}),
+					],
+				});
+			}
+		}
+	}
+	return lines;
 }
 
 const ISSUE_DESTINATIONS = new Intl.ListFormat("en", { type: "conjunction" });
@@ -172,6 +364,70 @@ const UNAVAILABLE_ALERT: AlertCopy = {
 // promise a row a reader jumping straight to /queue might not find yet.
 const SAVED_TOAST_MESSAGE = "Adding to All…";
 const FEEDBACK_TOAST_MESSAGE = "Thanks — your report was logged";
+
+export interface InboxStatusToastUndo {
+	url: string;
+	fields: { name: string; value: string }[];
+}
+
+export interface InboxStatusToast {
+	message: string;
+	undo: InboxStatusToastUndo | undefined;
+}
+
+export type InboxFitConfirmation = {
+	verdict: "keep" | "drop";
+	readlist: ReadlistSlug;
+	ordinal: EmailLinkOrdinal;
+};
+
+export function fitStatusToast(input: {
+	emailId: string;
+	pageState: InboxEmailPageState;
+	confirmation: InboxFitConfirmation;
+	label: string;
+}): InboxStatusToast {
+	const { confirmation, label } = input;
+	return {
+		message:
+			confirmation.verdict === "keep"
+				? `Adding to ${label}…`
+				: `Removed from ${label}`,
+		undo: {
+			url: withInternalTracking(
+				buildInboxLinkFitUrl({
+					emailId: input.emailId,
+					ordinal: confirmation.ordinal,
+					pageState: input.pageState,
+				}),
+				{ source: "inbox-toast", content: "undo-fit" },
+			),
+			fields: [
+				{ name: "readlist", value: confirmation.readlist },
+				{ name: "verdict", value: "undo" },
+			],
+		},
+	};
+}
+
+function fitConfirmationToast(input: {
+	context: ReadlistFitContext;
+	confirmation: InboxFitConfirmation | undefined;
+	pageState: InboxEmailPageState;
+}): InboxStatusToast | undefined {
+	const confirmation = input.confirmation;
+	if (confirmation === undefined) return undefined;
+	const routed = input.context.selectedReadlists.find(
+		(entry) => entry.readlist === confirmation.readlist,
+	);
+	if (routed === undefined) return undefined;
+	return fitStatusToast({
+		emailId: input.context.emailId,
+		pageState: input.pageState,
+		confirmation,
+		label: routed.label,
+	});
+}
 
 export interface ArticleShowMore {
 	detailHref: string;
@@ -218,6 +474,7 @@ export interface ArticlesPanelViewModel extends ExtractionPanelViewModel {
 	 * this is a slice of the email's kept links, not all of them. */
 	cards: InboxLinkCardViewModel[];
 	showMore: ArticleShowMore | undefined;
+	readlistLines: ReadlistLineViewModel[];
 }
 
 export interface ExcludedPanelViewModel extends ExtractionPanelViewModel {
@@ -235,7 +492,7 @@ export interface InboxEmailDetailViewModel {
 	/** One-shot confirmation for a write that just completed, rendered as the
 	 * shared toast — a fixed, self-dismissing overlay, so it is seen wherever the
 	 * reader was scrolled to. Undefined on a plain page view. */
-	statusToastMessage: string | undefined;
+	statusToast: InboxStatusToast | undefined;
 	/** True once extraction has finished and its counts are trustworthy. The poll
 	 * route emits its out-of-band tab strip only then: while this is false the strip
 	 * it would send is byte-identical to the one on screen, and re-sending it every
@@ -263,6 +520,9 @@ function buildArticleCardsPage(input: {
 	to: number;
 	maxPolls: number;
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	filter: InboxEmailFilter | undefined;
+	meta: InboxEmailLinksMeta | undefined;
+	fitOverrides: ReadlistFitOverridesByReadlist;
 }): ArticleCardsPage {
 	const cards = input.allCards.slice(input.from, input.to).map((link) =>
 		toInboxLinkCardViewModel({
@@ -271,6 +531,13 @@ function buildArticleCardsPage(input: {
 			pollCount: INITIAL_POLL_COUNT,
 			maxPolls: input.maxPolls,
 			shown: input.to,
+			filter: input.filter,
+			fit: cardReadlistFits({
+				meta: input.meta,
+				fitOverrides: input.fitOverrides,
+				emailId: input.emailId,
+				ordinal: link.ordinal,
+			}),
 			linkSaveStates: input.linkSaveStates,
 			savePollContext: { mode: "static" },
 		}),
@@ -287,11 +554,16 @@ function buildArticleCardsPage(input: {
 					emailId: input.emailId,
 					tab: "articles",
 					shown: next,
+					filter: input.filter,
 				}),
 				{ source: "inbox-email-detail", content: "show-more-articles" },
 			),
 			moreUrl: withInternalTracking(
-				buildInboxArticlesMoreUrl({ emailId: input.emailId, shown: next }),
+				buildInboxArticlesMoreUrl({
+					emailId: input.emailId,
+					shown: next,
+					filter: input.filter,
+				}),
 				{ source: "inbox-email-detail", content: "show-more-articles" },
 			),
 			count: Math.min(ARTICLES_PAGE_SIZE, remaining),
@@ -325,32 +597,93 @@ function buildPanelRegions(input: {
 
 export function toInboxArticlesMoreViewModel(input: {
 	links: InboxEmailLinkEntry[];
+	meta: InboxEmailLinksMeta | undefined;
 	emailId: string;
 	shown: number;
 	maxPolls: number;
 	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	fitOverrides: ReadlistFitOverridesByReadlist;
+	filter: InboxEmailFilter | undefined;
 }): ArticleCardsPage {
+	const filtered = applyReadlistFilter({
+		context: readlistFitContext({
+			emailId: input.emailId,
+			cards: input.links.filter((link) => !isExcludedLink(link)),
+			meta: input.meta,
+			fitOverrides: input.fitOverrides,
+		}),
+		filter: input.filter,
+	});
 	return buildArticleCardsPage({
-		allCards: input.links.filter((link) => !isExcludedLink(link)),
+		allCards: filtered.cards,
+		filter: filtered.filter,
 		emailId: input.emailId,
 		from: input.shown - ARTICLES_PAGE_SIZE,
 		to: input.shown,
 		maxPolls: input.maxPolls,
 		linkSaveStates: input.linkSaveStates,
+		meta: input.meta,
+		fitOverrides: input.fitOverrides,
 	});
 }
+
+export function toInboxLinkFitViewModel(input: {
+	links: InboxEmailLinkEntry[];
+	meta: InboxEmailLinksMeta | undefined;
+	link: InboxEmailLinkEntry;
+	emailId: string;
+	readlist: ReadlistSlug;
+	shown: number;
+	filter: InboxEmailFilter | undefined;
+	maxPolls: number;
+	linkSaveStates: ReadonlyMap<string, InboxLinkSaveState>;
+	fitOverrides: ReadlistFitOverridesByReadlist;
+}): { card: InboxLinkCardViewModel | undefined; line: ReadlistLineViewModel } {
+	const context = readlistFitContext({
+		emailId: input.emailId,
+		cards: input.links.filter((link) => !isExcludedLink(link)),
+		meta: input.meta,
+		fitOverrides: input.fitOverrides,
+	});
+	const filtered = applyReadlistFilter({ context, filter: input.filter });
+	const line = readlistLines({
+		context,
+		activeFilter: filtered.filter,
+	}).find((entry) => entry.readlist === input.readlist);
+	assert(line, "a readlist the reader can change carries a readlist line");
+	if (!filtered.cards.includes(input.link)) return { card: undefined, line };
+	return {
+		card: toInboxLinkCardViewModel({
+			link: input.link,
+			emailId: input.emailId,
+			pollCount: INITIAL_POLL_COUNT,
+			maxPolls: input.maxPolls,
+			shown: input.shown,
+			filter: filtered.filter,
+			fit: cardReadlistFits({
+				meta: input.meta,
+				fitOverrides: input.fitOverrides,
+				emailId: input.emailId,
+				ordinal: input.link.ordinal,
+			}),
+			linkSaveStates: input.linkSaveStates,
+			savePollContext: { mode: "static" },
+		}),
+		line,
+	};
+}
+
+type InboxEmailLinkRows = {
+	source: "rows";
+	links: InboxEmailLinkEntry[];
+	meta: InboxEmailLinksMeta | undefined;
+};
 
 /** Where the tab counts come from. Tabs that fetch the link rows derive them
  * from the same single query that carries the meta barrier, so a count is never
  * shown that the rendered panel cannot back; the View tab fetches no rows and
  * reads the tally the extraction barrier stamped onto the email row instead. */
-export type InboxEmailLinkData =
-	| {
-			source: "rows";
-			links: InboxEmailLinkEntry[];
-			meta: InboxEmailLinksMeta | undefined;
-		}
-	| { source: "entry" };
+export type InboxEmailLinkData = InboxEmailLinkRows | { source: "entry" };
 
 export function toInboxEmailDetailViewModel(input: {
 	entry: InboxEmailEntry;
@@ -367,6 +700,9 @@ export function toInboxEmailDetailViewModel(input: {
 	panelPollCount?: number;
 	feedbackConfirmed?: boolean;
 	savedConfirmed?: boolean;
+	fitConfirmed?: InboxFitConfirmation;
+	fitOverrides: ReadlistFitOverridesByReadlist;
+	filter?: InboxEmailFilter;
 }): InboxEmailDetailViewModel {
 	const emailId = input.entry.receivedAtMessageId;
 	const canRenderBody =
@@ -376,13 +712,26 @@ export function toInboxEmailDetailViewModel(input: {
 		input.linkData.source === "rows" ? input.linkData.meta : undefined;
 	const allCards = links.filter((link) => !isExcludedLink(link));
 	const totalCards = allCards.length;
+	const fitContext = readlistFitContext({
+		emailId,
+		cards: allCards,
+		meta: linksMeta,
+		fitOverrides: input.fitOverrides,
+	});
+	const filtered = applyReadlistFilter({
+		context: fitContext,
+		filter: input.filter,
+	});
 	const cardsPage = buildArticleCardsPage({
-		allCards,
+		allCards: filtered.cards,
+		filter: filtered.filter,
 		emailId,
 		from: 0,
 		to: input.shown ?? ARTICLES_PAGE_SIZE,
 		maxPolls: input.maxPolls,
 		linkSaveStates: input.linkSaveStates,
+		meta: linksMeta,
+		fitOverrides: input.fitOverrides,
 	});
 	const excludedEntries = links.filter(isExcludedLink);
 	const excludedLinks = excludedEntries.map((link) =>
@@ -422,12 +771,22 @@ export function toInboxEmailDetailViewModel(input: {
 	const isExtracting = awaitingMeta && withinPollBudget;
 	// Save wins a tie: the two flags only ever arrive together on a hand-typed
 	// URL, and a save is the more consequential of the two to confirm.
-	const statusToastMessage =
+	const fitToast = fitConfirmationToast({
+		context: fitContext,
+		confirmation: input.fitConfirmed,
+		pageState: {
+			tab: input.activeTab,
+			shown: input.shown,
+			filter: input.filter,
+		},
+	});
+	const statusToast: InboxStatusToast | undefined =
 		input.savedConfirmed === true
-			? SAVED_TOAST_MESSAGE
-			: input.feedbackConfirmed === true
-				? FEEDBACK_TOAST_MESSAGE
-				: undefined;
+			? { message: SAVED_TOAST_MESSAGE, undo: undefined }
+			: (fitToast ??
+				(input.feedbackConfirmed === true
+					? { message: FEEDBACK_TOAST_MESSAGE, undo: undefined }
+					: undefined));
 	const panelStatus = panelStatusFor({
 		isExtracting,
 		isExtractionFailed,
@@ -441,7 +800,8 @@ export function toInboxEmailDetailViewModel(input: {
 				),
 		) === true;
 	const isPolling =
-		isExtracting || (gmailPending && linksMeta?.savesHeld !== true && withinPollBudget);
+		isExtracting ||
+		(gmailPending && linksMeta?.savesHeld !== true && withinPollBudget);
 	const truncatedNotices: PanelNotice[] = truncated
 		? [
 				{
@@ -489,7 +849,7 @@ export function toInboxEmailDetailViewModel(input: {
 			content: "back-to-inbox",
 		}),
 		activeTab: input.activeTab,
-		statusToastMessage,
+		statusToast,
 		// Counts come from every kept/skipped link, not the page of cards on
 		// screen, and are withheld until extraction writes its barrier — a tab
 		// claiming "(0)" mid-extraction would read as "none found" rather than
@@ -511,6 +871,10 @@ export function toInboxEmailDetailViewModel(input: {
 			...shared,
 			cards: cardsPage.cards,
 			showMore: cardsPage.showMore,
+			readlistLines: readlistLines({
+				context: fitContext,
+				activeFilter: filtered.filter,
+			}),
 			// Every kept link, not the page of them on screen: a first page that is
 			// merely unfilled is not an empty panel.
 			isEmpty: totalCards === 0,
@@ -529,7 +893,11 @@ export function toInboxEmailDetailViewModel(input: {
 							],
 			}),
 			panelPollUrl: isPolling
-				? buildInboxArticlesPollUrl({ emailId, pollCount: panelPollCount })
+				? buildInboxArticlesPollUrl({
+						emailId,
+						pollCount: panelPollCount,
+						filter: filtered.filter,
+					})
 				: undefined,
 		},
 		excluded: {
@@ -539,10 +907,7 @@ export function toInboxEmailDetailViewModel(input: {
 			...buildPanelRegions({
 				status: panelStatus,
 				terminalAlerts: [],
-				terminalNotices: [
-					...truncatedNotices,
-					...skippedNotices,
-				],
+				terminalNotices: [...truncatedNotices, ...skippedNotices],
 				countLabel: `${excludedLinks.length} Skipped`,
 				emptyStates:
 					excludedLinks.length > 0

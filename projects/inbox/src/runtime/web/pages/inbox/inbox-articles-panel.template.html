@@ -3,6 +3,7 @@
       {{#each notices}}
       <p class="inbox-email-detail__notice" data-test-panel-notice="{{key}}">{{#if iconName}}{{icon iconName}}{{/if}}<span>{{text}}</span></p>
       {{/each}}
+      {{#each readlistLineHtmls}}{{{this}}}{{/each}}
       {{#if listing}}
       <div class="inbox-email-detail__listing" data-test-panel-listing>
         <header class="inbox-email-detail__listing-header">

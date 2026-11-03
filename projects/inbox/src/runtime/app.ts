@@ -36,7 +36,7 @@ import { initRequireNotLocked } from "./web/middleware/require-not-locked.middle
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { initCustomEmailsRoutes } from "./web/pages/inbox/custom-emails.page";
-import { initInboxRoutes } from "./web/pages/inbox/inbox.page";
+import { type InboxReadlistFitDependencies, initInboxRoutes } from "./web/pages/inbox/inbox.page";
 import "./web/session.types";
 
 /** Where local dev prefers to listen. The dev server steps to the next free
@@ -79,7 +79,7 @@ export function createInboxApp(
 		secureCookies: boolean;
 		ownHost: string;
 		edgeSecret: string;
-	},
+	} & InboxReadlistFitDependencies,
 ): Express {
 	const app: Express = express();
 	app.disable("x-powered-by");
@@ -171,6 +171,13 @@ export function createInboxApp(
 		requireNotLocked,
 		requireWriteAccess,
 		now: deps.now,
+		findSavedArticleForLink: deps.findSavedArticleForLink,
+		listReadlistFitOverrides: deps.listReadlistFitOverrides,
+		recordReadlistFitOverride: deps.recordReadlistFitOverride,
+		deleteReadlistFitOverride: deps.deleteReadlistFitOverride,
+		deleteReadlistArticleByUrl: deps.deleteReadlistArticleByUrl,
+		publishFileArticleIntoReadlist: deps.publishFileArticleIntoReadlist,
+		fitChoiceLog: deps.fitChoiceLog,
 	});
 	app.use(INBOX_PATH, requireAuth, inboxRouter);
 	const customEmailsRouter = initCustomEmailsRoutes({

@@ -14,7 +14,7 @@ import {
 } from "@packages/domain/inbox";
 import type { InboxEmailLinkEntry } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { ReadlistSlugSchema } from "@packages/domain/readlist";
+import { ReadlistSlugSchema, readlistFitOverrideHost } from "@packages/domain/readlist";
 import { createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { requireEnv } from "@packages/require-env";
 import { READY_NONCE_ENV, readyProbePath } from "@packages/e2e-harness/ready-probe";
@@ -59,6 +59,16 @@ const seedEmailSchema = z.object({
 	readlistOutcomes: z.array(InboxReadlistOutcomeSchema).default([]),
 	eligibleArticleCount: z.number().int().nonnegative().optional(),
 	savesHeld: z.boolean().optional(),
+	fitOverrides: z
+		.array(
+			z.object({
+				readlist: ReadlistSlugSchema,
+				ordinal: EmailLinkOrdinalSchema,
+				readerVerdict: z.enum(["keep", "drop"]),
+				createdAt: z.iso.datetime(),
+			}),
+		)
+		.default([]),
 });
 
 const seedAddressSchema = z.object({ name: z.string().min(1) });
@@ -176,6 +186,29 @@ server.post("/e2e/seed-email", async (req, res) => {
 				outcome,
 			});
 		}
+	}
+
+	for (const choice of input.fitOverrides) {
+		const link = rows.find((row) => row.ordinal === choice.ordinal);
+		assert(link, "a seeded readlist choice must name one of the seeded links");
+		const outcome = input.readlistOutcomes.find((entry) => entry.readlist === choice.readlist);
+		const engine = outcome?.fit.find((entry) => entry.ordinal === choice.ordinal);
+		await fixture.articleStore.recordReadlistFitOverride({
+			userId,
+			readlist: choice.readlist,
+			override: {
+				url: link.url,
+				anchorText: "",
+				host: readlistFitOverrideHost(link.url),
+				engineVerdict: engine?.verdict,
+				engineReason: engine?.reason,
+				readerVerdict: choice.readerVerdict,
+				purposeVersion: outcome?.purposeVersion,
+				receivedAtMessageId,
+				ordinal: choice.ordinal,
+				createdAt: new Date(choice.createdAt),
+			},
+		});
 	}
 
 	res.json({ emailId: receivedAtMessageId });

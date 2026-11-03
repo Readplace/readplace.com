@@ -4,11 +4,14 @@ import {
 	type InboxEmailLinkEntry,
 	type InboxLinkSaveState,
 } from "@packages/domain/inbox";
+import { ReadlistFitOverrideIdSchema, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
+import type { ReadlistFitOverride } from "@packages/provider-contracts/article-store";
 import {
 	type LinkCardSavePollContext,
 	toInboxLinkCardViewModel,
 } from "./inbox-link-card.viewmodel";
+import type { InboxLinkCardReadlistFit } from "./inbox-readlist-fit";
 
 const EMAIL_ID = "2026-06-24T09:00:00.000Z#<m@x>";
 const SHOWN = 20;
@@ -39,7 +42,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.cardPollUrl).toContain("/links/0002/card");
 		expect(vm.cardPollUrl).toContain("poll=1");
@@ -65,7 +68,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: 40, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: 40, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(
 			[...vm.actions, ...vm.menuActions].map((action) => [action.key, action.hiddenParams]),
@@ -81,7 +84,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.actions).toEqual([]);
 		expect(vm.menuActions.map((action) => action.key)).toEqual(["feedback-exclude"]);
@@ -97,7 +100,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.actions[0]?.ariaLabel).toBe(
 			"Save to All: https://destination.test/the-actual-article",
@@ -110,7 +113,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.cardPollUrl).toBeUndefined();
 		expect(crawled.title).toBe("T");
@@ -129,7 +132,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.url).toBe("https://destination.test/the-actual-article");
 	});
@@ -144,7 +147,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.url).toBe("https://example.com/post?id=7");
 	});
@@ -160,7 +163,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.url).toBe("https://destination.test/article?ref=nodeweekly");
 		expect(
@@ -180,7 +183,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(pending.url).toBe("https://link.mail.example.com/ss/c/token?utm_source=nl");
 	});
@@ -191,7 +194,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.cardPollUrl).toBeUndefined();
 		expect(crawled.hasTitle).toBe(false);
@@ -203,7 +206,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(skipped.cardPollUrl).toBeUndefined();
 		expect(skipped.hasTitle).toBe(false);
@@ -215,7 +218,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 301,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.cardPollUrl).toBeUndefined();
 		expect(vm.hasTitle).toBe(false);
@@ -227,7 +230,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.statusState).toBe("working");
 		expect(vm.statusLabel).toBe("Fetching preview…");
@@ -239,13 +242,13 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 301,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const crawled = toInboxLinkCardViewModel({
 			link: link({ status: "crawled", title: "Done" }),
 			emailId: EMAIL_ID,
 			pollCount: 301,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		// Both stopped polling, so cardPollUrl alone cannot tell them apart.
 		expect(stalled.cardPollUrl).toBeUndefined();
@@ -260,7 +263,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.statusState).toBe("failed");
 		expect(vm.statusLabel).toBe("No preview available");
@@ -272,7 +275,7 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(vm.statusState).toBe("none");
 		expect(vm.statusLabel).toBe("");
@@ -284,13 +287,13 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const crawled = toInboxLinkCardViewModel({
 			link: link({ status: "crawled", title: "Now resolved" }),
 			emailId: EMAIL_ID,
 			pollCount: 2,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(crawled.domId).toBe(pending.domId);
 		expect([...crawled.actions, ...crawled.menuActions].map((a) => a.buttonId)).toEqual(
@@ -304,13 +307,13 @@ describe("toInboxLinkCardViewModel", () => {
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 		const second = toInboxLinkCardViewModel({
 			link: link({ ordinal: EmailLinkOrdinalSchema.parse("0003") }),
 			emailId: EMAIL_ID,
 			pollCount: 1,
 			maxPolls: 300,
-			shown: SHOWN, linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
 
 		expect(first.domId).toBe("inbox-card-0002");
 		expect(second.domId).toBe("inbox-card-0003");
@@ -326,7 +329,7 @@ describe("toInboxLinkCardViewModel", () => {
 				emailId: EMAIL_ID,
 				pollCount: 1,
 				maxPolls: 300,
-				shown: SHOWN,
+				shown: SHOWN, filter: undefined, fit: [],
 				linkSaveStates,
 				savePollContext: { mode: "static" },
 			});
@@ -380,7 +383,7 @@ describe("toInboxLinkCardViewModel", () => {
 				emailId: EMAIL_ID,
 				pollCount: 1,
 				maxPolls: 300,
-				shown: SHOWN,
+				shown: SHOWN, filter: undefined, fit: [],
 				linkSaveStates: new Map([["https://example.com/post", "saved"]]),
 				savePollContext: { mode: "static" },
 			});
@@ -407,7 +410,7 @@ describe("toInboxLinkCardViewModel", () => {
 				emailId: EMAIL_ID,
 				pollCount: 1,
 				maxPolls: 300,
-				shown: SHOWN,
+				shown: SHOWN, filter: undefined, fit: [],
 				linkSaveStates:
 					input.saveState === undefined
 						? new Map()
@@ -496,6 +499,211 @@ describe("toInboxLinkCardViewModel", () => {
 
 			expect(vm.cardPollUrl).toBe(
 				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/card?poll=1&shown=20`,
+			);
+		});
+	});
+
+	describe("the readlist fit markers and controls", () => {
+		const WORK = ReadlistSlugSchema.parse("work");
+		const SCIENCE = ReadlistSlugSchema.parse("science");
+		const ORDINAL = EmailLinkOrdinalSchema.parse("0002");
+
+		const override = (readerVerdict: ReadlistFitOverride["readerVerdict"]): ReadlistFitOverride => ({
+			id: ReadlistFitOverrideIdSchema.parse(`0000000000000001-${EMAIL_ID}-0002`),
+			url: "https://example.com/post",
+			anchorText: "Post",
+			host: "example.com",
+			readerVerdict,
+			receivedAtMessageId: EMAIL_ID,
+			ordinal: ORDINAL,
+			createdAt: new Date("2026-10-14T10:00:00.000Z"),
+		});
+
+		const readlistFit = (input: {
+			readlist?: InboxLinkCardReadlistFit["readlist"];
+			label?: string;
+			decision?: InboxLinkCardReadlistFit["outcome"]["decision"];
+			fit?: InboxLinkCardReadlistFit["outcome"]["fit"];
+			override?: ReadlistFitOverride;
+		}): InboxLinkCardReadlistFit => {
+			const readlist = input.readlist ?? WORK;
+			const label = input.label ?? "Work";
+			return {
+				readlist,
+				label,
+				outcome: {
+					readlist,
+					readlistLabel: label,
+					decision: input.decision ?? "filtered",
+					fit: input.fit ?? [],
+				},
+				override: input.override,
+			};
+		};
+
+		const engine = (verdict: "keep" | "drop" | "unsure", reason = "About distributed systems.") => [
+			{ ordinal: ORDINAL, verdict, reason },
+		];
+
+		const build = (input: {
+			fit: InboxLinkCardReadlistFit[];
+			link?: InboxEmailLinkEntry;
+			filter?: { readlist: typeof WORK; show: "fit" | "rest" };
+			shown?: number;
+		}) =>
+			toInboxLinkCardViewModel({
+				link: input.link ?? link({ status: "crawled", title: "T" }),
+				emailId: EMAIL_ID,
+				pollCount: 1,
+				maxPolls: 300,
+				shown: input.shown ?? SHOWN,
+				filter: input.filter,
+				fit: input.fit,
+				linkSaveStates: new Map(),
+				savePollContext: { mode: "static" },
+			});
+
+		const fitUrl = (query: string) =>
+			`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/fit?${query}`;
+
+		it("marks an engine keep as fitting, with its reason, and offers Doesn't fit", () => {
+			const vm = build({ fit: [readlistFit({ fit: engine("keep") })] });
+
+			expect(vm.fitMarkers).toEqual([
+				{ readlist: WORK, text: "Fits Work", accent: true, reason: "About distributed systems.", chosenOn: undefined },
+			]);
+			expect(vm.fitActions).toEqual([
+				{
+					key: "fit-drop",
+					readlist: WORK,
+					label: "Doesn't fit Work",
+					ariaLabel: "Doesn't fit Work: https://example.com/post",
+					buttonId: "inbox-card-0002-fit-drop-work",
+					href: fitUrl("tab=articles&utm_source=inbox-link-card&utm_medium=internal&utm_content=fit-drop"),
+					method: "POST",
+					hiddenParams: { readlist: "work", verdict: "drop" },
+					inPlaceTargetId: "inbox-card-0002",
+				},
+			]);
+		});
+
+		it("marks an engine drop as not for the readlist, with its reason, and offers Keep", () => {
+			const vm = build({ fit: [readlistFit({ fit: engine("drop", "A product launch.") })] });
+
+			expect(vm.fitMarkers).toEqual([
+				{ readlist: WORK, text: "Not for Work", accent: false, reason: "A product launch.", chosenOn: undefined },
+			]);
+			expect(vm.fitActions.map((action) => [action.key, action.label, action.hiddenParams])).toEqual([
+				["fit-keep", "Keep in Work", { readlist: "work", verdict: "keep" }],
+			]);
+		});
+
+		it("marks an unsure call as not for the readlist without a reason line", () => {
+			const vm = build({ fit: [readlistFit({ fit: engine("unsure", "Could go either way.") })] });
+
+			expect(vm.fitMarkers).toEqual([
+				{ readlist: WORK, text: "Not for Work", accent: false, reason: undefined, chosenOn: undefined },
+			]);
+			expect(vm.fitActions.map((action) => action.label)).toEqual(["Keep in Work"]);
+		});
+
+		it("marks the reader's keep with the day they chose it and offers Doesn't fit", () => {
+			const vm = build({ fit: [readlistFit({ fit: engine("drop"), override: override("keep") })] });
+
+			expect(vm.fitMarkers).toEqual([
+				{
+					readlist: WORK,
+					text: "Kept in Work",
+					accent: true,
+					reason: undefined,
+					chosenOn: { iso: "2026-10-14T10:00:00.000Z", label: "Oct 14, 2026", mode: "date" },
+				},
+			]);
+			expect(vm.fitActions.map((action) => action.label)).toEqual(["Doesn't fit Work"]);
+		});
+
+		it("marks the reader's drop with the day they chose it and offers Keep", () => {
+			const vm = build({ fit: [readlistFit({ fit: engine("keep"), override: override("drop") })] });
+
+			expect(vm.fitMarkers.map((marker) => [marker.text, marker.accent, marker.chosenOn?.label])).toEqual([
+				["Not in Work", false, "Oct 14, 2026"],
+			]);
+			expect(vm.fitActions.map((action) => action.label)).toEqual(["Keep in Work"]);
+		});
+
+		it("shows no marker under a failed outcome but offers Keep on a saveable card", () => {
+			const vm = build({ fit: [readlistFit({ decision: "failed" })] });
+
+			expect(vm.fitMarkers).toEqual([]);
+			expect(vm.fitActions.map((action) => [action.key, action.label])).toEqual([["fit-keep", "Keep in Work"]]);
+		});
+
+		it("offers no fit control on an unsaveable card under a failed outcome", () => {
+			const vm = build({
+				link: link({ url: "https://localhost/private" }),
+				fit: [readlistFit({ decision: "failed" })],
+			});
+
+			expect(vm.fitMarkers).toEqual([]);
+			expect(vm.fitActions).toEqual([]);
+		});
+
+		it.each(["no-purpose", "readlist-missing"] as const)(
+			"shows no marker or control for a %s outcome",
+			(decision) => {
+				const vm = build({ fit: [readlistFit({ decision, fit: engine("keep") })] });
+
+				expect(vm.fitMarkers).toEqual([]);
+				expect(vm.fitActions).toEqual([]);
+			},
+		);
+
+		it("shows no marker or control for a card the filtered outcome has no entry for", () => {
+			const vm = build({
+				fit: [readlistFit({ fit: [{ ordinal: EmailLinkOrdinalSchema.parse("0009"), verdict: "keep", reason: "r" }] })],
+			});
+
+			expect(vm.fitMarkers).toEqual([]);
+			expect(vm.fitActions).toEqual([]);
+		});
+
+		it("gives two routed readlists two markers and differently named controls", () => {
+			const vm = build({
+				fit: [
+					readlistFit({ fit: engine("keep") }),
+					readlistFit({ readlist: SCIENCE, label: "Science", fit: engine("drop") }),
+				],
+			});
+
+			expect(vm.fitMarkers.map((marker) => [marker.readlist, marker.text])).toEqual([
+				["work", "Fits Work"],
+				["science", "Not for Science"],
+			]);
+			expect(vm.fitActions.map((action) => [action.ariaLabel, action.buttonId])).toEqual([
+				["Doesn't fit Work: https://example.com/post", "inbox-card-0002-fit-drop-work"],
+				["Keep in Science: https://example.com/post", "inbox-card-0002-fit-keep-science"],
+			]);
+		});
+
+		it("carries the page state on the fit URL and on every other action and poll", () => {
+			const vm = build({
+				link: link({ status: "pending" }),
+				fit: [readlistFit({ fit: engine("keep") })],
+				filter: { readlist: WORK, show: "rest" },
+				shown: 40,
+			});
+
+			expect(vm.fitActions.map((action) => action.href)).toEqual([
+				fitUrl("tab=articles&shown=40&readlist=work&show=rest&utm_source=inbox-link-card&utm_medium=internal&utm_content=fit-drop"),
+			]);
+			expect(vm.actions.map((action) => action.hiddenParams)).toEqual([
+				{ shown: "40", readlist: "work", show: "rest" },
+			]);
+			expect(vm.menuActions.map((action) => action.hiddenParams)).toEqual([
+				{ shown: "40", readlist: "work", show: "rest", verdict: "should-be-excluded" },
+			]);
+			expect(vm.cardPollUrl).toBe(
+				`/inbox/${encodeURIComponent(EMAIL_ID)}/links/0002/card?poll=1&shown=40&readlist=work&show=rest`,
 			);
 		});
 	});

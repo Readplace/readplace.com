@@ -1,3 +1,4 @@
+import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import {
 	ARTICLES_PAGE_SIZE,
 	buildInboxArticlesMoreUrl,
@@ -13,6 +14,18 @@ describe("buildInboxArticlesMoreUrl", () => {
 
 		expect(url).toBe(
 			"/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E/articles/more?shown=40",
+		);
+	});
+
+	it("keeps the readlist filter so the next page stays filtered", () => {
+		const url = buildInboxArticlesMoreUrl({
+			emailId: "2026-06-24T09:00:00.000Z#<m@x>",
+			shown: 40,
+			filter: { readlist: ReadlistSlugSchema.parse("work"), show: "fit" },
+		});
+
+		expect(url).toBe(
+			"/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E/articles/more?shown=40&readlist=work&show=fit",
 		);
 	});
 });
