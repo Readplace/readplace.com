@@ -10,6 +10,7 @@ import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initSendTrialFeedbackEmailHandler } from "./send-trial-feedback-email/send-trial-feedback-email-handler";
 import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import { requireEnv } from "@packages/require-env";
+import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
@@ -57,6 +58,9 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	markTrialFeedbackEmailSent: subscriptionProviders.markTrialFeedbackEmailSent,
 	markTrialReminderEmailSent: subscriptionProviders.markTrialReminderEmailSent,
 	markAutomationSavesHeldEmailSent: subscriptionProviders.markAutomationSavesHeldEmailSent,
+	claimTrialNudge: subscriptionProviders.claimTrialNudge,
+	findUserContactByUserId: auth.findUserContactByUserId,
+	signUnsubscribeToken: initQueueDigestUnsubscribeToken(requireEnv("ANALYTICS_SALT")).sign,
 	sendEmail,
 	founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 	appOrigin,

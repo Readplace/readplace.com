@@ -6,18 +6,21 @@ import type {
 } from "aws-lambda";
 import assert from "node:assert";
 import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
-import { SendTrialFeedbackEmailCommand } from "@packages/hutch-infra-components";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
+import { SendTrialFeedbackEmailCommand, type SendTrialFeedbackEmailDetail } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
+import type { FindEmailByUserId, FindUserContactByUserId } from "@packages/provider-contracts/auth";
 import type { FindArticlesByUser } from "@packages/provider-contracts/article-store";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
+	ClaimTrialNudge,
 	FindSubscriptionByUserId,
 	MarkAutomationSavesHeldEmailSent,
 	MarkTrialFeedbackEmailSent,
 	MarkTrialReminderEmailSent,
 } from "@packages/provider-contracts/subscription-providers";
+import { sendTrialDay3Email } from "./send-trial-day3-email";
+import { sendTrialDay7Email } from "./send-trial-day7-email";
 import { resolveWriteAccess } from "@packages/subscription-access";
 import {
 	CUSTOM_EMAILS_PATH,
@@ -58,6 +61,9 @@ export interface SendTrialFeedbackEmailDeps {
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
+	claimTrialNudge: ClaimTrialNudge;
+	findUserContactByUserId: FindUserContactByUserId;
+	signUnsubscribeToken: (userId: UserId) => string;
 	sendEmail: SendEmail;
 	founderAvatarUrl: string;
 	appOrigin: string;
@@ -65,6 +71,26 @@ export interface SendTrialFeedbackEmailDeps {
 	logger: HutchLogger;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
+
+type KindHandler = (
+	input: { userId: UserId; messageId: string; detail: SendTrialFeedbackEmailDetail },
+	deps: SendTrialFeedbackEmailDeps,
+) => Promise<void>;
+
+const KIND_HANDLERS = {
+	feedback: ({ userId }, deps) => processCommand(userId, deps),
+	reminder: ({ userId }, deps) => processReminder(userId, deps),
+	charge_reminder: ({ userId, detail }, deps) => processChargeReminder(userId, detail.chargeAt, deps),
+	payment_failed: ({ userId }, deps) => processPaymentFailed(userId, deps),
+	automation_saves_held: ({ userId, detail }, deps) =>
+		processAutomationSavesHeld(
+			userId,
+			{ receivedAtMessageId: detail.receivedAtMessageId, inboxAddress: detail.inboxAddress },
+			deps,
+		),
+	trial_day3: ({ userId, messageId }, deps) => sendTrialDay3Email({ userId, messageId }, deps),
+	trial_day7: ({ userId, messageId }, deps) => sendTrialDay7Email({ userId, messageId }, deps),
+} satisfies Record<NonNullable<SendTrialFeedbackEmailDetail["kind"]>, KindHandler>;
 
 export function initSendTrialFeedbackEmailHandler(
 	deps: SendTrialFeedbackEmailDeps,
@@ -81,24 +107,10 @@ export function initSendTrialFeedbackEmailHandler(
 					envelope.detail,
 				);
 				const userId = UserIdSchema.parse(detail.userId);
-				if (detail.kind === "reminder") {
-					await processReminder(userId, deps);
-				} else if (detail.kind === "charge_reminder") {
-					await processChargeReminder(userId, detail.chargeAt, deps);
-				} else if (detail.kind === "payment_failed") {
-					await processPaymentFailed(userId, deps);
-				} else if (detail.kind === "automation_saves_held") {
-					await processAutomationSavesHeld(
-						userId,
-						{
-							receivedAtMessageId: detail.receivedAtMessageId,
-							inboxAddress: detail.inboxAddress,
-						},
-						deps,
-					);
-				} else {
-					await processCommand(userId, deps);
-				}
+				await KIND_HANDLERS[detail.kind ?? "feedback"](
+					{ userId, messageId: record.messageId, detail },
+					deps,
+				);
 			} catch (error) {
 				deps.logger.error("[send-trial-feedback-email] record failed", {
 					messageId: record.messageId,
@@ -135,6 +147,14 @@ async function processCommand(
 		deps.logger.info(
 			"[send-trial-feedback-email] already sent — noop",
 			{ userId, sentAt: row.trialFeedbackEmailSentAt },
+		);
+		return;
+	}
+
+	if (row.founderNoteSentAt) {
+		deps.logger.info(
+			"[send-trial-feedback-email] founder already wrote — noop",
+			{ userId, founderNoteSentAt: row.founderNoteSentAt },
 		);
 		return;
 	}

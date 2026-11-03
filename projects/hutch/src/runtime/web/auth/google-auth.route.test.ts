@@ -821,12 +821,111 @@ describe("Google auth routes", () => {
 			}
 		}
 
-		function callback(harness: ReturnType<typeof useApp>) {
-			const state = signState(freshState());
+		function callback(harness: ReturnType<typeof useApp>, returnUrl?: string) {
+			const state = signState(freshState({ returnUrl }));
 			return request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`)
+				.set("User-Agent", BROWSER_USER_AGENT);
 		}
+
+		function registerAssistant(fixture: ReturnType<typeof createDefaultTestAppFixture>, clientName: string) {
+			return fixture.oauth.registerClient({
+				redirectUris: ["https://assistant.example.com/callback"],
+				clientName,
+				grants: ["authorization_code"],
+				tokenEndpointAuthMethod: "none",
+			});
+		}
+
+		function unsubscribeLinkOf(html: string): string {
+			const link = [...new JSDOM(html).window.document.querySelectorAll("a")].find(
+				(candidate) => candidate.textContent === "Stop these emails",
+			);
+			assert(link, "the connector welcome must carry the unsubscribe link");
+			const url = new URL(link.href);
+			return `${url.pathname}${url.search}`;
+		}
+
+		it("sends the Claude welcome to a trial signup from a Claude client, with an unsubscribe link the route accepts", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, google: googleWith("claude-google@example.com") });
+			const client = await registerAssistant(fixture, "Claude");
+			await exhaustFoundingAllocation(harness);
+
+			await callback(harness, `/oauth/authorize?client_id=${client.id}`);
+
+			const lookup = await harness.auth.findUserByEmail("claude-google@example.com");
+			assert(lookup, "the signup must persist a user");
+			const [welcome] = harness.email.getSentEmails();
+			expect(welcome.html).toContain("Thanks for connecting Readplace to Claude");
+			expect(harness.funnelEvents.events).toEqual([
+				expect.objectContaining({
+					event: "lifecycle_email_sent",
+					user_id: lookup.userId,
+					kind: "welcome-claude",
+					trial_day: 1,
+					utm_source: "welcome-email",
+					delivery: "automated",
+				}),
+			]);
+
+			const unsubscribed = await request(harness.server)
+				.post(unsubscribeLinkOf(welcome.html))
+				.type("form")
+				.send("List-Unsubscribe=One-Click");
+
+			expect(unsubscribed.status).toBe(200);
+			const contact = await harness.auth.findUserContactByUserId(lookup.userId);
+			expect(contact?.queueDigestOptOutAt).toBeDefined();
+		});
+
+		it("sends the default welcome and records nothing for a free-tier signup from a Claude client", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({ ...fixture, google: googleWith("free-claude-google@example.com") });
+			const client = await registerAssistant(fixture, "Claude");
+
+			await callback(harness, `/oauth/authorize?client_id=${client.id}`);
+
+			const [welcome] = harness.email.getSentEmails();
+			expect(welcome.html).toContain("Thanks for joining");
+			expect(welcome.headers).toBeUndefined();
+			expect(harness.funnelEvents.events).toEqual([]);
+		});
+
+		it.each([
+			["trial", true],
+			["free-tier", false],
+		])("logs a failed client read on a %s signup, sends the default welcome and still records user_created", async (_tier, trial) => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const loggedErrors: string[] = [];
+			const harness = useApp({
+				...fixture,
+				google: googleWith("read-fail-google@example.com"),
+				oauth: {
+					...fixture.oauth,
+					findClient: async () => { throw new Error("OAuth table unavailable"); },
+				},
+				shared: {
+					...fixture.shared,
+					logError: (message) => { loggedErrors.push(message); },
+				},
+			});
+			const client = await fixture.oauth.registerClient({
+				redirectUris: ["https://assistant.example.com/callback"],
+				clientName: "Claude",
+				grants: ["authorization_code"],
+				tokenEndpointAuthMethod: "none",
+			});
+			if (trial) await exhaustFoundingAllocation(harness);
+
+			const response = await callback(harness, `/oauth/authorize?client_id=${client.id}`);
+
+			expect(response.status).toBe(303);
+			expect(loggedErrors).toEqual(["[Email] Signup client lookup failed"]);
+			expect(harness.email.getSentEmails()[0].html).toContain("Thanks for joining");
+			expect(harness.conversions.events.map((event) => event.event)).toContain("user_created");
+		});
 
 		it("records one send for a trial signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

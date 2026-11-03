@@ -6,11 +6,14 @@ import {
 	PAY_DIGEST_WINDOW_CLOSES_LEAD_MS,
 	PAY_DIGEST_WINDOW_OPENS_LEAD_MS,
 	STRIPE_CHECKOUT_MIN_TRIAL_END_LEAD_MS,
+	TRIAL_DAY3_OFFSET_DAYS,
+	TRIAL_DAY7_OFFSET_DAYS,
 	TRIAL_REMINDER_LEAD_DAYS,
 	chargeReminderFiresAt,
 	isPayDigestDue,
 	payCutoff,
 	trialEndToPreserve,
+	trialNudgeFiresAt,
 	trialReminderFiresAt,
 } from "./stripe-trial-config";
 
@@ -21,6 +24,22 @@ describe("trialReminderFiresAt", () => {
 		assert.equal(
 			trialReminderFiresAt("2026-07-19T10:00:00.000Z"),
 			"2026-07-17T10:00:00.000Z",
+		);
+	});
+});
+
+describe("trialNudgeFiresAt", () => {
+	it("fires day 3 exactly 72 hours after a 14-day trial starts", () => {
+		assert.equal(
+			trialNudgeFiresAt({ trialEndsAt: "2026-07-19T10:00:00.000Z", offsetDays: TRIAL_DAY3_OFFSET_DAYS }),
+			"2026-07-08T10:00:00.000Z",
+		);
+	});
+
+	it("fires day 7 exactly 168 hours after a 14-day trial starts", () => {
+		assert.equal(
+			trialNudgeFiresAt({ trialEndsAt: "2026-07-19T10:00:00.000Z", offsetDays: TRIAL_DAY7_OFFSET_DAYS }),
+			"2026-07-12T10:00:00.000Z",
 		);
 	});
 });

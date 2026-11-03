@@ -47,3 +47,11 @@ export type CreateTrialReminderSchedule = (input: {
 export type DeleteTrialReminderSchedule = (input: {
 	userId: UserId;
 }) => Promise<void>;
+
+export type TrialNudgeKind = "trial_day3" | "trial_day7";
+
+export type CreateTrialNudgeSchedule = (input: {
+	userId: UserId;
+	kind: TrialNudgeKind;
+	firesAt: string;
+}) => Promise<void>;

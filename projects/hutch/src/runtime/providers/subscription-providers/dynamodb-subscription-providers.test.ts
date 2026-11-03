@@ -719,6 +719,172 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 	});
 
+	describe("trial nudge claim", () => {
+		const CapturedNudgeCommand = z.object({
+			input: z.object({
+				Key: z.record(z.string(), z.unknown()),
+				ConsistentRead: z.boolean().optional(),
+				UpdateExpression: z.string().optional(),
+				ConditionExpression: z.string().optional(),
+				ExpressionAttributeNames: z.record(z.string(), z.string()).optional(),
+				ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
+			}),
+		});
+		type CapturedNudgeInput = z.infer<typeof CapturedNudgeCommand>["input"];
+
+		const CLAIMED_AT = new Date("2026-05-25T10:00:00.000Z");
+		const CONDITION_FAILED = new ConditionalCheckFailedException({
+			message: "The conditional request failed",
+			$metadata: {},
+		});
+
+		function createNudgeClient(opts: { updateError?: Error; heldRow?: Record<string, unknown> }) {
+			const commands: CapturedNudgeInput[] = [];
+			const client = createFakeClient((command) => {
+				const { input } = CapturedNudgeCommand.parse(command);
+				commands.push(input);
+				if (input.UpdateExpression !== undefined && opts.updateError) throw opts.updateError;
+				if (input.UpdateExpression === undefined) return { Item: opts.heldRow };
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+			return { subs, commands };
+		}
+
+		function trialingRowHeldBy(markers: Record<string, string>) {
+			return {
+				userId: USER_ID,
+				provider: "stripe",
+				status: "trialing",
+				trialEndsAt: "2026-06-05T00:00:00.000Z",
+				...markers,
+				createdAt: "2026-05-22T10:00:00.000Z",
+				updatedAt: "2026-05-25T10:00:00.000Z",
+			};
+		}
+
+		it.each([
+			{ kind: "trial_day3", sentAt: "trialDay3EmailSentAt", messageId: "trialDay3EmailMessageId" },
+			{ kind: "trial_day7", sentAt: "trialDay7EmailSentAt", messageId: "trialDay7EmailMessageId" },
+		] as const)("claims $kind once with one conditional write on a trialing row", async ({ kind, sentAt, messageId }) => {
+			const { subs, commands } = createNudgeClient({});
+
+			const claim = await subs.claimTrialNudge({ userId: USER_ID, kind, messageId: "msg-1", now: CLAIMED_AT });
+
+			assert.deepEqual(claim, { claimed: true });
+			assert.equal(commands.length, 1);
+			const [update] = commands;
+			assert(update, "the claim is a single UpdateItem");
+			assert.deepEqual(update.Key, { userId: USER_ID });
+			assert.equal(update.UpdateExpression, `SET ${sentAt} = :now, ${messageId} = :mid, updatedAt = :now`);
+			assert.equal(
+				update.ConditionExpression,
+				`attribute_exists(userId) AND #status = :trialing AND attribute_not_exists(${sentAt})`,
+			);
+			assert.deepEqual(update.ExpressionAttributeNames, { "#status": "status" });
+			assert.deepEqual(update.ExpressionAttributeValues, {
+				":now": "2026-05-25T10:00:00.000Z",
+				":mid": "msg-1",
+				":trialing": "trialing",
+			});
+		});
+
+		it("re-claims with a consistent read when the marker already names this message, so a redelivery after a failed send retries", async () => {
+			const { subs, commands } = createNudgeClient({
+				updateError: CONDITION_FAILED,
+				heldRow: trialingRowHeldBy({
+					trialDay3EmailSentAt: "2026-05-25T09:00:00.000Z",
+					trialDay3EmailMessageId: "msg-1",
+				}),
+			});
+
+			const claim = await subs.claimTrialNudge({ userId: USER_ID, kind: "trial_day3", messageId: "msg-1", now: CLAIMED_AT });
+
+			assert.deepEqual(claim, { claimed: true });
+			const read = commands.find((command) => command.UpdateExpression === undefined);
+			assert(read, "a rejected claim reads the row back");
+			assert.deepEqual(read.Key, { userId: USER_ID });
+			assert.equal(read.ConsistentRead, true);
+		});
+
+		it("gives a second message no claim", async () => {
+			const { subs } = createNudgeClient({
+				updateError: CONDITION_FAILED,
+				heldRow: trialingRowHeldBy({
+					trialDay7EmailSentAt: "2026-05-25T09:00:00.000Z",
+					trialDay7EmailMessageId: "msg-1",
+				}),
+			});
+
+			const claim = await subs.claimTrialNudge({ userId: USER_ID, kind: "trial_day7", messageId: "msg-2", now: CLAIMED_AT });
+
+			assert.deepEqual(claim, { claimed: false });
+		});
+
+		it("gives a missing row no claim", async () => {
+			const { subs } = createNudgeClient({ updateError: CONDITION_FAILED });
+
+			const claim = await subs.claimTrialNudge({ userId: USER_ID, kind: "trial_day3", messageId: "msg-1", now: CLAIMED_AT });
+
+			assert.deepEqual(claim, { claimed: false });
+		});
+
+		it("rethrows any other write failure", async () => {
+			const { subs } = createNudgeClient({ updateError: new Error("throttled") });
+
+			await assert.rejects(
+				() => subs.claimTrialNudge({ userId: USER_ID, kind: "trial_day3", messageId: "msg-1", now: CLAIMED_AT }),
+				/throttled/,
+			);
+		});
+
+		it.each([
+			"trialDay3EmailSentAt",
+			"trialDay3EmailMessageId",
+			"trialDay7EmailSentAt",
+			"trialDay7EmailMessageId",
+			"founderNoteSentAt",
+		])("upsertTrialing keeps %s, so a trial extension sends neither email again", async (marker) => {
+			const { subs, commands } = createNudgeClient({});
+
+			await subs.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-07-05T00:00:00.000Z" });
+
+			const [update] = commands;
+			assert(update, "the upsert is a single UpdateItem");
+			assert.equal(update.UpdateExpression?.includes(marker), false);
+		});
+
+		it("upsertActive names none of the nudge or founder-note markers", async () => {
+			const { subs, commands } = createNudgeClient({});
+
+			await subs.upsertActive({ userId: USER_ID, subscriptionId: "sub_1", customerId: "cus_1" });
+
+			const [update] = commands;
+			assert(update, "the upsert is a single UpdateItem");
+			assert.doesNotMatch(update.UpdateExpression ?? "", /trialDay3|trialDay7|founderNote/);
+		});
+
+		it("recordFounderNote sets the marker on an existing row", async () => {
+			const { subs, commands } = createNudgeClient({});
+
+			await subs.recordFounderNote({ userId: USER_ID, sentAt: "2026-05-23T00:00:00.000Z" });
+
+			const [update] = commands;
+			assert(update, "the record is a single UpdateItem");
+			assert.deepEqual(update.Key, { userId: USER_ID });
+			assert.equal(update.UpdateExpression, "SET founderNoteSentAt = :sentAt, updatedAt = :now");
+			assert.equal(update.ConditionExpression, "attribute_exists(userId)");
+			assert.deepEqual(update.ExpressionAttributeValues, {
+				":sentAt": "2026-05-23T00:00:00.000Z",
+				":now": "2026-05-22T10:00:00.000Z",
+			});
+		});
+	});
+
 	describe("upsertTrialing clears the pay-digest marker", () => {
 		it("removes both pay-digest attributes, so a re-opened trial gets its own pay digest", async () => {
 			let received: unknown;

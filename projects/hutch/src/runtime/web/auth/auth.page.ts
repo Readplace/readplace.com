@@ -9,6 +9,7 @@ import type {
 	CreateUserWithPasswordHash,
 	DestroySession,
 	FindUserByEmail,
+	FindUserById,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	VerifyCredentials,
@@ -64,6 +65,7 @@ import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
 import { initSendWelcomeEmail } from "./send-welcome-email";
+import { type ResolveSignupClient, signupClientOrOther } from "./signup-client";
 import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
 import { createBotDefenseEvent } from "./bot-defense-event";
 import { initValidateSignup } from "./validate-signup";
@@ -141,6 +143,9 @@ interface AuthDependencies {
 	consumeRateLimit: ConsumeRateLimit;
 	rateLimitRules: Pick<RateLimitRules, "login" | "loginAccount" | "signup">;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
+	resolveSignupClient: ResolveSignupClient;
+	signUnsubscribeToken: (userId: UserId) => string;
+	findUserById: FindUserById;
 }
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
@@ -169,6 +174,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		logError: deps.logError,
 		emitLifecycleEmailSent: deps.emitLifecycleEmailSent,
 		now: deps.now,
+		signUnsubscribeToken: deps.signUnsubscribeToken,
 	});
 
 	const sendVerificationEmail = (userId: UserId, email: string): Promise<void> => {
@@ -622,11 +628,19 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 
 		await deps.markEmailVerified(verifyResult.email);
 		const subscription = await deps.findSubscriptionByUserId(verifyResult.userId);
+		const signupClient = await signupClientOrOther({
+			resolve: async () => {
+				const user = await deps.findUserById(verifyResult.userId);
+				assert(user, "a verified token always names an existing user");
+				return deps.resolveSignupClient(user.signupOAuthClientId);
+			},
+			logError: deps.logError,
+		});
 		if (subscription?.status === "trialing") {
 			assert(subscription.trialEndsAt, "a trialing subscription row always carries trialEndsAt");
-			await sendWelcomeEmail({ email: verifyResult.email, userId: verifyResult.userId, tier: "trial", trialEndsAt: subscription.trialEndsAt });
+			await sendWelcomeEmail({ email: verifyResult.email, userId: verifyResult.userId, signupClient, tier: "trial", trialEndsAt: subscription.trialEndsAt });
 		} else {
-			await sendWelcomeEmail({ email: verifyResult.email, userId: verifyResult.userId, tier: "free" });
+			await sendWelcomeEmail({ email: verifyResult.email, userId: verifyResult.userId, signupClient, tier: "free" });
 		}
 
 		const sessionId = req.cookies?.[SESSION_COOKIE_NAME];

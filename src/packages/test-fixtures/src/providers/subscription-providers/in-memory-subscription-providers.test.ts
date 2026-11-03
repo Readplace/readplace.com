@@ -499,4 +499,119 @@ describe("initInMemorySubscriptionProviders", () => {
 			assert.deepEqual(await subs.listUserIdsByStatus("cancelled"), []);
 		});
 	});
+
+	describe("trial nudge claim", () => {
+		const trialEndsAt = "2026-06-05T00:00:00.000Z";
+		const claimedAt = new Date("2026-05-25T00:00:00.000Z");
+
+		function initTrialing() {
+			return initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		}
+
+		it("claims once and stamps the instant and the message on the kind's own markers", async () => {
+			const subs = initTrialing();
+			await subs.upsertTrialing({ userId, trialEndsAt });
+
+			const claim = await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-1", now: claimedAt });
+
+			assert.deepEqual(claim, { claimed: true });
+			const row = await subs.findByUserId(userId);
+			assert.equal(row?.trialDay3EmailSentAt, claimedAt.toISOString());
+			assert.equal(row?.trialDay3EmailMessageId, "msg-1");
+			assert.equal(row?.trialDay7EmailSentAt, undefined);
+			assert.equal(row?.updatedAt, claimedAt.toISOString());
+		});
+
+		it("gives a second message no claim", async () => {
+			const subs = initTrialing();
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimTrialNudge({ userId, kind: "trial_day7", messageId: "msg-1", now: claimedAt });
+
+			const claim = await subs.claimTrialNudge({ userId, kind: "trial_day7", messageId: "msg-2", now: claimedAt });
+
+			assert.deepEqual(claim, { claimed: false });
+			assert.equal((await subs.findByUserId(userId))?.trialDay7EmailMessageId, "msg-1");
+		});
+
+		it("re-claims for the same message, so a redelivery after a failed send retries", async () => {
+			const subs = initTrialing();
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-1", now: claimedAt });
+
+			const claim = await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-1", now: claimedAt });
+
+			assert.deepEqual(claim, { claimed: true });
+		});
+
+		it("gives a row that is not trialing no claim", async () => {
+			const subs = initTrialing();
+			await subs.upsertActive({ userId, subscriptionId: "sub_1", customerId: "cus_1" });
+
+			const claim = await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-1", now: claimedAt });
+
+			assert.deepEqual(claim, { claimed: false });
+			assert.equal((await subs.findByUserId(userId))?.trialDay3EmailSentAt, undefined);
+		});
+
+		it("gives a missing row no claim and writes nothing", async () => {
+			const subs = initTrialing();
+
+			const claim = await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-1", now: claimedAt });
+
+			assert.deepEqual(claim, { claimed: false });
+			assert.equal(await subs.findByUserId(userId), undefined);
+		});
+
+		it("upsertTrialing keeps the nudge and founder-note markers and still drops the older ones, so an extension sends neither again", async () => {
+			const subs = initTrialing();
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-3", now: claimedAt });
+			await subs.claimTrialNudge({ userId, kind: "trial_day7", messageId: "msg-7", now: claimedAt });
+			await subs.recordFounderNote({ userId, sentAt: "2026-05-23T00:00:00.000Z" });
+			await subs.markTrialReminderEmailSent({ userId, sentAt: "2026-05-24T00:00:00.000Z" });
+
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-07-05T00:00:00.000Z" });
+
+			const row = await subs.findByUserId(userId);
+			assert.equal(row?.trialDay3EmailSentAt, claimedAt.toISOString());
+			assert.equal(row?.trialDay3EmailMessageId, "msg-3");
+			assert.equal(row?.trialDay7EmailSentAt, claimedAt.toISOString());
+			assert.equal(row?.trialDay7EmailMessageId, "msg-7");
+			assert.equal(row?.founderNoteSentAt, "2026-05-23T00:00:00.000Z");
+			assert.equal(row?.trialReminderEmailSentAt, undefined);
+			assert.equal(row?.trialEndsAt, "2026-07-05T00:00:00.000Z");
+		});
+
+		it("upsertActive keeps the nudge and founder-note markers", async () => {
+			const subs = initTrialing();
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-3", now: claimedAt });
+			await subs.recordFounderNote({ userId, sentAt: "2026-05-23T00:00:00.000Z" });
+
+			await subs.upsertActive({ userId, subscriptionId: "sub_1", customerId: "cus_1" });
+
+			const row = await subs.findByUserId(userId);
+			assert.equal(row?.status, "active");
+			assert.equal(row?.trialDay3EmailMessageId, "msg-3");
+			assert.equal(row?.founderNoteSentAt, "2026-05-23T00:00:00.000Z");
+		});
+
+		it("recordFounderNote sets the marker", async () => {
+			const subs = initTrialing();
+			await subs.upsertTrialing({ userId, trialEndsAt });
+
+			await subs.recordFounderNote({ userId, sentAt: "2026-05-23T00:00:00.000Z" });
+
+			assert.equal((await subs.findByUserId(userId))?.founderNoteSentAt, "2026-05-23T00:00:00.000Z");
+		});
+
+		it("recordFounderNote rejects a user with no row", async () => {
+			const subs = initTrialing();
+
+			await assert.rejects(
+				() => subs.recordFounderNote({ userId, sentAt: "2026-05-23T00:00:00.000Z" }),
+				/No subscription row/,
+			);
+		});
+	});
 });

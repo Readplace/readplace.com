@@ -4,19 +4,22 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
-import type {
-	ClaimPayDigest,
-	DeleteSubscription,
-	MarkAutomationSavesHeldEmailSent,
-	MarkSubscriptionActive,
-	MarkSubscriptionCancelledByUserId,
-	MarkSubscriptionPendingCancellation,
-	MarkTrialFeedbackEmailSent,
-	MarkTrialReminderEmailSent,
-	ReleasePayDigest,
-	SetSubscriptionNextCharge,
-	UpsertActiveSubscription,
-	UpsertTrialingSubscription,
+import {
+	type ClaimPayDigest,
+	type ClaimTrialNudge,
+	type DeleteSubscription,
+	type MarkAutomationSavesHeldEmailSent,
+	type MarkSubscriptionActive,
+	type MarkSubscriptionCancelledByUserId,
+	type MarkSubscriptionPendingCancellation,
+	type MarkTrialFeedbackEmailSent,
+	type MarkTrialReminderEmailSent,
+	type RecordFounderNote,
+	type ReleasePayDigest,
+	type SetSubscriptionNextCharge,
+	TRIAL_NUDGE_MARKERS,
+	type UpsertActiveSubscription,
+	type UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
 import { SubscriptionProviderRow } from "@packages/subscription-access";
 
@@ -38,6 +41,8 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
 	claimPayDigest: ClaimPayDigest;
 	releasePayDigest: ReleasePayDigest;
+	claimTrialNudge: ClaimTrialNudge;
+	recordFounderNote: RecordFounderNote;
 	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
 } {
@@ -47,9 +52,6 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		schema: SubscriptionProviderRow,
 	});
 
-	/* The email markers are scoped to one trial window: their senders no-op when
-	 * they are set, so a re-opened window would go out silent unless opening it
-	 * clears them. */
 	const upsertTrialing: UpsertTrialingSubscription = async ({ userId, trialEndsAt }) => {
 		const nowIso = deps.now().toISOString();
 		await table.update({
@@ -237,6 +239,42 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		}
 	};
 
+	const claimTrialNudge: ClaimTrialNudge = async ({ userId, kind, messageId, now }) => {
+		const marker = TRIAL_NUDGE_MARKERS[kind];
+		try {
+			await table.update({
+				Key: { userId },
+				UpdateExpression: `SET ${marker.sentAt} = :now, ${marker.messageId} = :mid, updatedAt = :now`,
+				ConditionExpression: `attribute_exists(userId) AND #status = :trialing AND attribute_not_exists(${marker.sentAt})`,
+				ExpressionAttributeNames: { "#status": "status" },
+				ExpressionAttributeValues: {
+					":now": now.toISOString(),
+					":mid": messageId,
+					":trialing": "trialing",
+				},
+			});
+			return { claimed: true };
+		} catch (error) {
+			if (!(error instanceof ConditionalCheckFailedException)) throw error;
+		}
+
+		const held = await table.get({ userId }, { consistentRead: true });
+		if (held?.[marker.messageId] !== messageId) return { claimed: false };
+		return { claimed: true };
+	};
+
+	const recordFounderNote: RecordFounderNote = async ({ userId, sentAt }) => {
+		await table.update({
+			Key: { userId },
+			UpdateExpression: "SET founderNoteSentAt = :sentAt, updatedAt = :now",
+			ConditionExpression: "attribute_exists(userId)",
+			ExpressionAttributeValues: {
+				":sentAt": sentAt,
+				":now": deps.now().toISOString(),
+			},
+		});
+	};
+
 	const setNextCharge: SetSubscriptionNextCharge = async ({
 		userId,
 		subscriptionId,
@@ -279,6 +317,8 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		markAutomationSavesHeldEmailSent,
 		claimPayDigest,
 		releasePayDigest,
+		claimTrialNudge,
+		recordFounderNote,
 		setNextCharge,
 		deleteSubscription,
 	};

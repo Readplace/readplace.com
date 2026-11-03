@@ -344,4 +344,59 @@ describe("initInMemoryTrialScheduler", () => {
 		);
 		assert.equal(scheduler.getTrialReminderSchedule(userId), undefined);
 	});
+
+	it("createTrialNudgeSchedule stores one schedule per user and kind", async () => {
+		const userIdA = UserIdSchema.parse("a".repeat(32));
+		const userIdB = UserIdSchema.parse("b".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await scheduler.createTrialNudgeSchedule({
+			userId: userIdA,
+			kind: "trial_day3",
+			firesAt: "2026-07-08T00:00:00.000Z",
+		});
+		await scheduler.createTrialNudgeSchedule({
+			userId: userIdA,
+			kind: "trial_day7",
+			firesAt: "2026-07-12T00:00:00.000Z",
+		});
+
+		assert.equal(
+			scheduler.getTrialNudgeSchedule({ userId: userIdA, kind: "trial_day3" }),
+			"2026-07-08T00:00:00.000Z",
+		);
+		assert.equal(
+			scheduler.getTrialNudgeSchedule({ userId: userIdA, kind: "trial_day7" }),
+			"2026-07-12T00:00:00.000Z",
+		);
+		assert.equal(scheduler.getTrialNudgeSchedule({ userId: userIdB, kind: "trial_day3" }), undefined);
+	});
+
+	it("createTrialNudgeSchedule rejects a name that already exists, as CreateSchedule does", async () => {
+		const userId = UserIdSchema.parse("c".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+		const input = { userId, kind: "trial_day3", firesAt: "2026-07-08T00:00:00.000Z" } as const;
+		await scheduler.createTrialNudgeSchedule(input);
+
+		await assert.rejects(() => scheduler.createTrialNudgeSchedule(input), {
+			name: "ConflictException",
+			message: `Schedule trial-day3-${userId} already exists`,
+		});
+	});
+
+	it("createTrialNudgeSchedule throws when configured to fail", async () => {
+		const userId = UserIdSchema.parse("d".repeat(32));
+		const scheduler = initInMemoryTrialScheduler({ createTrialNudgeFails: true });
+
+		await assert.rejects(
+			() =>
+				scheduler.createTrialNudgeSchedule({
+					userId,
+					kind: "trial_day7",
+					firesAt: "2026-07-12T00:00:00.000Z",
+				}),
+			/In-memory trial-nudge create failure/,
+		);
+		assert.equal(scheduler.getTrialNudgeSchedule({ userId, kind: "trial_day7" }), undefined);
+	});
 });

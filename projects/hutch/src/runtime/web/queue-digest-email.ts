@@ -21,7 +21,7 @@ export const QUEUE_DIGEST_EMAIL_SUBJECT = "Waiting in your readlist";
 const CONTINUE_READING_LABEL = "Continue reading";
 export const MARK_ALL_READ_LABEL = "Mark all as read";
 const STARTER_CONTINUE_LABEL = "Read your Hacker News picks";
-const KEEP_READPLACE_LABEL = "Keep Readplace";
+export const KEEP_READPLACE_LABEL = "Keep Readplace";
 export const UNSUBSCRIBE_LABEL = "Stop these emails";
 const KINDLE_GUIDE_LABEL = "How Send to Kindle works";
 const FOOTER_REASON: Record<QueueDigestKind, string> = {
@@ -41,6 +41,23 @@ export const QUEUE_DIGEST_MARK_READ_PATH = "/email/queue-digest/mark-read";
 const TOKEN_QUERY = "t";
 const KIND_QUERY = "kind";
 const ONE_CLICK_UNSUBSCRIBE = "List-Unsubscribe=One-Click";
+
+export function unsubscribeUrlFor(input: {
+	token: string;
+	appOrigin: string;
+	kind: QueueDigestKind | "welcome-connector" | "trial-day3" | "trial-day7";
+}): URL {
+	const url = tokenUrl({ path: QUEUE_DIGEST_UNSUBSCRIBE_PATH, token: input.token, appOrigin: input.appOrigin });
+	url.searchParams.set(KIND_QUERY, input.kind);
+	return url;
+}
+
+export function listUnsubscribeHeaders(oneClickUnsubscribeUrl: URL): Record<string, string> {
+	return {
+		"List-Unsubscribe": `<${oneClickUnsubscribeUrl.toString()}>`,
+		"List-Unsubscribe-Post": ONE_CLICK_UNSUBSCRIBE,
+	};
+}
 
 export interface QueueDigestEmailItem {
 	articleId: ReaderArticleHashId;
@@ -223,20 +240,16 @@ export function QueueDigestEmail(params: QueueDigestEmailParams): QueueDigestEma
 					},
 				]
 			: [];
-	const oneClickUnsubscribeUrl = tokenUrl({
-		path: QUEUE_DIGEST_UNSUBSCRIBE_PATH,
+	const oneClickUnsubscribeUrl = unsubscribeUrlFor({
 		token: links.unsubscribeToken,
 		appOrigin: links.appOrigin,
+		kind,
 	});
-	oneClickUnsubscribeUrl.searchParams.set(KIND_QUERY, kind);
 	const unsubscribeLinkUrl = link(oneClickUnsubscribeUrl, "unsubscribe");
 
 	return {
 		subject,
-		headers: {
-			"List-Unsubscribe": `<${oneClickUnsubscribeUrl.toString()}>`,
-			"List-Unsubscribe-Post": ONE_CLICK_UNSUBSCRIBE,
-		},
+		headers: listUnsubscribeHeaders(oneClickUnsubscribeUrl),
 		to(mediaType) {
 			if (mediaType === "text/html") {
 				return render(TEMPLATE, {

@@ -60,12 +60,14 @@ import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	SetSubscriptionNextCharge,
+	RecordFounderNote,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateChargeReminderSchedule,
 	CreateTrialEndSchedule,
+	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
@@ -224,6 +226,7 @@ import {
 } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { initAuthRoutes } from "./web/auth/auth.page";
+import { initResolveSignupClient } from "./web/auth/signup-client";
 import { initSlideSession } from "./web/middleware/slide-session.middleware";
 import { stampOfflineOwner } from "./web/middleware/stamp-offline-owner.middleware";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
@@ -253,6 +256,7 @@ import { initSaveRoutes } from "./web/pages/save/save.page";
 import { newSaveAttemptId, type ValidateSaveableUrl, withNewSavePreparation } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
+import { initAdminFounderNotesRoutes } from "./web/pages/admin/founder-notes.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initQueueDigestUnsubscribeRoutes } from "./web/pages/queue-digest-unsubscribe/queue-digest-unsubscribe.page";
@@ -552,6 +556,7 @@ interface AppDependencies {
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
+		recordFounderNote: RecordFounderNote;
 		upsertTrialing: UpsertTrialingSubscription;
 		findByUserId: FindSubscriptionByUserId;
 		markActive: MarkSubscriptionActive;
@@ -564,6 +569,7 @@ interface AppDependencies {
 		deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
 		createTrialReminderSchedule: CreateTrialReminderSchedule;
 		deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+		createTrialNudgeSchedule: CreateTrialNudgeSchedule;
 		createChargeReminderSchedule: CreateChargeReminderSchedule;
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
@@ -1338,9 +1344,15 @@ export function createApp(dependencies: AppDependencies): Express {
 		return result;
 	};
 
+	const resolveSignupClient = initResolveSignupClient({ findOAuthClient: deps.findOAuthClient });
+	const signUnsubscribeToken = initQueueDigestUnsubscribeToken(deps.salt).sign;
+
 	const authRouter = initAuthRoutes({
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
 		emitLifecycleEmailSent,
+		resolveSignupClient,
+		signUnsubscribeToken,
+		findUserById: deps.findUserById,
 		hashPassword: deps.hashPassword,
 		createUserWithPasswordHash,
 		findUserByEmail: deps.findUserByEmail,
@@ -1399,6 +1411,8 @@ export function createApp(dependencies: AppDependencies): Express {
 	if (deps.googleAuth) {
 		const googleAuthRouter = initGoogleAuthRoutes({
 			emitLifecycleEmailSent,
+			resolveSignupClient,
+			signUnsubscribeToken,
 			googleClientId: deps.googleAuth.clientId,
 			googleClientSecret: deps.googleAuth.clientSecret,
 			appOrigin,
@@ -1426,6 +1440,8 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const appleAuthRouter = initAppleAuthRoutes({
 		emitLifecycleEmailSent,
+		resolveSignupClient,
+		signUnsubscribeToken,
 		appleClientId: deps.appleAuth.clientId,
 		stateSigningSecret: deps.appleAuth.stateSigningSecret,
 		appOrigin,
@@ -1696,6 +1712,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 	});
 	app.use("/admin/extend-trial", adminExtendTrialRouter);
+
+	app.use(
+		"/admin/founder-notes",
+		initAdminFounderNotesRoutes({
+			findUserByEmail: deps.findUserByEmail,
+			findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+			recordFounderNote: deps.subscriptionProviders.recordFounderNote,
+			emitLifecycleEmailSent,
+			adminEmails: deps.adminEmails,
+			serviceToken: deps.recrawlServiceToken,
+			now: deps.now,
+			buildBannerState,
+		}),
+	);
 
 	app.use(
 		"/admin/newsletters",

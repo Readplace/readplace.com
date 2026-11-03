@@ -385,6 +385,8 @@ export function initInMemoryAuth(opts: {
 					email: user.email,
 					emailVerified: user.emailVerified,
 					queueDigestOptOutAt: user.queueDigestOptOutAt,
+					registeredAt: user.registeredAt,
+					earlyIntentionalSaves: earlyIntentionalSaves.get(user.id) ?? 0,
 					deletedAt: user.deletedAt,
 				};
 			}

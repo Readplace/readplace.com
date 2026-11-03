@@ -315,6 +315,104 @@ describe("Email verification", () => {
 			expect(harness.funnelEvents.events).toEqual([]);
 		});
 
+		function signupFromClient(server: Server, input: { email: string; clientId: string }): Test {
+			const returnUrl = `/oauth/authorize?client_id=${input.clientId}`;
+			return request(server).post(`/signup?return=${encodeURIComponent(returnUrl)}`).type("form").send({
+				email: input.email,
+				password: "password123",
+				loadedAt: String(Date.now() - 5000),
+			});
+		}
+
+		function registerAssistant(fixture: ReturnType<typeof createDefaultTestAppFixture>, clientName: string) {
+			return fixture.oauth.registerClient({
+				redirectUris: ["https://assistant.example.com/callback"],
+				clientName,
+				grants: ["authorization_code"],
+				tokenEndpointAuthMethod: "none",
+			});
+		}
+
+		it("sends the ChatGPT welcome to a trial signup from a ChatGPT client", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const client = await registerAssistant(fixture, "ChatGPT");
+			await exhaustFoundingAllocation(harness);
+			await signupFromClient(harness.server, { email: "chatgpt@example.com", clientId: client.id });
+			const lookup = await harness.auth.findUserByEmail("chatgpt@example.com");
+			assert(lookup, "signup must persist the user");
+
+			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
+
+			const welcome = harness.email.getSentEmails()[1];
+			expect(welcome.html).toContain("Thanks for connecting Readplace to ChatGPT");
+			expect(welcome.html).toContain("utm_content&#x3D;install-connector");
+			expect(welcome.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+			expect(harness.funnelEvents.events).toEqual([
+				expect.objectContaining({
+					event: "lifecycle_email_sent",
+					user_id: lookup.userId,
+					kind: "welcome-chatgpt",
+					trial_day: 1,
+					utm_source: "welcome-email",
+					delivery: "automated",
+				}),
+			]);
+		});
+
+		it("sends the default welcome with no unsubscribe headers to a plain trial signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await exhaustFoundingAllocation(harness);
+			await signup(harness.server, "plain@example.com");
+
+			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
+
+			const welcome = harness.email.getSentEmails()[1];
+			const installLink = new JSDOM(welcome.html).window.document.querySelector("a");
+			assert(installLink, "the default welcome must link to the install page");
+			expect(new URL(installLink.href).search).toBe("?utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=install");
+			expect(welcome.html).toContain("Thanks for joining");
+			expect(welcome.headers).toBeUndefined();
+		});
+
+		it("sends the default welcome and records nothing for a signup from a ChatGPT client with no trial", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const client = await registerAssistant(fixture, "ChatGPT");
+			await signupFromClient(harness.server, { email: "free-chatgpt@example.com", clientId: client.id });
+
+			await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
+
+			expect(harness.email.getSentEmails()[1].html).toContain("Thanks for joining");
+			expect(harness.funnelEvents.events).toEqual([]);
+		});
+
+		it("logs a failed user read, sends the default welcome and still verifies", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const loggedErrors: string[] = [];
+			const harness = useApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserById: async () => { throw new Error("Users table unavailable"); },
+				},
+				shared: {
+					...fixture.shared,
+					logError: (message) => { loggedErrors.push(message); },
+				},
+			});
+			const client = await registerAssistant(fixture, "ChatGPT");
+			await exhaustFoundingAllocation(harness);
+			await signupFromClient(harness.server, { email: "read-fail@example.com", clientId: client.id });
+
+			const response = await request(harness.server).get(`/verify-email?token=${tokenOf(harness.email.getSentEmails()[0].html)}`);
+
+			expect(response.status).toBe(200);
+			expect(loggedErrors).toEqual(["[Email] Signup client lookup failed"]);
+			expect(harness.email.getSentEmails()[1].html).toContain("Thanks for joining");
+			expect(harness.funnelEvents.events).toEqual([expect.objectContaining({ kind: "welcome" })]);
+		});
+
 		it("records nothing and logs when the welcome email fails, and the verification still succeeds", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const loggedErrors: string[] = [];

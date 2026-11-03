@@ -9,10 +9,12 @@ import { GmailNewsletterNoticeEmail } from "../runtime/web/auth/gmail-newsletter
 import { InboxFirstArrivalEmail } from "../runtime/web/auth/inbox-first-arrival-email";
 import { buildPasswordResetEmailHtml } from "../runtime/web/auth/password-reset-email";
 import { PaymentFailedEmail } from "../runtime/web/auth/payment-failed-email";
+import { TrialDay3Email } from "../runtime/web/auth/trial-day3-email";
+import { TrialDay7Email } from "../runtime/web/auth/trial-day7-email";
 import { TrialFeedbackEmail } from "../runtime/web/auth/trial-feedback-email";
 import { TrialReminderEmail } from "../runtime/web/auth/trial-reminder-email";
 import { buildVerificationEmailHtml } from "../runtime/web/auth/verification-email";
-import { buildWelcomeEmailHtml } from "../runtime/web/auth/welcome-email";
+import { buildWelcomeConnectorEmailHtml, buildWelcomeEmailHtml } from "../runtime/web/auth/welcome-email";
 import { buildUserDataExportEmailHtml } from "../runtime/web/pages/export/user-data-export-email";
 import { QueueDigestEmail } from "../runtime/web/queue-digest-email";
 import { fitViewportToPage } from "./fit-viewport-to-page";
@@ -55,6 +57,30 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 			buildWelcomeEmailHtml({
 				installUrl: "https://readplace.com/install?utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=install",
 				avatarUrl: FOUNDER_AVATAR,
+			}),
+	},
+	{
+		slug: "welcome--chatgpt",
+		widths: [DESKTOP, MOBILE],
+		buttons: 1,
+		html: () =>
+			buildWelcomeConnectorEmailHtml({
+				assistantName: "ChatGPT",
+				installUrl: "https://readplace.com/install?utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=install-connector",
+				avatarUrl: FOUNDER_AVATAR,
+				unsubscribeUrl: "https://readplace.com/email/queue-digest/unsubscribe?t=4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.b094fe761296dfec0abec0a933e29c42d7f72ee2fdb325b87bc3bd6fbed7b257&kind=welcome-connector&utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=unsubscribe",
+			}),
+	},
+	{
+		slug: "welcome--claude",
+		widths: [DESKTOP, MOBILE],
+		buttons: 1,
+		html: () =>
+			buildWelcomeConnectorEmailHtml({
+				assistantName: "Claude",
+				installUrl: "https://readplace.com/install?utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=install-connector",
+				avatarUrl: FOUNDER_AVATAR,
+				unsubscribeUrl: "https://readplace.com/email/queue-digest/unsubscribe?t=4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.b094fe761296dfec0abec0a933e29c42d7f72ee2fdb325b87bc3bd6fbed7b257&kind=welcome-connector&utm_source=welcome-email&utm_medium=email&utm_campaign=onboarding&utm_content=unsubscribe",
 			}),
 	},
 	{
@@ -522,6 +548,177 @@ const CUSTOMER_EMAILS: readonly CustomerEmail[] = [
 					sendId: "starter-3f1c9a7e5b2d4c8e6a0f1b3d5c7e9a2b4d6f8a0c1e3b5d7f9a2c4e6b8d0f1a3c",
 					unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.9c2e7b4a1f6d3e8c5b0a7f2d4e9c1b6a3f8d5e2c7b0a4f9e1d6c3b8a5f2e7d0c",
 				},
+			}).to("text/html"),
+	},
+	{
+		slug: "trial-day3--install-extension",
+		widths: [DESKTOP, MOBILE],
+		buttons: 2,
+		html: () =>
+			TrialDay3Email({
+				items: [
+					{
+						articleId: ReaderArticleHashIdSchema.parse("33f5d5d8997efe2895c14520ac4bf560"),
+						title: "Choose Boring Technology",
+						siteName: "mcfunley.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("2ce5d05895df09a78f6f40b284524b05"),
+						title: "Patterns of Distributed Systems",
+						siteName: "martinfowler.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("64acf0bec2cd58997ef1973657b7e2fc"),
+						title: "Some terminal frustrations",
+						siteName: "Julia Evans",
+					},
+				],
+				savedCount: 3,
+				registeredAt: "2026-11-06T09:14:22.000Z",
+				trialEndsAt: "2026-11-20T09:14:22.000Z",
+				install: "extension",
+				appOrigin: "https://readplace.com",
+				unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.b094fe761296dfec0abec0a933e29c42d7f72ee2fdb325b87bc3bd6fbed7b257",
+			}).to("text/html"),
+	},
+	{
+		slug: "trial-day3--install-iphone",
+		widths: [DESKTOP, MOBILE],
+		buttons: 2,
+		html: () =>
+			TrialDay3Email({
+				items: [
+					{
+						articleId: ReaderArticleHashIdSchema.parse("33f5d5d8997efe2895c14520ac4bf560"),
+						title: "Choose Boring Technology",
+						siteName: "mcfunley.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("2ce5d05895df09a78f6f40b284524b05"),
+						title: "Patterns of Distributed Systems",
+						siteName: "martinfowler.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("64acf0bec2cd58997ef1973657b7e2fc"),
+						title: "Some terminal frustrations",
+						siteName: "Julia Evans",
+					},
+				],
+				savedCount: 3,
+				registeredAt: "2026-11-06T09:14:22.000Z",
+				trialEndsAt: "2026-11-20T09:14:22.000Z",
+				install: "iphone",
+				appOrigin: "https://readplace.com",
+				unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.b094fe761296dfec0abec0a933e29c42d7f72ee2fdb325b87bc3bd6fbed7b257",
+			}).to("text/html"),
+	},
+	{
+		slug: "trial-day3--one-article",
+		widths: [DESKTOP, MOBILE],
+		buttons: 2,
+		html: () =>
+			TrialDay3Email({
+				items: [
+					{
+						articleId: ReaderArticleHashIdSchema.parse("ed9d6c5b3b22fb9fe1dbb13021f5368f"),
+						title: "The Bitter Lesson",
+						siteName: "www.incompleteideas.net",
+					},
+				],
+				savedCount: 1,
+				registeredAt: "2026-11-06T09:14:22.000Z",
+				trialEndsAt: "2026-11-20T09:14:22.000Z",
+				install: "extension",
+				appOrigin: "https://readplace.com",
+				unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.b094fe761296dfec0abec0a933e29c42d7f72ee2fdb325b87bc3bd6fbed7b257",
+			}).to("text/html"),
+	},
+	{
+		slug: "trial-day3--no-install",
+		widths: [DESKTOP, MOBILE],
+		buttons: 1,
+		html: () =>
+			TrialDay3Email({
+				items: [
+					{
+						articleId: ReaderArticleHashIdSchema.parse("7c368effbdca46a0f52c2efc02478b4c"),
+						title: "How to Do Great Work",
+						siteName: "paulgraham.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("64acf0bec2cd58997ef1973657b7e2fc"),
+						title: "Some terminal frustrations",
+						siteName: "Julia Evans",
+					},
+				],
+				savedCount: 2,
+				registeredAt: "2026-11-06T09:14:22.000Z",
+				trialEndsAt: "2026-11-20T09:14:22.000Z",
+				install: undefined,
+				appOrigin: "https://readplace.com",
+				unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.b094fe761296dfec0abec0a933e29c42d7f72ee2fdb325b87bc3bd6fbed7b257",
+			}).to("text/html"),
+	},
+	{
+		slug: "trial-day7--default",
+		widths: [DESKTOP, MOBILE],
+		buttons: 2,
+		html: () =>
+			TrialDay7Email({
+				items: [
+					{
+						articleId: ReaderArticleHashIdSchema.parse("2ce5d05895df09a78f6f40b284524b05"),
+						title: "Patterns of Distributed Systems",
+						siteName: "martinfowler.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("33f5d5d8997efe2895c14520ac4bf560"),
+						title: "Choose Boring Technology",
+						siteName: "mcfunley.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("7c368effbdca46a0f52c2efc02478b4c"),
+						title: "How to Do Great Work",
+						siteName: "paulgraham.com",
+					},
+				],
+				savedCount: 5,
+				readCount: 1,
+				registeredAt: "2026-11-06T09:14:22.000Z",
+				trialEndsAt: "2026-11-20T09:14:22.000Z",
+				appOrigin: "https://readplace.com",
+				unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.b094fe761296dfec0abec0a933e29c42d7f72ee2fdb325b87bc3bd6fbed7b257",
+			}).to("text/html"),
+	},
+	{
+		slug: "trial-day7--nothing-read",
+		widths: [DESKTOP, MOBILE],
+		buttons: 2,
+		html: () =>
+			TrialDay7Email({
+				items: [
+					{
+						articleId: ReaderArticleHashIdSchema.parse("2ce5d05895df09a78f6f40b284524b05"),
+						title: "Patterns of Distributed Systems",
+						siteName: "martinfowler.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("33f5d5d8997efe2895c14520ac4bf560"),
+						title: "Choose Boring Technology",
+						siteName: "mcfunley.com",
+					},
+					{
+						articleId: ReaderArticleHashIdSchema.parse("7c368effbdca46a0f52c2efc02478b4c"),
+						title: "How to Do Great Work",
+						siteName: "paulgraham.com",
+					},
+				],
+				savedCount: 3,
+				readCount: 0,
+				registeredAt: "2026-11-06T09:14:22.000Z",
+				trialEndsAt: "2026-11-20T09:14:22.000Z",
+				appOrigin: "https://readplace.com",
+				unsubscribeToken: "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3.b094fe761296dfec0abec0a933e29c42d7f72ee2fdb325b87bc3bd6fbed7b257",
 			}).to("text/html"),
 	},
 ];

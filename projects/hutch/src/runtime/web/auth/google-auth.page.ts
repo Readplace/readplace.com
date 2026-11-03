@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -20,6 +20,7 @@ import {
 } from "../../domain/trial/start-trial";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
+import { type ResolveSignupClient, signupClientOrOther } from "./signup-client";
 import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
@@ -81,6 +82,8 @@ interface GoogleAuthDependencies {
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
+	resolveSignupClient: ResolveSignupClient;
+	signUnsubscribeToken: (userId: UserId) => string;
 }
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
@@ -104,6 +107,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		logError: deps.logError,
 		emitLifecycleEmailSent: deps.emitLifecycleEmailSent,
 		now: deps.now,
+		signUnsubscribeToken: deps.signUnsubscribeToken,
 	});
 
 	router.get("/auth/google", (req: Request, res: Response) => {
@@ -203,6 +207,11 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const safeReturnUrl = extractReturnUrl({ return: stateData.returnUrl });
 		const oauthClientId = oauthClientIdFrom(safeReturnUrl);
 		const signupOAuthClientId = oauthClientId ?? null;
+		const welcomeSignupClient = () =>
+			signupClientOrOther({
+				resolve: () => deps.resolveSignupClient(signupOAuthClientId),
+				logError: deps.logError,
+			});
 
 		const userCount = await fetchUserCount();
 		/* Read once, then persisted on the user row (durable) AND emitted on the
@@ -232,7 +241,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 			signIn(res, sessionId);
-			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, tier: "free" });
+			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "free" });
 			deps.recordConversionEvent(
 				req,
 				buildUserCreatedEvent(
@@ -294,7 +303,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		signIn(res, sessionId);
-		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, tier: "trial", trialEndsAt });
+		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "trial", trialEndsAt });
 		deps.recordConversionEvent(
 			req,
 			buildUserCreatedEvent(

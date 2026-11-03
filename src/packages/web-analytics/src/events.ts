@@ -71,6 +71,10 @@ export const QUEUE_DIGEST_KINDS = ["regular", "pay", "starter"] as const;
 
 export type QueueDigestKind = (typeof QUEUE_DIGEST_KINDS)[number];
 
+export const UNSUBSCRIBE_SOURCES = [...QUEUE_DIGEST_KINDS, "trial-day3", "trial-day7", "welcome-connector"] as const;
+
+export type UnsubscribeSource = (typeof UNSUBSCRIBE_SOURCES)[number];
+
 /**
  * How a reader left the page the depth was measured on. `navigated_onward`
  * means they clicked through to another Readplace page, so the depth they

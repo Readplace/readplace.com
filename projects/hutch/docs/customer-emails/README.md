@@ -1,20 +1,21 @@
 # Customer emails
 
-Every automated email Readplace sends to customers: who gets it, exactly when, and what it looks like. There are 14 emails. Twelve have their own template, and the readlist digest template has three sending modes with different rules, so it appears three times (the readlist digest, the trial-ending digest and the Hacker News starter email).
+Every automated email Readplace sends to customers: who gets it, exactly when, and what it looks like. There are 16 emails. Fourteen have their own template (the welcome email has a second one for ChatGPT and Claude signups), and the readlist digest template has three sending modes with different rules, so it appears three times (the readlist digest, the trial-ending digest and the Hacker News starter email). Section 17 documents the founder's manual notes, which no code sends and which are not counted here.
 
 Each example was produced by running the real sending code (the route, Lambda handler or sender function that calls `sendEmail`) with in-memory fakes and example inputs, using the production origins `https://readplace.com` and `https://static.readplace.com`. The capture records the exact message handed to the mail provider. The HTML files in [`html/`](html/) are those bodies, byte for byte. The screenshots are Chromium renders of the same HTML at 800px and 390px wide, with the brand font Inter installed. Mail clients without Inter fall back to the system fonts in the template's font stack.
 
-Each email's conditions were traced through the code with `path:line` citations, then checked against the code by two independent reviews. The inventory reflects the code as of 2026-10-13. When an email's template, copy or trigger changes, update its section.
+Each email's conditions were traced through the code with `path:line` citations, then checked against the code by two independent reviews. The inventory reflects the code as of 2026-10-13; sections 15 to 17, the connector welcome and the founder-note suppression reflect it as of 2026-11-04 and were traced but not put through the two reviews. When an email's template, copy or trigger changes, update its section.
 
 ## How every email is delivered
 
 - All of these emails are sent by the `hutch` project through Resend (`projects/hutch/src/runtime/providers/email/resend-email.ts:8`). Resend authenticates on the `send.readplace.com` envelope subdomain; its SPF, MX and DKIM records are managed in Resend, outside Pulumi (`projects/hutch/src/infra/outbound-mail-auth.ts:15`).
 - Every production entry point wraps Resend in a filter that silently drops any message whose To address is at example.com, example.net or example.org, or under a .test, .example, .invalid or .localhost domain. The Bcc copy is dropped with it (`projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`).
 - With `PERSISTENCE=development` the local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:544`); with `PERSISTENCE=prod` it uses the production providers and sends through Resend (`projects/hutch/src/runtime/dev-app.ts:15`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
-- The account emails (email verification, welcome, password reset) come from `Fayner from Readplace <fayner@readplace.com>`; every other email comes from `Readplace <readplace@readplace.com>`, the support address. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: through Reply-To on every email that sets one, which is every email except email verification and password reset, and through the From address on those two.
-- Nine emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
-- Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link, and they share one opt-out: unsubscribing from any of them stops all three. The unsubscribe URL names the email it came from with `kind=regular`, `kind=pay` or `kind=starter`, which the `queue_digest_unsubscribed` event records as `kind`; links delivered before this parameter existed carry none, and their events have no `kind`. The readlist digest and the trial-ending digest tag their links `utm_source=queue-digest`; the Hacker News starter email tags its links `utm_source=starter-email`. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that disabling their custom emails stops it.
-- Only the Gmail newsletter notice and the Hacker News starter email set a Resend idempotency key. The rest rely on their own once-only markers, or on none.
+- The account emails (email verification, welcome, password reset) and the trial day-3 and day-7 emails come from `Fayner from Readplace <fayner@readplace.com>`; every other email comes from `Readplace <readplace@readplace.com>`, the support address. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: through Reply-To on every email that sets one, which is every email except email verification and password reset, and through the From address on those two.
+- Eleven emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
+- Six emails carry `List-Unsubscribe` and `List-Unsubscribe-Post` headers and an unsubscribe link: the three sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email), the trial day-3 and day-7 emails, and the connector welcome. They share one opt-out: unsubscribing from any of them stops all that can still send. The unsubscribe URL names the email it came from with `kind=regular`, `kind=pay`, `kind=starter`, `kind=trial-day3`, `kind=trial-day7` or `kind=welcome-connector`, which the `queue_digest_unsubscribed` event records as `kind`; links delivered before this parameter existed carry none, and their events have no `kind`. The readlist digest and the trial-ending digest tag their links `utm_source=queue-digest`; the Hacker News starter email tags its links `utm_source=starter-email`; the day-3 and day-7 emails tag theirs `utm_source=day3-email` and `utm_source=day7-email`; the connector welcome tags its links `utm_source=welcome-email`. Every other email is transactional or once-only and has no unsubscribe; the inbox saves paused email instead tells the reader that disabling their custom emails stops it.
+- Only the Gmail newsletter notice, the Hacker News starter email and the trial day-3 and day-7 emails set a Resend idempotency key. The rest rely on their own once-only markers, or on none.
+- A trial extension does not clear the day-3 marker (`trialDay3EmailSentAt`), the day-7 marker (`trialDay7EmailSentAt`) or the founder-note marker (`founderNoteSentAt`): they are outside the REMOVE list in `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:55`.
 - Only the three emails sent from the digest template (the readlist digest, the trial-ending digest and the Hacker News starter email) carry an attachment: one EPUB book of the articles they list (`projects/hutch/src/runtime/web/queue-digest-book.ts:12`, passed to Resend at `projects/hutch/src/runtime/providers/email/resend-email.ts:18`). No other email has an attachment.
 
 ## At a glance
@@ -35,6 +36,8 @@ Each email's conditions were traced through the code with `path:line` citations,
 | 12 | [Gmail newsletter notice](#12-gmail-newsletter-notice) | `Choose readlists for {newsletterName}` | At the next 6-hourly check after an approved, unmapped newsletter mails a connected Gmail account or a seen sender becomes approved, once 7 days have passed since the reader's last notice email and the reader has a readlist besides All; at most 10 newsletters per email, those pending longest first, the rest in the next weekly email. | none |
 | 13 | [Data export ready](#13-data-export-ready) | `Your Readplace export is ready` | Seconds to minutes after a signed-in customer clicks Email me my data on /export; one email per click. | none |
 | 14 | [Hacker News starter email](#14-hacker-news-starter-email) | `Your Hacker News picks are ready` | Once per account, on a 6-hourly digest check after Readplace added ten Hacker News picks to an inactive reader's library, while at least one pick is still unread and 47.5h have passed since the reader's last digest. | none |
+| 15 | [Trial day-3 email](#15-trial-day-3-email) | `the {n} articles you've saved in Readplace` (one save: `the article you saved in Readplace`) | 3 days after a trial signup, if the reader is still trialing, verified, not unsubscribed and has at least one intentional save. | `readplace+trial_day3@readplace.com` |
+| 16 | [Trial day-7 email](#16-trial-day-7-email) | `Your readlist, a week in` | 7 days after a trial signup, if the reader is still trialing, verified, not unsubscribed, has at least two intentional saves and one first-week save still unread. | `readplace+trial_day7@readplace.com` |
 
 ## 1. Email verification
 
@@ -266,7 +269,7 @@ Not sent when:
 > - Mail-security scanners and link prefetchers count as opening the link: a cookie-less GET or HEAD uses the token and sends the welcome, and the person's own click then shows 'This verification link is invalid or has already been used.' (confirmed by a capture probe) `projects/hutch/src/runtime/web/auth/auth.page.ts:578`
 > - A person who deletes their account before verifying still gets the welcome if the link is opened before the async deletion worker removes the token, because marking the account verified ignores the deletion flag (confirmed by a capture probe) `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:400`
 > - The send is not awaited inside the Lambda request, so it may be delayed or dropped if the Lambda environment freezes before Resend responds (unverified) `projects/hutch/src/runtime/web/auth/send-welcome-email.ts:24`
-> - There is no List-Unsubscribe header and no preference or opt-out check `projects/hutch/src/runtime/web/auth/send-welcome-email.ts:24`
+> - The default welcome has no List-Unsubscribe header, and no welcome checks a preference or the opt-out before sending `projects/hutch/src/runtime/web/auth/send-welcome-email.ts:70`
 > - Apple Hide My Email recipients get the welcome from fayner@readplace.com through Resend's send.readplace.com path, whose DNS is managed outside the repo; Apple's relay forwards it only if that sender is registered in the Apple Developer portal (unverified) `projects/hutch/src/infra/outbound-mail-auth.ts:15`
 > - The message is HTML-only; whether Resend adds a plain-text part on its own is outside the repo (unverified) `projects/hutch/src/runtime/providers/email/resend-email.ts:14`
 
@@ -279,7 +282,7 @@ Not sent when:
 | Bcc | `readplace+welcome@readplace.com` |
 | Reply-To | `fayner@readplace.com` |
 | Subject | Welcome to Readplace |
-| Headers | none |
+| Headers | default: none. chatgpt and claude: List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}&kind=welcome-connector>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
 | Plain-text part | none |
 | Idempotency key | none |
 
@@ -287,7 +290,11 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| default | Always: the template has no conditionals and takes only the fixed install link and avatar URL, so email+password, Google and Apple signups, founding member or trial, all get the same message; only the recipient differs. |
+| default | Every account the two rows below do not cover, including founding members, Gemini and other assistants. The template has no conditionals and takes only the fixed install link and avatar URL, so email+password, Google and Apple signups all get the same message; only the recipient differs. |
+| chatgpt | A trial account that signed up through the ChatGPT connector. Thanks the reader for connecting ChatGPT, then points at the extension and the iPhone app. The footer names Proficient Pty Ltd and the postal address, with an unsubscribe link tagged `kind=welcome-connector`. |
+| claude | The same body for the Claude connector, naming Claude. |
+
+Resolution rule (`projects/hutch/src/runtime/web/auth/signup-client.ts:10`): the account's `signupOAuthClientId` is resolved at signup. A null or built-in client resolves to `other`. A dynamically registered client resolves to `chatgpt` or `claude` only when the assistant roster names it so; Gemini, other assistants and unknown clients resolve to `other` and get the default. A failed lookup also resolves to `other` and logs the error `projects/hutch/src/runtime/web/auth/signup-client.ts:21`. Only the trial tier gets a connector welcome `projects/hutch/src/runtime/web/auth/send-welcome-email.ts:35`. The lifecycle event's kind is `welcome-chatgpt` or `welcome-claude`.
 
 ### Example
 
@@ -356,11 +363,63 @@ Subject: **Welcome to Readplace** · To: `sam.reader@gmail.com`
 
 Exact HTML body: [`html/welcome--default.html`](html/welcome--default.html)
 
+#### `chatgpt` — A trial signup that came through ChatGPT's connector. The body thanks the reader for connecting ChatGPT, then points at the extension and the iPhone app.
+
+Subject: **Welcome to Readplace** · To: `sam.reader@gmail.com`
+
+<details><summary>Example inputs</summary>
+
+```json
+{
+  "trigger": "A trial account whose signupOAuthClientId belongs to a dynamically registered client that the assistant roster names chatgpt",
+  "recipient": {
+    "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
+    "email": "sam.reader@gmail.com",
+    "signupClient": "chatgpt",
+    "tier": "trial",
+    "trialEndsAt": "2026-11-20T09:14:22.000Z"
+  }
+}
+```
+
+</details>
+
+No screenshot exists: this entry was added by running the sender without a browser render.
+
+Exact HTML body: [`html/welcome--chatgpt.html`](html/welcome--chatgpt.html)
+
+#### `claude` — A trial signup that came through Claude's connector. The body thanks the reader for connecting Claude, then points at the extension and the iPhone app.
+
+Subject: **Welcome to Readplace** · To: `sam.reader@gmail.com`
+
+<details><summary>Example inputs</summary>
+
+```json
+{
+  "trigger": "A trial account whose signupOAuthClientId belongs to a dynamically registered client that the assistant roster names claude",
+  "recipient": {
+    "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
+    "email": "sam.reader@gmail.com",
+    "signupClient": "claude",
+    "tier": "trial",
+    "trialEndsAt": "2026-11-20T09:14:22.000Z"
+  }
+}
+```
+
+</details>
+
+No screenshot exists: this entry was added by running the sender without a browser render.
+
+Exact HTML body: [`html/welcome--claude.html`](html/welcome--claude.html)
+
 ### Source
 
 - `projects/hutch/src/runtime/web/auth/send-welcome-email.ts:16` — sender: from, bcc, reply-to, subject, tagged install link, fire-and-forget send
 - `projects/hutch/src/runtime/web/auth/welcome-email.ts:9` — renderer
 - `projects/hutch/src/runtime/web/auth/welcome-email.template.html:30` — template, with the 'See the ways to save' button
+- `projects/hutch/src/runtime/web/auth/welcome-connector-email.template.html` — the chatgpt and claude template
+- `projects/hutch/src/runtime/web/auth/signup-client.ts:10` — resolves the signup client
 - `projects/hutch/src/runtime/web/auth/auth.page.ts:578` — GET /verify-email handler, sends at line 607
 - `projects/hutch/src/runtime/web/auth/google-auth.page.ts:129` — Google callback, sends at lines 225 (founding member) and 284 (trial)
 - `projects/hutch/src/runtime/web/auth/apple-auth.page.ts:165` — Apple callback, sends at lines 301 (founding member) and 363 (trial)
@@ -1723,6 +1782,7 @@ Sent only when:
 - A subscription row still exists for the user `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:117`
 - The row's status is still cancelled when the schedule fires; the cancel reason and trial origin are not re-checked `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:124`
 - This email has not already gone out for the current trial (trialFeedbackEmailSentAt is unset) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:131`
+- No founder note is recorded on the row (`founderNoteSentAt` is unset) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:154`
 - An email address is on file for the user `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:140`
 - The saved-article count query returns a total; without one the record fails and is retried `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:153`
 - The recipient is not on a reserved test domain (example.com, example.net, example.org, or a .test, .example, .invalid or .localhost address) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
@@ -1730,6 +1790,7 @@ Sent only when:
 Not sent when:
 
 - Once per trial: if trialFeedbackEmailSentAt is set on the row, the send is skipped `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:131`
+- The founder already wrote: any recorded founder note (section 17), day 1 or day 12, logs `[send-trial-feedback-email] founder already wrote — noop` and returns before the send, so the `trial-feedback` event does not fire either `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:154`
 - Only opening a new trial window clears that marker, so a reader can get the email again only after a later trial (for example an admin extension) ends; starting a membership does not clear it `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:58`
 - Members who cancel a paid membership, and Stripe-side cancellations (payment failure, dashboard), get no schedule because their reasons are not trial reasons `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:44`
 - A reader who starts a membership through checkout within the 3 days has an active row, so the send is skipped `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:124`
@@ -3759,6 +3820,463 @@ Exact HTML body: [`html/hacker-news-starter--default.html`](html/hacker-news-sta
 - `projects/hutch/src/runtime/web/queue-digest-email.ts:144` — starter intro paragraph
 - `projects/hutch/src/runtime/web/queue-digest-email.ts:185` — starter subject
 - `projects/hutch/src/runtime/send-user-digest.main.ts:182` — composition root wiring for the starter sender
+
+## 15. Trial day-3 email
+
+**Trial** · Verified trialists on the day-3 mark of a no-card trial who have saved at least one article on purpose, have not added a card and have not unsubscribed.
+
+### When it is sent
+
+Three days after signup Readplace shows a trialist the articles they have saved so far, offers the next way to save, and states the price and when a card would be charged.
+
+Trigger chain:
+
+1. A trial signup arms a one-shot `trial-day3-<userId>` schedule `projects/hutch/src/runtime/domain/trial/start-trial.ts:124`, set to the trial end less 11 days `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:27`
+2. The schedule puts a command with `kind: trial_day3` on the send-trial-feedback-email queue `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:59`
+3. The handler routes that kind to the day-3 sender `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:80`
+4. The shared nudge guards run, then the sender composes the message `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:44`
+5. It claims the once-only marker, sends through Resend and emits `trial-day3` `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:67`
+
+Sent only when:
+
+- The row is still trialing and its trial end is in the future `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:56`
+- The address is verified `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:61`
+- The reader has not unsubscribed from the shared digest opt-out `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:62`
+- `earlyIntentionalSaves` is at least 1 `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day3-email.ts:31`, and at least one intentional save exists since signup `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day3-email.ts:40`. The intentional-save rule is `projects/hutch/src/runtime/domain/engagement/intentional-save.ts:10`
+- `trialDay3EmailSentAt` is unset, or was claimed by this same message `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:242`
+
+Not sent when:
+
+- A card is on file: a card moves the row to active, so the guard logs `not-trialing`
+- The address is still unverified when the schedule fires: it logs `unverified`, and no later attempt follows
+- Each refusal logs `[send-trial-feedback-email] trial_day3 noop` with a `reason` of `not-trialing`, `unverified`, `opted-out`, `not-eligible` or `already-sent` `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:50`
+- The trial was opened by reactivation or an admin extension: only a signup arms the schedule `projects/hutch/src/runtime/domain/trial/start-trial.ts:120`, and an extension does not clear the marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:55`
+
+**Timing:** One shot, 3 days after the trial starts: trial day 4 on the `lifecycle_email_sent` event.
+
+**If sending fails:** The marker is claimed before the send. A Resend error fails the SQS record on the queue the trial feedback request uses (section 8). The retry carries the same message id, so it reclaims its own marker and resends with the idempotency key `trial-day3-<userId>`. A different message finds the marker held and logs `already-sent`.
+
+> **Observations**
+>
+> - Deleting an account does not delete this schedule. A later fire ends `not-trialing` once the row is gone, and the guards have no `deletedAt` check of their own `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts`
+> - The list stops at the newest 5 saves; the rest appear as 'and {rest} more in your readlist.' `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day3-email.ts:9`
+
+### Message
+
+| Field | Value |
+|---|---|
+| From | `Fayner from Readplace <fayner@readplace.com>` |
+| To | The user's account email |
+| Bcc | `readplace+trial_day3@readplace.com` |
+| Reply-To | `fayner@readplace.com` |
+| Subject | `the {n} articles you've saved in Readplace`, or `the article you saved in Readplace` with one save |
+| Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}&kind=trial-day3>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
+| Plain-text part | Yes: the same copy, with each save's title, site and reader link |
+| Idempotency key | `trial-day3-<userId>` |
+
+The price paragraph on every variant reads: 'Choose during your trial: {RENEWAL_PRICES} Add a card now and nothing is charged until {trialEnd}; you'll get an email a week before. Your saves stay readable and exportable either way.' `RENEWAL_PRICES` is the constant in `projects/hutch/src/runtime/web/price-statement.ts:5`, so this section does not repeat the amounts. The footer reads 'You're getting this because you started a Readplace trial on {date}. Stop these emails' with the `kind=trial-day3` unsubscribe link, then Proficient Pty Ltd and the postal address. Links carry `utm_source=day3-email&utm_medium=email&utm_campaign=trial-keep`, with `utm_content` of `article`, `install-extension`, `install-iphone`, `keep` or `unsubscribe`.
+
+Content variants (`projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day3-email.ts:13`):
+
+| Variant | Shown when |
+|---|---|
+| install-extension | No save since signup came from the Chrome or Firefox extension. Shows the 'Add the extension' button to `/install`. ChatGPT and Claude saves count as neither client. |
+| install-iphone | An extension save exists and no iPhone save does. Shows the 'Get the iPhone app' button to `/install?client=iphone`. |
+| one-article | A single save: the subject, the heading 'Your first save' and the line 'You've saved 1 article since {date}. Here it is:' use the singular. It takes whichever install paragraph applies. |
+| no-install | Both an extension save and an iPhone save exist: no install paragraph or button, only 'Keep Readplace'. |
+
+### Example
+
+#### `install-extension` — Three saves, none from the extension.
+
+Subject: **the 3 articles you've saved in Readplace** · To: `sam.reader@gmail.com`
+
+<details><summary>Example inputs</summary>
+
+```json
+{
+  "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
+  "email": "sam.reader@gmail.com",
+  "registeredAt": "2026-11-06T09:14:22.000Z",
+  "trialEndsAt": "2026-11-20T09:14:22.000Z",
+  "emailVerified": true,
+  "schedulerFiresAt": "2026-11-09T09:14:22.000Z",
+  "saves": [
+    {
+      "title": "Some terminal frustrations",
+      "site": "Julia Evans",
+      "savedAfterSignup": "2h",
+      "savedBy": "web"
+    },
+    {
+      "title": "Patterns of Distributed Systems",
+      "site": "martinfowler.com",
+      "savedAfterSignup": "26h",
+      "savedBy": "web"
+    },
+    {
+      "title": "Choose Boring Technology",
+      "site": "mcfunley.com",
+      "savedAfterSignup": "49h",
+      "savedBy": "web"
+    }
+  ]
+}
+```
+
+</details>
+
+No screenshot exists: this entry was added by running the sender without a browser render.
+
+Exact HTML body: [`html/trial-day3--install-extension.html`](html/trial-day3--install-extension.html)
+
+#### `install-iphone` — Three saves from the Chrome extension, none from the iPhone.
+
+Subject: **the 3 articles you've saved in Readplace** · To: `sam.reader@gmail.com`
+
+<details><summary>Example inputs</summary>
+
+```json
+{
+  "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
+  "email": "sam.reader@gmail.com",
+  "registeredAt": "2026-11-06T09:14:22.000Z",
+  "trialEndsAt": "2026-11-20T09:14:22.000Z",
+  "emailVerified": true,
+  "schedulerFiresAt": "2026-11-09T09:14:22.000Z",
+  "saves": [
+    {
+      "title": "Some terminal frustrations",
+      "site": "Julia Evans",
+      "savedAfterSignup": "2h",
+      "savedBy": "chrome"
+    },
+    {
+      "title": "Patterns of Distributed Systems",
+      "site": "martinfowler.com",
+      "savedAfterSignup": "26h",
+      "savedBy": "chrome"
+    },
+    {
+      "title": "Choose Boring Technology",
+      "site": "mcfunley.com",
+      "savedAfterSignup": "49h",
+      "savedBy": "chrome"
+    }
+  ]
+}
+```
+
+</details>
+
+No screenshot exists: this entry was added by running the sender without a browser render.
+
+Exact HTML body: [`html/trial-day3--install-iphone.html`](html/trial-day3--install-iphone.html)
+
+#### `one-article` — One save, from the iPhone, so the email shows the extension link.
+
+Subject: **the article you saved in Readplace** · To: `sam.reader@gmail.com`
+
+<details><summary>Example inputs</summary>
+
+```json
+{
+  "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
+  "email": "sam.reader@gmail.com",
+  "registeredAt": "2026-11-06T09:14:22.000Z",
+  "trialEndsAt": "2026-11-20T09:14:22.000Z",
+  "emailVerified": true,
+  "schedulerFiresAt": "2026-11-09T09:14:22.000Z",
+  "saves": [
+    {
+      "title": "The Bitter Lesson",
+      "site": "www.incompleteideas.net",
+      "savedAfterSignup": "3h",
+      "savedBy": "iphone"
+    }
+  ]
+}
+```
+
+</details>
+
+No screenshot exists: this entry was added by running the sender without a browser render.
+
+Exact HTML body: [`html/trial-day3--one-article.html`](html/trial-day3--one-article.html)
+
+#### `no-install` — Saves from both the extension and the iPhone, so nothing is left to install.
+
+Subject: **the 2 articles you've saved in Readplace** · To: `sam.reader@gmail.com`
+
+<details><summary>Example inputs</summary>
+
+```json
+{
+  "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
+  "email": "sam.reader@gmail.com",
+  "registeredAt": "2026-11-06T09:14:22.000Z",
+  "trialEndsAt": "2026-11-20T09:14:22.000Z",
+  "emailVerified": true,
+  "schedulerFiresAt": "2026-11-09T09:14:22.000Z",
+  "saves": [
+    {
+      "title": "Some terminal frustrations",
+      "site": "Julia Evans",
+      "savedAfterSignup": "2h",
+      "savedBy": "chrome"
+    },
+    {
+      "title": "How to Do Great Work",
+      "site": "paulgraham.com",
+      "savedAfterSignup": "30h",
+      "savedBy": "iphone"
+    }
+  ]
+}
+```
+
+</details>
+
+No screenshot exists: this entry was added by running the sender without a browser render.
+
+Exact HTML body: [`html/trial-day3--no-install.html`](html/trial-day3--no-install.html)
+
+### Source
+
+- `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day3-email.ts:22` — eligibility, listed saves, install rule
+- `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:44` — shared guards, claim, send and emit
+- `projects/hutch/src/runtime/web/auth/trial-day3-email.ts:36` — renderer, subject, plain-text part
+- `projects/hutch/src/runtime/web/auth/trial-day3-email.template.html` — template
+- `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:242` — once-only marker
+- `projects/hutch/src/runtime/domain/trial/start-trial.ts:120` — where a signup arms the schedule
+
+## 16. Trial day-7 email
+
+**Trial** · Verified trialists on the day-7 mark of a no-card trial who saved at least two articles on purpose and still have one unread from their first week, have not added a card and have not unsubscribed.
+
+### When it is sent
+
+Seven days after signup Readplace tells a trialist what they saved and read in their first week, lists the oldest saves still unread, and states the price and the trial end.
+
+Trigger chain:
+
+1. A trial signup arms a one-shot `trial-day7-<userId>` schedule `projects/hutch/src/runtime/domain/trial/start-trial.ts:131`, set to the trial end less 7 days `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:27`
+2. The schedule puts a command with `kind: trial_day7` on the send-trial-feedback-email queue `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:60`
+3. The handler routes that kind to the day-7 sender `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:80`
+4. The shared nudge guards run, then the sender composes the message `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:44`
+5. It claims the once-only marker, sends through Resend and emits `trial-day7` `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:67`
+
+Sent only when:
+
+- The row is still trialing and its trial end is in the future `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:56`
+- The address is verified `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:61`
+- The reader has not unsubscribed from the shared digest opt-out `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:62`
+- `earlyIntentionalSaves` is at least 2 `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day7-email.ts:19`, and at least one intentional save from the first 7 days is unread `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day7-email.ts:31`
+- `trialDay7EmailSentAt` is unset, or was claimed by this same message `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:242`
+
+Not sent when:
+
+- A card is on file: a card moves the row to active, so the guard logs `not-trialing`
+- The address is still unverified when the schedule fires: it logs `unverified`, and no later attempt follows
+- Each refusal logs `[send-trial-feedback-email] trial_day7 noop` with a `reason` of `not-trialing`, `unverified`, `opted-out`, `not-eligible` or `already-sent` `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:50`
+- The trial was opened by reactivation or an admin extension: only a signup arms the schedule `projects/hutch/src/runtime/domain/trial/start-trial.ts:120`, and an extension does not clear the marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:55`
+
+**Timing:** One shot, 7 days after the trial starts: trial day 8 on the `lifecycle_email_sent` event.
+
+**If sending fails:** The marker is claimed before the send. A Resend error fails the SQS record on the queue the trial feedback request uses (section 8). The retry carries the same message id, so it reclaims its own marker and resends with the idempotency key `trial-day7-<userId>`. A different message finds the marker held and logs `already-sent`.
+
+> **Observations**
+>
+> - Deleting an account does not delete this schedule. A later fire ends `not-trialing` once the row is gone, and the guards have no `deletedAt` check of their own `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts`
+> - Only reads inside the first 7 days count toward the read total `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day7-email.ts:32`
+
+### Message
+
+| Field | Value |
+|---|---|
+| From | `Fayner from Readplace <fayner@readplace.com>` |
+| To | The user's account email |
+| Bcc | `readplace+trial_day7@readplace.com` |
+| Reply-To | `fayner@readplace.com` |
+| Subject | Your readlist, a week in |
+| Headers | List-Unsubscribe: <https://readplace.com/email/queue-digest/unsubscribe?t={userId}.{hmacSha256Hex}&kind=trial-day7>; List-Unsubscribe-Post: List-Unsubscribe=One-Click |
+| Plain-text part | Yes: the same copy, with each save's title, site and reader link |
+| Idempotency key | `trial-day7-<userId>` |
+
+The price paragraph on every variant reads: 'Your trial ends on {trialEnd}. Choose during your trial: {RENEWAL_PRICES} Add a card now and nothing is charged until {trialEnd}; you'll get a reminder before the charge. Your saves stay readable and exportable either way.' `RENEWAL_PRICES` is the constant in `projects/hutch/src/runtime/web/price-statement.ts:5`, so this section does not repeat the amounts. The footer reads 'You're getting this because you started a Readplace trial on {date}. Stop these emails' with the `kind=trial-day7` unsubscribe link, then Proficient Pty Ltd and the postal address. Links carry `utm_source=day7-email&utm_medium=email&utm_campaign=trial-keep`, with `utm_content` of `article`, `readlist`, `keep` or `unsubscribe`.
+
+Content variants:
+
+| Variant | Shown when |
+|---|---|
+| default | At least one first-week save was read: 'In your first week you saved {n} articles and read {m}.' Lists the 3 oldest unread saves, then the 'Continue reading' and 'Keep Readplace' buttons. |
+| nothing-read | No first-week save was read: 'In your first week you saved {n} articles.' Same list and buttons. |
+
+### Example
+
+#### `default` — Five saves, one read, and the three oldest unread saves listed.
+
+Subject: **Your readlist, a week in** · To: `sam.reader@gmail.com`
+
+<details><summary>Example inputs</summary>
+
+```json
+{
+  "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
+  "email": "sam.reader@gmail.com",
+  "registeredAt": "2026-11-06T09:14:22.000Z",
+  "trialEndsAt": "2026-11-20T09:14:22.000Z",
+  "emailVerified": true,
+  "schedulerFiresAt": "2026-11-13T09:14:22.000Z",
+  "saves": [
+    {
+      "title": "Some terminal frustrations",
+      "site": "Julia Evans",
+      "savedAfterSignup": "2h",
+      "savedBy": "web",
+      "readAfterSignup": "30h"
+    },
+    {
+      "title": "Patterns of Distributed Systems",
+      "site": "martinfowler.com",
+      "savedAfterSignup": "20h",
+      "savedBy": "web"
+    },
+    {
+      "title": "Choose Boring Technology",
+      "site": "mcfunley.com",
+      "savedAfterSignup": "44h",
+      "savedBy": "web"
+    },
+    {
+      "title": "How to Do Great Work",
+      "site": "paulgraham.com",
+      "savedAfterSignup": "70h",
+      "savedBy": "iphone"
+    },
+    {
+      "title": "The Bitter Lesson",
+      "site": "www.incompleteideas.net",
+      "savedAfterSignup": "100h",
+      "savedBy": "web"
+    }
+  ]
+}
+```
+
+</details>
+
+No screenshot exists: this entry was added by running the sender without a browser render.
+
+Exact HTML body: [`html/trial-day7--default.html`](html/trial-day7--default.html)
+
+#### `nothing-read` — Three saves and none read.
+
+Subject: **Your readlist, a week in** · To: `sam.reader@gmail.com`
+
+<details><summary>Example inputs</summary>
+
+```json
+{
+  "userId": "4f9a1c7e2b3d48e6a0c5d9f1e7b2a6c3",
+  "email": "sam.reader@gmail.com",
+  "registeredAt": "2026-11-06T09:14:22.000Z",
+  "trialEndsAt": "2026-11-20T09:14:22.000Z",
+  "emailVerified": true,
+  "schedulerFiresAt": "2026-11-13T09:14:22.000Z",
+  "saves": [
+    {
+      "title": "Patterns of Distributed Systems",
+      "site": "martinfowler.com",
+      "savedAfterSignup": "20h",
+      "savedBy": "web"
+    },
+    {
+      "title": "Choose Boring Technology",
+      "site": "mcfunley.com",
+      "savedAfterSignup": "44h",
+      "savedBy": "web"
+    },
+    {
+      "title": "How to Do Great Work",
+      "site": "paulgraham.com",
+      "savedAfterSignup": "70h",
+      "savedBy": "iphone"
+    }
+  ]
+}
+```
+
+</details>
+
+No screenshot exists: this entry was added by running the sender without a browser render.
+
+Exact HTML body: [`html/trial-day7--nothing-read.html`](html/trial-day7--nothing-read.html)
+
+### Source
+
+- `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day7-email.ts:7` — eligibility, first-week counts, listed saves
+- `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:44` — shared guards, claim, send and emit
+- `projects/hutch/src/runtime/web/auth/trial-day7-email.ts:21` — renderer, subject, plain-text part
+- `projects/hutch/src/runtime/web/auth/trial-day7-email.template.html` — template
+- `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:242` — once-only marker
+- `projects/hutch/src/runtime/domain/trial/start-trial.ts:120` — where a signup arms the schedule
+
+## 17. Founder notes (manual)
+
+**Trial** · Trialists the founder chooses to write to by hand, around day 1 and day 12. No code sends these notes; this section documents the routine and what recording one changes.
+
+### When it is sent
+
+Fayner writes the note personally in Google Workspace and records it the same day. Recording is the only part the app sees.
+
+Trigger chain:
+
+1. Fayner sends the note from `fayner@readplace.com`, with `readplace+founder_note@readplace.com` on Bcc so the archive matches the record
+2. He records it on `/admin/founder-notes` the same day, with the reader's email, the note (`day-1` or `day-12`) and the date sent `projects/hutch/src/runtime/web/pages/admin/founder-notes.page.ts:83`
+3. The route sets `founderNoteSentAt` on the subscription row `projects/hutch/src/runtime/web/pages/admin/founder-notes.page.ts:121` and emits `founder-note-day1` or `founder-note-day12` with `delivery: founder-manual` `projects/hutch/src/runtime/web/pages/admin/founder-notes.page.ts:122`
+
+Sent only when:
+
+- The founder decides to write. No schedule, eligibility check or opt-out applies inside the app
+
+Not sent when:
+
+- The reader replied 'stop'. That reply is recorded as `stop=yes` on the `notes` tab of the plan 06 ledger, not in the app, because the unsubscribe route needs a signed token
+
+**Timing:** Manual, around day 1 and day 12 of the trial.
+
+**If sending fails:** Google Workspace reports it to the founder. Nothing in the app retries. Recording a note for an address with no account, or for an account with no subscription row, is refused with a 422 and records nothing `projects/hutch/src/runtime/web/pages/admin/founder-notes.page.ts:101`.
+
+> **Observations**
+>
+> - Any recorded note suppresses the trial feedback request (section 8), and a trial extension does not clear the marker `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:154`
+
+### Message
+
+| Field | Value |
+|---|---|
+| From | `fayner@readplace.com`, sent by hand from Google Workspace |
+| To | The reader's account email |
+| Bcc | `readplace+founder_note@readplace.com` |
+| Reply-To | none: replies reach the From address |
+| Subject | Written by the founder; the templates are in plan 06, step 5 |
+| Headers | none |
+| Plain-text part | As Google Workspace sends it |
+| Idempotency key | none |
+
+Links use `utm_source=founder-note&utm_medium=email&utm_campaign=day-1` or `utm_campaign=day-12`, for example `https://readplace.com/account/plans?utm_source=founder-note&utm_medium=email&utm_campaign=day-12`. The note ends with plan 06's plain unsubscribe line.
+
+### Example
+
+No captured body exists, because no code renders these notes. The wording lives in plan 06, step 5.
+
+### Source
+
+- `projects/hutch/src/runtime/web/pages/admin/founder-notes.page.ts:83` — the recording route
+- `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:266` — writes `founderNoteSentAt`
+- `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:154` — the feedback suppression
+- `projects/hutch/src/runtime/observability/lifecycle-email-events.ts:14` — the lifecycle kinds
 
 ## Not in this inventory
 

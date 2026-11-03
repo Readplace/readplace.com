@@ -85,6 +85,8 @@ async function subject(
 		email: "reader@recipient.com",
 		emailVerified: true,
 		queueDigestOptOutAt: undefined,
+		registeredAt: undefined,
+		earlyIntentionalSaves: 0,
 	};
 	const events: Array<{ event: string; reason?: string; itemCount?: number }> = [];
 	const sent: EmailMessage[] = [];
@@ -272,6 +274,8 @@ describe("starter eligibility and insertion", () => {
 					email: "x",
 					emailVerified: false,
 					queueDigestOptOutAt: undefined,
+					registeredAt: undefined,
+					earlyIntentionalSaves: 0,
 				}),
 			},
 		],
@@ -282,6 +286,8 @@ describe("starter eligibility and insertion", () => {
 					email: "x",
 					emailVerified: true,
 					queueDigestOptOutAt: NOW.toISOString(),
+					registeredAt: undefined,
+					earlyIntentionalSaves: 0,
 				}),
 			},
 		],
@@ -292,6 +298,8 @@ describe("starter eligibility and insertion", () => {
 					email: "reader@example.com",
 					emailVerified: true,
 					queueDigestOptOutAt: undefined,
+					registeredAt: undefined,
+					earlyIntentionalSaves: 0,
 				}),
 			},
 		],

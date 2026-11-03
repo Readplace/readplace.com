@@ -925,7 +925,12 @@ describe("initInMemoryAuth", () => {
 
 			const contact = await auth.findUserContactByUserId(created.userId);
 
-			expect(contact).toEqual({ email: "contact@example.com", emailVerified: false });
+			expect(contact).toEqual({
+				email: "contact@example.com",
+				emailVerified: false,
+				registeredAt: expect.any(String),
+				earlyIntentionalSaves: 0,
+			});
 		});
 
 		it("reports emailVerified=true for Google users", async () => {
@@ -935,7 +940,12 @@ describe("initInMemoryAuth", () => {
 
 			const contact = await auth.findUserContactByUserId(userId);
 
-			expect(contact).toEqual({ email: "g@example.com", emailVerified: true });
+			expect(contact).toEqual({
+				email: "g@example.com",
+				emailVerified: true,
+				registeredAt: expect.any(String),
+				earlyIntentionalSaves: 0,
+			});
 		});
 
 		it("returns null for an unknown userId", async () => {
@@ -957,8 +967,25 @@ describe("initInMemoryAuth", () => {
 				email: "contact@example.com",
 				emailVerified: false,
 				queueDigestOptOutAt: undefined,
+				registeredAt: expect.any(String),
+				earlyIntentionalSaves: 0,
 				deletedAt: undefined,
 			});
+		});
+
+		it("carries the signup instant and the early intentional save count", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "counted@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			const before = await auth.findUserContactByUserId(created.userId);
+			assert(before?.registeredAt, "createUser stamps registeredAt");
+
+			await auth.countEarlyIntentionalSave({ userId: created.userId, at: new Date(before.registeredAt) });
+			await auth.countEarlyIntentionalSave({ userId: created.userId, at: new Date(before.registeredAt) });
+
+			const contact = await auth.findUserContactByUserId(created.userId);
+			assert.equal(contact?.earlyIntentionalSaves, 2);
+			assert.equal(contact?.registeredAt, before.registeredAt);
 		});
 	});
 
@@ -1039,6 +1066,8 @@ describe("initInMemoryAuth", () => {
 				email: "reader@example.com",
 				emailVerified: false,
 				queueDigestOptOutAt: undefined,
+				registeredAt: expect.any(String),
+				earlyIntentionalSaves: 0,
 				deletedAt: undefined,
 			});
 		});
@@ -1058,6 +1087,8 @@ describe("initInMemoryAuth", () => {
 				email: "reader@example.com",
 				emailVerified: false,
 				queueDigestOptOutAt: undefined,
+				registeredAt: expect.any(String),
+				earlyIntentionalSaves: 0,
 				deletedAt: undefined,
 			});
 		});

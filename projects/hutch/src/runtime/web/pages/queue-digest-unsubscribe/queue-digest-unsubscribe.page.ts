@@ -5,7 +5,7 @@ import type { UserId } from "@packages/domain/user";
 import type { SetQueueDigestOptOut } from "@packages/provider-contracts/auth";
 import {
 	ANALYTICS_EVENTS,
-	QUEUE_DIGEST_KINDS,
+	UNSUBSCRIBE_SOURCES,
 	QUEUE_DIGEST_UNSUBSCRIBE_METHODS,
 	type QueueDigestUnsubscribedEvent,
 	type RecordUngatedEvent,
@@ -28,7 +28,7 @@ interface QueueDigestUnsubscribeDependencies {
 
 const UnsubscribeQuerySchema = z.object({ t: z.string() });
 
-const UnsubscribedEmailQuerySchema = z.union([z.object({ kind: z.enum(QUEUE_DIGEST_KINDS) }), z.object({})]);
+const UnsubscribedEmailQuerySchema = z.union([z.object({ kind: z.enum(UNSUBSCRIBE_SOURCES) }), z.object({})]);
 
 function unsubscribedEmailOf(req: Request): UnsubscribedEmail {
 	return UnsubscribedEmailQuerySchema.parse(req.query);

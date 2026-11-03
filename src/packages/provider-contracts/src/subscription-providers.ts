@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { UserId } from "@packages/domain/user";
 import type { SubscriptionNextCharge } from "./subscription-billing";
+import type { TrialNudgeKind } from "./trial-scheduler";
 
 export const SubscriptionProviderSchema = z.enum(["stripe"]);
 export type SubscriptionProvider = z.infer<typeof SubscriptionProviderSchema>;
@@ -33,6 +34,11 @@ export interface SubscriptionRecord {
 	payDigestEmailSentAt?: string;
 	payDigestMessageId?: string;
 	payDigestUrls?: readonly string[];
+	trialDay3EmailSentAt?: string;
+	trialDay3EmailMessageId?: string;
+	trialDay7EmailSentAt?: string;
+	trialDay7EmailMessageId?: string;
+	founderNoteSentAt?: string;
 	plan?: BillingPlan;
 	/** The renewal the provider last told us about. Absent until an /account render
 	 * asks, and cleared by every mutation that ends the current subscription, so a
@@ -111,6 +117,23 @@ export type ReleasePayDigest = (input: {
 	userId: UserId;
 	claimedAt: Date;
 	messageId: string;
+}) => Promise<void>;
+
+export const TRIAL_NUDGE_MARKERS = {
+	trial_day3: { sentAt: "trialDay3EmailSentAt", messageId: "trialDay3EmailMessageId" },
+	trial_day7: { sentAt: "trialDay7EmailSentAt", messageId: "trialDay7EmailMessageId" },
+} as const satisfies Record<TrialNudgeKind, { sentAt: keyof SubscriptionRecord; messageId: keyof SubscriptionRecord }>;
+
+export type ClaimTrialNudge = (input: {
+	userId: UserId;
+	kind: TrialNudgeKind;
+	messageId: string;
+	now: Date;
+}) => Promise<{ claimed: true } | { claimed: false }>;
+
+export type RecordFounderNote = (input: {
+	userId: UserId;
+	sentAt: string;
 }) => Promise<void>;
 
 /** `subscriptionId` is the one the charge was read from, not a lookup key: the

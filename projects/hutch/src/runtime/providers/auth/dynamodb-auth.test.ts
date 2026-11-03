@@ -263,7 +263,7 @@ describe("initDynamoDbAuth", () => {
 
 			const contact = await initAuth(client).findUserContactByUserId(USER);
 
-			expect(contact).toEqual({ email: "user@example.com", emailVerified: true });
+			expect(contact).toEqual({ email: "user@example.com", emailVerified: true, earlyIntentionalSaves: 0 });
 			expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
 		});
 
@@ -306,6 +306,8 @@ describe("initDynamoDbAuth", () => {
 				email: "user@example.com",
 				emailVerified: true,
 				queueDigestOptOutAt: "2026-09-30T10:00:00.000Z",
+				registeredAt: undefined,
+				earlyIntentionalSaves: 0,
 				deletedAt: undefined,
 			});
 		});
@@ -321,8 +323,27 @@ describe("initDynamoDbAuth", () => {
 				email: "user@example.com",
 				emailVerified: true,
 				queueDigestOptOutAt: undefined,
+				registeredAt: undefined,
+				earlyIntentionalSaves: 0,
 				deletedAt: undefined,
 			});
+		});
+
+		it("carries the signup instant and the early intentional save count from the row", async () => {
+			const { client } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					registeredAt: "2026-11-06T00:00:00.000Z",
+					earlyIntentionalSaves: 3,
+				},
+			});
+
+			const contact = await initAuth(client).findUserContactByUserId(USER);
+
+			expect(contact?.registeredAt).toBe("2026-11-06T00:00:00.000Z");
+			expect(contact?.earlyIntentionalSaves).toBe(3);
 		});
 	});
 

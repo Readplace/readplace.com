@@ -2,6 +2,7 @@ import type { UserId } from "@packages/domain/user";
 import type { UpsertTrialingSubscription } from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateTrialEndSchedule,
+	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
@@ -10,6 +11,9 @@ import type {
 } from "@packages/provider-contracts/trial-scheduler";
 import {
 	STRIPE_TRIAL_PERIOD_DAYS,
+	TRIAL_DAY3_OFFSET_DAYS,
+	TRIAL_DAY7_OFFSET_DAYS,
+	trialNudgeFiresAt,
 	trialReminderFiresAt,
 } from "../stripe/stripe-trial-config";
 
@@ -21,6 +25,7 @@ export interface TrialSchedulerPort {
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	createTrialReminderSchedule: CreateTrialReminderSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+	createTrialNudgeSchedule: CreateTrialNudgeSchedule;
 	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
 }
@@ -111,6 +116,23 @@ export async function startTrial(params: StartTrialParams): Promise<StartTrialRe
 		(await arm("trial-reminder", () =>
 			trialScheduler.createTrialReminderSchedule({ userId, firesAt: reminderFiresAt }),
 		));
+
+	if (mode === "signup") {
+		await arm(`trial-day3 userId: '${userId}'`, () =>
+			trialScheduler.createTrialNudgeSchedule({
+				userId,
+				kind: "trial_day3",
+				firesAt: trialNudgeFiresAt({ trialEndsAt, offsetDays: TRIAL_DAY3_OFFSET_DAYS }),
+			}),
+		);
+		await arm(`trial-day7 userId: '${userId}'`, () =>
+			trialScheduler.createTrialNudgeSchedule({
+				userId,
+				kind: "trial_day7",
+				firesAt: trialNudgeFiresAt({ trialEndsAt, offsetDays: TRIAL_DAY7_OFFSET_DAYS }),
+			}),
+		);
+	}
 
 	/* Written LAST, and the sole source of access truth. On a reset the row only
 	 * flips to trialing once the machinery that ends the trial is armed. */

@@ -27,7 +27,7 @@ import {
 	type OAuthTokenRefusalReason,
 	type PageExitKind,
 	type PlansPageTerms,
-	type QueueDigestKind,
+	type UnsubscribeSource,
 	type QueueDigestUnsubscribeMethod,
 	type SaveRefusalCode,
 	type SaveClient,
@@ -562,7 +562,7 @@ export interface QueueDigestUnsubscribedEvent {
 	timestamp: string;
 	user_id: UserId;
 	method: QueueDigestUnsubscribeMethod;
-	kind?: QueueDigestKind;
+	kind?: UnsubscribeSource;
 }
 
 export interface McpRequestRefusedEvent {

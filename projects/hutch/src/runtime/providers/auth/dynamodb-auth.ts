@@ -567,6 +567,8 @@ export function initDynamoDbAuth(deps: {
 			email: row.email,
 			emailVerified: row.emailVerified === true,
 			queueDigestOptOutAt: row.queueDigestOptOutAt,
+			registeredAt: row.registeredAt,
+			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
 			deletedAt: row.deletedAt,
 		};
 	};

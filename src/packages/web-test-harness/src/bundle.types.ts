@@ -77,6 +77,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	CreateTrialEndSchedule,
 	CreateTrialFeedbackEmailSchedule,
+	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
 	CreateUser,
 	CreateUserWithPasswordHash,
@@ -233,6 +234,7 @@ import type {
 	SubscriptionRecord,
 	UpdateArticleStatus,
 	UpdatePassword,
+	RecordFounderNote,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 	UserAcquisitionAttribution,
@@ -310,6 +312,7 @@ export interface SubscriptionProvidersBundle {
 	findBySubscriptionId: FindSubscriptionBySubscriptionId;
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
+	recordFounderNote: RecordFounderNote;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
@@ -328,6 +331,7 @@ export interface TrialSchedulerBundle {
 	trialFeedbackEmailDeleteCalls: () => readonly UserId[];
 	createTrialReminderSchedule: CreateTrialReminderSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+	createTrialNudgeSchedule: CreateTrialNudgeSchedule;
 	getSchedule: (userId: UserId) => string | undefined;
 	allSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	deleteCalls: () => readonly UserId[];

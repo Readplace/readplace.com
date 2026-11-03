@@ -5,12 +5,14 @@ import type {
 	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialFeedbackEmailSchedule,
+	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
 	DeleteChargeReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
+	TrialNudgeKind,
 } from "@packages/provider-contracts/trial-scheduler";
 
 export function initInMemoryTrialScheduler(opts?: {
@@ -18,6 +20,7 @@ export function initInMemoryTrialScheduler(opts?: {
 	createDeferredCancellationFails?: boolean;
 	createTrialFeedbackEmailFails?: boolean;
 	createTrialReminderFails?: boolean;
+	createTrialNudgeFails?: boolean;
 	createChargeReminderFails?: boolean;
 }): {
 	createTrialEndSchedule: CreateTrialEndSchedule;
@@ -41,6 +44,8 @@ export function initInMemoryTrialScheduler(opts?: {
 	getTrialReminderSchedule: (userId: UserId) => string | undefined;
 	allTrialReminderSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	trialReminderDeleteCalls: () => readonly UserId[];
+	createTrialNudgeSchedule: CreateTrialNudgeSchedule;
+	getTrialNudgeSchedule: (input: { userId: UserId; kind: TrialNudgeKind }) => string | undefined;
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	getChargeReminderSchedule: (
@@ -62,6 +67,14 @@ export function initInMemoryTrialScheduler(opts?: {
 	const trialFeedbackEmailDeletes: UserId[] = [];
 	const trialReminderSchedules = new Map<UserId, string>();
 	const trialReminderDeletes: UserId[] = [];
+	const trialNudgeSchedules = {
+		trial_day3: new Map<UserId, string>(),
+		trial_day7: new Map<UserId, string>(),
+	} satisfies Record<TrialNudgeKind, Map<UserId, string>>;
+	const trialNudgeScheduleNames = {
+		trial_day3: "trial-day3",
+		trial_day7: "trial-day7",
+	} satisfies Record<TrialNudgeKind, string>;
 	const chargeReminderSchedules = new Map<UserId, { firesAt: string; chargeAt: string }>();
 	const chargeReminderDeletes: UserId[] = [];
 
@@ -144,6 +157,14 @@ export function initInMemoryTrialScheduler(opts?: {
 		trialReminderSchedules.delete(userId);
 	};
 
+	const createTrialNudgeSchedule: CreateTrialNudgeSchedule = async ({ userId, kind, firesAt }) => {
+		if (opts?.createTrialNudgeFails) {
+			throw new Error("In-memory trial-nudge create failure");
+		}
+		assertNoConflict(`${trialNudgeScheduleNames[kind]}-${userId}`, trialNudgeSchedules[kind].has(userId));
+		trialNudgeSchedules[kind].set(userId, firesAt);
+	};
+
 	const createChargeReminderSchedule: CreateChargeReminderSchedule = async ({
 		userId,
 		firesAt,
@@ -186,6 +207,8 @@ export function initInMemoryTrialScheduler(opts?: {
 		allTrialReminderSchedules: () =>
 			Array.from(trialReminderSchedules.entries()).map(([userId, firesAt]) => ({ userId, firesAt })),
 		trialReminderDeleteCalls: () => [...trialReminderDeletes],
+		createTrialNudgeSchedule,
+		getTrialNudgeSchedule: ({ userId, kind }) => trialNudgeSchedules[kind].get(userId),
 		createChargeReminderSchedule,
 		deleteChargeReminderSchedule,
 		getChargeReminderSchedule: (userId) => chargeReminderSchedules.get(userId),

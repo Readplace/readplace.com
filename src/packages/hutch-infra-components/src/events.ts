@@ -926,7 +926,15 @@ export const SendTrialFeedbackEmailCommand = defineEvent({
 	detailSchema: z.object({
 		userId: z.string(),
 		kind: z
-			.enum(["feedback", "reminder", "charge_reminder", "payment_failed", "automation_saves_held"])
+			.enum([
+				"feedback",
+				"reminder",
+				"charge_reminder",
+				"payment_failed",
+				"automation_saves_held",
+				"trial_day3",
+				"trial_day7",
+			])
 			.optional(),
 		chargeAt: z.string().optional(),
 		receivedAtMessageId: z.string().optional(),

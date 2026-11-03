@@ -1,5 +1,4 @@
 import { ReaderArticleHashId } from "@packages/domain/article";
-import type { SaveProvenance } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { CountEarlyIntentionalSave } from "@packages/provider-contracts/auth";
 import type {
@@ -14,13 +13,7 @@ import {
 	type ActivationThresholdReachedEvent,
 	buildActivationThresholdReachedEvent,
 } from "../../observability/funnel-events";
-
-const NOT_INTENTIONAL_FOR_ACTIVATION: ReadonlySet<SaveProvenance["kind"]> = new Set([
-	"email",
-	"hn-suggestion",
-	"founder-seed",
-	"import",
-]);
+import { isIntentionalSave } from "./intentional-save";
 
 export function initRecordPersonalSaves(deps: {
 	saveArticle: SaveArticle;
@@ -63,7 +56,7 @@ export function initRecordPersonalSaves(deps: {
 		params: Parameters<SaveArticle>[0],
 		result: Awaited<ReturnType<SaveArticle>>,
 	) => {
-		if (!result.createdUserArticle || NOT_INTENTIONAL_FOR_ACTIVATION.has(params.provenance.kind)) return;
+		if (!result.createdUserArticle || !isIntentionalSave(params)) return;
 		try {
 			const counted = await deps.countEarlyIntentionalSave({ userId: params.userId, at: deps.now() });
 			if (counted.inWindow && counted.count === 2) {

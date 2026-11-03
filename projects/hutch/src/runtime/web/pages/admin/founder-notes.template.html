@@ -1,0 +1,62 @@
+<main class="admin-extend-trial" data-test-admin-founder-notes>
+  <div class="admin-extend-trial__layout">
+    <section class="admin-extend-trial__panel">
+      <h1 class="admin-extend-trial__title">Founder notes</h1>
+      <p class="admin-extend-trial__intro">
+        Records a note you already sent to a reader. Their trial feedback email will not go out once one is recorded.
+      </p>
+
+      <form
+        class="admin-extend-trial__form"
+        method="POST"
+        action="{{track '/admin/founder-notes' source='admin-founder-notes' content='record-note'}}"
+        data-test-founder-notes-form>
+        <label class="form-field__label" for="founder-notes-email">User email (exact)</label>
+        <input
+          id="founder-notes-email"
+          class="form-input"
+          type="email"
+          name="email"
+          value="{{email}}"
+          required
+          autocomplete="off"
+          placeholder="user@example.com"
+          {{#if emailError}}aria-invalid="true" aria-describedby="founder-notes-email-error"{{/if}}>
+        {{#if emailError}}
+        <p class="form-field__error" id="founder-notes-email-error" data-test-error="email">{{emailError}}</p>
+        {{/if}}
+
+        <label class="form-field__label" for="founder-notes-note">Which note</label>
+        <select
+          id="founder-notes-note"
+          class="form-input"
+          name="note"
+          {{#if noteError}}aria-invalid="true" aria-describedby="founder-notes-note-error"{{/if}}
+          data-test-founder-note-kind>
+          {{#each notes}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+        {{#if noteError}}
+        <p class="form-field__error" id="founder-notes-note-error" data-test-error="note">{{noteError}}</p>
+        {{/if}}
+
+        <label class="form-field__label" for="founder-notes-sent-at">Date sent (blank for today, UTC)</label>
+        <input
+          id="founder-notes-sent-at"
+          class="form-input"
+          type="date"
+          name="sentAt"
+          value="{{sentAt}}"
+          {{#if sentAtError}}aria-invalid="true" aria-describedby="founder-notes-sent-at-error"{{/if}}>
+        {{#if sentAtError}}
+        <p class="form-field__error" id="founder-notes-sent-at-error" data-test-error="sentAt">{{sentAtError}}</p>
+        {{/if}}
+
+        <button type="submit" class="btn btn--primary admin-extend-trial__submit" data-test-founder-notes-submit>Record note</button>
+      </form>
+    </section>
+
+    {{{alertsHtml}}}
+  </div>
+</main>

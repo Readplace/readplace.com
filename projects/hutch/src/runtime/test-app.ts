@@ -340,6 +340,7 @@ function flattenFixtureToAppDependencies(
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		subscriptionProviders: {
 			upsertActive: fixture.subscriptionProviders.upsertActive,
+			recordFounderNote: fixture.subscriptionProviders.recordFounderNote,
 			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
 			findByUserId: fixture.subscriptionProviders.findByUserId,
 			markActive: fixture.subscriptionProviders.markActive,
@@ -354,6 +355,7 @@ function flattenFixtureToAppDependencies(
 				fixture.trialScheduler.deleteTrialFeedbackEmailSchedule,
 			createTrialReminderSchedule: fixture.trialScheduler.createTrialReminderSchedule,
 			deleteTrialReminderSchedule: fixture.trialScheduler.deleteTrialReminderSchedule,
+			createTrialNudgeSchedule: fixture.trialScheduler.createTrialNudgeSchedule,
 			createChargeReminderSchedule: fixture.trialScheduler.createChargeReminderSchedule,
 		},
 		createSubscriptionOnExistingCustomer:

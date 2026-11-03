@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateAppleUser,
@@ -21,6 +21,7 @@ import {
 } from "../../domain/trial/start-trial";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
+import { type ResolveSignupClient, signupClientOrOther } from "./signup-client";
 import type { EmitLifecycleEmailSent } from "../../observability/lifecycle-email-events";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
@@ -93,6 +94,8 @@ interface AppleAuthDependencies {
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
+	resolveSignupClient: ResolveSignupClient;
+	signUnsubscribeToken: (userId: UserId) => string;
 }
 
 export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
@@ -123,6 +126,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		logError: deps.logError,
 		emitLifecycleEmailSent: deps.emitLifecycleEmailSent,
 		now: deps.now,
+		signUnsubscribeToken: deps.signUnsubscribeToken,
 	});
 
 	router.get("/auth/apple", (req: Request, res: Response) => {
@@ -255,6 +259,11 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		const safeReturnUrl = extractReturnUrl({ return: stateData.returnUrl });
 		const oauthClientId = oauthClientIdFrom(safeReturnUrl);
 		const signupOAuthClientId = oauthClientId ?? null;
+		const welcomeSignupClient = () =>
+			signupClientOrOther({
+				resolve: () => deps.resolveSignupClient(signupOAuthClientId),
+				logError: deps.logError,
+			});
 
 		/* Tunneled from GET /auth/apple — the cross-site callback carries none of
 		 * the cookies these came from, so reading them off `req` here would record
@@ -309,7 +318,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 			signIn(res, sessionId);
 			clearPendingSave();
 			clearLastView();
-			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, tier: "free" });
+			await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "free" });
 			deps.recordConversionEvent(
 				req,
 				buildUserCreatedEvent(
@@ -373,7 +382,7 @@ export const initAppleAuthRoutes = (deps: AppleAuthDependencies): Router => {
 		signIn(res, sessionId);
 		clearPendingSave();
 		clearLastView();
-		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, tier: "trial", trialEndsAt });
+		await sendWelcomeEmail({ email: tokenResult.email, userId: created.userId, signupClient: await welcomeSignupClient(), tier: "trial", trialEndsAt });
 		deps.recordConversionEvent(
 			req,
 			buildUserCreatedEvent(

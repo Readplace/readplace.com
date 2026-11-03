@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import type { QueueDigestKind } from "@packages/web-analytics";
+import type { UnsubscribeSource } from "@packages/web-analytics";
 
 import {
 	QUEUE_DIGEST_EMAIL_SUBJECT,
@@ -16,7 +16,7 @@ const QUEUE_DIGEST_UNSUBSCRIBE_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-export type UnsubscribedEmail = { kind: QueueDigestKind } | Record<never, never>;
+export type UnsubscribedEmail = { kind: UnsubscribeSource } | Record<never, never>;
 
 export type QueueDigestUnsubscribeState =
 	| { kind: "confirm"; token: string; email: UnsubscribedEmail }
@@ -33,17 +33,17 @@ const QUEUE_DIGEST_UNSUBSCRIBE_CONTENT: Record<
 > = {
 	confirm: {
 		title: `${UNSUBSCRIBE_LABEL}?`,
-		body: `You'll stop getting "${QUEUE_DIGEST_EMAIL_SUBJECT}". ${OTHER_EMAILS_CONTINUE}`,
+		body: `You'll stop getting "${QUEUE_DIGEST_EMAIL_SUBJECT}" and Readplace's other check-in emails. ${OTHER_EMAILS_CONTINUE}`,
 		statusCode: 200,
 	},
 	done: {
 		title: "You've stopped these emails",
-		body: `Readplace won't send you "${QUEUE_DIGEST_EMAIL_SUBJECT}" again. ${OTHER_EMAILS_CONTINUE}`,
+		body: `Readplace won't send you "${QUEUE_DIGEST_EMAIL_SUBJECT}" or other check-in emails again. ${OTHER_EMAILS_CONTINUE}`,
 		statusCode: 200,
 	},
 	invalid: {
 		title: "Couldn't read this unsubscribe link",
-		body: `The link is incomplete or has been changed. Use the "${UNSUBSCRIBE_LABEL}" link at the bottom of your latest "${QUEUE_DIGEST_EMAIL_SUBJECT}" email.`,
+		body: `The link is incomplete or has been changed. Use the "${UNSUBSCRIBE_LABEL}" link at the bottom of your latest email from Readplace.`,
 		statusCode: 400,
 	},
 };

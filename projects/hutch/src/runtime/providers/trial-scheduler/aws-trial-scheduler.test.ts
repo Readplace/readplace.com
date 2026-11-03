@@ -5,6 +5,7 @@ import {
 	type SchedulerClient,
 } from "@aws-sdk/client-scheduler";
 import { UserIdSchema } from "@packages/domain/user";
+import { SendTrialFeedbackEmailCommand } from "@packages/hutch-infra-components";
 import { initAwsTrialScheduler } from "./aws-trial-scheduler";
 
 const USER_ID = UserIdSchema.parse("a".repeat(32));
@@ -500,6 +501,48 @@ describe("initAwsTrialScheduler", () => {
 			const cmd = captured.commands[0];
 			assert.ok(cmd instanceof CreateScheduleCommand);
 			assert.equal(cmd.input.ScheduleExpression, "at(2026-07-17T10:00:00)");
+		});
+	});
+
+	describe("createTrialNudgeSchedule", () => {
+		it.each([
+			{ kind: "trial_day3", name: `trial-day3-${USER_ID}` },
+			{ kind: "trial_day7", name: `trial-day7-${USER_ID}` },
+		] as const)("issues a self-deleting CreateScheduleCommand named $name carrying kind=$kind", async ({ kind, name }) => {
+			const { client, captured } = buildFakeClient();
+			const scheduler = initAwsTrialScheduler({
+				client,
+				scheduleGroupName: GROUP_NAME,
+				schedulerRoleArn: ROLE_ARN,
+				eventBusArn: EVENT_BUS_ARN,
+			});
+
+			await scheduler.createTrialNudgeSchedule({
+				userId: USER_ID,
+				kind,
+				firesAt: "2026-07-08T10:00:00.000Z",
+			});
+
+			assert.equal(captured.commands.length, 1);
+			const cmd = captured.commands[0];
+			assert.ok(cmd instanceof CreateScheduleCommand);
+			const input = cmd.input;
+			assert.equal(input.Name, name);
+			assert.equal(input.GroupName, GROUP_NAME);
+			assert.equal(input.ScheduleExpression, "at(2026-07-08T10:00:00)");
+			assert.equal(input.FlexibleTimeWindow?.Mode, "OFF");
+			assert.equal(input.ActionAfterCompletion, "DELETE");
+			assert.equal(input.State, "ENABLED");
+			assert.equal(input.Target?.Arn, EVENT_BUS_ARN);
+			assert.equal(input.Target?.RoleArn, ROLE_ARN);
+			assert.equal(input.Target?.EventBridgeParameters?.Source, "hutch.subscriptions");
+			assert.equal(
+				input.Target?.EventBridgeParameters?.DetailType,
+				"SendTrialFeedbackEmailCommand",
+			);
+			const detail = JSON.parse(input.Target?.Input ?? "{}");
+			assert.deepEqual(detail, { userId: USER_ID, kind });
+			assert.deepEqual(SendTrialFeedbackEmailCommand.detailSchema.parse(detail), { userId: USER_ID, kind });
 		});
 	});
 

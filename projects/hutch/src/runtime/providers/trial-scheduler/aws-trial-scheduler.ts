@@ -10,12 +10,14 @@ import type {
 	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
 	CreateTrialFeedbackEmailSchedule,
+	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
 	DeleteChargeReminderSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
 	DeleteTrialReminderSchedule,
+	TrialNudgeKind,
 } from "@packages/provider-contracts/trial-scheduler";
 
 /** EventBridge Scheduler's `at(<iso>)` does not accept fractional seconds or a
@@ -53,6 +55,15 @@ function trialReminderScheduleName(userId: UserId): string {
 	return `trial-reminder-${userId}`;
 }
 
+const TRIAL_NUDGE_SCHEDULE_PREFIXES = {
+	trial_day3: "trial-day3",
+	trial_day7: "trial-day7",
+} satisfies Record<TrialNudgeKind, string>;
+
+function trialNudgeScheduleName(input: { userId: UserId; kind: TrialNudgeKind }): string {
+	return `${TRIAL_NUDGE_SCHEDULE_PREFIXES[input.kind]}-${input.userId}`;
+}
+
 function chargeReminderScheduleName(userId: UserId): string {
 	return `charge-reminder-${userId}`;
 }
@@ -71,6 +82,7 @@ export function initAwsTrialScheduler(deps: {
 	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
 	createTrialReminderSchedule: CreateTrialReminderSchedule;
 	deleteTrialReminderSchedule: DeleteTrialReminderSchedule;
+	createTrialNudgeSchedule: CreateTrialNudgeSchedule;
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 } {
@@ -260,6 +272,37 @@ export function initAwsTrialScheduler(deps: {
 		}
 	};
 
+	const createTrialNudgeSchedule: CreateTrialNudgeSchedule = async ({
+		userId,
+		kind,
+		firesAt,
+	}) => {
+		assert(deps.eventBusArn, "eventBusArn is required for createTrialNudgeSchedule");
+		assert(
+			deps.schedulerRoleArn,
+			"schedulerRoleArn is required for createTrialNudgeSchedule",
+		);
+		await deps.client.send(
+			new CreateScheduleCommand({
+				Name: trialNudgeScheduleName({ userId, kind }),
+				GroupName: deps.scheduleGroupName,
+				ScheduleExpression: `at(${toNaiveSeconds(firesAt)})`,
+				FlexibleTimeWindow: { Mode: "OFF" },
+				ActionAfterCompletion: "DELETE",
+				State: "ENABLED",
+				Target: {
+					Arn: deps.eventBusArn,
+					RoleArn: deps.schedulerRoleArn,
+					EventBridgeParameters: {
+						Source: "hutch.subscriptions",
+						DetailType: "SendTrialFeedbackEmailCommand",
+					},
+					Input: JSON.stringify({ userId, kind }),
+				},
+			}),
+		);
+	};
+
 	const createChargeReminderSchedule: CreateChargeReminderSchedule = async ({
 		userId,
 		firesAt,
@@ -316,6 +359,7 @@ export function initAwsTrialScheduler(deps: {
 		deleteTrialFeedbackEmailSchedule,
 		createTrialReminderSchedule,
 		deleteTrialReminderSchedule,
+		createTrialNudgeSchedule,
 		createChargeReminderSchedule,
 		deleteChargeReminderSchedule,
 	};

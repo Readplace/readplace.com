@@ -47,6 +47,8 @@ const ADMIN_PATHS = [
 	"/admin/newsletters?correct=issue2%40letters.example",
 	"/admin/recrawl",
 	"/admin/extend-trial",
+	"/admin/founder-notes",
+	"/admin/founder-notes?email=reader%40example.com&recorded=1",
 	"/admin/canary-reports/failed-articles/run-1-1",
 	"/admin/dashboards",
 	"/admin/dashboards/hn-experiment",

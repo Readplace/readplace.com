@@ -145,6 +145,8 @@ export type UserContact = {
 	email: string;
 	emailVerified: boolean;
 	queueDigestOptOutAt: string | undefined;
+	registeredAt: string | undefined;
+	earlyIntentionalSaves: number;
 	deletedAt?: string;
 };
 

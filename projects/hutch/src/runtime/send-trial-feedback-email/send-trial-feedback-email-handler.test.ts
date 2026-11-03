@@ -96,6 +96,9 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent:
 			overrides.markAutomationSavesHeldEmailSent ?? providers.markAutomationSavesHeldEmailSent,
+		claimTrialNudge: providers.claimTrialNudge,
+		findUserContactByUserId: async () => null,
+		signUnsubscribeToken: () => "signed-token",
 		sendEmail: overrides.sendEmail ?? email.sendEmail,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		appOrigin: "https://readplace.com",
@@ -454,6 +457,9 @@ describe("send-trial-feedback-email handler", () => {
 			markTrialFeedbackEmailSent: providers.markTrialFeedbackEmailSent,
 			markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 			markAutomationSavesHeldEmailSent: providers.markAutomationSavesHeldEmailSent,
+			claimTrialNudge: providers.claimTrialNudge,
+			findUserContactByUserId: async () => null,
+			signUnsubscribeToken: () => "signed-token",
 			sendEmail: async () => {
 				throw new Error("Resend rejected");
 			},
@@ -1019,6 +1025,20 @@ describe("lifecycle_email_sent", () => {
 		]);
 	});
 
+	it("holds back the feedback email and its event for a reader the founder has written to", async () => {
+		const subject = buildSubject({ articlesTotal: 3 });
+		await seedCancelledTrial(subject.providers);
+		await subject.providers.recordFounderNote({ userId: USER_ID, sentAt: "2026-05-23T00:00:00.000Z" });
+
+		const result = await deliver(subject, buildEventBridgeBody(USER_ID));
+
+		assert.deepEqual(result, { batchItemFailures: [] });
+		assert.deepEqual(subject.email.getSentEmails(), []);
+		assert.deepEqual(subject.lifecycleEvents, []);
+		const row = await subject.providers.findByUserId(USER_ID);
+		assert.equal(row?.trialFeedbackEmailSentAt, undefined);
+	});
+
 	it("records trial-feedback with no trial day and no utm source, as a cancelled row has no trialEndsAt and the email no tagged link", async () => {
 		const subject = buildSubject();
 		await seedCancelledTrial(subject.providers);
@@ -1082,4 +1102,22 @@ describe("lifecycle_email_sent", () => {
 		assert.equal(result.batchItemFailures.length, 1);
 		assert.deepEqual(subject.lifecycleEvents, []);
 	});
+});
+
+describe("trial nudge dispatch", () => {
+	for (const kind of ["trial_day3", "trial_day7"]) {
+		it(`routes ${kind} to its own sender`, async () => {
+			const info = jest.fn();
+			const subject = buildSubject({ logger: HutchLogger.from({ ...noopLogger, info }) });
+
+			await subject.handler(
+				buildSqsEvent([{ messageId: "msg-nudge", body: JSON.stringify({ detail: { userId: USER_ID, kind } }) }]),
+				buildLambdaContext(),
+				() => {},
+			);
+
+			assert.ok(info.mock.calls.some(([message]) => message === `[send-trial-feedback-email] ${kind} noop`));
+			assert.deepEqual(subject.email.getSentEmails(), []);
+		});
+	}
 });

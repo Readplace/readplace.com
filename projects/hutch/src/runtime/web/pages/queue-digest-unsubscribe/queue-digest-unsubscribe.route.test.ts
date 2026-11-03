@@ -46,6 +46,10 @@ function pageState(html: string): string {
 	return page.getAttribute("data-test-queue-digest-unsubscribe") ?? "";
 }
 
+function pageCopy(html: string): string | null | undefined {
+	return new JSDOM(html).window.document.querySelector("[data-test-queue-digest-unsubscribe] p")?.textContent;
+}
+
 function confirmForm(html: string): HTMLFormElement {
 	const form = new JSDOM(html).window.document.querySelector<HTMLFormElement>(
 		"[data-test-queue-digest-unsubscribe] form",
@@ -155,7 +159,25 @@ describe("GET /email/queue-digest/unsubscribe", () => {
 
 		expect(response.status).toBe(400);
 		expect(pageState(response.text)).toBe("invalid");
+		expect(pageCopy(response.text)).toBe(
+			'The link is incomplete or has been changed. Use the "Stop these emails" link at the bottom of your latest email from Readplace.',
+		);
 	});
+
+	it.each(["regular", "trial-day3", "trial-day7", "welcome-connector"])(
+		"tells a reader who came from a %s email that every check-in email stops",
+		async (kind) => {
+			const { harness, token } = await digestReader(`confirm-copy-${kind}@example.com`);
+
+			const response = await request(harness.server)
+				.get(unsubscribeUrl({ t: token, kind }))
+				.set(BROWSER_REQUEST_HEADERS);
+
+			expect(pageCopy(response.text)).toBe(
+				`You'll stop getting "Waiting in your readlist" and Readplace's other check-in emails. Emails about your account and billing still arrive.`,
+			);
+		},
+	);
 
 	it("confirms the emails have stopped once the reader comes back from the form", async () => {
 		const { harness, token } = await digestReader("done-page@example.com");
@@ -166,6 +188,9 @@ describe("GET /email/queue-digest/unsubscribe", () => {
 
 		expect(response.status).toBe(200);
 		expect(pageState(response.text)).toBe("done");
+		expect(pageCopy(response.text)).toBe(
+			`Readplace won't send you "Waiting in your readlist" or other check-in emails again. Emails about your account and billing still arrive.`,
+		);
 	});
 });
 
@@ -269,6 +294,31 @@ describe("POST /email/queue-digest/unsubscribe (one-click from the mail client)"
 			},
 		]);
 	});
+
+	it.each(["regular", "trial-day3", "trial-day7", "welcome-connector"])(
+		"stops the shared opt-out for a one-click from a %s email and counts it against that email",
+		async (kind) => {
+			const { harness, userId, token } = await digestReader(`one-click-source-${kind}@example.com`);
+
+			const response = await request(harness.server)
+				.post(unsubscribeUrl({ t: token, kind }))
+				.type("form")
+				.send("List-Unsubscribe=One-Click");
+
+			expect(response.status).toBe(200);
+			expect(await optOutOf(harness, userId)).toBe(UNSUBSCRIBED_AT.toISOString());
+			expect(unsubscribes(harness)).toStrictEqual([
+				{
+					stream: "analytics",
+					event: "queue_digest_unsubscribed",
+					timestamp: UNSUBSCRIBED_AT.toISOString(),
+					user_id: userId,
+					method: "one-click",
+					kind,
+				},
+			]);
+		},
+	);
 
 	it("still stops the emails when the link names a kind no email sends, and counts it with no kind", async () => {
 		const { harness, userId, token } = await digestReader("one-click-unknown-kind@example.com");

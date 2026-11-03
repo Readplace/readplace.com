@@ -79,6 +79,40 @@ it("signup still writes the row when the reminder schedule fails", async () => {
 	expect((await subscriptions.findByUserId(USER_ID))?.status).toBe("trialing");
 });
 
+it("signup arms the day-3 and day-7 nudges 11 and 7 days before the trial ends", async () => {
+	const { trialScheduler, params, logError } = createDeps();
+
+	await startTrial({ ...params, mode: "signup", trialEndsAt: TRIAL_ENDS_AT, logError });
+
+	expect(trialScheduler.getTrialNudgeSchedule({ userId: USER_ID, kind: "trial_day3" })).toBe("2026-10-04T00:00:00.000Z");
+	expect(trialScheduler.getTrialNudgeSchedule({ userId: USER_ID, kind: "trial_day7" })).toBe("2026-10-08T00:00:00.000Z");
+});
+
+it("signup logs a nudge schedule failure with the user it belongs to and still starts the trial", async () => {
+	const { trialScheduler, subscriptions, loggedErrors, params, logError } = createDeps({
+		createTrialNudgeFails: true,
+	});
+
+	const result = await startTrial({ ...params, mode: "signup", trialEndsAt: TRIAL_ENDS_AT, logError });
+
+	expect(loggedErrors).toEqual([
+		`[start-trial] trial-day3 userId: '${USER_ID}' schedule creation failed — continuing without it`,
+		`[start-trial] trial-day7 userId: '${USER_ID}' schedule creation failed — continuing without it`,
+	]);
+	expect(result).toEqual({ trialEndsAt: TRIAL_ENDS_AT, trialReminderArmed: true });
+	expect(trialScheduler.getSchedule(USER_ID)).toBe(TRIAL_ENDS_AT);
+	expect((await subscriptions.findByUserId(USER_ID))?.status).toBe("trialing");
+});
+
+it("reset arms neither nudge, because day 3 and day 7 belong to the first week after signup", async () => {
+	const { trialScheduler, params } = createDeps();
+
+	await startTrial({ ...params, mode: "reset", trialEndsAt: TRIAL_ENDS_AT });
+
+	expect(trialScheduler.getTrialNudgeSchedule({ userId: USER_ID, kind: "trial_day3" })).toBeUndefined();
+	expect(trialScheduler.getTrialNudgeSchedule({ userId: USER_ID, kind: "trial_day7" })).toBeUndefined();
+});
+
 it("skips the reminder when it would fire in the past", async () => {
 	const { trialScheduler, loggedErrors, params, logError } = createDeps();
 	const oneDayOut = "2026-07-13T00:00:00.000Z";

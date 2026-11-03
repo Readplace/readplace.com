@@ -70,6 +70,7 @@ describe("GET /admin", () => {
 			["newsletters", "GET", "/admin/newsletters", tracked("newsletters")],
 			["recrawl", "GET", "/admin/recrawl", tracked("recrawl")],
 			["extend-trial", "GET", "/admin/extend-trial", tracked("extend-trial")],
+			["founder-notes", "GET", "/admin/founder-notes", tracked("founder-notes")],
 			["dashboards", "GET", "/admin/dashboards", tracked("dashboards")],
 		]);
 	});

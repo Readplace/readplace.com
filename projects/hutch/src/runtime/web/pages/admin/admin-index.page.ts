@@ -33,6 +33,12 @@ const ADMIN_LINKS = [
 		path: "/admin/extend-trial",
 	},
 	{
+		key: "founder-notes",
+		label: "Founder notes",
+		description: "Record a founder note you sent to a reader.",
+		path: "/admin/founder-notes",
+	},
+	{
 		key: "dashboards",
 		label: "Dashboards",
 		description: "Read the analytics dashboards for the experiment, MCP and login.",

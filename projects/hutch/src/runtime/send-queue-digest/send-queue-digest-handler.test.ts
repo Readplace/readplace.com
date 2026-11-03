@@ -41,6 +41,8 @@ const VERIFIED_CONTACT: UserContact = {
 	email: "reader@example.com",
 	emailVerified: true,
 	queueDigestOptOutAt: undefined,
+	registeredAt: undefined,
+	earlyIntentionalSaves: 0,
 };
 
 const hoursBefore = (hours: number, instant: Date = SEND_INSTANT) => new Date(instant.getTime() - hours * HOUR_MS);
