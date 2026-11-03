@@ -157,7 +157,7 @@ describe("GET /newsletters", () => {
 		expect(popover.closest("main")).not.toBeNull();
 		expect(popover.querySelector(".confirm-popover__title")?.textContent).toBe("Gmail integration is experimental");
 		expect(popover.querySelector(".confirm-popover__body")?.textContent).toBe(
-			"Readplace only reads your newsletters: it never sends, changes or deletes your email. It adds one filter to forward the senders you choose.",
+			"Readplace never sends or deletes your email. It adds one filter to forward the senders you choose. It reads past emails or marks them as read only when you ask it to.",
 		);
 		const ok = popover.querySelector("[data-test-action='gmail-connect-ok']");
 		assert(ok, "the disclaimer offers OK");

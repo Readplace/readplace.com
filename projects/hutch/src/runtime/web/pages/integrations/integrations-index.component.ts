@@ -23,7 +23,7 @@ function renderGmailConnectDisclaimer(action: IntegrationActionViewModel & { con
 		id: action.confirmPopoverId,
 		key: action.confirmPopoverId,
 		title: "Gmail integration is experimental",
-		body: "Readplace only reads your newsletters: it never sends, changes or deletes your email. It adds one filter to forward the senders you choose.",
+		body: "Readplace never sends or deletes your email. It adds one filter to forward the senders you choose. It reads past emails or marks them as read only when you ask it to.",
 		actionsHtml: render(GMAIL_CONNECT_DISCLAIMER_ACTIONS_TEMPLATE, action),
 	});
 }

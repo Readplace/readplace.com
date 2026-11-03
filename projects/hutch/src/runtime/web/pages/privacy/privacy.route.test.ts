@@ -100,4 +100,27 @@ describe("GET /privacy", () => {
 		expect(response.text).toContain("asks Google to remove the Readplace filter");
 		expect(response.text).toContain("remove it yourself under Forwarding and POP/IMAP");
 	});
+
+	it("says what the Gmail read and modify permissions are used for", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("Import unread messages asks for permission to read your email");
+		expect(response.text).toContain("Marking imported emails as read asks for permission to modify your email");
+		expect(response.text).toContain("Readplace never sends or deletes your email.");
+	});
+
+	it("commits Gmail data to Google's Limited Use requirements", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const links = Array.from(doc.querySelectorAll("a"), (link) => ({ text: link.textContent, href: link.getAttribute("href") }));
+		expect(links).toContainEqual({
+			text: "Google API Services User Data Policy",
+			href: "https://developers.google.com/terms/api-services-user-data-policy",
+		});
+		expect(response.text).toContain("including the Limited Use requirements");
+		expect(response.text).toContain("does not use it to train AI models");
+	});
 });
