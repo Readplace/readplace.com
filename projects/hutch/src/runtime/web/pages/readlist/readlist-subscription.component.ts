@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type LocalTime, SUBSCRIBE_CTA_LABEL, render } from "@packages/web-shell";
+import { type LocalTime, PRICING_PLANS, SUBSCRIBE_CTA_LABEL, render } from "@packages/web-shell";
 
 import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
@@ -16,6 +16,7 @@ interface TrialTile {
 
 export interface ReadlistSubscriptionDisplayModel {
 	stateClass: string;
+	isTrialStatus: boolean;
 	isTrialCountdown: boolean;
 	isCancellationScheduled: boolean;
 	isInactive: boolean;
@@ -28,6 +29,8 @@ export interface ReadlistSubscriptionDisplayModel {
 	priceStatement: string;
 	renewalPrices: string;
 	savesStayStatement: string;
+	yearlyPrice: string;
+	monthlyPrice: string;
 }
 
 function trialTiles(remaining: { days: number; hours: number; minutes: number }): TrialTile[] {
@@ -43,6 +46,7 @@ export function toReadlistSubscriptionDisplayModel(
 ): ReadlistSubscriptionDisplayModel {
 	const shared = {
 		stateClass: `readlist-subscription--${banner.state}`,
+		isTrialStatus: banner.state === "trial-status",
 		isTrialCountdown: banner.state === "trial-countdown",
 		isCancellationScheduled: banner.state === "cancellation-scheduled",
 		isInactive: banner.state === "inactive",
@@ -51,8 +55,17 @@ export function toReadlistSubscriptionDisplayModel(
 		priceStatement: PRICE_STATEMENT,
 		renewalPrices: RENEWAL_PRICES,
 		savesStayStatement: SAVES_STAY_STATEMENT,
+		yearlyPrice: PRICING_PLANS.yearly.totalDisplay,
+		monthlyPrice: PRICING_PLANS.monthly.totalDisplay,
 	};
 	switch (banner.state) {
+		case "trial-status":
+			return {
+				...shared,
+				tiles: [],
+				trialDaysLeft: banner.daysLeft,
+				trialDaysLeftWord: banner.daysLeftWord,
+			};
 		case "trial-countdown":
 			return {
 				...shared,

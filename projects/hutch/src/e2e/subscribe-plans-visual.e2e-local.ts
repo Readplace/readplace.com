@@ -11,6 +11,7 @@ import {
 } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { pageOverflowsSideways } from "./page-measurements.browser";
+import { trialEndShowingTiles } from "./trial-countdown-seed";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
@@ -27,7 +28,7 @@ const ROW_GAP = 12;
 const DESIGNED_ROW_HEIGHT = 77;
 
 const TRIAL_TILES_PINNED = [
-	{ selector: '[data-test-trial-tile="days"]', text: "9" },
+	{ selector: '[data-test-trial-tile="days"]', text: "2" },
 	{ selector: '[data-test-trial-tile="hours"]', text: "23" },
 	{ selector: '[data-test-trial-tile="minutes"]', text: "18" },
 ];
@@ -64,7 +65,7 @@ async function signInTrialingReader(page: Page, stamp: string): Promise<void> {
 	assert.equal(created.status(), 201, "the e2e user fixture must answer the create request");
 	const { userId } = CreatedUser.parse(await created.json());
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
-		data: { userId, state: "trialing" },
+		data: { userId, state: "trialing", at: trialEndShowingTiles() },
 	});
 	assert.equal(seeded.status(), 201, "the subscription-state seed endpoint must answer 201");
 

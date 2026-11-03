@@ -376,7 +376,24 @@ describe("empty states", () => {
 describe("the subscription card", () => {
 	const ONE_DAY_MS = 86_400_000;
 
-	it("shows the trial-countdown state with three tiles for a trialing user", async () => {
+	it("shows the trial-countdown state with three tiles for a trial in its last three days", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = await loggedInUserId(harness);
+		await harness.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 2 * ONE_DAY_MS).toISOString(),
+		});
+
+		const doc = parse((await agent.get("/queue")).text);
+
+		const banner = doc.querySelector("[data-test-subscription-banner]");
+		assert(banner, "the subscription card must always be rendered");
+		expect(banner.classList.contains("readlist-subscription--trial-countdown")).toBe(true);
+		expect(doc.querySelectorAll("[data-test-trial-tile]").length).toBe(3);
+	});
+
+	it("shows the quiet trial-status state with no tiles for a trial with days to spare", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await loggedInUserId(harness);
@@ -389,8 +406,8 @@ describe("the subscription card", () => {
 
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "the subscription card must always be rendered");
-		expect(banner.classList.contains("readlist-subscription--trial-countdown")).toBe(true);
-		expect(doc.querySelectorAll("[data-test-trial-tile]").length).toBe(3);
+		expect(banner.classList.contains("readlist-subscription--trial-status")).toBe(true);
+		expect(doc.querySelectorAll("[data-test-trial-tile]").length).toBe(0);
 	});
 
 	it("shows the cancellation-scheduled state with a Reactivate link", async () => {

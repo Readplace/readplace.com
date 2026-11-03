@@ -23,6 +23,7 @@ import {
 	renameableSlugs,
 } from "./page-interactions";
 import { neutraliseVolatileChrome } from "./page-measurements.browser";
+import { trialEndShowingTiles } from "./trial-countdown-seed";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
@@ -661,7 +662,7 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 				`subscribe-plans-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
 			const subscription = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
-				data: { userId, state: "trialing" },
+				data: { userId, state: "trialing", at: trialEndShowingTiles() },
 			});
 			assert.equal(subscription.status(), 201);
 			await loginAs(page, email);

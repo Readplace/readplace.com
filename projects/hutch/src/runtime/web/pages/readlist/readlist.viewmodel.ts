@@ -28,6 +28,7 @@ import {
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { ComponentError } from "../../shared/component-error.types";
+import { TRIAL_COUNTDOWN_LEAD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { planChargedWithoutChoice } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { MAX_POLLS } from "@packages/web-shell";
 import { buildCardPollUrl } from "./readlist-card/readlist-card-poll-url";
@@ -58,6 +59,7 @@ import type { EffectiveAccess } from "@packages/subscription-access";
 
 export type SubscriptionBannerState =
 	| { state: "none" }
+	| { state: "trial-status"; daysLeft: number; daysLeftWord: "day" | "days" }
 	| {
 			state: "trial-countdown";
 			daysLeft: number;
@@ -162,6 +164,9 @@ export function toSubscriptionBannerState(access: EffectiveAccess, now: Date): S
 			return { state: "none" };
 		case "trial-countdown": {
 			const { daysLeft, daysLeftWord } = formatTrialDaysLeft(access.trialEndsAt, now);
+			if (daysLeft > TRIAL_COUNTDOWN_LEAD_DAYS) {
+				return { state: "trial-status", daysLeft, daysLeftWord };
+			}
 			return {
 				state: "trial-countdown",
 				daysLeft,

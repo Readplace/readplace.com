@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { PRICING_PLANS } from "@packages/web-shell";
 import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 
@@ -75,13 +76,34 @@ describe("Readlist page banner state", () => {
 		expect(confirmPopoverKeys(doc)).toEqual(["readlist-create", "add-link", "save-tip"]);
 	});
 
+	it("renders only the quiet status line, with no plan chooser, for a trial with 12 days left", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "fresh-trial@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 12 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/queue");
+		const doc = new JSDOM(response.text).window.document;
+		const banner = doc.querySelector("[data-test-subscription-banner]");
+		assert(banner, "readlist banner aside must be rendered");
+		expect(banner.classList.contains("readlist-subscription--trial-status")).toBe(true);
+		expect(banner.textContent?.trim()).toBe(
+			`Trial · 12 days left · then ${PRICING_PLANS.yearly.totalDisplay} a year or ${PRICING_PLANS.monthly.totalDisplay} a month`,
+		);
+		assert(doc.querySelector("[data-test-trial-status]"), "the status line must carry its test hook");
+		expect(subscribePlanKeys(doc)).toEqual([]);
+	});
+
 	it("renders the readlist aside trial-countdown banner for a trialing user", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trialing@example.com");
 		await subscriptionProviders.upsertTrialing({
 			userId,
-			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
+			trialEndsAt: new Date(Date.now() + 2 * ONE_DAY_MS).toISOString(),
 		});
 
 		const response = await agent.get("/queue");
@@ -89,6 +111,7 @@ describe("Readlist page banner state", () => {
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner aside must be rendered");
 		expect(banner.classList.contains("readlist-subscription--trial-countdown")).toBe(true);
+		assert(banner.querySelector("[data-test-trial-tiles]"), "the countdown must show its tiles with 2 days left");
 
 		const { trigger, fallback } = subscribeCtaPair(banner, "subscribe");
 		expect(trigger.textContent).toBe("Subscribe");

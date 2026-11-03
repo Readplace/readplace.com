@@ -18,6 +18,7 @@ import {
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import { requireEnv } from "@packages/require-env";
+import { PRICING_PLANS } from "@packages/web-shell";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import {
@@ -30,6 +31,7 @@ import {
 } from "./page-interactions";
 import { growRailToFitOpenFlyout } from "./readlist.browser";
 import { neutraliseVolatileChrome, pageOverflowsSideways } from "./page-measurements.browser";
+import { trialEndShowingTiles } from "./trial-countdown-seed";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "password123";
@@ -120,6 +122,7 @@ const FILTER_TABS = "[data-test-filters]";
 const ALERT = '[data-test-alert="readlist"]';
 const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 const SUBSCRIPTION_BANNER = "[data-test-subscription-banner]";
+const TRIAL_STATUS = "[data-test-trial-status]";
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const TOAST = "[data-test-toast]";
 const ONBOARDING_PROGRESS = "[data-test-onboarding-progress]";
@@ -818,7 +821,6 @@ function subscriptionCtaIsMediumAndFullWidth(input: {
 async function subscriptionTrialGeometry(page: Page): Promise<void> {
 	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 	const title = await measuredBox(page, `${SUBSCRIPTION_BANNER} .readlist-subscription__title`);
-	const body = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-banner-message]`);
 	const tiles = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles]`);
 	const firstTile = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles] > div:nth-child(1)`);
 	const secondTile = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles] > div:nth-child(2)`);
@@ -826,17 +828,12 @@ async function subscriptionTrialGeometry(page: Page): Promise<void> {
 	const cta = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`);
 	const note = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-price-statement]`);
 	const savesStay = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-saves-stay]`);
-	assertSubscriptionMeasurement({ description: "the trial card height", actual: card.height, expected: 361 });
+	assertSubscriptionMeasurement({ description: "the trial card height", actual: card.height, expected: 315 });
 	assertSubscriptionMeasurement({ description: "the trial title top inset", actual: title.y - card.y, expected: 21 });
 	assertSubscriptionMeasurement({ description: "the trial title line height", actual: title.height, expected: 20 });
 	assertSubscriptionMeasurement({
-		description: "the trial title-to-body gap",
-		actual: body.y - (title.y + title.height),
-		expected: 4,
-	});
-	assertSubscriptionMeasurement({
-		description: "the trial body-to-tiles gap",
-		actual: tiles.y - (body.y + body.height),
+		description: "the trial title-to-tiles gap",
+		actual: tiles.y - (title.y + title.height),
 		expected: 16,
 	});
 	for (const tile of [firstTile, secondTile, thirdTile]) {
@@ -879,6 +876,14 @@ async function subscriptionTrialGeometry(page: Page): Promise<void> {
 	});
 }
 
+async function subscriptionTrialStatusGeometry(page: Page): Promise<void> {
+	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
+	const status = await measuredBox(page, TRIAL_STATUS);
+	assertSubscriptionMeasurement({ description: "the status line's left inset", actual: status.x - card.x, expected: 0 });
+	assertSubscriptionMeasurement({ description: "the status line's top inset", actual: status.y - card.y, expected: 0 });
+	assertSubscriptionMeasurement({ description: "the status card height", actual: card.height, expected: status.height });
+}
+
 async function subscriptionCancellationGeometry(page: Page): Promise<void> {
 	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 	const chip = await measuredBox(page, `${SUBSCRIPTION_BANNER} ${SUBSCRIPTION_CHIP}`);
@@ -917,17 +922,22 @@ async function subscriptionInactiveGeometry(page: Page): Promise<void> {
 	});
 }
 
-async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
+async function subscriptionBannerAboveTheListing(page: Page): Promise<void> {
 	await phonePageGeometry(page);
 	const banner = await measuredBox(page, SUBSCRIPTION_BANNER);
 	const listing = await measuredBox(page, LISTING);
 	const guide = await measuredBox(page, SETUP_GUIDE);
-	const cta = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`);
 	assert.ok(
 		banner.y + banner.height <= listing.y,
 		`a trial notice must stay above the article list on a phone, measured banner=${JSON.stringify(banner)} listing=${JSON.stringify(listing)}`,
 	);
 	assert.ok(banner.y + banner.height <= guide.y, "the subscription notice must lead the setup guide on a phone");
+}
+
+async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
+	await subscriptionBannerAboveTheListing(page);
+	const banner = await measuredBox(page, SUBSCRIPTION_BANNER);
+	const cta = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`);
 	subscriptionCtaIsMediumAndFullWidth({ card: banner, cta });
 }
 
@@ -1281,9 +1291,23 @@ async function subscriptionTrialSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
 	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--trial-countdown/);
+	await expect(page.locator(`${SUBSCRIPTION_BANNER} .readlist-subscription__title`)).toHaveText(
+		"Your trial ends in 3 days",
+	);
 	await expect(page.locator(trialTile("days"))).toBeVisible();
 	await expect(page.locator(trialTile("hours"))).toBeVisible();
 	await expect(page.locator(trialTile("minutes"))).toBeVisible();
+	await page.mouse.move(0, 0);
+}
+
+async function subscriptionTrialStatusSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(SUBSCRIPTION_BANNER)).toHaveClass(/readlist-subscription--trial-status/);
+	await expect(page.locator(TRIAL_STATUS)).toHaveText(
+		`Trial · 10 days left · then ${PRICING_PLANS.yearly.totalDisplay} a year or ${PRICING_PLANS.monthly.totalDisplay} a month`,
+	);
+	await expect(page.locator(`${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`)).toHaveCount(0);
 	await page.mouse.move(0, 0);
 }
 
@@ -1609,10 +1633,22 @@ const SUBSCRIPTION_TRIAL: VisualCheckpoint = {
 	target: SUBSCRIPTION_BANNER,
 	capture: "element",
 	pinnedText: [
-		{ selector: trialTile("days"), text: "9" },
+		{ selector: trialTile("days"), text: "2" },
 		{ selector: trialTile("hours"), text: "23" },
 		{ selector: trialTile("minutes"), text: "18" },
 	],
+};
+
+const SUBSCRIPTION_TRIAL_STATUS: VisualCheckpoint = {
+	name: "readlist-subscription-trial-status",
+	settled: subscriptionTrialStatusSettled,
+	geometry: async (page) => {
+		await railBesideMainBesideSide(page);
+		await subscriptionTrialStatusGeometry(page);
+	},
+	target: SUBSCRIPTION_BANNER,
+	capture: "element",
+	pinnedText: [],
 };
 
 const SUBSCRIPTION_CANCELLATION: VisualCheckpoint = {
@@ -1702,6 +1738,15 @@ const SUBSCRIPTION_TRIAL_PHONE: VisualCheckpoint = {
 	target: MAIN,
 	capture: "page-from-top",
 	pinnedText: SUBSCRIPTION_TRIAL.pinnedText,
+};
+
+const SUBSCRIPTION_TRIAL_STATUS_PHONE: VisualCheckpoint = {
+	name: "readlist-subscription-trial-status-phone",
+	settled: subscriptionTrialStatusSettled,
+	geometry: subscriptionBannerAboveTheListing,
+	target: MAIN,
+	capture: "page-from-top",
+	pinnedText: [],
 };
 
 const RAIL_PHONE: VisualCheckpoint = {
@@ -2405,11 +2450,24 @@ test.describe("Readlist subscription banner", () => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-subscription-trial-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
 			const userId = await createVerifiedUser(page, email);
-			await seedSubscriptionState(page, { userId, state: "trialing" });
+			await seedSubscriptionState(page, { userId, state: "trialing", at: trialEndShowingTiles() });
 			await loginAs(page, email);
 			await gotoReadlistQueue(page, "");
 
 			await captureCheckpoint(page, withTheme(SUBSCRIPTION_TRIAL, theme));
+		});
+	}
+
+	for (const theme of THEMES) {
+		test(`shows the quiet status line while more than three days are left (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-subscription-trial-status-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedSubscriptionState(page, { userId, state: "trialing" });
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+
+			await captureCheckpoint(page, withTheme(SUBSCRIPTION_TRIAL_STATUS, theme));
 		});
 	}
 
@@ -2434,17 +2492,17 @@ test.describe("Readlist subscription banner", () => {
 test.describe("Readlist subscription banner on the 300px track", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1100, height: 900 } });
 
-	test("keeps the trial card at 361px tall", async ({ page }, testInfo) => {
+	test("keeps the trial card at 315px tall", async ({ page }, testInfo) => {
 		const email = `readlist-subscription-trial-narrow-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
-		await seedSubscriptionState(page, { userId, state: "trialing" });
+		await seedSubscriptionState(page, { userId, state: "trialing", at: trialEndShowingTiles() });
 		await loginAs(page, email);
 		await gotoReadlistQueue(page, "");
 		await subscriptionTrialSettled(page);
 
 		const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 		assertSubscriptionMeasurement({ description: "the narrow trial card width", actual: card.width, expected: 300 });
-		assertSubscriptionMeasurement({ description: "the narrow trial card height", actual: card.height, expected: 361 });
+		assertSubscriptionMeasurement({ description: "the narrow trial card height", actual: card.height, expected: 315 });
 	});
 
 	test("fits the cancellation body on two lines and its title on one line", async ({ page }, testInfo) => {
@@ -2609,11 +2667,22 @@ test.describe("Readlist page on a phone", () => {
 		const email = `readlist-phone-trial-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
 		await seedTwoArticles(page, userId, email);
-		await seedSubscriptionState(page, { userId, state: "trialing" });
+		await seedSubscriptionState(page, { userId, state: "trialing", at: trialEndShowingTiles() });
 		await loginAs(page, email);
 		await gotoReadlistQueue(page, "");
 
 		await captureCheckpoint(page, SUBSCRIPTION_TRIAL_PHONE);
+	});
+
+	test("keeps the quiet trial status line above the article list", async ({ page }, testInfo) => {
+		const email = `readlist-phone-trial-status-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedTwoArticles(page, userId, email);
+		await seedSubscriptionState(page, { userId, state: "trialing" });
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+
+		await captureCheckpoint(page, SUBSCRIPTION_TRIAL_STATUS_PHONE);
 	});
 
 	test("asks for an article from All on a custom readlist without Add link", async ({ page }, testInfo) => {

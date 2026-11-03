@@ -777,6 +777,12 @@ describe("ReadlistPage", () => {
 		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
 	});
 
+	it("withholds the subscribe-plans popover while the trial shows only its status line", () => {
+		const doc = pageDoc({ subscriptionBanner: { state: "trial-status", daysLeft: 12, daysLeftWord: "days" } });
+
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(0);
+	});
+
 	it("offers the subscribe-plans popover once the subscription has gone inactive", () => {
 		const doc = pageDoc({ subscriptionBanner: { state: "inactive", checkedPlan: "yearly" } });
 

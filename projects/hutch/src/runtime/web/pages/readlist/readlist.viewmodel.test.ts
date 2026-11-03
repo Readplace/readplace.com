@@ -10,7 +10,7 @@ import { iconSvg } from "@packages/ui-icons";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { toReadlistArticleViewModel, toReadlistViewModel } from "./readlist.viewmodel";
+import { toReadlistArticleViewModel, toReadlistViewModel, toSubscriptionBannerState } from "./readlist.viewmodel";
 
 const ARTICLE_URL = "https://example.com/post";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL).value;
@@ -46,6 +46,51 @@ function makeResult(articles: SavedArticle[]): FindArticlesResult {
 
 const NOW = new Date("2025-06-01T13:00:00Z");
 const DEFAULT_FILTERS = { readlist: DEFAULT_READLIST_SLUG, tab: "queue" as const, order: "desc" as const, page: 1 };
+
+describe("toSubscriptionBannerState — trial lead", () => {
+	const ONE_DAY_MS = 86_400_000;
+	const ONE_HOUR_MS = 3_600_000;
+
+	function bannerWithRemaining(remainingMs: number) {
+		return toSubscriptionBannerState(
+			{
+				tier: "trial",
+				access: "full",
+				banner: "trial-countdown",
+				trialEndsAt: new Date(NOW.getTime() + remainingMs).toISOString(),
+			},
+			NOW,
+		);
+	}
+
+	it.each([14, 5, 4])("shows the quiet status line with %i days left", (days) => {
+		expect(bannerWithRemaining(days * ONE_DAY_MS)).toEqual({
+			state: "trial-status",
+			daysLeft: days,
+			daysLeftWord: "days",
+		});
+	});
+
+	it.each([
+		["exactly 3 days", 3 * ONE_DAY_MS],
+		["2 days 1 hour", 2 * ONE_DAY_MS + ONE_HOUR_MS],
+		["30 minutes", ONE_HOUR_MS / 2],
+	])("counts down with %s left", (_label, remainingMs) => {
+		expect(bannerWithRemaining(remainingMs).state).toBe("trial-countdown");
+	});
+
+	it("keeps the status line until the third day is all that remains", () => {
+		expect(bannerWithRemaining(3 * ONE_DAY_MS + 1)).toEqual({
+			state: "trial-status",
+			daysLeft: 4,
+			daysLeftWord: "days",
+		});
+	});
+
+	it("starts the countdown one millisecond inside the last three days", () => {
+		expect(bannerWithRemaining(3 * ONE_DAY_MS - 1).state).toBe("trial-countdown");
+	});
+});
 
 describe("toReadlistViewModel", () => {
 	it("passes readlist identities through to the status confirmation", () => {

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { expect, test } from "@packages/e2e-harness";
 import { requireEnv } from "@packages/require-env";
 import { MACOS_CHROME_USER_AGENT } from "./user-agents";
+import { trialEndShowingTiles } from "./trial-countdown-seed";
 
 const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 const PASSWORD = "Sup3r-Secret-Pw!";
@@ -288,7 +289,7 @@ test.describe("The readlist is whole without client JavaScript", () => {
 		assert.equal(created.status(), 201, "the e2e user fixture must create the reader");
 		const { userId } = CreatedUser.parse(await created.json());
 		const trialing = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
-			data: { userId, state: "trialing" },
+			data: { userId, state: "trialing", at: trialEndShowingTiles() },
 		});
 		assert.equal(trialing.status(), 201, "the subscription-state seed endpoint must answer 201");
 		await loginAs(page, email);

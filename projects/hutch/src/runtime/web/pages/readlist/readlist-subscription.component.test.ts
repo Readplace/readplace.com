@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { toAbsoluteDate } from "@packages/web-shell";
+import { PRICING_PLANS, toAbsoluteDate } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
@@ -17,6 +17,11 @@ const TRIAL_BANNER: SubscriptionBannerState = {
 	daysLeftWord: "days",
 	remaining: { days: 3, hours: 4, minutes: 5, seconds: 6, totalMs: 271_506_000 },
 	checkedPlan: "yearly",
+};
+const TRIAL_STATUS_BANNER: SubscriptionBannerState = {
+	state: "trial-status",
+	daysLeft: 12,
+	daysLeftWord: "days",
 };
 const CANCELLATION_BANNER: SubscriptionBannerState = {
 	state: "cancellation-scheduled",
@@ -48,6 +53,33 @@ function tile(doc: Document, unit: "days" | "hours" | "minutes"): Element {
 }
 
 describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () => {
+	it("renders only the status line while the trial is not yet near its end", () => {
+		const doc = display(TRIAL_STATUS_BANNER);
+
+		expect(banner(doc).classList.contains("readlist-subscription--trial-status")).toBe(true);
+		expect(banner(doc).textContent?.trim()).toBe(
+			`Trial · 12 days left · then ${PRICING_PLANS.yearly.totalDisplay} a year or ${PRICING_PLANS.monthly.totalDisplay} a month`,
+		);
+	});
+
+	it("titles the countdown with the days left and keeps only the price and saves notes", () => {
+		const doc = display({ ...TRIAL_BANNER, daysLeft: 2, daysLeftWord: "days" });
+
+		const title = doc.querySelector(".readlist-subscription__title");
+		assert(title, "the countdown title must render");
+		expect(title.textContent?.trim()).toBe("Your trial ends in 2 days");
+		const paragraphs = [...banner(doc).querySelectorAll("p")].map((p) => p.textContent?.trim());
+		expect(paragraphs).toEqual([`${PRICE_STATEMENT} Cancel anytime.`, SAVES_STAY_STATEMENT]);
+	});
+
+	it("words the countdown title in the singular on the last day", () => {
+		const doc = display({ ...TRIAL_BANNER, daysLeft: 1, daysLeftWord: "day" });
+
+		const title = doc.querySelector(".readlist-subscription__title");
+		assert(title, "the countdown title must render");
+		expect(title.textContent?.trim()).toBe("Your trial ends in 1 day");
+	});
+
 	it("classes the banner for the trial countdown and counts down in three tiles", () => {
 		const doc = display(TRIAL_BANNER);
 

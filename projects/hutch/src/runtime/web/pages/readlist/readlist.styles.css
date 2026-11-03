@@ -827,7 +827,23 @@
 .readlist-subscription--inactive {
   display: flex;
 }
+
+.readlist-subscription--trial-status {
+  display: flex;
+  padding: 0;
+  background: none;
+  border: 0;
+}
 /* purgecss-ignore-end */
+
+.readlist-subscription__status {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
 
 .readlist-subscription__title {
   font-family: var(--font-sans);

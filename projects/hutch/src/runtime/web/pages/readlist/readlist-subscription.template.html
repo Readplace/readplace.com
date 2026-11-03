@@ -1,7 +1,9 @@
 <aside class="readlist-subscription {{stateClass}}" aria-live="polite" data-test-subscription-banner>
+  {{#if isTrialStatus}}
+  <p class="readlist-subscription__status" data-test-trial-status>Trial · {{trialDaysLeft}} {{trialDaysLeftWord}} left · then {{yearlyPrice}} a year or {{monthlyPrice}} a month</p>
+  {{/if}}
   {{#if isTrialCountdown}}
-  <h2 class="readlist-subscription__title">Your free trial is ending soon</h2>
-  <p class="readlist-subscription__body" data-test-banner-message>Upgrade now to keep using all features without interruption.</p>
+  <h2 class="readlist-subscription__title">Your trial ends in {{trialDaysLeft}} {{trialDaysLeftWord}}</h2>
   <dl class="readlist-subscription__tiles" data-test-trial-tiles>
     {{#each tiles}}
     <div class="readlist-subscription__tile">

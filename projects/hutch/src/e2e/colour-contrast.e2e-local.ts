@@ -16,6 +16,7 @@ import { createReadlistFromReader, markReadWithConfirmation, openAddLink } from 
 import { CONNECTOR_REDIRECT_URI, gotoConsent, registerConnector } from "./oauth-consent";
 import { seedChromeGrant } from "./oauth-revoke/seed-grant";
 import { type RenderedInk, collectRenderedInk } from "./rendered-ink.browser";
+import { trialEndShowingTiles } from "./trial-countdown-seed";
 import { MACOS_CHROME_USER_AGENT } from "./user-agents";
 
 const E2E_PORT = process.env.E2E_PORT;
@@ -982,7 +983,7 @@ test.describe("Plan choice holds its WCAG contrast in both themes", () => {
 		const email = `colour-contrast-plans-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createChipReader(page, email);
 		const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
-			data: { userId, state: "trialing" },
+			data: { userId, state: "trialing", at: trialEndShowingTiles() },
 		});
 		assert.equal(seeded.status(), 201);
 		await loginChipReader(page, email);
