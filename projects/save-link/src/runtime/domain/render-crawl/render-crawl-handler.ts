@@ -22,7 +22,7 @@ import {
 	initCommitDeferredCrawl,
 } from "../crawl-article-state/commit-deferred-crawl";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
-import type { RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
+import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
 import {
 	type Escalation,
 	type FetchLegReport,
@@ -33,6 +33,13 @@ import {
 	type RenderLegReport,
 	runRenderLadder,
 } from "./render-ladder";
+import type { ReportProxiedRenderAttempt } from "./report-proxied-render-attempt";
+
+function withoutResourceHosts({ resourceHosts: _resourceHosts, ...outcome }: RenderOutcome) {
+	return outcome;
+}
+
+const loggedLeg = (report: RenderLegReport) => (report.kind === "skipped" ? report : withoutResourceHosts(report));
 
 type Unrendered = Extract<RenderLadderResult, { kind: "unrendered" }>;
 
@@ -54,6 +61,7 @@ export function initRenderCrawlHandler(deps: {
 	renderPage: RenderPage;
 	residentialEgress: () => ResidentialEgress;
 	webUnlockerEgress: WebUnlockerEgress;
+	reportProxiedRenderAttempt: ReportProxiedRenderAttempt;
 	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
@@ -199,7 +207,9 @@ export function initRenderCrawlHandler(deps: {
 		const { url } = ctx;
 		const { renderedThrough } = render;
 		logger.info(`${logPrefix} rendered`, { url, renderedThrough, httpStatus: render.httpStatus, requests: render.requests });
+		const proxiedRender = renderedThrough === "direct-egress" ? undefined : render;
 		if (Buffer.byteLength(render.html) > MAX_HTML_BYTES.bytes) {
+			if (proxiedRender !== undefined) deps.reportProxiedRenderAttempt({ outcome: proxiedRender, readability: "unknown", saveAttemptId: ctx.saveAttemptId });
 			await settleTooLarge(render, ctx);
 			await backOffRefresh(ctx);
 			return { kind: "settled" };
@@ -212,6 +222,10 @@ export function initRenderCrawlHandler(deps: {
 			renderedThrough,
 		};
 		const committed = escalation === "available" ? await commitReadableBody(body, ctx) : await commitFetchedBody(body, ctx);
+		if (proxiedRender !== undefined) {
+			const readability = committed.via === "deferred-to-event" && committed.readable ? "readable" : "unreadable";
+			deps.reportProxiedRenderAttempt({ outcome: proxiedRender, readability, saveAttemptId: ctx.saveAttemptId });
+		}
 		if (committed.via !== "unreadable") return { kind: "settled" };
 		const detail = `no readable article after render (${renderedThrough}): ${committed.reason}`;
 		if (escalation === "available") return { kind: "unreadable", detail };
@@ -254,13 +268,19 @@ export function initRenderCrawlHandler(deps: {
 			return;
 		}
 		if (rendered.kind === "budget-exhausted") {
-			logger.warn(`${logPrefix} render-crawl budget exhausted — failing crawl gracefully`, { url, gate: rendered.gate, direct: rendered.direct });
+			logger.warn(`${logPrefix} render-crawl budget exhausted — failing crawl gracefully`, { url, gate: rendered.gate, direct: withoutResourceHosts(rendered.direct) });
 			await resolveBudgetExhausted(ctx);
 			await backOffRefresh(ctx);
 			return;
 		}
 		const { direct, residential, webUnlockerFetch, webUnlockerRender } = rendered;
-		logger.info(`${logPrefix} not rendered on any leg`, { url, direct, residential, webUnlockerFetch, webUnlockerRender });
+		logger.info(`${logPrefix} not rendered on any leg`, {
+			url,
+			direct: withoutResourceHosts(direct),
+			residential: loggedLeg(residential),
+			webUnlockerFetch,
+			webUnlockerRender: loggedLeg(webUnlockerRender),
+		});
 		const outOfTime = Object.entries({ residential, webUnlockerFetch, webUnlockerRender })
 			.filter(([, report]) => report.kind === "skipped" && report.reason === "time-exhausted")
 			.map(([leg]) => leg);
@@ -309,7 +329,13 @@ export function initRenderCrawlHandler(deps: {
 					resumedAtObservedPage: resumedAt === undefined ? 0 : 1,
 				});
 				const rendered = await runRenderLadder({
-					renderPage: deps.renderPage,
+					renderPage: async (params) => {
+						const outcome = await deps.renderPage(params);
+						if (params.egress.kind !== "direct" && outcome.kind !== "rendered") {
+							deps.reportProxiedRenderAttempt({ outcome, readability: "unreadable", saveAttemptId });
+						}
+						return outcome;
+					},
 					url: fetchUrl,
 					residentialEgress: deps.residentialEgress,
 					webUnlockerEgress: deps.webUnlockerEgress,

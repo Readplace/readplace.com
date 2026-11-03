@@ -134,6 +134,7 @@ export async function runRenderLadder(
 				detail: commit.detail,
 				httpStatus: outcome.httpStatus,
 				requests: outcome.requests,
+				resourceHosts: outcome.resourceHosts,
 			},
 		};
 	};

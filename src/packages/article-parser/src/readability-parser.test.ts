@@ -675,6 +675,53 @@ describe("initReadabilityParser", () => {
 		expect(result.article.excerpt).toBe("A short description of the article.");
 	});
 
+	describe("a rendered page whose external stylesheets were never loaded", () => {
+		const ARTICLE_PARAGRAPHS = [
+			"The harbour authority voted on Tuesday to keep the night ferry running through the winter timetable.",
+			"Councillors said the late crossing carries more shift workers than any other service on the route.",
+			"A review of the timetable will return to the authority in March with passenger counts for each sailing.",
+		];
+		const renderedPage = (head: string) => `
+<html>
+<head><title>Night ferry kept</title>${head}</head>
+<body>
+	<article class="story-body--awaiting-styles">
+		<h1>Night ferry kept</h1>
+		${ARTICLE_PARAGRAPHS.map((paragraph) => `<p>${paragraph}</p>`).join("\n\t\t")}
+	</article>
+</body>
+</html>`;
+		const parse = (html: string) => {
+			const result = initParser().parseHtml({ url: "https://news.example.com/ferry", documentUrl: "https://news.example.com/ferry", html, thumbnailUrl: null });
+			assert(result.ok, "the rendered page parses");
+			return result.article;
+		};
+
+		it("extracts the same article text whether or not the page references the stylesheet that hid it", () => {
+			const withStylesheet = parse(renderedPage('<link rel="stylesheet" href="https://static.example.com/hide-until-hydrated.css">'));
+			const withoutStylesheet = parse(renderedPage(""));
+
+			for (const paragraph of ARTICLE_PARAGRAPHS) expect(withoutStylesheet.content).toContain(paragraph);
+			expect(withoutStylesheet.wordCount).toBeGreaterThan(40);
+			expect(withStylesheet.content).toBe(withoutStylesheet.content);
+			expect(withStylesheet.wordCount).toBe(withoutStylesheet.wordCount);
+		});
+
+		it.each([
+			{ label: "an inline display:none", attributes: 'style="display:none"' },
+			{ label: "an inline visibility:hidden", attributes: 'style="visibility:hidden"' },
+			{ label: "the hidden attribute", attributes: "hidden" },
+			{ label: "aria-hidden", attributes: 'aria-hidden="true"' },
+		])("still leaves out a block hidden by $label, which travels in the DOM rather than a stylesheet", ({ attributes }) => {
+			const html = renderedPage("").replace("</article>", `<div ${attributes}><p>Subscribe to read the rest of the night ferry coverage from our harbour desk.</p></div></article>`);
+
+			const article = parse(html);
+
+			for (const paragraph of ARTICLE_PARAGRAPHS) expect(article.content).toContain(paragraph);
+			expect(article.content.includes("Subscribe to read the rest")).toBe(false);
+		});
+	});
+
 	describe("site pre-parser wiring", () => {
 		it("uses the content returned by the first matching pre-parser whose extract returns a result", () => {
 			const calls: string[] = [];

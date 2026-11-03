@@ -15,6 +15,9 @@ config:
   save-link:onboardingTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-onboarding-staging
   save-link:paidCrawlBudget: 200/3600
   save-link:renderCrawlBudget: 200/3600
+  save-link:renderRequestPolicy: legacy
+  save-link:renderProxiedRequestLimit: 12
+  save-link:renderRequestDiagnostics: hosts
   save-link:contentBucketName: hutch-article-content-staging
   save-link:pendingHtmlBucketName: hutch-pending-html-staging
   save-link:pendingPdfBucketName: hutch-pending-pdf-staging

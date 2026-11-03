@@ -61,7 +61,24 @@ function createSqsEvent(detail: {
 	};
 }
 
-const oneRequest = { continued: 1, abortedByBudget: 0, abortedByType: 0, continuedByResourceType: { document: 1 } };
+const oneRequest = {
+	policy: "legacy" as const,
+	proxiedRequestLimit: 40,
+	continued: 1,
+	continuedProxied: 0,
+	continuedDirect: 1,
+	continuedNavigations: 1,
+	abortedByBudget: 0,
+	abortedByType: 0,
+	abortedBy: { type: 0, address: 0, site: 0, budget: 0 },
+	continuedByResourceType: { document: 1 },
+};
+const oneDocumentHost = {
+	initialSite: "example-spa.test",
+	finalSite: "example-spa.test",
+	buckets: [{ documentSite: "example-spa.test", requestHost: "example-spa.test", resourceType: "document", navigation: true, route: "direct" as const, requests: 1, response2xx: 1, responseOther: 0, failed: 0 }],
+	overflowedRequests: 0,
+};
 
 const rendered = (overrides: Partial<Extract<RenderOutcome, { kind: "rendered" }>> = {}): RenderOutcome => ({
 	kind: "rendered",
@@ -69,10 +86,11 @@ const rendered = (overrides: Partial<Extract<RenderOutcome, { kind: "rendered" }
 	finalUrl: URL,
 	httpStatus: 200,
 	requests: oneRequest,
+	resourceHosts: oneDocumentHost,
 	...overrides,
 });
-const blocked = (httpStatus: number): RenderOutcome => ({ kind: "blocked", httpStatus, requests: oneRequest });
-const failed = (detail: string, httpStatus?: number): RenderOutcome => ({ kind: "failed", detail, httpStatus, requests: oneRequest });
+const blocked = (httpStatus: number): RenderOutcome => ({ kind: "blocked", httpStatus, requests: oneRequest, resourceHosts: oneDocumentHost });
+const failed = (detail: string, httpStatus?: number): RenderOutcome => ({ kind: "failed", detail, httpStatus, requests: oneRequest, resourceHosts: oneDocumentHost });
 
 function renderPageAnswering(answers: { direct: RenderOutcome; residential?: RenderOutcome; webUnlocker?: RenderOutcome }) {
 	return jest.fn<ReturnType<RenderPage>, Parameters<RenderPage>>(async ({ egress }) => {
@@ -150,6 +168,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		renderPage: renderPageAnswering({ direct: rendered() }),
 		residentialEgress: () => RESIDENTIAL_EGRESS,
 		webUnlockerEgress: WEB_UNLOCKER_EGRESS,
+		reportProxiedRenderAttempt: jest.fn(),
 		now: () => new Date("2026-10-28T12:00:00.000Z"),
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -474,10 +493,10 @@ describe("initRenderCrawlHandler", () => {
 
 			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] not rendered on any leg", {
 				url: URL,
-				direct: blocked(403),
+				direct: { kind: "blocked", httpStatus: 403, requests: oneRequest },
 				residential: { kind: "skipped", reason: "block-evidence" },
 				webUnlockerFetch: { kind: "no-body", outcome: "blocked" },
-				webUnlockerRender: failed("unlocker timeout"),
+				webUnlockerRender: { kind: "failed", detail: "unlocker timeout", httpStatus: undefined, requests: oneRequest },
 			});
 			expect(warn).not.toHaveBeenCalled();
 		});
@@ -947,6 +966,81 @@ describe("initRenderCrawlHandler", () => {
 		});
 	});
 
+	describe("the proxied render attempt report", () => {
+		const reportFor = (overrides: Partial<HandlerDeps>) => {
+			const reportProxiedRenderAttempt = jest.fn();
+			return { reportProxiedRenderAttempt, handler: createHandler({ reportProxiedRenderAttempt, ...overrides }) };
+		};
+
+		it("reports a readable proxied render with its tally and the save attempt", async () => {
+			const proxied = rendered();
+			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: blocked(403), residential: proxied }) });
+
+			await run(handler, { url: URL });
+
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[{ outcome: { ...proxied, renderedThrough: "residential-per-gb" }, readability: "readable", saveAttemptId: "attempt-1" }]]);
+		});
+
+		it("reports a proxied render finalize cannot read as unreadable", async () => {
+			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle: unreadableFinalize, renderPage: renderPageAnswering({ direct: blocked(403), residential: rendered(), webUnlocker: rendered() }) });
+
+			await run(handler, { url: URL });
+
+			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "unreadable" }));
+		});
+
+		it("reports an unreadable proxied render as unreadable even when wrapper candidates carry the save on", async () => {
+			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle: unreadableFinalize, renderPage: renderPageAnswering({ direct: blocked(403), residential: rendered(), webUnlocker: rendered() }) });
+
+			await run(handler, { url: URL, candidates: wrapperRefs });
+
+			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "unreadable" }));
+		});
+
+		it("reports an oversized proxied render as unknown, since no readability check ran", async () => {
+			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: blocked(403), residential: rendered({ html: "a".repeat(MAX_HTML_BYTES.bytes + 1) }) }) });
+
+			await run(handler, { url: URL });
+
+			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "unknown" }));
+		});
+
+		it("reports each failed proxied render with that leg's outcome", async () => {
+			const residential = failed("net::ERR_PROXY_CONNECTION_FAILED");
+			const webUnlocker = failed("unlocker timeout");
+			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: blocked(403), residential, webUnlocker }) });
+
+			await run(handler, { url: URL });
+
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([
+				[{ outcome: residential, readability: "unreadable", saveAttemptId: "attempt-1" }],
+				[{ outcome: webUnlocker, readability: "unreadable", saveAttemptId: "attempt-1" }],
+			]);
+		});
+
+		it("reports the proxied render that follows an unreadable direct render once", async () => {
+			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
+				.mockResolvedValueOnce({ ok: false, reason: "empty document" })
+				.mockResolvedValue({ ok: true, article: finalizedArticle });
+			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle, renderPage: renderPageAnswering({ direct: rendered(), residential: rendered() }) });
+
+			await run(handler, { url: URL, unsupportedReason: "blocked" });
+
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[expect.objectContaining({ readability: "readable" })]]);
+		});
+
+		it.each<{ label: string; overrides: Partial<HandlerDeps> }>([
+			{ label: "a direct render", overrides: {} },
+			{ label: "a render the budget refused", overrides: { renderPage: renderPageAnswering({ direct: blocked(403) }), consumeRenderCrawlBudget: async () => ({ allowed: false }) } },
+		])("reports nothing for $label, which spent no proxied render", async ({ overrides }) => {
+			const { reportProxiedRenderAttempt, handler } = reportFor(overrides);
+
+			await run(handler, { url: URL });
+
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([]);
+		});
+	});
+
 	describe("the render budget", () => {
 		it("spends no slot on a direct render", async () => {
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
@@ -980,7 +1074,7 @@ describe("initRenderCrawlHandler", () => {
 			expect(consumeRenderCrawlBudget).toHaveBeenCalledWith({ messageId: "msg-1" });
 			expect(renderPage).toHaveBeenCalledTimes(1);
 			expect(proxiedCrawlArticle).not.toHaveBeenCalled();
-			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render-crawl budget exhausted — failing crawl gracefully", { url: URL, gate: "residential-per-gb", direct: failed("net::ERR_TIMED_OUT") });
+			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render-crawl budget exhausted — failing crawl gracefully", { url: URL, gate: "residential-per-gb", direct: { kind: "failed", detail: "net::ERR_TIMED_OUT", httpStatus: undefined, requests: oneRequest } });
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "spend-capped" } } });
 		});
 

@@ -1,9 +1,10 @@
 /* c8 ignore start -- thin headless-browser wrapper, exercised by the pipeline-health canary */
-import puppeteer, { type Browser, type HTTPResponse, type LaunchOptions, type Page, type Target, TargetType, TimeoutError } from "puppeteer-core";
+import puppeteer, { type Browser, type HTTPRequest, type HTTPResponse, type LaunchOptions, type Page, type Target, TargetType, TimeoutError } from "puppeteer-core";
 import type { ClassifyRenderedDocument } from "./classify-rendered-document";
 import { browserLaunchArgs } from "./browser-launch-args";
 import type { RenderOutcome, RenderPage } from "./render-page.types";
 import { type CreateRenderRequestFilter, isMainFrameNavigation } from "./render-request-filter";
+import type { SettleRenderRequest } from "./render-resource-hosts";
 
 const PROTOCOL_MARGIN_MILLISECONDS = 10_000;
 const CONTENT_DEADLINE_MILLISECONDS = 10_000;
@@ -54,11 +55,12 @@ export function initPuppeteerRenderPage(deps: {
 	return async ({ url, egress, navigationTimeoutMilliseconds }) => {
 		let browser: Browser | undefined;
 		let mainDocument: HTTPResponse | undefined;
-		const requestFilter = deps.createRenderRequestFilter({ proxied: egress.kind !== "direct" });
+		const requestFilter = deps.createRenderRequestFilter({ proxied: egress.kind !== "direct", url });
+		const settlements = new WeakMap<HTTPRequest, SettleRenderRequest>();
 		const failed = (detail: string): RenderOutcome =>
 			mainDocument === undefined
-				? { kind: "failed", detail, requests: requestFilter.tally() }
-				: { kind: "failed", detail, httpStatus: mainDocument.status(), requests: requestFilter.tally() };
+				? { kind: "failed", detail, requests: requestFilter.tally(), resourceHosts: requestFilter.resourceHosts() }
+				: { kind: "failed", detail, httpStatus: mainDocument.status(), requests: requestFilter.tally(), resourceHosts: requestFilter.resourceHosts() };
 		try {
 			browser = await puppeteer.launch({
 				executablePath: await deps.executablePath(),
@@ -77,14 +79,22 @@ export function initPuppeteerRenderPage(deps: {
 			page.on("request", (request) => {
 				if (request.isInterceptResolutionHandled()) return;
 				requestFilter
-					.shouldAbortRequest({ url: request.url(), resourceType: request.resourceType(), isNavigation: isMainFrameNavigation(request, page.mainFrame()) })
-					.then((abort) => (abort ? request.abort("blockedbyclient") : request.continue()))
+					.decide({ url: request.url(), resourceType: request.resourceType(), isNavigation: isMainFrameNavigation(request, page.mainFrame()) })
+					.then((verdict) => {
+						if (verdict.abort) return request.abort("blockedbyclient");
+						settlements.set(request, verdict.settle);
+						return request.continue();
+					})
 					.catch(() => undefined);
 			});
 			page.on("response", (response) => {
+				settlements.get(response.request())?.({ kind: "response", status: response.status() });
 				if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) {
 					mainDocument = response;
 				}
+			});
+			page.on("requestfailed", (request) => {
+				settlements.get(request)?.({ kind: "failed" });
 			});
 			const navigationDeadline = Date.now() + navigationTimeoutMilliseconds;
 			try {
@@ -107,6 +117,7 @@ export function initPuppeteerRenderPage(deps: {
 					finalUrl: page.url(),
 				}),
 				requests: requestFilter.tally(),
+				resourceHosts: requestFilter.resourceHosts(),
 			};
 		} catch (error) {
 			return failed(error instanceof Error ? error.message : String(error));

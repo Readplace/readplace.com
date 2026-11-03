@@ -885,6 +885,9 @@ importers:
       puppeteer-core:
         specifier: 25.11.0
         version: 25.11.0
+      tldts:
+        specifier: 6.1.86
+        version: 6.1.86
       zod:
         specifier: 4.4.3
         version: 4.4.3
