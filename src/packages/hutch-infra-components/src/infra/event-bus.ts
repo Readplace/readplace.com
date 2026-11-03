@@ -1,5 +1,6 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
+import { type DetailFilter, eventPatternFor } from "./event-pattern";
 import type { HutchSQSBackedLambda } from "./hutch-sqs-backed-lambda";
 
 export class HutchEventBus {
@@ -60,24 +61,25 @@ export class HutchEventBus {
 	subscribe(
 		event: { name: string; source: string; detailType: string },
 		target: HutchSQSBackedLambda,
-		opts?: { name?: string },
+		opts?: { name?: string; detail?: DetailFilter },
 	): void {
 		const base = opts?.name ?? event.name;
-		this.subscribeAll([{ ...event, name: base }], target, { name: base });
+		this.subscribeAll([{ ...event, name: base }], target, { name: base, detail: opts?.detail });
 	}
 
 	subscribeAll(
 		events: ReadonlyArray<{ name: string; source: string; detailType: string }>,
 		target: HutchSQSBackedLambda,
-		opts: { name: string },
+		opts: { name: string; detail?: DetailFilter },
 	): void {
 		const ruleArns = events.map((event) => {
 			const rule = new aws.cloudwatch.EventRule(`${event.name}-rule`, {
 				name: `${event.name}-rule`,
 				eventBusName: this.eventBusName,
-				eventPattern: JSON.stringify({
-					source: [event.source],
-					"detail-type": [event.detailType],
+				eventPattern: eventPatternFor({
+					source: event.source,
+					detailType: event.detailType,
+					detail: opts.detail,
 				}),
 			});
 
