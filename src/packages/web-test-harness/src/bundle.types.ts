@@ -124,6 +124,11 @@ import type {
 	ListUserSavesForUrls,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
+	RecordReadlistFitOverride,
+	ListReadlistFitOverrides,
+	DeleteReadlistFitOverride,
+	PurgeReadlistFitOverrides,
+	DeleteReadlistArticleByUrl,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
@@ -418,6 +423,11 @@ export interface ArticleStoreBundle {
 	moveReadlistArticles: MoveReadlistArticles;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
+	recordReadlistFitOverride: RecordReadlistFitOverride;
+	listReadlistFitOverrides: ListReadlistFitOverrides;
+	deleteReadlistFitOverride: DeleteReadlistFitOverride;
+	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
+	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;

@@ -65,3 +65,14 @@ export {
 	type ReadlistRenameRejection,
 } from "./readlist-rename";
 export { nextAvailableReadlistLabel } from "./next-available-readlist-label";
+export {
+	READLIST_FIT_OVERRIDES_KEPT,
+	ReadlistFitOverrideIdSchema,
+	type ReadlistFitOverrideId,
+	readlistFitOverrideId,
+	type ReadlistFitEngineVerdict,
+	type ReadlistFitReaderVerdict,
+	readlistFitOverrideHost,
+	readlistFitChoiceLabel,
+	type ReadlistFitOverriddenLogLine,
+} from "./readlist-fit-override";

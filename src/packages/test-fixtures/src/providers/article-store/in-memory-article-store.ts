@@ -20,8 +20,11 @@ import {
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
+	READLIST_FIT_OVERRIDES_KEPT,
 	ReadlistLimitReachedError,
+	type ReadlistFitOverrideId,
 	type ReadlistSlug,
+	readlistFitOverrideId,
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import type {
@@ -37,10 +40,16 @@ import type {
 	CountReadlistArticles,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
+	DeleteReadlistFitOverride,
+	DeleteReadlistArticleByUrl,
 	DeleteAllUserArticles,
 	DeleteArticle,
 	DeleteReadlistArticle,
 	ListReadlistDefinitions,
+	ListReadlistFitOverrides,
+	PurgeReadlistFitOverrides,
+	ReadlistFitOverride,
+	RecordReadlistFitOverride,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
 	ListUserArticleUrls,
@@ -199,6 +208,11 @@ export function initInMemoryArticleStore(): {
 	moveReadlistArticles: MoveReadlistArticles;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
+	recordReadlistFitOverride: RecordReadlistFitOverride;
+	listReadlistFitOverrides: ListReadlistFitOverrides;
+	deleteReadlistFitOverride: DeleteReadlistFitOverride;
+	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
+	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
@@ -252,6 +266,10 @@ export function initInMemoryArticleStore(): {
 			createdAt: Date;
 			starterCampaignId?: string;
 		}
+	>();
+	const readlistFitOverrides = new Map<
+		string,
+		{ userId: UserId; readlist: ReadlistSlug; override: ReadlistFitOverride }
 	>();
 	const findPersonalLibrary: FindPersonalLibrary = async (userId) => {
 		const own = [...userArticles.values()].filter((row) => row.userId === userId);
@@ -669,6 +687,9 @@ export function initInMemoryArticleStore(): {
 		for (const [key, definition] of readlistDefinitions) {
 			if (definition.userId === userId) readlistDefinitions.delete(key);
 		}
+		for (const [key, entry] of readlistFitOverrides) {
+			if (entry.userId === userId) readlistFitOverrides.delete(key);
+		}
 		saveCursors.delete(userId);
 	};
 
@@ -836,6 +857,44 @@ export function initInMemoryArticleStore(): {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		return { deleted: readlistDefinitions.delete(readlistDefinitionKey(params.userId, params.slug)) };
 	};
+
+	const readlistFitOverrideKey = (params: { userId: UserId; readlist: ReadlistSlug; id: ReadlistFitOverrideId }) =>
+		`${params.userId}:${params.readlist}/${params.id}`;
+
+	const readlistFitOverridesOf = (params: { userId: UserId; readlist: ReadlistSlug }): ReadlistFitOverride[] =>
+		[...readlistFitOverrides.values()]
+			.filter((entry) => entry.userId === params.userId && entry.readlist === params.readlist)
+			.map((entry) => entry.override)
+			.sort((a, b) => a.id.localeCompare(b.id));
+
+	const recordReadlistFitOverride: RecordReadlistFitOverride = async ({ userId, readlist, override }) => {
+		const id = readlistFitOverrideId(override);
+		readlistFitOverrides.set(readlistFitOverrideKey({ userId, readlist, id }), {
+			userId,
+			readlist,
+			override: { id, ...override },
+		});
+		for (const beyond of readlistFitOverridesOf({ userId, readlist }).slice(READLIST_FIT_OVERRIDES_KEPT)) {
+			readlistFitOverrides.delete(readlistFitOverrideKey({ userId, readlist, id: beyond.id }));
+		}
+		return id;
+	};
+
+	const listReadlistFitOverrides: ListReadlistFitOverrides = async (params) =>
+		readlistFitOverridesOf(params).slice(0, READLIST_FIT_OVERRIDES_KEPT);
+
+	const deleteReadlistFitOverride: DeleteReadlistFitOverride = async (params) => {
+		readlistFitOverrides.delete(readlistFitOverrideKey(params));
+	};
+
+	const purgeReadlistFitOverrides: PurgeReadlistFitOverrides = async ({ userId, readlist }) => {
+		for (const override of readlistFitOverridesOf({ userId, readlist })) {
+			readlistFitOverrides.delete(readlistFitOverrideKey({ userId, readlist, id: override.id }));
+		}
+	};
+
+	const deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl = async ({ userId, readlist, url }) =>
+		userArticles.delete(userArticleKey(userId, ArticleResourceUniqueId.parse(url).value, readlist));
 
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
@@ -1135,6 +1194,11 @@ export function initInMemoryArticleStore(): {
 		moveReadlistArticles,
 		createReadlistDefinition,
 		deleteReadlistDefinition,
+		recordReadlistFitOverride,
+		listReadlistFitOverrides,
+		deleteReadlistFitOverride,
+		purgeReadlistFitOverrides,
+		deleteReadlistArticleByUrl,
 		listReadlistDefinitions,
 		renameReadlistDefinition,
 		setReadlistDefinitionPurpose,

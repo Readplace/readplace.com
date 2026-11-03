@@ -48,6 +48,7 @@ import type {
 	CountArticlesByUser,
 	CountReadlistArticles,
 	DeleteReadlistDefinition,
+	PurgeReadlistFitOverrides,
 	DeleteArticle,
 	DeleteReadlistArticle,
 	FindArticleById,
@@ -432,6 +433,7 @@ interface ReadlistDependencies {
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
+	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
 	markSummaryToggled: MarkSummaryToggled;
@@ -2815,6 +2817,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				await deps.moveReadlistArticles({ userId, from: migration.from, to: migration.to });
 			}
 			await purgeReadlistArticles({ userId, readlist: decision.slug });
+			await deps.purgeReadlistFitOverrides({ userId, readlist: decision.slug });
 			const { deleted } = await deps.deleteReadlistDefinition({ userId, slug: decision.slug });
 			if (!deleted) {
 				unknownReadlist();

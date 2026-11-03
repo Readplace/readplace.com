@@ -23,6 +23,7 @@ import {
 	initDynamoDbCanaryReports,
 	initDynamoDbEngagementStarter,
 	initDynamoDbReadlistDefinitions,
+	initDynamoDbReadlistFitOverrides,
 	initDynamoDbSavedArticleStore,
 } from "@packages/article-store";
 import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, initCrawlFetch, initFetchRedirectHop, initResolveAppleNewsStoryUrl } from "@packages/crawl-article";
@@ -203,6 +204,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const onboardingSignals = initOnboardingSignals({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 	const articleStore = initDynamoDbSavedArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable, logger, now: () => new Date() });
 	const queueDefinitions = initDynamoDbReadlistDefinitions({ client, userArticlesTableName: userArticlesTable });
+	const readlistFitOverrides = initDynamoDbReadlistFitOverrides({ client, userArticlesTableName: userArticlesTable });
 	const canonicalAlias = initCanonicalAliasStore({ client, tableName: articlesTable });
 	const resolveCanonicalIdentity = initResolveCanonicalIdentity({ findIdentityRow: canonicalAlias.findIdentityRow });
 	const resolveWrapperTarget = initResolveWrapperTarget({
@@ -507,6 +509,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		...auth,
 		...articleStore,
 		...queueDefinitions,
+		...readlistFitOverrides,
 		createReadlistDefinition: initReportReadlistCap({
 			createReadlistDefinition: queueDefinitions.createReadlistDefinition,
 			metricLog: HutchLogger.fromJSON<ReadlistCapApproachedLine>().info,

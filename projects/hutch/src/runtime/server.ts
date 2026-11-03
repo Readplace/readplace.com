@@ -132,6 +132,7 @@ import type {
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
+	PurgeReadlistFitOverrides,
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	SaveArticle,
@@ -445,6 +446,7 @@ interface AppDependencies {
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
+	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
 	markSummaryToggled: MarkSummaryToggled;
 	markRelatedDismissed: MarkRelatedDismissed;
 	sendEmail: SendEmail;
@@ -1494,6 +1496,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
 		clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 		deleteReadlistDefinition,
+		purgeReadlistFitOverrides: deps.purgeReadlistFitOverrides,
 		listInboxAddresses: deps.listInboxAddresses,
 		setInboxAddressReadlist: deps.setInboxAddressReadlist,
 		markSummaryToggled: deps.markSummaryToggled,

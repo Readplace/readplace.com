@@ -1,9 +1,16 @@
-import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
+import {
+	DEFAULT_READLIST_SLUG,
+	type ReadlistFitOverrideId,
+	ReadlistSlugSchema,
+	type ReadlistSlug,
+} from "@packages/domain/readlist";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 
 const READLIST_PARTITION_INFIX = "#queue/";
 
 export const READLIST_DEFINITION_KEY_PREFIX = "readplace:queue-def/";
+
+export const READLIST_FIT_OVERRIDE_KEY_PREFIX = "readplace:queue-override/";
 
 export function readlistPartitionValue(params: { userId: UserId; readlist: ReadlistSlug }): string {
 	return `${params.userId}${READLIST_PARTITION_INFIX}${params.readlist}`;
@@ -31,4 +38,12 @@ export function decodeUserArticlePartition(value: string): {
 
 export function readlistDefinitionKey(readlist: ReadlistSlug): string {
 	return `${READLIST_DEFINITION_KEY_PREFIX}${readlist}`;
+}
+
+export function readlistFitOverridePrefix(readlist: ReadlistSlug): string {
+	return `${READLIST_FIT_OVERRIDE_KEY_PREFIX}${readlist}/`;
+}
+
+export function readlistFitOverrideKey(params: { readlist: ReadlistSlug; id: ReadlistFitOverrideId }): string {
+	return `${readlistFitOverridePrefix(params.readlist)}${params.id}`;
 }

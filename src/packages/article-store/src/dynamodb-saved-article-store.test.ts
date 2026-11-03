@@ -1996,7 +1996,7 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		await initStore(client).deleteAllUserArticles(USER);
 
 		const queries = commands.filter((c) => c.name === "QueryCommand");
-		expect(queries).toHaveLength(3);
+		expect(queries).toHaveLength(4);
 		expect(queries[0]?.input.IndexName).toBe("userId-savedAt-index");
 		expect(queries[0]?.input.KeyConditionExpression).toBe("userId = :userId");
 		expect(queries[0]?.input.ExpressionAttributeValues?.[":userId"]).toBe(USER);
@@ -2004,12 +2004,34 @@ describe("initDynamoDbSavedArticleStore deleteAllUserArticles", () => {
 		expect(queries[2]?.input.KeyConditionExpression).toBe(
 			"userId = :userId AND begins_with(#url, :prefix)",
 		);
+		expect(queries[3]?.input.ExpressionAttributeValues?.[":prefix"]).toBe("readplace:queue-override/");
 
 		const deletes = commands.filter((c) => c.name === "DeleteCommand");
 		expect(deletes.map((d) => d.input.Key)).toEqual([
 			{ userId: USER, url: "a" },
 			{ userId: USER, url: "b" },
 			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+		]);
+	});
+
+	it("deletes a reader's readlist choices, which carry no savedAt and so never reach the index sweep", async () => {
+		const overrideUrl = "readplace:queue-override/work/0000000000000001-msg-0001";
+		const { client, commands } = createFakeClient({
+			QueryCommand: {
+				readlist: [
+					{ Items: [], Count: 0 },
+					{ Items: [], Count: 0 },
+					{ Items: [{ userId: USER, url: overrideUrl }], Count: 1 },
+				],
+			},
+		});
+
+		await initStore(client).deleteAllUserArticles(USER);
+
+		const deletes = commands.filter((c) => c.name === "DeleteCommand");
+		expect(deletes.map((d) => d.input.Key)).toEqual([
+			{ userId: USER, url: `readplace:save-cursor/${USER}` },
+			{ userId: USER, url: overrideUrl },
 		]);
 	});
 

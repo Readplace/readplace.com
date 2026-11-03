@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
-import { AliasNameSchema } from "@packages/domain/inbox";
+import { AliasNameSchema, formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
@@ -426,5 +426,33 @@ describe("POST /queue/queues/:slug/delete with a destination readlist", () => {
 			}),
 		).toBe(0);
 		expect(queueSlugs(parse((await agent.get("/queue")).text))).toEqual(["default", destination]);
+	});
+
+	it("forgets the reader's choices for the deleted readlist and keeps another readlist's", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const deleted = ReadlistSlugSchema.parse(await createReadlist(agent, "New Readlist"));
+		const kept = ReadlistSlugSchema.parse(await createReadlist(agent, "New Readlist 2"));
+		const userId = await userIdOf(harness);
+		for (const readlist of [deleted, kept]) {
+			await harness.articleStore.recordReadlistFitOverride({
+				userId,
+				readlist,
+				override: {
+					url: "https://example.com/post",
+					anchorText: "A post",
+					host: "example.com",
+					readerVerdict: "keep",
+					receivedAtMessageId: "2026-11-02T21:15:00.000Z#msg-1",
+					ordinal: formatEmailLinkOrdinal(1),
+					createdAt: new Date("2026-11-03T08:00:00.000Z"),
+				},
+			});
+		}
+
+		await deleteReadlist(agent, deleted);
+
+		expect(await harness.articleStore.listReadlistFitOverrides({ userId, readlist: deleted })).toEqual([]);
+		expect(await harness.articleStore.listReadlistFitOverrides({ userId, readlist: kept })).toHaveLength(1);
 	});
 });

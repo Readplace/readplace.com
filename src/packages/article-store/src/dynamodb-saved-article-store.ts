@@ -76,6 +76,7 @@ import type {
 import { DigestPageCursorSchema, type ContentProvider } from "@packages/provider-contracts/article-store";
 import {
 	READLIST_DEFINITION_KEY_PREFIX,
+	READLIST_FIT_OVERRIDE_KEY_PREFIX,
 	decodeUserArticlePartition,
 	partitionFor,
 	readlistDefinitionKey,
@@ -272,6 +273,11 @@ export function initDynamoDbSavedArticleStore(deps: {
 		client,
 		tableName: userArticlesTableName,
 		schema: z.object({ queueSlug: ReadlistSlugSchema }),
+	});
+	const readlistFitOverrideRows = defineDynamoTable({
+		client,
+		tableName: userArticlesTableName,
+		schema: z.object({ userId: z.string(), url: z.string() }),
 	});
 
 	const claimWallClockSpan = async (userId: UserId, span: { nowMs: number; endMs: number }): Promise<{ Attributes?: z.infer<typeof SaveCursorRow> }> =>
@@ -1012,6 +1018,22 @@ export function initDynamoDbSavedArticleStore(deps: {
 		// sweep above can never see it; without this delete a userId-bearing row
 		// would survive account deletion.
 		await saveCursors.delete({ Key: { userId, url: saveCursorUrl(userId) } });
+		await forEachQueryPage(
+			readlistFitOverrideRows,
+			{
+				KeyConditionExpression: "userId = :userId AND begins_with(#url, :prefix)",
+				ExpressionAttributeNames: { "#url": "url" },
+				ExpressionAttributeValues: {
+					":userId": userId,
+					":prefix": READLIST_FIT_OVERRIDE_KEY_PREFIX,
+				},
+			},
+			async (rows) => {
+				await Promise.all(
+					rows.map((row) => readlistFitOverrideRows.delete({ Key: { userId: row.userId, url: row.url } })),
+				);
+			},
+		);
 	};
 
 	const listUserArticleUrls: ListUserArticleUrls = async (userId) => {

@@ -9,7 +9,14 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ReaderArticleHashId, StoredArticleBody } from "@packages/domain/article";
-import type { ReadlistSlug } from "@packages/domain/readlist";
+import type { EmailLinkOrdinal } from "@packages/domain/inbox";
+import type {
+	ReadlistFitEngineVerdict,
+	ReadlistFitOverrideId,
+	ReadlistFitReaderVerdict,
+	ReadlistPurposeVersion,
+	ReadlistSlug,
+} from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
 
@@ -259,6 +266,45 @@ export type ReadArticleImage = (params: {
  * per-user gateway rows are removed; the URL-keyed global article cache is
  * shared across users and left untouched. */
 export type DeleteAllUserArticles = (userId: UserId) => Promise<void>;
+
+export type ReadlistFitOverride = {
+	id: ReadlistFitOverrideId;
+	url: string;
+	anchorText: string;
+	host: string;
+	engineVerdict?: ReadlistFitEngineVerdict;
+	engineReason?: string;
+	readerVerdict: ReadlistFitReaderVerdict;
+	purposeVersion?: ReadlistPurposeVersion;
+	receivedAtMessageId: string;
+	ordinal: EmailLinkOrdinal;
+	createdAt: Date;
+};
+
+export type RecordReadlistFitOverride = (params: {
+	userId: UserId;
+	readlist: ReadlistSlug;
+	override: Omit<ReadlistFitOverride, "id">;
+}) => Promise<ReadlistFitOverrideId>;
+
+export type ListReadlistFitOverrides = (params: {
+	userId: UserId;
+	readlist: ReadlistSlug;
+}) => Promise<ReadlistFitOverride[]>;
+
+export type DeleteReadlistFitOverride = (params: {
+	userId: UserId;
+	readlist: ReadlistSlug;
+	id: ReadlistFitOverrideId;
+}) => Promise<void>;
+
+export type PurgeReadlistFitOverrides = (params: { userId: UserId; readlist: ReadlistSlug }) => Promise<void>;
+
+export type DeleteReadlistArticleByUrl = (params: {
+	userId: UserId;
+	readlist: ReadlistSlug;
+	url: string;
+}) => Promise<boolean>;
 
 /** Every original (un-normalized) URL a user has saved. Used at account deletion
  * to decide, per URL, whether the user was its only saver — in which case the

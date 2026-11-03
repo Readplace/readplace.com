@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
+import { formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
@@ -2316,5 +2317,71 @@ describe("initInMemoryArticleStore discovery", () => {
 
 		expect(found.articles.map((article) => article.metadata.title)).toEqual(["Deep work at the office"]);
 		expect(counted).toBe(1);
+	});
+});
+
+
+describe("readlist fit overrides", () => {
+	const CREATED_AT = new Date("2026-11-03T08:00:00.000Z");
+	const choice = (index: number) => ({
+		url: "https://example.com/article",
+		anchorText: "An article",
+		host: "example.com",
+		readerVerdict: "keep" as const,
+		receivedAtMessageId: "2026-11-02T21:15:00.000Z#msg-1",
+		ordinal: formatEmailLinkOrdinal(index),
+		createdAt: new Date(CREATED_AT.getTime() + index),
+	});
+
+	it("lists a readlist's choices newest first and keeps 20 of them", async () => {
+		const store = initInMemoryArticleStore();
+		for (let index = 0; index < 21; index += 1) {
+			await store.recordReadlistFitOverride({ userId: USER_A, readlist: WORK, override: choice(index) });
+		}
+
+		const overrides = await store.listReadlistFitOverrides({ userId: USER_A, readlist: WORK });
+
+		expect(overrides.map((override) => override.ordinal)).toEqual(
+			Array.from({ length: 20 }, (_, offset) => formatEmailLinkOrdinal(20 - offset)),
+		);
+	});
+
+	it("deletes one choice by its id", async () => {
+		const store = initInMemoryArticleStore();
+		const id = await store.recordReadlistFitOverride({ userId: USER_A, readlist: WORK, override: choice(1) });
+
+		await store.deleteReadlistFitOverride({ userId: USER_A, readlist: WORK, id });
+
+		expect(await store.listReadlistFitOverrides({ userId: USER_A, readlist: WORK })).toEqual([]);
+	});
+
+	it("purges one readlist's choices and keeps another's", async () => {
+		const store = initInMemoryArticleStore();
+		await store.recordReadlistFitOverride({ userId: USER_A, readlist: WORK, override: choice(1) });
+		await store.recordReadlistFitOverride({ userId: USER_A, readlist: LATER, override: choice(2) });
+
+		await store.purgeReadlistFitOverrides({ userId: USER_A, readlist: WORK });
+
+		expect(await store.listReadlistFitOverrides({ userId: USER_A, readlist: WORK })).toEqual([]);
+		expect(await store.listReadlistFitOverrides({ userId: USER_A, readlist: LATER })).toHaveLength(1);
+	});
+
+	it("forgets a user's choices when the account goes and keeps another user's", async () => {
+		const store = initInMemoryArticleStore();
+		await store.recordReadlistFitOverride({ userId: USER_A, readlist: WORK, override: choice(1) });
+		await store.recordReadlistFitOverride({ userId: USER_B, readlist: WORK, override: choice(1) });
+
+		await store.deleteAllUserArticles(USER_A);
+
+		expect(await store.listReadlistFitOverrides({ userId: USER_A, readlist: WORK })).toEqual([]);
+		expect(await store.listReadlistFitOverrides({ userId: USER_B, readlist: WORK })).toHaveLength(1);
+	});
+
+	it("removes an article from a readlist by its URL, and answers false once it is gone", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveReadlistArticle({ ...makeArticleParams(), readlist: WORK });
+
+		expect(await store.deleteReadlistArticleByUrl({ userId: USER_A, readlist: WORK, url: URL })).toBe(true);
+		expect(await store.deleteReadlistArticleByUrl({ userId: USER_A, readlist: WORK, url: URL })).toBe(false);
 	});
 });
