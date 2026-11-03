@@ -1,8 +1,8 @@
 import { collectImportLinks } from "./collect-import-links";
 import type { ImportLinksResult } from "./import-session.types";
 
-const URL_REGEX = /\bhttps?:\/\/[^\s<>"'()[\]{}|\\^`]+/gi;
-const TRAILING_PUNCTUATION = /[.,;:!?>'"\])]+$/;
+const URL_REGEX = /\bhttps?:\/\/(?:[^\s<>"'()[\]{}|\\^`]|\([^\s<>"'()[\]{}|\\^`]*\))+/gi;
+const TRAILING_PUNCTUATION = /[.,;:!?>'"\]]+$/;
 const CSV_URL_HEADER = /^(?:[^,\r\n]*,)*url(?:,|\r?\n|$)/i;
 const FIRST_COMMA_ONWARD = /,.*$/;
 

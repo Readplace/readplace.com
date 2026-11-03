@@ -146,6 +146,27 @@ describe("extractUrls", () => {
 		expect(result.urls).toEqual(["https://example.com/a,b/c"]);
 	});
 
+	it.each([
+		["a bare URL", "https://en.wikipedia.org/wiki/Foo_(bar)"],
+		["a Markdown link target", "[Foo](https://en.wikipedia.org/wiki/Foo_(bar))"],
+		["a URL ending a sentence", "https://en.wikipedia.org/wiki/Foo_(bar)."],
+	])("keeps balanced parentheses inside %s", (_case, text) => {
+		const result = extractUrls(Buffer.from(text));
+
+		expect(result.urls).toEqual(["https://en.wikipedia.org/wiki/Foo_(bar)"]);
+	});
+
+	it.each([
+		["a Markdown link followed by text", "[a](https://x.com/a)more", ["https://x.com/a"]],
+		["adjacent parenthesised URLs", "(https://a.example/x)(https://b.example/y)", ["https://a.example/x", "https://b.example/y"]],
+		["a parenthesised URL followed by text", "see (https://a.example/x)and more", ["https://a.example/x"]],
+		["a CSS url() value", "background:url(https://a.example/x.png)no-repeat", ["https://a.example/x.png"]],
+	])("ends the URL at the closing parenthesis of %s", (_case, text, urls) => {
+		const result = extractUrls(Buffer.from(text));
+
+		expect(result.urls).toEqual(urls);
+	});
+
 	it("returns an empty list when the buffer contains no URLs", () => {
 		const result = extractUrls(Buffer.from("No links here. Just prose."));
 
