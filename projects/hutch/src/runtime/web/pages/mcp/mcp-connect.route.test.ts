@@ -19,6 +19,35 @@ function load(text: string): Document {
 }
 
 describe("GET /mcp (browser connection guide)", () => {
+	it("lists the three example prompts", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server)
+			.get("/mcp")
+			.set("Accept", "text/html,application/xhtml+xml");
+
+		const doc = load(response.text);
+		const examples = Array.from(
+			doc.querySelectorAll('[data-test-section="examples"] .mcp-connect__example-text'),
+		).map((el) => el.textContent);
+		expect(examples).toEqual([
+			"Save this page to Readplace",
+			"Save the sources you used in this answer to my Readplace readlist",
+			"What's waiting in my readlist?",
+		]);
+	});
+
+	it("leads with the line about keeping the original sources", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server)
+			.get("/mcp")
+			.set("Accept", "text/html,application/xhtml+xml");
+
+		const doc = load(response.text);
+		expect(doc.querySelector("[data-test-mcp-sources-line]")?.textContent).toBe(
+			"Keep the original sources after the AI conversation ends.",
+		);
+	});
+
 	it("serves the HTML guide to a browser (Accept: text/html)", async () => {
 		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(server)

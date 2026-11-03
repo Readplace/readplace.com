@@ -1,10 +1,11 @@
 import { MAX_PDF_PAGES } from "@packages/crawl-article";
-import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS } from "@packages/web-shell";
+import { PRICING_PLANS } from "@packages/web-shell";
 import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
 import type { IconName } from "@packages/ui-icons";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import { AI_ASSISTANTS_OR } from "../../shared/client-enumerations";
+import { RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { CANONICAL_SLOGAN } from "../../slogans";
 
 export interface HomeWayLink {
@@ -223,10 +224,11 @@ export const HOME_CONTENT = {
 		signature: "— Fayner Brack, Founder & CEO",
 	},
 	pricing: {
-		titleBefore: "From",
-		priceAmount: CHEAPEST_MONTHLY_DISPLAY,
-		titleAfter: "a month to pay running costs, and that's it!",
-		panelCtaLabel: "Become a Member",
+		titleBefore: `${TRIAL_DAYS} days free, no card. Then`,
+		priceAmount: `${PRICING_PLANS.yearly.totalDisplay} a year`,
+		titleAfter: `(${PRICING_PLANS.yearly.monthlyDisplay} a month, billed yearly) or ${PRICING_PLANS.monthly.totalDisplay} a month.`,
+		savesStay: SAVES_STAY_STATEMENT,
+		panelCtaLabel: `Try Readplace free for ${TRIAL_DAYS} days`,
 		ctaNote: `Google, Apple, or an email address — about twenty seconds. No card at any point in the ${TRIAL_DAYS} days.`,
 		assurances: [
 			"Export a list of every article you saved, as JSON, anytime — even after you cancel.",
@@ -251,7 +253,7 @@ export const HOME_CONTENT = {
 			},
 			{
 				question: "Do I need a credit card to start?",
-				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that you choose how often you're billed, and every plan is the same full product: ${PRICING_PLANS.monthly.name} is ${PRICING_PLANS.monthly.monthlyDisplay} a month (${PRICING_PLANS.monthly.billedNote}), ${PRICING_PLANS.yearly.name} is ${PRICING_PLANS.yearly.monthlyDisplay} a month (${PRICING_PLANS.yearly.billedNote}), and ${PRICING_PLANS.triennial.name} is ${PRICING_PLANS.triennial.monthlyDisplay} a month (${PRICING_PLANS.triennial.billedNote}). If you don't subscribe, nothing is charged and the account goes read-only.`,
+				answer: `No. ${TRIAL_DAYS} days with the full product, no card. After that it's ${RENEWAL_PRICES.replace(/\.$/, "")}, and both plans are the same full product. If you don't subscribe, nothing is charged and the account goes read-only.`,
 			},
 			{
 				question: "What happens to my articles if I stop paying?",

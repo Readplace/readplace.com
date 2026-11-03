@@ -32,7 +32,7 @@ const COPY_BY_AUDIENCE = {
 	}),
 	selfRegistered: ({ clientName, redirectHost }) => ({
 		heading: `Connect ${clientName}`,
-		body: `Allow ${clientName} full read and write access to your readlists, including saving and deleting articles.`,
+		body: `Allow ${clientName} to read and change your readlists. Its Readplace tools save articles, list and open what you saved, mark articles read or unread, and create readlists and add articles to them. None of them delete anything.`,
 		notice: { variant: "warning", message: { html: render(NOTICE_TEMPLATE, { clientName, redirectHost }) } },
 	}),
 } satisfies Record<ConsentAudience, (client: { clientName: string; redirectHost: string }) => ConsentCopy>;

@@ -4,6 +4,7 @@ import request from "supertest";
 import { createDefaultTestAppFixture, TEST_APP_ORIGIN } from "@packages/test-fixtures";
 import { BROWSER_REQUEST_HEADERS, useTestServer } from "../../../test-app";
 import { campaignTag, HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 
 const useArmB = useTestServer({ drawRandomByte: () => 255 });
 const useArmA = useTestServer({ drawRandomByte: () => 0 });
@@ -34,6 +35,25 @@ describe("homepage split assignment", () => {
 			experiment: campaignTag(HOMEPAGE_SPLIT),
 			experiment_variant: "variant-d",
 		}));
+	});
+
+	it("states the same price on arm B, in its comparison and its pricing section", async () => {
+		const harness = useArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS);
+		const { document } = parseHTML(response.text);
+
+		expect(document.querySelector(".home-compare__reassurance")?.textContent).toBe(
+			`${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+		);
+		expect(document.querySelector('[data-test-section="compare"] h2')?.textContent).toBe(
+			"Your reading list for $5 a month, billed yearly — not $200 a month.",
+		);
+		expect(Array.from(document.querySelectorAll("[data-test-plan]"), (plan) => plan.getAttribute("data-test-plan")))
+			.toEqual(["monthly", "yearly"]);
+		const saves = document.querySelector('[data-test-section="pricing"] [data-test-saves-stay]');
+		assert(saves, "arm B's pricing section must say what happens to saves");
+		expect(saves.textContent).toBe(SAVES_STAY_STATEMENT);
+		expect(saves.previousElementSibling?.textContent).toBe(PRICE_STATEMENT);
 	});
 
 	it("keeps a returning visitor in arm B when a fresh draw would select arm A", async () => {

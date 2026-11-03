@@ -9,13 +9,11 @@
  * that drifts.
  *
  * The first entry is canonical: it is what server-side rendering, a crawler,
- * and a client whose fetch failed all show, so it must stay the slogan the
- * page's `<title>` and structured data already claim.
+ * and a client whose fetch failed all show.
  */
 export const SLOGANS = [
-	"Your #1 AI-Powered Reading List.",
-	"Paste a link. Read it clean.",
 	"A warm, dependable place for your reading list.",
+	"Paste a link. Read it clean.",
 	"Your reading list, without the noise.",
 	"Your reading universe. Here.",
 	"Read what matters",

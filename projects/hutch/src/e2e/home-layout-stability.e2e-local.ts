@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { test } from "@packages/e2e-harness";
+import { requireEnv } from "@packages/require-env";
+import { EXPERIMENT_COOKIE_NAME } from "../runtime/web/experiments/homepage-assignment";
+import { HOMEPAGE_SPLIT } from "../runtime/web/experiments/homepage-split";
 import { type StabilityReport, sampleLayoutStability } from "./layout-stability.browser";
 
 /** Long enough for a late-arriving web font, a lazily decoded poster frame, or
@@ -18,6 +21,8 @@ const SCROLL_SETTLE_MS = 250;
 const VOLATILE_CHROME = [".offline-banner", ".newer-version-banner"];
 
 const VIEWPORT = { width: 390, height: 844 };
+const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
+const BASE_URL = `http://127.0.0.1:${requireEnv("E2E_PORT")}`;
 
 async function detachVolatileChrome(page: Page): Promise<void> {
 	await page.evaluate((selectors) => {
@@ -50,6 +55,27 @@ function expectNothingMoved(report: StabilityReport, watched: string): void {
 		`${watched}: the page must keep one height, measured ${report.pageHeights.join(" then ")}`,
 	);
 }
+
+test.describe("Homepage pricing grid has no empty column", () => {
+	test.use({ viewport: DESKTOP_VIEWPORT });
+
+	for (const variant of HOMEPAGE_SPLIT.variants) {
+		test(`fills the grid edge to edge on ${variant.slug}`, async ({ page }) => {
+			await page.context().addCookies([{
+				name: EXPERIMENT_COOKIE_NAME,
+				value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${variant.slug}`,
+				url: BASE_URL,
+			}]);
+			await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+
+			const grid = await page.locator("[data-test-plans]").boundingBox();
+			const lastPlan = await page.locator("[data-test-plan]").last().boundingBox();
+			assert(grid, "the pricing grid must render");
+			assert(lastPlan, "the pricing grid must hold a plan");
+			assert.equal(lastPlan.x + lastPlan.width, grid.x + grid.width);
+		});
+	}
+});
 
 test.describe("Homepage settles and then stops moving", () => {
 	test.use({ viewport: VIEWPORT });

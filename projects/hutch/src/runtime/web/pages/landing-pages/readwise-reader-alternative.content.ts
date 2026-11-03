@@ -1,12 +1,12 @@
-import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
+import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	PASTE_A_LINK,
 	PLAN_CHOICES,
 	READER_SHOT,
 	READ_ONLY_CLOSE,
 	START_TRIAL,
-	TRIAL_TERMS,
 	founderLine,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -27,7 +27,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	titleLead: "What Reader does that this ",
 	titleHighlight: "doesn't",
 	titleTail: ", in one table.",
-	lede: `Readplace saves articles, PDFs and newsletter links, writes an AI TL;DR for each, and costs ${PRICING_PLANS.yearly.totalDisplay} a year, or ${CHEAPEST_MONTHLY_DISPLAY}/month on the 3-year plan. Readwise Reader does much more. The table lists what Reader has that Readplace doesn't, so you can check the rows you'd miss.`,
+	lede: `Readplace saves articles, PDFs and newsletter links, writes an AI TL;DR for each, and costs ${PRICING_PLANS.yearly.totalDisplay} a year, or ${PRICING_PLANS.monthly.totalDisplay} month to month. Readwise Reader does much more. The table lists what Reader has that Readplace doesn't, so you can check the rows you'd miss.`,
 	ogImageAlt: "Readplace and Readwise Reader compared row by row, gaps included.",
 	primaryAction: {
 		key: "try-reader",
@@ -64,7 +64,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	mechanismTitle: "Readplace and Readwise Reader, row by row",
 	mechanismLede: "It's a narrower product, and the narrow part is the point.",
 	mechanismParagraphs: [
-		`Price. ${CHEAPEST_MONTHLY_DISPLAY}/month on the 3-year plan, ${PRICING_PLANS.yearly.monthlyDisplay}/month billed yearly, or ${PRICING_PLANS.monthly.totalDisplay} month to month, and every plan is the whole product.`,
+		`Price. ${PRICING_PLANS.yearly.monthlyDisplay}/month billed yearly, or ${PRICING_PLANS.monthly.totalDisplay} month to month, and every plan is the whole product.`,
 		`Scanned PDFs. Every page is read from its pixels, and a cleanup pass that changes a number is discarded. <a href="${track("/pdf-ocr", "pdf-ocr")}">How the checks work</a>.`,
 		`Leaving. If you stop paying, the account goes read-only rather than locked, and export needs only a sign-in. <a href="${track("/read-it-later-that-wont-die", "read-only")}">What happens when a subscription ends</a>.`,
 		`AI assistants. ChatGPT, Claude and Gemini can save to and read from a readlist. <a href="${track("/ai-reading-list", "ai-reading-list")}">How the assistant connection works</a>.`,
@@ -77,7 +77,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 			rows: [
 				{
 					feature: "Price",
-					readplace: `${CHEAPEST_MONTHLY_DISPLAY}/month (3-year plan) to ${PRICING_PLANS.monthly.totalDisplay} month to month`,
+					readplace: `${PRICING_PLANS.yearly.totalDisplay} a year, or ${PRICING_PLANS.monthly.totalDisplay} month to month`,
 					competitor: "$9.99/month billed annually, $12.99 month to month",
 				},
 				{
@@ -143,7 +143,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	faq: [
 		{
 			question: "Is Readplace cheaper than Readwise Reader?",
-			answer: `Yes. Readplace is ${PLAN_CHOICES}, all the same product. Readwise listed Reader at $9.99/month billed annually or $12.99 month to month on Oct 1, 2026.`,
+			answer: `Yes. Readplace is ${PLAN_CHOICES}, both the same product. Readwise listed Reader at $9.99/month billed annually or $12.99 month to month on Oct 1, 2026.`,
 		},
 		{
 			question: "Can I move my Reader library across?",
@@ -168,7 +168,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs",
 		paragraphs: [
-			`Reading a link you paste here costs nothing. Keeping a library is a subscription: ${TRIAL_TERMS}`,
+			`Reading a link you paste here costs nothing. Keeping a library is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			`Every plan is the whole product: ${PLAN_CHOICES}.`,
 			READ_ONLY_CLOSE,
 		],

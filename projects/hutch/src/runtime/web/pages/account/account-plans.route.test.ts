@@ -123,7 +123,7 @@ describe("GET /account/plans (inside the app)", () => {
 		const response = await agent.get(`/account/plans${query}`);
 		const account = await agent.get(response.headers.location);
 
-		expect(anyPlanKeys(onTheWeb.text)).toEqual(["yearly", "monthly", "triennial"]);
+		expect(anyPlanKeys(onTheWeb.text)).toEqual(["yearly", "monthly"]);
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe(location);
 		expect(account.status).toBe(200);
@@ -168,6 +168,24 @@ describe("GET /account/plans (trialing, the trial can still be kept)", () => {
 		assert(heading, "the plan group must be named by an element on the page");
 		expect(heading.classList.contains("plans-page__title")).toBe(true);
 		expect(heading.textContent).toBe("Choose a plan");
+	});
+
+	it("states that saves stay readable beside the plans", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await signedInReader(harness, "plans-saves-stay@example.com");
+		harness.subscriptionProviders.seedRow(
+			subscriptionRow(userId, {
+				status: "trialing",
+				trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+			}),
+		);
+
+		const response = await agent.get(PAY_DIGEST_CLICK);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-saves-stay]")?.textContent).toBe(
+			"Your saves stay readable and exportable, even if you stop paying.",
+		);
 	});
 
 	it("promises no charge until the trial ends for a plan chosen before the checkout cutoff", async () => {

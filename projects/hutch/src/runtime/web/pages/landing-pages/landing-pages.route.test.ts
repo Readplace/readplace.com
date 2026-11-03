@@ -3,8 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { ADVERTISED_CLIENTS, UNADVERTISED_CLIENTS } from "@packages/supported-clients";
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
@@ -24,6 +23,19 @@ const SECTIONS = [
 	"lp-offer",
 	"lp-close",
 ];
+
+const STATED_AMOUNTS = ["$10", "$5", "$60"];
+
+const AMOUNTS_BY_SLUG: Record<LandingPageSlug, readonly string[]> = {
+	"ai-reading-list": STATED_AMOUNTS,
+	"article-to-epub": STATED_AMOUNTS,
+	"pdf-ocr": STATED_AMOUNTS,
+	"pdf-reflow": STATED_AMOUNTS,
+	"pocket-alternative": STATED_AMOUNTS,
+	"read-it-later-that-wont-die": STATED_AMOUNTS,
+	"readwise-reader-alternative": ["$10", "$12.99", "$5", "$60", "$9.99"],
+	"save-newsletter-links": STATED_AMOUNTS,
+};
 
 const useApp = useTestServer();
 
@@ -161,8 +173,15 @@ describe("landing pages", () => {
 
 		const offer = doc.querySelector('[data-test-section="lp-offer"]');
 		assert(offer, `${slug} must state its offer`);
-		expect(offer.textContent).toContain(`${CHEAPEST_MONTHLY_DISPLAY}/month`);
-		expect(offer.textContent).toContain(String(STRIPE_TRIAL_PERIOD_DAYS));
+		expect(offer.textContent).toContain(PRICE_STATEMENT);
+		expect(offer.textContent).toContain(SAVES_STAY_STATEMENT);
+	});
+
+	it.each(SLUGS)("quotes only the stated dollar amounts on /%s", async (slug) => {
+		const { doc } = await loadPage(slug);
+
+		const text = String(doc.body.textContent);
+		expect([...new Set(text.match(/\$\d+(?:\.\d+)?/g))].sort()).toEqual(AMOUNTS_BY_SLUG[slug]);
 	});
 
 	it.each(SLUGS)("shows the product on /%s rather than only describing it", async (slug) => {

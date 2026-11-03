@@ -1,4 +1,4 @@
-import { oauthClientIdFrom } from "./oauth-client-id";
+import { oauthClientIdFrom, signInClientGroupFrom } from "./oauth-client-id";
 
 describe("oauthClientIdFrom", () => {
 	it("returns the client id for a built-in client's consent return URL", () => {
@@ -43,5 +43,30 @@ describe("oauthClientIdFrom", () => {
 
 	it("returns undefined instead of throwing when the return URL itself is unparseable (backslash forces an invalid authority)", () => {
 		expect(oauthClientIdFrom("/\\[")).toBeUndefined();
+	});
+});
+
+describe("signInClientGroupFrom", () => {
+	it("is none when there is no return URL", () => {
+		expect(signInClientGroupFrom(undefined)).toBe("none");
+	});
+
+	it("is none for a return URL that is not the consent screen", () => {
+		expect(signInClientGroupFrom("/queue?client_id=ios-app")).toBe("none");
+	});
+
+	it.each([
+		["ios-app", "nativeApp"],
+		["android-app", "nativeApp"],
+		["hutch-chrome-extension", "browserExtension"],
+		["hutch-firefox-extension", "browserExtension"],
+	])("is the group of the built-in client %s", (clientId, group) => {
+		expect(signInClientGroupFrom(`/oauth/authorize?client_id=${clientId}&response_type=code`)).toBe(group);
+	});
+
+	it("is selfRegistered for the opaque id a dynamically registered connector is issued", () => {
+		expect(signInClientGroupFrom("/oauth/authorize?client_id=ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm&response_type=code")).toBe(
+			"selfRegistered",
+		);
 	});
 });

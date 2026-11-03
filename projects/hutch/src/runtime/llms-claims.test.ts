@@ -4,14 +4,24 @@ import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
 import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import { LANDING_PAGE_CONTENT } from "./web/pages/landing-pages";
+import { PRICE_STATEMENT } from "./web/price-statement";
 
 const FILES = {
 	"llms.txt": readFileSync(join(__dirname, "llms.txt"), "utf-8"),
 	"llms-full.txt": readFileSync(join(__dirname, "llms-full.txt"), "utf-8"),
 };
 const FILE_NAMES = Object.keys(FILES) as (keyof typeof FILES)[];
+const AMOUNTS_BY_FILE: Record<keyof typeof FILES, readonly string[]> = {
+	"llms.txt": ["$10", "$119.88", "$5", "$60"],
+	"llms-full.txt": ["$10", "$119.88", "$28", "$5", "$60"],
+};
 
 describe("llms files", () => {
+	it.each(FILE_NAMES)("%s states the price and quotes only its known dollar amounts", (name) => {
+		expect(FILES[name]).toContain(PRICE_STATEMENT);
+		expect([...new Set(FILES[name].match(/\$\d+(?:\.\d+)?/g))].sort()).toEqual(AMOUNTS_BY_FILE[name]);
+	});
+
 	it.each(FILE_NAMES)("%s quotes the PDF limits from their constants", (name) => {
 		expect(FILES[name]).toContain(`${MAX_PDF_PAGES} pages`);
 		expect(FILES[name]).toContain(MAX_PDF_BYTES.label);

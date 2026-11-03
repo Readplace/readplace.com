@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import {
-	BILLING_PLANS,
 	type BillingPlan,
 	DEFAULT_BILLING_PLAN,
 } from "@packages/provider-contracts/subscription-providers";
 import type { EffectiveAccess } from "@packages/subscription-access";
-import { PRICING_PANELS, PRICING_PLANS } from "@packages/web-shell";
+import { PRICING_PANELS, PRICING_PLANS, STATED_PRICING_PANELS } from "@packages/web-shell";
 import { parseHTML } from "linkedom";
+import { SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	SUBSCRIBE_PLANS_POPOVER_ID,
 	SUBSCRIBE_PLANS_SOURCES,
@@ -22,7 +22,11 @@ assert(featuredPanel.badge, "the featured panel must carry the badge");
 const FEATURED_PLAN = featuredPanel.key;
 const FEATURED_PLAN_BADGE = featuredPanel.badge;
 
-const ROW_ORDER = [
+const STATED_PLANS = STATED_PRICING_PANELS.map((panel) => panel.key);
+
+const ROW_ORDER = [FEATURED_PLAN, ...STATED_PLANS.filter((key) => key !== FEATURED_PLAN)];
+
+const INLINE_ROW_ORDER = [
 	FEATURED_PLAN,
 	...PRICING_PANELS.map((panel) => panel.key).filter((key) => key !== FEATURED_PLAN),
 ];
@@ -76,11 +80,19 @@ function planForm(root: Root) {
 }
 
 describe("renderSubscribePlansPopover", () => {
-	it("offers the featured plan first, then the rest in the money model's order", () => {
+	it("offers the stated plans only, the featured plan first", () => {
+		expect(planKeys(panelFor())).toEqual(["yearly", "monthly"]);
 		expect(planKeys(panelFor())).toEqual(ROW_ORDER);
 	});
 
-	it.each(BILLING_PLANS)(
+	it("says a reader's saves stay readable under the title, leaving the prices to the rows", () => {
+		const body = panelFor().querySelector(".confirm-popover__body");
+
+		assert(body, "the panel must render its body");
+		expect(body.textContent).toBe(`Get full access to Readplace. Cancel anytime. ${SAVES_STAY_STATEMENT}`);
+	});
+
+	it.each(STATED_PLANS)(
 		"checks exactly the plan it is handed (%s), so the caller picks the one an untouched submit sends",
 		(plan) => {
 			const checked = [
@@ -216,9 +228,26 @@ describe("renderSubscribePlansForm", () => {
 		expect(testActions(only, "[data-test-action]")).toEqual(["subscribe-plans-submit"]);
 	});
 
-	it("offers the rows the popover hands the shell, so both surfaces offer identical plans", () => {
+	it("offers every plan, the featured plan first, then the rest in the money model's order", () => {
+		const doc = formFor({ source: "plans-page" });
+
+		expect(planKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
+		expect(planKeys(doc)).toEqual(INLINE_ROW_ORDER);
+	});
+
+	it("checks the 3-year plan when it is handed it, since only this form lists it", () => {
+		const checked = [
+			...formFor({ source: "plans-page", checkedPlan: "triennial" }).querySelectorAll("input[name='plan']:checked"),
+		].map((radio) => radio.getAttribute("value"));
+
+		expect(checked).toEqual(["triennial"]);
+	});
+
+	it("the popover's rows are the inline form's rows minus triennial", () => {
 		const inline = [
-			...formFor({ source: "account", checkedPlan: "monthly" }).querySelectorAll("[data-test-plan]"),
+			...formFor({ source: "account", checkedPlan: "monthly" }).querySelectorAll(
+				"[data-test-plan]:not([data-test-plan='triennial'])",
+			),
 		].map((plan) => plan.outerHTML);
 		const inPopover = [
 			...panelFor({ source: "account", checkedPlan: "monthly" }).querySelectorAll("[data-test-plan]"),

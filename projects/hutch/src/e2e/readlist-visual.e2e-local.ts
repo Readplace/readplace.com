@@ -824,8 +824,9 @@ async function subscriptionTrialGeometry(page: Page): Promise<void> {
 	const secondTile = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles] > div:nth-child(2)`);
 	const thirdTile = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-trial-tiles] > div:nth-child(3)`);
 	const cta = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-action="subscribe-plans-open"]`);
-	const note = await measuredBox(page, `${SUBSCRIPTION_BANNER} .readlist-subscription__note`);
-	assertSubscriptionMeasurement({ description: "the trial card height", actual: card.height, expected: 269 });
+	const note = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-price-statement]`);
+	const savesStay = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-saves-stay]`);
+	assertSubscriptionMeasurement({ description: "the trial card height", actual: card.height, expected: 361 });
 	assertSubscriptionMeasurement({ description: "the trial title top inset", actual: title.y - card.y, expected: 21 });
 	assertSubscriptionMeasurement({ description: "the trial title line height", actual: title.height, expected: 20 });
 	assertSubscriptionMeasurement({
@@ -873,7 +874,7 @@ async function subscriptionTrialGeometry(page: Page): Promise<void> {
 	});
 	assertSubscriptionMeasurement({
 		description: "the trial note bottom inset",
-		actual: card.y + card.height - (note.y + note.height),
+		actual: card.y + card.height - (savesStay.y + savesStay.height),
 		expected: 21,
 	});
 }
@@ -908,7 +909,7 @@ async function subscriptionCancellationGeometry(page: Page): Promise<void> {
 async function subscriptionInactiveGeometry(page: Page): Promise<void> {
 	const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 	const guide = await measuredBox(page, SETUP_GUIDE);
-	assertSubscriptionMeasurement({ description: "the inactive card height", actual: card.height, expected: 214 });
+	assertSubscriptionMeasurement({ description: "the inactive card height", actual: card.height, expected: 314 });
 	assertSubscriptionMeasurement({
 		description: "the subscription-to-setup-guide gap",
 		actual: guide.y - (card.y + card.height),
@@ -2433,7 +2434,7 @@ test.describe("Readlist subscription banner", () => {
 test.describe("Readlist subscription banner on the 300px track", () => {
 	test.use({ timezoneId: "UTC", viewport: { width: 1100, height: 900 } });
 
-	test("keeps the trial card at 269px tall", async ({ page }, testInfo) => {
+	test("keeps the trial card at 361px tall", async ({ page }, testInfo) => {
 		const email = `readlist-subscription-trial-narrow-${testInfo.workerIndex}-${Date.now()}@example.com`;
 		const userId = await createVerifiedUser(page, email);
 		await seedSubscriptionState(page, { userId, state: "trialing" });
@@ -2443,7 +2444,7 @@ test.describe("Readlist subscription banner on the 300px track", () => {
 
 		const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 		assertSubscriptionMeasurement({ description: "the narrow trial card width", actual: card.width, expected: 300 });
-		assertSubscriptionMeasurement({ description: "the narrow trial card height", actual: card.height, expected: 269 });
+		assertSubscriptionMeasurement({ description: "the narrow trial card height", actual: card.height, expected: 361 });
 	});
 
 	test("fits the cancellation body on two lines and its title on one line", async ({ page }, testInfo) => {
@@ -2478,7 +2479,7 @@ test.describe("Readlist subscription banner on the 300px track", () => {
 		const card = await measuredBox(page, SUBSCRIPTION_BANNER);
 		const body = await measuredBox(page, `${SUBSCRIPTION_BANNER} [data-test-banner-message]`);
 		assertSubscriptionMeasurement({ description: "the narrow inactive card width", actual: card.width, expected: 300 });
-		assertSubscriptionMeasurement({ description: "the narrow inactive card height", actual: card.height, expected: 235 });
+		assertSubscriptionMeasurement({ description: "the narrow inactive card height", actual: card.height, expected: 335 });
 		assertSubscriptionMeasurement({ description: "the narrow inactive body height", actual: body.height, expected: 63 });
 	});
 });

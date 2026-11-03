@@ -1,5 +1,6 @@
 import { PRICING_PLANS } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 
 const AI_PLAN_MONTHLY_USD = 200;
 const MONTHS_PER_YEAR = 12;
@@ -33,7 +34,7 @@ export const HOME_COMPARE_CONTENT = {
 	ariaLabel: "Readplace versus Claude and ChatGPT",
 	titleLead: "Your reading list for ",
 	titleHighlight: PRICING_PLANS.yearly.monthlyDisplay,
-	titleTail: `/month, not ${AI_PLAN_MONTHLY}/month.`,
+	titleTail: ` a month, billed yearly — not ${AI_PLAN_MONTHLY} a month.`,
 	lede: `Claude's and ChatGPT's ${AI_PLAN_MONTHLY}/month plans cost ${AI_PLAN_YEARLY}/year each, and neither has a reading list. Readplace gives you one for ${PRICING_PLANS.yearly.totalDisplay}/year.`,
 	caption: "Price and reading features of Readplace, Claude Max 20x and ChatGPT Pro 200",
 	columns: {
@@ -44,5 +45,5 @@ export const HOME_COMPARE_CONTENT = {
 	},
 	note: `Readplace prices show the yearly plan. Claude and ChatGPT bill these plans monthly only, as of ${CHECKED_ON}.`,
 	ctaLabel: `Try Readplace free for ${STRIPE_TRIAL_PERIOD_DAYS} days`,
-	ctaReassurance: "No card. Cancel anytime. Your saved articles stay readable after you stop paying.",
+	ctaReassurance: `${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 } as const;

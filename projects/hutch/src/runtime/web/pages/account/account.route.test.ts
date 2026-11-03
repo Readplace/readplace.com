@@ -1194,10 +1194,10 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		const fallback = findAction(doc, "subscribe");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
 		expect(confirmPopoverKeys(doc)).toEqual(["account-profile", "delete-account", "subscribe-plans"]);
-		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
+		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly"]);
 	}
 
-	it("offers a trialing user the three-plan chooser: the trigger opens the popover and the subscribe form stays as the no-JS fallback", async () => {
+	it("offers a trialing user the two-plan chooser: the trigger opens the popover and the subscribe form stays as the no-JS fallback", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trial-plans@example.com");
@@ -1212,7 +1212,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		expectPlanChooser(new JSDOM(response.text).window.document);
 	});
 
-	it("offers a cancelled user the same three-plan chooser on the re-subscribe path", async () => {
+	it("offers a cancelled user the same two-plan chooser on the re-subscribe path", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "cancelled-plans@example.com");

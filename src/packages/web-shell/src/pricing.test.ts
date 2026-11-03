@@ -1,9 +1,9 @@
 import { DEFAULT_BILLING_PLAN } from "@packages/provider-contracts/subscription-providers";
 import {
-	CHEAPEST_MONTHLY_DISPLAY,
 	FEATURED_PLAN,
 	PRICING_PANELS,
 	PRICING_PLANS,
+	STATED_PRICING_PANELS,
 	SUBSCRIBE_CTA_LABEL,
 } from "./pricing";
 
@@ -134,15 +134,18 @@ describe("PRICING_PANELS", () => {
 	});
 });
 
-describe("CHEAPEST_MONTHLY_DISPLAY", () => {
-	it("is the lowest monthly figure any plan reaches, so a single-price mention states a price a reader can actually pay", () => {
-		expect(CHEAPEST_MONTHLY_DISPLAY).toBe("$3");
-		expect(CHEAPEST_MONTHLY_DISPLAY).toBe(PRICING_PLANS.triennial.monthlyDisplay);
+describe("STATED_PRICING_PANELS", () => {
+	it("lists only the plans the price statement names", () => {
+		expect(STATED_PRICING_PANELS.map((panel) => panel.key)).toEqual(["monthly", "yearly"]);
+	});
+
+	it("leaves the 3-year plan on the full list the plans page renders", () => {
+		expect(PRICING_PANELS.map((panel) => panel.key)).toEqual(["monthly", "yearly", "triennial"]);
 	});
 });
 
 describe("SUBSCRIBE_CTA_LABEL", () => {
-	it("quotes the cheapest monthly figure", () => {
-		expect(SUBSCRIBE_CTA_LABEL).toBe("Subscribe — $3/month");
+	it("names the action and leaves the price to the sentence beside it", () => {
+		expect(SUBSCRIBE_CTA_LABEL).toBe("Subscribe");
 	});
 });

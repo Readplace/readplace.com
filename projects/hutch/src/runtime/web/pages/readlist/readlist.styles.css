@@ -899,6 +899,11 @@
   text-align: center;
 }
 
+.readlist-subscription__note--start {
+  text-align: start;
+  text-wrap: pretty;
+}
+
 .readlist__save-btn {
   white-space: nowrap;
 }

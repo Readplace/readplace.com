@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	CONFIRM_POPOVER_STYLES,
-	PRICING_PANELS,
+	STATED_PRICING_PANELS,
 	render,
 	withInternalTracking,
 } from "@packages/web-shell";
@@ -135,7 +135,7 @@ const HOMEPAGE_WAYS: readonly HomeWayRow[] = [
 	...HOME_WAYS_WITHOUT_A_CLIENT,
 ];
 
-const HOMEPAGE_PRICING_PANELS = PRICING_PANELS.map((panel) => ({
+const HOMEPAGE_PRICING_PANELS = STATED_PRICING_PANELS.map((panel) => ({
 	tierId: panel.key,
 	name: panel.name,
 	monthlyDisplay: panel.monthlyDisplay,
@@ -284,6 +284,7 @@ export function HomeVariantBPage(params: {
 				pricingTitleBefore: pricing.titleBefore,
 				pricingPriceAmount: pricing.priceAmount,
 				pricingTitleAfter: pricing.titleAfter,
+				pricingSavesStay: pricing.savesStay,
 				pricingPanels: HOMEPAGE_PRICING_PANELS,
 				pricingNote: pricing.ctaNote,
 				pricingAssurances: pricing.assurances,

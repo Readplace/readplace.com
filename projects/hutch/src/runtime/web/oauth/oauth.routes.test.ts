@@ -363,7 +363,7 @@ describe("OAuth routes", () => {
 			const document = new JSDOM(response.text).window.document;
 			expect(textOf(document, ".oauth-authorize__title")).toBe("Connect Definitely Readplace");
 			expect(textOf(document, ".oauth-authorize__text")).toBe(
-				"Allow Definitely Readplace full read and write access to your readlists, including saving and deleting articles.",
+				"Allow Definitely Readplace to read and change your readlists. Its Readplace tools save articles, list and open what you saved, mark articles read or unread, and create readlists and add articles to them. None of them delete anything.",
 			);
 			const notice = document.querySelector('[data-test-alert="consent-notice"]');
 			assert(notice, "the consent notice must render");

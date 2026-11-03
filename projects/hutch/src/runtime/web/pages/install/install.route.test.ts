@@ -731,6 +731,7 @@ describe("GET /install", () => {
 		const description = doc.querySelector('meta[name="description"]');
 		expect(description?.getAttribute("content")).toContain("extension");
 		expect(description?.getAttribute("content")).toContain("AI assistant");
+		expect(description?.getAttribute("content")?.startsWith("Install the Readplace browser extension for")).toBe(true);
 	});
 
 	it("should have SoftwareApplication and BreadcrumbList structured data", async () => {

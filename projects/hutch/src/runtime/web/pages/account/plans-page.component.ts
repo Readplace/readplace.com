@@ -7,6 +7,7 @@ import {
 	SUBSCRIBE_PLANS_STYLES,
 	renderSubscribePlansForm,
 } from "../../shared/subscribe-plans/subscribe-plans.component";
+import { SAVES_STAY_STATEMENT } from "../../price-statement";
 import { ACCOUNT_PLANS_URL } from "./account.url";
 import { PLANS_PAGE_STYLES } from "./plans-page.styles";
 import type { PlansPageViewModel } from "./plans-page.view-model";
@@ -33,6 +34,7 @@ export function PlansPage(vm: PlansPageViewModel): PageBody {
 				titleId: PLANS_PAGE_TITLE_ID,
 				terms: vm.terms,
 				termsNote: vm.termsNote,
+				savesStayStatement: SAVES_STAY_STATEMENT,
 				plansFormHtml: renderSubscribePlansForm({
 					source: "plans-page",
 					labelledBy: PLANS_PAGE_TITLE_ID,

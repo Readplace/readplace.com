@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { SUBSCRIBE_CTA_LABEL } from "@packages/web-shell";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 
 const useApp = useTestServer();
@@ -31,6 +31,11 @@ function checkedSubscribePlanKeys(doc: Document): string[] {
 	)
 		.filter((radio) => radio.checked)
 		.map((radio) => radio.value);
+}
+
+function pricingLines(banner: Element): { price: (string | null)[]; savesStay: (string | null)[] } {
+	const textOf = (selector: string) => Array.from(banner.querySelectorAll(selector)).map((el) => el.textContent);
+	return { price: textOf("[data-test-price-statement]"), savesStay: textOf("[data-test-saves-stay]") };
 }
 
 function subscribeCtaPair(banner: Element, fallbackKey: "subscribe" | "resubscribe") {
@@ -86,13 +91,17 @@ describe("Readlist page banner state", () => {
 		expect(banner.classList.contains("readlist-subscription--trial-countdown")).toBe(true);
 
 		const { trigger, fallback } = subscribeCtaPair(banner, "subscribe");
-		expect(trigger.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(trigger.textContent).toBe("Subscribe");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
 		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
-		expect(fallback.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(fallback.textContent).toBe("Subscribe");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
 		expect(fallback.getAttribute("href")).toContain("utm_content=subscribe");
-		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
+		expect(pricingLines(banner)).toEqual({
+			price: [`${PRICE_STATEMENT} Cancel anytime.`],
+			savesStay: [SAVES_STAY_STATEMENT],
+		});
+		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly"]);
 	});
 
 	it("disables the save form after the trial window ends", async () => {
@@ -120,16 +129,17 @@ describe("Readlist page banner state", () => {
 		// Trial expiry is how the entire churned cohort reaches the inactive
 		// state, so the re-subscribe CTA must be present on this path too.
 		const { trigger, fallback } = subscribeCtaPair(banner, "resubscribe");
-		expect(trigger.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(trigger.textContent).toBe("Subscribe");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
 		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
-		expect(fallback.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(fallback.textContent).toBe("Subscribe");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
 		const ctaHref = fallback.getAttribute("href");
 		assert(ctaHref, "resubscribe CTA must have an href");
 		expect(ctaHref).toContain("/account");
 		expect(ctaHref).toContain("utm_content=resubscribe");
-		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
+		expect(pricingLines(banner)).toEqual({ price: [RENEWAL_PRICES], savesStay: [SAVES_STAY_STATEMENT] });
+		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly"]);
 	});
 
 	it("shows cancellation-scheduled banner with full access when pending_cancellation is before effectiveAt", async () => {
@@ -199,13 +209,14 @@ describe("Readlist page banner state", () => {
 		// An expired/cancelled user must be able to re-subscribe from the readlist
 		// itself, not be dead-ended into hunting for /account.
 		const { trigger, fallback } = subscribeCtaPair(banner, "resubscribe");
-		expect(trigger.textContent).toBe(SUBSCRIBE_CTA_LABEL);
-		expect(fallback.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(trigger.textContent).toBe("Subscribe");
+		expect(fallback.textContent).toBe("Subscribe");
 		const ctaHref = fallback.getAttribute("href");
 		assert(ctaHref, "inactive banner CTA must have an href");
 		expect(ctaHref).toContain("/account");
 		expect(ctaHref).toContain("utm_content=resubscribe");
-		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly", "triennial"]);
+		expect(pricingLines(banner)).toEqual({ price: [RENEWAL_PRICES], savesStay: [SAVES_STAY_STATEMENT] });
+		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly"]);
 	});
 
 	it("starts a returning reader's plan chooser on the plan their cancelled subscription carried", async () => {

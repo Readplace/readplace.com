@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type LocalTime, SUBSCRIBE_CTA_LABEL, render } from "@packages/web-shell";
 
+import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 
@@ -24,6 +25,9 @@ export interface ReadlistSubscriptionDisplayModel {
 	cancellationEffectiveAt?: LocalTime;
 	subscribeCtaLabel: string;
 	subscribePlansPopoverId: string;
+	priceStatement: string;
+	renewalPrices: string;
+	savesStayStatement: string;
 }
 
 function trialTiles(remaining: { days: number; hours: number; minutes: number }): TrialTile[] {
@@ -44,6 +48,9 @@ export function toReadlistSubscriptionDisplayModel(
 		isInactive: banner.state === "inactive",
 		subscribeCtaLabel: SUBSCRIBE_CTA_LABEL,
 		subscribePlansPopoverId: SUBSCRIBE_PLANS_POPOVER_ID,
+		priceStatement: PRICE_STATEMENT,
+		renewalPrices: RENEWAL_PRICES,
+		savesStayStatement: SAVES_STAY_STATEMENT,
 	};
 	switch (banner.state) {
 		case "trial-countdown":

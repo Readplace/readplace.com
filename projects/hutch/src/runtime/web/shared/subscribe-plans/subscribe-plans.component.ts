@@ -6,12 +6,14 @@ import type { EffectiveAccess } from "@packages/subscription-access";
 import {
 	PRICING_PANELS,
 	type PricingPanel,
+	STATED_PRICING_PANELS,
 	render,
 	renderConfirmPopover,
 	withInternalTracking,
 } from "@packages/web-shell";
 
 import { ACCOUNT_SUBSCRIBE_URL } from "../../pages/account/account.url";
+import { SAVES_STAY_STATEMENT } from "../../price-statement";
 
 export { SUBSCRIBE_PLANS_STYLES } from "./subscribe-plans.styles";
 
@@ -66,12 +68,8 @@ type SubscribePlansSurface = "popover" | "inline";
 interface SubscribePlansSurfaceControls {
 	dismissControls: readonly { popoverId: string }[];
 	commitAutofocus: boolean;
+	plans: readonly SubscribePlanRow[];
 }
-
-const SURFACE_CONTROLS = {
-	popover: { dismissControls: [{ popoverId: SUBSCRIBE_PLANS_POPOVER_ID }], commitAutofocus: true },
-	inline: { dismissControls: [], commitAutofocus: false },
-} satisfies Record<SubscribePlansSurface, SubscribePlansSurfaceControls>;
 
 function toSubscribePlanRow(panel: PricingPanel): SubscribePlanRow {
 	return {
@@ -86,10 +84,23 @@ function toSubscribePlanRow(panel: PricingPanel): SubscribePlanRow {
 	};
 }
 
-const SUBSCRIBE_PLAN_ROWS: readonly SubscribePlanRow[] = [
-	...PRICING_PANELS.filter((panel) => panel.featured),
-	...PRICING_PANELS.filter((panel) => !panel.featured),
-].map(toSubscribePlanRow);
+function featuredFirst(panels: readonly PricingPanel[]): readonly SubscribePlanRow[] {
+	return [...panels.filter((panel) => panel.featured), ...panels.filter((panel) => !panel.featured)].map(
+		toSubscribePlanRow,
+	);
+}
+
+const ALL_PLAN_ROWS = featuredFirst(PRICING_PANELS);
+const STATED_PLAN_ROWS = featuredFirst(STATED_PRICING_PANELS);
+
+const SURFACE_CONTROLS = {
+	popover: {
+		dismissControls: [{ popoverId: SUBSCRIBE_PLANS_POPOVER_ID }],
+		commitAutofocus: true,
+		plans: STATED_PLAN_ROWS,
+	},
+	inline: { dismissControls: [], commitAutofocus: false, plans: ALL_PLAN_ROWS },
+} satisfies Record<SubscribePlansSurface, SubscribePlansSurfaceControls>;
 
 export function planChargedWithoutChoice(access: EffectiveAccess): BillingPlan {
 	if (access.banner !== "inactive" || access.reason !== "subscription-cancelled") return DEFAULT_BILLING_PLAN;
@@ -102,14 +113,15 @@ export function renderSubscribePlansForm(input: {
 	surface: SubscribePlansSurface;
 	checkedPlan: BillingPlan;
 }): string {
+	const controls = SURFACE_CONTROLS[input.surface];
 	return render(SUBSCRIBE_PLANS_FORM_TEMPLATE, {
 		action: withInternalTracking(ACCOUNT_SUBSCRIBE_URL, {
 			source: input.source,
 			content: "choose-plan",
 		}),
 		labelledBy: input.labelledBy,
-		...SURFACE_CONTROLS[input.surface],
-		plans: SUBSCRIBE_PLAN_ROWS.map((row) => ({ ...row, checked: row.key === input.checkedPlan })),
+		...controls,
+		plans: controls.plans.map((row) => ({ ...row, checked: row.key === input.checkedPlan })),
 	});
 }
 
@@ -124,7 +136,7 @@ export function renderSubscribePlansPopover({
 		id: SUBSCRIBE_PLANS_POPOVER_ID,
 		key: "subscribe-plans",
 		title: "Choose your plan",
-		body: "Get full access to Readplace. Cancel anytime, and everything you've already saved stays readable.",
+		body: `Get full access to Readplace. Cancel anytime. ${SAVES_STAY_STATEMENT}`,
 		actionsHtml: renderSubscribePlansForm({
 			source,
 			labelledBy: `${SUBSCRIBE_PLANS_POPOVER_ID}-title`,

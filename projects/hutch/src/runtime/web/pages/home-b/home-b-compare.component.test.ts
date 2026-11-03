@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { iconSvg } from "@packages/ui-icons";
 import { parseHTML } from "linkedom";
 import { renderHomeCompareSection } from "./home-b-compare.component";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { HOME_COMPARE_CONTENT, HOME_COMPARE_FEATURES } from "./home-b-compare.content";
 
 function parsedGlyph(svg: string): string | undefined {
@@ -16,6 +17,20 @@ function renderTable(): Element {
 }
 
 describe("homepage AI comparison", () => {
+	it("headlines the $5 the way the price statement states it", () => {
+		const { document } = parseHTML(renderHomeCompareSection());
+		expect(document.querySelector("h2")?.textContent).toBe(
+			"Your reading list for $5 a month, billed yearly — not $200 a month.",
+		);
+	});
+
+	it("reassures with the price statement and what happens to saves", () => {
+		const { document } = parseHTML(renderHomeCompareSection());
+		expect(document.querySelector(".home-compare__reassurance")?.textContent).toBe(
+			`${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+		);
+	});
+
 	it("prices Readplace's yearly plan against both $200 plans per month and per year", () => {
 		const table = renderTable();
 		const prices = Array.from(table.querySelectorAll('[data-test-compare-row="month"], [data-test-compare-row="year"]'), (row) =>

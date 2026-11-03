@@ -1,4 +1,10 @@
-import { SHARED_LANDING_COPY_LAST_MODIFIED, landingPageLastModified } from "./landing-pages.copy";
+import { PLAN_CHOICES, SHARED_LANDING_COPY_LAST_MODIFIED, landingPageLastModified } from "./landing-pages.copy";
+
+describe("PLAN_CHOICES", () => {
+	it("names the two stated plans", () => {
+		expect(PLAN_CHOICES).toBe("$10 billed monthly or $60 billed once a year");
+	});
+});
 
 describe("landingPageLastModified", () => {
 	it("takes the page's own date when its copy changed after the shared copy", () => {

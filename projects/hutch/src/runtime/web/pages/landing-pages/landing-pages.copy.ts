@@ -1,5 +1,5 @@
 import { OCR_SCRIPT_PACKS, type OcrScriptPack } from "@packages/crawl-article";
-import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
+import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
 import type {
@@ -53,9 +53,7 @@ export function founderLine(slug: LandingPageSlug): string {
 	return `Fayner Brack, Founder & CEO of Readplace, wrote js-cookie, which browsers download about 22 billion times a year, and ran her own reading pipeline for ten years before it became Readplace. <a href="${href}">Why Readplace exists</a>.`;
 }
 
-export const TRIAL_TERMS = `${STRIPE_TRIAL_PERIOD_DAYS} days free, no card. After that ${CHEAPEST_MONTHLY_DISPLAY}/month.`;
-
-export const PLAN_CHOICES = `${PRICING_PLANS.monthly.billedNote}, ${PRICING_PLANS.yearly.billedNote}, or ${PRICING_PLANS.triennial.billedNote}`;
+export const PLAN_CHOICES = `${PRICING_PLANS.monthly.billedNote} or ${PRICING_PLANS.yearly.billedNote}`;
 
 /** The sentence this whole product is arguing for. Every offer section lands on
  * it, because for a reader who has already lost one readlist it answers the
@@ -69,7 +67,7 @@ export const START_TRIAL: LandingPageAction = {
 	href: "/signup",
 };
 
-export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-10-01";
+export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-11-03";
 
 export function landingPageLastModified(page: Pick<LandingPageContent, "lastModified">): IsoDay {
 	return page.lastModified > SHARED_LANDING_COPY_LAST_MODIFIED

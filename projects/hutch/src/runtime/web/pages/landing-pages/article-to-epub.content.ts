@@ -1,10 +1,10 @@
 import { withInternalTracking } from "@packages/web-shell";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	PASTE_A_LINK,
 	READER_SHOT,
 	READ_ONLY_CLOSE,
 	START_TRIAL,
-	TRIAL_TERMS,
 	founderLine,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -109,7 +109,7 @@ export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs to keep a library",
 		paragraphs: [
-			`Downloading an EPUB from a link you paste here costs nothing. Saving articles to a readlist is a subscription: ${TRIAL_TERMS}`,
+			`Downloading an EPUB from a link you paste here costs nothing. Saving articles to a readlist is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

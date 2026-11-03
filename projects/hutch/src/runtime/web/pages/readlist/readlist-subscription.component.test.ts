@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { SUBSCRIBE_CTA_LABEL, toAbsoluteDate } from "@packages/web-shell";
+import { toAbsoluteDate } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
+import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 import {
@@ -35,6 +36,11 @@ function banner(doc: Document): Element {
 	return el;
 }
 
+function pricingLines(doc: Document): { price: (string | null)[]; savesStay: (string | null)[] } {
+	const textOf = (selector: string) => [...doc.querySelectorAll(selector)].map((el) => el.textContent);
+	return { price: textOf("[data-test-price-statement]"), savesStay: textOf("[data-test-saves-stay]") };
+}
+
 function tile(doc: Document, unit: "days" | "hours" | "minutes"): Element {
 	const el = doc.querySelector(`[data-test-trial-tile="${unit}"]`);
 	assert(el, `the ${unit} tile must render during a trial countdown`);
@@ -67,8 +73,8 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 		assert(trigger, "the subscribe-plans trigger must render during a trial countdown");
 		assert(fallback, "the plain-link fallback must render during a trial countdown");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
-		expect(trigger.textContent).toBe(SUBSCRIBE_CTA_LABEL);
-		expect(fallback.textContent).toBe(SUBSCRIBE_CTA_LABEL);
+		expect(trigger.textContent).toBe("Subscribe");
+		expect(fallback.textContent).toBe("Subscribe");
 		expect(fallback.getAttribute("href")).toContain("/account");
 	});
 
@@ -96,6 +102,27 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 		assert(trigger, "the subscribe-plans trigger must render while inactive");
 		assert(fallback, "the plain-link resubscribe fallback must render while inactive");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
+	});
+
+	it("states the trial price and the saves line under the subscribe action during a trial countdown", () => {
+		expect(pricingLines(display(TRIAL_BANNER))).toEqual({
+			price: [`${PRICE_STATEMENT} Cancel anytime.`],
+			savesStay: [SAVES_STAY_STATEMENT],
+		});
+	});
+
+	it("states the renewal prices without the trial clause once the subscription is inactive", () => {
+		expect(pricingLines(display(INACTIVE_BANNER))).toEqual({
+			price: [RENEWAL_PRICES],
+			savesStay: [SAVES_STAY_STATEMENT],
+		});
+	});
+
+	it.each([
+		["a scheduled cancellation", CANCELLATION_BANNER],
+		["no banner state", NONE_BANNER],
+	])("quotes no price for %s", (_state, state) => {
+		expect(pricingLines(display(state))).toEqual({ price: [], savesStay: [] });
 	});
 
 	it("classes the banner none and offers no subscription action at all", () => {

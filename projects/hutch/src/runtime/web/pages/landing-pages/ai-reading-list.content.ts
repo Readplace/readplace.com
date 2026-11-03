@@ -1,6 +1,7 @@
-import { CHEAPEST_MONTHLY_DISPLAY, withInternalTracking } from "@packages/web-shell";
+import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { READLIST_SHOT, founderLine, PLAN_CHOICES, TRIAL_TERMS, START_TRIAL } from "./landing-pages.copy";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { READLIST_SHOT, founderLine, PLAN_CHOICES, START_TRIAL } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const AI_READING_LIST_CONTENT: LandingPageContent = {
@@ -90,7 +91,7 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "Do I need a credit card to start?",
-			answer: `No. Making the account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card at any point in it. After that you pick how often you pay: ${PLAN_CHOICES}. Every one of them is the same whole product.`,
+			answer: `No. Making the account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card at any point in it. After that you pick how often you pay: ${PLAN_CHOICES}. Both are the same whole product.`,
 		},
 		{
 			question: "What happens to the connection if I stop paying?",
@@ -101,8 +102,8 @@ export const AI_READING_LIST_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs",
 		paragraphs: [
-			`Connecting costs nothing. The readlist behind the connection is a subscription: ${TRIAL_TERMS}`,
-			`${CHEAPEST_MONTHLY_DISPLAY}/month is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
+			`Connecting costs nothing. The readlist behind the connection is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
+			`${PRICING_PLANS.yearly.totalDisplay} a year is the whole business. No ad path, no data resale, and nothing your assistant saves is sold to anyone.`,
 			"If the subscription lapses, saving and readlist changes refuse. Your assistant can still list your readlist, pull an article's text or summary, and mark things read as you work through them. It cannot add anything new.",
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

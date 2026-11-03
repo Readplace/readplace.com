@@ -429,7 +429,7 @@ export function InstallPage(params: {
 	return {
 		seo: {
 			title: "Install Readplace — Browser, Phone & AI Assistants",
-			description: `Your #1 AI-Powered Reading List. Install the Readplace browser extension for ${BROWSER_EXTENSIONS_OR}, ${Object.values(NATIVE_APP_SEO).map((app) => app.pitch).join(", ")}, or connect your AI assistant to save and read your reading list.`,
+			description: `Install the Readplace browser extension for ${BROWSER_EXTENSIONS_OR}, ${Object.values(NATIVE_APP_SEO).map((app) => app.pitch).join(", ")}, or connect your AI assistant to save and read your reading list.`,
 			canonicalUrl: "https://readplace.com/install",
 			appleItunesApp: APPLE_ITUNES_APP_META,
 			ogImage: `${params.staticBaseUrl}/screenshots/og-install-1200x630.png`,

@@ -1,6 +1,7 @@
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	OCR_LANGUAGES_ANSWER,
 	OCR_TESTED_LANGUAGES,
@@ -8,7 +9,6 @@ import {
 	READER_SHOT,
 	founderLine,
 	PLAN_CHOICES,
-	TRIAL_TERMS,
 	READ_ONLY_CLOSE,
 	START_TRIAL,
 } from "./landing-pages.copy";
@@ -116,7 +116,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "What does it cost to keep using it?",
-			answer: `Making an account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card asked for. After that you pick how often you pay: ${PLAN_CHOICES}. Every one of them is the same whole product.`,
+			answer: `Making an account starts a ${STRIPE_TRIAL_PERIOD_DAYS}-day trial of the full product with no card asked for. After that you pick how often you pay: ${PLAN_CHOICES}. Both are the same whole product.`,
 		},
 		{
 			question: "What happens to PDFs I already saved if I stop paying?",
@@ -127,7 +127,7 @@ export const PDF_OCR_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs after the first one",
 		paragraphs: [
-			`Reading a link you paste here costs nothing. Keeping a library of them is a subscription: ${TRIAL_TERMS}`,
+			`Reading a link you paste here costs nothing. Keeping a library of them is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

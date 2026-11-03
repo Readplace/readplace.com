@@ -1,10 +1,7 @@
 import { APPLE_ITUNES_APP_META, CHROME_STORE_URL, IPHONE_APP_STORE_URL } from "@packages/supported-clients";
 import type { AdvertisedClientNameInGroup } from "@packages/supported-clients";
-import { CHEAPEST_MONTHLY_DISPLAY, PRICING_PLANS } from "@packages/web-shell";
-import {
-	BILLING_PLANS,
-	type BillingPlan,
-} from "@packages/provider-contracts/subscription-providers";
+import { PRICING_PLANS, STATED_PRICING_PANELS } from "@packages/web-shell";
+import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import type { SeoMetadata } from "@packages/web-shell";
 
 import {
@@ -14,6 +11,8 @@ import {
 	BROWSER_EXTENSIONS_AND,
 	BROWSER_EXTENSIONS_OR,
 } from "../../shared/client-enumerations";
+import { PRICE_STATEMENT } from "../../price-statement";
+import { CANONICAL_SLOGAN } from "../../slogans";
 import type { HomeFaqEntry } from "./home.content";
 
 /** The homepage's per-phone-app SEO material, one entry per ADVERTISED phone
@@ -53,7 +52,7 @@ const BILLING_TERMS = {
 	triennial: { unitCode: "ANN", unitValue: 3 },
 } satisfies Record<BillingPlan, { unitCode: string; unitValue: number }>;
 
-const PLAN_OFFERS = BILLING_PLANS.map((key) => ({
+const PLAN_OFFERS = STATED_PRICING_PANELS.map(({ key }) => ({
 	plan: PRICING_PLANS[key],
 	...BILLING_TERMS[key],
 })).map(({ plan, unitCode, unitValue }) => ({
@@ -71,7 +70,7 @@ const PLAN_OFFERS = BILLING_PLANS.map((key) => ({
 			unitCode,
 		},
 	},
-	description: `Full access including TL;DR summaries. ${plan.billedNote}, with a 14-day free trial and no credit card to start.`,
+	description: `Full access including TL;DR summaries. ${PRICE_STATEMENT}`,
 }));
 
 export function buildHomeSeo(input: {
@@ -81,7 +80,7 @@ export function buildHomeSeo(input: {
 	const { staticBaseUrl, faq } = input;
 
 	return {
-		title: "Readplace — Your #1 AI-Powered Reading List | Read It Later",
+		title: "Readplace — Save Articles to Read Later",
 		description:
 			"Readplace is a read-it-later app: save any article, newsletter, or PDF in one click and read it later in a clean reader view with an AI TL;DR. 14-day free trial, no credit card.",
 		canonicalUrl: "https://readplace.com",
@@ -105,7 +104,7 @@ export function buildHomeSeo(input: {
 				name: "Readplace",
 				alternateName: ["Readplace Read-It-Later App", "Readplace App"],
 				url: "https://readplace.com",
-				description: `Your #1 AI-Powered Reading List. A privacy-first read-it-later app and Pocket alternative. Save from your browser, ${Object.values(
+				description: `A privacy-first read-it-later app and Pocket alternative. Save from your browser, ${Object.values(
 					NATIVE_APP_SEO,
 				)
 					.map((app) => app.deviceMention)
@@ -189,7 +188,7 @@ export function buildHomeSeo(input: {
 					award: "Creator of js-cookie — 22 billion+ annual downloads on jsDelivr CDN",
 				},
 				description:
-					"Readplace is a privacy-first read-it-later app and Pocket alternative. Your #1 AI-Powered Reading List — read what you saved, with an AI TL;DR summary on every article to help you choose.",
+					"Readplace is a privacy-first read-it-later app and Pocket alternative. Read what you saved, with an AI TL;DR summary on every article to help you choose.",
 				foundingDate: "2025",
 				areaServed: "Worldwide",
 				address: {
@@ -205,8 +204,8 @@ export function buildHomeSeo(input: {
 				name: "Readplace — Read-It-Later App",
 				alternateName: "Readplace App",
 				url: "https://readplace.com",
-				description: `Your #1 AI-Powered Reading List. Read what you saved, with an AI TL;DR summary on every article to help you choose. ${CHEAPEST_MONTHLY_DISPLAY} a month after a 14-day free trial.`,
-				slogan: "Your #1 AI-Powered Reading List.",
+				description: `Read what you saved, with an AI TL;DR summary on every article to help you choose. ${PRICE_STATEMENT}`,
+				slogan: CANONICAL_SLOGAN,
 			},
 		],
 	};

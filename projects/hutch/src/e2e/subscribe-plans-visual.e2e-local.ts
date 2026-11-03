@@ -22,6 +22,7 @@ const OPEN_TRIGGER = '[data-test-action="subscribe-plans-open"]';
 const DISMISS = '[data-test-action="subscribe-plans-dismiss"]';
 const SUBMIT = '[data-test-action="subscribe-plans-submit"]';
 const PLAN_KEYS = ["yearly", "monthly", "triennial"] as const;
+const POPOVER_PLAN_KEYS = ["yearly", "monthly"] as const;
 const ROW_GAP = 12;
 const DESIGNED_ROW_HEIGHT = 77;
 
@@ -89,15 +90,15 @@ async function dialogOpen(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 }
 
-async function planFormBoxes(page: Page, root: string): Promise<PlanFormBoxes> {
+async function planFormBoxes(page: Page, root: string, keys: readonly string[]): Promise<PlanFormBoxes> {
 	const boxesOf = (part: string) =>
-		Promise.all(PLAN_KEYS.map((key) => measuredBox(page, `${root} [data-test-plan="${key}"] ${part}`)));
+		Promise.all(keys.map((key) => measuredBox(page, `${root} [data-test-plan="${key}"] ${part}`)));
 	return {
 		rows: await boxesOf(".subscribe-plans__row"),
 		texts: await boxesOf(".subscribe-plans__text"),
 		billed: await boxesOf(".subscribe-plans__billed"),
 		prices: await boxesOf(".subscribe-plans__price"),
-		badge: await measuredBox(page, `${root} [data-test-plan="${PLAN_KEYS[0]}"] [data-test-plan-badge]`),
+		badge: await measuredBox(page, `${root} [data-test-plan="${keys[0]}"] [data-test-plan-badge]`),
 		submit: await measuredBox(page, `${root} ${SUBMIT}`),
 	};
 }
@@ -168,7 +169,7 @@ function relativeTo({ panel, box }: { panel: Box; box: Box }): Box {
 
 async function desktopDialogGeometry(page: Page): Promise<PanelRelativeBoxes> {
 	const panel = await measuredBox(page, PANEL);
-	const boxes = await planFormBoxes(page, PANEL);
+	const boxes = await planFormBoxes(page, PANEL, POPOVER_PLAN_KEYS);
 	const dismiss = await measuredBox(page, `${PANEL} ${DISMISS}`);
 
 	assert.equal(Math.round(panel.width), 600);
@@ -196,7 +197,7 @@ async function stackedDialogGeometry(page: Page): Promise<{
 	scroll: { sideways: boolean; inside: boolean };
 }> {
 	const panel = await measuredBox(page, PANEL);
-	const boxes = await planFormBoxes(page, PANEL);
+	const boxes = await planFormBoxes(page, PANEL, POPOVER_PLAN_KEYS);
 	const dismiss = await measuredBox(page, `${PANEL} ${DISMISS}`);
 
 	rowsStackInOneColumn(boxes.rows);
@@ -258,7 +259,7 @@ test.describe("Subscribe plans dialog", () => {
 		await page.goto(`${BASE_URL}/account/plans`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-plans");
 		await waitForBrandFonts(page, ["Inter"]);
-		const onPage = await planFormBoxes(page, PLANS_PAGE);
+		const onPage = await planFormBoxes(page, PLANS_PAGE, PLAN_KEYS);
 		rowsStackInOneColumn(onPage.rows);
 		assert.deepEqual(
 			onPage.rows.map((row) => Math.round(row.width)),
@@ -352,7 +353,7 @@ test.describe("Subscribe plans on the narrowest phone", () => {
 		await page.goto(`${BASE_URL}/account/plans`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-plans");
 		await waitForBrandFonts(page, ["Inter"]);
-		pricesSitUnderTheirBilledLines(await planFormBoxes(page, PLANS_PAGE));
+		pricesSitUnderTheirBilledLines(await planFormBoxes(page, PLANS_PAGE, PLAN_KEYS));
 		assert.equal(await page.evaluate(pageOverflowsSideways), false, "the plans page must not scroll sideways at 320px");
 	});
 });

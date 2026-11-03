@@ -26,5 +26,6 @@
         <p class="auth-card__footer">
           Don't have an account? <a class="auth-card__link" href="{{signupHref}}">Create one</a>
         </p>
+        {{#each hints}}<p class="auth-form__hint" data-test-auth-hint="{{key}}">{{text}}</p>{{/each}}
       </div>
     </main>

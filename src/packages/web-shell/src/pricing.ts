@@ -98,6 +98,8 @@ export const PRICING_PANELS: readonly PricingPanel[] = BILLING_PLANS.map((key) =
 	};
 });
 
-export const CHEAPEST_MONTHLY_DISPLAY = PRICING_PLANS.triennial.monthlyDisplay;
+export const STATED_PRICING_PANELS: readonly PricingPanel[] = PRICING_PANELS.filter(
+	(panel) => panel.key !== "triennial",
+);
 
-export const SUBSCRIBE_CTA_LABEL = `Subscribe — ${CHEAPEST_MONTHLY_DISPLAY}/month`;
+export const SUBSCRIBE_CTA_LABEL = "Subscribe";

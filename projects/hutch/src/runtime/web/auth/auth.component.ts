@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-	CHEAPEST_MONTHLY_DISPLAY,
 	IN_FLIGHT_DOTS_STYLES,
 	render,
 	renderAlert,
@@ -11,13 +10,14 @@ import {
 } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../price-statement";
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import type { ComponentError } from "../shared/component-error.types";
 import { CONNECTED_APPS_PHRASE } from "../shared/client-surface-phrases";
 import { AUTH_STYLES } from "./auth.styles";
 import { renderAuthProviders } from "./auth-providers.component";
+import { signInClientGroupFrom } from "./oauth-client-id";
 import type { LastAuthProvider } from "../last-auth-provider";
 
 const LOGIN_TEMPLATE = readFileSync(join(__dirname, "login.template.html"), "utf-8");
@@ -80,9 +80,19 @@ function globalErrorHtml(errors: ComponentError[] | undefined): string {
 		: renderAlert({ key: "global-error", content: { variant: "error", title: { text: error.message, element: "p" } } });
 }
 
+function authHints({ show }: { show: boolean }): { key: string; text: string }[] {
+	return show
+		? [
+				{ key: "trial-hint", text: PRICE_STATEMENT },
+				{ key: "saves-stay", text: SAVES_STAY_STATEMENT },
+			]
+		: [];
+}
+
 export function LoginPage(data: AuthFormData, options?: { statusCode?: number }): PageBody {
 	const email = data.email ?? "";
 	const errors = data.errors;
+	const foundingAvailable = !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount);
 
 	const content = render(LOGIN_TEMPLATE, {
 		email,
@@ -101,6 +111,7 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 			: "Sign in to your Readplace account",
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
+		hints: authHints({ show: !foundingAvailable && signInClientGroupFrom(data.returnUrl) === "selfRegistered" }),
 	});
 
 	return {
@@ -151,6 +162,7 @@ export function AccountLockedPage(): PageBody {
 export function SignupPage(data: SignupFormData, options?: { statusCode?: number }): PageBody {
 	const email = data.email ?? "";
 	const errors = data.errors;
+	const foundingAvailable = !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount);
 	const content = render(SIGNUP_TEMPLATE, {
 		email,
 		globalErrorHtml: globalErrorHtml(errors),
@@ -174,9 +186,8 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 			foundingAllocation: data.foundingAllocation,
 		}),
 		foundingMemberLimit: data.foundingAllocation.foundingMemberLimit,
-		foundingAvailable: !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount),
-		trialPeriodDays: STRIPE_TRIAL_PERIOD_DAYS,
-		monthlyPriceDisplay: CHEAPEST_MONTHLY_DISPLAY,
+		foundingAvailable,
+		hints: authHints({ show: !foundingAvailable && signInClientGroupFrom(data.returnUrl) !== "nativeApp" }),
 	});
 
 	return {

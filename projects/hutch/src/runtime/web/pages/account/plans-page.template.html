@@ -3,6 +3,7 @@
         <div class="plans-page__header">
           <h1 class="plans-page__title" id="{{titleId}}">{{heading}}</h1>
           <p class="plans-page__terms" data-test-plans-terms="{{terms}}">{{#each termsNote.parts}}{{lead}}<time datetime="{{time.iso}}" data-local-time="{{time.mode}}">{{time.label}}</time>{{/each}}{{termsNote.tail}}</p>
+          <p class="plans-page__terms" data-test-saves-stay>{{savesStayStatement}}</p>
         </div>
         {{{plansFormHtml}}}
       </div>

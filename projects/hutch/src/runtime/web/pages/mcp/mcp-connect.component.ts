@@ -98,11 +98,9 @@ const GETTING_STARTED = [
 ] as const;
 
 const EXAMPLE_PROMPTS = [
-	"Save the top sources from your research to my readplace.",
-	"What's the most relevant unread link in my readplace about the war in Iran?",
-	"Save this page to my readlist.",
-	"List everything I've saved but haven't read yet.",
-	"Mark the article I just finished as read.",
+	"Save this page to Readplace",
+	"Save the sources you used in this answer to my Readplace readlist",
+	"What's waiting in my readlist?",
 ] as const;
 
 const ASSISTANT_CAPABILITIES = [

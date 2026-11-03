@@ -1,9 +1,20 @@
 import { CANONICAL_SLOGAN, MAX_SLOGAN_LENGTH, SLOGANS } from "./slogans";
 
 describe("SLOGANS", () => {
-	it("leads with the slogan the homepage title and structured data already claim", () => {
-		expect(CANONICAL_SLOGAN).toBe("Your #1 AI-Powered Reading List.");
+	it("leads with the warm slogan the OG image alt already carries", () => {
+		expect(CANONICAL_SLOGAN).toBe("A warm, dependable place for your reading list.");
 		expect(SLOGANS[0]).toBe(CANONICAL_SLOGAN);
+	});
+
+	it("rotates through the rest in the order they were written, without the ranking claim", () => {
+		expect(SLOGANS).toEqual([
+			"A warm, dependable place for your reading list.",
+			"Paste a link. Read it clean.",
+			"Your reading list, without the noise.",
+			"Your reading universe. Here.",
+			"Read what matters",
+			"It just works. - Matthew Motz",
+		]);
 	});
 
 	it("offers more than one slogan so every surface has something to rotate through", () => {

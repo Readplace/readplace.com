@@ -1,6 +1,7 @@
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import {
 	OCR_LANGUAGES_ANSWER,
 	OCR_TESTED_LANGUAGES,
@@ -8,7 +9,6 @@ import {
 	READER_SHOT,
 	READ_ONLY_CLOSE,
 	START_TRIAL,
-	TRIAL_TERMS,
 	founderLine,
 } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
@@ -108,7 +108,7 @@ export const PDF_REFLOW_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs to keep them",
 		paragraphs: [
-			`Reading a PDF you paste here costs nothing. Keeping a library of them is a subscription: ${TRIAL_TERMS}`,
+			`Reading a PDF you paste here costs nothing. Keeping a library of them is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

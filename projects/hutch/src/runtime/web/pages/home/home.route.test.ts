@@ -9,7 +9,6 @@ import {
 import { MAX_PDF_PAGES } from "@packages/crawl-article";
 import { ADVERTISED_CLIENTS, UNADVERTISED_CLIENTS } from "@packages/supported-clients";
 import {
-	CHEAPEST_MONTHLY_DISPLAY,
 	PRICING_PANELS,
 	PRICING_PLANS,
 } from "@packages/web-shell";
@@ -20,6 +19,8 @@ import {
 	HOME_WAY_LINK_BY_CLIENT,
 	HOME_WAYS_WITHOUT_A_CLIENT,
 } from "./home.content";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { CANONICAL_SLOGAN } from "../../slogans";
 import { HOMEPAGE_EXPOSURE } from "./home.version";
 import { campaignTag, HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
 
@@ -458,18 +459,57 @@ describe("GET / principle", () => {
 	});
 });
 
-const EXPECTED_PLAN_ORDER = ["monthly", "yearly", "triennial"] as const;
+const EXPECTED_PLAN_ORDER = ["monthly", "yearly"] as const;
 
 describe("GET / pricing", () => {
-	it("should headline the cheapest monthly figure the plans below can reach", async () => {
+	it("should headline the price statement, with the yearly total highlighted", async () => {
 		const { doc } = await loadHomepage();
 
 		const headlinePrice = doc.querySelector("[data-test-price]");
 		assert(headlinePrice, "the pricing headline must name a price");
-		expect(headlinePrice.textContent?.trim()).toBe(CHEAPEST_MONTHLY_DISPLAY);
+		expect(headlinePrice.textContent).toBe("$60 a year");
+		expect(headlinePrice.closest("h2")?.textContent).toBe(PRICE_STATEMENT);
 	});
 
-	it("should offer the three billing plans, with only the middle one badged and featured", async () => {
+	it("should build the headline parts into exactly the price statement, so the two cannot drift", () => {
+		const { titleBefore, priceAmount, titleAfter } = HOME_CONTENT.pricing;
+		expect([titleBefore, priceAmount, titleAfter].join(" ")).toBe(PRICE_STATEMENT);
+	});
+
+	it("should say the saves stay directly under the pricing headline", async () => {
+		const { doc } = await loadHomepage();
+
+		const saves = doc.querySelector("[data-test-saves-stay]");
+		assert(saves, "the pricing section must say what happens to saves");
+		expect(saves.textContent).toBe(SAVES_STAY_STATEMENT);
+		expect(saves.previousElementSibling?.tagName).toBe("H2");
+	});
+
+	it("should label every panel's signup button with the free trial", async () => {
+		const { doc } = await loadHomepage();
+
+		const labels = Array.from(doc.querySelectorAll("[data-test-plan] form button")).map((button) =>
+			button.textContent?.trim(),
+		);
+		expect(labels).toEqual(["Try Readplace free for 14 days", "Try Readplace free for 14 days"]);
+	});
+
+	it("should answer the credit card question with the plans the statement names", async () => {
+		const { doc } = await loadHomepage();
+
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(script) => JSON.parse(script.textContent ?? "{}"),
+		);
+		const faq = schemas.find((schema: { "@type": string }) => schema["@type"] === "FAQPage");
+		const entry = faq.mainEntity.find(
+			(item: { name: string }) => item.name === "Do I need a credit card to start?",
+		);
+		expect(entry.acceptedAnswer.text).toBe(
+			"No. 14 days with the full product, no card. After that it's $60 a year ($5 a month, billed yearly) or $10 a month, and both plans are the same full product. If you don't subscribe, nothing is charged and the account goes read-only.",
+		);
+	});
+
+	it("should offer the two stated plans, with only the yearly one badged and featured", async () => {
 		const { doc } = await loadHomepage();
 
 		const grid = doc.querySelector("[data-test-plans]");
@@ -483,7 +523,6 @@ describe("GET / pricing", () => {
 		expect(panels).toEqual([
 			{ tier: "monthly", featured: false, badge: "" },
 			{ tier: "yearly", featured: true, badge: PRICING_PANELS.find((panel) => panel.featured)?.badge },
-			{ tier: "triennial", featured: false, badge: "" },
 		]);
 	});
 
@@ -569,7 +608,7 @@ describe("GET / questions and close", () => {
 	it("should sign off with the canonical slogan", async () => {
 		const { doc } = await loadHomepage();
 		expect(doc.querySelector(".home-close__signoff")?.textContent).toContain(
-			"Your #1 AI-Powered Reading List.",
+			"A warm, dependable place for your reading list.",
 		);
 	});
 });
@@ -578,6 +617,7 @@ interface StructuredOffer {
 	readonly name: string;
 	readonly price: string;
 	readonly priceCurrency: string;
+	readonly description: string;
 	readonly priceSpecification: {
 		readonly referenceQuantity: { readonly unitCode: string; readonly value: number };
 	};
@@ -587,9 +627,7 @@ describe("GET / metadata", () => {
 	it("should set SEO metadata within the length search engines render", async () => {
 		const { doc } = await loadHomepage();
 
-		expect(doc.title).toContain("Readplace");
-		expect(doc.title).toContain("Your #1 AI-Powered Reading List");
-		expect(doc.title).toContain("Read It Later");
+		expect(doc.title).toBe("Readplace — Save Articles to Read Later");
 		expect(doc.title.length).toBeLessThanOrEqual(60);
 
 		const description = doc.querySelector('meta[name="description"]');
@@ -669,7 +707,7 @@ describe("GET / metadata", () => {
 		);
 	});
 
-	it("should advertise the three billing terms, now that the homepage no longer offers a free tier", async () => {
+	it("should advertise the two stated billing terms, now that the homepage no longer offers a free tier", async () => {
 		const { doc } = await loadHomepage();
 
 		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
@@ -701,14 +739,29 @@ describe("GET / metadata", () => {
 				unitCode: "ANN",
 				unitValue: 1,
 			},
-			{
-				name: PRICING_PLANS.triennial.name,
-				price: "108",
-				priceCurrency: "USD",
-				unitCode: "ANN",
-				unitValue: 3,
-			},
 		]);
+		expect(app.offers.map((offer: StructuredOffer) => offer.description)).toEqual([
+			`Full access including TL;DR summaries. ${PRICE_STATEMENT}`,
+			`Full access including TL;DR summaries. ${PRICE_STATEMENT}`,
+		]);
+	});
+
+	it("should describe the product in the structured data without a ranking claim", async () => {
+		const { doc } = await loadHomepage();
+
+		const schemas = Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).map(
+			(script) => JSON.parse(script.textContent ?? "{}"),
+		);
+		const byType = (type: string) => schemas.find((schema: { "@type": string }) => schema["@type"] === type);
+
+		expect(byType("WebSite").description).toBe(
+			`Read what you saved, with an AI TL;DR summary on every article to help you choose. ${PRICE_STATEMENT}`,
+		);
+		expect(byType("WebSite").slogan).toBe(CANONICAL_SLOGAN);
+		expect(byType("Organization").description).toBe(
+			"Readplace is a privacy-first read-it-later app and Pocket alternative. Read what you saved, with an AI TL;DR summary on every article to help you choose.",
+		);
+		expect(byType("WebApplication").description.startsWith("A privacy-first read-it-later app and Pocket alternative.")).toBe(true);
 	});
 
 	it("should include the reader review nested in the WebApplication structured data", async () => {

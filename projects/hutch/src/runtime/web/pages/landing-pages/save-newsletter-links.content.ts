@@ -1,7 +1,8 @@
 import { INBOX_ADDRESS_MAX_PER_USER, INBOX_TOKEN_LENGTH } from "@packages/domain/inbox";
 import { withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { READLIST_SHOT, READ_ONLY_CLOSE, TRIAL_TERMS, founderLine } from "./landing-pages.copy";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { READLIST_SHOT, READ_ONLY_CLOSE, founderLine } from "./landing-pages.copy";
 import type { LandingPageAction, LandingPageContent } from "./landing-pages.types";
 
 const GUIDE: LandingPageAction = {
@@ -109,7 +110,7 @@ export const SAVE_NEWSLETTER_LINKS_CONTENT: LandingPageContent = {
 	offer: {
 		title: "What it costs",
 		paragraphs: [
-			`Addresses come with the account, and the account is a subscription: ${TRIAL_TERMS}`,
+			`Addresses come with the account, and the account is a subscription: ${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",

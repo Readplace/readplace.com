@@ -1,8 +1,8 @@
 export { render } from "./render";
 export {
-	CHEAPEST_MONTHLY_DISPLAY,
 	PRICING_PANELS,
 	PRICING_PLANS,
+	STATED_PRICING_PANELS,
 	SUBSCRIBE_CTA_LABEL,
 } from "./pricing";
 export type { PricingPanel, PricingPlan } from "./pricing";

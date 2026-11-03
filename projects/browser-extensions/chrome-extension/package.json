@@ -1,7 +1,7 @@
 {
   "name": "chrome-extension",
   "version": "0.0.0-managed-by-tag",
-  "description": "Readplace — Your #1 AI-Powered Reading List",
+  "description": "Readplace — Save Articles to Read Later",
   "private": true,
   "scripts": {
     "compile": "rm -rf dist && tsc && EXTENSION_VERSION=\"${EXTENSION_VERSION:-0.0.0}\" HUTCH_SERVER_URL=https://readplace.com node scripts/build-extension.js",

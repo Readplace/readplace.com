@@ -13,10 +13,10 @@ import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-li
 import { completeCheckoutSignup } from "./test-helpers/complete-checkout-signup";
 import { createAccessToken, saveAccessTokenForClient, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { AppleTokenResponse } from "../../providers/apple-auth/apple-token";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../price-statement";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 import { SIGNUP_MIN_SUBMIT_MS } from "./validate-signup";
 import { SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@packages/web-session";
-import { CHEAPEST_MONTHLY_DISPLAY } from "@packages/web-shell";
 import { LAST_AUTH_PROVIDER_COOKIE_NAME } from "../last-auth-provider";
 import { ANALYTICS_EVENTS } from "@packages/web-analytics";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
@@ -24,6 +24,20 @@ import { UserIdSchema } from "@packages/domain/user";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
+const BOTH_HINTS = [
+	{ key: "trial-hint", text: PRICE_STATEMENT },
+	{ key: "saves-stay", text: SAVES_STAY_STATEMENT },
+];
+const CONNECTOR_RETURN = encodeURIComponent("/oauth/authorize?client_id=ZQDfp02ea4PGzTvwCR_GGBAsVgKJ1jsm&response_type=code");
+const IOS_RETURN = encodeURIComponent("/oauth/authorize?client_id=ios-app&response_type=code");
+
+function authHintsOf(html: string): { key: string | null; text: string | null }[] {
+	const doc = new JSDOM(html).window.document;
+	return Array.from(doc.querySelectorAll("[data-test-auth-hint]")).map((el) => ({
+		key: el.getAttribute("data-test-auth-hint"),
+		text: el.textContent,
+	}));
+}
 
 function sessionCookie(response: request.Response): string | undefined {
 	const setCookie = response.headers["set-cookie"];
@@ -2569,12 +2583,18 @@ describe("Auth routes", () => {
 			expect(blurb?.textContent).toBe(`Free account for the first ${TEST_FOUNDING_MEMBER_LIMIT} readers`);
 		});
 
-		it("hides the trial hint on /signup when the founding allocation is available", async () => {
+		it("hides the price hints on /signup when the founding allocation is available", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/signup");
-			const doc = new JSDOM(response.text).window.document;
 
-			expect(doc.querySelector("[data-test-trial-hint]")).toBeNull();
+			expect(authHintsOf(response.text)).toEqual([]);
+		});
+
+		it("hides the price hints on a connector's /login when the founding allocation is available", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(`/login?return=${CONNECTOR_RETURN}`);
+
+			expect(authHintsOf(response.text)).toEqual([]);
 		});
 	});
 
@@ -2604,17 +2624,51 @@ describe("Auth routes", () => {
 			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
 		}, 30000);
 
-		it("states the trial length and monthly price in the /signup hint when the founding allocation is exhausted", async () => {
+		async function harnessWithExhaustedAllocation() {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
+				await harness.auth.createUser({ email: `user${i}@test.com`, password: "password123" });
 			}
+			return harness;
+		}
 
-			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
-			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe(
-				`14-day free trial, then ${CHEAPEST_MONTHLY_DISPLAY}/month. No credit card required.`,
-			);
+		it.each([
+			["a plain /signup", "/signup", BOTH_HINTS],
+			["a connector's consent-step /signup", `/signup?return=${CONNECTOR_RETURN}`, BOTH_HINTS],
+			["a native app's /signup, which opens inside the app", `/signup?return=${IOS_RETURN}`, []],
+			["a connector's consent-step /login", `/login?return=${CONNECTOR_RETURN}`, BOTH_HINTS],
+			["a native app's /login, which opens inside the app", `/login?return=${IOS_RETURN}`, []],
+			["a plain /login", "/login", []],
+		])("shows the right price hints on %s when the founding allocation is exhausted", async (_name, path, hints) => {
+			const harness = await harnessWithExhaustedAllocation();
+
+			const response = await request(harness.server).get(path);
+
+			expect(authHintsOf(response.text)).toEqual(hints);
+		}, 30000);
+
+		it("keeps the price hints when a connector's login attempt fails", async () => {
+			const harness = await harnessWithExhaustedAllocation();
+
+			const response = await request(harness.server)
+				.post(`/login?return=${CONNECTOR_RETURN}`)
+				.type("form")
+				.send({ email: "user0@test.com", password: "wrongpassword" });
+
+			expect(response.status).toBe(422);
+			expect(authHintsOf(response.text)).toEqual(BOTH_HINTS);
+		}, 30000);
+
+		it("keeps the price hints when a connector's login form is invalid", async () => {
+			const harness = await harnessWithExhaustedAllocation();
+
+			const response = await request(harness.server)
+				.post(`/login?return=${CONNECTOR_RETURN}`)
+				.type("form")
+				.send({ email: "", password: "" });
+
+			expect(response.status).toBe(422);
+			expect(authHintsOf(response.text)).toEqual(BOTH_HINTS);
 		}, 30000);
 
 		it("renders 'Join Readplace' submit button on /signup when the founding allocation is exhausted", async () => {

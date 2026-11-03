@@ -1,5 +1,6 @@
-import { CHEAPEST_MONTHLY_DISPLAY, withInternalTracking } from "@packages/web-shell";
+import { PRICING_PLANS, withInternalTracking } from "@packages/web-shell";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../../domain/stripe/stripe-trial-config";
+import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { founderLine, PLAN_CHOICES, READ_ONLY_CLOSE } from "./landing-pages.copy";
 import type { LandingPageContent } from "./landing-pages.types";
 
@@ -19,7 +20,7 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 	titleLead: "Stop paying and it goes read-only, not ",
 	titleHighlight: "dark",
 	titleTail: ".",
-	lede: `Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep reading everything you saved. It costs ${CHEAPEST_MONTHLY_DISPLAY}/month, and that subscription is the whole business — no ad path, no data resale, no investor whose timeline outlives yours.`,
+	lede: `Pocket shut down. Omnivore shut down. I cannot promise Readplace outlives them, so instead the cancelled state is written into the code: you keep reading everything you saved. It costs ${RENEWAL_PRICES.replace(/\.$/, "")}, and that subscription is the whole business — no ad path, no data resale, no investor whose timeline outlives yours.`,
 	ogImageAlt:
 		"Readplace — a read-it-later app whose cancelled accounts go read-only instead of dark.",
 	primaryAction: {
@@ -98,14 +99,14 @@ export const READ_IT_LATER_THAT_WONT_DIE_CONTENT: LandingPageContent = {
 		},
 		{
 			question: "What does it cost after the trial?",
-			answer: `${PLAN_CHOICES}. There is one product behind all three — every plan is the whole of it, and there is no tier above them to upgrade to.`,
+			answer: `${PLAN_CHOICES}. There is one product behind both — every plan is the whole of it, and there is no tier above them to upgrade to.`,
 		},
 	],
 	offer: {
-		title: `${CHEAPEST_MONTHLY_DISPLAY}/month, and that's the whole business.`,
+		title: `${PRICING_PLANS.yearly.totalDisplay} a year, and that's the whole business.`,
 		paragraphs: [
-			`Pick how often you pay — ${PLAN_CHOICES} — and every one of them buys the same whole product. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it. <a href="${track("/blog/best-read-it-later-apps-2026", "post-best-read-it-later-apps-2026")}">The 2026 comparison of read-it-later apps</a> reads each app's price as a funding model, and <a href="${track("/blog/free-read-it-later-apps-2026", "post-free-read-it-later-apps-2026")}">the guide to free ones</a> asks who pays the bill when you don't.`,
-			`${STRIPE_TRIAL_PERIOD_DAYS} days free first, and I don't ask for a card to start them.`,
+			`Pick how often you pay — ${PLAN_CHOICES} — and both buy the same whole product. No ad path, no data resale, no investor whose timeline outlives yours. That is the entire answer to what stops Readplace going the way of Pocket: there is nobody who profits from selling it. <a href="${track("/blog/best-read-it-later-apps-2026", "post-best-read-it-later-apps-2026")}">The 2026 comparison of read-it-later apps</a> reads each app's price as a funding model, and <a href="${track("/blog/free-read-it-later-apps-2026", "post-free-read-it-later-apps-2026")}">the guide to free ones</a> asks who pays the bill when you don't.`,
+			`${PRICE_STATEMENT} ${SAVES_STAY_STATEMENT}`,
 			READ_ONLY_CLOSE,
 		],
 		note: "Google, Apple, or an email address. No card at any point in the trial.",
