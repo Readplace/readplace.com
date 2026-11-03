@@ -6,7 +6,7 @@ import { initCrawlAndFinalizeArticle, type FinalizeArticle } from "@packages/fin
 import type { HutchLogger } from "@packages/hutch-logger";
 import { type CrawlArticle, type CrawlUnsupportedReason, MAX_HTML_BYTES } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { type TransitionAndPersist, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { type TransitionAndPersist, markCrawlExhausted, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { ComprehensiveCrawlCommand, RenderCrawlCommand, type LogCrawlOutcome, type LogParseError } from "@packages/hutch-infra-components";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import { deferJavascriptShells } from "../save-link/javascript-shell";
@@ -216,7 +216,7 @@ export function initRenderCrawlHandler(deps: {
 	const legDetail = (report: Exclude<RenderLegReport | FetchLegReport, { kind: "blocked" }>): string =>
 		report.kind === "skipped" ? `skipped (${report.reason})` : report.kind === "no-body" ? report.outcome : report.detail;
 
-	const settleWithoutBody = async (rendered: Unrendered, ctx: DeferredCrawlContext): Promise<CrawlTermination> => {
+	const settleWithoutBody = async (rendered: Unrendered, ctx: DeferredCrawlContext, receiveCount: number): Promise<CrawlTermination> => {
 		const { url } = ctx;
 		if (ctx.candidates !== undefined) return publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
 		const { direct, residential, webUnlockerFetch, webUnlockerRender } = rendered;
@@ -233,14 +233,14 @@ export function initRenderCrawlHandler(deps: {
 		const httpStatus = renderLegs.find((leg) => leg.kind === "failed" && leg.httpStatus !== undefined);
 		logParseError({ url, reason: detail });
 		await emitTier1FailureOutcome({ url });
-		await transitionAndPersist(markCrawlFailed, {
+		await transitionAndPersist(markCrawlExhausted, {
 			url,
-			input: { reason: { kind: "fetch-failed", detail, httpStatus: httpStatus?.kind === "failed" ? httpStatus.httpStatus : undefined } },
+			input: { reason: { kind: "fetch-failed", detail, httpStatus: httpStatus?.kind === "failed" ? httpStatus.httpStatus : undefined }, receiveCount },
 		});
 		return { via: "committed-in-process" };
 	};
 
-	const resolveLadder = async (rendered: RenderLadderResult, ctx: DeferredCrawlContext): Promise<void> => {
+	const resolveLadder = async (rendered: RenderLadderResult, ctx: DeferredCrawlContext, receiveCount: number): Promise<void> => {
 		const { url } = ctx;
 		if (rendered.kind === "settled") return;
 		if (rendered.kind === "budget-exhausted") {
@@ -255,7 +255,7 @@ export function initRenderCrawlHandler(deps: {
 			.filter(([, report]) => report.kind === "skipped" && report.reason === "time-exhausted")
 			.map(([leg]) => leg);
 		if (outOfTime.length > 0) logger.warn(`${logPrefix} render ladder ran out of time`, { url, skippedLegs: outOfTime });
-		await settleWithoutBody(rendered, ctx);
+		await settleWithoutBody(rendered, ctx, receiveCount);
 		await backOffRefresh(ctx);
 	};
 
@@ -307,7 +307,7 @@ export function initRenderCrawlHandler(deps: {
 					consumeBudget: () => deps.consumeRenderCrawlBudget({ messageId: record.messageId }),
 					remainingMilliseconds: () => context.getRemainingTimeInMillis(),
 				});
-				await resolveLadder(rendered, ctx);
+				await resolveLadder(rendered, ctx, Number(record.attributes.ApproximateReceiveCount));
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {
 					messageId: record.messageId,

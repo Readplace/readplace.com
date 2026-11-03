@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { noopLogger } from "@packages/hutch-logger";
 import type { CrawlArticle, CrawlUnsupportedReason } from "@packages/crawl-article";
 import { MAX_HTML_BYTES } from "@packages/crawl-article";
-import { markCrawlBlocked, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlExhausted, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import {
 	ComprehensiveCrawlCommand,
 	RecrawlContentExtractedEvent,
@@ -388,9 +388,9 @@ describe("initRenderCrawlHandler", () => {
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			const detail = "render-failed: direct-egress: main document answered HTTP 500; residential-per-gb: net::ERR_PROXY_CONNECTION_FAILED; web-unlocker-fetch: skipped (no-block-evidence); web-unlocker-render: net::ERR_TIMED_OUT";
-			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
 				url: URL,
-				input: { reason: { kind: "fetch-failed", detail, httpStatus: 500 } },
+				input: { reason: { kind: "fetch-failed", detail, httpStatus: 500 }, receiveCount: 1 },
 			});
 			expect(logParseError).toHaveBeenCalledWith({ url: URL, reason: detail });
 			expect(logCrawlOutcome).toHaveBeenCalledWith(expect.objectContaining({ thisTier: "tier-1", thisTierStatus: "failed" }));
@@ -413,8 +413,19 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL });
 
-			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, expect.anything());
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, expect.anything());
 			expect(JSON.stringify(transitionAndPersist.mock.calls[0][1].input.reason)).toBe(stored);
+		});
+
+		it("carries the record's receive count into the failed crawl", async () => {
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ renderPage: renderPageAnswering({ direct: failed("direct timeout"), residential: failed("residential timeout"), webUnlocker: failed("unlocker timeout") }), transitionAndPersist });
+			const event = createSqsEvent({ url: URL });
+			event.Records[0].attributes.ApproximateReceiveCount = "3";
+
+			await handler(event, { ...buildLambdaContext(), getRemainingTimeInMillis: () => AMPLE_MILLISECONDS }, () => {});
+
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, expect.objectContaining({ input: expect.objectContaining({ receiveCount: 3 }) }));
 		});
 
 		it("stores no status when no leg answered", async () => {
@@ -489,7 +500,7 @@ describe("initRenderCrawlHandler", () => {
 				skippedLegs: ["residential", "webUnlockerFetch", "webUnlockerRender"],
 			});
 			const detail = "render-failed: direct-egress: net::ERR_TIMED_OUT; residential-per-gb: skipped (time-exhausted); web-unlocker-fetch: skipped (time-exhausted); web-unlocker-render: skipped (time-exhausted)";
-			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, { url: URL, input: { reason: { kind: "fetch-failed", detail, httpStatus: undefined } } });
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, { url: URL, input: { reason: { kind: "fetch-failed", detail, httpStatus: undefined }, receiveCount: 1 } });
 		});
 
 		it("skips the Web Unlocker fetch but still runs the Web Unlocker render when only the render fits", async () => {
@@ -505,7 +516,7 @@ describe("initRenderCrawlHandler", () => {
 			expect(renderPage).toHaveBeenCalledTimes(3);
 			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render ladder ran out of time", { url: URL, skippedLegs: ["webUnlockerFetch"] });
 			const detail = "render-failed: direct-egress: direct timeout; residential-per-gb: residential timeout; web-unlocker-fetch: skipped (time-exhausted); web-unlocker-render: unlocker timeout";
-			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, { url: URL, input: { reason: { kind: "fetch-failed", detail, httpStatus: undefined } } });
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, { url: URL, input: { reason: { kind: "fetch-failed", detail, httpStatus: undefined }, receiveCount: 1 } });
 		});
 
 		it("skips the Web Unlocker render when only the residential render fits", async () => {
@@ -911,9 +922,9 @@ describe("initRenderCrawlHandler", () => {
 			await run(handler, { url: URL, unsupportedReason: "blocked" });
 
 			const detail = "render-failed: direct-egress: no readable article after render (direct-egress): empty document; residential-per-gb: residential timeout; web-unlocker-fetch: blocked; web-unlocker-render: unlocker timeout";
-			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
 				url: URL,
-				input: { reason: { kind: "fetch-failed", detail, httpStatus: 200 } },
+				input: { reason: { kind: "fetch-failed", detail, httpStatus: 200 }, receiveCount: 1 },
 			});
 		});
 
