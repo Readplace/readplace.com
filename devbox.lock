@@ -53,6 +53,44 @@
         }
       }
     },
+    "geckodriver@0.37.0": {
+      "last_modified": "2026-07-18T04:06:47Z",
+      "resolved": "github:NixOS/nixpkgs/31cd72fdba8fa052e437ce7e6879c4fe62def10f#geckodriver",
+      "source": "devbox-search",
+      "version": "0.37.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8dgkcyqb5ia1h47g1xlmxp8bx2yxdhpk-geckodriver-0.37.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/8dgkcyqb5ia1h47g1xlmxp8bx2yxdhpk-geckodriver-0.37.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/md8g3n68hi96b5sc1p1ydmdnl7v2q9j0-geckodriver-0.37.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/md8g3n68hi96b5sc1p1ydmdnl7v2q9j0-geckodriver-0.37.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fqxrk2j7a3pcqclkk269ggaq2di780i5-geckodriver-0.37.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fqxrk2j7a3pcqclkk269ggaq2di780i5-geckodriver-0.37.0"
+        }
+      }
+    },
     "github:NixOS/nixpkgs/nixpkgs-unstable": {
       "last_modified": "2026-02-15T09:18:18Z",
       "resolved": "github:NixOS/nixpkgs/e3cb16bccd9facebae3ba29c6a76a4cc1b73462a?lastModified=1771147098&narHash=sha256-jpfPdBjKO232s5NueoNEvvVzpndiUzPLNYcH4%2FOv0gY%3D"

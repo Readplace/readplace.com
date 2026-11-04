@@ -8,7 +8,8 @@
     "jq@latest",
     "docker@latest",
     "librsvg@latest",
-    "liberation_ttf@latest"
+    "liberation_ttf@latest",
+    "geckodriver@0.37.0"
   ],
   "shell": {
     "init_hook": [
