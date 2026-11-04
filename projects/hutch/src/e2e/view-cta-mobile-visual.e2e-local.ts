@@ -37,6 +37,10 @@ const COLUMN = ".reading-layout__main";
 const CTA_CONTENT = ".view__cta-content";
 const PASTE = "#view-cta-paste-another-link";
 const SAVE = "#view-cta-save";
+const END_CTA = "[data-test-view-end-cta]";
+const END_CTA_HEADING = `${END_CTA} .view__end-cta-heading`;
+const END_CTA_ACTION = "[data-test-view-end-cta-action]";
+const PHONE_END_CTA_SPAN = { left: 20, right: 370 };
 
 const VOLATILE_CHROME = [
 	".offline-banner",
@@ -67,6 +71,11 @@ async function openPublicView(page: Page, params: { stamp: string; query: string
 async function ctaSettled(page: Page): Promise<void> {
 	await page.evaluate(neutraliseVolatileChrome, { volatile: VOLATILE_CHROME, times: [] });
 	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function endCtaSettled(page: Page): Promise<void> {
+	await ctaSettled(page);
+	await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 }
 
 async function everyLabelOnOneLine(page: Page, barHeight: number): Promise<void> {
@@ -224,6 +233,63 @@ function desktopGeometry(theme: keyof typeof BAR_SHADOW): (page: Page) => Promis
 	};
 }
 
+async function endCtaActionBoxes(page: Page): Promise<{ x: number; y: number; width: number; height: number }[]> {
+	const boxes = await page.locator(END_CTA_ACTION).evaluateAll((elements) =>
+		elements.map((element) => {
+			const rect = element.getBoundingClientRect();
+			return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+		}),
+	);
+	assert.equal(boxes.length, 2, "the end block must offer save and Download EPUB");
+	return boxes;
+}
+
+async function endCtaActionsShareARow(page: Page): Promise<void> {
+	const [save, epub] = await endCtaActionBoxes(page);
+	assert(save && epub, "the end block must offer save and Download EPUB");
+	assert.ok(Math.abs(save.y - epub.y) <= 1, `the end block's actions must share one top edge, measured ${save.y} and ${epub.y}`);
+	assert.ok(
+		Math.abs(save.height - epub.height) <= 1,
+		`the end block's actions must share one height, measured ${save.height} and ${epub.height}`,
+	);
+}
+
+async function endCtaActionsStack(page: Page): Promise<void> {
+	const viewport = page.viewportSize();
+	assert.ok(viewport, "the stacked end block must run with an explicit viewport");
+	const [save, epub] = await endCtaActionBoxes(page);
+	assert(save && epub, "the end block must offer save and Download EPUB");
+	assert.ok(epub.y >= save.y + save.height, "Download EPUB must stack below save");
+	for (const [name, button] of [["save", save], ["Download EPUB", epub]] as const) {
+		const span = { left: button.x, right: button.x + button.width };
+		assert.ok(
+			Math.abs(span.left - PHONE_END_CTA_SPAN.left) <= 1 && Math.abs(span.right - PHONE_END_CTA_SPAN.right) <= 1,
+			`${name} must span the column from ${PHONE_END_CTA_SPAN.left} to ${PHONE_END_CTA_SPAN.right}, measured ${span.left} to ${span.right}`,
+		);
+	}
+	const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+	assert.equal(scrollWidth, viewport.width, `the end block must not widen the page, got ${scrollWidth}`);
+}
+
+async function endCtaHeadingSharesTheColumn(page: Page): Promise<void> {
+	const [column, heading] = await page.evaluate(measureBoxes, [COLUMN, END_CTA_HEADING]);
+	assert.ok(
+		Math.abs(heading.x - column.x) <= 1,
+		`the end block's heading must start on the card column's left edge, column ${column.x} against heading ${heading.x}`,
+	);
+}
+
+function endCtaCheckpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
+	return {
+		name,
+		settled: endCtaSettled,
+		geometry,
+		target: END_CTA,
+		capture: "element",
+		pinnedText: [],
+	};
+}
+
 function checkpoint(name: string, geometry: (page: Page) => Promise<void>): VisualCheckpoint {
 	return {
 		name,
@@ -242,6 +308,13 @@ test.describe("Public view CTA row on a phone", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openPublicView(page, { stamp: `phone-${testInfo.workerIndex}-${Date.now()}`, query: "" });
 		await captureCheckpoint(page, checkpoint("view-cta-phone", phoneGeometry));
+		await captureCheckpoint(page, endCtaCheckpoint("reader-end-cta-phone", endCtaActionsStack));
+	});
+
+	test("stacks the end block's actions under the dark palette", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "dark" });
+		await openPublicView(page, { stamp: `phone-dark-${testInfo.workerIndex}-${Date.now()}`, query: "" });
+		await captureCheckpoint(page, endCtaCheckpoint("reader-end-cta-phone-dark", endCtaActionsStack));
 	});
 
 	test("Download appears when content arrives and survives the summary settling", async ({ page }, testInfo) => {
@@ -282,7 +355,9 @@ test.describe("Public view CTA row above the breakpoint", () => {
 			stamp: `desktop-${testInfo.workerIndex}-${Date.now()}`,
 			query: "",
 		});
+		await endCtaHeadingSharesTheColumn(page);
 		await captureCheckpoint(page, checkpoint("view-cta-desktop", desktopGeometry("light")));
+		await captureCheckpoint(page, endCtaCheckpoint("reader-end-cta-desktop", endCtaActionsShareARow));
 		await downloadEndsTheColumn(page);
 
 		for (const width of DESKTOP_WIDTHS) {
@@ -300,6 +375,7 @@ test.describe("Public view CTA row above the breakpoint", () => {
 			query: "",
 		});
 		await captureCheckpoint(page, checkpoint("view-cta-desktop-dark", desktopGeometry("dark")));
+		await captureCheckpoint(page, endCtaCheckpoint("reader-end-cta-desktop-dark", endCtaActionsShareARow));
 	});
 
 	test("reaches paste then save by keyboard after the toolbar, each ringed inside the bar", async ({ page }, testInfo) => {

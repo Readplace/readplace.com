@@ -1,0 +1,6 @@
+<form method="GET" action="{{href}}">
+  {{#each hidden}}
+  <input type="hidden" name="{{name}}" value="{{value}}">
+  {{/each}}
+  <button type="submit" class="btn btn--{{variant}}" data-test-view-end-cta-action="{{key}}">{{label}}</button>
+</form>

@@ -1,0 +1,11 @@
+<section class="view__end-cta" aria-labelledby="view-end-cta-heading" data-test-view-end-cta>
+  <div class="reading-frame">
+    <h2 id="view-end-cta-heading" class="view__end-cta-heading">{{heading}}</h2>
+    {{#each lines}}
+    <p class="view__end-cta-line">{{this}}</p>
+    {{/each}}
+    <div class="view__end-cta-actions">
+      {{#each actionsHtml}}{{{this}}}{{/each}}
+    </div>
+  </div>
+</section>

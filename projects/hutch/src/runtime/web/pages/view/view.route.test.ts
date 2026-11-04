@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { findUntrackedCtas } from "@packages/web-test-harness";
 import request from "supertest";
 import type {
 	ParseArticle,
@@ -2709,5 +2710,144 @@ describe("View routes", () => {
 			expect(saves).not.toHaveBeenCalled();
 			expect(await harness.articleStore.findContentSourceUrl(original)).toBeUndefined();
 		});
+	});
+});
+
+describe("Keep this one block on the public reader", () => {
+	const MACOS_SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
+	const LINUX_CHROME = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
+
+	function readerEvents(harness: ReturnType<typeof buildReaderHarness>) {
+		return harness.analytics.events.filter((e) => e.event === "view_opened" || e.event === "view_end_cta_shown");
+	}
+
+	function endCtaOf(doc: Document): Element {
+		const section = doc.querySelector("[data-test-view-end-cta]");
+		assert(section, "the Keep this one block must render for a logged-out reader with a body");
+		return section;
+	}
+
+	function hiddenInputsOf(control: Element): [string | null, string | null][] {
+		const form = control.closest("form");
+		assert(form, "the control must sit in a GET form");
+		return Array.from(form.querySelectorAll('input[type="hidden"]'), (input) => [input.getAttribute("name"), input.getAttribute("value")]);
+	}
+
+	it("renders for a logged-out reader with a body and records view_opened then view_end_cta_shown", async () => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		endCtaOf(new JSDOM(response.text).window.document);
+		const events = readerEvents(harness);
+		expect(events.map((e) => e.event)).toEqual(["view_opened", "view_end_cta_shown"]);
+		expect(events[1]).toMatchObject({
+			path: `/view/${CANONICAL_PATH}`,
+			article_host: "example.com",
+			is_authenticated: 0,
+		});
+	});
+
+	it("points the Save form at /save with the reader_view_end surface and the block's internal click tracking", async () => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+		const save = endCtaOf(new JSDOM(response.text).window.document).querySelector('[data-test-view-end-cta-action="save"]');
+		assert(save, "the Save action must render");
+		expect(save.closest("form")?.getAttribute("action")).toBe("/save");
+		expect(hiddenInputsOf(save)).toEqual([
+			["url", ARTICLE_URL],
+			["save_surface", "reader_view_end"],
+			["utm_source", "view-end-cta"],
+			["utm_medium", "internal"],
+			["utm_content", "save"],
+			["utm_term", "reader-public"],
+		]);
+	});
+
+	it("downloads the EPUB directly on macOS through a form carrying format=epub and the block's click tracking", async () => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": MACOS_SAFARI });
+
+		const epub = endCtaOf(new JSDOM(response.text).window.document).querySelector('[data-test-view-end-cta-action="download-epub"]');
+		assert(epub, "the EPUB action must render");
+		expect(epub.closest("form")?.getAttribute("action")).toBe(`/view/${CANONICAL_PATH}`);
+		expect(hiddenInputsOf(epub)).toEqual([
+			["format", "epub"],
+			["utm_source", "view-end-cta"],
+			["utm_medium", "internal"],
+			["utm_content", "download-epub"],
+			["utm_term", "reader-public"],
+		]);
+	});
+
+	it("opens the download guide from the block's EPUB control on Linux, which has no native EPUB reader", async () => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set({ ...BROWSER_REQUEST_HEADERS, "User-Agent": LINUX_CHROME });
+
+		const doc = new JSDOM(response.text).window.document;
+		const epub = endCtaOf(doc).querySelector('[data-test-view-end-cta-action="download-epub"]');
+		assert(epub, "the EPUB action must render");
+		expect(epub.tagName).toBe("BUTTON");
+		expect(epub.getAttribute("popovertarget")).toBe("reader-download-guide");
+		expect(doc.querySelector("#reader-download-guide")?.hasAttribute("popover")).toBe(true);
+	});
+
+	it("carries its own tracking on every control in the block", async () => {
+		const harness = buildReaderHarness();
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+		const section = endCtaOf(new JSDOM(response.text).window.document);
+		expect(findUntrackedCtas(section.outerHTML, { skipSelectors: [], ownOrigin: TEST_APP_ORIGIN })).toEqual([]);
+	});
+
+	it("is left out for a signed-in reader, who records only view_opened", async () => {
+		const harness = buildReaderHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-article-body]")?.textContent).toContain("Body copy.");
+		expect(doc.querySelectorAll("[data-test-view-end-cta]").length).toBe(0);
+		expect(readerEvents(harness).map((e) => e.event)).toEqual(["view_opened"]);
+	});
+
+	it("renders for a prefetch but records neither event", async () => {
+		const harness = buildReaderHarness();
+
+		await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+		const eventsBeforePrefetch = readerEvents(harness).length;
+
+		const response = await request(harness.server)
+			.get(`/view/${CANONICAL_PATH}`)
+			.set({ ...BROWSER_REQUEST_HEADERS, "Sec-Purpose": "prefetch" });
+
+		endCtaOf(new JSDOM(response.text).window.document);
+		expect(readerEvents(harness).slice(eventsBeforePrefetch)).toEqual([]);
+	});
+
+	it("is left out while the article's body is still being crawled", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			articleStore: { ...fixture.articleStore, readArticleContent: async () => ({ kind: "missing" }) },
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus: async () => ({ status: "pending" }) },
+		});
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-reader-slot]")?.getAttribute("hx-get")).toContain(`/view/reader?url=${ENCODED}`);
+		expect(doc.querySelectorAll("[data-test-view-end-cta]").length).toBe(0);
 	});
 });

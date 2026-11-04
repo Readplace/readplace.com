@@ -417,6 +417,18 @@ export interface ViewSaveIntentEvent {
 	is_authenticated: 0 | 1;
 }
 
+export interface ViewEndCtaShownEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.viewEndCtaShown;
+	timestamp: string;
+	path: string;
+	article_host: string;
+	device_class: DeviceClass;
+	visitor_hash: string | null;
+	visitor_id: string | null;
+	is_authenticated: 0;
+}
+
 export interface SignupAttemptedEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.signupAttempted;
@@ -624,6 +636,7 @@ export type AnalyticsEvent =
 	| ViewOpenedEvent
 	| ViewCrawlLimitedEvent
 	| ViewSaveIntentEvent
+	| ViewEndCtaShownEvent
 	| SignupAttemptedEvent
 	| FirstArticleAutosavedEvent
 	| McpToolCalledEvent
@@ -1108,6 +1121,24 @@ export function buildSaveIntentEvent(
 		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
 		visitor_id: params.req.visitorId,
 		is_authenticated: params.req.userId ? 1 : 0,
+	};
+}
+
+export function buildViewEndCtaShownEvent(
+	deps: { now: () => Date; salt: string },
+	params: { req: Request; path: string; articleHost: string },
+): ViewEndCtaShownEvent {
+	assert(params.req.visitorId, "visitor-id middleware must run before the reader emits view_end_cta_shown");
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.viewEndCtaShown,
+		timestamp: deps.now().toISOString(),
+		path: params.path,
+		article_host: params.articleHost,
+		device_class: classifyDeviceClass(params.req.get("user-agent")),
+		visitor_hash: hashIp({ ip: viewerOf(params.req).ip, salt: deps.salt }),
+		visitor_id: params.req.visitorId,
+		is_authenticated: 0,
 	};
 }
 

@@ -274,6 +274,21 @@ describe("Save routes", () => {
 			expect(typeof intents[0].pending_save_id).toBe("string");
 		});
 
+		it("records the reader_view_end surface and a pending save id for an anonymous save from the Keep this one block, then sends the reader to sign up", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.get("/save?url=https://example.com/article&save_surface=reader_view_end")
+				.set(BROWSER_REQUEST_HEADERS);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe(`/signup?return=${encodeURIComponent("/save?url=https://example.com/article&save_surface=reader_view_end")}`);
+			const intents = saveIntents(harness);
+			assert.equal(intents.length, 1, "exactly one view_save_intent");
+			expect(intents[0]).toMatchObject({ surface: "reader_view_end", outcome: "prompted_to_sign_up" });
+			expect(typeof intents[0].pending_save_id).toBe("string");
+		});
+
 		it("records no request_id for a save whose client forged x-gateway-request-id and x-request-id — the id is read from the invocation context the Lambda adapter attaches to the request object, which an HTTP request has no way to set, so no ingress is left with a header to erase", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

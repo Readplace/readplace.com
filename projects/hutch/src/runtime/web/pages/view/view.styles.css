@@ -45,13 +45,67 @@
   justify-content: flex-end;
 }
 
+.view__end-cta {
+  padding: 0 var(--page-gutter) 64px;
+}
+
+.view__end-cta-heading {
+  margin: 0 0 8px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.view__end-cta-line {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.view__end-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (max-width: 1023px) {
+  .view__end-cta .reading-frame {
+    max-width: var(--reading-main-max);
+    margin-inline: auto;
+  }
+}
+
 @media (min-width: 1024px) {
   .view__cta {
     padding-inline: 0;
   }
+
+  .view__end-cta {
+    padding-inline: 0;
+  }
+
+  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, noscript, template)) ~ .view__end-cta .reading-frame {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+
+  .reading-layout:has(> .reading-layout__rail > :not(.reading-layout__top, .past-reads--hidden, .table-of-contents--hidden, noscript, template)) ~ .view__end-cta .reading-frame > * {
+    grid-column: 1;
+  }
 }
 
 @media (max-width: 600px) {
+  .view__end-cta-actions {
+    flex-direction: column;
+  }
+
+  .view__end-cta-actions form,
+  .view__end-cta-actions .btn {
+    width: 100%;
+  }
+
   .view__cta {
     padding-block: 16px calc(16px + env(safe-area-inset-bottom, 0));
   }

@@ -986,6 +986,7 @@ test.describe("Public reader colour roles hold their WCAG contrast in both theme
 			await expect(page.locator('[data-test-download="epub"]')).toBeVisible({ timeout: SETTLE_MS });
 			await auditRoot(page, { root: ".article-body__toolbar", theme, view: "public-reader/toolbar" });
 			await auditRoot(page, { root: "[data-test-view-cta]", theme, view: "public-reader/action-bar" });
+			await auditRoot(page, { root: "[data-test-view-end-cta]", theme, view: "public-reader/end-cta" });
 		}
 	});
 });

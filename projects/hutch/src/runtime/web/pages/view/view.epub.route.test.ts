@@ -169,6 +169,22 @@ describe("GET /view/<url>?format=<download>", () => {
 		expect(lastViewCookie(response)).toBeUndefined();
 	});
 
+	it("serves the same EPUB to the download from the Keep this one block", async () => {
+		const { harness, fixture } = buildDownloadHarness();
+		await seedReadyArticle(fixture);
+
+		const response = await request(harness.server)
+			.get(`${EPUB_PATH}&utm_source=view-end-cta&utm_medium=internal&utm_content=download-epub&utm_term=reader-public`)
+			.set(BROWSER_REQUEST_HEADERS)
+			.buffer()
+			.parse(binaryParser);
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-disposition"]).toBe('attachment; filename="hello-world.epub"');
+		const files = unzipSync(new Uint8Array(response.body));
+		expect(strFromU8(files["OEBPS/content.xhtml"])).toContain("Body copy.");
+	});
+
 	it("records one epub_images_over_budget event when a browser's download leaves an image out", async () => {
 		const { harness, fixture } = buildDownloadHarness();
 		await seedCappedArticle(fixture);

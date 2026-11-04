@@ -27,6 +27,7 @@ export const ANALYTICS_EVENTS = {
 	viewOpened: "view_opened",
 	viewCrawlLimited: "view_crawl_limited",
 	viewSaveIntent: "view_save_intent",
+	viewEndCtaShown: "view_end_cta_shown",
 	signupAttempted: "signup_attempted",
 	firstArticleAutosaved: "first_article_autosaved",
 	mcpToolCalled: "mcp_tool_called",
@@ -162,6 +163,7 @@ export type SignupOutcome = (typeof SIGNUP_OUTCOMES)[keyof typeof SIGNUP_OUTCOME
  */
 export const SAVE_SURFACES = {
 	readerView: "reader_view",
+	readerViewEnd: "reader_view_end",
 	homepageHero: "homepage_hero",
 	embed: "embed",
 	webmcp: "webmcp",
@@ -229,6 +231,7 @@ export type SaveOutcome = (typeof SAVE_OUTCOMES)[keyof typeof SAVE_OUTCOMES];
 
 export const SAVE_LINK_SURFACES = [
 	SAVE_SURFACES.readerView,
+	SAVE_SURFACES.readerViewEnd,
 	SAVE_SURFACES.homepageHero,
 	SAVE_SURFACES.embed,
 	SAVE_SURFACES.webmcp,

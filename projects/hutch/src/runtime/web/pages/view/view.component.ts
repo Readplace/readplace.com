@@ -31,7 +31,7 @@ import {
 	isTableOfContentsVisible,
 } from "../../shared/article-body/table-of-contents/table-of-contents.component";
 import type { ArticleVersion } from "../../shared/article-reader/article-reader.types";
-import { renderDownloadGuideDialog } from "../../shared/download-guide/download-guide.component";
+import { type DOWNLOAD_GUIDE_POPOVER_ID, renderDownloadGuideDialog } from "../../shared/download-guide/download-guide.component";
 import type { EpubDownloadGuide } from "../../shared/epub/epub-download-guide";
 import { articleEpubHref } from "../../shared/epub/epub-link";
 import {
@@ -76,6 +76,72 @@ const VIEW_CTA_ACTION_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+const VIEW_END_CTA_TEMPLATE = readFileSync(
+	join(__dirname, "view-end-cta.template.html"),
+	"utf-8",
+);
+
+const VIEW_END_CTA_FORM_TEMPLATE = readFileSync(
+	join(__dirname, "view-end-cta-form.template.html"),
+	"utf-8",
+);
+
+const VIEW_END_CTA_GUIDE_TEMPLATE = readFileSync(
+	join(__dirname, "view-end-cta-guide.template.html"),
+	"utf-8",
+);
+
+interface ViewEndCtaFormAction {
+	kind: "form";
+	key: "save" | "download-epub";
+	label: string;
+	href: string;
+	variant: "primary" | "secondary";
+	hidden: readonly { name: string; value: string }[];
+}
+
+interface ViewEndCtaGuideAction {
+	kind: "guide";
+	key: "download-epub";
+	label: "Download EPUB";
+	variant: "secondary";
+	popoverId: typeof DOWNLOAD_GUIDE_POPOVER_ID;
+}
+
+export type ViewEndCtaAction = ViewEndCtaFormAction | ViewEndCtaGuideAction;
+
+export interface ViewEndCta {
+	heading: "Keep this one";
+	lines: readonly string[];
+	actions: readonly ViewEndCtaAction[];
+}
+
+export function splitTrackedHref(trackedHref: string): { href: string; hidden: { name: string; value: string }[] } {
+	const target = new URL(trackedHref, "https://readplace.invalid");
+	return {
+		href: target.pathname,
+		hidden: [...target.searchParams].map(([name, value]) => ({ name, value })),
+	};
+}
+
+function renderViewEndCtaAction(action: ViewEndCtaAction): string {
+	switch (action.kind) {
+		case "form":
+			return render(VIEW_END_CTA_FORM_TEMPLATE, action);
+		case "guide":
+			return render(VIEW_END_CTA_GUIDE_TEMPLATE, action);
+	}
+}
+
+function renderViewEndCta(endCta: ViewEndCta | undefined): string {
+	if (endCta === undefined) return "";
+	return render(VIEW_END_CTA_TEMPLATE, {
+		heading: endCta.heading,
+		lines: endCta.lines,
+		actionsHtml: endCta.actions.map(renderViewEndCtaAction),
+	});
+}
+
 export type ViewActionKey = "save" | "paste-another-link";
 
 export interface ViewAction {
@@ -112,6 +178,13 @@ export function viewEpubHref(articleUrl: string): string {
 	);
 }
 
+export function viewEndCtaEpubHref(articleUrl: string): string {
+	return withClickSurface(
+		articleEpubHref({ articleUrl, utmSource: "view-end-cta", appClient: undefined }),
+		CLICK_SURFACES.readerPublic,
+	);
+}
+
 export function renderViewDownloadsOob(params: { articleUrl: string; guide: EpubDownloadGuide | undefined }): string {
 	return renderReaderDownloadsSlotOob({ downloadHref: viewEpubHref(params.articleUrl), guide: params.guide, placements: ["toolbar"] });
 }
@@ -136,6 +209,7 @@ export interface ViewPageInput {
 	crawlVersions?: ArticleVersion[];
 	readerNotice?: ReaderFailedVariant;
 	backLink: { topHref: string; label: string } | undefined;
+	endCta: ViewEndCta | undefined;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -204,6 +278,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		railHtml,
 		articleUrl: input.articleUrl,
 		ctaItems,
+		endCtaHtml: renderViewEndCta(input.endCta),
 		saveTipHtml: input.saveTip.html,
 		shareDialogHtml: renderShareDialog(share),
 		downloadGuideHtml: input.epubDownloadGuide === undefined ? "" : renderDownloadGuideDialog(input.epubDownloadGuide),

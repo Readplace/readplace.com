@@ -30,12 +30,14 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import { articleHostFrom, classifyOsFamily, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
+import { articleHostFrom, buildViewEndCtaShownEvent, classifyOsFamily, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
 import { CLICK_SURFACES, wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent, withClickSurface, withInternalTracking } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
+import { DOWNLOAD_GUIDE_POPOVER_ID } from "../../shared/download-guide/download-guide.component";
 
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -75,9 +77,13 @@ import {
 	ViewPage,
 	renderViewDownloadsOob,
 	viewEpubHref,
+	viewEndCtaEpubHref,
+	splitTrackedHref,
 	formatViewDocumentTitle,
 	renderViewCtaActionOob,
 	type ViewAction,
+	type ViewEndCta,
+	type ViewEndCtaAction,
 } from "./view.component";
 
 interface ViewDependencies {
@@ -166,6 +172,36 @@ function saveAction(input: {
 		href: `/save?${saveParams.toString()}`,
 		variant: "primary",
 		saveTipState: input.saveTipState,
+	};
+}
+
+function endCtaSaveAction(articleUrl: string): ViewEndCtaAction {
+	const saveParams = new URLSearchParams([["url", articleUrl], [SAVE_SURFACE_QUERY, SAVE_SURFACES.readerViewEnd]]);
+	return {
+		kind: "form",
+		key: "save",
+		label: "Save it and start my trial",
+		variant: "primary",
+		...splitTrackedHref(
+			withInternalTracking(`/save?${saveParams.toString()}`, {
+				source: "view-end-cta",
+				content: "save",
+				term: CLICK_SURFACES.readerPublic,
+			}),
+		),
+	};
+}
+
+function endCtaEpubAction(input: { articleUrl: string; guide: EpubDownloadGuide | undefined }): ViewEndCtaAction {
+	if (input.guide !== undefined) {
+		return { kind: "guide", key: "download-epub", label: "Download EPUB", variant: "secondary", popoverId: DOWNLOAD_GUIDE_POPOVER_ID };
+	}
+	return {
+		kind: "form",
+		key: "download-epub",
+		label: "Download EPUB",
+		variant: "secondary",
+		...splitTrackedHref(viewEndCtaEpubHref(input.articleUrl)),
 	};
 }
 
@@ -471,6 +507,16 @@ function handleViewArticle(
 			return;
 		}
 
+		const epubDownloadGuide = viewEpubGuideFor(req, articleUrl);
+		const endCta: ViewEndCta | undefined =
+			req.userId === undefined && state.content !== undefined
+				? {
+						heading: "Keep this one",
+						lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
+						actions: [endCtaSaveAction(articleUrl), endCtaEpubAction({ articleUrl, guide: epubDownloadGuide })],
+					}
+				: undefined;
+
 		if (isCountableBrowserRequest({ req, ownHost: deps.ownHost })) {
 			assert(req.visitorId, "visitor-id middleware must run before the /view router");
 			deps.recordAnalyticsEvent(req, {
@@ -483,6 +529,15 @@ function handleViewArticle(
 				visitor_id: req.visitorId,
 				is_authenticated: req.userId ? 1 : 0,
 			});
+			if (endCta !== undefined) {
+				deps.recordAnalyticsEvent(
+					req,
+					buildViewEndCtaShownEvent(
+						{ now: deps.now, salt: deps.salt },
+						{ req, path: originalPath, articleHost: articleHostFrom(articleUrl) },
+					),
+				);
+			}
 		}
 		// Deliberately outside the analytics gate: hutch_lastview is the only input
 		// to the post-signup first-article autosave, so a reader whose headers the
@@ -526,12 +581,13 @@ function handleViewArticle(
 					summaryPollUrl: state.summaryPollUrl,
 					actions,
 					epubDownloadHref: state.content === undefined ? undefined : viewEpubHref(articleUrl),
-					epubDownloadGuide: viewEpubGuideFor(req, articleUrl),
+					epubDownloadGuide,
 					saveTip,
 					extensionInstallUrl: readerPublicInstallUrl(req),
 					crawlVersions: state.crawlVersions,
 					readerNotice: state.notice,
 					backLink: req.userId === undefined ? undefined : PUBLIC_VIEW_BACK_LINK,
+					endCta,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),

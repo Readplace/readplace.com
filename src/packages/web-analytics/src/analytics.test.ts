@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
-import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildKeepOfferClickedEvent, buildKeepOfferShownEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, classifyOsFamily, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildViewEndCtaShownEvent, buildKeepOfferClickedEvent, buildKeepOfferShownEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, classifyOsFamily, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
 import { KEEP_OFFER_SURFACES, MCP_REQUEST_REFUSAL_REASONS, MCP_UA_CLIENTS, OAUTH_TOKEN_GRANT_TYPES, OAUTH_TOKEN_KINDS, OAUTH_TOKEN_REVOCATION_OUTCOMES, PAGE_EXIT_KINDS, SAVE_CLIENTS, SAVE_REFUSAL_CODES, SAVE_LINK_SURFACES, SAVE_OUTCOMES, SAVE_SURFACE_QUERY, SAVE_SURFACES, type SaveClient, SIGNUP_OUTCOMES } from "./events";
 
 const NATIVE_APP_USER_AGENT = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -1025,6 +1025,27 @@ function buildIntent(overrides: { req?: MockReqOverrides; url?: string; pendingS
 	);
 }
 
+describe("buildViewEndCtaShownEvent", () => {
+	it("builds a view_end_cta_shown with the timestamp from now, the article host, the device class and the hashed visitor of an anonymous reader", () => {
+		const req = createReq({ visitorId: VALID_VISITOR_ID }) as Request;
+		const event = buildViewEndCtaShownEvent(
+			{ now: () => new Date("2026-04-21T10:00:00.000Z"), salt: "test-salt" },
+			{ req, path: "/view/example.com/some-article", articleHost: "example.com" },
+		);
+		expect(event).toEqual({
+			stream: "analytics",
+			event: "view_end_cta_shown",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			path: "/view/example.com/some-article",
+			article_host: "example.com",
+			device_class: "desktop",
+			visitor_hash: hashIp({ ip: viewerOf(req).ip, salt: "test-salt" }),
+			visitor_id: VALID_VISITOR_ID,
+			is_authenticated: 0,
+		});
+	});
+});
+
 describe("buildSaveIntentEvent", () => {
 	it("builds a view_save_intent with the normalized article_host, surface, outcome and visitor identity — and for an anonymous save with no referer or pending id omits referrer_host/pending_save_id and marks is_authenticated=0", () => {
 		const event = buildIntent();
@@ -1670,6 +1691,10 @@ describe("deriveSaveSurface", () => {
 
 	it.each(SAVE_LINK_SURFACES)("carries through the %s marker a Save link is allowed to declare", (surface) => {
 		expect(surfaceFor(surface)).toBe(surface);
+	});
+
+	it("carries through reader_view_end, the marker the public reader's Keep this one block declares", () => {
+		expect(surfaceFor("reader_view_end")).toBe(SAVE_SURFACES.readerViewEnd);
 	});
 
 	it("records a Save link that declares nothing as unknown, rather than assuming the reader view it used to be hard-coded to", () => {

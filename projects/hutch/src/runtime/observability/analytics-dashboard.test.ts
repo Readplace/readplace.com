@@ -517,6 +517,14 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			expect(query).toContain(`if(event = "${ANALYTICS_EVENTS.viewSaveIntent}", "save", coalesce(utm_content, "-"))`);
 		});
 
+		it("matches only reader_view save intents, so the Keep this one block's Save is counted once, by its click", () => {
+			const query = perControlQuery();
+			const saveIntentClause = query.match(/event = "view_save_intent" and coalesce\(surface, ""\) = "[^"]*"/g);
+			expect(saveIntentClause).toEqual([
+				`event = "${ANALYTICS_EVENTS.viewSaveIntent}" and coalesce(surface, "") = "${SAVE_SURFACES.readerView}"`,
+			]);
+		});
+
 		it("counts distinct visitors exactly via a per-visitor stage rather than the approximate count_distinct", () => {
 			const query = perControlQuery();
 			expect(query).toContain("by control, visitor_id");
@@ -545,11 +553,11 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		});
 	});
 
-	it("scopes the reader funnel to the reader_view surface plus the saves recorded before the surface dimension existed", () => {
+	it("scopes the reader funnel to the reader_view and reader_view_end surfaces plus the saves recorded before the surface dimension existed", () => {
 		const queries = widgetQueries();
 		const funnel = queries.find((q) => q.includes(`event = "${ANALYTICS_EVENTS.viewOpened}"`) && q.includes(`event = "${ANALYTICS_EVENTS.viewSaveIntent}"`));
 		expect(funnel).toBeDefined();
-		expect(funnel).toContain(`surface in ["${SAVE_SURFACES.readerView}"]`);
+		expect(funnel).toContain(`surface in ["${SAVE_SURFACES.readerView}", "${SAVE_SURFACES.readerViewEnd}"]`);
 		expect(funnel).toContain("not ispresent(surface)");
 	});
 
@@ -557,7 +565,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const queries = widgetQueries();
 		const outcomes = queries.find((q) => q.includes("stats count(*) as attempts by outcome") && q.includes("is_authenticated = 0"));
 		expect(outcomes).toBeDefined();
-		expect(outcomes).toContain(`surface in ["${SAVE_SURFACES.readerView}"]`);
+		expect(outcomes).toContain(`surface in ["${SAVE_SURFACES.readerView}", "${SAVE_SURFACES.readerViewEnd}"]`);
 		expect(outcomes).toContain("is_authenticated = 0");
 	});
 
@@ -650,9 +658,13 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 				reason:
 					"Counts EPUB downloads whose images the embed budget dropped, read with an ad-hoc Logs Insights query. The reader still gets a complete 200 download, so no widget watches it; these used to be logError rows in /readplace/errors.",
 			},
+			{
+				event: ANALYTICS_EVENTS.viewEndCtaShown,
+				reason: "Counts renders of the public reader's Keep this one block, read with the Logs Insights query in plan 02 Verification 5.",
+			},
 		];
 		const queryOnly = new Set(queryOnlyEvents.map((e) => e.event));
-		expect(queryOnly.size).toBe(1);
+		expect(queryOnly.size).toBe(2);
 		const declared = [
 			...Object.values(ANALYTICS_EVENTS),
 			...Object.values(CONVERSION_EVENTS),

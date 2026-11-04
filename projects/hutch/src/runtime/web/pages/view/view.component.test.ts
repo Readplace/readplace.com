@@ -9,8 +9,10 @@ import {
 	ViewPage,
 	renderViewCtaActionOob,
 	type ViewAction,
+	type ViewEndCta,
 	type ViewPageInput,
 } from "./view.component";
+import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { articleBody } from "@packages/test-fixtures";
 
 const baseInput: ViewPageInput = {
@@ -38,6 +40,33 @@ const baseInput: ViewPageInput = {
 		},
 	],
 	backLink: undefined,
+	endCta: undefined,
+};
+
+const endCta: ViewEndCta = {
+	heading: "Keep this one",
+	lines: [PRICE_STATEMENT, SAVES_STAY_STATEMENT],
+	actions: [
+		{
+			kind: "form",
+			key: "save",
+			label: "Save it and start my trial",
+			href: "/save",
+			variant: "primary",
+			hidden: [
+				{ name: "url", value: "https://example.com/post" },
+				{ name: "save_surface", value: "reader_view_end" },
+			],
+		},
+		{
+			kind: "form",
+			key: "download-epub",
+			label: "Download EPUB",
+			href: "/view/example.com/post",
+			variant: "secondary",
+			hidden: [{ name: "format", value: "epub" }],
+		},
+	],
 };
 
 const CSP_NONCE = generateCspNonce();
@@ -659,5 +688,73 @@ describe("ViewPage", () => {
 			const data = JSON.parse(script.textContent ?? "{}");
 			assert.equal(data.url, canonical);
 		});
+	});
+});
+
+describe("ViewPage Keep this one block", () => {
+	function endCtaSection(doc: Document): Element {
+		const section = doc.querySelector("[data-test-view-end-cta]");
+		assert(section, "the Keep this one block must render");
+		return section;
+	}
+
+	it("renders the heading, the price and saves-stay lines in order, and the save and EPUB actions", () => {
+		const section = endCtaSection(render({ ...baseInput, endCta }));
+
+		expect(section.querySelector("h2")?.textContent).toBe("Keep this one");
+		expect(Array.from(section.querySelectorAll(".view__end-cta-line"), (line) => line.textContent)).toEqual([
+			PRICE_STATEMENT,
+			SAVES_STAY_STATEMENT,
+		]);
+		expect(
+			Array.from(section.querySelectorAll("[data-test-view-end-cta-action]"), (action) =>
+				action.getAttribute("data-test-view-end-cta-action"),
+			),
+		).toEqual(["save", "download-epub"]);
+	});
+
+	it("renders a form action as a GET form whose hidden inputs carry the action's names and values", () => {
+		const section = endCtaSection(render({ ...baseInput, endCta }));
+		const button = section.querySelector('[data-test-view-end-cta-action="save"]');
+		assert(button, "the save action must render");
+		const form = button.closest("form");
+		assert(form, "the save action must sit in a form");
+
+		expect(form.getAttribute("method")).toBe("GET");
+		expect(form.getAttribute("action")).toBe("/save");
+		expect(button.textContent).toBe("Save it and start my trial");
+		expect(
+			Array.from(form.querySelectorAll('input[type="hidden"]'), (input) => [input.getAttribute("name"), input.getAttribute("value")]),
+		).toEqual([
+			["url", "https://example.com/post"],
+			["save_surface", "reader_view_end"],
+		]);
+	});
+
+	it("renders a guide action as a button that opens the download guide dialog", () => {
+		const doc = render({
+			...baseInput,
+			endCta: {
+				...endCta,
+				actions: [
+					endCta.actions[0],
+					{ kind: "guide", key: "download-epub", label: "Download EPUB", variant: "secondary", popoverId: "reader-download-guide" },
+				],
+			},
+		});
+		const control = endCtaSection(doc).querySelector('[data-test-view-end-cta-action="download-epub"]');
+		assert(control, "the EPUB action must render");
+
+		expect(control.tagName).toBe("BUTTON");
+		expect(control.getAttribute("popovertarget")).toBe("reader-download-guide");
+		expect(control.textContent).toBe("Download EPUB");
+	});
+
+	it("sits after the article body in document order", () => {
+		const doc = render({ ...baseInput, endCta });
+		const body = doc.querySelector("[data-article-body]");
+		assert(body, "the article body must render");
+
+		expect(body.compareDocumentPosition(endCtaSection(doc)) & body.DOCUMENT_POSITION_FOLLOWING).toBe(body.DOCUMENT_POSITION_FOLLOWING);
 	});
 });

@@ -135,7 +135,7 @@ function anyOriginClause(logGroupNames: readonly string[]): string {
  */
 const READER_VIEW_PATH_PATTERN = `/^${READLIST_PATH.replaceAll("/", "\\/")}\\/[^\\/]+\\/view$/`;
 
-const READER_SAVE_SURFACES = [SAVE_SURFACES.readerView] as const;
+const READER_SAVE_SURFACES = [SAVE_SURFACES.readerView, SAVE_SURFACES.readerViewEnd] as const;
 
 function readerSaveSurfaceClause(): string {
 	const list = READER_SAVE_SURFACES.map((surface) => `"${surface}"`).join(", ");
