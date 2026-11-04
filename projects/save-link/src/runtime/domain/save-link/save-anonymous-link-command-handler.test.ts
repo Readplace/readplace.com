@@ -318,6 +318,26 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 			}));
 		});
 
+		it("hands the capture to the deferred crawl without a tier event when the live fetch is deferred, so the content judge runs once", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async (params) => params.fetchUrl === capture ? fetchedResult : { status: "blocked", httpStatus: 403 },
+				publishEvent,
+				emitSimpleCrawlUnsupported,
+			});
+
+			const result = await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: capture }), buildLambdaContext(), () => {});
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(emitSimpleCrawlUnsupported.mock.calls).toEqual([[expect.objectContaining({
+				url: "https://example.com/article",
+				unsupportedReason: "blocked",
+				candidates: [{ id: expect.any(String), tier: "tier-2" }],
+			})]]);
+			expect(publishEvent.mock.calls).toEqual([]);
+		});
+
 		it("announces a completed no-body attempt when neither source serves a body", async () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({

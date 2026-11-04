@@ -1,6 +1,7 @@
 import type { SaveAttemptId } from "@packages/domain/article";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import { type CandidateAnnouncement, initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
+import { initPublishArchiveComparison } from "../crawl-leg/publish-archive-comparison";
 import type { PutTierSource, TierSourceMetadata } from "@packages/tier-source";
 import { blockedCauseForStatus } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -8,10 +9,6 @@ import type { ThumbnailCascade } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlBlocked, markCrawlFailed } from "@packages/domain/article-aggregate";
-import {
-	RecrawlContentExtractedEvent,
-	TierContentExtractedEvent,
-} from "@packages/hutch-infra-components";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
@@ -92,25 +89,7 @@ export function initCommitDeferredCrawl(deps: {
 		logPrefix,
 	});
 
-	const publishArchiveComparison = async (ctx: {
-		url: string;
-		userId?: string;
-		recrawl?: boolean;
-		saveAttemptId: SaveAttemptId;
-		candidates: CandidateReference[];
-	}): Promise<CrawlTermination> => {
-		const detail = {
-			url: ctx.url,
-			userId: ctx.userId,
-			saveAttemptId: ctx.saveAttemptId,
-			candidates: ctx.candidates,
-			liveAttempt: { outcome: "no-body" as const },
-			extractedAt: now().toISOString(),
-		};
-		if (ctx.recrawl) await publishEvent(RecrawlContentExtractedEvent, detail);
-		else await publishEvent(TierContentExtractedEvent, detail);
-		return { via: "deferred-to-event" };
-	};
+	const publishArchiveComparison = initPublishArchiveComparison({ publishEvent, now });
 
 	/* Spend breaker, not a crawl error: the message is consumed (no SQS retry —
 	 * a retry would re-spend the very budget that is exhausted) and the row is

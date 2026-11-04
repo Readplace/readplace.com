@@ -92,6 +92,10 @@ export function initSaveLinkCommandHandler(deps: {
 						sourceOriginalUrl: detail.sourceOriginalUrl ?? identity.sourceOriginalUrl,
 						userId: detail.userId,
 					});
+					if ("deferredTo" in result) {
+						logger.info("[SaveLinkCommand] tier-1 deferred to comprehensive Lambda", { url: detail.url, carriedCandidates: result.carriedCandidates });
+						continue;
+					}
 					await publishEvent(TierContentExtractedEvent, {
 						url: detail.url,
 						saveAttemptId,

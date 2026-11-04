@@ -290,6 +290,28 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 			}));
 		});
 
+		it("hands the capture to the deferred recrawl without a recrawl event when the live fetch is deferred, so the content judge runs once", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				crawlAndFinalizeArticle: async (params) => params.fetchUrl === capture ? fetchedResult : { status: "blocked", httpStatus: 403 },
+				publishEvent,
+				emitSimpleCrawlUnsupported,
+				findContentSourceUrl: async () => capture,
+			});
+
+			const result = await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(emitSimpleCrawlUnsupported.mock.calls).toEqual([[expect.objectContaining({
+				url: "https://example.com/article",
+				recrawl: true,
+				unsupportedReason: "blocked",
+				candidates: [{ id: expect.any(String), tier: "tier-2" }],
+			})]]);
+			expect(publishEvent.mock.calls).toEqual([]);
+		});
+
 		it("still asks for a content judgement when the live page is gone but the capture was re-crawled", async () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({

@@ -4,20 +4,24 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
+import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
+import { initPublishArchiveComparison } from "../crawl-leg/publish-archive-comparison";
 import { SimpleCrawlUnsupportedEvent } from "@packages/hutch-infra-components";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSimpleCrawlUnsupportedPolicyDlqHandler(
 	deps: {
 		transitionAndPersist: TransitionAndPersist;
+		publishEvent: PublishEvent;
 		logger: HutchLogger;
 		now: () => Date;
 	},
 ): Handler<SQSEvent, SQSBatchResponse> {
 	const { transitionAndPersist, logger, now } = deps;
+	const publishArchiveComparison = initPublishArchiveComparison({ publishEvent: deps.publishEvent, now });
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -27,6 +31,23 @@ export function initSimpleCrawlUnsupportedPolicyDlqHandler(
 				const envelope = JSON.parse(record.body);
 				const detail = SimpleCrawlUnsupportedEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+
+				if (detail.candidates !== undefined && detail.candidates.length > 0) {
+					await publishArchiveComparison({
+						url: detail.url,
+						userId: detail.userId,
+						recrawl: detail.recrawl,
+						saveAttemptId: detail.saveAttemptId,
+						candidates: detail.candidates,
+						failureReason: { kind: "exhausted-retries", receiveCount },
+					});
+					logger.error(formatErrorLogLine({
+						message: `[SimpleCrawlUnsupportedPolicyDlq] dead-lettered after ${receiveCount} receives (messageId ${record.messageId}); selecting over stored candidates`,
+						url: detail.url,
+						now,
+					}));
+					continue;
+				}
 
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,

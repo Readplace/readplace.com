@@ -91,7 +91,9 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 					const captureUrl = await deps.findContentSourceUrl(detail.url);
 					let extracted: SaveCandidates;
 					if (captureUrl !== undefined) {
-						extracted = await crawlSaveCandidates({ url: detail.url, captureUrl, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
+						const result = await crawlSaveCandidates({ url: detail.url, captureUrl, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
+						if ("deferredTo" in result) continue;
+						extracted = result;
 					} else {
 						const result = await saveLinkWork(detail.url, { recrawl: true, saveAttemptId });
 						if (typeof result !== "object" || "deferred" in result) continue;

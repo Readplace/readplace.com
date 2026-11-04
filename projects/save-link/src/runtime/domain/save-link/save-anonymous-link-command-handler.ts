@@ -93,6 +93,10 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 							saveAttemptId,
 							sourceOriginalUrl: detail.sourceOriginalUrl ?? identity.sourceOriginalUrl,
 						});
+						if ("deferredTo" in result) {
+							logger.info("[SaveAnonymousLinkCommand] tier-1 deferred to comprehensive Lambda", { url: detail.url, carriedCandidates: result.carriedCandidates });
+							continue;
+						}
 						await publishEvent(TierContentExtractedEvent, {
 							url: detail.url,
 							saveAttemptId,

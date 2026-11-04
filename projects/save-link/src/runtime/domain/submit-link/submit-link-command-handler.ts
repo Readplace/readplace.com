@@ -109,6 +109,10 @@ export function initSubmitLinkCommandHandler(deps: {
 
 	async function crawlCapture(link: { url: string; userId: UserId; captureUrl: string; sourceOriginalUrl?: string; saveAttemptId: SaveAttemptId }): Promise<void> {
 		const result = await crawlSaveCandidates(link);
+		if ("deferredTo" in result) {
+			logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, { url: link.url, carriedCandidates: result.carriedCandidates });
+			return;
+		}
 		await publishEvent(TierContentExtractedEvent, {
 			url: link.url,
 			userId: link.userId,

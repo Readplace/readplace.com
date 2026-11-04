@@ -405,6 +405,12 @@ describe("initSelectContentWork", () => {
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "origin-unreachable", code: "ENOTFOUND" } } }));
 	});
 
+	it("keeps the exhausted-retries reason when a dead-lettered deferred crawl selects over an unreadable stored capture", async () => {
+		const { work, deps } = setup({ listAvailableTierSources: async () => [source("tier-2")], selectMostCompleteContent: async () => ({ kind: "none", reason: "Nothing readable" }) });
+		await work({ ...request, liveAttempt: { outcome: "no-body", failureReason: { kind: "exhausted-retries", receiveCount: 1 } } });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "exhausted-retries", receiveCount: 1 } } }));
+	});
+
 	it("leaves the row for the deferred comprehensive crawl when nothing readable has arrived yet", async () => {
 		const { work, deps, events } = setup({ listAvailableTierSources: async () => [judgedSource()], selectMostCompleteContent: async () => ({ kind: "none", reason: "CAPTCHA" }) });
 		await work({ ...request, liveAttempt: { outcome: "deferred" } });

@@ -1,6 +1,8 @@
 import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
+import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { initSimpleCrawlUnsupportedPolicyDlqHandler } from "./simple-crawl-unsupported-policy-dlq-handler";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -15,7 +17,7 @@ function attributes(receiveCount: number): SQSRecordAttributes {
 }
 
 function createSqsEvent(
-	detail: { url: string; userId?: string; recrawl?: boolean },
+	detail: { url: string; userId?: string; recrawl?: boolean; candidates?: Array<{ id: string; tier: "tier-2" }> },
 	receiveCount = 3,
 ): SQSEvent {
 	return {
@@ -41,6 +43,7 @@ describe("initSimpleCrawlUnsupportedPolicyDlqHandler", () => {
 
 		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
 			transitionAndPersist,
+			publishEvent: async () => {},
 			logger: noopLogger,
 			now: () => new Date(),
 		});
@@ -66,6 +69,7 @@ describe("initSimpleCrawlUnsupportedPolicyDlqHandler", () => {
 
 		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
 			transitionAndPersist,
+			publishEvent: async () => {},
 			logger: noopLogger,
 			now: () => new Date(),
 		});
@@ -102,6 +106,7 @@ describe("initSimpleCrawlUnsupportedPolicyDlqHandler", () => {
 		};
 		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
 			transitionAndPersist,
+			publishEvent: async () => {},
 			logger,
 			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
@@ -132,6 +137,7 @@ describe("initSimpleCrawlUnsupportedPolicyDlqHandler", () => {
 		};
 		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
 			transitionAndPersist,
+			publishEvent: async () => {},
 			logger,
 			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
@@ -139,6 +145,79 @@ describe("initSimpleCrawlUnsupportedPolicyDlqHandler", () => {
 		const result = await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});
 
 		expect(calls.map((c) => c[0])).toEqual(["[SimpleCrawlUnsupportedPolicyDlq] record failed"]);
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+});
+
+describe("initSimpleCrawlUnsupportedPolicyDlqHandler with stored candidates", () => {
+	const wrapper = { id: "wrapper-candidate", tier: "tier-2" as const };
+
+	function createHandler(publishEvent: PublishEvent = async () => {}) {
+		const published: Array<{ detailType: string; detail: unknown }> = [];
+		const logged: unknown[][] = [];
+		const transitionAndPersist = jest.fn(async () => {});
+		const handler = initSimpleCrawlUnsupportedPolicyDlqHandler({
+			transitionAndPersist,
+			publishEvent: async (event, detail) => {
+				await publishEvent(event, detail);
+				published.push({ detailType: event.detailType, detail });
+			},
+			logger: { ...noopLogger, error: (...args) => { logged.push(args); } },
+			now: () => new Date("2026-10-15T04:43:01.000Z"),
+		});
+		return { handler, published, logged, transitionAndPersist };
+	}
+
+	it("selects over the stored candidates with an exhausted-retries live attempt instead of marking the crawl exhausted", async () => {
+		const { handler, published, logged, transitionAndPersist } = createHandler();
+
+		const result = await handler(createSqsEvent({ url: "https://example.com/scan.pdf", userId: "user-1", candidates: [wrapper] }, 1), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(published).toEqual([{
+			detailType: TierContentExtractedEvent.detailType,
+			detail: {
+				url: "https://example.com/scan.pdf",
+				userId: "user-1",
+				saveAttemptId: "attempt-1",
+				candidates: [wrapper],
+				liveAttempt: { outcome: "no-body", failureReason: { kind: "exhausted-retries", receiveCount: 1 } },
+				extractedAt: "2026-10-15T04:43:01.000Z",
+			},
+		}]);
+		expect(transitionAndPersist.mock.calls).toEqual([]);
+		expect(logged.map((args) => JSON.parse(String(args[0])).message)).toEqual([
+			"[SimpleCrawlUnsupportedPolicyDlq] dead-lettered after 1 receives (messageId msg-1); selecting over stored candidates",
+		]);
+	});
+
+	it("publishes the recrawl selection when the dead-lettered message is a recrawl", async () => {
+		const { handler, published } = createHandler();
+
+		await handler(createSqsEvent({ url: "https://example.com/scan.pdf", recrawl: true, candidates: [wrapper] }, 1), buildLambdaContext(), () => {});
+
+		expect(published.map((p) => p.detailType)).toEqual([RecrawlContentExtractedEvent.detailType]);
+	});
+
+	it("marks the crawl exhausted when the message carries an empty candidate list", async () => {
+		const { handler, published, transitionAndPersist } = createHandler();
+
+		await handler(createSqsEvent({ url: "https://example.com/scan.pdf", candidates: [] }, 2), buildLambdaContext(), () => {});
+
+		expect(published).toEqual([]);
+		expect(transitionAndPersist.mock.calls).toEqual([[markCrawlExhausted, {
+			url: "https://example.com/scan.pdf",
+			input: { reason: { kind: "exhausted-retries", receiveCount: 2 }, receiveCount: 2 },
+		}]]);
+	});
+
+	it("reports the record as a batch failure when the selection publish throws", async () => {
+		const { handler } = createHandler(async () => {
+			throw new Error("eventbridge down");
+		});
+
+		const result = await handler(createSqsEvent({ url: "https://example.com/scan.pdf", candidates: [wrapper] }, 1), buildLambdaContext(), () => {});
+
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

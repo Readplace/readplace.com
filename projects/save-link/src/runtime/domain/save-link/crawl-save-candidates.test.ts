@@ -38,9 +38,8 @@ describe("archive attempt orchestration", () => {
 		const verifyWrapperSource = async () => ({ originalUrl: url, sourceUrl: captureUrl });
 		const crawlArchiveCapture = initCrawlArchiveCapture({ ...shared, verifyWrapperSource, publishEvent: async () => {} });
 		const attempt = await initCrawlSaveCandidates({ saveLinkWork, crawlArchiveCapture, emitSimpleCrawlUnsupported })(params);
-		expect(attempt.liveAttempt).toEqual({ outcome: "deferred" });
-		expect(attempt.candidates).toHaveLength(1);
-		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked", candidates: attempt.candidates }));
+		expect(attempt).toEqual({ deferredTo: "simple-crawl-unsupported", carriedCandidates: 1 });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ unsupportedReason: "blocked", candidates: [{ id: expect.any(String), tier: "tier-2" }] }));
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(stored.map((source) => source.metadata.kind)).toEqual(["wrapper"]);
 	});
@@ -76,8 +75,14 @@ describe("archive attempt orchestration", () => {
 	it("dispatches deferred live work with immutable wrapper references after capture finishes", async () => {
 		const emit = jest.fn().mockResolvedValue(undefined);
 		const save = initCrawlSaveCandidates({ crawlArchiveCapture: async () => wrapper, saveLinkWork: async () => ({ deferred: "javascript-required" }), emitSimpleCrawlUnsupported: emit });
-		expect(await save(params)).toEqual({ candidates: [wrapper], liveAttempt: { outcome: "deferred" } });
+		expect(await save(params)).toEqual({ deferredTo: "simple-crawl-unsupported", carriedCandidates: 1 });
 		expect(emit).toHaveBeenCalledWith(expect.objectContaining({ url, unsupportedReason: "javascript-required", saveAttemptId: params.saveAttemptId, candidates: [wrapper] }));
+	});
+	it("dispatches deferred live work with no candidates when the capture yields no wrapper", async () => {
+		const emit = jest.fn().mockResolvedValue(undefined);
+		const save = initCrawlSaveCandidates({ crawlArchiveCapture: async () => undefined, saveLinkWork: async () => ({ deferred: "blocked" }), emitSimpleCrawlUnsupported: emit });
+		expect(await save(params)).toEqual({ deferredTo: "simple-crawl-unsupported", carriedCandidates: 0 });
+		expect(emit).toHaveBeenCalledWith(expect.objectContaining({ url, unsupportedReason: "blocked", candidates: [] }));
 	});
 	it("records an empty live response as a live failure while the extracted archive still reaches selection", async () => {
 		const crawlArticle = initCrawlArticle({ crawlFetch: async (target) => new Response(target === url ? "" : `<html><head><title>Archived report</title></head><body><article><p>${"A real article contains important facts and readable paragraphs. ".repeat(30)}</p></article></body></html>`, { status: 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });

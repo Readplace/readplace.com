@@ -89,16 +89,19 @@ export const handler = initDeadLetterRouter({
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.simpleCrawlUnsupportedPolicy]:
 			initSimpleCrawlUnsupportedPolicyDlqHandler({
 				transitionAndPersist,
+				publishEvent,
 				logger,
 				now,
 			}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.comprehensiveCrawlCommand]: initComprehensiveCrawlDlqHandler({
 			transitionAndPersist,
+			publishEvent,
 			logger,
 			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.renderCrawlCommand]: initRenderCrawlDlqHandler({
 			transitionAndPersist,
+			publishEvent,
 			logger,
 			now,
 		}),

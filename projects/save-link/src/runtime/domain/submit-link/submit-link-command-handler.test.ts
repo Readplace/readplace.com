@@ -328,6 +328,27 @@ describe("initSubmitLinkCommandHandler", () => {
 			}));
 		});
 
+		it("hands the capture to the deferred crawl without a tier event when the live fetch is deferred, so the content judge runs once", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				...withCapture,
+				publishEvent,
+				emitSimpleCrawlUnsupported,
+				crawlAndFinalizeArticle: (async (params) => params.fetchUrl === capture ? fetchedResult : { status: "blocked", httpStatus: 403 }) as CrawlAndFinalizeArticle,
+			});
+
+			const response = await run(handler, createSqsEvent([{ url: exampleUrl, userId }]));
+
+			expect(response.batchItemFailures).toEqual([]);
+			expect(emitSimpleCrawlUnsupported.mock.calls).toEqual([[expect.objectContaining({
+				url: exampleUrl,
+				unsupportedReason: "blocked",
+				candidates: [{ id: expect.any(String), tier: "tier-2" }],
+			})]]);
+			expect(publishedDetailTypes(publishEvent)).toEqual(["LinkQueued", "QueueEntryCreated"]);
+		});
+
 		it("runs both candidates even for an existing original when an archive is submitted", async () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
