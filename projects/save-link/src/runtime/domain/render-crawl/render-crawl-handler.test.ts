@@ -1150,14 +1150,14 @@ describe("initRenderCrawlHandler", () => {
 			return jest.fn<ReturnType<CrawlArticle>, Parameters<CrawlArticle>>(async () => result);
 		}
 
-		it("starts the direct render, the residential render, the Web Unlocker fetch and the Web Unlocker render at that page, so no paid leg pays for the tracker again", async () => {
+		it("starts the direct render, the Web Unlocker fetch and the Web Unlocker render at that page, so no paid leg pays for the tracker again", async () => {
 			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: rendered({ finalUrl: PUBLISHER }) });
 			const proxiedCrawlArticle = recordingProxiedCrawl({ status: "blocked", httpStatus: 403 });
 			const handler = createHandler({ prepareArticleIdentity: trackerIdentity, renderPage, proxiedCrawlArticle });
 
 			await run(handler, { url: TRACKER, unsupportedReason: "blocked", finalUrl: PUBLISHER });
 
-			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([PUBLISHER, PUBLISHER, PUBLISHER]);
+			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([PUBLISHER, PUBLISHER]);
 			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([PUBLISHER]);
 		});
 
@@ -1254,7 +1254,7 @@ describe("initRenderCrawlHandler", () => {
 			await run(handler, { url: TRACKER, unsupportedReason: "blocked", finalUrl: "https://attacker.example/elsewhere" });
 
 			expect(findAdoptedFetchUrl).toHaveBeenCalledWith(TRACKER);
-			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([PINNED, PINNED, PINNED]);
+			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([PINNED, PINNED]);
 			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([PINNED]);
 		});
 
@@ -1266,7 +1266,7 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: TRACKER, unsupportedReason: "blocked", finalUrl: PUBLISHER, ...flag });
 
-			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([TRACKER, TRACKER, TRACKER]);
+			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([TRACKER, TRACKER]);
 			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([TRACKER]);
 			expect(findAdoptedFetchUrl).toHaveBeenCalledTimes(0);
 		});
@@ -1279,7 +1279,7 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: TRACKER, unsupportedReason: "blocked" });
 
-			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([TRACKER, TRACKER, TRACKER]);
+			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([TRACKER, TRACKER]);
 			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([TRACKER]);
 			expect(findAdoptedFetchUrl).toHaveBeenCalledTimes(0);
 		});

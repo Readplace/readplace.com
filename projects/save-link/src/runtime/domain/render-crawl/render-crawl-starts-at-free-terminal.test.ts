@@ -121,7 +121,7 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 		const response = await render(sqsEventFrom(takeOne(published, RenderCrawlCommand.detailType)), { ...buildLambdaContext(), getRemainingTimeInMillis: () => 900_000 }, () => {});
 
 		expect(response).toEqual({ batchItemFailures: [] });
-		expect(navigated).toEqual([PUBLISHER, PUBLISHER, PUBLISHER]);
+		expect(navigated).toEqual([PUBLISHER, PUBLISHER]);
 		expect(fetched).toEqual([PUBLISHER]);
 		expect(stored).toEqual([TRACKER]);
 		expect(JSON.parse(takeOne(published, TierContentExtractedEvent.detailType).body).detail).toEqual(expect.objectContaining({ url: TRACKER, userId: "user-1", saveAttemptId: "attempt-1" }));
