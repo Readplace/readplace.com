@@ -29,7 +29,6 @@ const webUnlockerEgress: WebUnlockerEgress = {
 	},
 };
 const requests = {
-	policy: "legacy" as const,
 	proxiedRequestLimit: 40,
 	continued: 1,
 	continuedProxied: 0,
@@ -37,7 +36,7 @@ const requests = {
 	continuedNavigations: 1,
 	abortedByBudget: 0,
 	abortedByType: 0,
-	abortedBy: { type: 0, address: 0, site: 0, budget: 0 },
+	abortedBy: { type: 0, address: 0, budget: 0 },
 	continuedByResourceType: { document: 1 },
 };
 const resourceHosts = { initialSite: "example-spa.test", finalSite: "example-spa.test", buckets: [], overflowedRequests: 0 };

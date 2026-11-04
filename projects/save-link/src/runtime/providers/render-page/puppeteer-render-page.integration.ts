@@ -5,7 +5,6 @@ import { after, before, describe, it } from "node:test";
 import chromium from "@sparticuz/chromium";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { classifyRenderedDocument } from "./classify-rendered-document";
-import { initProxiedRenderRequestFilter } from "./proxied-render-request-filter";
 import { initPuppeteerRenderPage } from "./puppeteer-render-page";
 import type { RenderOutcome, RenderProxy } from "./render-page.types";
 import { type CreateRenderRequestFilter, initRenderRequestFilter, type RejectRenderRequest } from "./render-request-filter";
@@ -172,17 +171,9 @@ describe("puppeteer render page through a Web Unlocker proxy", { skip: packagedC
 		return { outcome, url, proxiedRequests: [...proxied] };
 	};
 
-	const legacy = initRenderRequestFilter({ rejectRenderRequest: testOnlyLoopbackAllowed, maxResourceHostBuckets: 100 });
-	const sameSiteScripts = (proxiedRequestLimit: number) =>
-		initProxiedRenderRequestFilter({
-			rejectRenderRequest: testOnlyLoopbackAllowed,
-			proxiedRequestLimit,
-			maxResourceHostBuckets: 100,
-			directRenderRequestFilter: legacy,
-		});
-
-	it("loads the stylesheet that hides the article and the cross-site widget under the legacy policy", async () => {
-		const { outcome, url, proxiedRequests } = await renderThrough(legacy);
+	const requestFilter = initRenderRequestFilter({ rejectRenderRequest: testOnlyLoopbackAllowed, maxResourceHostBuckets: 100 });
+	it("loads the stylesheet that hides the article and the cross-site widget", async () => {
+		const { outcome, url, proxiedRequests } = await renderThrough(requestFilter);
 
 		assert.equal(articleDisplay(outcome), "none");
 		assert.deepEqual([...proxiedRequests].sort(), [
@@ -194,40 +185,18 @@ describe("puppeteer render page through a Web Unlocker proxy", { skip: packagedC
 			`localhost:${crossSitePort}/widget.js`,
 		]);
 		const text = extractedText(outcome, url);
-		assert(text.includes(ARTICLE_MARKER) && text.includes(HYDRATED_MARKER) && text.includes(CROSS_SITE_MARKER), "every marker survives the legacy render");
-		assert.equal(outcome.requests.policy, "legacy");
-	});
-
-	it("blocks the stylesheet and the cross-site widget, follows the redirect, and keeps the same-site hydrated text under same-site-scripts", async () => {
-		const { outcome, url, proxiedRequests } = await renderThrough(sameSiteScripts(12));
-
-		assert.equal(articleDisplay(outcome), "block");
-		assert.deepEqual([...proxiedRequests].sort(), [
-			`127.0.0.1:${articlePort}/api/story.json`,
-			`127.0.0.1:${articlePort}/hydrate.js`,
-			`127.0.0.1:${articlePort}/short`,
-			`127.0.0.1:${articlePort}/story`,
-		]);
-		const text = extractedText(outcome, url);
-		assert(text.includes(ARTICLE_MARKER) && text.includes(HYDRATED_MARKER), "the server-rendered and same-site hydrated markers survive");
-		assert.equal(text.includes(CROSS_SITE_MARKER), false, "the article loses text only a cross-site script inserted");
-		assert.equal(outcome.requests.policy, "same-site-scripts");
-		assert.equal(outcome.requests.continuedProxied, 4);
-		assert.equal(outcome.requests.continuedNavigations, 2);
-		assert.equal(outcome.requests.abortedBy.type, 1);
-		assert.equal(outcome.requests.abortedBy.site, 1);
-		assert.deepEqual(
-			outcome.resourceHosts.buckets.find(({ route }) => route === "aborted-site"),
-			{ documentSite: "127.0.0.1", requestHost: "localhost", resourceType: "script", navigation: false, route: "aborted-site", requests: 1, response2xx: 0, responseOther: 0, failed: 0 },
+		assert(text.includes(ARTICLE_MARKER) && text.includes(HYDRATED_MARKER) && text.includes(CROSS_SITE_MARKER), "every marker survives the render");
+		assert.equal(outcome.resourceHosts.initialSite, "127.0.0.1");
+		assert.equal(outcome.resourceHosts.finalSite, "127.0.0.1");
+		assert(
+			outcome.resourceHosts.buckets.some(({ documentSite, requestHost, resourceType }) => documentSite === "127.0.0.1" && requestHost === "localhost" && resourceType === "script"),
+			"the cross-site widget is bucketed under the article's site",
 		);
-		assert(outcome.resourceHosts.buckets.filter(({ route }) => route === "proxy").every(({ requests, response2xx, responseOther }) => requests === response2xx + responseOther), "every proxied request settles with a response");
-	});
-
-	it("stops at the proxied request cap with the redirect chain counted against it", async () => {
-		const { outcome, proxiedRequests } = await renderThrough(sameSiteScripts(2));
-
-		assert.deepEqual([...proxiedRequests].sort(), [`127.0.0.1:${articlePort}/short`, `127.0.0.1:${articlePort}/story`]);
-		assert.equal(outcome.requests.continuedProxied, 2);
-		assert.equal(outcome.requests.abortedByBudget, 1);
+		assert(
+			outcome.resourceHosts.buckets
+				.filter(({ route }) => route === "proxy")
+				.every(({ requests, response2xx, responseOther }) => requests === response2xx + responseOther),
+			"every proxied request settles with a response",
+		);
 	});
 });

@@ -26,11 +26,11 @@ export type CreateRenderRequestFilter = (render: { proxied: boolean; url: string
 
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 const SKIPPED_RESOURCE_TYPES = new Set(["image", "media", "font"]);
-const LEGACY_PROXIED_REQUEST_LIMIT = 40;
+const PROXIED_REQUEST_LIMIT = 40;
 
-export const ABORT_RENDER_REQUEST: RenderRequestVerdict = { abort: true };
+const ABORT_RENDER_REQUEST: RenderRequestVerdict = { abort: true };
 
-export function hostOfRenderUrl(url: string): string {
+function hostOfRenderUrl(url: string): string {
 	const parsed = URL.parse(url);
 	assert(parsed !== null, "a render request reaching host classification carries a parseable URL");
 	return parsed.hostname;
@@ -63,7 +63,7 @@ export function initRejectRenderRequest(deps: { resolve: ResolveAll; isBlocked: 
 
 export function initRenderRequestFilter(deps: { rejectRenderRequest: RejectRenderRequest; maxResourceHostBuckets: number }): CreateRenderRequestFilter {
 	return ({ proxied, url }) => {
-		const counts = createRenderRequestCounts({ policy: "legacy", proxiedRequestLimit: LEGACY_PROXIED_REQUEST_LIMIT });
+		const counts = createRenderRequestCounts({ proxiedRequestLimit: PROXIED_REQUEST_LIMIT });
 		const hosts = createRenderResourceHosts({ initialHost: hostOfRenderUrl(url), maxBuckets: deps.maxResourceHostBuckets });
 		return {
 			decide: async (request) => {
@@ -74,7 +74,7 @@ export function initRenderRequestFilter(deps: { rejectRenderRequest: RejectRende
 				}
 				const requestHost = hostOfRenderUrl(request.url);
 				const { resourceType, isNavigation: navigation } = request;
-				if (proxied && !navigation && counts.continued() >= LEGACY_PROXIED_REQUEST_LIMIT) {
+				if (proxied && !navigation && counts.continued() >= PROXIED_REQUEST_LIMIT) {
 					counts.reject("budget");
 					hosts.record({ requestHost, resourceType, navigation, route: "aborted-budget" });
 					return ABORT_RENDER_REQUEST;

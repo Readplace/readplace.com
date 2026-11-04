@@ -29,7 +29,6 @@ export function initReportProxiedRenderAttempt(deps: {
 				deps.logger.info("[RenderCrawlCommand] render resource hosts", {
 					stream: "render-resource-hosts",
 					attemptId,
-					policy: requests.policy,
 					renderedThrough,
 					...bucket,
 				});
@@ -39,7 +38,6 @@ export function initReportProxiedRenderAttempt(deps: {
 			stream: "render-attempt-summary",
 			attemptId,
 			saveAttemptId,
-			policy: requests.policy,
 			renderedThrough,
 			proxiedRequestLimit: requests.proxiedRequestLimit,
 			outcome: outcome.kind,

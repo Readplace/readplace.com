@@ -24,7 +24,6 @@ export function createRenderResourceHosts(params: { initialHost: string; maxBuck
 	};
 
 	return {
-		documentSite: () => documentSite,
 		enterDocument: (hostname: string) => {
 			documentSite = siteOfHost(hostname);
 		},

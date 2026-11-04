@@ -132,7 +132,6 @@ describe("initRenderRequestFilter", () => {
 		expect(verdicts.slice(0, 40)).toEqual(Array(40).fill(false));
 		expect(verdicts[40]).toBe(true);
 		expect(filter.tally()).toEqual({
-			policy: "legacy",
 			proxiedRequestLimit: 40,
 			continued: 40,
 			continuedProxied: 40,
@@ -140,7 +139,7 @@ describe("initRenderRequestFilter", () => {
 			continuedNavigations: 0,
 			abortedByBudget: 1,
 			abortedByType: 0,
-			abortedBy: { type: 0, address: 0, site: 0, budget: 1 },
+			abortedBy: { type: 0, address: 0, budget: 1 },
 			continuedByResourceType: { script: 40 },
 		});
 	});
@@ -181,7 +180,7 @@ describe("initRenderRequestFilter", () => {
 		const verdict = await filter.decide({ url: "http://169.254.169.254/", resourceType: "document", isNavigation: true });
 
 		expect(verdict.abort).toBe(true);
-		expect(filter.tally().abortedBy).toEqual({ type: 0, address: 1, site: 0, budget: 0 });
+		expect(filter.tally().abortedBy).toEqual({ type: 0, address: 1, budget: 0 });
 	});
 
 	it("counts address rejections inside abortedByType as it always has", async () => {
@@ -189,7 +188,7 @@ describe("initRenderRequestFilter", () => {
 		await filter.decide({ url: "https://cdn.example-spa.test/a.png", resourceType: "image", isNavigation: false });
 		await filter.decide({ url: "http://10.0.0.7/api", resourceType: "xhr", isNavigation: false });
 
-		expect(filter.tally()).toMatchObject({ abortedByType: 2, abortedBy: { type: 1, address: 1, site: 0, budget: 0 } });
+		expect(filter.tally()).toMatchObject({ abortedByType: 2, abortedBy: { type: 1, address: 1, budget: 0 } });
 	});
 
 	it("does not count a request aborted by type against the cap", async () => {

@@ -4,12 +4,9 @@ export type ResidentialEgress = { kind: "residential"; proxy: RenderProxy };
 export type WebUnlockerEgress = { kind: "web-unlocker"; proxy: RenderProxy };
 export type BrowserEgress = { kind: "direct" } | ResidentialEgress | WebUnlockerEgress;
 
-export type RenderRequestPolicy = "legacy" | "same-site-scripts";
-
-export type RenderRequestRejection = "type" | "address" | "site" | "budget";
+export type RenderRequestRejection = "type" | "address" | "budget";
 
 export type RenderRequestTally = {
-	policy: RenderRequestPolicy;
 	proxiedRequestLimit: number;
 	continued: number;
 	continuedProxied: number;
@@ -21,7 +18,7 @@ export type RenderRequestTally = {
 	continuedByResourceType: Record<string, number>;
 };
 
-export type RenderResourceRoute = "proxy" | "direct" | "aborted-site" | "aborted-budget";
+export type RenderResourceRoute = "proxy" | "direct" | "aborted-budget";
 
 export type RenderResourceHostBucket = {
 	documentSite: string;

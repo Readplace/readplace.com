@@ -1,14 +1,13 @@
-import type { RenderRequestPolicy, RenderRequestRejection, RenderRequestTally } from "./render-page.types";
+import type { RenderRequestRejection, RenderRequestTally } from "./render-page.types";
 
-export function createRenderRequestCounts(params: { policy: RenderRequestPolicy; proxiedRequestLimit: number }) {
+export function createRenderRequestCounts(params: { proxiedRequestLimit: number }) {
 	const continuedByResourceType = new Map<string, number>();
-	const abortedBy: Record<RenderRequestRejection, number> = { type: 0, address: 0, site: 0, budget: 0 };
+	const abortedBy: Record<RenderRequestRejection, number> = { type: 0, address: 0, budget: 0 };
 	let continuedProxied = 0;
 	let continuedDirect = 0;
 	let continuedNavigations = 0;
 	return {
 		continued: () => continuedProxied + continuedDirect,
-		continuedProxied: () => continuedProxied,
 		reject: (rejection: RenderRequestRejection) => {
 			abortedBy[rejection] += 1;
 		},
@@ -19,14 +18,13 @@ export function createRenderRequestCounts(params: { policy: RenderRequestPolicy;
 			continuedByResourceType.set(request.resourceType, (continuedByResourceType.get(request.resourceType) ?? 0) + 1);
 		},
 		tally: (): RenderRequestTally => ({
-			policy: params.policy,
 			proxiedRequestLimit: params.proxiedRequestLimit,
 			continued: continuedProxied + continuedDirect,
 			continuedProxied,
 			continuedDirect,
 			continuedNavigations,
 			abortedByBudget: abortedBy.budget,
-			abortedByType: abortedBy.type + abortedBy.address + abortedBy.site,
+			abortedByType: abortedBy.type + abortedBy.address,
 			abortedBy: { ...abortedBy },
 			continuedByResourceType: Object.fromEntries(continuedByResourceType),
 		}),

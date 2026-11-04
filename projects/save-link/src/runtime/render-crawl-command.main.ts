@@ -18,9 +18,7 @@ import { initRenderCrawlHandler } from "./domain/render-crawl/render-crawl-handl
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initPuppeteerRenderPage } from "./providers/render-page/puppeteer-render-page";
-import { type CreateRenderRequestFilter, initRejectRenderRequest, initRenderRequestFilter } from "./providers/render-page/render-request-filter";
-import { initProxiedRenderRequestFilter } from "./providers/render-page/proxied-render-request-filter";
-import type { RenderRequestPolicy } from "./providers/render-page/render-page.types";
+import { initRejectRenderRequest, initRenderRequestFilter } from "./providers/render-page/render-request-filter";
 import { initReportProxiedRenderAttempt, type RenderRequestDiagnostics } from "./domain/render-crawl/report-proxied-render-attempt";
 import { classifyRenderedDocument } from "./providers/render-page/classify-rendered-document";
 import { parseRenderProxy } from "./providers/render-page/parse-render-proxy";
@@ -45,8 +43,6 @@ const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 const renderCrawlBudget = parseRateLimitRule(requireEnv("RENDER_CRAWL_BUDGET"));
 const crawlEgressProxyUrl = requireEnv("CRAWL_EGRESS_PROXY_URL");
 const crawlResidentialProxyUrl = requireEnv("CRAWL_RESIDENTIAL_PROXY_URL");
-const renderRequestPolicy = z.enum(["legacy", "same-site-scripts"]).parse(requireEnv<RenderRequestPolicy>("RENDER_REQUEST_POLICY"));
-const renderProxiedRequestLimit = z.coerce.number().int().positive().parse(requireEnv("RENDER_PROXIED_REQUEST_LIMIT"));
 const renderRequestDiagnostics = z.enum(["off", "hosts"]).parse(requireEnv<RenderRequestDiagnostics>("RENDER_REQUEST_DIAGNOSTICS"));
 
 const s3Client = new S3Client({});
@@ -108,22 +104,12 @@ const RELAXED_ORIGIN_ARGS = new Set(["--disable-web-security"]);
 
 const MAX_RESOURCE_HOST_BUCKETS = 100;
 const rejectRenderRequest = initRejectRenderRequest({ resolve: defaultResolveAll, isBlocked: isBlockedIpAddress });
-const legacyRenderRequestFilter = initRenderRequestFilter({ rejectRenderRequest, maxResourceHostBuckets: MAX_RESOURCE_HOST_BUCKETS });
-const renderRequestFilters: Record<RenderRequestPolicy, CreateRenderRequestFilter> = {
-	legacy: legacyRenderRequestFilter,
-	"same-site-scripts": initProxiedRenderRequestFilter({
-		rejectRenderRequest,
-		proxiedRequestLimit: renderProxiedRequestLimit,
-		maxResourceHostBuckets: MAX_RESOURCE_HOST_BUCKETS,
-		directRenderRequestFilter: legacyRenderRequestFilter,
-	}),
-};
 
 const renderPage = initPuppeteerRenderPage({
 	executablePath: () => chromium.executablePath(join(__dirname, "chromium-bin")),
 	launchArgs: chromium.args.filter((arg) => !RELAXED_ORIGIN_ARGS.has(arg)),
 	headless: "shell",
-	createRenderRequestFilter: renderRequestFilters[renderRequestPolicy],
+	createRenderRequestFilter: initRenderRequestFilter({ rejectRenderRequest, maxResourceHostBuckets: MAX_RESOURCE_HOST_BUCKETS }),
 	classifyRenderedDocument,
 });
 

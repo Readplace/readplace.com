@@ -15,7 +15,23 @@ import { initRenderCrawlHandler } from "./render-crawl-handler";
 const TRACKER = "https://links.tracker.example/r/abc?mid=1";
 const PUBLISHER = "https://publisher.example/story";
 const RENDERED_HTML = "<html><head><title>Story</title></head><body><article><p>Rendered body</p></article></body></html>";
-const oneRequest = { continued: 1, abortedByBudget: 0, abortedByType: 0, continuedByResourceType: { document: 1 } };
+const oneRequest = {
+	proxiedRequestLimit: 40,
+	continued: 1,
+	continuedProxied: 1,
+	continuedDirect: 0,
+	continuedNavigations: 1,
+	abortedByBudget: 0,
+	abortedByType: 0,
+	abortedBy: { type: 0, address: 0, budget: 0 },
+	continuedByResourceType: { document: 1 },
+};
+const publisherDocument = {
+	initialSite: "publisher.example",
+	finalSite: "publisher.example",
+	buckets: [{ documentSite: "publisher.example", requestHost: "publisher.example", resourceType: "document", navigation: true, route: "proxy" as const, requests: 1, response2xx: 1, responseOther: 0, failed: 0 }],
+	overflowedRequests: 0,
+};
 
 type Published = { detailType: string; body: string };
 
@@ -79,11 +95,12 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 		const navigated: string[] = [];
 		const fetched: string[] = [];
 		const stored: string[] = [];
+		const reportedLegs: string[] = [];
 		const renderPage: RenderPage = async ({ url, egress }) => {
 			navigated.push(url);
 			const outcome: RenderOutcome = egress.kind === "web-unlocker"
-				? { kind: "rendered", html: RENDERED_HTML, finalUrl: url, httpStatus: 200, requests: oneRequest }
-				: { kind: "blocked", httpStatus: 403, requests: oneRequest };
+				? { kind: "rendered", html: RENDERED_HTML, finalUrl: url, httpStatus: 200, requests: oneRequest, resourceHosts: publisherDocument }
+				: { kind: "blocked", httpStatus: 403, requests: oneRequest, resourceHosts: publisherDocument };
 			return outcome;
 		};
 		const proxiedCrawlArticle: CrawlArticle = async ({ url }) => {
@@ -110,6 +127,7 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 			adoptCanonicalIdentity: async () => {},
 			publishEvent,
 			renderPage,
+			reportProxiedRenderAttempt: ({ renderedThrough }) => { reportedLegs.push(renderedThrough); },
 			residentialEgress: () => ({ kind: "residential", proxy: { server: "http://residential.example-egress.test:33335", username: "residential-user", password: "secret" } }),
 			webUnlockerEgress: { kind: "web-unlocker", proxy: { server: "http://unlocker.example-egress.test:33335", username: "unlocker-user", password: "secret" } },
 			now: () => new Date("2026-11-03T00:00:00.000Z"),
@@ -123,6 +141,7 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 		expect(response).toEqual({ batchItemFailures: [] });
 		expect(navigated).toEqual([PUBLISHER, PUBLISHER]);
 		expect(fetched).toEqual([PUBLISHER]);
+		expect(reportedLegs).toEqual(["web-unlocker-render"]);
 		expect(stored).toEqual([TRACKER]);
 		expect(JSON.parse(takeOne(published, TierContentExtractedEvent.detailType).body).detail).toEqual(expect.objectContaining({ url: TRACKER, userId: "user-1", saveAttemptId: "attempt-1" }));
 	});

@@ -9,15 +9,14 @@ const proxiedFailure: RenderOutcome = {
 	kind: "failed",
 	detail: "net::ERR_TIMED_OUT",
 	requests: {
-		policy: "same-site-scripts",
-		proxiedRequestLimit: 12,
+		proxiedRequestLimit: 40,
 		continued: 3,
 		continuedProxied: 3,
 		continuedDirect: 0,
 		continuedNavigations: 1,
-		abortedByBudget: 0,
-		abortedByType: 9,
-		abortedBy: { type: 4, address: 0, site: 5, budget: 0 },
+		abortedByBudget: 5,
+		abortedByType: 4,
+		abortedBy: { type: 4, address: 0, budget: 5 },
 		continuedByResourceType: { document: 1, script: 2 },
 	},
 	resourceHosts: {
@@ -25,7 +24,7 @@ const proxiedFailure: RenderOutcome = {
 		finalSite: "example-news.test",
 		buckets: [
 			{ documentSite: "example-news.test", requestHost: "www.example-news.test", resourceType: "document", navigation: true, route: "proxy", requests: 1, response2xx: 1, responseOther: 0, failed: 0 },
-			{ documentSite: "example-news.test", requestHost: "cdn.analytics-vendor.test", resourceType: "script", navigation: false, route: "aborted-site", requests: 5, response2xx: 0, responseOther: 0, failed: 0 },
+			{ documentSite: "example-news.test", requestHost: "cdn.analytics-vendor.test", resourceType: "script", navigation: false, route: "aborted-budget", requests: 5, response2xx: 0, responseOther: 0, failed: 0 },
 		],
 		overflowedRequests: 2,
 	},
@@ -44,9 +43,8 @@ describe("initReportProxiedRenderAttempt", () => {
 			stream: "render-attempt-summary",
 			attemptId: "render-attempt-7",
 			saveAttemptId: "attempt-1",
-			policy: "same-site-scripts",
 			renderedThrough,
-			proxiedRequestLimit: 12,
+			proxiedRequestLimit: 40,
 			outcome: "failed",
 			readability: "unreadable",
 			documentSite: "example-news.test",
@@ -55,7 +53,7 @@ describe("initReportProxiedRenderAttempt", () => {
 			continuedProxied: 3,
 			continuedDirect: 0,
 			continuedNavigations: 1,
-			abortedBy: { type: 4, address: 0, site: 5, budget: 0 },
+			abortedBy: { type: 4, address: 0, budget: 5 },
 			resourceHostBuckets: 2,
 			resourceHostsOverflowed: 2,
 		},
@@ -69,11 +67,11 @@ describe("initReportProxiedRenderAttempt", () => {
 		expect(info.mock.calls).toEqual([
 			[
 				"[RenderCrawlCommand] render resource hosts",
-				{ stream: "render-resource-hosts", attemptId: "render-attempt-7", policy: "same-site-scripts", renderedThrough, documentSite: "example-news.test", requestHost: "www.example-news.test", resourceType: "document", navigation: true, route: "proxy", requests: 1, response2xx: 1, responseOther: 0, failed: 0 },
+				{ stream: "render-resource-hosts", attemptId: "render-attempt-7", renderedThrough, documentSite: "example-news.test", requestHost: "www.example-news.test", resourceType: "document", navigation: true, route: "proxy", requests: 1, response2xx: 1, responseOther: 0, failed: 0 },
 			],
 			[
 				"[RenderCrawlCommand] render resource hosts",
-				{ stream: "render-resource-hosts", attemptId: "render-attempt-7", policy: "same-site-scripts", renderedThrough, documentSite: "example-news.test", requestHost: "cdn.analytics-vendor.test", resourceType: "script", navigation: false, route: "aborted-site", requests: 5, response2xx: 0, responseOther: 0, failed: 0 },
+				{ stream: "render-resource-hosts", attemptId: "render-attempt-7", renderedThrough, documentSite: "example-news.test", requestHost: "cdn.analytics-vendor.test", resourceType: "script", navigation: false, route: "aborted-budget", requests: 5, response2xx: 0, responseOther: 0, failed: 0 },
 			],
 			summary(renderedThrough),
 		]);

@@ -62,7 +62,6 @@ function createSqsEvent(detail: {
 }
 
 const oneRequest = {
-	policy: "legacy" as const,
 	proxiedRequestLimit: 40,
 	continued: 1,
 	continuedProxied: 0,
@@ -70,7 +69,7 @@ const oneRequest = {
 	continuedNavigations: 1,
 	abortedByBudget: 0,
 	abortedByType: 0,
-	abortedBy: { type: 0, address: 0, site: 0, budget: 0 },
+	abortedBy: { type: 0, address: 0, budget: 0 },
 	continuedByResourceType: { document: 1 },
 };
 const oneDocumentHost = {
@@ -974,7 +973,7 @@ describe("initRenderCrawlHandler", () => {
 
 		it("reports a readable proxied render with its tally and the save attempt", async () => {
 			const proxied = rendered();
-			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: blocked(403), residential: proxied }) });
+			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: proxied }) });
 
 			await run(handler, { url: URL });
 
@@ -982,7 +981,7 @@ describe("initRenderCrawlHandler", () => {
 		});
 
 		it("reports a proxied render finalize cannot read as unreadable", async () => {
-			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle: unreadableFinalize, renderPage: renderPageAnswering({ direct: blocked(403), residential: rendered(), webUnlocker: rendered() }) });
+			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle: unreadableFinalize, renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered(), webUnlocker: rendered() }) });
 
 			await run(handler, { url: URL });
 
@@ -993,7 +992,7 @@ describe("initRenderCrawlHandler", () => {
 		});
 
 		it("reports an unreadable proxied render as unreadable even when wrapper candidates carry the save on", async () => {
-			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle: unreadableFinalize, renderPage: renderPageAnswering({ direct: blocked(403), residential: rendered(), webUnlocker: rendered() }) });
+			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle: unreadableFinalize, renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered(), webUnlocker: rendered() }) });
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 
@@ -1005,7 +1004,7 @@ describe("initRenderCrawlHandler", () => {
 
 		it("reports an oversized proxied render as unknown, since no readability check ran", async () => {
 			const oversized = rendered({ html: "a".repeat(MAX_HTML_BYTES.bytes + 1) });
-			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: blocked(403), residential: oversized }) });
+			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: oversized }) });
 
 			await run(handler, { url: URL });
 
@@ -1015,7 +1014,7 @@ describe("initRenderCrawlHandler", () => {
 		it("reports each failed proxied render with that leg's outcome", async () => {
 			const residential = failed("net::ERR_PROXY_CONNECTION_FAILED");
 			const webUnlocker = failed("unlocker timeout");
-			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: blocked(403), residential, webUnlocker }) });
+			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential, webUnlocker }) });
 
 			await run(handler, { url: URL });
 
@@ -1029,11 +1028,11 @@ describe("initRenderCrawlHandler", () => {
 			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
 				.mockResolvedValueOnce({ ok: false, reason: "empty document" })
 				.mockResolvedValue({ ok: true, article: finalizedArticle });
-			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle, renderPage: renderPageAnswering({ direct: rendered(), residential: rendered() }) });
+			const { reportProxiedRenderAttempt, handler } = reportFor({ finalizeArticle, renderPage: renderPageAnswering({ direct: rendered(), webUnlocker: rendered() }) });
 
 			await run(handler, { url: URL, unsupportedReason: "blocked" });
 
-			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[expect.objectContaining({ readability: "readable", renderedThrough: "residential-per-gb" })]]);
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[expect.objectContaining({ readability: "readable", renderedThrough: "web-unlocker-render" })]]);
 		});
 
 		it.each<{ label: string; overrides: Partial<HandlerDeps> }>([
@@ -1185,7 +1184,7 @@ describe("initRenderCrawlHandler", () => {
 			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render-crawl budget exhausted — failing crawl gracefully", {
 				url: URL,
 				gate: "web-unlocker-render",
-				direct: failed("net::ERR_TIMED_OUT"),
+				direct: { kind: "failed", detail: "net::ERR_TIMED_OUT", httpStatus: undefined, requests: oneRequest },
 			});
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "spend-capped" } } });
 		});
@@ -1260,6 +1259,26 @@ describe("initRenderCrawlHandler", () => {
 
 			expect(renderPage.mock.calls.map(([params]) => params.url)).toEqual([PUBLISHER, PUBLISHER]);
 			expect(proxiedCrawlArticle.mock.calls.map(([params]) => params.url)).toEqual([PUBLISHER]);
+		});
+
+		it("opens every render leg at the page the free crawl reached and reports both proxied legs", async () => {
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: blocked(403), webUnlocker: blocked(403) });
+			const reportProxiedRenderAttempt = jest.fn();
+			const handler = createHandler({
+				prepareArticleIdentity: trackerIdentity,
+				renderPage,
+				proxiedCrawlArticle: recordingProxiedCrawl({ status: "blocked", httpStatus: 403 }),
+				reportProxiedRenderAttempt,
+			});
+
+			await run(handler, { url: TRACKER, unsupportedReason: "javascript-required", finalUrl: PUBLISHER });
+
+			expect(renderPage.mock.calls.map(([params]) => [params.egress.kind, params.url])).toEqual([
+				["direct", PUBLISHER],
+				["residential", PUBLISHER],
+				["web-unlocker", PUBLISHER],
+			]);
+			expect(reportProxiedRenderAttempt.mock.calls.map(([attempt]) => attempt.renderedThrough)).toEqual(["residential-per-gb", "web-unlocker-render"]);
 		});
 
 		it("marks the processing log line as resumed, so render attempts that skipped the tracker can be counted", async () => {
