@@ -1223,7 +1223,7 @@ describe("View routes", () => {
 		});
 	});
 
-	describe("prefetch requests do not trigger the paid crawl, bot requests do", () => {
+	describe("prefetch requests trigger no paid work; bots trigger the crawl but not the stale check", () => {
 		it("skips the crawl cascade for a Sec-Purpose: prefetch request", async () => {
 			const harness = buildReaderHarness();
 
@@ -1283,6 +1283,23 @@ describe("View routes", () => {
 			expect(staleChecks).toEqual([]);
 
 			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
+		});
+
+		it("publishes no stale check for a bot's GET of a stored article, and does for the next browser GET", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const staleChecks: { url: string }[] = [];
+			const harness = useApp({ ...fixture, events: { ...fixture.events, publishStaleCheckRequested: async (event) => { staleChecks.push(event); } } });
+			await harness.articleStore.saveArticleGlobally({ url: ARTICLE_URL, metadata: { title: "Seeded title", siteName: "example.com", excerpt: "", wordCount: 0 }, estimatedReadTime: calculateReadTime(0), savedAt: new Date() });
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const botResponse = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set("User-Agent", GOOGLEBOT);
+
+			expect(botResponse.status).toBe(200);
+			expect(staleChecks).toEqual([]);
+
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);
 
 			expect(staleChecks).toEqual([{ url: ARTICLE_URL }]);
 		});
