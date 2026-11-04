@@ -54,13 +54,13 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	mechanismLede: "Being specific here matters more than sounding generous.",
 	mechanismParagraphs: [
 		"Readplace scans the file for URLs. That is the whole mechanism — it is not a Pocket-specific parser, which is why bookmark exports and newsletter issues work through the same code path.",
-		"Your URLs come across. Tags and read state do not, because Pocket's export file never contained them.",
+		"Your URLs come across. Tags and read state do not, because Readplace imports only the URLs.",
 		`Each import takes up to ${IMPORT_LIMITS.maxLinks} links from a file up to ${IMPORT_LIMITS.maxFileSize}. Past ${IMPORT_LIMITS.maxLinks}, Readplace imports the first ${IMPORT_LIMITS.maxLinks} and tells you how many it found in total. If the file itself is over ${IMPORT_LIMITS.maxFileSize}, split it into smaller files and import them one at a time.`,
 	],
 	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
-		"Tags, folders and read state do not transfer. Pocket's export file does not contain them.",
+		"Tags, folders and read state do not transfer. Readplace imports only the URLs.",
 		`One import takes up to ${IMPORT_LIMITS.maxLinks} links. A file with more is imported up to that point, and the review tells you the total it found.`,
 		"Review sessions expire 24 hours after upload. After that, upload the file again.",
 		"A review link works for anyone holding it, so treat it as an unlisted URL rather than a private page.",
@@ -80,7 +80,7 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 		{
 			question: "Do my tags and read state come across?",
 			answer:
-				"No. Only the URLs transfer, because Pocket's export file does not contain tags or read state.",
+				"No. Only the URLs transfer. Readplace does not import tags or read state.",
 		},
 		{
 			question: "How many links can I import at once?",

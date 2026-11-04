@@ -174,7 +174,7 @@ const IMPORT_FAQ: readonly { readonly question: string; readonly answer: string 
 	{
 		question: "Is there a Pocket import?",
 		answer:
-			"Yes. Upload the HTML export file Pocket produced and every saved URL comes across; tags and read state don't, because Pocket's export never contained them.",
+			"Yes. Upload the CSV file Pocket produced and every saved URL comes across; tags and read state don't, because Readplace imports only the URLs.",
 	},
 	{
 		question: "Can I import links from a newsletter?",
