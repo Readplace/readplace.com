@@ -4,5 +4,6 @@ export * from "./crawler-policy";
 export * from "./user";
 export * from "./oauth";
 export * from "./import-session";
+export * from "./media-upload-session";
 export * from "./inbox";
 export * from "./rate-limit";

@@ -3,7 +3,14 @@ import type {
 	FindPersonalLibrary,
 	SaveStarterPack,
 } from "@packages/provider-contracts/engagement-starter";
-import type { ClaimCanonicalAlias, FindIdentityRow, PinContentSource } from "@packages/provider-contracts/article-store";
+import type {
+	ClaimCanonicalAlias,
+	FindIdentityRow,
+	PinContentSource,
+	RecordPrivateItemFailure,
+	RecordPrivateItemSections,
+	SavePrivateItem,
+} from "@packages/provider-contracts/article-store";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { FindGmailAccountEmail } from "@packages/provider-contracts/gmail-account";
 import type { ExchangeGmailCode } from "@packages/provider-contracts/gmail-oauth";
@@ -461,6 +468,9 @@ export interface ArticleStoreBundle {
 	readArticleContent: ReadArticleContent;
 	findItemOwner: FindItemOwner;
 	recordItemOwner: (params: { url: string; ownerUserId: UserId }) => Promise<void>;
+	savePrivateItem: SavePrivateItem;
+	recordPrivateItemFailure: RecordPrivateItemFailure;
+	recordPrivateItemSections: RecordPrivateItemSections;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	readArticleImage: ReadArticleImage;

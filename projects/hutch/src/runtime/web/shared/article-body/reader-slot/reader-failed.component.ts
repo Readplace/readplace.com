@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
-import type { ArticleDestinationUrl } from "@packages/domain/article";
+import { type ArticleDestinationUrl, isPrivateItemUrl } from "@packages/domain/article";
 import { render, renderAlert, renderIllustration, withInternalTracking } from "@packages/web-shell";
 import { FULL_PAGE_CAPTURE_ALTERNATIVES_PHRASE } from "../../client-surface-phrases";
 import type { CapturePollUrls } from "../../article-reader/article-reader.types";
@@ -32,6 +32,7 @@ export interface ReaderFailedInput {
 	 *   - `not-found`: the origin answered 404/410 — nothing can fetch what is gone.
 	 */
 	variant: ReaderFailedVariant;
+	explanation?: string;
 	/** Install URL for the browser extension; omit when the user already has it installed. */
 	extensionInstallUrl?: string;
 	capturePollUrls?: CapturePollUrls;
@@ -55,6 +56,7 @@ const TITLES: Record<ReaderFailedVariant, string> = {
 	"not-an-article": "Your link is saved",
 	"capture-unreadable": "Readplace copied the page, but it isn't an article",
 	"capture-missing": "The copy from your device didn't arrive",
+	"processing-failed": "We couldn't prepare this upload",
 };
 
 const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
@@ -67,6 +69,7 @@ const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
 	"not-an-article": "This link isn't an article, so it can't be shown in reader view.",
 	"capture-unreadable": "The saved copy of this page has no article in it to show in reader view. You can read it on the original site, or capture it again once the article has loaded.",
 	"capture-missing": "Readplace didn't receive a copy of this page from your device. You can capture it again, or read it on the original site.",
+	"processing-failed": "Readplace couldn't finish preparing this file. You can upload it again.",
 };
 
 const CAPTURE_RESCUE_CLASS = {
@@ -84,6 +87,7 @@ const CTA_LABELS: Record<ReaderFailedVariant, string> = {
 	"not-an-article": "Read original article",
 	"capture-unreadable": "Read original article",
 	"capture-missing": "Read original article",
+	"processing-failed": "Upload again",
 };
 
 /* Every other variant can still be rescued by capturing the page from a client,
@@ -118,6 +122,7 @@ const WITHHELD_PITCH: CapturePitch = {
 };
 
 function renderCapturePitch(input: ReaderFailedInput): CapturePitch {
+	if (isPrivateItemUrl(input.url)) return WITHHELD_PITCH;
 	if (!CAPTURE_PITCH_VARIANTS.has(input.variant)) return WITHHELD_PITCH;
 	if (!input.extensionInstallUrl) return WITHHELD_PITCH;
 	const href = withInternalTracking(input.extensionInstallUrl, {
@@ -137,6 +142,14 @@ function renderCapturePitch(input: ReaderFailedInput): CapturePitch {
 	};
 }
 
+const UPLOAD_AGAIN_HREF = withInternalTracking("/upload", { source: "reader-failed", content: "upload-again" });
+
+function primaryHrefFor(input: ReaderFailedInput): string | undefined {
+	if (input.variant === "processing-failed") return UPLOAD_AGAIN_HREF;
+	if (isPrivateItemUrl(input.url)) return undefined;
+	return input.url;
+}
+
 function rescueFor(input: ReaderFailedInput): { url: ArticleDestinationUrl; articleId: string } | undefined {
 	if (input.captureRescue !== "offered") return undefined;
 	if (input.capturePollUrls === undefined) return undefined;
@@ -151,12 +164,12 @@ export function renderReaderFailed(input: ReaderFailedInput): ReaderRegions {
 			oob: input.oob === true,
 		}),
 		notice: render(TEMPLATE, {
-			url: input.url,
+			primaryHref: primaryHrefFor(input),
 			variant: input.variant,
 			noticeOob: input.noticeOob,
 			illustrationHtml: renderIllustration("book-lightbulb"),
 			title: TITLES[input.variant],
-			explanation: EXPLANATIONS[input.variant],
+			explanation: input.explanation ?? EXPLANATIONS[input.variant],
 			ctaLabel: CTA_LABELS[input.variant],
 			captureClass: CAPTURE_RESCUE_CLASS[input.captureRescue],
 			capturePollUrls: input.capturePollUrls,

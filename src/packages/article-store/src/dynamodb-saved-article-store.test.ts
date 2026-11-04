@@ -1136,6 +1136,26 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 		expect(article?.metadata.publishedOn).toBe("2025-10-08");
 	});
 
+	it("findArticleById carries a private item's media and processing notice", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: {
+				default: {
+					Items: [articleItem({
+						media: { kind: "book", fileName: "dune.epub", routeId: ROUTE_ID, sectionCount: 12 },
+						processingNotice: "This book is protected by DRM.",
+					})],
+					Count: 1,
+				},
+			},
+			GetCommand: { default: { Item: userArticleItem() } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.media).toEqual({ kind: "book", fileName: "dune.epub", routeId: ReaderArticleHashId.fromHash(ROUTE_ID), sectionCount: 12 });
+		expect(article?.processingNotice).toBe("This book is protected by DRM.");
+	});
+
 	it.each([
 		{ originalUrl: "https://archive.ph/abc12" },
 		{ contentSourceUrl: "https://archive.ph/abc12" },
@@ -1422,7 +1442,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId, #media, #processingNotice",
 		);
 	});
 
@@ -1825,7 +1845,7 @@ describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId, #media, #processingNotice",
 		);
 		expect(
 			page.candidates.map((candidate) => ({

@@ -6,11 +6,12 @@ import {
 	crawlProgressPct,
 	crawlStagePct,
 	type ArticleBody,
+	isPrivateItemUrl,
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
 import { render } from "@packages/web-shell";
-import { type FailedCrawlNotice, failedCrawlNotice } from "./failed-crawl-notice";
+import { type FailedCrawlNotice, failedCrawlNotice, privateItemFailedNotice } from "./failed-crawl-notice";
 import {
 	type ReaderFailedVariant,
 	type ReaderRegions,
@@ -110,6 +111,7 @@ function noticeOrCapture(
 		url: input.url,
 		articleId: input.articleId,
 		variant: shown.variant,
+		explanation: shown.explanation,
 		extensionInstallUrl: input.extensionInstallUrl,
 		capturePollUrls: input.capturePollUrls,
 		captureRescue: shown.captureRescue,
@@ -187,7 +189,11 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 				}),
 			);
 		case "failed":
-			return noticeOrCapture(input, failedCrawlNotice(input.crawl.reason), oob);
+			return noticeOrCapture(
+				input,
+				isPrivateItemUrl(input.url) ? privateItemFailedNotice(input.crawl.reason) : failedCrawlNotice(input.crawl.reason),
+				oob,
+			);
 		case "unsupported":
 			return noticeOrCapture(input, { variant: "unsupported", captureRescue: "withheld" }, oob);
 	}

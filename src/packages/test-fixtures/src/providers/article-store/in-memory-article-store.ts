@@ -5,6 +5,7 @@ import type {
 	ArticleDiscoveryQuery,
 	ArticleMetadata,
 	ArticleStatus,
+	ItemMedia,
 	Minutes,
 	SaveProvenance,
 	SavedArticle,
@@ -15,6 +16,7 @@ import {
 	ReaderArticleHashId,
 	articleDestinationUrl,
 	ANONYMOUS_VIEWER,
+	MinutesSchema,
 	articleDisplayMetadata,
 	discoveryCandidateOf,
 	matchesArticleDiscovery,
@@ -79,8 +81,11 @@ import type {
 	ContentProvider,
 	FindItemOwner,
 	ReadArticleImage,
+	RecordPrivateItemFailure,
+	RecordPrivateItemSections,
 	SaveArticle,
 	SaveArticleGlobally,
+	SavePrivateItem,
 	SaveArticleParams,
 	SaveReadlistArticle,
 	ClaimCanonicalAlias,
@@ -115,6 +120,8 @@ interface GlobalArticle {
 	purgedAt?: Date;
 	readerAvailableAt?: Date;
 	ownerUserId?: UserId;
+	media?: ItemMedia;
+	processingNotice?: string;
 }
 
 interface UserArticle {
@@ -172,6 +179,8 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 		suggestionAttribution: userArticle.suggestionAttribution,
 		relatedDismissedAt: userArticle.relatedDismissedAt,
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
+		media: article.media,
+		processingNotice: article.processingNotice,
 	};
 }
 
@@ -244,6 +253,9 @@ export function initInMemoryArticleStore(): {
 	readContent: ContentProvider;
 	findItemOwner: FindItemOwner;
 	recordItemOwner: (params: { url: string; ownerUserId: UserId }) => Promise<void>;
+	savePrivateItem: SavePrivateItem;
+	recordPrivateItemFailure: RecordPrivateItemFailure;
+	recordPrivateItemSections: RecordPrivateItemSections;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	readArticleImage: ReadArticleImage;
 	writeImage: (params: {
@@ -1086,6 +1098,50 @@ export function initInMemoryArticleStore(): {
 		article.ownerUserId = params.ownerUserId;
 	};
 
+	const savePrivateItem: SavePrivateItem = async (params) => {
+		const key = ArticleResourceUniqueId.parse(params.url).value;
+		const existing = articles.get(key);
+		if (existing) {
+			assert(existing.ownerUserId === params.ownerUserId, "a private item identity is saved by its uploader only");
+			return "already-saved";
+		}
+		const routeId = ReaderArticleHashId.from(params.url);
+		articles.set(key, {
+			url: key,
+			originalUrl: params.url,
+			routeId,
+			metadata: { title: params.media.fileName, siteName: "Book", excerpt: "", wordCount: 0 },
+			estimatedReadTime: MinutesSchema.parse(0),
+			savedAt: params.savedAt,
+			ownerUserId: params.ownerUserId,
+			media: { kind: params.media.kind, fileName: params.media.fileName, routeId },
+		});
+		userArticles.set(userArticleKey(params.ownerUserId, key), {
+			userId: params.ownerUserId,
+			url: key,
+			status: "unread",
+			savedAt: params.savedAt,
+			provenance: { kind: "upload" },
+		});
+		return "saved";
+	};
+
+	const recordPrivateItemFailure: RecordPrivateItemFailure = async (params) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(params.url).value);
+		if (article?.ownerUserId === undefined) return "not-found";
+		article.processingNotice = params.notice;
+		return "recorded";
+	};
+
+	const recordPrivateItemSections: RecordPrivateItemSections = async (params) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(params.url).value);
+		if (article?.ownerUserId === undefined || article.purgedAt !== undefined || article.media === undefined) {
+			return "not-found";
+		}
+		article.media = { ...article.media, sectionCount: params.sectionCount };
+		return "recorded";
+	};
+
 	const writeContent = async (params: { url: string; content: string }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
@@ -1263,6 +1319,9 @@ export function initInMemoryArticleStore(): {
 		readContent,
 		findItemOwner,
 		recordItemOwner,
+		savePrivateItem,
+		recordPrivateItemFailure,
+		recordPrivateItemSections,
 		writeContent,
 		readArticleImage,
 		writeImage,

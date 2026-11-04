@@ -19,12 +19,14 @@ describe("provenanceLabel", () => {
 		expect([
 			provenanceLabel({ kind: "web" }),
 			provenanceLabel({ kind: "import" }),
+			provenanceLabel({ kind: "upload" }),
 			provenanceLabel({ kind: "client", clientName: "chrome" }),
 			provenanceLabel({ kind: "email", senderEmail: "news@example.com" }),
 			provenanceLabel({ kind: "mcp", registeredName: "Claude" }),
 		]).toEqual([
 			{ label: "via Web" },
 			{ label: "via Import" },
+			{ label: "via Upload" },
 			{ label: "via Chrome", iconSvg: CLIENT_ICON_SVG.chrome },
 			{ label: "via news@example.com", iconSvg: iconSvg("envelope") },
 			{ label: "via Claude", iconSvg: CLIENT_ICON_SVG.claude },

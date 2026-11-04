@@ -1936,6 +1936,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../hutch-storage-client
+      '@packages/media-contracts':
+        specifier: workspace:*
+        version: link:../media-contracts
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts

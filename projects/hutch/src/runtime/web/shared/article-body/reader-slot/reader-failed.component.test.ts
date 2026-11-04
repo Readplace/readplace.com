@@ -21,6 +21,7 @@ const ALL_VARIANTS = [
 	"not-an-article",
 	"capture-unreadable",
 	"capture-missing",
+	"processing-failed",
 ] as const satisfies readonly ReaderFailedVariant[];
 
 function noticeFor(input: { variant: ReaderFailedVariant; extensionInstallUrl?: string }): Element {
@@ -65,6 +66,7 @@ describe("renderReaderFailed", () => {
 			"not-an-article": "Your link is saved",
 			"capture-unreadable": "Readplace copied the page, but it isn't an article",
 			"capture-missing": "The copy from your device didn't arrive",
+			"processing-failed": "We couldn't prepare this upload",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const title = noticeFor({ variant }).querySelector(".article-body__reader-notice-title");
@@ -86,13 +88,19 @@ describe("renderReaderFailed", () => {
 			"not-an-article": "Read original article",
 			"capture-unreadable": "Read original article",
 			"capture-missing": "Read original article",
+			"processing-failed": "Upload again",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const primary = noticeFor({ variant }).querySelector("[data-test-reader-failed-primary]");
 			assert(primary, `primary CTA must be rendered for variant=${variant}`);
 			assert.equal(primary.textContent?.trim(), labels[variant], `CTA for variant=${variant}`);
 			assert.equal(primary.children.length, 0, `CTA for variant=${variant} carries no icon`);
-			assert.equal(primary.getAttribute("href"), "https://example.com/some-article");
+			assert.equal(
+				primary.getAttribute("href"),
+				variant === "processing-failed"
+					? "/upload?utm_source=reader-failed&utm_medium=internal&utm_content=upload-again"
+					: "https://example.com/some-article",
+			);
 			assert.equal(primary.getAttribute("target"), "_blank");
 			assert.equal(primary.getAttribute("rel"), "noopener");
 		}
@@ -115,6 +123,7 @@ describe("renderReaderFailed", () => {
 				"The saved copy of this page has no article in it to show in reader view. You can read it on the original site, or capture it again once the article has loaded.",
 			"capture-missing":
 				"Readplace didn't receive a copy of this page from your device. You can capture it again, or read it on the original site.",
+			"processing-failed": "Readplace couldn't finish preparing this file. You can upload it again.",
 		};
 		for (const variant of ALL_VARIANTS) {
 			const text = noticeFor({ variant }).querySelector(".article-body__reader-notice-text");
@@ -446,5 +455,52 @@ describe("renderReaderFailed", () => {
 				label,
 			);
 		}
+	});
+
+	describe("on a private item", () => {
+		const PRIVATE_URL = destinationUrl("https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef");
+
+		function privateNoticeFor(input: { variant: ReaderFailedVariant; explanation?: string }): Element {
+			const doc = parse(
+				renderReaderFailed({
+					url: PRIVATE_URL,
+					articleId: "0123456789abcdef0123456789abcdef",
+					variant: input.variant,
+					explanation: input.explanation,
+					extensionInstallUrl: "/install?client=chrome",
+					captureRescue: "withheld",
+					noticeOob: false,
+				}).notice,
+			);
+			const notice = doc.querySelector("[data-test-reader-notice]");
+			assert(notice, `notice must be rendered for variant=${input.variant}`);
+			return notice;
+		}
+
+		it("shows a processing failure's notice with an Upload again link and no capture pitch", () => {
+			const notice = privateNoticeFor({ variant: "processing-failed", explanation: "This book is protected by DRM." });
+
+			assert.equal(notice.querySelector(".article-body__reader-notice-title")?.textContent?.trim(), "We couldn't prepare this upload");
+			assert.equal(notice.querySelector(".article-body__reader-notice-text")?.textContent?.trim(), "This book is protected by DRM.");
+			const primary = notice.querySelector("[data-test-reader-failed-primary]");
+			assert.equal(primary?.textContent?.trim(), "Upload again");
+			assert.equal(primary?.getAttribute("href"), "/upload?utm_source=reader-failed&utm_medium=internal&utm_content=upload-again");
+			assert.equal(notice.querySelector("[data-test-reader-failed-install]"), null);
+			assert.equal(notice.querySelector(".article-body__reader-notice-pitch")?.className, PITCH_HIDDEN_CLASS);
+		});
+
+		it("gives a slow private item no link to its absent origin and no capture pitch", () => {
+			const notice = privateNoticeFor({ variant: "slow" });
+
+			assert.equal(notice.querySelector("[data-test-reader-failed-primary]"), null);
+			assert.equal(notice.querySelector("[data-test-reader-failed-install]"), null);
+			assert.equal(notice.querySelector(".article-body__reader-notice-pitch")?.className, PITCH_HIDDEN_CLASS);
+		});
+
+		it("still links a slow ordinary article to its original page", () => {
+			const primary = noticeFor({ variant: "slow" }).querySelector("[data-test-reader-failed-primary]");
+
+			assert.equal(primary?.getAttribute("href"), "https://example.com/some-article");
+		});
 	});
 });

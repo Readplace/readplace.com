@@ -5,6 +5,7 @@ export type {
 	SavedArticle,
 	ServedBody,
 } from "./article.types";
+export { ItemMediaSchema, type ItemMedia } from "./item-media";
 export {
 	CRAWL_STAGE_TO_PCT,
 	CRAWL_STAGES,

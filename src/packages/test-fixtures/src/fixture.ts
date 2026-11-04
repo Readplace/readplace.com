@@ -452,6 +452,19 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 				}),
 			findItemOwner: articleStoreMemory.findItemOwner,
 			recordItemOwner: articleStoreMemory.recordItemOwner,
+			savePrivateItem: async (params) => {
+				const outcome = await articleStoreMemory.savePrivateItem(params);
+				if (outcome === "saved") await articleCrawl.forceMarkCrawlPending({ url: params.url });
+				return outcome;
+			},
+			recordPrivateItemFailure: async (params) => {
+				const outcome = await articleStoreMemory.recordPrivateItemFailure(params);
+				if (outcome === "recorded") {
+					await articleCrawl.markCrawlFailed({ url: params.url, reason: JSON.stringify({ kind: "processing-failed", notice: params.notice }) });
+				}
+				return outcome;
+			},
+			recordPrivateItemSections: articleStoreMemory.recordPrivateItemSections,
 			readContent: articleStoreMemory.readContent,
 			writeContent: articleStoreMemory.writeContent,
 			readArticleImage: articleStoreMemory.readArticleImage,

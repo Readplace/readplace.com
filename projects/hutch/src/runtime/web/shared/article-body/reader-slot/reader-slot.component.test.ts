@@ -206,6 +206,34 @@ describe("renderReaderSlot", () => {
 		).toBe(URL);
 	});
 
+	it.each([
+		[JSON.stringify({ kind: "processing-failed", notice: "This book is protected by DRM." }), "This book is protected by DRM."],
+		[JSON.stringify({ kind: "exhausted-retries", receiveCount: 3 }), "Readplace couldn't finish preparing this file. You can upload it again."],
+		[JSON.stringify({ kind: "capture-unreadable", detail: "no readable article candidate" }), "Readplace couldn't finish preparing this file. You can upload it again."],
+	])("asks the owner of a failed private item %s to upload it again, offering no capture", (reason, text) => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "failed", outcomeRevision: 1, reason },
+				url: destinationUrl("https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef"),
+				articleId: ARTICLE_ID,
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+				extensionInstallUrl: "/install?client=chrome",
+				capturePollUrls: CAPTURE_POLL_URLS,
+			}),
+		);
+
+		expect(doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status")).toBe("processing-failed");
+		expect(doc.querySelector(".article-body__reader-notice-text")?.textContent?.trim()).toBe(text);
+		const primary = doc.querySelector("[data-test-reader-failed-primary]");
+		expect(primary?.textContent?.trim()).toBe("Upload again");
+		expect(primary?.getAttribute("href")).toBe("/upload?utm_source=reader-failed&utm_medium=internal&utm_content=upload-again");
+		expect(doc.querySelector("[data-test-reader-notice]")?.hasAttribute("data-reader-rescue-url")).toBe(false);
+		expect(doc.querySelector(".article-body__reader-notice-pitch")?.className).toBe(
+			"article-body__reader-notice-pitch article-body__reader-notice-pitch--hidden",
+		);
+	});
+
 	it("tells a reader of a deleted page that it is gone, and pitches no capture that could not bring it back", () => {
 		const doc = parse(
 			renderReaderSlot({

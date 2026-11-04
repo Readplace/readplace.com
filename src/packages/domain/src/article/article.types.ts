@@ -2,6 +2,7 @@ import type { z } from "zod";
 import type { UserId } from "../user/user.types";
 import type { ArticleDestinationUrl, SiteLabel } from "./article-site";
 import type { MinutesSchema } from "./article.schema";
+import type { ItemMedia } from "./item-media";
 import type { ReaderArticleHashId } from "./reader-article-hash-id";
 import type { SaveProvenance, SuggestionAttribution } from "./save-provenance";
 
@@ -44,4 +45,6 @@ export interface SavedArticle {
 	suggestionAttribution?: SuggestionAttribution;
 	relatedDismissedAt?: Date;
 	relatedDismissedSuggestionId?: ReaderArticleHashId;
+	media?: ItemMedia;
+	processingNotice?: string;
 }

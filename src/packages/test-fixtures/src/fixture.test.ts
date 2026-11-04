@@ -181,6 +181,35 @@ describe("createDefaultTestAppFixture", () => {
 		expect(() => fixture.shared.logError("ignored")).not.toThrow();
 		expect(() => fixture.shared.logError("ignored", new Error("x"))).not.toThrow();
 	});
+
+	it("a saved private item reads as a pending crawl, and its recorded failure as a processing-failed crawl", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const url = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const ownerUserId = UserIdSchema.parse("owner-user");
+
+		expect(await fixture.articleStore.savePrivateItem({ url, ownerUserId, media: { kind: "book", fileName: "dune.epub" }, savedAt: new Date("2026-11-05T10:00:00.000Z") })).toBe("saved");
+		expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toEqual({ status: "pending" });
+
+		expect(await fixture.articleStore.recordPrivateItemFailure({ url, notice: "This book could not be opened." })).toBe("recorded");
+		expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toEqual(
+			expect.objectContaining({ status: "failed", reason: JSON.stringify({ kind: "processing-failed", notice: "This book could not be opened." }) }),
+		);
+	});
+
+	it("leaves the crawl untouched when the private item write does not land", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const url = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const ownerUserId = UserIdSchema.parse("owner-user");
+		const save = { url, ownerUserId, media: { kind: "book" as const, fileName: "dune.epub" }, savedAt: new Date("2026-11-05T10:00:00.000Z") };
+		await fixture.articleStore.savePrivateItem(save);
+		await fixture.articleCrawl.markCrawlStage({ url, stage: "crawl-fetching" });
+
+		expect(await fixture.articleStore.savePrivateItem(save)).toBe("already-saved");
+		expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toEqual({ status: "pending", stage: "crawl-fetching" });
+
+		expect(await fixture.articleStore.recordPrivateItemFailure({ url: "https://uploads.readplace.invalid/ffffffffffffffffffffffffffffffff", notice: "gone" })).toBe("not-found");
+		expect(await fixture.articleCrawl.findArticleCrawlStatus("https://uploads.readplace.invalid/ffffffffffffffffffffffffffffffff")).toBeUndefined();
+	});
 });
 
 describe("createNoopRefreshArticleIfStale", () => {

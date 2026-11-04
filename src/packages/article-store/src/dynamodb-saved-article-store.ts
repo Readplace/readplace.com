@@ -28,7 +28,7 @@ import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@p
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
 import { CONTENT_BEARING_COLUMNS } from "./tombstone-article";
-import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
+import { ItemMediaSchema, ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
@@ -117,6 +117,8 @@ const ArticleRow = z.object({
 	readerAvailableAt: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
 	ownerUserId: dynamoField(UserIdSchema),
+	media: dynamoField(ItemMediaSchema),
+	processingNotice: dynamoField(z.string()),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
@@ -208,6 +210,8 @@ function toSavedArticle(
 		suggestionAttribution: userArticle.suggestionAttribution,
 		relatedDismissedAt: toOptionalDate(userArticle.relatedDismissedAt),
 		relatedDismissedSuggestionId: userArticle.relatedDismissedSuggestionId,
+		media: article.media,
+		processingNotice: article.processingNotice,
 	};
 }
 

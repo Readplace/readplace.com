@@ -8,6 +8,7 @@ describe("SaveProvenanceSchema", () => {
 			{ kind: "client", clientName: "chrome" },
 			{ kind: "email", senderEmail: "news@example.com" },
 			{ kind: "import" },
+			{ kind: "upload" },
 			{ kind: "mcp", registeredName: "Claude" },
 		];
 

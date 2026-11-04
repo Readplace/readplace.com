@@ -8,6 +8,7 @@ const EVERY_KIND: { [Kind in SaveProvenance["kind"]]: { provenance: Extract<Save
 	mcp: { provenance: { kind: "mcp", registeredName: "Claude" }, intentional: true },
 	email: { provenance: { kind: "email", senderEmail: "news@example.com" }, intentional: false },
 	import: { provenance: { kind: "import" }, intentional: false },
+	upload: { provenance: { kind: "upload" }, intentional: true },
 	"founder-seed": { provenance: { kind: "founder-seed" }, intentional: false },
 	"hn-suggestion": {
 		provenance: { kind: "hn-suggestion", campaignId: "c-1", snapshotAt: "2026-06-01T00:00:00.000Z", hnItemId: 1, rank: 1 },

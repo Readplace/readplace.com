@@ -67,3 +67,4 @@ export {
 	initDynamoDbEngagementStarter,
 } from "./dynamodb-engagement-starter";
 export { initDynamoDbCanaryReports } from "./dynamodb-canary-reports";
+export { initDynamoDbPrivateItem } from "./dynamodb-private-item";

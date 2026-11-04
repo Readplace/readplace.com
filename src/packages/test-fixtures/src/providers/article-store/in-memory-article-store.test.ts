@@ -2418,3 +2418,84 @@ describe("readlist fit overrides", () => {
 		expect(await store.deleteReadlistArticleByUrl({ userId: USER_A, readlist: WORK, url: URL })).toBe(false);
 	});
 });
+
+describe("initInMemoryArticleStore private items", () => {
+	const PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+	const SAVE = {
+		url: PRIVATE_URL,
+		ownerUserId: USER_A,
+		media: { kind: "book" as const, fileName: "dune.epub" },
+		savedAt: new Date("2026-11-05T10:00:00.000Z"),
+	};
+
+	it("saves a private item the owner reads back by its route id", async () => {
+		const store = initInMemoryArticleStore();
+
+		assert.equal(await store.savePrivateItem(SAVE), "saved");
+
+		const routeId = ReaderArticleHashId.from(PRIVATE_URL);
+		const found = await store.findArticleById(routeId, USER_A);
+		assert.equal(found?.url, PRIVATE_URL);
+		assert.equal(found?.media?.routeId.value, routeId.value);
+		assert.equal(found?.media?.fileName, "dune.epub");
+		assert.deepEqual(found?.provenance, { kind: "upload" });
+		assert.equal(await store.findItemOwner(PRIVATE_URL), USER_A);
+	});
+
+	it("answers already-saved on the owner's retry and keeps the first save", async () => {
+		const store = initInMemoryArticleStore();
+		await store.savePrivateItem(SAVE);
+
+		assert.equal(await store.savePrivateItem({ ...SAVE, media: { kind: "book", fileName: "other.epub" } }), "already-saved");
+
+		const found = await store.findArticleById(ReaderArticleHashId.from(PRIVATE_URL), USER_A);
+		assert.equal(found?.media?.fileName, "dune.epub");
+	});
+
+	it("refuses another user's save of the same identity", async () => {
+		const store = initInMemoryArticleStore();
+		await store.savePrivateItem(SAVE);
+
+		await assert.rejects(store.savePrivateItem({ ...SAVE, ownerUserId: USER_B }));
+	});
+
+	it("records the processing notice on an owned row", async () => {
+		const store = initInMemoryArticleStore();
+		await store.savePrivateItem(SAVE);
+
+		assert.equal(await store.recordPrivateItemFailure({ url: PRIVATE_URL, notice: "This book could not be opened." }), "recorded");
+
+		const found = await store.findArticleById(ReaderArticleHashId.from(PRIVATE_URL), USER_A);
+		assert.equal(found?.processingNotice, "This book could not be opened.");
+	});
+
+	it("answers not-found when recording a failure on a missing or unowned row", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams());
+
+		assert.equal(await store.recordPrivateItemFailure({ url: PRIVATE_URL, notice: "gone" }), "not-found");
+		assert.equal(await store.recordPrivateItemFailure({ url: URL, notice: "gone" }), "not-found");
+	});
+
+	it("records the section count on an owned row", async () => {
+		const store = initInMemoryArticleStore();
+		await store.savePrivateItem(SAVE);
+
+		assert.equal(await store.recordPrivateItemSections({ url: PRIVATE_URL, sectionCount: 23 }), "recorded");
+
+		const found = await store.findArticleById(ReaderArticleHashId.from(PRIVATE_URL), USER_A);
+		assert.equal(found?.media?.sectionCount, 23);
+	});
+
+	it("answers not-found when recording sections on a missing, unowned or purged row", async () => {
+		const store = initInMemoryArticleStore();
+		await store.saveArticle(makeArticleParams());
+		assert.equal(await store.recordPrivateItemSections({ url: PRIVATE_URL, sectionCount: 3 }), "not-found");
+		assert.equal(await store.recordPrivateItemSections({ url: URL, sectionCount: 3 }), "not-found");
+
+		await store.savePrivateItem(SAVE);
+		await store.setPurgedAt({ url: PRIVATE_URL, at: new Date("2026-11-05T11:00:00.000Z") });
+
+		assert.equal(await store.recordPrivateItemSections({ url: PRIVATE_URL, sectionCount: 3 }), "not-found");
+	});
+});

@@ -30,6 +30,8 @@ function reasonAsString(reason: CrawlFailureReason): string {
 			return `blocked: ${reason.cause}`;
 		case "not-found":
 			return `not-found: HTTP ${reason.httpStatus}`;
+		case "processing-failed":
+			return `processing-failed: ${reason.notice}`;
 	}
 }
 

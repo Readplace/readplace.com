@@ -173,6 +173,16 @@ describe("markCrawlExhausted", () => {
 		assert.equal(failed.reason, "not-found: HTTP 404");
 	});
 
+	it("stringifies processing-failed reasons with the notice", () => {
+		const { effects } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "processing-failed", notice: "This book is protected by DRM." },
+			receiveCount: 1,
+		});
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-crawl-article-failed");
+		assert.equal(failed.reason, "processing-failed: This book is protected by DRM.");
+	});
+
 	it("stringifies origin-unreachable with httpStatus, with code, and bare", () => {
 		const { effects: withStatus } = markCrawlExhausted(buildArticle(), {
 			reason: { kind: "origin-unreachable", httpStatus: 522 },

@@ -11,6 +11,7 @@ export const SaveProvenanceSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("client"), clientName: z.string() }), /* 1 */
 	z.object({ kind: z.literal("email"), senderEmail: z.string() }),
 	z.object({ kind: z.literal("import") }),
+	z.object({ kind: z.literal("upload") }),
 	z.object({ kind: z.literal("mcp"), registeredName: z.string() }), /* 1 */
 	z.object({ kind: z.literal("founder-seed") }),
 	z.object({

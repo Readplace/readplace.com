@@ -21,6 +21,18 @@ describe("CrawlFailureReasonSchema", () => {
 		assert.deepEqual(without, { kind: "fetch-failed" });
 	});
 
+	it("accepts processing-failed with the notice the reader is shown", () => {
+		const parsed = CrawlFailureReasonSchema.parse({
+			kind: "processing-failed",
+			notice: "This book is protected by DRM.",
+		});
+		assert.deepEqual(parsed, { kind: "processing-failed", notice: "This book is protected by DRM." });
+	});
+
+	it("rejects processing-failed without a notice", () => {
+		assert.equal(CrawlFailureReasonSchema.safeParse({ kind: "processing-failed" }).success, false);
+	});
+
 	it("accepts exhausted-retries with receiveCount", () => {
 		const parsed = CrawlFailureReasonSchema.parse({
 			kind: "exhausted-retries",

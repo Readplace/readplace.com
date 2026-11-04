@@ -8,7 +8,7 @@ import type {
 	SuggestionAttribution,
 	SavedArticle,
 } from "@packages/domain/article";
-import type { ReaderArticleHashId, StoredArticleBody, Viewer } from "@packages/domain/article";
+import type { ItemMedia, ReaderArticleHashId, StoredArticleBody, Viewer } from "@packages/domain/article";
 import type { EmailLinkOrdinal } from "@packages/domain/inbox";
 import type {
 	ReadlistFitEngineVerdict,
@@ -258,6 +258,17 @@ export type ContentProvider = (articleResourceUniqueId: ArticleResourceUniqueId)
 
 export type ReadArticleContent = (read: { url: string; viewer: Viewer }) => Promise<StoredArticleBody>;
 export type FindItemOwner = (url: string) => Promise<UserId | undefined>;
+
+export type SavePrivateItem = (params: {
+	url: string;
+	ownerUserId: UserId;
+	media: Pick<ItemMedia, "kind" | "fileName">;
+	savedAt: Date;
+}) => Promise<"saved" | "already-saved">;
+
+export type RecordPrivateItemFailure = (params: { url: string; notice: string }) => Promise<"recorded" | "not-found">;
+
+export type RecordPrivateItemSections = (params: { url: string; sectionCount: number }) => Promise<"recorded" | "not-found">;
 
 export type ReadArticleImage = (params: {
 	url: string;

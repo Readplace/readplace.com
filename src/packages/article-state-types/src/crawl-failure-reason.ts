@@ -25,5 +25,6 @@ export const CrawlFailureReasonSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("not-found"),
 		httpStatus: z.union([z.literal(404), z.literal(410)]),
 	}),
+	z.object({ kind: z.literal("processing-failed"), notice: z.string() }),
 ]);
 export type CrawlFailureReason = z.infer<typeof CrawlFailureReasonSchema>;
