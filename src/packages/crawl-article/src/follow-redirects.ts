@@ -55,7 +55,7 @@ export function redirectable(baseFetch: RedirectableFetch, label: string): Redir
 			}
 			let nextUrl: URL;
 			try {
-				nextUrl = new URL(location, currentUrl);
+				nextUrl = new URL(decodeLocationBytes(location), currentUrl);
 			} catch {
 				throw new Error(`${label} failed for ${url}: invalid redirect Location "${location}"`);
 			}
@@ -94,4 +94,14 @@ function stripCrossOriginSensitiveHeaders(headers: Record<string, string>): Reco
 		}
 	}
 	return out;
+}
+
+/**
+ * Response headers arrive as a ByteString (one character per byte), so a
+ * `Location` that carries raw UTF-8 — `utm_content=How_the_‘Big_Three’` — must
+ * be read back as UTF-8 before it is parsed, or the URL percent-encodes each
+ * byte as its own character. undici's own redirect step does the same.
+ */
+function decodeLocationBytes(location: string): string {
+	return Buffer.from(location, "latin1").toString("utf-8");
 }

@@ -468,6 +468,22 @@ describe("fetchCurl redirect following (SSRF-guarded per hop)", () => {
 		expect(seq.calls).toHaveLength(1);
 	});
 
+	it("follows a Location carrying raw UTF-8 bytes to the percent-encoded target instead of throwing", async () => {
+		const seq = makeSequencedExec([
+			"HTTP/1.1 302 Found\r\nlocation: https://example.com/article/?utm_content=How_the_‘Big_Three’\r\n\r\n",
+			"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\r\nok",
+		]);
+		const fetchCurl = createCurlFetch({ execCurl: seq.execCurl, resolvePinnedAddress });
+
+		const response = await fetchCurl("https://example.com/t/start", { signal: live() });
+
+		expect(response.status).toBe(200);
+		const secondArgs = seq.calls[1].args;
+		expect(secondArgs[secondArgs.indexOf("--") + 1]).toBe(
+			"https://example.com/article/?utm_content=How_the_%E2%80%98Big_Three%E2%80%99",
+		);
+	});
+
 	it("wraps a malformed redirect Location in the fetchCurl error convention (no second curl spawned)", async () => {
 		const seq = makeSequencedExec([
 			"HTTP/1.1 301 Moved Permanently\r\nlocation: https://exa mple.com/x\r\n\r\n",

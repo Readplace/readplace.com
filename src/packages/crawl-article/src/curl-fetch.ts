@@ -276,10 +276,15 @@ type ParsedCurlOutput = {
  * A single response can still carry more than one header block: an HTTP 1xx
  * interim response (100 Continue, 103 Early Hints) precedes the final status,
  * so we parse the LAST header block (after the last HTTP status line).
+ *
+ * Header bytes are decoded as latin1 because `Headers` accepts only ByteString
+ * values: a UTF-8 decode turns a raw non-ASCII byte sequence (a `Location`
+ * carrying a literal `‘`) into a character above 255, and `Headers.append`
+ * throws. undici exposes response headers the same way.
  */
 function parseCurlOutput(raw: Buffer): ParsedCurlOutput {
 	const crlfIndex = findLastHeaderBlock(raw);
-	const headerSection = raw.subarray(0, crlfIndex).toString("utf-8");
+	const headerSection = raw.subarray(0, crlfIndex).toString("latin1");
 	const body = raw.subarray(crlfIndex + 4);
 
 	const lines = headerSection.split("\r\n");
