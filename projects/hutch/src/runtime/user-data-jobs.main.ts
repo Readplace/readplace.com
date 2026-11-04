@@ -33,6 +33,8 @@ import { initDynamoDbEmailVerification } from "./providers/email-verification/dy
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initRevokeExternalIdpTokens } from "./delete-account/revoke-external-idp-tokens";
 import { initDeleteAccountHandler } from "./delete-account/delete-account-handler";
+import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
+import { initReleasePrivateItems } from "./media-release/release-private-items";
 import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
 import { initDisconnectGmail } from "./domain/gmail/disconnect-gmail";
 import { initRewriteGmailFilter } from "./domain/gmail/rewrite-gmail-filter";
@@ -44,6 +46,9 @@ import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSa
 import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {
 	initCountOtherSaversByUrl,
+	initDeleteArticleRow,
+	initDeleteUserArticleLinks,
+	initDynamoDbFindItemOwner,
 	initPurgeArticleContent,
 	initS3DeleteContentObjects,
 	initS3ListContentKeys,
@@ -212,6 +217,22 @@ const { tombstoneArticle } = initTombstoneArticle({
 	tableName: articlesTableName,
 });
 
+const releasePrivateItems = initReleasePrivateItems({
+	releasePrivateItem: initReleasePrivateItem({
+		findItemOwner: initDynamoDbFindItemOwner({ client: dynamoClient, tableName: articlesTableName }).findItemOwner,
+		steps: initPrivateItemReleaseSteps({
+			purgeArticleContent,
+			deleteMediaObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") })
+				.deleteContentObjects,
+			deleteArticleRow: initDeleteArticleRow({ client: dynamoClient, tableName: articlesTableName }).deleteArticleRow,
+			deleteUserArticleLinks: initDeleteUserArticleLinks({
+				client: dynamoClient,
+				tableName: requireEnv("DYNAMODB_USER_ARTICLES_TABLE"),
+			}).deleteUserArticleLinks,
+		}),
+	}),
+});
+
 const revokeExternalIdpTokens = initRevokeExternalIdpTokens({
 	findAppleRefreshTokenByUserId: auth.findAppleRefreshTokenByUserId,
 	appleClientId,
@@ -298,6 +319,7 @@ export const handler = initHandleByDetailType({
 				countOtherSaversByUrl,
 				purgeArticleContent,
 				tombstoneArticle,
+				releasePrivateItems,
 				now,
 				withdrawStarterAssignment: engagementState.withdrawStarterAssignment,
 				deleteReaderReadyState: readerReadyState.deleteReaderReadyState,

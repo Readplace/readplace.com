@@ -749,6 +749,20 @@ const userDataJobsS3Policy = {
 	}),
 };
 
+const userDataJobsMediaPendingDeletePolicy = {
+	name: "user-data-jobs-media-pending-delete",
+	policy: JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [
+			{
+				Effect: "Allow",
+				Action: ["s3:DeleteObject"],
+				Resource: [`arn:aws:s3:::${mediaBucketName}/pending/*`],
+			},
+		],
+	}),
+};
+
 const userDataJobsGmailHistoryDynamodb = new HutchDynamoDBAccess("user-data-jobs-gmail-history-dynamodb", {
 	tables: [{ arn: storage.gmailHistoryImportsTable.arn, includeIndexes: false }],
 	actions: ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
@@ -802,6 +816,7 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 		DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE: tableNames.emailIdentities,
 		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
 		CONTENT_BUCKET_NAME: contentBucketName,
+		MEDIA_BUCKET_NAME: mediaBucketName,
 		USER_EXPORT_BUCKET_NAME: userExportBucketName,
 		ANALYTICS_SALT: analyticsSalt,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
@@ -822,6 +837,7 @@ const userDataJobsLambda = new HutchLambda("user-data-jobs", {
 		...userDataJobsGmailHistoryDynamodb.policies,
 		...userDataJobsEmailIdentitiesDynamodb.policies,
 		userDataJobsS3Policy,
+		userDataJobsMediaPendingDeletePolicy,
 		...userExportBucket.readPolicies("user-data-jobs-bucket-read"),
 		...userExportBucket.writePolicies("user-data-jobs-bucket-write"),
 		userDataJobsSchedulerManagePolicy,

@@ -53,6 +53,7 @@ import type {
 	InboxSavedLinkStore,
 } from "@packages/domain/inbox";
 import type { DeleteUserExports } from "../providers/user-data-export/user-data-export.types";
+import type { ReleasePrivateItems } from "../media-release/release-private-items";
 import type { RevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
 import type { DisconnectGmail } from "../domain/gmail/disconnect-gmail";
 
@@ -87,6 +88,7 @@ export interface DeleteAccountHandlerDependencies {
 	countOtherSaversByUrl: CountOtherSaversByUrl;
 	purgeArticleContent: PurgeArticleContent;
 	tombstoneArticle: TombstoneArticle;
+	releasePrivateItems: ReleasePrivateItems;
 	now: () => Date;
 	withdrawStarterAssignment: EngagementStarterState["withdrawStarterAssignment"];
 	deleteReaderReadyState: DeleteReaderReadyState;
@@ -183,6 +185,7 @@ async function processCommand(
 			await deps.tombstoneArticle({ url, at: deps.now() });
 		}
 	}
+	await deps.releasePrivateItems({ userId, urls: savedUrls });
 	await deps.deleteAllUserArticles(userId);
 	await deps.withdrawStarterAssignment(userId);
 	await deps.deleteReaderReadyState(userId);

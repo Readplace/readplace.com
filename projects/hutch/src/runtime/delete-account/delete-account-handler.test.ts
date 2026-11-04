@@ -158,6 +158,7 @@ function buildSubject() {
 	const purgeContentCalls: string[] = [];
 	const tombstoneCalls: Array<{ url: string; at: Date }> = [];
 	const otherSaversByUrl = new Map<string, number>();
+	const privateItemReleases: Array<{ userId: UserId; urls: readonly string[]; listedAtRelease: string[] }> = [];
 
 	// Test-only one-shot failures: each flag makes its step throw exactly once
 	// (self-clearing), so the record fails on the first delivery and its redrive
@@ -255,6 +256,9 @@ function buildSubject() {
 		tombstoneArticle: async ({ url, at }: { url: string; at: Date }) => {
 			tombstoneCalls.push({ url, at });
 		},
+		releasePrivateItems: async ({ userId, urls }) => {
+			privateItemReleases.push({ userId, urls, listedAtRelease: await articleStore.listUserArticleUrls(userId) });
+		},
 		now: () => SEED_NOW,
 		withdrawStarterAssignment: engagement.withdrawStarterAssignment,
 		deleteReaderReadyState: readerReady.deleteReaderReadyState,
@@ -322,6 +326,7 @@ function buildSubject() {
 		gmailRevokeTokens,
 		purgeContentCalls,
 		tombstoneCalls,
+		privateItemReleases,
 		setOtherSavers: (url: string, count: number): void => {
 			otherSaversByUrl.set(url, count);
 		},
@@ -732,6 +737,27 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.purgeContentCalls, ["https://example.com/retry/article"]);
 		assert.deepEqual(s.tombstoneCalls, [
 			{ url: "https://example.com/retry/article", at: SEED_NOW },
+		]);
+		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 0);
+	});
+
+	it("releases the account's private items while its saved urls are still listed, before dropping its rows", async () => {
+		const s = buildSubject();
+		const account = await seedAccount(s, {
+			label: "release",
+			email: "release@example.com",
+			subscription: "none",
+		});
+
+		const result = await run(s, [{ messageId: "msg", body: bodyFor(account.userId) }]);
+
+		assert.deepEqual(result.batchItemFailures, []);
+		assert.deepEqual(s.privateItemReleases, [
+			{
+				userId: account.userId,
+				urls: ["https://example.com/release/article"],
+				listedAtRelease: ["https://example.com/release/article"],
+			},
 		]);
 		assert.equal((await s.articleStore.findArticlesByUser({ userId: account.userId, includeTotal: true })).total, 0);
 	});
