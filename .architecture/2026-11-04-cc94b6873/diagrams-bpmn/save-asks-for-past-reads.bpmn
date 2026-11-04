@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_save_asks_for_past_reads" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_save_asks_for_past_reads" name="save-asks-for-past-reads" isExecutable="false">
+    <bpmn:startEvent id="n_TAP" name="Reader taps save">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:startEvent id="n_AUTO" name="Automatic save email link, bulk import">
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="n_SAVE" name="Save the link">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_ROW" name="Default-list user-article row"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_LQ" name="LinkQueuedEvent">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_GATE" name="Manual save that created the row?">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_QEC" name="QueueEntryCreatedEvent">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:task id="n_STOP" name="No related request left to the reader open">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_TAP" targetRef="n_SAVE" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_AUTO" targetRef="n_SAVE" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_SAVE" targetRef="n_LQ" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_SAVE" targetRef="n_GATE" />
+    <bpmn:sequenceFlow id="f_5" name="yes" sourceRef="n_GATE" targetRef="n_QEC" />
+    <bpmn:sequenceFlow id="f_6" name="no" sourceRef="n_GATE" targetRef="n_STOP" />
+    <bpmn:association id="f_2" sourceRef="n_SAVE" targetRef="n_ROW" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_save_asks_for_past_reads">
+    <bpmndi:BPMNPlane id="Plane_save_asks_for_past_reads" bpmnElement="Process_save_asks_for_past_reads">
+      <bpmndi:BPMNShape id="n_TAP_di" bpmnElement="n_TAP">
+        <dc:Bounds x="198.51" y="34.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_AUTO_di" bpmnElement="n_AUTO">
+        <dc:Bounds x="344.73" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SAVE_di" bpmnElement="n_SAVE">
+        <dc:Bounds x="245.46" y="158" width="107.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ROW_di" bpmnElement="n_ROW">
+        <dc:Bounds x="28" y="264" width="188.98" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LQ_di" bpmnElement="n_LQ">
+        <dc:Bounds x="503.45" y="267.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GATE_di" bpmnElement="n_GATE">
+        <dc:Bounds x="252.98" y="270.75" width="187.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_QEC_di" bpmnElement="n_QEC">
+        <dc:Bounds x="174.59" y="387.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_STOP_di" bpmnElement="n_STOP">
+        <dc:Bounds x="300.99" y="390.75" width="173.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="218.51" y="74.75" />
+        <di:waypoint x="218.51" y="116.38" />
+        <di:waypoint x="299.21" y="116.38" />
+        <di:waypoint x="299.21" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="364.73" y="68" />
+        <di:waypoint x="364.73" y="113" />
+        <di:waypoint x="299.21" y="113" />
+        <di:waypoint x="299.21" y="158" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="299.21" y="206" />
+        <di:waypoint x="299.21" y="236.75" />
+        <di:waypoint x="523.45" y="236.75" />
+        <di:waypoint x="523.45" y="267.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="299.21" y="206" />
+        <di:waypoint x="299.21" y="238.38" />
+        <di:waypoint x="346.73" y="238.38" />
+        <di:waypoint x="346.73" y="270.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="346.73" y="322.75" />
+        <di:waypoint x="346.73" y="355.13" />
+        <di:waypoint x="194.59" y="355.13" />
+        <di:waypoint x="194.59" y="387.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="346.73" y="322.75" />
+        <di:waypoint x="346.73" y="356.75" />
+        <di:waypoint x="387.61" y="356.75" />
+        <di:waypoint x="387.61" y="390.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="299.21" y="206" />
+        <di:waypoint x="299.21" y="235" />
+        <di:waypoint x="122.49" y="235" />
+        <di:waypoint x="122.49" y="264" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

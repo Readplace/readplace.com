@@ -278,32 +278,6 @@ describe("Saving a link from an issue (POST /queue/:id/issue-links)", () => {
 		assert.deepEqual(fixture.publishedQueueEntryCreated, [{ url: publisher, userId }]);
 	});
 
-	it("requests the related passes for a link automatic extraction already queued, keeping its email provenance", async () => {
-		const { agent, fixture, userId, putLink, issueId } = await buildHarness();
-		const tracker = "https://javascriptweekly.com/link/100000/rss";
-		const publisher = "https://sqlite.org/lang_with.html";
-		await putLink({ ordinal: "0003", url: tracker });
-		fixture.wrapperTarget.targets.set(tracker, publisher);
-		await fixture.articleStore.saveArticle({
-			userId,
-			url: publisher,
-			metadata: { title: "WITH", siteName: "sqlite.org", excerpt: "Common table expressions", wordCount: 480 },
-			estimatedReadTime: MinutesSchema.parse(2),
-			provenance: { kind: "email", senderEmail: "dan@tldr.tech" },
-			savedAt: new Date("2026-06-24T09:02:00.000Z"),
-		});
-
-		const response = await agent.post(`/queue/${issueId}/issue-links`).type("form").send({ ordinal: "0003" });
-
-		expect(response.status).toBe(303);
-		const extracted = await fixture.articleStore.findArticleByUrl(publisher);
-		assert(extracted, "automatic extraction left an article row");
-		const owned = await fixture.articleStore.findArticleById(extracted.id, userId);
-		assert.equal(owned?.provenance?.kind, "email");
-		assert.deepEqual(fixture.publishedComputeRelatedPasses, [{ url: publisher, userId }]);
-		assert.deepEqual(fixture.publishedQueueEntryCreated, []);
-	});
-
 	it("queues a click-tracker link whose publisher cannot be resolved, writing no article for the tracker", async () => {
 		const { agent, fixture, userId, putLink, issueId } = await buildHarness();
 		const tracker = "https://javascriptweekly.com/link/100000/rss";

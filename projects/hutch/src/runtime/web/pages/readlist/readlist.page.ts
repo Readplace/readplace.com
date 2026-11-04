@@ -169,6 +169,7 @@ import {
 import { buildSaveTip } from "../../shared/save-tip/save-tip.component";
 import { markSaveTipSeen } from "../../shared/save-tip/save-tip";
 import { initReaderPermalink } from "./reader-permalink";
+import { initRequestRelatedPasses } from "./request-related-passes";
 import { initOwnerArticleMarkdown, isDeliberateReaderRequest } from "./reader-markdown";
 import type { ResolveOwnedArticle } from "../../mcp/article-lookup";
 import { wantsSiren } from "../../content-negotiation";
@@ -816,6 +817,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		...deps,
 		saveArticle: deps.saveArticleWithoutActivity,
 	});
+	const requestRelatedPasses = initRequestRelatedPasses(deps);
 
 	const resolveReadlistContext = initResolveReadlistContext({
 		listReadlistDefinitions: deps.listReadlistDefinitions,
@@ -3129,10 +3131,9 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		sendComponent(req, res, CacheableComponent(HtmlPage(html), req));
 	});
 
-	// The ONLY thing that requests a past-reads (re)computation. The worker
-	// fingerprint-guards, so re-firing on every visit is cheap when nothing
-	// changed. htmx fires it on load and ignores the reply (204); the no-JS
-	// fallback form lands back on the reader (303).
+	// The worker fingerprint-guards, so re-firing on every visit is cheap when
+	// nothing changed. htmx fires it on load and ignores the reply (204); the
+	// no-JS fallback form lands back on the reader (303).
 	router.post("/:id/topic-reads", requireNotLocked, deps.requireWriteAccess, async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -3144,7 +3145,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		if (article) {
 			const sourceReadlist = requestReadlistContext(req).state.readlist;
-			await deps.publishComputeRelatedPastReads({
+			await requestRelatedPasses({
 				url: article.url,
 				userId,
 				...(sourceReadlist === DEFAULT_READLIST_SLUG

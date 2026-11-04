@@ -1520,10 +1520,8 @@ const canonicalContentChangedLambdaWithSQS = new HutchSQSBackedLambda("canonical
 eventBus.subscribe(CanonicalContentChangedEvent, canonicalContentChangedLambdaWithSQS);
 
 // --- ComputeRelatedArticles handler ---
-// Consumes the fact that a save added an article to a reader's queue and writes
-// the selected relations onto the per-user save row. Waits (throw → SQS retry)
-// while crawl metadata is still landing, so the model never compares against the
-// stub title a fresh save starts with.
+// Waits (throw → SQS retry) while crawl metadata is still landing, so the model
+// never compares against the stub title a fresh save starts with.
 
 const computeRelatedArticlesQueue = new HutchSQS("compute-related-articles", {
 	visibilityTimeoutSeconds: RELATED_ARTICLES_TIMEOUTS.sqsVisibilitySeconds,

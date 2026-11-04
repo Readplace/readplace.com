@@ -321,10 +321,7 @@ export type LinkQueuedDetail = z.infer<typeof LinkQueuedEvent.detailSchema>;
  * `url` is the canonical URL after alias resolution — the articles-table
  * partition key and the per-user row's sort key — where `LinkQueuedEvent`
  * deliberately carries the URL as submitted. A consumer that reaches for the
- * wrong one of the two reads a row that does not exist.
- *
- * Consumed by the `compute-related-articles` Lambda, which selects the reader's
- * earlier saves to resurface under this one. */
+ * wrong one of the two reads a row that does not exist. */
 export const QueueEntryCreatedEvent = defineEvent({
 	name: "queue-entry-created",
 	source: "hutch.save-article",
@@ -357,10 +354,10 @@ export type RelatedArticlesComputedDetail = z.infer<
 
 /* An explicit request to (re)compute the "Previously read on this topic"
  * selection for one article the reader owns. Carries the source reading list so
- * a match can be resolved back into an owned list. Emitted by the new-save
- * workflow (precompute) and by the reader when it revisits an existing or stale
- * save; consumed by the same `compute-related-articles` Lambda. Kept independent
- * of the Next-read cache: it never reads or writes `relatedStatus`. */
+ * a match can be resolved back into an owned list. Emitted by the reader when it
+ * revisits an existing or stale save; consumed by the same
+ * `compute-related-articles` Lambda. Kept independent of the Next-read cache: it
+ * never reads or writes `relatedStatus`. */
 export const ComputeRelatedPastReadsCommand = defineEvent({
 	name: "compute-related-past-reads",
 	source: "hutch.save-link",

@@ -89,6 +89,7 @@ async function buildHarness(options: { findPastReads?: FindPastReads } = {}) {
 	}
 
 	const target = await save(ARTICLE_URL);
+	await fixture.relatedArticles.markRelatedArticlesSkipped({ userId, url: ARTICLE_URL, at: COMPUTED_AT });
 	const past = await save(PAST_URL);
 	await fixture.articleStore.updateArticleStatus(past.id, userId, "read");
 
