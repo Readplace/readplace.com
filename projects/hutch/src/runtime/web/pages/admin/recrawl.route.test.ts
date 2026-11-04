@@ -889,7 +889,8 @@ describe("Admin recrawl routes", () => {
 		const doc = new JSDOM(response.text).window.document;
 		expect(Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
 			...settledSiblingOob,
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 			"article-body-reader-notice",
 		]);
@@ -1034,7 +1035,8 @@ describe("Admin recrawl routes", () => {
 			expect(ids).toEqual([
 				"article-body-summary-slot",
 				"table-of-contents",
-				"article-header",
+				"reader-article-title",
+				"reader-article-meta",
 				"document-title",
 				"article-body-reader-notice",
 			]);

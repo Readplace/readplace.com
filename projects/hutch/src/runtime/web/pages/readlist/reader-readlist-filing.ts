@@ -58,7 +58,7 @@ export function buildReaderReadlistFiling(input: {
 						namePlaceholder: READLIST_NAME_PLACEHOLDER,
 					};
 		return {
-			assignUrl: withInternalTracking(`${READLIST_PATH}/${input.articleId}/assign`, {
+			assignUrl: withInternalTracking(`${READLIST_PATH}/${input.articleId}/assign?swap=filing`, {
 				source: FILING_SOURCE,
 				content: "assign",
 			}),

@@ -259,7 +259,8 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 
 		expect(response.status).toBe(200);
 		expect(oobIds(response.text)).toEqual([
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 			"reader-downloads-slot",
 			"reader-menu-downloads-slot",
@@ -386,7 +387,8 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		expect(ids).toEqual([
 			"article-body-summary-slot",
 			"table-of-contents",
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 			"reader-downloads-slot",
 			"reader-menu-downloads-slot",

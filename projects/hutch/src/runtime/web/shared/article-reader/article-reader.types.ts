@@ -21,7 +21,6 @@ import type {
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
-import type { ReaderReadlistTags } from "../article-body/article-header/article-header.component";
 import type { CaptureWatch } from "./capture-watch";
 
 export type ReaderViewFailure = { readerContentUnavailable: boolean };
@@ -136,8 +135,8 @@ export interface HandlePollParams {
 	 */
 	summaryToggleUrl: string | undefined;
 	/**
-	 * Where the owner's save came from, re-sent on every poll because the OOB swap
-	 * replaces the whole header — omitting it would drop the tag the moment the
+	 * Where the owner's save came from, re-sent on every poll;
+	 * omitting it would drop the tag the moment the
 	 * crawl settles. `undefined` on the public /view and admin readers, which
 	 * render another user's article and hold no per-user row. Required (not
 	 * optional) so each poll path makes the decision explicit, mirroring
@@ -145,7 +144,6 @@ export interface HandlePollParams {
 	 */
 	provenance: ReaderProvenance | undefined;
 	saved: LocalTime | undefined;
-	readlistTags: ReaderReadlistTags | undefined;
 	readerViewFailedOob: ReaderViewFailedOob;
 	renderDownloadsOob: ((articleUrl: string) => string) | undefined;
 }

@@ -537,6 +537,10 @@
   margin-top: 24px;
 }
 
+.article-body__tags[hidden] {
+  display: none;
+}
+
 .article-body__header > .article-body__tags {
   margin-top: 16px;
 }

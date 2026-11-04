@@ -223,7 +223,8 @@ describe("Links in this issue (GET /queue/:id/view)", () => {
 		assert.deepEqual(ids, [
 			"article-body-summary-slot",
 			"table-of-contents",
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 			"article-body-reader-notice",
 		]);

@@ -151,6 +151,46 @@ test.describe("Reader filing toast", () => {
 	});
 });
 
+test.describe("Filing in place from a card's reader", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP });
+
+	test("keeps the URL, the history and the article, and the mark-read popover learns each readlist", async ({
+		page,
+	}, testInfo) => {
+		const slug = await openReaderBesideAReadlist(page, `in-place-${testInfo.workerIndex}-${Date.now()}`);
+		const second = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Finance" } });
+		const secondSlug = new URL(second.url()).searchParams.get("queue");
+		assert(secondSlug, "creating a readlist must land the reader on it");
+		const third = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label: "Later" } });
+		assert.equal(third.status(), 200, "a readlist under the cap must be created and landed on");
+
+		await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+		await clickAndWaitForPageReload(page, page.locator("[data-test-article-title]").first());
+		await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+		const returnPath = await page.locator('form:has(button[data-test-assign-readlist]) input[name="returnTo"]').first().inputValue();
+		const returnUrl = new URL(returnPath, BASE_URL).href;
+		const historyLength = await page.evaluate(() => window.history.length);
+		const content = await page.locator("[data-test-reader-slot]").elementHandle();
+		assert(content, "the reader must render its content slot");
+		const popover = page.locator('[data-test-confirm-popover="mark-status"]');
+
+		for (const { filed, label } of [
+			{ filed: slug, label: READLIST_LABEL },
+			{ filed: secondSlug, label: "Finance" },
+		]) {
+			await page.click(TRIGGER);
+			await page.click(`button[data-test-assign-readlist="${filed}"]`);
+			await expect(page.locator(TOAST_MESSAGE)).toHaveText(`Added to ${label}`);
+			await page.waitForSelector(`${TAGS}[data-test-readlist-tag="${filed}"]`);
+			expect(page.url()).toBe(returnUrl);
+			expect(await page.evaluate(() => window.history.length)).toBe(historyLength);
+			expect(await content.evaluate((element) => element.isConnected)).toBe(true);
+			await expect(popover).toContainText(label);
+		}
+		await expect(popover).toContainText(READLIST_LABEL);
+	});
+});
+
 test.describe("Reader filing toast on a phone", () => {
 	test.use({ timezoneId: "UTC", viewport: PHONE });
 

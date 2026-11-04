@@ -9,6 +9,7 @@ import {
 	WebReader,
 	renderReaderDownloadsOob,
 	renderReaderDownloadsSlotOob,
+	renderReaderReadlistsSlotOob,
 } from "./reader-actions.component";
 import { epubDownloadGuideFor } from "../../epub/epub-download-guide";
 
@@ -60,6 +61,37 @@ const CREATE = {
 	nameLabel: "Readlist name",
 	namePlaceholder: "Enter readlist name",
 };
+
+describe("readlists slot", () => {
+	it("gives the slot a stable id and no out-of-band swap inline", () => {
+		const { top } = WebReader({
+			actionBtns: { ...ACTION_BTNS, readlistPicker: { assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE } },
+		});
+
+		const slot = parse(top.to("text/html").body).querySelector("#reader-readlists-slot");
+		assert(slot, "the slot must carry its id");
+		expect(slot.hasAttribute("hx-swap-oob")).toBe(false);
+	});
+
+	it("swaps the picker out of band with a slug it offers", () => {
+		const slot = parse(
+			renderReaderReadlistsSlotOob({ assignUrl: "/queue/abc/assign", returnTo: "/queue/abc/view", options: [{ slug: ReadlistSlugSchema.parse("work"), label: "Work", iconName: "folder" }], create: CREATE }),
+		).querySelector("#reader-readlists-slot");
+
+		assert(slot, "the slot must render");
+		expect(slot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(slot.classList.contains("article-body__readlists-slot--hidden")).toBe(false);
+		expect(slot.querySelector('button[data-test-assign-readlist="work"]')).not.toBeNull();
+	});
+
+	it("swaps a hidden slot out of band when no picker is offered, so the row keeps its target", () => {
+		const slot = parse(renderReaderReadlistsSlotOob(undefined)).querySelector("#reader-readlists-slot");
+
+		assert(slot, "the slot must render");
+		expect(slot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(slot.classList.contains("article-body__readlists-slot--hidden")).toBe(true);
+	});
+});
 
 describe("readlist picker", () => {
 	it("renders one assign form per offered readlist inside an anchored disclosure", () => {

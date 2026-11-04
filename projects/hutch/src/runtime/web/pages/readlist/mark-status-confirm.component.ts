@@ -50,12 +50,14 @@ export function renderMarkStatusConfirm(input: {
 	confirm: MarkStatusConfirmViewModel;
 	source: "queue-card" | "reader";
 	lead?: string;
+	oob?: boolean;
 }): string {
 	const copy = STATUS_COPY[input.confirm.status];
 	return renderConfirmPopover({
 		id: input.confirm.popoverId,
 		key: "mark-status",
 		close: {},
+		oob: input.oob,
 		subject: input.confirm.articleId,
 		title: copy.title,
 		body: input.confirm.readlists.length > 1 ? copy.bodyMultiple : copy.bodySingle,

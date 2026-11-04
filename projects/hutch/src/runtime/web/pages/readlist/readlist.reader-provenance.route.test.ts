@@ -60,7 +60,7 @@ describe("Reader save-provenance tag", () => {
 		const response = await agent.get(`/queue/${articleId}/reader?poll=1`);
 
 		expect(response.status).toBe(200);
-		const header = new JSDOM(response.text).window.document.querySelector("#article-header");
+		const header = new JSDOM(response.text).window.document.querySelector("#reader-article-meta");
 		assert(header, "the poll response must carry the header as an OOB swap");
 		expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		expect(

@@ -492,7 +492,8 @@ describe("GET /view/<url>?format=<download>", () => {
 		const document = new JSDOM(response.text).window.document;
 		expect(Array.from(document.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
 			...settledSiblingOob,
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 			"reader-downloads-slot",
 			"article-body-reader-notice",

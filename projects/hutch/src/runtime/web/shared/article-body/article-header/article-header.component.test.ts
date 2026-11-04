@@ -5,7 +5,8 @@ import { iconSvg } from "@packages/ui-icons";
 import { destinationUrl, siteLabel } from "../../../test-helpers/article-fixtures";
 import {
 	renderArticleHeader,
-	renderArticleHeaderOob,
+	renderArticleHeaderMetadataOob,
+	renderReaderReadlistTagsOob,
 	renderDocumentTitleOob,
 } from "./article-header.component";
 
@@ -227,14 +228,15 @@ describe("tag row", () => {
 		assert(remove, "the tag must carry its remove button");
 	});
 
-	it("renders no tag row for an article that lives only in the default readlist", () => {
+	it("hides the tag row for an article that lives only in the default readlist", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 
 		const tags = Array.from(doc.querySelectorAll("[data-test-readlist-tag]"), (el) =>
 			el.getAttribute("data-test-readlist-tag"),
 		);
 		expect(tags).toEqual([]);
-		expect(headerRows(doc)).toEqual(["article-body__title", "article-body__meta"]);
+		expect(headerRows(doc)).toEqual(["article-body__title", "article-body__tags", "article-body__meta"]);
+		expect(doc.querySelector("#reader-readlist-tags")?.hasAttribute("hidden")).toBe(true);
 	});
 });
 
@@ -365,24 +367,28 @@ describe("save provenance tag", () => {
 	});
 });
 
-describe("renderArticleHeaderOob", () => {
-	it("emits the same header markup carrying hx-swap-oob so it slots into poll responses alongside the existing reader-slot", () => {
-		const doc = parse(renderArticleHeaderOob(baseInput));
+describe("renderArticleHeaderMetadataOob", () => {
+	const { readlistTags: _readlistTags, ...metadataInput } = baseInput;
 
-		const header = doc.querySelector("#article-header");
-		assert(header, "OOB header must be rendered");
-		expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
-		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Hello World");
+	it("swaps only the title and the meta row, leaving the header and its tags in place", () => {
+		const doc = parse(renderArticleHeaderMetadataOob(metadataInput));
+
+		expect(Array.from(doc.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
+			"reader-article-title",
+			"reader-article-meta",
+		]);
+		expect(doc.querySelector("#reader-article-title")?.textContent).toBe("Hello World");
+		expect(doc.querySelector("#article-header")).toBeNull();
+		expect(doc.querySelector("#reader-readlist-tags")).toBeNull();
 	});
 
-	it("keeps every fact and tag through the swap that replaces the whole header", () => {
+	it("keeps every fact through the swap", () => {
 		const doc = parse(
-			renderArticleHeaderOob({
-				...baseInput,
+			renderArticleHeaderMetadataOob({
+				...metadataInput,
 				provenance: { kind: "web" },
 				saved: SIX_HOURS_AGO,
 				publishedOn: "2025-10-08",
-				readlistTags: WORK_READLIST,
 			}),
 		);
 
@@ -394,7 +400,28 @@ describe("renderArticleHeaderOob", () => {
 			["provenance", "via Web"],
 			["original", "Original article"],
 		]);
+	});
+});
+
+describe("renderReaderReadlistTagsOob", () => {
+	it("swaps the tag row with its chips", () => {
+		const doc = parse(renderReaderReadlistTagsOob(WORK_READLIST));
+
+		const row = doc.querySelector("#reader-readlist-tags");
+		assert(row, "the tag row must render");
+		expect(row.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(row.hasAttribute("hidden")).toBe(false);
 		expect(tagRow(doc)).toEqual(["work"]);
+	});
+
+	it("swaps a hidden empty row when the article holds no tags", () => {
+		const doc = parse(renderReaderReadlistTagsOob(undefined));
+
+		const row = doc.querySelector("#reader-readlist-tags");
+		assert(row, "the tag row must still render so a later swap has its target");
+		expect(row.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(row.hasAttribute("hidden")).toBe(true);
+		expect(tagRow(doc)).toEqual([]);
 	});
 });
 

@@ -11,7 +11,14 @@ import { render } from "@packages/web-shell";
 import { type LocalTime, toCalendarDate } from "@packages/web-shell/local-time.format";
 import { type ReaderProvenance, provenanceLabel, provenanceTitle } from "./provenance-label";
 
-const TEMPLATE = readFileSync(join(__dirname, "article-header.template.html"), "utf-8");
+function readHeaderTemplate(name: string): string {
+	return readFileSync(join(__dirname, name), "utf-8");
+}
+
+const TEMPLATE = readHeaderTemplate("article-header.template.html");
+const TITLE_TEMPLATE = readHeaderTemplate("article-header-title.template.html");
+const TAGS_TEMPLATE = readHeaderTemplate("article-header-tags.template.html");
+const META_TEMPLATE = readHeaderTemplate("article-header-meta.template.html");
 
 const PROVENANCE_SENDER_POPOVER_ID = "article-provenance-sender";
 
@@ -26,8 +33,7 @@ export interface ArticleHeaderInput {
 	siteName: SiteLabel;
 	readTime: DisplayableReadTime | undefined;
 	url: ArticleDestinationUrl;
-	/** Required-undefined rather than optional: the header is re-rendered on every
-	 * poll, so every call site has to decide whether it can supply the tag instead
+	/** Required-undefined rather than optional: every call site has to decide whether it can supply the tag instead
 	 * of dropping it by omission. */
 	provenance: ReaderProvenance | undefined;
 	readlistTags: ReaderReadlistTags | undefined;
@@ -35,10 +41,19 @@ export interface ArticleHeaderInput {
 	publishedOn: string | undefined;
 }
 
-function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
+type ArticleHeaderMetadataInput = Omit<ArticleHeaderInput, "readlistTags">;
+
+function renderTitle(input: { title: string; oob: boolean }): string {
+	return render(TITLE_TEMPLATE, input);
+}
+
+function renderTags(input: { readlistTags: ReaderReadlistTags | undefined; oob: boolean }): string {
+	return render(TAGS_TEMPLATE, input);
+}
+
+function renderMeta(input: ArticleHeaderMetadataInput, oob: boolean): string {
 	const provenance = input.provenance === undefined ? undefined : provenanceLabel(input.provenance);
-	return render(TEMPLATE, {
-		title: input.title,
+	return render(META_TEMPLATE, {
 		siteName: input.siteName,
 		readTimeLabel: input.readTime?.label ?? "",
 		readTimeEmptyClass: input.readTime ? "" : " article-body__read-time--empty",
@@ -49,30 +64,26 @@ function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
 		provenanceSender: provenance?.sender,
 		provenanceFallbackClass: provenance?.sender === undefined ? "" : " sender-popover__fallback",
 		provenancePopoverId: PROVENANCE_SENDER_POPOVER_ID,
-		readlistTags: input.readlistTags,
 		saved: input.saved,
 		published: input.publishedOn === undefined ? undefined : toCalendarDate({ date: input.publishedOn }),
-		hasTags: input.readlistTags !== undefined,
 		oob,
 	});
 }
 
-/**
- * Inline render: ships with the initial page response. The `id="article-header"`
- * is the swap target that poll responses replace via hx-swap-oob, so the same
- * element drives both the SSR view and every later metadata refresh.
- */
 export function renderArticleHeader(input: ArticleHeaderInput): string {
-	return renderTemplate(input, false);
+	return render(TEMPLATE, {
+		titleHtml: renderTitle({ title: input.title, oob: false }),
+		tagsHtml: renderTags({ readlistTags: input.readlistTags, oob: false }),
+		metaHtml: renderMeta(input, false),
+	});
 }
 
-/**
- * OOB render: piggybacks on the existing reader/summary poll responses so the
- * title, site name and read time settle in place once the crawl finishes,
- * instead of leaving the hostname stub on screen until manual refresh.
- */
-export function renderArticleHeaderOob(input: ArticleHeaderInput): string {
-	return renderTemplate(input, true);
+export function renderArticleHeaderMetadataOob(input: ArticleHeaderMetadataInput): string {
+	return renderTitle({ title: input.title, oob: true }) + renderMeta(input, true);
+}
+
+export function renderReaderReadlistTagsOob(readlistTags: ReaderReadlistTags | undefined): string {
+	return renderTags({ readlistTags, oob: true });
 }
 
 /**

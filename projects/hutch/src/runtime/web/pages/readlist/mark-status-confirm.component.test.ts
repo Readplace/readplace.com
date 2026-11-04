@@ -16,6 +16,7 @@ function panelFor(
 		url?: string;
 		source?: "queue-card" | "reader";
 		lead?: string;
+		oob?: boolean;
 	} = {},
 ) {
 	const { document } = parseHTML(
@@ -29,6 +30,7 @@ function panelFor(
 			},
 			source: overrides.source ?? "queue-card",
 			lead: overrides.lead,
+			oob: overrides.oob,
 		})}</div>`,
 	);
 	return document;
@@ -44,6 +46,13 @@ describe("markStatusConfirmPopoverId", () => {
 });
 
 describe("renderMarkStatusConfirm", () => {
+	it("carries an out-of-band swap only when asked", () => {
+		const popover = (doc: ReturnType<typeof panelFor>) => doc.getElementById("readlist-mark-status-confirm-abc123");
+
+		expect(popover(panelFor({ oob: true }))?.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(popover(panelFor())?.hasAttribute("hx-swap-oob")).toBe(false);
+	});
+
 	it("names every readlist the change will reach, one bullet each, in the order the rail lists them", () => {
 		const doc = panelFor();
 		const body = doc.getElementById("readlist-mark-status-confirm-abc123-body");

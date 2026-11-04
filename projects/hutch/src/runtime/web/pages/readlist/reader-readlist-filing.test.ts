@@ -25,7 +25,7 @@ describe("buildReaderReadlistFiling", () => {
 
 		expect(filing.tags).toBeUndefined();
 		expect(filing.picker).toEqual({
-			assignUrl: "/queue/abc123/assign?utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
+			assignUrl: "/queue/abc123/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 			returnTo: "/queue/abc123/view",
 			options: [],
 			create: CREATE,
@@ -51,7 +51,7 @@ describe("buildReaderReadlistFiling", () => {
 			tags: [{ slug: WORK, label: "Work" }],
 		});
 		expect(filing.picker).toEqual({
-			assignUrl: "/queue/abc123/assign?utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
+			assignUrl: "/queue/abc123/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 			returnTo: "/queue/abc123/view",
 			options: [{ slug: LATER, label: "Later", iconName: READLIST_KIND_ICON.custom }],
 			create: CREATE,
@@ -72,7 +72,7 @@ describe("buildReaderReadlistFiling", () => {
 		});
 
 		expect(filing.picker).toEqual({
-			assignUrl: "/queue/abc123/assign?utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
+			assignUrl: "/queue/abc123/assign?swap=filing&utm_source=reader-readlists&utm_medium=internal&utm_content=assign",
 			returnTo: "/queue/abc123/view",
 			options: [],
 			create: CREATE,

@@ -24,6 +24,7 @@ export interface ConfirmPopover {
 	illustrationHtml?: string;
 	/** One .confirm-popover__actions element; forms with only buttons also use .confirm-popover__buttons, with dismiss before commit. */
 	actionsHtml: string;
+	oob?: boolean;
 }
 
 function describedFields(popover: ConfirmPopover) {

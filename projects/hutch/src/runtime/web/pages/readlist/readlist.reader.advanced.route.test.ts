@@ -363,9 +363,9 @@ describe("Readlist routes", () => {
 			expect(response.status).toBe(404);
 		});
 
-		it("GET /queue/:id/reader emits header + <title> OOB fragments and an ETag, and 304s when If-None-Match matches", async () => {
+		it("GET /queue/:id/reader emits title and meta OOB fragments and an ETag, and 304s when If-None-Match matches", async () => {
 			// Steady-state contract: while the crawl is in flight the reader poll
-			// fragment must include the addressable header (#article-header) and
+			// fragment must include
 			// document <title> (#document-title) as hx-swap-oob fragments, plus
 			// an ETag so an unchanged body collapses to 304 instead of re-shipping
 			// a few KB on every 3s tick.
@@ -404,9 +404,12 @@ describe("Readlist routes", () => {
 			expect(first.headers["cache-control"]).toBe("private, no-cache");
 
 			const doc = new JSDOM(first.text).window.document;
-			const header = doc.querySelector("#article-header");
-			assert(header, "header OOB fragment must accompany the reader-slot");
-			expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			const title = doc.querySelector("#reader-article-title");
+			assert(title, "title OOB fragment must accompany the reader-slot");
+			expect(title.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			const meta = doc.querySelector("#reader-article-meta");
+			assert(meta, "meta OOB fragment must accompany the reader-slot");
+			expect(meta.getAttribute("hx-swap-oob")).toBe("outerHTML");
 			const titleEl = doc.querySelector("title#document-title");
 			assert(titleEl, "<title> OOB fragment must accompany the reader-slot");
 			expect(titleEl.getAttribute("hx-swap-oob")).toBe("outerHTML");
@@ -446,8 +449,8 @@ describe("Readlist routes", () => {
 			const poll = await agent.get(`/queue/${articleId}/reader?poll=1`);
 			expect(poll.status).toBe(200);
 			const pollDoc = new JSDOM(poll.text).window.document;
-			const header = pollDoc.querySelector("#article-header");
-			assert(header, "header OOB fragment must accompany the reader-slot");
+			const header = pollDoc.querySelector("#reader-article-meta");
+			assert(header, "meta OOB fragment must accompany the reader-slot");
 			expect(header.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
 				"https://destination.example/article",
 			);

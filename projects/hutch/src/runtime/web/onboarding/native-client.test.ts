@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { NATIVE_CLIENT_HEADER, isIosBuildBeforeRekeyedShareTargets, nativeSurfaceQuery, readlistQueryKeyOf } from "./native-client";
+import { NATIVE_CLIENT_HEADER, isAppShell, isIosBuildBeforeRekeyedShareTargets, isNativeSurface, isNativeSurfaceMarked, nativeSurfaceQuery, readlistQueryKeyOf } from "./native-client";
 
 function requestWith(input: {
 	query?: Record<string, string>;
@@ -13,6 +13,35 @@ function requestWith(input: {
 	};
 	return req as Request;
 }
+
+describe("isNativeSurfaceMarked", () => {
+	it.each([
+		{ platform: "ios", shell: null, marked: true },
+		{ platform: "android", shell: null, marked: true },
+		{ platform: "windows", shell: null, marked: false },
+		{ platform: null, shell: "app", marked: true },
+		{ platform: null, shell: null, marked: false },
+	])("answers $marked for platform $platform and shell $shell", ({ platform, shell, marked }) => {
+		expect(isNativeSurfaceMarked({ platform, shell })).toBe(marked);
+	});
+});
+
+describe("isAppShell and isNativeSurface", () => {
+	it("treats ?platform=ios as a native surface without treating it as the app shell", () => {
+		const req = requestWith({ query: { platform: "ios" } });
+
+		expect(isAppShell(req)).toBe(false);
+		expect(isNativeSurface(req)).toBe(true);
+	});
+
+	it("treats the client header as a native surface", () => {
+		expect(isNativeSurface(requestWith({ client: "android" }))).toBe(true);
+	});
+
+	it("treats a plain browser request as the web", () => {
+		expect(isNativeSurface(requestWith({}))).toBe(false);
+	});
+});
 
 describe("nativeSurfaceQuery", () => {
 	it("carries nothing for a plain browser request", () => {

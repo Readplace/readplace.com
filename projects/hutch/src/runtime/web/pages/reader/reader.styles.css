@@ -27,6 +27,10 @@
   border-bottom: 1px solid var(--border);
 }
 
+.page-reader--chromeless .article-body__card {
+  overflow-anchor: none;
+}
+
 .page-reader--chromeless .reader {
   overflow-x: clip;
 }

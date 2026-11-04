@@ -17,6 +17,7 @@ import { articleEpubHref } from "../../epub/epub-link";
 export const READLIST_PICKER_SCRIPT = `<script src="/client-dist/readlist-picker.client.js" defer></script>`;
 
 const TOP_TEMPLATE = readFileSync(join(__dirname, "reader-actions-top.template.html"), "utf-8");
+const READLISTS_SLOT_TEMPLATE = readFileSync(join(__dirname, "reader-readlists-slot.template.html"), "utf-8");
 const BOTTOM_TEMPLATE = readFileSync(join(__dirname, "reader-actions-bottom.template.html"), "utf-8");
 const DOWNLOADS_TEMPLATE = readFileSync(join(__dirname, "reader-downloads.template.html"), "utf-8");
 const SHARE_TEMPLATE = readFileSync(join(__dirname, "reader-share.template.html"), "utf-8");
@@ -183,6 +184,14 @@ export function renderReaderDownloadsOob(params: {
 	});
 }
 
+function renderReaderReadlistsSlot(input: { readlistPicker: ReaderReadlistPicker | undefined; oob: boolean }): string {
+	return render(READLISTS_SLOT_TEMPLATE, input);
+}
+
+export function renderReaderReadlistsSlotOob(readlistPicker: ReaderReadlistPicker | undefined): string {
+	return renderReaderReadlistsSlot({ readlistPicker, oob: true });
+}
+
 function topBar(actionBtns: ActionButtons): string {
 	const share = shareTriggerView(actionBtns);
 	const downloads = downloadsView(actionBtns);
@@ -192,7 +201,7 @@ function topBar(actionBtns: ActionButtons): string {
 		backLink: actionBtns.backLink
 			? { href: actionBtns.backLink.topHref, label: actionBtns.backLink.label }
 			: undefined,
-		readlistPicker: actionBtns.readlistPicker,
+		readlistsSlotHtml: renderReaderReadlistsSlot({ readlistPicker: actionBtns.readlistPicker, oob: false }),
 		shareHtml: renderReaderShare({ share, placement: "toolbar" }),
 		downloadsHtml: downloadsAt("toolbar"),
 		menu:

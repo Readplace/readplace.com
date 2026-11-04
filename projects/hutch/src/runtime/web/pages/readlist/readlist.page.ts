@@ -77,6 +77,7 @@ import type {
 	SaveArticle,
 	UpdateArticleStatus,
 	UpdateArticleStatusAcrossReadlists,
+	ReadlistDefinitionData,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
@@ -218,6 +219,7 @@ import {
 	type ReaderReadlistFiling,
 	buildReaderReadlistFiling,
 } from "./reader-readlist-filing";
+import { renderReaderFilingFragment } from "./reader-filing-fragment";
 import { ReadlistPage } from "./readlist.component";
 import {
 	renderReadlistCard,
@@ -257,7 +259,7 @@ import { readerCachePolicy } from "./reader-cache-policy";
 import { VIEW_BACK_LINK } from "./reader-skeleton/reader-skeleton.component";
 import { etagMatches } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
+import { ReaderPage, formatReaderDocumentTitle, readerMarkStatusConfirm } from "../reader/reader.component";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
 import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
 import { isPrefetchRequest } from "../../shared/prefetch-request";
@@ -283,6 +285,9 @@ import {
 	isIosBuildBeforeRekeyedShareTargets,
 	isNativeClient,
 	isNativeSurface,
+	isNativeSurfaceMarked,
+	APP_SHELL_QUERY,
+	PLATFORM_QUERY,
 	nativeClientOf,
 	nativeSurfaceOf,
 	nativeSurfaceQuery,
@@ -749,6 +754,26 @@ const readerCaptureBridgeScript = (cspNonce: CspNonce) => `<script nonce="${cspN
  * still resolves to its chromeless reader. */
 const isAppPlatform = (req: Request): boolean => isNativeSurface(req);
 
+function readerReadlistFilingFrom(input: {
+	article: SavedArticle;
+	definitions: readonly ReadlistDefinitionData[];
+	saves: readonly { readlist?: ReadlistSlug }[];
+	signals: Awaited<ReturnType<GetOnboardingSignals>>;
+	returnTo: string;
+	filed: ReadlistSlug | undefined;
+}): ReaderReadlistFiling {
+	return buildReaderReadlistFiling({
+		articleId: input.article.id.value,
+		definitions: input.definitions,
+		saves: input.saves,
+		returnTo: input.returnTo,
+		filed: input.filed,
+		markStatusConfirmGated:
+			readerReadlists(input.definitions).length > 1 &&
+			input.signals.markReadAcrossQueuesAckedAt === undefined,
+	});
+}
+
 function withOfflineReading(page: PageBody, cspNonce: CspNonce): PageBody {
 	assert(page.scripts, "the reader page always sets its scripts");
 	return { ...page, scripts: page.scripts + OFFLINE_READER_SCRIPT + offlineCopyRowScript(cspNonce) };
@@ -1121,15 +1146,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			deps.getOnboardingSignals({ userId: params.userId }),
 		]);
 		return {
-			readlistFiling: buildReaderReadlistFiling({
-				articleId: params.article.id.value,
+			readlistFiling: readerReadlistFilingFrom({
+				article: params.article,
 				definitions,
 				saves,
+				signals,
 				returnTo: params.returnTo,
 				filed: params.filed,
-				markStatusConfirmGated:
-					readerReadlists(definitions).length > 1 &&
-					signals.markReadAcrossQueuesAckedAt === undefined,
 			}),
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
 		};
@@ -2893,12 +2916,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
-		const { readlistFiling } = await readerOwnerControlsFor({
-			userId,
-			article,
-			returnTo: readerReturnPath(req, article.id.value),
-			filed: undefined,
-		});
 		const component = await reader.handleSummaryPoll({
 			articleUrl: article.url,
 			articleId: article.id.value,
@@ -2909,7 +2926,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
-			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
 		});
@@ -2933,12 +2949,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
-		const { readlistFiling } = await readerOwnerControlsFor({
-			userId,
-			article,
-			returnTo: readerReturnPath(req, article.id.value),
-			filed: undefined,
-		});
 		const component = await reader.handleReaderPoll({
 			articleUrl: article.url,
 			articleId: article.id.value,
@@ -2949,7 +2959,6 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
 			provenance: await deps.resolveReaderProvenance(article.provenance),
 			saved: toRelativeOrDate({ iso: article.savedAt.toISOString(), now: deps.now() }),
-			readlistTags: readlistFiling.tags,
 			readerViewFailedOob: ownerReaderViewFailedOob(req),
 			renderDownloadsOob: downloadsOobFor(req, article),
 		});
@@ -3416,6 +3425,48 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					from: DEFAULT_READLIST_SLUG,
 					url: article.url,
 				});
+				if (req.get("HX-Request") === "true" && req.query.swap === "filing") {
+					const returnPath = safeReturnPath(req.body.returnTo);
+					const returnQuery = new URL(returnPath, deps.appOrigin).searchParams;
+					const appSurface =
+						isNativeClient(req) ||
+						isNativeSurfaceMarked({
+							platform: returnQuery.get(PLATFORM_QUERY),
+							shell: returnQuery.get(APP_SHELL_QUERY),
+						});
+					const [savesByUrl, signals] = await Promise.all([
+						deps.listUserSavesForUrls({
+							userId,
+							urls: [article.url],
+							readlists: readerReadlists(definitions).map(({ slug }) => slug),
+						}),
+						deps.getOnboardingSignals({ userId }),
+					]);
+					const saves = savesByUrl.get(article.url);
+					assert(saves, "listUserSavesForUrls must answer an entry for every requested url");
+					const filing = readerReadlistFilingFrom({
+						article,
+						definitions,
+						saves,
+						signals,
+						returnTo: returnPath,
+						filed: assigned && !appSurface ? target.slug : undefined,
+					});
+					res
+						.set("HX-Reswap", "none show:none")
+						.set("HX-Replace-Url", returnPath)
+						.type("html")
+						.send(
+							renderReaderFilingFragment({
+								filing,
+								markStatusConfirm:
+									filing.markStatusConfirmReadlists === undefined
+										? undefined
+										: readerMarkStatusConfirm({ article, readlists: filing.markStatusConfirmReadlists }),
+							}),
+						);
+					return;
+				}
 				if (assigned) {
 					res.redirect(303, filedLanding(req.body.returnTo, target.slug));
 					return;

@@ -85,8 +85,14 @@ export function nativeSurfaceOf(req: Request): NativeClientPlatform | undefined 
  * implies one without the app having to carry both markers, which is what keeps a
  * shipped build that sends only `?shell=app` on the app surface. */
 export function isNativeSurface(req: Request): boolean {
-	if (isAppShell(req)) return true;
-	return nativeSurfaceOf(req) !== undefined;
+	return (
+		isNativeSurfaceMarked({ platform: req.query[PLATFORM_QUERY], shell: req.query[APP_SHELL_QUERY] }) ||
+		nativeClientOf(req) !== undefined
+	);
+}
+
+export function isNativeSurfaceMarked(markers: { platform: unknown; shell: unknown }): boolean {
+	return isNativeClientPlatform(markers.platform) || markers.shell === APP_SHELL_VALUE;
 }
 
 export function nativeSurfaceQuery(req: Request): string {

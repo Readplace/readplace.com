@@ -1694,8 +1694,8 @@ describe("View routes", () => {
 
 			const response = await request(harness.server).get(`/view/summary?url=${ENCODED}&poll=1`);
 
-			const header = new JSDOM(response.text).window.document.querySelector("#article-header");
-			assert(header, "the summary poll must swap the header in");
+			const header = new JSDOM(response.text).window.document.querySelector("#reader-article-meta");
+			assert(header, "the summary poll must swap the meta in");
 			expect([
 				header.getAttribute("hx-swap-oob"),
 				Array.from(header.querySelectorAll("[data-test-reader-fact]"), (fact) =>
@@ -1716,8 +1716,8 @@ describe("View routes", () => {
 
 			const response = await request(harness.server).get(`/view/summary?url=${ENCODED}&poll=1`);
 
-			const header = new JSDOM(response.text).window.document.querySelector("#article-header");
-			assert(header, "the summary poll must swap the header in");
+			const header = new JSDOM(response.text).window.document.querySelector("#reader-article-meta");
+			assert(header, "the summary poll must swap the meta in");
 			expect(
 				Array.from(header.querySelectorAll("[data-test-reader-fact]"), (fact) => [
 					fact.getAttribute("data-test-reader-fact"),
@@ -1778,10 +1778,10 @@ describe("View routes", () => {
 	});
 
 	describe("GET /view/reader fragment auto-update", () => {
-		it("emits header + <title> OOB fragments and an ETag, and 304s when If-None-Match matches", async () => {
+		it("emits title and meta OOB fragments and an ETag, and 304s when If-None-Match matches", async () => {
 			// Steady-state contract for the public reader: while the crawl is
-			// still in flight the /view/reader poll must include the addressable
-			// header (#article-header) and document <title> (#document-title) as
+			// still in flight the /view/reader poll must include
+			// document <title> (#document-title) as
 			// hx-swap-oob fragments, plus an ETag so an unchanged body collapses
 			// to 304 instead of re-shipping the same payload every 3s.
 			//
@@ -1837,8 +1837,8 @@ describe("View routes", () => {
 			expect(first.headers["cache-control"]).toBe("private, no-cache");
 
 			const doc = new JSDOM(first.text).window.document;
-			const header = doc.querySelector("#article-header");
-			assert(header, "header OOB fragment must accompany the reader-slot");
+			const header = doc.querySelector("#reader-article-meta");
+			assert(header, "meta OOB fragment must accompany the reader-slot");
 			expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
 			const titleEl = doc.querySelector("title#document-title");
 			assert(titleEl, "<title> OOB fragment must accompany the reader-slot");
@@ -1997,7 +1997,8 @@ describe("View routes", () => {
 
 			expect(response.status).toBe(200);
 			expect(oobIds(response.text)).toEqual([
-				"article-header",
+				"reader-article-title",
+				"reader-article-meta",
 				"document-title",
 				"view-cta-save",
 				"reader-downloads-slot",
@@ -2039,7 +2040,8 @@ describe("View routes", () => {
 			expect(oobIds(response.text)).toEqual([
 				"article-body-summary-slot",
 				"table-of-contents",
-				"article-header",
+				"reader-article-title",
+				"reader-article-meta",
 				"document-title",
 				"article-body-reader-notice",
 			]);

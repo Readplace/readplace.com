@@ -621,7 +621,6 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			saved: undefined,
-			readlistTags: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
 			renderDownloadsOob: (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) }),
 		});
@@ -656,7 +655,6 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			saved: undefined,
-			readlistTags: undefined,
 			readerViewFailedOob: viewReaderViewFailedOob({ req, articleUrl, utmParams }),
 			renderDownloadsOob: (url) => renderViewDownloadsOob({ articleUrl: url, guide: viewEpubGuideFor(req, url) }),
 		});

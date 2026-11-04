@@ -26,6 +26,14 @@ function renderPanel(overrides: Partial<Parameters<typeof renderConfirmPopover>[
 }
 
 describe("renderConfirmPopover", () => {
+	it("carries an out-of-band swap only when asked", () => {
+		const swapped = renderPanel({ oob: true }).querySelector("[data-test-confirm-popover]");
+		const inline = renderPanel().querySelector("[data-test-confirm-popover]");
+
+		expect(swapped?.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(inline?.hasAttribute("hx-swap-oob")).toBe(false);
+	});
+
 	it("renders an auto popover the browser can open from a popovertarget elsewhere on the page", () => {
 		const panel = renderPanel().querySelector(".confirm-popover");
 

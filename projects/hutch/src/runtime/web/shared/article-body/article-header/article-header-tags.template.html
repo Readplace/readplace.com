@@ -1,0 +1,9 @@
+<ul id="reader-readlist-tags" class="article-body__tags"{{#unless readlistTags}} hidden{{/unless}}{{#if oob}} hx-swap-oob="outerHTML"{{/if}} data-test-reader-tags>
+  {{#each readlistTags.tags}}
+  <li class="article-body__tag"><span class="chip chip--large chip--accent" data-test-readlist-tag="{{slug}}">{{label}}<form class="chip__remove-form" method="POST" action="{{../readlistTags.unassignUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+    <input type="hidden" name="queue" value="{{slug}}">
+    <input type="hidden" name="returnTo" value="{{../readlistTags.returnTo}}">
+    <button class="chip__remove" type="submit" data-test-unassign-readlist="{{slug}}">{{icon "x"}}<span class="sr-only">Remove from {{label}}</span></button>
+  </form></span></li>
+  {{/each}}
+</ul>

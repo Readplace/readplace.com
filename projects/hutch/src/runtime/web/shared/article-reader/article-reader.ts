@@ -19,8 +19,7 @@ import { HtmlPage } from "@packages/web-shell";
 import type { Component } from "@packages/web-shell";
 
 import {
-	type ReaderReadlistTags,
-	renderArticleHeaderOob,
+	renderArticleHeaderMetadataOob,
 	renderDocumentTitleOob,
 } from "../article-body/article-header/article-header.component";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
@@ -370,13 +369,12 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				summaryToggleUrl: undefined,
 				extensionInstallUrl: undefined,
 				metadataOob:
-					renderArticleHeaderOob({
+					renderArticleHeaderMetadataOob({
 						title: stub.title,
 						siteName: stub.siteName,
 						readTime: undefined,
 						url: destinationUrl,
 						provenance: undefined,
-						readlistTags: undefined,
 						saved: undefined,
 						publishedOn: undefined,
 					}) + renderDocumentTitleOob(deps.formatDocumentTitle(stub.title)),
@@ -390,7 +388,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	}
 
 	/**
-	 * Header + <title> OOB fragments. Concatenated onto every poll response so
+	 * Concatenated onto every poll response so
 	 * the title that was rendered as a hostname stub at t=0 settles in place
 	 * the moment the crawl writes the real metadata, instead of leaving the
 	 * page stale until the user manually refreshes. Returns "" when the row
@@ -401,18 +399,16 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		article: GlobalArticleData | null;
 		destinationUrl: ArticleDestinationUrl;
 		provenance: ReaderProvenance | undefined;
-		readlistTags: ReaderReadlistTags | undefined;
 		saved: LocalTime | undefined;
 	}): string {
 		const { article } = input;
 		if (!article) return "";
-		const headerOob = renderArticleHeaderOob({
+		const headerOob = renderArticleHeaderMetadataOob({
 			title: article.metadata.title,
 			siteName: article.metadata.siteName,
 			readTime: displayableReadTime(article),
 			url: input.destinationUrl,
 			provenance: input.provenance,
-			readlistTags: input.readlistTags,
 			saved: input.saved,
 			publishedOn: article.metadata.publishedOn,
 		});
@@ -453,7 +449,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				article,
 				destinationUrl,
 				provenance: params.provenance,
-				readlistTags: params.readlistTags,
 				saved: params.saved,
 			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),
@@ -501,7 +496,6 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 				article,
 				destinationUrl,
 				provenance: params.provenance,
-				readlistTags: params.readlistTags,
 				saved: params.saved,
 			}),
 			downloadsOob: content === undefined || params.renderDownloadsOob === undefined ? "" : params.renderDownloadsOob(articleUrl),

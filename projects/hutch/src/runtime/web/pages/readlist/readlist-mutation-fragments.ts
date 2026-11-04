@@ -76,6 +76,10 @@ export function renderFilingToast(toast: FilingToast): string {
 	});
 }
 
+export function renderStatusToastMountOob(toastHtml: string): string {
+	return `<div id="status-toast" hx-swap-oob="outerHTML">${toastHtml}</div>`;
+}
+
 /** The readlist's out-of-band counts loader. The readlist page renders it inert
  * (`oob` false); the mutation response re-arms an identical span carrying
  * `hx-swap-oob` so htmx re-fires its `load` trigger and the badge/page-count
@@ -107,5 +111,5 @@ export function renderReadlistMutationFragment(input: {
 		undoUrl: `/queue/${input.statusFlash.undoArticleId}/status${returnQuery}`,
 		undoStatus: input.statusFlash.undoStatus,
 	});
-	return `<div id="status-toast" hx-swap-oob="outerHTML">${toast}</div>${counts}`;
+	return `${renderStatusToastMountOob(toast)}${counts}`;
 }

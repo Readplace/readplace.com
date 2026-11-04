@@ -111,6 +111,40 @@ async function openReader(page: Page, stamp: string): Promise<void> {
 	await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
 }
 
+async function seedReadlist(page: Page, label: string): Promise<string> {
+	const created = await page.request.post(`${BASE_URL}/queue/queues`, { form: { label } });
+	assert.equal(created.status(), 200, "a readlist under the cap must be created and landed on");
+	const slug = new URL(created.url()).searchParams.get("queue");
+	assert(slug, "creating a readlist must land the reader on it");
+	return slug;
+}
+
+async function fileHoldingScroll(
+	page: Page,
+	input: { slug: string; toast: { label: string } | "none"; top: number },
+): Promise<void> {
+	const option = `button[data-test-assign-readlist="${input.slug}"]`;
+	await page.click("summary[data-test-readlists-trigger]");
+	await page.waitForSelector(option);
+	await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), input.top);
+	expect(await page.evaluate(readScrollY)).toBe(input.top);
+
+	await page.evaluate(() => document.documentElement.removeAttribute("data-test-scroll-after-swap"));
+	await page.evaluate(recordScrollAfterSwap, option);
+	const box = await page.locator(option).boundingBox();
+	assert(box, "the picker's option must be laid out to be clicked");
+	await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+	await page.waitForSelector(`#article-header [data-test-readlist-tag="${input.slug}"]`);
+	if (input.toast === "none") {
+		await expect(page.locator("#status-toast")).toHaveCount(1);
+		await expect(page.locator("#status-toast > *")).toHaveCount(0);
+	} else {
+		await expect(page.locator("#status-toast [data-test-toast-message]")).toHaveText(`Added to ${input.toast.label}`);
+	}
+	await expect(page.locator("html")).toHaveAttribute("data-test-scroll-after-swap", String(input.top));
+}
+
 async function openCreateDialog(page: Page, viewport: { width: number }, name: string): Promise<void> {
 	if (viewport.width < RAIL_MIN_WIDTH) await openReadlistSwitcher(page);
 	await nameNewReadlist(page, name);
@@ -247,6 +281,40 @@ for (const viewport of VIEWPORTS) {
 				"data-test-scroll-after-swap",
 				String(READER_SCROLL_PX),
 			);
+		});
+
+		test("filing into two readlists from the reader's Add keeps the page where it was", async ({ page }, testInfo) => {
+			await openReader(page, `${testInfo.workerIndex}-${Date.now()}`);
+			const first = await seedReadlist(page, "Deep Work");
+			const second = await seedReadlist(page, "Finance");
+			await page.reload({ waitUntil: "domcontentloaded" });
+			await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+
+			await fileHoldingScroll(page, { slug: first, toast: { label: "Deep Work" }, top: READER_SCROLL_PX });
+			await fileHoldingScroll(page, { slug: second, toast: { label: "Finance" }, top: READER_SCROLL_PX });
+
+			await expect(page.locator("#article-header [data-test-readlist-tag]")).toHaveCount(2);
+		});
+
+		test("filing deep in the app's chromeless reader keeps the page where it was", async ({ page }, testInfo) => {
+			await openReader(page, `${testInfo.workerIndex}-${Date.now()}`);
+			const first = await seedReadlist(page, "Deep Work");
+			const second = await seedReadlist(page, "Finance");
+			await page.goto(`${page.url()}?platform=ios`, { waitUntil: "domcontentloaded" });
+			await page.waitForSelector('[data-test-reader-slot][data-reader-status="ready"]');
+			const deep = Math.floor((await page.evaluate(maxScrollY)) / 2);
+			expect(deep).toBeGreaterThan(0);
+			await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), deep);
+
+			await page.click("summary[data-test-readlists-trigger]");
+			const scrolled = await page.evaluate(readScrollY);
+			expect(scrolled).toBeGreaterThan(0);
+			await page.click("summary[data-test-readlists-trigger]");
+
+			await fileHoldingScroll(page, { slug: first, toast: "none", top: scrolled });
+			await fileHoldingScroll(page, { slug: second, toast: "none", top: scrolled });
+
+			await expect(page.locator("#article-header [data-test-readlist-tag]")).toHaveCount(2);
 		});
 
 		test("refusing a link in Add link keeps the page where it was", async ({ page }, testInfo) => {

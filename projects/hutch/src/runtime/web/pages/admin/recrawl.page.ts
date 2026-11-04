@@ -278,7 +278,6 @@ function handleSummaryPoll(
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			saved: undefined,
-			readlistTags: undefined,
 			readerViewFailedOob: NO_READER_VIEW_FAILED_OOB,
 			renderDownloadsOob: undefined,
 		});
@@ -309,7 +308,6 @@ function handleReaderPoll(
 			summaryToggleUrl: undefined,
 			provenance: undefined,
 			saved: undefined,
-			readlistTags: undefined,
 			readerViewFailedOob: NO_READER_VIEW_FAILED_OOB,
 			renderDownloadsOob: undefined,
 		});

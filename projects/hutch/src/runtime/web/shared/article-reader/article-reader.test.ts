@@ -117,7 +117,7 @@ function toHtml(component: { to: (mediaType: "text/html") => { body: string } })
 const SIX_HOURS_AGO = { iso: "2026-04-25T06:00:00.000Z", label: "6h ago", mode: "relative" } as const;
 
 function headerOf(doc: Document): { facts: (string | null)[]; saved: string | null | undefined } {
-	const header = doc.querySelector("#article-header");
+	const header = doc.querySelector("#reader-article-meta");
 	assert(header, "the header OOB fragment must accompany the slot");
 	return {
 		facts: Array.from(header.querySelectorAll("[data-test-reader-fact]"), (fact) =>
@@ -465,7 +465,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -493,7 +492,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -522,7 +520,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -552,7 +549,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -584,7 +580,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: "/queue/abc/summary-toggle",
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -613,7 +608,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -643,7 +637,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -670,7 +663,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -702,7 +694,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -732,7 +723,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -760,7 +750,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -788,7 +777,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -816,7 +804,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -842,7 +829,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -878,18 +864,18 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
-			const header = doc.querySelector("#article-header");
-			assert(header, "header OOB fragment must accompany the reader-slot");
-			expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
-			expect(header.querySelector("[data-test-reader-title]")?.textContent).toBe(
-				"Why Rust beats Go",
-			);
+			const title = doc.querySelector("#reader-article-title");
+			assert(title, "title OOB fragment must accompany the reader-slot");
+			expect(title.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(title.textContent).toBe("Why Rust beats Go");
+			expect(doc.querySelector("#reader-article-meta")?.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(doc.querySelector("#article-header")).toBeNull();
+			expect(doc.querySelector("#reader-readlist-tags")).toBeNull();
 		});
 
 		it("includes a <title> hx-swap-oob fragment formatted via deps.formatDocumentTitle so the browser tab updates without any client-side JS", async () => {
@@ -918,7 +904,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -951,13 +936,12 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
-			const header = doc.querySelector("#article-header");
+			const header = doc.querySelector("#reader-article-meta");
 			assert(header, "header OOB fragment must accompany the reader-slot");
 			expect(header.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
 				"https://destination.example/article",
@@ -982,7 +966,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: { kind: "web" },
 				saved: SIX_HOURS_AGO,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1013,14 +996,13 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: { kind: "web" },
 				saved: SIX_HOURS_AGO,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
 			expect(headerOf(doc).facts).toEqual(["site", "published", "saved", "read-time", "provenance", "original"]);
-			expect(doc.querySelector('#article-header [data-test-reader-fact="published"]')?.textContent).toBe(
+			expect(doc.querySelector('#reader-article-meta [data-test-reader-fact="published"]')?.textContent).toBe(
 				"Published Oct 8, 2025",
 			);
 		});
@@ -1042,13 +1024,12 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
-			const header = doc.querySelector("#article-header");
+			const header = doc.querySelector("#reader-article-meta");
 			assert(header, "header OOB fragment must accompany the reader-slot");
 			expect(header.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
 				ARTICLE_URL,
@@ -1076,7 +1057,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1088,7 +1068,7 @@ describe("initArticleReader", () => {
 			expect(primary.textContent?.trim()).toBe("Read original article");
 		});
 
-		it("omits the header + <title> OOB fragments when the row has gone missing — falling back to swapping only the slot so the existing header text stays put", async () => {
+		it("omits the title, meta and <title> OOB fragments when the row has gone missing — falling back to swapping only the slot so the existing header text stays put", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 				content: undefined,
@@ -1106,7 +1086,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1117,13 +1096,14 @@ describe("initArticleReader", () => {
 			// typo'd selector would otherwise also return null and pass silently).
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader-slot fragment must still be emitted even with no article row");
-			expect(doc.querySelector("#article-header")).toBeNull();
+			expect(doc.querySelector("#reader-article-title")).toBeNull();
+			expect(doc.querySelector("#reader-article-meta")).toBeNull();
 			expect(doc.querySelector("title#document-title")).toBeNull();
 		});
 	});
 
 	describe("handleSummaryPoll header + title OOB", () => {
-		it("emits the header and <title> OOB fragments alongside the summary-slot so a settled title can land via the summary-poll path too (whichever poll fires first wins)", async () => {
+		it("emits the title, meta and <title> OOB fragments alongside the summary-slot so a settled title can land via the summary-poll path too (whichever poll fires first wins)", async () => {
 			const { state, deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				summary: { status: "pending", stage: "summary-generating" },
@@ -1149,18 +1129,16 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
-			const header = doc.querySelector("#article-header");
-			assert(header, "header OOB fragment must accompany the summary-slot");
-			expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
-			expect(header.querySelector("[data-test-reader-title]")?.textContent).toBe(
-				"Why Rust beats Go",
-			);
+			const title = doc.querySelector("#reader-article-title");
+			assert(title, "title OOB fragment must accompany the summary-slot");
+			expect(title.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(title.textContent).toBe("Why Rust beats Go");
+			expect(doc.querySelector("#reader-article-meta")?.getAttribute("hx-swap-oob")).toBe("outerHTML");
 			const titleEl = doc.querySelector("title#document-title");
 			assert(titleEl, "<title> OOB fragment must accompany the summary-slot");
 			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
@@ -1184,7 +1162,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: { kind: "web" },
 				saved: SIX_HOURS_AGO,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1216,13 +1193,12 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
 
 			const doc = parse(toHtml(component));
-			const header = doc.querySelector("#article-header");
+			const header = doc.querySelector("#reader-article-meta");
 			assert(header, "header OOB fragment must accompany the summary-slot");
 			expect(header.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe(
 				"https://destination.example/article",
@@ -1255,7 +1231,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1286,7 +1261,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1320,7 +1294,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1351,7 +1324,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1382,7 +1354,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1393,7 +1364,8 @@ describe("initArticleReader", () => {
 			const swappedIds = Array.from(response.children).map((el) => el.id);
 			expect(swappedIds).toEqual([
 				"article-body-summary-slot",
-				"article-header",
+				"reader-article-title",
+				"reader-article-meta",
 				"document-title",
 				"article-body-reader-notice",
 			]);
@@ -1423,7 +1395,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1461,7 +1432,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1678,7 +1648,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1722,7 +1691,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			});
@@ -1752,7 +1720,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
 			};
@@ -1867,7 +1834,8 @@ describe("initArticleReader", () => {
 
 			expect(Array.from(doc.body.children, (piece) => piece.id)).toEqual([
 				"article-body-summary-slot",
-				"article-header",
+				"reader-article-title",
+				"reader-article-meta",
 				"document-title",
 				"article-body-reader-notice",
 			]);
@@ -1897,13 +1865,15 @@ describe("initArticleReader", () => {
 		const READER_POLL_BASELINE = [
 			"article-body-summary-slot",
 			"table-of-contents",
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 		];
 		const SUMMARY_POLL_BASELINE = [
 			"article-body-reader-slot",
 			"table-of-contents",
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 		];
 
@@ -1924,7 +1894,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 			});
@@ -1955,13 +1924,13 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 			});
 
 			expect(oobIds(component)).toEqual([
-				"article-header",
+				"reader-article-title",
+				"reader-article-meta",
 				"document-title",
 				"reader-view-failed-probe",
 				"article-body-reader-notice",
@@ -1987,7 +1956,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 			});
@@ -2012,7 +1980,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 			});
@@ -2037,7 +2004,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 			});
@@ -2063,7 +2029,6 @@ describe("initArticleReader", () => {
 				summaryToggleUrl: undefined,
 				provenance: undefined,
 				saved: undefined,
-				readlistTags: undefined,
 				readerViewFailedOob: PROBE,
 				renderDownloadsOob: undefined,
 			});
@@ -2137,7 +2102,6 @@ describe("initArticleReader", () => {
 						summaryToggleUrl: undefined,
 						provenance: undefined,
 						saved: undefined,
-						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 					}),
@@ -2183,7 +2147,6 @@ describe("initArticleReader", () => {
 						summaryToggleUrl: undefined,
 						provenance: undefined,
 						saved: undefined,
-						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 					}),
@@ -2214,7 +2177,6 @@ describe("initArticleReader", () => {
 						summaryToggleUrl: undefined,
 						provenance: undefined,
 						saved: undefined,
-						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 					}),
@@ -2246,7 +2208,6 @@ describe("initArticleReader", () => {
 						summaryToggleUrl: undefined,
 						provenance: undefined,
 						saved: undefined,
-						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 					}),
@@ -2258,7 +2219,7 @@ describe("initArticleReader", () => {
 				"mail.google.com — TestReader",
 			);
 			assert.equal(
-				doc.querySelector("#article-header .article-body__title")?.textContent?.trim(),
+				doc.querySelector("#reader-article-title")?.textContent?.trim(),
 				"mail.google.com",
 			);
 		});
@@ -2285,7 +2246,6 @@ describe("initArticleReader", () => {
 						summaryToggleUrl: undefined,
 						provenance: { kind: "web" },
 						saved: SIX_HOURS_AGO,
-						readlistTags: undefined,
 						readerViewFailedOob: FAILURE_PROBE,
 						renderDownloadsOob: undefined,
 					}),
@@ -2296,12 +2256,10 @@ describe("initArticleReader", () => {
 				facts: ["site", "read-time", "original"],
 				saved: undefined,
 			});
-			const header = doc.querySelector("#article-header");
+			const header = doc.querySelector("#reader-article-meta");
 			assert(header, "the stub header must swap in");
-			assert.deepEqual(
-				Array.from(header.children, (child) => child.className),
-				["article-body__title", "article-body__meta"],
-			);
+			assert(doc.querySelector("#reader-article-title"), "the stub title must swap in");
+			assert.equal(doc.querySelector("#reader-readlist-tags"), null);
 		});
 	});
 });

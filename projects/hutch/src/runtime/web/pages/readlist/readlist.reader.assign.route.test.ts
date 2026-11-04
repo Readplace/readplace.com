@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { NATIVE_CLIENT_HEADER } from "../../onboarding/native-client";
+import { markStatusConfirmPopoverId } from "./mark-status-confirm.component";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
@@ -74,6 +76,43 @@ async function assignTo(params: {
 		.post(`/queue/${params.articleId}/assign`)
 		.type("form")
 		.send({ queue: params.readlist, returnTo: params.returnTo ?? `/queue/${params.articleId}/view` });
+}
+
+async function fileInPlace(params: {
+	agent: TestAgent;
+	articleId: string;
+	readlist: string;
+	returnTo?: string;
+	client?: string | undefined;
+}): Promise<request.Response> {
+	const post = params.agent
+		.post(`/queue/${params.articleId}/assign?swap=filing`)
+		.set("HX-Request", "true")
+		.set("HX-Boosted", "true");
+	if (params.client !== undefined) post.set(NATIVE_CLIENT_HEADER, params.client);
+	return post
+		.type("form")
+		.send({ queue: params.readlist, returnTo: params.returnTo ?? `/queue/${params.articleId}/view` });
+}
+
+function onPage(doc: Document, selector: string): Element {
+	const element = doc.querySelector(selector);
+	assert(element, `${selector} must render`);
+	return element;
+}
+
+function oobOf(doc: Document, selector: string): Element {
+	const element = onPage(doc, selector);
+	expect(element.getAttribute("hx-swap-oob")).toBe("outerHTML");
+	return element;
+}
+
+function withoutOob(element: Element): string {
+	const copy = element.cloneNode(true);
+	assert(copy.ownerDocument?.defaultView, "a parsed element belongs to a window");
+	assert(copy instanceof copy.ownerDocument.defaultView.Element, "cloning an element yields an element");
+	copy.removeAttribute("hx-swap-oob");
+	return copy.outerHTML;
 }
 
 function statusToast(doc: Document): Element {
@@ -343,7 +382,7 @@ describe("the reader's add-to-readlist control", () => {
 		expect(readlistTags(parse(landed.text))).toEqual([]);
 	});
 
-	it("carries the tags on the polled header so a settling crawl cannot drop them", async () => {
+	it("polls never touch the tags, so a settling crawl cannot drop or overwrite them", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const work = await createReadlist(agent, "New Readlist");
@@ -352,11 +391,11 @@ describe("the reader's add-to-readlist control", () => {
 
 		const poll = await agent.get(`/queue/${articleId}/reader?poll=1`);
 		expect(poll.status).toBe(200);
-		expect(readlistTags(parse(poll.text))).toEqual([work]);
+		expect(parse(poll.text).querySelector("#reader-readlist-tags")).toBeNull();
 
 		const summaryPoll = await agent.get(`/queue/${articleId}/summary?poll=1`);
 		expect(summaryPoll.status).toBe(200);
-		expect(readlistTags(parse(summaryPoll.text))).toEqual([work]);
+		expect(parse(summaryPoll.text).querySelector("#reader-readlist-tags")).toBeNull();
 	});
 
 	it("sends a signed-out visitor to log in rather than assigning anything", async () => {
@@ -465,11 +504,280 @@ describe("the reader's add-to-readlist control", () => {
 
 		const poll = await agent.get(`/queue/${articleId}/reader?poll=1&platform=ios`);
 		expect(poll.status).toBe(200);
-		const polled = parse(poll.text);
-		const polledForm = polled.querySelector(`[data-test-readlist-tag="${work}"] form`);
-		assert(polledForm, "the polled header must carry the un-assign form");
-		expect(polledForm.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
+		expect(parse(poll.text).querySelector(`[data-test-readlist-tag="${work}"]`)).toBeNull();
+
+		const filed = parse((await fileInPlace({ agent, articleId, readlist: work, returnTo: `/queue/${articleId}/view?platform=ios` })).text);
+		const filedForm = filed.querySelector(`[data-test-readlist-tag="${work}"] form`);
+		assert(filedForm, "the swapped-in tag must carry its un-assign form");
+		expect(filedForm.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(
 			`/queue/${articleId}/view?platform=ios`,
 		);
+	});
+});
+
+describe("filing from the reader's picker over htmx", () => {
+	it("answers 200 in place, with the page's scroll and URL under its control and no redirect", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const response = await fileInPlace({ agent, articleId, readlist: work });
+
+		expect(response.status).toBe(200);
+		expect(response.headers["hx-reswap"]).toBe("none show:none");
+		expect(response.headers["hx-replace-url"]).toBe(`/queue/${articleId}/view`);
+		expect(response.headers.location).toBeUndefined();
+	});
+
+	it("swaps in the tag with an un-assign form that returns to the reader", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const doc = parse((await fileInPlace({ agent, articleId, readlist: work })).text);
+
+		expect(oobOf(doc, "#reader-readlist-tags").hasAttribute("hidden")).toBe(false);
+		const form = doc.querySelector(`[data-test-readlist-tag="${work}"] form`);
+		assert(form, "the tag must carry its un-assign form");
+		expect(form.getAttribute("action")).toContain(`/queue/${articleId}/unassign`);
+		expect(form.querySelector('input[name="queue"]')?.getAttribute("value")).toBe(work);
+		expect(form.querySelector('input[name="returnTo"]')?.getAttribute("value")).toBe(`/queue/${articleId}/view`);
+	});
+
+	it("swaps in a picker that no longer offers the slug and can file again in place", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const later = await createReadlist(agent, "New Readlist 2");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const doc = parse((await fileInPlace({ agent, articleId, readlist: work })).text);
+
+		const slot = oobOf(doc, "#reader-readlists-slot");
+		expect(pickerOptions(doc)).toEqual([later]);
+		const form = slot.querySelector(`[data-test-assign-readlist="${later}"]`)?.closest("form");
+		assert(form, "the offered readlist must carry its assign form");
+		expect(form.getAttribute("action")).toContain("swap=filing");
+		expect(form.getAttribute("hx-boost")).toBe("true");
+		expect(form.getAttribute("hx-target")).toBe("main");
+		expect(form.getAttribute("hx-select")).toBe("main");
+	});
+
+	it("keeps the slot visible after the last readlist is taken, because creating a new one remains", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const doc = parse((await fileInPlace({ agent, articleId, readlist: work })).text);
+
+		expect(pickerOptions(doc)).toEqual([]);
+		expect(oobOf(doc, "#reader-readlists-slot").classList.contains("article-body__readlists-slot--visible")).toBe(true);
+	});
+
+	it("swaps in the toast with an Undo form", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const doc = parse((await fileInPlace({ agent, articleId, readlist: work })).text);
+
+		const toast = oobOf(doc, "#status-toast");
+		expect(toast.querySelector("[data-test-toast-message]")?.textContent).toBe("Added to New Readlist");
+		expect(toast.querySelector("[data-test-toast-action]")?.textContent?.trim()).toBe("Undo");
+		expect(toast.querySelector("[data-test-toast-action]")?.closest("form")?.getAttribute("action")).toContain(
+			`/queue/${articleId}/unassign`,
+		);
+	});
+
+	it("does not depend on the single-URL read a followed GET would make", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const listUserSavesForUrl = fixture.articleStore.listUserSavesForUrl;
+		let refuseSingleUrlRead = false;
+		const harness = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				listUserSavesForUrl: (input) =>
+					refuseSingleUrlRead ? Promise.reject(new Error("the fragment must not read this")) : listUserSavesForUrl(input),
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		refuseSingleUrlRead = true;
+
+		const response = await fileInPlace({ agent, articleId, readlist: work });
+
+		expect(response.status).toBe(200);
+		expect(readlistTags(parse(response.text))).toEqual([work]);
+	});
+
+	it("files A then B in a row, each answer holding what came before", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const a = await createReadlist(agent, "New Readlist");
+		const b = await createReadlist(agent, "New Readlist 2");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const first = parse((await fileInPlace({ agent, articleId, readlist: a })).text);
+		const second = parse((await fileInPlace({ agent, articleId, readlist: b })).text);
+
+		expect(readlistTags(first)).toEqual([a]);
+		expect(pickerOptions(first)).toEqual([b]);
+		expect(readlistTags(second)).toEqual([a, b]);
+		expect(pickerOptions(second)).toEqual([]);
+		expect(second.querySelector("#status-toast [data-test-toast-message]")?.textContent).toBe(
+			"Added to New Readlist 2",
+		);
+	});
+
+	it("matches what a GET of the reader renders, element by element", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		await createReadlist(agent, "New Readlist 2");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const fragment = parse((await fileInPlace({ agent, articleId, readlist: work })).text);
+		const reader = await openReader(agent, articleId);
+		const panel = `#${markStatusConfirmPopoverId(articleId)}`;
+
+		for (const selector of ["#reader-readlist-tags", "#reader-readlists-slot", panel]) {
+			expect(withoutOob(oobOf(fragment, selector))).toBe(onPage(reader, selector).outerHTML);
+		}
+	});
+
+	it("refreshes the mark-status popover only while its confirmation is still asked", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const later = await createReadlist(agent, "New Readlist 2");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		const panel = `#${markStatusConfirmPopoverId(articleId)}`;
+
+		const gated = parse((await fileInPlace({ agent, articleId, readlist: work })).text);
+		expect(oobOf(gated, panel).textContent).toContain("New Readlist");
+
+		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read", ack: "never" });
+		await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });
+
+		const acknowledged = parse((await fileInPlace({ agent, articleId, readlist: later })).text);
+		expect(acknowledged.querySelector(panel)).toBeNull();
+	});
+
+	it.each([
+		{ surface: "?platform=ios", query: "?platform=ios", client: undefined },
+		{ surface: "shell=app", query: "?shell=app", client: undefined },
+		{ surface: "the native client header", query: "", client: "ios" },
+	])("leaves the toast empty on an app surface marked by $surface", async ({ query, client }) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const response = await fileInPlace({
+			agent,
+			articleId,
+			readlist: work,
+			returnTo: `/queue/${articleId}/view${query}`,
+			client,
+		});
+
+		const doc = parse(response.text);
+		expect(readlistTags(doc)).toEqual([work]);
+		expect(oobOf(doc, "#status-toast").children).toHaveLength(0);
+	});
+
+	it("answers with no toast when the article was already filed", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		await assignTo({ agent, articleId, readlist: work });
+
+		const response = await fileInPlace({ agent, articleId, readlist: work });
+
+		expect(response.status).toBe(200);
+		const doc = parse(response.text);
+		expect(readlistTags(doc)).toEqual([work]);
+		expect(oobOf(doc, "#status-toast").children).toHaveLength(0);
+	});
+
+	it("hides the slot when a stale picker races the removal of the article's default copy", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const findArticleById = fixture.articleStore.findArticleById;
+		let foundBeforeTheRemoval: Awaited<ReturnType<typeof findArticleById>> = null;
+		const harness = useApp({
+			...fixture,
+			articleStore: {
+				...fixture.articleStore,
+				findArticleById: async (id, userId) => {
+					foundBeforeTheRemoval = (await findArticleById(id, userId)) ?? foundBeforeTheRemoval;
+					return foundBeforeTheRemoval;
+				},
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const later = await createReadlist(agent, "New Readlist 2");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+		await assignTo({ agent, articleId, readlist: work });
+		await agent.post(`/queue/${articleId}/delete`);
+
+		const doc = parse((await fileInPlace({ agent, articleId, readlist: later })).text);
+
+		expect(oobOf(doc, "#reader-readlists-slot").classList.contains("article-body__readlists-slot--hidden")).toBe(true);
+		expect(readlistTags(doc)).toEqual([work]);
+		expect(oobOf(doc, "#status-toast").children).toHaveLength(0);
+	});
+
+	it("redirects without replacing the URL when the article is missing", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+
+		const response = await fileInPlace({
+			agent,
+			articleId: "ffffffffffffffffffffffffffffffff",
+			readlist: work,
+		});
+
+		expect(response.status).toBe(303);
+		expect(response.headers["hx-replace-url"]).toBeUndefined();
+	});
+
+	it("redirects an htmx request that did not opt in with the marker", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const response = await agent
+			.post(`/queue/${articleId}/assign`)
+			.set("HX-Request", "true")
+			.type("form")
+			.send({ queue: work, returnTo: `/queue/${articleId}/view` });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`/queue/${articleId}/view?filed_readlist=${work}`);
+	});
+
+	it("redirects the marker when the browser has no htmx, so no-JS posts still land on the reader", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const work = await createReadlist(agent, "New Readlist");
+		const articleId = await saveArticle(agent, "https://example.com/a");
+
+		const response = await agent
+			.post(`/queue/${articleId}/assign?swap=filing`)
+			.type("form")
+			.send({ queue: work, returnTo: `/queue/${articleId}/view` });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`/queue/${articleId}/view?filed_readlist=${work}`);
 	});
 });

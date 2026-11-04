@@ -30,6 +30,7 @@ import {
 	renderDeleteMenuItems,
 } from "../readlist/readlist-card/delete-confirm.component";
 import {
+	type MarkStatusConfirmViewModel,
 	markStatusConfirmPopoverId,
 	renderMarkStatusConfirm,
 } from "../readlist/mark-status-confirm.component";
@@ -114,6 +115,20 @@ function buildExitConfirmHtml(input: {
 	});
 }
 
+export function readerMarkStatusConfirm(input: {
+	article: SavedArticle;
+	readlists: readonly ReadlistRef[];
+}): MarkStatusConfirmViewModel {
+	const articleId = input.article.id.value;
+	return {
+		articleId,
+		popoverId: markStatusConfirmPopoverId(articleId),
+		url: `/queue/${articleId}/status`,
+		status: input.article.status === "read" ? "unread" : "read",
+		readlists: input.readlists,
+	};
+}
+
 export function ReaderPage(
 	article: SavedArticle,
 	options: {
@@ -161,13 +176,7 @@ export function ReaderPage(
 	const markStatusConfirm =
 		options.markStatusConfirmReadlists === undefined
 			? undefined
-			: {
-					articleId,
-					popoverId: markStatusConfirmPopoverId(articleId),
-					url: `/queue/${articleId}/status`,
-					status: markReadStatus,
-					readlists: options.markStatusConfirmReadlists,
-				};
+			: readerMarkStatusConfirm({ article, readlists: options.markStatusConfirmReadlists });
 	const markReadActions: MarkReadAction[] = [
 		{
 			position: "top",

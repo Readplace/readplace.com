@@ -179,7 +179,8 @@ describe("GET /queue/:id/view Download", () => {
 		const document = new JSDOM(response.text).window.document;
 		expect(Array.from(document.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
 			...settledSiblingOob,
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 			"reader-downloads-slot",
 			"reader-menu-downloads-slot",
@@ -269,7 +270,8 @@ describe("GET /queue/:id/view Download on a platform with no EPUB reader", () =>
 		const document = new JSDOM(response.text).window.document;
 		expect(Array.from(document.querySelectorAll("[hx-swap-oob]"), (element) => element.id)).toEqual([
 			...settledSiblingOob,
-			"article-header",
+			"reader-article-title",
+			"reader-article-meta",
 			"document-title",
 			"reader-downloads-slot",
 			"reader-menu-downloads-slot",
