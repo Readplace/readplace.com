@@ -38,6 +38,7 @@ import {
 	LinkableArticle,
 	descriptionOf,
 	initArticleReads,
+	readableBy,
 	usable,
 } from "./related-articles-rows";
 import { decodeUserArticlePartition } from "./user-readlist-partition";
@@ -204,7 +205,7 @@ export function initDynamoDbRelatedArticles(deps: {
 			exclusiveStartKey = lastEvaluatedKey;
 		} while (exclusiveStartKey && savedUrls.length < params.limit);
 
-		return hydrateCandidates(savedUrls);
+		return hydrateCandidates({ savedUrls, viewer: viewerFor(params.userId) });
 	};
 
 	const findRelatedReadCandidateArticles: FindRelatedReadCandidateArticles = async (
@@ -231,7 +232,7 @@ export function initDynamoDbRelatedArticles(deps: {
 			exclusiveStartKey = lastEvaluatedKey;
 		} while (exclusiveStartKey && savedUrls.length < params.limit);
 
-		return hydrateCandidates(savedUrls);
+		return hydrateCandidates({ savedUrls, viewer: viewerFor(params.userId) });
 	};
 
 	const findRelatedArticles: FindRelatedArticles = async (params) => {
@@ -276,14 +277,15 @@ export function initDynamoDbRelatedArticles(deps: {
 			[...new Set([...savedByKey.keys(), articleResourceUniqueId.value])],
 			ARTICLE_FIELDS,
 		);
-		const target = usable(ArticleRelatedRow, byUrl.get(articleResourceUniqueId.value));
+		const viewer = viewerFor(params.userId);
+		const target = readableBy({ article: usable(ArticleRelatedRow, byUrl.get(articleResourceUniqueId.value)), viewer });
 
 		const kept: ComparableArticle[] = [];
 		const items: RelatedArticleDisplay[] = [];
 		for (const link of keyed) {
 			const saved = savedByKey.get(link.key);
 			if (!saved) continue;
-			const article = usable(LinkableArticle, byUrl.get(link.key));
+			const article = readableBy({ article: usable(LinkableArticle, byUrl.get(link.key)), viewer });
 			if (!article) continue;
 			if (target && isSameArticle({ article, other: target })) continue;
 			if (kept.some((earlier) => isSameArticle({ article, other: earlier }))) continue;
@@ -293,7 +295,7 @@ export function initDynamoDbRelatedArticles(deps: {
 				destinationUrl: articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl }),
 				title: article.title,
 				siteName: article.siteName,
-				viewer: viewerFor(params.userId),
+				viewer,
 				ownerUserId: article.ownerUserId,
 			});
 			items.push({

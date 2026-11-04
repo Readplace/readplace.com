@@ -10,12 +10,16 @@ const URL = "https://example.com/post";
 const PAST_URL = "https://example.com/earlier";
 const WORK = ReadlistSlugSchema.parse("work");
 const AT = new Date("2026-09-12T00:00:00.000Z");
+const OTHER_USER_ID = UserIdSchema.parse("user_other");
+const OTHERS_PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const OWN_PRIVATE_URL = "https://uploads.readplace.invalid/fedcba9876543210fedcba9876543210";
 
 function build() {
 	const articleStore = initInMemoryArticleStore();
 	const store = initInMemoryPastReads({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
+		findItemOwner: articleStore.findItemOwner,
 	});
 
 	async function save(params: { url: string; title: string }) {
@@ -132,6 +136,34 @@ describe("initInMemoryPastReads", () => {
 
 		assert(result.status === "ready", "a settled computation reports ready");
 		expect(result.items.map((item) => item.id)).toEqual([kept.id]);
+	});
+
+	it("drops a past read of another reader's private upload and keeps the reader's own", async () => {
+		const { articleStore, store, save } = build();
+		await save({ url: URL, title: "Target" });
+		const theirs = await save({ url: OTHERS_PRIVATE_URL, title: "Their book" });
+		await articleStore.recordItemOwner({ url: OTHERS_PRIVATE_URL, ownerUserId: OTHER_USER_ID });
+		const own = await save({ url: OWN_PRIVATE_URL, title: "My book" });
+		await articleStore.recordItemOwner({ url: OWN_PRIVATE_URL, ownerUserId: USER_ID });
+		await articleStore.updateArticleStatus(theirs.id, USER_ID, "read");
+		await articleStore.updateArticleStatus(own.id, USER_ID, "read");
+		await store.markPastReadsReady({
+			userId: USER_ID,
+			url: URL,
+			pastReads: [
+				{ url: OTHERS_PRIVATE_URL, reason: "Their upload" },
+				{ url: OWN_PRIVATE_URL, reason: "My upload" },
+			],
+			fingerprint: "fp",
+			inputTokens: 1,
+			outputTokens: 1,
+			at: AT,
+		});
+
+		const result = await store.findPastReads({ userId: USER_ID, url: URL });
+
+		assert(result.status === "ready", "a settled computation reports ready");
+		expect(result.items.map((item) => item.id)).toEqual([own.id]);
 	});
 
 	it("drops a match whose article was never saved", async () => {

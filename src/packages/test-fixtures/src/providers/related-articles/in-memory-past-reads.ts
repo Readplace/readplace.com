@@ -1,9 +1,10 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type ComparableArticle, isNonArticleHost, isSameArticle } from "@packages/domain/article";
+import { type ComparableArticle, isNonArticleHost, isSameArticle, mayReadItem, viewerFor } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticleByUrl,
+	FindItemOwner,
 } from "@packages/provider-contracts/article-store";
 import type {
 	FindPastReads,
@@ -23,6 +24,7 @@ function keyOf(userId: UserId, url: string): string {
 export function initInMemoryPastReads(deps: {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleById: FindArticleById;
+	findItemOwner: FindItemOwner;
 }): {
 	findPastReads: FindPastReads;
 	markPastReadsReady: MarkPastReadsReady;
@@ -42,6 +44,7 @@ export function initInMemoryPastReads(deps: {
 			const article = await deps.findArticleByUrl(link.url);
 			if (!article) continue;
 			if (isNonArticleHost(article.url)) continue;
+			if (!mayReadItem({ url: article.url, viewer: viewerFor(userId), ownerUserId: await deps.findItemOwner(article.url) })) continue;
 			const saved = await deps.findArticleById(article.id, userId);
 			if (saved?.status !== "read") continue;
 			const comparable = { url: article.url, displayUrl: article.destinationUrl, title: article.metadata.title };

@@ -1,9 +1,10 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type ComparableArticle, isNonArticleHost, isSameArticle } from "@packages/domain/article";
+import { type ComparableArticle, isNonArticleHost, isSameArticle, mayReadItem, viewerFor } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticleByUrl,
+	FindItemOwner,
 	GlobalArticleData,
 } from "@packages/provider-contracts/article-store";
 import type {
@@ -30,6 +31,7 @@ function comparableOf(article: GlobalArticleData): ComparableArticle {
 export function initInMemoryRelatedArticles(deps: {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleById: FindArticleById;
+	findItemOwner: FindItemOwner;
 }): {
 	findRelatedArticles: FindRelatedArticles;
 	markRelatedArticlesReady: MarkRelatedArticlesReady;
@@ -51,6 +53,7 @@ export function initInMemoryRelatedArticles(deps: {
 			const article = await deps.findArticleByUrl(link.url);
 			if (!article) continue;
 			if (isNonArticleHost(article.url)) continue;
+			if (!mayReadItem({ url: article.url, viewer: viewerFor(userId), ownerUserId: await deps.findItemOwner(article.url) })) continue;
 			const saved = await deps.findArticleById(article.id, userId);
 			if (!saved) continue;
 			const comparable = comparableOf(article);

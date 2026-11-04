@@ -33,6 +33,9 @@ const USER_ID = UserIdSchema.parse("00000000000000000000000000000001");
 const WORK = ReadlistSlugSchema.parse("work");
 const READING = ReadlistSlugSchema.parse("reading");
 const TARGET_URL = "https://example.com/target";
+const OTHER_USER_ID = UserIdSchema.parse("00000000000000000000000000000002");
+const OTHERS_PRIVATE_KEY = "uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const OWN_PRIVATE_KEY = "uploads.readplace.invalid/fedcba9876543210fedcba9876543210";
 const AT = new Date("2026-09-12T10:00:00.000Z");
 
 function build(impl: (command: SentCommand) => unknown) {
@@ -404,6 +407,30 @@ describe("initDynamoDbPastReads", () => {
 
 			expect(result.candidates.map((candidate) => candidate.title)).toEqual(["Good"]);
 			expect(result.awaitingCrawl).toBe(1);
+		});
+
+		it("drops a read of another reader's private upload and keeps the reader's own", async () => {
+			const { store } = client({
+				definitions: [],
+				readsByPartition: {
+					[USER_ID]: [
+						{ url: OTHERS_PRIVATE_KEY, readAt: "2026-09-10T00:00:00.000Z" },
+						{ url: OWN_PRIVATE_KEY, readAt: "2026-09-09T00:00:00.000Z" },
+					],
+				},
+				articles: [
+					{ url: OTHERS_PRIVATE_KEY, title: "Their book", siteName: "Upload", excerpt: "", ownerUserId: OTHER_USER_ID },
+					{ url: OWN_PRIVATE_KEY, title: "My book", siteName: "Upload", excerpt: "", ownerUserId: USER_ID },
+				],
+			});
+
+			const result = await store.findReadCandidatesAcrossReadlists({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 10,
+			});
+
+			expect(result.candidates.map((candidate) => candidate.title)).toEqual(["My book"]);
 		});
 
 		it("returns nothing when the reader has read nothing else", async () => {
@@ -935,6 +962,66 @@ describe("initDynamoDbPastReads", () => {
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => item.title)).toEqual(["Kept"]);
+		});
+
+		it("drops a past read of another reader's private upload and names the reader's own by its stored title", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							pastReadsComputedAt: AT.toISOString(),
+							pastReadsArticles: [
+								{ url: OTHERS_PRIVATE_KEY, reason: "Their upload" },
+								{ url: OWN_PRIVATE_KEY, reason: "My upload" },
+							],
+						},
+					};
+				}
+				if (command.constructorName === "QueryCommand") return { Items: [] };
+				if (tableOf(command) === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ userId: USER_ID, url: OTHERS_PRIVATE_KEY, status: "read" },
+								{ userId: USER_ID, url: OWN_PRIVATE_KEY, status: "read" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: OTHERS_PRIVATE_KEY,
+								originalUrl: `https://${OTHERS_PRIVATE_KEY}`,
+								routeId: "fedcba9876543210fedcba9876543210",
+								title: "Their book",
+								siteName: "Upload",
+								excerpt: "",
+								ownerUserId: OTHER_USER_ID,
+							},
+							{
+								url: OWN_PRIVATE_KEY,
+								originalUrl: `https://${OWN_PRIVATE_KEY}`,
+								routeId: "0123456789abcdef0123456789abcdef",
+								title: "My book",
+								siteName: "Upload",
+								excerpt: "",
+								ownerUserId: USER_ID,
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findPastReads({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => item.title)).toEqual(["My book"]);
 		});
 
 		it("lists a repeated past read once, at its first copy, and keeps a copy of the open article", async () => {

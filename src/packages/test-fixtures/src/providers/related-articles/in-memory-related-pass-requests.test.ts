@@ -18,10 +18,12 @@ function build() {
 	const related = initInMemoryRelatedArticles({
 		findArticleByUrl: store.findArticleByUrl,
 		findArticleById: store.findArticleById,
+		findItemOwner: store.findItemOwner,
 	});
 	const pastReads = initInMemoryPastReads({
 		findArticleByUrl: store.findArticleByUrl,
 		findArticleById: store.findArticleById,
+		findItemOwner: store.findItemOwner,
 	});
 	store.onDefaultRowDeleted(related.forgetRow);
 	store.onDefaultRowDeleted(pastReads.forgetRow);

@@ -32,7 +32,7 @@ import type {
 	ReadlistReadCandidate,
 } from "@packages/provider-contracts/related-articles";
 import { z } from "zod";
-import { ARTICLE_FIELDS, LinkableArticle, initArticleReads, usable } from "./related-articles-rows";
+import { ARTICLE_FIELDS, LinkableArticle, initArticleReads, readableBy, usable } from "./related-articles-rows";
 import {
 	READLIST_DEFINITION_KEY_PREFIX,
 	decodeUserArticlePartition,
@@ -191,7 +191,7 @@ export function initDynamoDbPastReads(deps: {
 			.slice(0, params.limit)
 			.map(([url]) => url);
 
-		const { candidates, awaitingCrawl } = await hydrateCandidates(orderedUrls);
+		const { candidates, awaitingCrawl } = await hydrateCandidates({ savedUrls: orderedUrls, viewer: viewerFor(params.userId) });
 		const withReadlist: ReadlistReadCandidate[] = candidates.map((candidate) => {
 			const best = bestByUrl.get(candidate.url);
 			assert(best, "every hydrated candidate came from the gathered read set");
@@ -314,10 +314,11 @@ export function initDynamoDbPastReads(deps: {
 			ARTICLE_FIELDS,
 		);
 
+		const viewer = viewerFor(params.userId);
 		const kept: ComparableArticle[] = [];
 		const items: PastReadDisplay[] = [];
 		for (const link of stillLinked) {
-			const article = usable(LinkableArticle, byUrl.get(link.url));
+			const article = readableBy({ article: usable(LinkableArticle, byUrl.get(link.url)), viewer });
 			if (!article) continue;
 			if (kept.some((earlier) => isSameArticle({ article, other: earlier }))) continue;
 			kept.push(article);
@@ -334,7 +335,7 @@ export function initDynamoDbPastReads(deps: {
 				destinationUrl: articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl }),
 				title: article.title,
 				siteName: article.siteName,
-				viewer: viewerFor(params.userId),
+				viewer,
 				ownerUserId: article.ownerUserId,
 			});
 			items.push({

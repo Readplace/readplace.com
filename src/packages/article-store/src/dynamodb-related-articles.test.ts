@@ -33,6 +33,9 @@ const ARTICLES_TABLE = "articles-table";
 const USER_ARTICLES_TABLE = "user-articles-table";
 const USER_ID = UserIdSchema.parse("00000000000000000000000000000001");
 const TARGET_URL = "https://example.com/target";
+const OTHER_USER_ID = UserIdSchema.parse("00000000000000000000000000000002");
+const OTHERS_PRIVATE_KEY = "uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const OWN_PRIVATE_KEY = "uploads.readplace.invalid/fedcba9876543210fedcba9876543210";
 const AT = new Date("2026-08-04T10:00:00.000Z");
 
 function build(impl: (command: SentCommand) => unknown) {
@@ -788,6 +791,22 @@ describe("initDynamoDbRelatedArticles", () => {
 			expect(candidates.map((candidate) => candidate.title)).toEqual(["Good"]);
 		});
 
+		it("drops a save of another reader's private upload and keeps the reader's own", async () => {
+			const { candidates } = await candidateClient({
+				pages: [{ urls: [OTHERS_PRIVATE_KEY, OWN_PRIVATE_KEY] }],
+				articles: [
+					{ url: OTHERS_PRIVATE_KEY, title: "Their book", siteName: "Upload", excerpt: "", ownerUserId: OTHER_USER_ID },
+					{ url: OWN_PRIVATE_KEY, title: "My book", siteName: "Upload", excerpt: "", ownerUserId: USER_ID },
+				],
+			}).store.findRelatedCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 10,
+			});
+
+			expect(candidates.map((candidate) => candidate.title)).toEqual(["My book"]);
+		});
+
 		it("holds back saves whose crawl has not yet replaced the placeholder metadata", async () => {
 			const { store } = candidateClient({
 				pages: [{ urls: ["example.com/just-saved", "example.com/crawled"] }],
@@ -1005,6 +1024,22 @@ describe("initDynamoDbRelatedArticles", () => {
 			});
 
 			expect(candidates.map((candidate) => candidate.title)).toEqual(["Good"]);
+		});
+
+		it("drops a finished read of another reader's private upload and keeps the reader's own", async () => {
+			const { candidates } = await readCandidateClient({
+				pages: [{ urls: [OTHERS_PRIVATE_KEY, OWN_PRIVATE_KEY] }],
+				articles: [
+					{ url: OTHERS_PRIVATE_KEY, title: "Their book", siteName: "Upload", excerpt: "", ownerUserId: OTHER_USER_ID },
+					{ url: OWN_PRIVATE_KEY, title: "My book", siteName: "Upload", excerpt: "", ownerUserId: USER_ID },
+				],
+			}).store.findRelatedReadCandidateArticles({
+				userId: USER_ID,
+				excludeUrl: TARGET_URL,
+				limit: 10,
+			});
+
+			expect(candidates.map((candidate) => candidate.title)).toEqual(["My book"]);
 		});
 
 		it("holds back finished saves whose crawl has not yet replaced the placeholder metadata", async () => {
@@ -1497,6 +1532,68 @@ describe("initDynamoDbRelatedArticles", () => {
 
 			assert(result.status === "ready", "a computed row reports ready");
 			expect(result.items.map((item) => item.title)).toEqual(["Kept"]);
+		});
+
+		it("drops a relation to another reader's private upload and names the reader's own by its stored title", async () => {
+			const { store } = build((command) => {
+				if (command.constructorName === "GetCommand") {
+					return {
+						Item: {
+							userId: USER_ID,
+							url: "example.com/target",
+							relatedStatus: "ready",
+							relatedArticles: [
+								{ url: OTHERS_PRIVATE_KEY, reason: "Their upload" },
+								{ url: OWN_PRIVATE_KEY, reason: "My upload" },
+							],
+						},
+					};
+				}
+				const tableName = Object.keys(
+					z.object({ RequestItems: z.record(z.string(), z.unknown()) }).parse(command.input).RequestItems,
+				)[0];
+				if (tableName === USER_ARTICLES_TABLE) {
+					return {
+						Responses: {
+							[USER_ARTICLES_TABLE]: [
+								{ url: OTHERS_PRIVATE_KEY, status: "unread", savedAt: "2026-06-01T00:00:00.000Z" },
+								{ url: OWN_PRIVATE_KEY, status: "unread", savedAt: "2026-05-20T00:00:00.000Z" },
+							],
+						},
+						UnprocessedKeys: {},
+					};
+				}
+				return {
+					Responses: {
+						[ARTICLES_TABLE]: [
+							{
+								url: OTHERS_PRIVATE_KEY,
+								originalUrl: `https://${OTHERS_PRIVATE_KEY}`,
+								routeId: "11111111111111111111111111111111",
+								title: "Their book",
+								siteName: "Upload",
+								excerpt: "",
+								ownerUserId: OTHER_USER_ID,
+							},
+							{
+								url: OWN_PRIVATE_KEY,
+								originalUrl: `https://${OWN_PRIVATE_KEY}`,
+								routeId: "22222222222222222222222222222222",
+								title: "My book",
+								siteName: "Upload",
+								excerpt: "",
+								ownerUserId: USER_ID,
+							},
+						],
+					},
+					UnprocessedKeys: {},
+				};
+			});
+
+			const result = await store.findRelatedArticles({ userId: USER_ID, url: TARGET_URL });
+
+			assert(result.status === "ready", "a computed row reports ready");
+			expect(result.items.map((item) => item.title)).toEqual(["My book"]);
 		});
 
 		describe("copies of the saved article and repeated picks", () => {

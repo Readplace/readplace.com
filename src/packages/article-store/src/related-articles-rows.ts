@@ -1,11 +1,11 @@
 import { CrawlStatusSchema } from "@packages/article-state-types";
-import { articleDestinationUrl, isNonArticleHost, stubMetadataFor } from "@packages/domain/article";
+import { type Viewer, articleDestinationUrl, isNonArticleHost, mayReadItem, stubMetadataFor } from "@packages/domain/article";
 import {
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 } from "@packages/hutch-storage-client";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
-import { UserIdSchema } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { dynamoField } from "@packages/hutch-storage-client";
 import { z } from "zod";
 
@@ -56,6 +56,16 @@ export function usable<T extends z.ZodType<z.infer<typeof ArticleRelatedRow>>>(
 	return parsed.data;
 }
 
+export function readableBy<T extends { url: string; originalUrl?: string; ownerUserId?: UserId }>(read: {
+	article: T | undefined;
+	viewer: Viewer;
+}): T | undefined {
+	const { article, viewer } = read;
+	if (!article) return undefined;
+	const url = article.originalUrl ?? `https://${article.url}`;
+	return mayReadItem({ url, viewer, ownerUserId: article.ownerUserId }) ? article : undefined;
+}
+
 export function descriptionOf(row: {
 	summary?: string;
 	summaryExcerpt?: string;
@@ -72,7 +82,7 @@ export function initArticleReads(deps: {
 		keys: string[],
 		projection: readonly (keyof z.infer<typeof ArticleRelatedRow>)[],
 	) => Promise<Map<string, unknown>>;
-	hydrateCandidates: (savedUrls: string[]) => Promise<{
+	hydrateCandidates: (read: { savedUrls: string[]; viewer: Viewer }) => Promise<{
 		candidates: RelatedCandidate[];
 		awaitingCrawl: number;
 	}>;
@@ -93,10 +103,11 @@ export function initArticleReads(deps: {
 		return new Map(rows.map((row) => [row.url, row]));
 	}
 
-	async function hydrateCandidates(savedUrls: string[]): Promise<{
+	async function hydrateCandidates(read: { savedUrls: string[]; viewer: Viewer }): Promise<{
 		candidates: RelatedCandidate[];
 		awaitingCrawl: number;
 	}> {
+		const { savedUrls, viewer } = read;
 		if (savedUrls.length === 0) return { candidates: [], awaitingCrawl: 0 };
 
 		const byUrl = await readArticles(savedUrls, ARTICLE_FIELDS);
@@ -105,7 +116,7 @@ export function initArticleReads(deps: {
 		let awaitingCrawl = 0;
 		/* c8 ignore next -- V8 block-coverage phantom on the for...of iterator protocol, see bcoe/c8#319 */
 		for (const url of savedUrls) {
-			const article = usable(DescribableArticle, byUrl.get(url));
+			const article = readableBy({ article: usable(DescribableArticle, byUrl.get(url)), viewer });
 			if (!article) continue;
 			if (article.title === stubMetadataFor(article.siteName).title) {
 				if (article.crawlStatus === "pending") awaitingCrawl += 1;

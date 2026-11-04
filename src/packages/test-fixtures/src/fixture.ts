@@ -265,10 +265,12 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const relatedArticlesMemory = initInMemoryRelatedArticles({
 		findArticleByUrl: articleStoreMemory.findArticleByUrl,
 		findArticleById: articleStoreMemory.findArticleById,
+		findItemOwner: articleStoreMemory.findItemOwner,
 	});
 	const pastReadsMemory = initInMemoryPastReads({
 		findArticleByUrl: articleStoreMemory.findArticleByUrl,
 		findArticleById: articleStoreMemory.findArticleById,
+		findItemOwner: articleStoreMemory.findItemOwner,
 	});
 	articleStoreMemory.onDefaultRowDeleted(relatedArticlesMemory.forgetRow);
 	articleStoreMemory.onDefaultRowDeleted(pastReadsMemory.forgetRow);

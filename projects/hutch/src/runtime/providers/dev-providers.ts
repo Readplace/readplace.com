@@ -459,10 +459,12 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const { findRelatedArticles, readSettledNextRead, forgetRow: forgetNextReadRow } = initInMemoryRelatedArticles({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
+		findItemOwner: articleStore.findItemOwner,
 	});
 	const { findPastReads, readPastReadsState, forgetRow: forgetPastReadsRow } = initInMemoryPastReads({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
+		findItemOwner: articleStore.findItemOwner,
 	});
 	articleStore.onDefaultRowDeleted(forgetNextReadRow);
 	articleStore.onDefaultRowDeleted(forgetPastReadsRow);

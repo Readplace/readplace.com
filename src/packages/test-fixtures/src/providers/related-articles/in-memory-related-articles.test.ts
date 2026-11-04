@@ -10,12 +10,15 @@ const OTHER_USER_ID = UserIdSchema.parse("user_xyz");
 const URL = "https://example.com/post";
 const RELATED_URL = "https://example.com/earlier";
 const AT = new Date("2026-08-04T00:00:00.000Z");
+const OTHERS_PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const OWN_PRIVATE_URL = "https://uploads.readplace.invalid/fedcba9876543210fedcba9876543210";
 
 function build() {
 	const articleStore = initInMemoryArticleStore();
 	const store = initInMemoryRelatedArticles({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
+		findItemOwner: articleStore.findItemOwner,
 	});
 
 	async function save(params: { userId: UserId; url: string; title: string }) {
@@ -197,6 +200,31 @@ describe("initInMemoryRelatedArticles", () => {
 
 		assert(result.status === "ready", "a written relation reports ready");
 		expect(result.items.map((item) => item.id)).toEqual([kept.id]);
+	});
+
+	it("drops a relation to another reader's private upload and keeps the reader's own", async () => {
+		const { articleStore, store, save } = build();
+		await save({ userId: USER_ID, url: URL, title: "Target" });
+		await save({ userId: USER_ID, url: OTHERS_PRIVATE_URL, title: "Their book" });
+		await articleStore.recordItemOwner({ url: OTHERS_PRIVATE_URL, ownerUserId: OTHER_USER_ID });
+		const own = await save({ userId: USER_ID, url: OWN_PRIVATE_URL, title: "My book" });
+		await articleStore.recordItemOwner({ url: OWN_PRIVATE_URL, ownerUserId: USER_ID });
+		await store.markRelatedArticlesReady({
+			userId: USER_ID,
+			url: URL,
+			relatedArticles: [
+				{ url: OTHERS_PRIVATE_URL, reason: "Their upload" },
+				{ url: OWN_PRIVATE_URL, reason: "My upload" },
+			],
+			inputTokens: 10,
+			outputTokens: 2,
+			at: AT,
+		});
+
+		const result = await store.findRelatedArticles({ userId: USER_ID, url: URL });
+
+		assert(result.status === "ready", "a written relation reports ready");
+		expect(result.items.map((item) => item.id)).toEqual([own.id]);
 	});
 
 	it("records a completed computation with no relations", async () => {
