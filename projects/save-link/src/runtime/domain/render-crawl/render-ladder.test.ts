@@ -143,6 +143,11 @@ function ladderWith(script: {
 }
 
 describe("runRenderLadder", () => {
+	const SKIPPED_FOR_BLOCK_EVIDENCE = {
+		kind: "skipped",
+		reason: "block-evidence",
+	} as const;
+
 	it("settles through the direct render with no budget, no clock read and no paid leg", async () => {
 		const { run, steps } = ladderWith({
 			direct: renderedBody,
@@ -154,6 +159,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(result, {
 			kind: "settled",
 			settledThrough: "direct-egress",
+			residentialSkipped: false,
 		});
 		assert.deepEqual(steps, [
 			"render direct 30000",
@@ -161,31 +167,28 @@ describe("runRenderLadder", () => {
 		]);
 	});
 
-	it("commits an unreadable direct render with escalation available on a blocked deferral", async () => {
+	it("skips the residential render and its budget after an unreadable direct render on a blocked deferral", async () => {
 		const { run, steps } = ladderWith({
 			unsupportedReason: "blocked",
 			direct: renderedBody,
 			commits: {
 				"direct-egress": { kind: "unreadable", detail: "no readable content" },
-				"residential-per-gb": { kind: "settled" },
 			},
-			residential: renderedBody,
+			webUnlockerFetch: { kind: "committed" },
 		});
 
 		const result = await run();
 
 		assert.deepEqual(result, {
 			kind: "settled",
-			settledThrough: "residential-per-gb",
+			settledThrough: "web-unlocker-fetch",
+			residentialSkipped: true,
 		});
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"commit direct-egress available",
 			"time 10000000",
-			"budget",
-			"mint residential session-1",
-			"render residential 30000",
-			"commit residential-per-gb available",
+			"web unlocker fetch",
 		]);
 	});
 
@@ -225,9 +228,9 @@ describe("runRenderLadder", () => {
 		]);
 	});
 
-	it("returns budget-exhausted without minting a residential session when the budget is denied", async () => {
+	it("returns budget-exhausted at the residential gate without minting a residential session when the budget is denied", async () => {
 		const { run, steps } = ladderWith({
-			direct: blockedRender,
+			direct: failedRender,
 			budgetAllowed: false,
 		});
 
@@ -235,7 +238,8 @@ describe("runRenderLadder", () => {
 
 		assert.deepEqual(result, {
 			kind: "budget-exhausted",
-			direct: blockedRender,
+			gate: "residential-per-gb",
+			direct: failedRender,
 		});
 		assert.deepEqual(steps, ["render direct 30000", "time 10000000", "budget"]);
 	});
@@ -272,7 +276,7 @@ describe("runRenderLadder", () => {
 
 	it("settles through the residential render", async () => {
 		const { run, steps } = ladderWith({
-			direct: blockedRender,
+			direct: failedRender,
 			residential: renderedBody,
 			commits: { "residential-per-gb": { kind: "settled" } },
 		});
@@ -282,6 +286,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(result, {
 			kind: "settled",
 			settledThrough: "residential-per-gb",
+			residentialSkipped: false,
 		});
 		assert.deepEqual(steps, [
 			"render direct 30000",
@@ -306,6 +311,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(result, {
 			kind: "settled",
 			settledThrough: "web-unlocker-render",
+			residentialSkipped: false,
 		});
 		assert.deepEqual(renderedEgresses.at(-1), webUnlockerEgress);
 		assert.deepEqual(steps, [
@@ -325,29 +331,19 @@ describe("runRenderLadder", () => {
 			evidence: "a blocked deferral",
 			unsupportedReason: "blocked" as const,
 			direct: failedRender,
-			residential: residentialFailure,
 		},
 		{
 			evidence: "a blocked direct render",
 			unsupportedReason: "javascript-required" as const,
 			direct: blockedRender,
-			residential: residentialFailure,
 		},
-		{
-			evidence: "a blocked residential render",
-			unsupportedReason: "javascript-required" as const,
-			direct: failedRender,
-			residential: blockedRender,
-		},
-	])("runs the web unlocker fetch on $evidence", async ({
+	])("goes straight to the web unlocker fetch on $evidence, with no residential session and no budget", async ({
 		unsupportedReason,
 		direct,
-		residential,
 	}) => {
 		const { run, steps } = ladderWith({
 			unsupportedReason,
 			direct,
-			residential,
 			webUnlockerFetch: { kind: "committed" },
 		});
 
@@ -356,6 +352,28 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(result, {
 			kind: "settled",
 			settledThrough: "web-unlocker-fetch",
+			residentialSkipped: true,
+		});
+		assert.deepEqual(steps, [
+			"render direct 30000",
+			"time 10000000",
+			"web unlocker fetch",
+		]);
+	});
+
+	it("runs the web unlocker fetch after a blocked residential render", async () => {
+		const { run, steps } = ladderWith({
+			direct: failedRender,
+			residential: blockedRender,
+			webUnlockerFetch: { kind: "committed" },
+		});
+
+		const result = await run();
+
+		assert.deepEqual(result, {
+			kind: "settled",
+			settledThrough: "web-unlocker-fetch",
+			residentialSkipped: false,
 		});
 		assert.deepEqual(steps, [
 			"render direct 30000",
@@ -368,28 +386,9 @@ describe("runRenderLadder", () => {
 		]);
 	});
 
-	it.each([
-		{ kind: "committed" as const },
-		{ kind: "settled" as const },
-	])("stops at a web unlocker fetch that ended $kind", async (webUnlockerFetch) => {
+	it("consumes the budget once when the residential render ran before the web unlocker render", async () => {
 		const { run, steps } = ladderWith({
-			direct: blockedRender,
-			residential: blockedRender,
-			webUnlockerFetch,
-		});
-
-		const result = await run();
-
-		assert.deepEqual(result, {
-			kind: "settled",
-			settledThrough: "web-unlocker-fetch",
-		});
-		assert.equal(steps.at(-1), "web unlocker fetch");
-	});
-
-	it("reaches the web unlocker render with a 90000 navigation and escalation exhausted after a fetch with no body", async () => {
-		const { run, steps } = ladderWith({
-			direct: blockedRender,
+			direct: failedRender,
 			residential: blockedRender,
 			webUnlockerFetch: noBodyFetch,
 			webUnlockerRender: renderedBody,
@@ -401,6 +400,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(result, {
 			kind: "settled",
 			settledThrough: "web-unlocker-render",
+			residentialSkipped: false,
 		});
 		assert.deepEqual(steps, [
 			"render direct 30000",
@@ -416,10 +416,78 @@ describe("runRenderLadder", () => {
 		]);
 	});
 
-	it("reports every leg when nothing rendered, including an unreadable web unlocker render", async () => {
+	it.each([
+		{ kind: "committed" as const },
+		{ kind: "settled" as const },
+	])("stops at a web unlocker fetch that ended $kind", async (webUnlockerFetch) => {
 		const { run, steps } = ladderWith({
 			direct: blockedRender,
-			residential: blockedRender,
+			webUnlockerFetch,
+		});
+
+		const result = await run();
+
+		assert.deepEqual(result, {
+			kind: "settled",
+			settledThrough: "web-unlocker-fetch",
+			residentialSkipped: true,
+		});
+		assert.equal(steps.at(-1), "web unlocker fetch");
+	});
+
+	it("consumes the budget before the web unlocker render with a 90000 navigation and escalation exhausted after a fetch with no body", async () => {
+		const { run, steps } = ladderWith({
+			direct: blockedRender,
+			webUnlockerFetch: noBodyFetch,
+			webUnlockerRender: renderedBody,
+			commits: { "web-unlocker-render": { kind: "settled" } },
+		});
+
+		const result = await run();
+
+		assert.deepEqual(result, {
+			kind: "settled",
+			settledThrough: "web-unlocker-render",
+			residentialSkipped: true,
+		});
+		assert.deepEqual(steps, [
+			"render direct 30000",
+			"time 10000000",
+			"web unlocker fetch",
+			"time 10000000",
+			"budget",
+			"render web-unlocker 90000",
+			"commit web-unlocker-render exhausted",
+		]);
+	});
+
+	it("returns budget-exhausted at the web unlocker render gate after a skipped residential leg and a fetch with no body", async () => {
+		const { run, steps } = ladderWith({
+			unsupportedReason: "blocked",
+			direct: failedRender,
+			webUnlockerFetch: noBodyFetch,
+			budgetAllowed: false,
+		});
+
+		const result = await run();
+
+		assert.deepEqual(result, {
+			kind: "budget-exhausted",
+			gate: "web-unlocker-render",
+			direct: failedRender,
+		});
+		assert.deepEqual(steps, [
+			"render direct 30000",
+			"time 10000000",
+			"web unlocker fetch",
+			"time 10000000",
+			"budget",
+		]);
+	});
+
+	it("reports every leg when nothing rendered, including the skipped residential leg and an unreadable web unlocker render", async () => {
+		const { run, steps } = ladderWith({
+			direct: blockedRender,
 			webUnlockerFetch: noBodyFetch,
 			webUnlockerRender: renderedBody,
 			commits: {
@@ -435,7 +503,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(result, {
 			kind: "unrendered",
 			direct: blockedRender,
-			residential: blockedRender,
+			residential: SKIPPED_FOR_BLOCK_EVIDENCE,
 			webUnlockerFetch: noBodyFetch,
 			webUnlockerRender: {
 				kind: "failed",
@@ -447,12 +515,9 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
-			"budget",
-			"mint residential session-1",
-			"render residential 30000",
-			"time 10000000",
 			"web unlocker fetch",
 			"time 10000000",
+			"budget",
 			"render web-unlocker 90000",
 			"commit web-unlocker-render exhausted",
 		]);
@@ -460,7 +525,7 @@ describe("runRenderLadder", () => {
 
 	it("consumes no budget and runs no paid leg when too little time remains after the direct render", async () => {
 		const { run, steps } = ladderWith({
-			direct: blockedRender,
+			direct: failedRender,
 			remaining: [RESIDENTIAL_THRESHOLD - 1],
 		});
 
@@ -468,7 +533,7 @@ describe("runRenderLadder", () => {
 
 		assert.deepEqual(result, {
 			kind: "unrendered",
-			direct: blockedRender,
+			direct: failedRender,
 			residential: { kind: "skipped", reason: "time-exhausted" },
 			webUnlockerFetch: { kind: "skipped", reason: "time-exhausted" },
 			webUnlockerRender: { kind: "skipped", reason: "time-exhausted" },
@@ -502,13 +567,8 @@ describe("runRenderLadder", () => {
 	it("skips the web unlocker fetch for time but still runs the web unlocker render when its allowance fits", async () => {
 		const { run, steps } = ladderWith({
 			direct: blockedRender,
-			residential: residentialFailure,
 			webUnlockerRender: unlockerFailure,
-			remaining: [
-				ENOUGH_TIME,
-				FETCH_THRESHOLD - 1,
-				WEB_UNLOCKER_RENDER_THRESHOLD,
-			],
+			remaining: [FETCH_THRESHOLD - 1, WEB_UNLOCKER_RENDER_THRESHOLD],
 		});
 
 		const result = await run();
@@ -516,32 +576,24 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(result, {
 			kind: "unrendered",
 			direct: blockedRender,
-			residential: residentialFailure,
+			residential: SKIPPED_FOR_BLOCK_EVIDENCE,
 			webUnlockerFetch: { kind: "skipped", reason: "time-exhausted" },
 			webUnlockerRender: unlockerFailure,
 		});
 		assert.deepEqual(steps, [
 			"render direct 30000",
-			"time 10000000",
-			"budget",
-			"mint residential session-1",
-			"render residential 30000",
 			`time ${FETCH_THRESHOLD - 1}`,
 			`time ${WEB_UNLOCKER_RENDER_THRESHOLD}`,
+			"budget",
 			"render web-unlocker 90000",
 		]);
 	});
 
-	it("skips the web unlocker render when too little time remains after the fetch", async () => {
+	it("skips the web unlocker render, consuming no budget, when too little time remains after the fetch", async () => {
 		const { run, steps } = ladderWith({
 			direct: blockedRender,
-			residential: residentialFailure,
 			webUnlockerFetch: noBodyFetch,
-			remaining: [
-				ENOUGH_TIME,
-				FETCH_THRESHOLD,
-				WEB_UNLOCKER_RENDER_THRESHOLD - 1,
-			],
+			remaining: [FETCH_THRESHOLD, WEB_UNLOCKER_RENDER_THRESHOLD - 1],
 		});
 
 		const result = await run();
@@ -549,19 +601,33 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(result, {
 			kind: "unrendered",
 			direct: blockedRender,
-			residential: residentialFailure,
+			residential: SKIPPED_FOR_BLOCK_EVIDENCE,
 			webUnlockerFetch: noBodyFetch,
 			webUnlockerRender: { kind: "skipped", reason: "time-exhausted" },
 		});
 		assert.deepEqual(steps, [
 			"render direct 30000",
-			"time 10000000",
-			"budget",
-			"mint residential session-1",
-			"render residential 30000",
 			`time ${FETCH_THRESHOLD}`,
 			"web unlocker fetch",
 			`time ${WEB_UNLOCKER_RENDER_THRESHOLD - 1}`,
 		]);
+	});
+
+	it("skips the web unlocker render after the residential leg when too little time remains", async () => {
+		const { run } = ladderWith({
+			direct: failedRender,
+			residential: residentialFailure,
+			remaining: [ENOUGH_TIME, WEB_UNLOCKER_RENDER_THRESHOLD - 1],
+		});
+
+		const result = await run();
+
+		assert.deepEqual(result, {
+			kind: "unrendered",
+			direct: failedRender,
+			residential: residentialFailure,
+			webUnlockerFetch: { kind: "skipped", reason: "no-block-evidence" },
+			webUnlockerRender: { kind: "skipped", reason: "time-exhausted" },
+		});
 	});
 });

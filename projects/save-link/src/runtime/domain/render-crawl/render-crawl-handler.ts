@@ -242,9 +242,12 @@ export function initRenderCrawlHandler(deps: {
 
 	const resolveLadder = async (rendered: RenderLadderResult, ctx: DeferredCrawlContext, receiveCount: number): Promise<void> => {
 		const { url } = ctx;
-		if (rendered.kind === "settled") return;
+		if (rendered.kind === "settled") {
+			logger.info(`${logPrefix} ladder settled`, { url, settledThrough: rendered.settledThrough, residentialSkipped: rendered.residentialSkipped });
+			return;
+		}
 		if (rendered.kind === "budget-exhausted") {
-			logger.warn(`${logPrefix} render-crawl budget exhausted — failing crawl gracefully`, { url, direct: rendered.direct });
+			logger.warn(`${logPrefix} render-crawl budget exhausted — failing crawl gracefully`, { url, gate: rendered.gate, direct: rendered.direct });
 			await resolveBudgetExhausted(ctx);
 			await backOffRefresh(ctx);
 			return;

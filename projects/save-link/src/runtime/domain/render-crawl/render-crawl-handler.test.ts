@@ -261,11 +261,8 @@ describe("initRenderCrawlHandler", () => {
 	});
 
 	describe("the residential per-GB render", () => {
-		it.each([
-			{ direct: blocked(403), label: "bot-blocked" },
-			{ direct: failed("net::ERR_TIMED_OUT"), label: "failed" },
-		])("renders through a fresh residential egress when the direct leg is $label, and tags the candidate with that leg", async ({ direct }) => {
-			const renderPage = renderPageAnswering({ direct, residential: rendered() });
+		it("renders through a fresh residential egress when the direct leg failed, and tags the candidate with that leg", async () => {
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() });
 			const residentialEgress = jest.fn(() => RESIDENTIAL_EGRESS);
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
@@ -283,10 +280,11 @@ describe("initRenderCrawlHandler", () => {
 				metadata: expect.objectContaining({ renderedThrough: "residential-per-gb" }),
 			}));
 			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] rendered", { url: URL, renderedThrough: "residential-per-gb", httpStatus: 200, requests: oneRequest });
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] ladder settled", { url: URL, settledThrough: "residential-per-gb", residentialSkipped: false });
 		});
 
-		it("carries an unreadable residential render with candidates on to the Web Unlocker legs without publishing it first", async () => {
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: rendered(), webUnlocker: rendered() });
+		it("carries an unreadable residential render with candidates on to the Web Unlocker render without publishing it first", async () => {
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered(), webUnlocker: rendered() });
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const proxiedCrawlArticle = jest.fn(refusedProxiedCrawl);
@@ -299,7 +297,7 @@ describe("initRenderCrawlHandler", () => {
 
 			expect(renderPage).toHaveBeenCalledTimes(3);
 			expect(renderPage).toHaveBeenNthCalledWith(3, { url: URL, egress: WEB_UNLOCKER_EGRESS, navigationTimeoutMilliseconds: 90_000 });
-			expect(proxiedCrawlArticle).toHaveBeenCalledTimes(1);
+			expect(proxiedCrawlArticle).not.toHaveBeenCalled();
 			expect(putTierSource).toHaveBeenCalledTimes(1);
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 				metadata: expect.objectContaining({ renderedThrough: "web-unlocker-render" }),
@@ -316,7 +314,7 @@ describe("initRenderCrawlHandler", () => {
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const logParseError = jest.fn();
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: rendered(), webUnlocker: rendered() });
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered(), webUnlocker: rendered() });
 			const handler = createHandler({
 				finalizeArticle: unreadableFinalize,
 				renderPage,
@@ -351,12 +349,12 @@ describe("initRenderCrawlHandler", () => {
 
 	describe("a page no leg rendered", () => {
 		it.each([
-			{ direct: blocked(403), residential: blocked(403), webUnlocker: failed("unlocker timeout"), cause: "edge-block" },
-			{ direct: blocked(403), residential: blocked(429), webUnlocker: failed("unlocker timeout"), cause: "rate-limited" },
+			{ direct: failed("net::ERR_CONNECTION_RESET"), residential: blocked(403), webUnlocker: failed("unlocker timeout"), cause: "edge-block" },
 			{ direct: failed("net::ERR_CONNECTION_RESET"), residential: blocked(429), webUnlocker: failed("unlocker timeout"), cause: "rate-limited" },
-			{ direct: blocked(403), residential: failed("net::ERR_PROXY_CONNECTION_FAILED"), webUnlocker: failed("unlocker timeout"), cause: "edge-block" },
-			{ direct: blocked(429), residential: failed("net::ERR_PROXY_CONNECTION_FAILED"), webUnlocker: blocked(403), cause: "edge-block" },
-			{ direct: blocked(403), residential: blocked(403), webUnlocker: blocked(429), cause: "rate-limited" },
+			{ direct: blocked(403), residential: undefined, webUnlocker: failed("unlocker timeout"), cause: "edge-block" },
+			{ direct: blocked(429), residential: undefined, webUnlocker: failed("unlocker timeout"), cause: "rate-limited" },
+			{ direct: blocked(429), residential: undefined, webUnlocker: blocked(403), cause: "edge-block" },
+			{ direct: blocked(403), residential: undefined, webUnlocker: blocked(429), cause: "rate-limited" },
 		])("settles the row as blocked ($cause) from the most recent leg that was refused", async ({ direct, residential, webUnlocker, cause }) => {
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const logCrawlOutcome = jest.fn();
@@ -465,7 +463,7 @@ describe("initRenderCrawlHandler", () => {
 			const info = jest.fn();
 			const warn = jest.fn();
 			const handler = createHandler({
-				renderPage: renderPageAnswering({ direct: blocked(403), residential: failed("residential timeout"), webUnlocker: failed("unlocker timeout") }),
+				renderPage: renderPageAnswering({ direct: blocked(403), webUnlocker: failed("unlocker timeout") }),
 				logger: { ...noopLogger, info, warn },
 			});
 
@@ -474,7 +472,7 @@ describe("initRenderCrawlHandler", () => {
 			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] not rendered on any leg", {
 				url: URL,
 				direct: blocked(403),
-				residential: failed("residential timeout"),
+				residential: { kind: "skipped", reason: "block-evidence" },
 				webUnlockerFetch: { kind: "no-body", outcome: "blocked" },
 				webUnlockerRender: failed("unlocker timeout"),
 			});
@@ -503,9 +501,9 @@ describe("initRenderCrawlHandler", () => {
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, { url: URL, input: { reason: { kind: "fetch-failed", detail, httpStatus: undefined }, receiveCount: 1 } });
 		});
 
-		it("skips the Web Unlocker fetch but still runs the Web Unlocker render when only the render fits", async () => {
+		it("skips the Web Unlocker fetch but still runs the Web Unlocker render when only the render fits on a blocked deferral", async () => {
 			const proxiedCrawlArticle = jest.fn(proxiedCrawlFetching(200));
-			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: failed("residential timeout"), webUnlocker: failed("unlocker timeout") });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), webUnlocker: failed("unlocker timeout") });
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const warn = jest.fn();
 			const handler = createHandler({ proxiedCrawlArticle, renderPage, transitionAndPersist, logger: { ...noopLogger, warn } });
@@ -513,9 +511,9 @@ describe("initRenderCrawlHandler", () => {
 			await run(handler, { url: URL, unsupportedReason: "blocked" }, 200_000);
 
 			expect(proxiedCrawlArticle).not.toHaveBeenCalled();
-			expect(renderPage).toHaveBeenCalledTimes(3);
+			expect(renderPage).toHaveBeenCalledTimes(2);
 			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render ladder ran out of time", { url: URL, skippedLegs: ["webUnlockerFetch"] });
-			const detail = "render-failed: direct-egress: direct timeout; residential-per-gb: residential timeout; web-unlocker-fetch: skipped (time-exhausted); web-unlocker-render: unlocker timeout";
+			const detail = "render-failed: direct-egress: direct timeout; residential-per-gb: skipped (block-evidence); web-unlocker-fetch: skipped (time-exhausted); web-unlocker-render: unlocker timeout";
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, { url: URL, input: { reason: { kind: "fetch-failed", detail, httpStatus: undefined }, receiveCount: 1 } });
 		});
 
@@ -533,7 +531,7 @@ describe("initRenderCrawlHandler", () => {
 
 	describe("the residential proxy credentials", () => {
 		it.each([
-			{ label: "the residential render succeeds", answers: { direct: blocked(403), residential: rendered() } },
+			{ label: "the residential render succeeds", answers: { direct: failed("direct timeout"), residential: rendered() } },
 			{ label: "every leg fails", answers: { direct: failed("direct timeout"), residential: failed("residential timeout"), webUnlocker: blocked(403) } },
 		])("never reach a logged payload when $label", async ({ answers }) => {
 			const logged: unknown[][] = [];
@@ -550,7 +548,7 @@ describe("initRenderCrawlHandler", () => {
 				logger: { info: record, warn: record, error: record, debug: record },
 			});
 
-			await run(handler, { url: URL, unsupportedReason: "blocked" });
+			await run(handler, { url: URL });
 
 			expect(renderPage).toHaveBeenNthCalledWith(2, { url: URL, egress: RESIDENTIAL_EGRESS, navigationTimeoutMilliseconds: 30_000 });
 			expect(JSON.stringify([logged, logParseError.mock.calls, logCrawlOutcome.mock.calls])).not.toContain(RESIDENTIAL_PASSWORD);
@@ -586,7 +584,7 @@ describe("initRenderCrawlHandler", () => {
 		});
 
 		it("names the residential leg when that render is oversized, and stops the ladder there", async () => {
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: rendered({ html: oversized }) });
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered({ html: oversized }) });
 			const logParseError = jest.fn();
 			const handler = createHandler({ renderPage, logParseError });
 
@@ -652,7 +650,7 @@ describe("initRenderCrawlHandler", () => {
 	describe("the Web Unlocker fetch after the residential render", () => {
 		it("commits a readable fetched body with no Web Unlocker render", async () => {
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403) });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) });
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const info = jest.fn();
 			const handler = createHandler({
@@ -677,7 +675,7 @@ describe("initRenderCrawlHandler", () => {
 		it("commits a fetched image with the bytes it hosted and no Web Unlocker render", async () => {
 			const imageUrl = "https://example-spa.test/photo.jpg";
 			const originFigure = `<figure><img src="${imageUrl}"></figure>`;
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: failed("residential timeout") });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) });
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				renderPage,
@@ -696,7 +694,7 @@ describe("initRenderCrawlHandler", () => {
 				}),
 			});
 
-			const response = await run(handler, { url: imageUrl, unsupportedReason: "blocked" });
+			const response = await run(handler, { url: imageUrl });
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			expect(renderPage).toHaveBeenCalledTimes(2);
@@ -709,7 +707,7 @@ describe("initRenderCrawlHandler", () => {
 		it("commits a fetched text body through the plain-text finalize and no Web Unlocker render", async () => {
 			const textUrl = "https://example-spa.test/notes.txt";
 			const plainText = "Plain notes served as text";
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: failed("residential timeout") });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) });
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				renderPage,
@@ -728,7 +726,7 @@ describe("initRenderCrawlHandler", () => {
 				}),
 			});
 
-			const response = await run(handler, { url: textUrl, unsupportedReason: "blocked" });
+			const response = await run(handler, { url: textUrl });
 
 			expect(response).toEqual({ batchItemFailures: [] });
 			expect(renderPage).toHaveBeenCalledTimes(2);
@@ -747,7 +745,7 @@ describe("initRenderCrawlHandler", () => {
 		])("reaches the Web Unlocker render when the fetch $label", async ({ overrides }) => {
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: rendered() });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403), webUnlocker: rendered() });
 			const handler = createHandler({ consumeRenderCrawlBudget, publishEvent, renderPage, ...overrides });
 
 			await run(handler, { url: URL });
@@ -766,7 +764,7 @@ describe("initRenderCrawlHandler", () => {
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const markCrawlStage = jest.fn().mockResolvedValue(undefined);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403) });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) });
 			const handler = createHandler({
 				publishEvent,
 				markCrawlStage,
@@ -795,7 +793,7 @@ describe("initRenderCrawlHandler", () => {
 			const reason: CrawlUnsupportedReason = { kind: "content-too-large", bytes: 100_000_000 };
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403) });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) });
 			const handler = createHandler({
 				publishEvent,
 				transitionAndPersist,
@@ -816,7 +814,7 @@ describe("initRenderCrawlHandler", () => {
 			const handler = createHandler({
 				publishEvent,
 				transitionAndPersist,
-				renderPage: renderPageAnswering({ direct: blocked(403), residential: blocked(403) }),
+				renderPage: renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) }),
 				proxiedCrawlArticle: proxiedCrawlUnsupported({ kind: "content-too-large", bytes: 100_000_000 }),
 			});
 
@@ -830,7 +828,7 @@ describe("initRenderCrawlHandler", () => {
 			const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({
 				updateFetchTimestamp,
-				renderPage: renderPageAnswering({ direct: blocked(403), residential: blocked(403) }),
+				renderPage: renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403) }),
 				proxiedCrawlArticle: proxiedCrawlUnsupported({ kind: "content-too-large", bytes: 100_000_000 }),
 			});
 
@@ -843,7 +841,7 @@ describe("initRenderCrawlHandler", () => {
 			{ label: "no candidates", candidates: undefined, published: [{ id: expect.any(String), tier: "tier-1" }] },
 			{ label: "wrapper candidates", candidates: wrapperRefs, published: [...wrapperRefs, { id: expect.any(String), tier: "tier-1" }] },
 		])("reaches the Web Unlocker render without publishing when a fetched body cannot be committed ($label)", async ({ candidates, published }) => {
-			const renderPage = renderPageAnswering({ direct: blocked(403), residential: blocked(403), webUnlocker: rendered() });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: blocked(403), webUnlocker: rendered() });
 			const publishEvent = jest.fn().mockResolvedValue(undefined);
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
@@ -863,16 +861,16 @@ describe("initRenderCrawlHandler", () => {
 			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: published }));
 		});
 
-		it("runs after failed direct and residential renders on a blocked deferral", async () => {
+		it("runs straight after a failed direct render on a blocked deferral", async () => {
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
-			const renderPage = renderPageAnswering({ direct: failed("direct timeout"), residential: failed("residential timeout") });
+			const renderPage = renderPageAnswering({ direct: failed("direct timeout") });
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const handler = createHandler({ consumeRenderCrawlBudget, renderPage, putTierSource, proxiedCrawlArticle: proxiedCrawlFetching(200) });
 
 			await run(handler, { url: URL, unsupportedReason: "blocked" });
 
-			expect(consumeRenderCrawlBudget).toHaveBeenCalledTimes(1);
-			expect(renderPage).toHaveBeenCalledTimes(2);
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
 			expect(putTierSource).toHaveBeenCalledTimes(1);
 		});
 
@@ -894,7 +892,7 @@ describe("initRenderCrawlHandler", () => {
 		it("runs after an unreadable direct render on a blocked deferral", async () => {
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const renderPage = renderPageAnswering({ direct: rendered(), residential: failed("residential timeout") });
+			const renderPage = renderPageAnswering({ direct: rendered() });
 			const putTierSource = jest.fn().mockResolvedValue(undefined);
 			const finalizeArticle = jest.fn<ReturnType<FinalizeArticle>, Parameters<FinalizeArticle>>()
 				.mockResolvedValueOnce({ ok: false, reason: "empty document" })
@@ -903,7 +901,8 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL, unsupportedReason: "blocked" });
 
-			expect(consumeRenderCrawlBudget).toHaveBeenCalledTimes(1);
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
 			expect(transitionAndPersist).not.toHaveBeenCalled();
 			expect(putTierSource).toHaveBeenCalledTimes(1);
 			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
@@ -916,12 +915,12 @@ describe("initRenderCrawlHandler", () => {
 			const handler = createHandler({
 				transitionAndPersist,
 				finalizeArticle: unreadableFinalize,
-				renderPage: renderPageAnswering({ direct: rendered(), residential: failed("residential timeout"), webUnlocker: failed("unlocker timeout") }),
+				renderPage: renderPageAnswering({ direct: rendered(), webUnlocker: failed("unlocker timeout") }),
 			});
 
 			await run(handler, { url: URL, unsupportedReason: "blocked" });
 
-			const detail = "render-failed: direct-egress: no readable article after render (direct-egress): empty document; residential-per-gb: residential timeout; web-unlocker-fetch: blocked; web-unlocker-render: unlocker timeout";
+			const detail = "render-failed: direct-egress: no readable article after render (direct-egress): empty document; residential-per-gb: skipped (block-evidence); web-unlocker-fetch: blocked; web-unlocker-render: unlocker timeout";
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
 				url: URL,
 				input: { reason: { kind: "fetch-failed", detail, httpStatus: 200 }, receiveCount: 1 },
@@ -966,7 +965,7 @@ describe("initRenderCrawlHandler", () => {
 
 		it("claims one slot per message and runs no paid leg once the window is spent", async () => {
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: false });
-			const renderPage = renderPageAnswering({ direct: blocked(403) });
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
 			const proxiedCrawlArticle = jest.fn(refusedProxiedCrawl);
 			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 			const warn = jest.fn();
@@ -978,7 +977,7 @@ describe("initRenderCrawlHandler", () => {
 			expect(consumeRenderCrawlBudget).toHaveBeenCalledWith({ messageId: "msg-1" });
 			expect(renderPage).toHaveBeenCalledTimes(1);
 			expect(proxiedCrawlArticle).not.toHaveBeenCalled();
-			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render-crawl budget exhausted — failing crawl gracefully", { url: URL, direct: blocked(403) });
+			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render-crawl budget exhausted — failing crawl gracefully", { url: URL, gate: "residential-per-gb", direct: failed("net::ERR_TIMED_OUT") });
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "spend-capped" } } });
 		});
 
@@ -1001,6 +1000,99 @@ describe("initRenderCrawlHandler", () => {
 				candidates: wrapperRefs,
 				liveAttempt: { outcome: "no-body" },
 			}));
+		});
+	});
+
+	describe("block evidence before the residential render", () => {
+		const blockEvidence: { label: string; direct: RenderOutcome; unsupportedReason: "javascript-required" | "blocked" }[] = [
+			{ label: "a blocked deferral", direct: failed("net::ERR_TIMED_OUT"), unsupportedReason: "blocked" },
+			{ label: "a bot-blocked direct render on a javascript-required deferral", direct: blocked(403), unsupportedReason: "javascript-required" },
+		];
+
+		it.each(blockEvidence)("settles $label through the Web Unlocker fetch without a residential egress or budget", async ({ direct, unsupportedReason }) => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const residentialEgress = jest.fn(() => RESIDENTIAL_EGRESS);
+			const renderPage = renderPageAnswering({ direct });
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const info = jest.fn();
+			const handler = createHandler({
+				consumeRenderCrawlBudget,
+				residentialEgress,
+				renderPage,
+				putTierSource,
+				proxiedCrawlArticle: proxiedCrawlFetching(200),
+				logger: { ...noopLogger, info },
+			});
+
+			const response = await run(handler, { url: URL, unsupportedReason });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(residentialEgress).not.toHaveBeenCalled();
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+				metadata: expect.objectContaining({ renderedThrough: "web-unlocker-fetch" }),
+			}));
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] ladder settled", { url: URL, settledThrough: "web-unlocker-fetch", residentialSkipped: true });
+		});
+
+		it("claims the budget after a Web Unlocker fetch with no body, then renders through the Web Unlocker", async () => {
+			const order: string[] = [];
+			const consumeRenderCrawlBudget = jest.fn(async () => {
+				order.push("budget");
+				return { allowed: true, consumed: true };
+			});
+			const proxiedCrawlArticle: CrawlArticle = async () => {
+				order.push("web-unlocker-fetch");
+				return { status: "blocked", httpStatus: 403 };
+			};
+			const residentialEgress = jest.fn(() => RESIDENTIAL_EGRESS);
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), webUnlocker: rendered() });
+			const putTierSource = jest.fn().mockResolvedValue(undefined);
+			const info = jest.fn();
+			const handler = createHandler({ consumeRenderCrawlBudget, proxiedCrawlArticle, residentialEgress, renderPage, putTierSource, logger: { ...noopLogger, info } });
+
+			await run(handler, { url: URL, unsupportedReason: "blocked" });
+
+			expect(order).toEqual(["web-unlocker-fetch", "budget"]);
+			expect(consumeRenderCrawlBudget).toHaveBeenCalledWith({ messageId: "msg-1" });
+			expect(residentialEgress).not.toHaveBeenCalled();
+			expect(renderPage).toHaveBeenNthCalledWith(2, { url: URL, egress: WEB_UNLOCKER_EGRESS, navigationTimeoutMilliseconds: 90_000 });
+			expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
+				metadata: expect.objectContaining({ renderedThrough: "web-unlocker-render" }),
+			}));
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] ladder settled", { url: URL, settledThrough: "web-unlocker-render", residentialSkipped: true });
+		});
+
+		it("runs no Web Unlocker render once the window is spent, naming the Web Unlocker render as the gate", async () => {
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: false });
+			const proxiedCrawlArticle = jest.fn(refusedProxiedCrawl);
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const warn = jest.fn();
+			const handler = createHandler({ consumeRenderCrawlBudget, proxiedCrawlArticle, renderPage, transitionAndPersist, logger: { ...noopLogger, warn } });
+
+			const response = await run(handler, { url: URL, unsupportedReason: "blocked" });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(proxiedCrawlArticle).toHaveBeenCalledTimes(1);
+			expect(consumeRenderCrawlBudget).toHaveBeenCalledTimes(1);
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render-crawl budget exhausted — failing crawl gracefully", {
+				url: URL,
+				gate: "web-unlocker-render",
+				direct: failed("net::ERR_TIMED_OUT"),
+			});
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "spend-capped" } } });
+		});
+
+		it("logs a direct render as settled without skipping the residential render", async () => {
+			const info = jest.fn();
+			const handler = createHandler({ logger: { ...noopLogger, info } });
+
+			await run(handler, { url: URL, unsupportedReason: "blocked" });
+
+			expect(info).toHaveBeenCalledWith("[RenderCrawlCommand] ladder settled", { url: URL, settledThrough: "direct-egress", residentialSkipped: false });
 		});
 	});
 

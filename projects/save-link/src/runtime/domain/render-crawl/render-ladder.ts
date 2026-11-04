@@ -32,7 +32,7 @@ export type ProxiedFetchAttempt =
 
 export type SkippedLeg = {
 	kind: "skipped";
-	reason: "time-exhausted" | "no-block-evidence";
+	reason: "time-exhausted" | "no-block-evidence" | "block-evidence";
 };
 export type RenderLegReport = TerminalRenderOutcome | SkippedLeg;
 export type FetchLegReport =
@@ -47,9 +47,21 @@ type UnrenderedLadder = {
 	webUnlockerRender: RenderLegReport;
 };
 
+type SettledLadder = {
+	kind: "settled";
+	settledThrough: SettledThrough;
+	residentialSkipped: boolean;
+};
+
+type BudgetExhaustedLadder = {
+	kind: "budget-exhausted";
+	gate: "residential-per-gb" | "web-unlocker-render";
+	direct: TerminalRenderOutcome;
+};
+
 export type RenderLadderResult =
-	| { kind: "settled"; settledThrough: SettledThrough }
-	| { kind: "budget-exhausted"; direct: TerminalRenderOutcome }
+	| SettledLadder
+	| BudgetExhaustedLadder
 	| UnrenderedLadder;
 
 export type RenderLadderLegs = {
@@ -70,6 +82,10 @@ export type RenderLadderLegs = {
 const TIME_EXHAUSTED: SkippedLeg = {
 	kind: "skipped",
 	reason: "time-exhausted",
+};
+const BLOCK_EVIDENCE: SkippedLeg = {
+	kind: "skipped",
+	reason: "block-evidence",
 };
 const NO_BLOCK_EVIDENCE: SkippedLeg = {
 	kind: "skipped",
@@ -130,37 +146,57 @@ export async function runRenderLadder(
 			legs.unsupportedReason === "blocked" ? "available" : "exhausted",
 	});
 	if (direct.kind === "settled")
-		return { kind: "settled", settledThrough: "direct-egress" };
-
-	if (
-		!fitsInTime(renderAllowance(RENDER_CRAWL_TIMEOUTS.residentialNavigationMs))
-	) {
 		return {
-			kind: "unrendered",
-			direct: direct.report,
-			residential: TIME_EXHAUSTED,
-			webUnlockerFetch: TIME_EXHAUSTED,
-			webUnlockerRender: TIME_EXHAUSTED,
+			kind: "settled",
+			settledThrough: "direct-egress",
+			residentialSkipped: false,
 		};
-	}
-	const budget = await legs.consumeBudget();
-	if (!budget.allowed)
-		return { kind: "budget-exhausted", direct: direct.report };
 
-	const residential = await renderLeg({
-		egress: legs.residentialEgress(),
-		navigationTimeoutMilliseconds:
-			RENDER_CRAWL_TIMEOUTS.residentialNavigationMs,
-		renderedThrough: "residential-per-gb",
-		escalation: "available",
-	});
-	if (residential.kind === "settled")
-		return { kind: "settled", settledThrough: "residential-per-gb" };
+	const blockedBeforeResidential =
+		legs.unsupportedReason === "blocked" || direct.report.kind === "blocked";
+	let budgetConsumed = false;
+	let residentialReport: RenderLegReport = BLOCK_EVIDENCE;
+	if (!blockedBeforeResidential) {
+		if (
+			!fitsInTime(
+				renderAllowance(RENDER_CRAWL_TIMEOUTS.residentialNavigationMs),
+			)
+		) {
+			return {
+				kind: "unrendered",
+				direct: direct.report,
+				residential: TIME_EXHAUSTED,
+				webUnlockerFetch: TIME_EXHAUSTED,
+				webUnlockerRender: TIME_EXHAUSTED,
+			};
+		}
+		const budget = await legs.consumeBudget();
+		if (!budget.allowed)
+			return {
+				kind: "budget-exhausted",
+				gate: "residential-per-gb",
+				direct: direct.report,
+			};
+		budgetConsumed = true;
+		const residential = await renderLeg({
+			egress: legs.residentialEgress(),
+			navigationTimeoutMilliseconds:
+				RENDER_CRAWL_TIMEOUTS.residentialNavigationMs,
+			renderedThrough: "residential-per-gb",
+			escalation: "available",
+		});
+		if (residential.kind === "settled")
+			return {
+				kind: "settled",
+				settledThrough: "residential-per-gb",
+				residentialSkipped: false,
+			};
+		residentialReport = residential.report;
+	}
+	const residentialSkipped = blockedBeforeResidential;
 
 	const blockEvidence =
-		legs.unsupportedReason === "blocked" ||
-		direct.report.kind === "blocked" ||
-		residential.report.kind === "blocked";
+		blockedBeforeResidential || residentialReport.kind === "blocked";
 	const webUnlockerFetch: ProxiedFetchAttempt | SkippedLeg = !blockEvidence
 		? NO_BLOCK_EVIDENCE
 		: fitsInTime(WEB_UNLOCKER_FETCH_ALLOWANCE)
@@ -170,7 +206,11 @@ export async function runRenderLadder(
 		webUnlockerFetch.kind === "committed" ||
 		webUnlockerFetch.kind === "settled"
 	)
-		return { kind: "settled", settledThrough: "web-unlocker-fetch" };
+		return {
+			kind: "settled",
+			settledThrough: "web-unlocker-fetch",
+			residentialSkipped,
+		};
 
 	if (
 		!fitsInTime(renderAllowance(RENDER_CRAWL_TIMEOUTS.webUnlockerNavigationMs))
@@ -178,10 +218,19 @@ export async function runRenderLadder(
 		return {
 			kind: "unrendered",
 			direct: direct.report,
-			residential: residential.report,
+			residential: residentialReport,
 			webUnlockerFetch,
 			webUnlockerRender: TIME_EXHAUSTED,
 		};
+	}
+	if (!budgetConsumed) {
+		const budget = await legs.consumeBudget();
+		if (!budget.allowed)
+			return {
+				kind: "budget-exhausted",
+				gate: "web-unlocker-render",
+				direct: direct.report,
+			};
 	}
 	const webUnlockerRender = await renderLeg({
 		egress: legs.webUnlockerEgress,
@@ -191,11 +240,15 @@ export async function runRenderLadder(
 		escalation: "exhausted",
 	});
 	if (webUnlockerRender.kind === "settled")
-		return { kind: "settled", settledThrough: "web-unlocker-render" };
+		return {
+			kind: "settled",
+			settledThrough: "web-unlocker-render",
+			residentialSkipped,
+		};
 	return {
 		kind: "unrendered",
 		direct: direct.report,
-		residential: residential.report,
+		residential: residentialReport,
 		webUnlockerFetch,
 		webUnlockerRender: webUnlockerRender.report,
 	};
