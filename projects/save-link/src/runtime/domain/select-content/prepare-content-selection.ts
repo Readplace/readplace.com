@@ -9,7 +9,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlFailureReason } from "@packages/article-state-types";
 import { CandidateProvenanceSchema, KIND_BY_TIER, candidateProvenance, type CandidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import type { ListAvailableTierSources, CandidateReference } from "./list-available-tier-sources";
-import type { SelectMostCompleteContent, SelectionAudit } from "./select-content";
+import type { ContentDecision, SelectMostCompleteContent, SelectionAudit } from "./select-content";
 import { chooseTiedCandidate } from "./resolve-tie";
 import { COMPARISON_COMPLETED } from "./comparison-log";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
@@ -27,6 +27,7 @@ export interface PreparedContentSelection {
 	readableIds: ReadonlySet<CandidateId>;
 	audit?: SelectionAudit;
 	legacyCanonicalWithheld: boolean;
+	judgedBodies: number;
 }
 
 const EMPTY_TEXT_HASH = computeCanonicalContentHash("");
@@ -59,12 +60,45 @@ function directResourcesOf(params: { sources: readonly VerifiedTierSource[]; sav
 		!isWrapperUrl(source.metadata.sourceUrl) && isSuccessStatus(source.metadata.httpStatus) && candidateIsReadable(source));
 }
 
+function representativeOf(members: readonly VerifiedTierSource[]): VerifiedTierSource {
+	const [first] = members;
+	assert(first, "a content-hash group holds at least one candidate");
+	return members.find((source) => source.tier === "tier-1" && !isWrapperUrl(source.metadata.sourceUrl)) ?? first;
+}
+
+function expandVerdict(params: { decision: ContentDecision; withReadableMembers: (candidateId: CandidateId) => CandidateId[] }): ContentDecision {
+	const { decision, withReadableMembers } = params;
+	if (decision.kind === "none") return { kind: "none", reason: decision.reason };
+	if (decision.kind === "tie") return { kind: "tie", candidateIds: decision.candidateIds.flatMap(withReadableMembers), reason: decision.reason };
+	const [winner, ...tiedWith] = withReadableMembers(decision.candidateId);
+	assert(winner, "a judged group always names at least its representative");
+	return tiedWith.length > 0 ? { kind: "tie", candidateIds: [winner, ...tiedWith], reason: decision.reason } : { kind: "winner", candidateId: winner, reason: decision.reason };
+}
+
 async function judgeCandidates(params: { sources: readonly VerifiedTierSource[]; originalUrl: string; selectMostCompleteContent: SelectMostCompleteContent }) {
-	if (params.sources.length === 0) return { kind: "none", reason: "no verified candidates", readability: [] } as const;
-	return params.selectMostCompleteContent({
+	if (params.sources.length === 0) return { kind: "none", reason: "no verified candidates", readability: [], judgedBodies: 0 } as const;
+	const groups = new Map<string, VerifiedTierSource[]>();
+	for (const source of params.sources) groups.set(source.metadata.contentHash, [...(groups.get(source.metadata.contentHash) ?? []), source]);
+	const membersByRepresentative = new Map([...groups.values()].map((members) => [representativeOf(members).metadata.id, members]));
+	const membersOf = (candidateId: CandidateId): VerifiedTierSource[] => {
+		const members = membersByRepresentative.get(candidateId);
+		assert(members, `the judge named a candidate that was not sent: ${candidateId}`);
+		return members;
+	};
+	const judged = await params.selectMostCompleteContent({
 		url: params.originalUrl,
-		candidates: params.sources.map((source) => ({ id: source.metadata.id, tier: source.tier, title: source.metadata.title, wordCount: source.metadata.wordCount, html: source.evaluationHtml ?? source.html, httpStatus: source.metadata.httpStatus })),
+		candidates: [...groups.values()].map(representativeOf).map((source) => ({ id: source.metadata.id, tier: source.tier, title: source.metadata.title, wordCount: source.metadata.wordCount, html: source.evaluationHtml ?? source.html, httpStatus: source.metadata.httpStatus })),
 	});
+	const withReadableMembers = (candidateId: CandidateId) => {
+		const readable = membersOf(candidateId).filter(candidateIsReadable).map((member) => member.metadata.id);
+		return readable.length > 0 ? readable : [candidateId];
+	};
+	return {
+		...expandVerdict({ decision: judged, withReadableMembers }),
+		readability: judged.readability.flatMap((assessment) => membersOf(assessment.candidateId).map((member) => ({ candidateId: member.metadata.id, readable: assessment.readable }))),
+		audit: judged.audit,
+		judgedBodies: groups.size,
+	};
 }
 
 export function initPrepareContentSelection(deps: {
@@ -132,11 +166,11 @@ export function initPrepareContentSelection(deps: {
 		const proseUnchanged = previous !== undefined && sources.length > 1 &&
 			sources.every((source) => computeCanonicalContentHash(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
 		const decision = firstCapture !== undefined
-			? { kind: "winner", candidateId: firstCapture.metadata.id, reason: "the reader's capture is the article's first content", readability: [{ candidateId: firstCapture.metadata.id, readable: true }] } as const
+			? { kind: "winner", candidateId: firstCapture.metadata.id, reason: "the reader's capture is the article's first content", readability: [{ candidateId: firstCapture.metadata.id, readable: true }], judgedBodies: 0 } as const
 			: directResources.length > 0
-			? { kind: "tie", candidateIds: directResources.map((source) => source.metadata.id), reason: "verified direct resource fetched in this save attempt", readability: directResources.map((source) => ({ candidateId: source.metadata.id, readable: true })) } as const
+			? { kind: "tie", candidateIds: directResources.map((source) => source.metadata.id), reason: "verified direct resource fetched in this save attempt", readability: directResources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
 			: proseUnchanged
-			? { kind: "tie", candidateIds: sources.map((source) => source.metadata.id), reason: "prose unchanged from the canonical", readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })) } as const
+			? { kind: "tie", candidateIds: sources.map((source) => source.metadata.id), reason: "prose unchanged from the canonical", readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
 			: await judgeCandidates({ sources, originalUrl, selectMostCompleteContent: deps.selectMostCompleteContent });
 		const audit = "audit" in decision ? decision.audit : undefined;
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
@@ -165,7 +199,7 @@ export function initPrepareContentSelection(deps: {
 		const readableIds = new Set(decision.readability.filter((assessment) => assessment.readable).map((assessment) => assessment.candidateId));
 		return {
 			article, originalUrl, sources, selected: selected ?? previous, outcome, reason: decision.reason, selectionRule,
-			ownCaptureFailed: outcome === "no-readable" && ownCaptures.length > 0, readableIds, audit, legacyCanonicalWithheld,
+			ownCaptureFailed: outcome === "no-readable" && ownCaptures.length > 0, readableIds, audit, legacyCanonicalWithheld, judgedBodies: decision.judgedBodies,
 		};
 	};
 }
@@ -198,6 +232,7 @@ export function initLogContentSelection(deps: { logger: HutchLogger }): (params:
 			selectedCandidateId: selection.selected?.metadata.id,
 			outcome: selection.outcome,
 			selectionRule: selection.selectionRule,
+			judgedBodies: selection.judgedBodies,
 			reason: selection.reason,
 			ownCaptureFailed: selection.ownCaptureFailed,
 			liveAttempt: params.liveAttempt,

@@ -57,20 +57,23 @@ const ARTICLE_STATES = [
 const PRODUCERS = [
 	{
 		producer: "an extension, iOS share or Siren upload",
-		capture: () => candidate({ tier: "tier-0", wordCount: 120, html: "<article><h1>Article</h1><p>The page the reader saved.</p></article>", evaluationHtml: "<html><body><nav>Menu</nav><article><h1>Article</h1><p>The page the reader saved.</p></article></body></html>" }),
+		page: { wordCount: 120, html: "<article><h1>Article</h1><p>The page the reader saved.</p></article>", evaluationHtml: "<html><body><nav>Menu</nav><article><h1>Article</h1><p>The page the reader saved.</p></article></body></html>" },
 	},
 	{
 		producer: "a PDF upload",
-		capture: () => candidate({ tier: "tier-0", wordCount: 300, html: "<section><p>Page one of the reader's PDF.</p></section>", evaluationHtml: "<section><p>Page one of the reader's PDF.</p></section>" }),
+		page: { wordCount: 300, html: "<section><p>Page one of the reader's PDF.</p></section>", evaluationHtml: "<section><p>Page one of the reader's PDF.</p></section>" },
 	},
 	{
 		producer: "a Gmail newsletter issue",
-		capture: () => candidate({ tier: "tier-0", wordCount: 800, html: "<table><tr><td><p>This week's issue.</p></td></tr></table>", evaluationHtml: "<table><tr><td><p>This week's issue.</p></td></tr></table>" }),
+		page: { wordCount: 800, html: "<table><tr><td><p>This week's issue.</p></td></tr></table>", evaluationHtml: "<table><tr><td><p>This week's issue.</p></td></tr></table>" },
 	},
 ];
 
+type Page = { wordCount: number; html: string; evaluationHtml: string };
+
 const COMPANIONS = [
-	{ companions: "alone", judged: false, live: () => [] },
+	{ companions: "alone", judged: false, live: (_page: Page) => [] },
+	{ companions: "with this save's live copy of the same page", judged: true, live: (page: Page) => [candidate({ tier: "tier-1", httpStatus: 200, ...page })] },
 	{ companions: "with this save's 404 page", judged: true, live: () => [candidate({ tier: "tier-1", wordCount: 3, httpStatus: 404, html: "<p>Page not found</p>", evaluationHtml: "<html><body><p>Page not found</p></body></html>" })] },
 	{ companions: "with this save's 403 bot check", judged: true, live: () => [candidate({ tier: "tier-1", wordCount: 4, httpStatus: 403, html: "<p>Verify you are human</p>", evaluationHtml: "<html><body><p>Verify you are human</p></body></html>" })] },
 ];
@@ -86,15 +89,15 @@ const ROWS = ARTICLE_STATES.flatMap((state) => PRODUCERS.flatMap((producer) => C
 	...state, ...producer, ...companions, ...judge, expected: companions.judged || state.judgedBesideFresh > 0 ? judge.whenJudged : "promoted",
 })))));
 
-it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge $verdict, is $expected and never failed", async ({ article, canonicalContent, canonical, judgedBesideFresh, capture: buildCapture, live, createChatCompletion, expected }) => {
-	const capture = buildCapture();
-	const fresh = [capture, ...live()];
+it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge $verdict, is $expected and never failed", async ({ article, canonicalContent, canonical, judgedBesideFresh, page, live, createChatCompletion, expected }) => {
+	const capture = candidate({ tier: "tier-0", ...page });
+	const fresh = [capture, ...live(page)];
 	const sources = [...canonical(), ...fresh];
 	const persisted: { transition: unknown; input: unknown }[] = [];
 	const transitionAndPersist: TransitionAndPersist = async (transition, params) => { persisted.push({ transition, input: params.input }); };
 	const handler = initSelectMostCompleteContentHandler({
 		listAvailableTierSources: async () => sources,
-		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + fresh.length }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
+		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + new Set(fresh.map((source) => source.metadata.contentHash)).size }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
 		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, tier: source.tier }),
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => canonicalContent, loadArticle: async () => article, transitionAndPersist,
@@ -106,6 +109,6 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 
 	expect(persisted.map((entry) => entry.transition)).not.toContain(markNoReadableArticle);
 	expect({ result, persisted }).toEqual(expected === "promoted"
-		? { result: { batchItemFailures: [] }, persisted: [{ transition: promoteTier, input: expect.objectContaining({ tier: "tier-0", metadata: expect.objectContaining({ id: capture.metadata.id }) }) }] }
+		? { result: { batchItemFailures: [] }, persisted: [{ transition: promoteTier, input: expect.objectContaining({ metadata: expect.objectContaining({ contentHash: capture.metadata.contentHash }) }) }] }
 		: { result: { batchItemFailures: [{ itemIdentifier: "message-0" }] }, persisted: [] });
 });

@@ -207,7 +207,7 @@ describe("initSelectContentWork", () => {
 		const existing = article({ contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 4 } });
 		const { work, deps, commit } = setup({
 			loadArticle: async () => existing, listAvailableTierSources: async () => [source(), source("tier-0")],
-			selectMostCompleteContent: async () => ({ kind: "tie", candidateIds: [cid("tier-1"), cid("tier-0")], reason: "Identical prose" }),
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("tier-1"), reason: "Identical prose" }),
 		});
 		await work({ ...laterRequest, mode: "recrawl", candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, { url: URL, input: { now: NOW, publishedOn: undefined, display: { kind: "row" } }, canonicalCommit: { ...commit, expected: existing.contentSelection } });
@@ -249,7 +249,7 @@ describe("initSelectContentWork", () => {
 		const existing = article({ contentSelection: { candidateId: cid("tier-1"), tier: "tier-1", revision: 4 } });
 		const { work, deps } = setup({
 			loadArticle: async () => existing, listAvailableTierSources: async () => [source(), fresh],
-			selectMostCompleteContent: async () => ({ kind: "tie", candidateIds: [cid("tier-1"), cid("tier-0")], reason: "Identical prose" }),
+			selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("tier-1"), reason: "Identical prose" }),
 		});
 
 		await work({ ...laterRequest, mode: "recrawl", candidates: [{ id: cid("tier-0"), tier: "tier-0" }] });
