@@ -98,7 +98,7 @@ export function initRecomputeSkippedNextReadHandler(deps: {
 
 				for (const save of eligible) {
 					await computeNextRead({
-						save: { userId: save.userId, url, receiveCount, trigger: TRIGGER },
+						save: { userId: save.userId, url, receiveCount, messageId: record.messageId, trigger: TRIGGER },
 						target: recompute.target,
 					});
 				}

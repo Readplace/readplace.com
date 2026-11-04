@@ -8,6 +8,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type {
 	FindPastReads,
+	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
 	PastReadDisplay,
 	PastReadLink,
@@ -28,15 +29,20 @@ export function initInMemoryPastReads(deps: {
 }): {
 	findPastReads: FindPastReads;
 	markPastReadsReady: MarkPastReadsReady;
+	markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked;
 	readPastReadsState: ReadPastReadsState;
 	forgetRow: (params: { userId: UserId; url: string }) => void;
 } {
 	const settled = new Map<string, readonly PastReadLink[]>();
 	const computations = new Map<string, { fingerprint: string; computedAt: Date }>();
+	const blocked = new Map<string, Date>();
 
 	const findPastReads: FindPastReads = async ({ userId, url }) => {
 		const links = settled.get(keyOf(userId, url));
-		if (links === undefined) return { status: "pending" };
+		const blockedUntil = blocked.get(keyOf(userId, url));
+		if (links === undefined) {
+			return blockedUntil === undefined ? { status: "pending" } : { status: "budget-limited", until: blockedUntil };
+		}
 
 		const kept: ComparableArticle[] = [];
 		const items: PastReadDisplay[] = [];
@@ -59,7 +65,11 @@ export function initInMemoryPastReads(deps: {
 				...(link.readlist !== undefined ? { readlist: link.readlist } : {}),
 			});
 		}
-		return { status: "ready", items };
+		return {
+			status: "ready",
+			items,
+			...(blockedUntil !== undefined ? { budgetBlockedUntil: blockedUntil } : {}),
+		};
 	};
 
 	const markPastReadsReady: MarkPastReadsReady = async ({ userId, url, pastReads, fingerprint, at }) => {
@@ -68,13 +78,35 @@ export function initInMemoryPastReads(deps: {
 		return "stored";
 	};
 
-	const readPastReadsState: ReadPastReadsState = async ({ userId, url }) =>
-		computations.get(keyOf(userId, url)) ?? {};
+	async function findSave(params: { userId: UserId; url: string }) {
+		const article = await deps.findArticleByUrl(params.url);
+		return article && (await deps.findArticleById(article.id, params.userId));
+	}
+
+	const markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked = async ({ userId, url, blockedUntil, observed }) => {
+		const saved = await findSave({ userId, url });
+		if (!saved || observed.savedAt.getTime() !== saved.savedAt.getTime()) return "superseded";
+		const storedAt = computations.get(keyOf(userId, url))?.computedAt;
+		if (storedAt?.getTime() !== observed.computedAt?.getTime()) return "superseded";
+		blocked.set(keyOf(userId, url), blockedUntil);
+		return "stored";
+	};
+
+	const readPastReadsState: ReadPastReadsState = async ({ userId, url }) => {
+		const blockedUntil = blocked.get(keyOf(userId, url));
+		const saved = await findSave({ userId, url });
+		return {
+			...computations.get(keyOf(userId, url)),
+			...(saved ? { savedAt: saved.savedAt } : {}),
+			...(blockedUntil !== undefined ? { budgetBlockedUntil: blockedUntil } : {}),
+		};
+	};
 
 	const forgetRow = ({ userId, url }: { userId: UserId; url: string }) => {
 		settled.delete(keyOf(userId, url));
 		computations.delete(keyOf(userId, url));
+		blocked.delete(keyOf(userId, url));
 	};
 
-	return { findPastReads, markPastReadsReady, readPastReadsState, forgetRow };
+	return { findPastReads, markPastReadsReady, markPastReadsBudgetBlocked, readPastReadsState, forgetRow };
 }

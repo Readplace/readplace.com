@@ -26,8 +26,11 @@ import {
 import type {
 	FindPastReads,
 	FindReadCandidatesAcrossReadlists,
+	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
+	MarkRelatedArticlesOutcome,
 	PastReadDisplay,
+	PastReads,
 	ReadPastReadsState,
 	ReadlistReadCandidate,
 } from "@packages/provider-contracts/related-articles";
@@ -55,6 +58,7 @@ const UserArticlePastReadsRow = z.object({
 	pastReadsComputedAt: dynamoField(z.string()),
 	pastReadsInputTokens: dynamoField(z.number()),
 	pastReadsOutputTokens: dynamoField(z.number()),
+	pastReadsBudgetBlockedUntil: dynamoField(z.string()),
 });
 
 const ReadlistDefinitionRow = z.object({
@@ -75,6 +79,68 @@ function unique(slugs: readonly ReadlistSlug[]): ReadlistSlug[] {
 	return [...new Set(slugs)];
 }
 
+async function outcomeOf(write: Promise<unknown>): Promise<MarkRelatedArticlesOutcome> {
+	try {
+		await write;
+		return "stored";
+	} catch (error) {
+		if (error instanceof ConditionalCheckFailedException) return "superseded";
+		throw error;
+	}
+}
+
+function notYetComputed(budgetBlockedUntil: string | undefined): PastReads {
+	return budgetBlockedUntil === undefined
+		? { status: "pending" }
+		: { status: "budget-limited", until: new Date(budgetBlockedUntil) };
+}
+
+function readyUpdate(params: Parameters<MarkPastReadsReady>[0]) {
+	const articles = params.pastReads.map((link) => ({
+		url: link.url,
+		reason: link.reason,
+		...(link.readlist !== undefined ? { readlist: link.readlist } : {}),
+	}));
+	return {
+		Key: { userId: params.userId, url: ArticleResourceUniqueId.parse(params.url).value },
+		UpdateExpression:
+			"SET pastReadsArticles = :articles, pastReadsFingerprint = :fingerprint, pastReadsComputedAt = :at, pastReadsInputTokens = :inputTokens, pastReadsOutputTokens = :outputTokens",
+		// Recompute-safe, not terminal-once: an authenticated reader re-runs
+		// this whenever they revisit, but an older run that lands late must
+		// not clobber a newer answer, and neither may recreate a deleted save.
+		ConditionExpression:
+			"attribute_exists(savedAt) AND (attribute_not_exists(pastReadsComputedAt) OR pastReadsComputedAt < :at)",
+		ExpressionAttributeValues: {
+			":articles": articles,
+			":fingerprint": params.fingerprint,
+			":at": params.at.toISOString(),
+			":inputTokens": params.inputTokens,
+			":outputTokens": params.outputTokens,
+		},
+	};
+}
+
+function budgetBlockedUpdate(params: Parameters<MarkPastReadsBudgetBlocked>[0]) {
+	const { computedAt } = params.observed;
+	const observedComputation =
+		computedAt === undefined
+			? { condition: "attribute_not_exists(pastReadsComputedAt)", values: {} }
+			: {
+					condition: "pastReadsComputedAt = :computedAt",
+					values: { ":computedAt": computedAt.toISOString() },
+				};
+	return {
+		Key: { userId: params.userId, url: ArticleResourceUniqueId.parse(params.url).value },
+		UpdateExpression: "SET pastReadsBudgetBlockedUntil = :until",
+		ConditionExpression: `savedAt = :savedAt AND ${observedComputation.condition}`,
+		ExpressionAttributeValues: {
+			":until": params.blockedUntil.toISOString(),
+			":savedAt": params.observed.savedAt.toISOString(),
+			...observedComputation.values,
+		},
+	};
+}
+
 export function initDynamoDbPastReads(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -83,6 +149,7 @@ export function initDynamoDbPastReads(deps: {
 	findReadCandidatesAcrossReadlists: FindReadCandidatesAcrossReadlists;
 	readPastReadsState: ReadPastReadsState;
 	markPastReadsReady: MarkPastReadsReady;
+	markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked;
 	findPastReads: FindPastReads;
 } {
 	const { client, tableName, userArticlesTableName } = deps;
@@ -215,42 +282,19 @@ export function initDynamoDbPastReads(deps: {
 			...(row?.pastReadsComputedAt !== undefined
 				? { computedAt: new Date(row.pastReadsComputedAt) }
 				: {}),
+			...(row?.savedAt !== undefined ? { savedAt: new Date(row.savedAt) } : {}),
+			...(row?.pastReadsBudgetBlockedUntil !== undefined
+				? { budgetBlockedUntil: new Date(row.pastReadsBudgetBlockedUntil) }
+				: {}),
 		};
 	};
 
-	const markPastReadsReady: MarkPastReadsReady = async (params) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		const articles = params.pastReads.map((link) => ({
-			url: link.url,
-			reason: link.reason,
-			...(link.readlist !== undefined ? { readlist: link.readlist } : {}),
-		}));
-		const expressionAttributeValues = {
-			":articles": articles,
-			":fingerprint": params.fingerprint,
-			":at": params.at.toISOString(),
-			":inputTokens": params.inputTokens,
-			":outputTokens": params.outputTokens,
-		};
-		try {
-			await userArticles.update({
-				Key: { userId: params.userId, url: articleResourceUniqueId.value },
-				UpdateExpression:
-					"SET pastReadsArticles = :articles, pastReadsFingerprint = :fingerprint, pastReadsComputedAt = :at, pastReadsInputTokens = :inputTokens, pastReadsOutputTokens = :outputTokens",
-				// Recompute-safe, not terminal-once: an authenticated reader re-runs
-				// this whenever they revisit, but an older run that lands late must
-				// not clobber a newer answer, and neither may recreate a deleted save.
-				ConditionExpression:
-					"attribute_exists(savedAt) AND (attribute_not_exists(pastReadsComputedAt) OR pastReadsComputedAt < :at)",
-				ExpressionAttributeValues: expressionAttributeValues,
-				/* c8 ignore next -- V8 block-coverage phantom on the awaited update continuation, see bcoe/c8#319 */
-			});
-			return "stored";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "superseded";
-			throw error;
-		}
-	};
+	const markPastReadsReady: MarkPastReadsReady = (params) =>
+		outcomeOf(userArticles.update(readyUpdate(params)));
+
+	/* c8 ignore next -- V8 block-coverage phantom on the arrow whose awaited write rejects, see bcoe/c8#319 */
+	const markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked = (params) =>
+		outcomeOf(userArticles.update(budgetBlockedUpdate(params)));
 
 	const findPastReads: FindPastReads = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
@@ -258,10 +302,14 @@ export function initDynamoDbPastReads(deps: {
 			userId: params.userId,
 			url: articleResourceUniqueId.value,
 		});
-		if (!row?.pastReadsComputedAt) return { status: "pending" };
+		if (!row?.pastReadsComputedAt) return notYetComputed(row?.pastReadsBudgetBlockedUntil);
+		const blocked =
+			row.pastReadsBudgetBlockedUntil !== undefined
+				? { budgetBlockedUntil: new Date(row.pastReadsBudgetBlockedUntil) }
+				: {};
 
 		const links = row.pastReadsArticles ?? [];
-		if (links.length === 0) return { status: "ready", items: [] };
+		if (links.length === 0) return { status: "ready", items: [], ...blocked };
 
 		const ownedSlugs = await ownedReadlistSlugsInCreationOrder(params.userId);
 		const allReadlists: ReadlistSlug[] = [DEFAULT_READLIST_SLUG, ...ownedSlugs];
@@ -307,7 +355,7 @@ export function initDynamoDbPastReads(deps: {
 		}
 
 		const stillLinked = links.filter((link) => readSomewhere.has(link.url));
-		if (stillLinked.length === 0) return { status: "ready", items: [] };
+		if (stillLinked.length === 0) return { status: "ready", items: [], ...blocked };
 
 		const byUrl = await readArticles(
 			stillLinked.map((link) => link.url),
@@ -347,13 +395,14 @@ export function initDynamoDbPastReads(deps: {
 				...(destination === DEFAULT_READLIST_SLUG ? {} : { readlist: destination }),
 			});
 		}
-		return { status: "ready", items };
+		return { status: "ready", items, ...blocked };
 	};
 
 	return {
 		findReadCandidatesAcrossReadlists,
 		readPastReadsState,
 		markPastReadsReady,
+		markPastReadsBudgetBlocked,
 		findPastReads,
 	};
 }

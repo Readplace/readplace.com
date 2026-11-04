@@ -1547,21 +1547,29 @@ const computeRelatedArticlesUserArticlesDynamodb = new HutchDynamoDBAccess("comp
 	],
 });
 
+const computeRelatedArticlesRateLimitsDynamodb = new HutchDynamoDBAccess("compute-related-articles-rate-limits-dynamodb", {
+	tables: [{ arn: rateLimitsTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+});
+
 const computeRelatedArticlesLambda = new HutchLambda("compute-related-articles", {
 	entryPoint: "./src/runtime/compute-related-articles.main.ts",
 	outputDir: ".lib/compute-related-articles",
 	assetDir: "./src",
-	memorySize: 256,
+	memorySize: 1024,
+	external: ["tokenizers"],
 	timeout: RELATED_ARTICLES_TIMEOUTS.lambdaSeconds,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
+		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
 	policies: [
 		...computeRelatedArticlesArticlesDynamodb.policies,
 		...computeRelatedArticlesUserArticlesDynamodb.policies,
+		...computeRelatedArticlesRateLimitsDynamodb.policies,
 	],
 });
 

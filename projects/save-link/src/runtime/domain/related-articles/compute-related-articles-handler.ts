@@ -18,7 +18,7 @@ import { ComputeRelatedPassesCommand } from "./index";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { MetadataNotReadyError, initNextReadComputation } from "./next-read-computation";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
-import type { SelectRelatedArticles } from "./related-articles-selector";
+import type { RecommendationTrigger, SelectRelatedArticles } from "./related-articles-selector";
 
 interface ComputeRelatedArticlesHandlerDeps {
 	findRelatedArticles: FindRelatedArticles;
@@ -32,6 +32,8 @@ interface ComputeRelatedArticlesHandlerDeps {
 	logger: HutchLogger;
 	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }
+
+const TRIGGER: RecommendationTrigger = "reader-request";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComputeRelatedArticlesHandler(
@@ -78,7 +80,7 @@ export function initComputeRelatedArticlesHandler(
 					continue;
 				}
 
-				const save = { userId, url: entry.url, receiveCount };
+				const save = { userId, url: entry.url, receiveCount, messageId: record.messageId, trigger: TRIGGER };
 
 				const lookup = await findRelatedTargetArticle(entry.url);
 				if (lookup.state === "purged") {

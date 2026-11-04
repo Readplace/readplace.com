@@ -58,7 +58,7 @@ export function initSelectRelatedArticlesWithoutSharedBoilerplate(deps: {
 		}
 
 		const filtered: SelectRelatedArticlesParams = {
-			target: params.target,
+			...params,
 			unreadCandidates: params.unreadCandidates.filter(
 				(candidate) => !isSharedAcrossSites(candidate),
 			),

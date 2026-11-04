@@ -146,7 +146,16 @@ export type MarkPastReadsReady = (params: {
 export interface PastReadsState {
 	fingerprint?: string;
 	computedAt?: Date;
+	savedAt?: Date;
+	budgetBlockedUntil?: Date;
 }
+
+export type MarkPastReadsBudgetBlocked = (params: {
+	userId: UserId;
+	url: string;
+	blockedUntil: Date;
+	observed: { savedAt: Date; computedAt?: Date };
+}) => Promise<MarkRelatedArticlesOutcome>;
 
 export type ReadPastReadsState = (params: {
 	userId: UserId;
@@ -171,7 +180,8 @@ export interface PastReadDisplay {
  * `items` is empty rather than treating empty as a distinct state. */
 export type PastReads =
 	| { status: "pending" }
-	| { status: "ready"; items: readonly PastReadDisplay[] };
+	| { status: "ready"; items: readonly PastReadDisplay[]; budgetBlockedUntil?: Date }
+	| { status: "budget-limited"; until: Date };
 
 export type FindPastReads = (params: {
 	userId: UserId;

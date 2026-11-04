@@ -108,7 +108,7 @@ describe("initCreateDeepseekMessage", () => {
 		expect(result.content[0].text).toBe(jsonPayload);
 	});
 
-	it("should throw when response has no message content", async () => {
+	it("should answer no content with the usage when the response has no message content", async () => {
 		const deepseek = deepseekAnswering({
 			model: "deepseek-flash",
 			choices: [{ message: { content: null } }],
@@ -122,7 +122,10 @@ describe("initCreateDeepseekMessage", () => {
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
-		})).rejects.toThrow("DeepSeek response missing message content");
+		})).resolves.toEqual({
+			content: [],
+			usage: { input_tokens: 10, output_tokens: 0, cache_hit_input_tokens: 0, cache_miss_input_tokens: 10 },
+		});
 	});
 
 	it("should extract text from document content blocks", async () => {
@@ -366,10 +369,10 @@ describe("initCreateDeepseekThinkingMessage", () => {
 		expect(result.usage.reasoning_tokens).toBeUndefined();
 	});
 
-	it("should throw when the thinking response has no message content", async () => {
+	it("should answer no content with the usage when the thinking response has a blank message", async () => {
 		const deepseek = deepseekAnswering({
 			model: "deepseek-v4-pro",
-			choices: [{ message: { content: "", reasoning_content: "Thinking ran out of budget." } }],
+			choices: [{ message: { content: "  \n", reasoning_content: "Thinking ran out of budget." } }],
 			usage: { prompt_tokens: 10, completion_tokens: 65536 },
 		});
 
@@ -380,7 +383,10 @@ describe("initCreateDeepseekThinkingMessage", () => {
 			max_tokens: 100,
 			system: "system",
 			messages: [{ role: "user", content: "hello" }],
-		})).rejects.toThrow("DeepSeek response missing message content");
+		})).resolves.toEqual({
+			content: [],
+			usage: { input_tokens: 10, output_tokens: 65536, reasoning_tokens: undefined },
+		});
 	});
 
 	it("should throw when the thinking response has no usage data", async () => {

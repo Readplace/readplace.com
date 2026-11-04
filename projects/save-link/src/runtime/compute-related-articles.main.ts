@@ -11,6 +11,13 @@ import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initRelatedArticlesDepBundle } from "./dep-bundles/related-articles";
+import { initDynamoDbRecommendationBudget } from "./providers/recommendation-budget/dynamodb-recommendation-budget";
+import type { RecommendationBudgetDeniedLine } from "./domain/related-articles/daily-budget";
+import { initDeepseekFlashTokenCounter } from "./domain/related-articles/deepseek-flash-tokenizer/deepseek-flash-tokenizer";
+import {
+	RECOMMENDATION_BUDGET_WINDOW_SECONDS,
+	RECOMMENDATION_DAILY_LIMIT_NANODOLLARS,
+} from "./domain/related-articles/recommendation-budget";
 import { initComputeRelatedPasses } from "./domain/related-articles/compute-related-passes";
 import { initComputeRelatedArticlesHandler } from "./domain/related-articles/compute-related-articles-handler";
 import { initComputeRelatedPastReadsHandler } from "./domain/related-articles/compute-related-past-reads-handler";
@@ -22,6 +29,7 @@ const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
 const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
+const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 
 const dynamoClient = createDynamoDocumentClient();
 const deepseekClient = initDeepseekClient({
@@ -38,10 +46,23 @@ const deepseekClient = initDeepseekClient({
 
 const createMessage = initCreateDeepseekMessage({ client: deepseekClient });
 
+const budget = initDynamoDbRecommendationBudget({
+	client: dynamoClient,
+	tableName: rateLimitsTable,
+	limitNanodollars: RECOMMENDATION_DAILY_LIMIT_NANODOLLARS,
+	windowSeconds: RECOMMENDATION_BUDGET_WINDOW_SECONDS,
+	now: () => new Date(),
+	delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+});
+const { countPromptTokens } = initDeepseekFlashTokenCounter();
+
 const { selectRelatedArticles, selectPastReads } = initRelatedArticlesDepBundle({
 	createMessage,
 	nowMs: () => performance.now(),
 	logger: consoleLogger,
+	budget,
+	countPromptTokens,
+	budgetDeniedLog: HutchLogger.fromJSON<RecommendationBudgetDeniedLine>(),
 });
 
 const {
@@ -60,7 +81,7 @@ const {
 	userArticlesTableName: userArticlesTable,
 });
 
-const { findReadCandidatesAcrossReadlists, readPastReadsState, markPastReadsReady } =
+const { findReadCandidatesAcrossReadlists, readPastReadsState, markPastReadsReady, markPastReadsBudgetBlocked } =
 	initDynamoDbPastReads({
 		client: dynamoClient,
 		tableName: articlesTable,
@@ -96,6 +117,7 @@ const pastReadsHandler = initComputeRelatedPastReadsHandler({
 	readPastReadsState,
 	selectPastReads,
 	markPastReadsReady,
+	markPastReadsBudgetBlocked,
 	publishEvent,
 	now: () => new Date(),
 	logger: consoleLogger,

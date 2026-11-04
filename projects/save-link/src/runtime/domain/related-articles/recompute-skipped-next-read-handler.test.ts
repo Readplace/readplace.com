@@ -346,4 +346,38 @@ describe("initRecomputeSkippedNextReadHandler", () => {
 			expect.objectContaining({ messageId: "msg-1", trigger: "content-changed" }),
 		);
 	});
+
+	it("hands the selector the content-changed attempt for the message", async () => {
+		const { handler, selected } = createHandler();
+
+		await handler(contentChangedEvent, buildLambdaContext(), () => {});
+
+		expect(selected.map((params) => params.attempt)).toEqual([
+			{ userId: USER_ID, trigger: "content-changed", messageId: "msg-1", receiveCount: 1 },
+		]);
+	});
+
+	it("replaces the skip with a fresh skip that names when the budget resets once the daily budget is spent", async () => {
+		const resetsAt = new Date("2026-08-05T00:00:00.000Z");
+		const logger = fakeLogger();
+		const { handler, ready, skipped, published } = createHandler({
+			logger,
+			selectRelatedArticles: async () => ({ kind: "budget-limited", resetsAt }),
+		});
+
+		const result = await handler(contentChangedEvent, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(ready).toEqual([]);
+		expect(skipped).toEqual([{ userId: USER_ID, url: TARGET_URL, at: NOW }]);
+		expect(published[0]?.outcome).toBe("skipped");
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedArticles] skipped", {
+			url: TARGET_URL,
+			reason: "daily recommendation budget spent",
+			receiveCount: 1,
+			crawlStatus: "ready",
+			budgetResetsAt: resetsAt,
+			trigger: "content-changed",
+		});
+	});
 });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { deepseekCostUsd, deepseekRate } from "./deepseek-pricing";
+import { deepseekCostNanodollars, deepseekCostUsd, deepseekPeakNanodollarsPerToken, deepseekRate } from "./deepseek-pricing";
 
 describe("deepseekRate", () => {
 	it.each([
@@ -38,4 +38,26 @@ describe("deepseekCostUsd", () => {
 			assert.equal(deepseekCostUsd({ model, rate, cacheHitInputTokens, cacheMissInputTokens, outputTokens }), usd);
 		},
 	);
+});
+
+describe("deepseekPeakNanodollarsPerToken", () => {
+	it.each([
+		["deepseek-flash", { cacheHitInput: 6, cacheMissInput: 300, output: 1200 }],
+		["deepseek-v4-pro", { cacheHitInput: 44, cacheMissInput: 1320, output: 3960 }],
+	] as const)("prices %s at the peak rate in whole nanodollars", (model, prices) => {
+		assert.deepEqual(deepseekPeakNanodollarsPerToken(model), prices);
+	});
+});
+
+describe("deepseekCostNanodollars", () => {
+	it.each([
+		["deepseek-flash", 1000, 2000, 10, 618_000],
+		["deepseek-v4-pro", 1000, 2000, 10, 2_723_600],
+		["deepseek-flash", 0, 0, 0, 0],
+	] as const)("costs %s with %i hit, %i miss and %i output tokens at %i nanodollars", (model, hit, miss, out, nanodollars) => {
+		assert.equal(
+			deepseekCostNanodollars({ model, cacheHitInputTokens: hit, cacheMissInputTokens: miss, outputTokens: out }),
+			nanodollars,
+		);
+	});
 });

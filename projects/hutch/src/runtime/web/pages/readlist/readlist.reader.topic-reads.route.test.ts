@@ -111,6 +111,19 @@ async function buildHarness(options: { findPastReads?: FindPastReads } = {}) {
 		});
 	}
 
+	async function blockPastReads(params: { until: Date; computedAt?: Date }): Promise<void> {
+		const outcome = await fixture.pastReads.markPastReadsBudgetBlocked({
+			userId,
+			url: ARTICLE_URL,
+			blockedUntil: params.until,
+			observed: {
+				savedAt: target.savedAt,
+				...(params.computedAt !== undefined ? { computedAt: params.computedAt } : {}),
+			},
+		});
+		assert.equal(outcome, "stored", "the test blocks the row it just observed");
+	}
+
 	return {
 		fixture,
 		harness,
@@ -119,6 +132,7 @@ async function buildHarness(options: { findPastReads?: FindPastReads } = {}) {
 		articleId: target.id.value,
 		past,
 		seedPastReads,
+		blockPastReads,
 		publishedComputeRequests,
 	};
 }
@@ -133,6 +147,16 @@ function inlineSlotOf(html: string) {
 	const slot = new JSDOM(html).window.document.querySelector("[data-test-reader-topic-reads-inline]");
 	assert(slot, "the response renders the inline topic-reads slot");
 	return slot;
+}
+
+const A_DAY_MS = 24 * 60 * 60 * 1000;
+const tomorrow = () => new Date(Date.now() + A_DAY_MS);
+const yesterday = () => new Date(Date.now() - A_DAY_MS);
+
+function noscriptFallbackOf(html: string) {
+	return Array.from(new JSDOM(html).window.document.querySelectorAll("noscript")).find((noscript) =>
+		noscript.innerHTML.includes("past-reads__fallback"),
+	);
 }
 
 function rowIdsOf(slot: Element): string[] {
@@ -423,6 +447,72 @@ describe("Reader previously-read-on-this-topic slot", () => {
 		expect(doc.querySelectorAll("form.past-reads__request")).toHaveLength(1);
 		expect(doc.querySelector("form.past-reads__request")?.getAttribute("hx-post")).toBe(
 			`/queue/${articleId}/topic-reads?platform=ios`,
+		);
+	});
+
+	it("stops polling and asking for a computation while the daily budget blocks an uncomputed selection", async () => {
+		const { agent, articleId, blockPastReads } = await buildHarness();
+		await blockPastReads({ until: tomorrow() });
+
+		const reader = await agent.get(`/queue/${articleId}/view`);
+		const poll = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
+
+		const slot = slotOf(reader.text);
+		expect(slot.getAttribute("data-topic-reads-status")).toBe("budget-limited");
+		expect(slot.classList.contains("past-reads--hidden")).toBe(true);
+		expect(slot.getAttribute("hx-get")).toBe(null);
+		expect(new JSDOM(reader.text).window.document.querySelectorAll("form.past-reads__request")).toHaveLength(0);
+		expect(noscriptFallbackOf(reader.text)).toBeUndefined();
+		const pollSlot = slotOf(poll.text);
+		expect(pollSlot.getAttribute("data-topic-reads-status")).toBe("budget-limited");
+		expect(pollSlot.getAttribute("hx-get")).toBe(null);
+	});
+
+	it("keeps showing cached matches without polling or asking for a computation while the budget blocks a refresh", async () => {
+		const { agent, articleId, past, seedPastReads, blockPastReads } = await buildHarness();
+		await seedPastReads();
+		await blockPastReads({ until: tomorrow(), computedAt: COMPUTED_AT });
+
+		const reader = await agent.get(`/queue/${articleId}/view`);
+		const poll = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
+
+		const slot = slotOf(reader.text);
+		expect(slot.getAttribute("data-topic-reads-status")).toBe("ready");
+		expect(rowIdsOf(slot)).toEqual([past.id.value]);
+		expect(slot.getAttribute("hx-get")).toBe(null);
+		expect(new JSDOM(reader.text).window.document.querySelectorAll("form.past-reads__request")).toHaveLength(0);
+		expect(rowIdsOf(slotOf(poll.text))).toEqual([past.id.value]);
+		expect(slotOf(poll.text).getAttribute("hx-get")).toBe(null);
+	});
+
+	it("polls and asks for a computation again once the budget block has expired", async () => {
+		const { agent, articleId, blockPastReads } = await buildHarness();
+		await blockPastReads({ until: yesterday() });
+
+		const reader = await agent.get(`/queue/${articleId}/view`);
+		const poll = await agent.get(`/queue/${articleId}/topic-reads?poll=1`);
+
+		const slot = slotOf(reader.text);
+		expect(slot.getAttribute("data-topic-reads-status")).toBe("pending");
+		expect(slot.getAttribute("hx-get")).toBe(`/queue/${articleId}/topic-reads?poll=1`);
+		expect(slot.querySelector("form.past-reads__request")?.getAttribute("hx-post")).toBe(
+			`/queue/${articleId}/topic-reads`,
+		);
+		expect(noscriptFallbackOf(reader.text)).toBeDefined();
+		expect(slotOf(poll.text).getAttribute("hx-get")).toBe(`/queue/${articleId}/topic-reads?poll=2`);
+	});
+
+	it("polls and asks for a refresh of cached matches once their budget block has expired", async () => {
+		const { agent, articleId, past, seedPastReads, blockPastReads } = await buildHarness();
+		await seedPastReads();
+		await blockPastReads({ until: yesterday(), computedAt: COMPUTED_AT });
+
+		const reader = await agent.get(`/queue/${articleId}/view`);
+
+		const slot = slotOf(reader.text);
+		expect(rowIdsOf(slot)).toEqual([past.id.value]);
+		expect(slot.querySelector("form.past-reads__request")?.getAttribute("hx-post")).toBe(
+			`/queue/${articleId}/topic-reads`,
 		);
 	});
 

@@ -50,6 +50,7 @@ import type { ReadlistSlug } from "@packages/domain/readlist";
 import type {
 	FindPastReads,
 	FindRelatedArticles,
+	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
 	MarkRelatedPassesRequested,
 	MarkRelatedPassesRequestedOutcome,
@@ -808,7 +809,11 @@ export interface TestAppFixture {
 	pendingUpload: PendingUploadBundle;
 	summary: SummaryBundle;
 	relatedArticles: RelatedArticlesBundle;
-	pastReads: { findPastReads: FindPastReads; markPastReadsReady: MarkPastReadsReady };
+	pastReads: {
+		findPastReads: FindPastReads;
+		markPastReadsReady: MarkPastReadsReady;
+		markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked;
+	};
 	freshness: FreshnessBundle;
 	oauth: OAuthBundle;
 	email: EmailBundle;

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { ArticleDestinationUrl } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	RelatedArticleLink,
@@ -28,6 +29,8 @@ const RELATED_SELECTIONS = {
 	nextRead: { feature: DEEPSEEK_FEATURES.nextRead, system: RELATED_ARTICLES_PROMPT },
 	pastReads: { feature: DEEPSEEK_FEATURES.pastReads, system: PAST_READS_PROMPT },
 } as const;
+
+export type RelatedSelection = keyof typeof RELATED_SELECTIONS;
 
 const RelatedPayload = z.object({
 	related: z.array(
@@ -68,9 +71,20 @@ export type SelectRelatedResult =
 		}
 	| { kind: "no-text-block" }
 	| { kind: "shared-boilerplate" }
-	| { kind: "no-shared-words"; bestScore: number; candidateCount: number };
+	| { kind: "no-shared-words"; bestScore: number; candidateCount: number }
+	| { kind: "budget-limited"; resetsAt: Date };
+
+export type RecommendationTrigger = "save" | "reader-request" | "content-changed";
+
+export interface SelectionAttempt {
+	userId: UserId;
+	trigger: RecommendationTrigger;
+	messageId: string;
+	receiveCount: number;
+}
 
 export interface SelectRelatedArticlesParams {
+	attempt: SelectionAttempt;
 	target: RelatedArticleTarget;
 	unreadCandidates: readonly RelatedCandidate[];
 	readCandidates: readonly RelatedCandidate[];
@@ -168,68 +182,77 @@ function selectValidRelations(params: {
 	return { related, droppedNoSharedWord, droppedReasonNotAboutPick };
 }
 
+export function buildRelatedArticlesRequest(input: {
+	selection: RelatedSelection;
+	params: SelectRelatedArticlesParams;
+}): Parameters<CreateAiMessage>[0] {
+	const { feature, system } = RELATED_SELECTIONS[input.selection];
+	return {
+		feature,
+		max_tokens: RELATED_MAX_OUTPUT_TOKENS,
+		system,
+		messages: [
+			{
+				role: "user",
+				content: [
+					{
+						type: "document",
+						source: {
+							type: "text",
+							media_type: "text/plain",
+							data: buildRelatedArticlesMessage(input.params),
+						},
+						title: "Saved article and candidate earlier saves",
+						citations: { enabled: false },
+					},
+				],
+			},
+		],
+		output_config: {
+			format: {
+				type: "json_schema",
+				schema: {
+					type: "object",
+					properties: {
+						related: {
+							type: "array",
+							maxItems: RELATED_RESULTS_MAX,
+							items: {
+								type: "object",
+								properties: {
+									index: {
+										type: "integer",
+										description: "The candidate number from the list",
+									},
+									reason: {
+										type: "string",
+										description: `One short sentence, max ${RELATED_REASON_MAX_CHARS} characters`,
+									},
+								},
+								required: ["index", "reason"],
+								additionalProperties: false,
+							},
+						},
+					},
+					required: ["related"],
+					additionalProperties: false,
+				},
+			},
+		},
+	};
+}
+
 export function initSelectRelatedArticles(deps: {
 	createMessage: CreateAiMessage;
 	nowMs: () => number;
 	logger: HutchLogger;
-	selection: keyof typeof RELATED_SELECTIONS;
+	selection: RelatedSelection;
 }): { selectRelatedArticles: SelectRelatedArticles } {
-	const { feature, system } = RELATED_SELECTIONS[deps.selection];
 	const selectRelatedArticles: SelectRelatedArticles = async (params) => {
 		const startedAt = deps.nowMs();
-		const response = await deps.createMessage({
-			feature,
-			max_tokens: RELATED_MAX_OUTPUT_TOKENS,
-			system,
-			messages: [
-				{
-					role: "user",
-					content: [
-						{
-							type: "document",
-							source: {
-								type: "text",
-								media_type: "text/plain",
-								data: buildRelatedArticlesMessage(params),
-							},
-							title: "Saved article and candidate earlier saves",
-							citations: { enabled: false },
-						},
-					],
-				},
-			],
-			output_config: {
-				format: {
-					type: "json_schema",
-					schema: {
-						type: "object",
-						properties: {
-							related: {
-								type: "array",
-								maxItems: RELATED_RESULTS_MAX,
-								items: {
-									type: "object",
-									properties: {
-										index: {
-											type: "integer",
-											description: "The candidate number from the list",
-										},
-										reason: {
-											type: "string",
-											description: `One short sentence, max ${RELATED_REASON_MAX_CHARS} characters`,
-										},
-									},
-									required: ["index", "reason"],
-									additionalProperties: false,
-								},
-							},
-						},
-						required: ["related"],
-						additionalProperties: false,
-					},
-				},
-			},
-		});
+		const response = await deps.createMessage(
+			buildRelatedArticlesRequest({ selection: deps.selection, params }),
+		);
 
 		const durationMs = deps.nowMs() - startedAt;
 		const textBlock = response.content.find((block) => block.type === "text");

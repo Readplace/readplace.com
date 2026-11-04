@@ -670,6 +670,22 @@ async function loadPastReads(
 	}
 }
 
+function pastReadsPresentation(input: { pastReads: PastReads; now: Date }): {
+	pastReads: PastReads;
+	budgetBlocked: boolean;
+} {
+	const pastReads = input.pastReads;
+	if (pastReads.status === "budget-limited") {
+		return pastReads.until > input.now
+			? { pastReads, budgetBlocked: true }
+			: { pastReads: { status: "pending" }, budgetBlocked: false };
+	}
+	if (pastReads.status === "ready" && pastReads.budgetBlockedUntil !== undefined) {
+		return { pastReads, budgetBlocked: pastReads.budgetBlockedUntil > input.now };
+	}
+	return { pastReads, budgetBlocked: false };
+}
+
 const READLIST_PURGE_PAGE_SIZE = 25;
 
 const NO_READLIST_FILTER: ReadlistFilter = { time: [], saved: [] };
@@ -1225,6 +1241,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				relatedPollUrl: string | undefined;
 				previouslyRead: PastReads;
 				previouslyReadPollUrl: string | undefined;
+				previouslyReadBudgetBlocked: boolean;
 				readlistFiling: ReaderReadlistFiling;
 				deletion: ArticleDeletion;
 				provenance: Awaited<ReturnType<ResolveReaderProvenance>>;
@@ -1294,7 +1311,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			});
 		}
 
-		const [related, previouslyRead, state, { readlistFiling, deleteAcknowledged }, provenance] = await Promise.all([
+		const [related, storedPreviouslyRead, state, { readlistFiling, deleteAcknowledged }, provenance] = await Promise.all([
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
 			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, deps.logError),
 			readerStateOnOpen(req, ownedArticle),
@@ -1316,11 +1333,17 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				: undefined;
 		// Never gated on Next-read dismissal — the topic section polls until its own
 		// selection settles regardless of whether the end suggestion was dismissed.
-		const previouslyReadPollUrl = pastReadsPollUrlFor({
-			articleId: ownedArticle.id.value,
-			pollCount: 1,
-			surfaceQuery: nativeSurfaceQuery(req),
+		const { pastReads: previouslyRead, budgetBlocked: previouslyReadBudgetBlocked } = pastReadsPresentation({
+			pastReads: storedPreviouslyRead,
+			now: deps.now(),
 		});
+		const previouslyReadPollUrl = previouslyReadBudgetBlocked
+			? undefined
+			: pastReadsPollUrlFor({
+					articleId: ownedArticle.id.value,
+					pollCount: 1,
+					surfaceQuery: nativeSurfaceQuery(req),
+				});
 		const contentVersion = computeArticleContentVersion({
 			article: ownedArticle,
 			crawl: state.crawl,
@@ -1342,6 +1365,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				relatedPollUrl: undefined,
 				previouslyRead: { status: "ready", items: [] },
 				previouslyReadPollUrl: undefined,
+				previouslyReadBudgetBlocked: false,
 				readlistFiling,
 				deletion,
 				provenance,
@@ -1357,6 +1381,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			relatedPollUrl,
 			previouslyRead,
 			previouslyReadPollUrl,
+			previouslyReadBudgetBlocked,
 			readlistFiling,
 			deletion,
 			provenance,
@@ -1421,6 +1446,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			relatedPollUrl,
 			previouslyRead,
 			previouslyReadPollUrl,
+			previouslyReadBudgetBlocked,
 			readlistFiling,
 			deletion,
 			provenance,
@@ -1430,7 +1456,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			previouslyRead,
 			previouslyReadPollUrl,
 			previouslyReadComputeUrl:
-				isAppPlatform(req) && isPrefetchRequest(req)
+				previouslyReadBudgetBlocked || (isAppPlatform(req) && isPrefetchRequest(req))
 					? undefined
 					: pastReadsComputeUrlFor({
 							articleId: ownedArticle.id.value,
@@ -3277,13 +3303,17 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const sourceReadlist = requestReadlistContext(req).state.readlist;
-		const pastReadsInput = {
+		const { pastReads, budgetBlocked } = pastReadsPresentation({
 			pastReads: await loadPastReads(
 				deps.findPastReads,
 				article,
 				sourceReadlist,
 				deps.logError,
 			),
+			now: deps.now(),
+		});
+		const pastReadsInput = {
+			pastReads,
 			sourceArticleId: article.id.value,
 			now: deps.now(),
 			readerPathForReadlist: readerPathForReadlist(req),
@@ -3293,7 +3323,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			placement: {
 				kind: "rail",
 				pollUrl:
-					pollCount < MAX_POLLS
+					!budgetBlocked && pollCount < MAX_POLLS
 						? pastReadsPollUrlFor({
 								articleId: article.id.value,
 								pollCount: pollCount + 1,

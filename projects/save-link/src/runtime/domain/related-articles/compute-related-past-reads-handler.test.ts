@@ -6,6 +6,7 @@ import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type {
+	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
 	PastReadsState,
 	ReadlistReadCandidate,
@@ -17,7 +18,8 @@ import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { initComputeRelatedPastReadsHandler } from "./compute-related-past-reads-handler";
 import { computePastReadsFingerprint } from "./related-past-reads-fingerprint";
-import type { SelectRelatedArticles } from "./related-articles-selector";
+import { ComputeRelatedPassesCommand, ComputeRelatedPastReadsCommand, QueueEntryCreatedEvent } from "./index";
+import type { SelectRelatedArticles, SelectRelatedArticlesParams } from "./related-articles-selector";
 
 const USER_ID = UserIdSchema.parse("00000000000000000000000000000001");
 const WORK = ReadlistSlugSchema.parse("work");
@@ -31,13 +33,13 @@ const stubAttributes: SQSRecordAttributes = {
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
 
-function sqsEvent(detail: unknown): SQSEvent {
+function sqsEvent(detail: unknown, detailType = "ComputeRelatedPastReads"): SQSEvent {
 	return {
 		Records: [
 			{
 				messageId: "msg-1",
 				receiptHandle: "receipt-1",
-				body: JSON.stringify({ "detail-type": "ComputeRelatedPastReads", detail }),
+				body: JSON.stringify({ "detail-type": detailType, detail }),
 				attributes: stubAttributes,
 				messageAttributes: {},
 				md5OfBody: "",
@@ -82,6 +84,7 @@ interface Overrides {
 	state?: PastReadsState;
 	selectPastReads?: SelectRelatedArticles;
 	markOutcome?: Awaited<ReturnType<MarkPastReadsReady>>;
+	blockedOutcome?: Awaited<ReturnType<MarkPastReadsBudgetBlocked>>;
 	logger?: HutchLogger;
 	deepseekCallFailedLog?: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }
@@ -94,6 +97,8 @@ function createHandler(overrides: Overrides = {}) {
 		fingerprint: string;
 	}> = [];
 	const published: Array<{ outcome: string; relatedCount: number }> = [];
+	const selected: SelectRelatedArticlesParams[] = [];
+	const blocked: Parameters<MarkPastReadsBudgetBlocked>[0][] = [];
 	const publishEvent: PublishEvent = async (_event, detail) => {
 		const parsed = detail as { outcome: string; relatedCount: number };
 		published.push({ outcome: parsed.outcome, relatedCount: parsed.relatedCount });
@@ -107,9 +112,9 @@ function createHandler(overrides: Overrides = {}) {
 			awaitingCrawl: 0,
 		}),
 		readPastReadsState: async () => overrides.state ?? {},
-		selectPastReads:
-			overrides.selectPastReads ??
-			(async () => ({
+		selectPastReads: async (params) => {
+			selected.push(params);
+			return overrides.selectPastReads ? overrides.selectPastReads(params) : {
 				kind: "ready", samples: [], droppedNoSharedWord: 0, droppedReasonNotAboutPick: 0,
 				related: [
 					{ url: "example.com/a", reason: "Same subject from work" },
@@ -117,11 +122,16 @@ function createHandler(overrides: Overrides = {}) {
 				],
 				inputTokens: 200,
 				outputTokens: 40,
-			})),
+			};
+		},
 		markPastReadsReady: async (params) => {
 			storedTokens.push({ inputTokens: params.inputTokens, outputTokens: params.outputTokens });
 			marked.push({ url: params.url, pastReads: params.pastReads, fingerprint: params.fingerprint });
 			return overrides.markOutcome ?? "stored";
+		},
+		markPastReadsBudgetBlocked: async (params) => {
+			blocked.push(params);
+			return overrides.blockedOutcome ?? "stored";
 		},
 		publishEvent,
 		now: () => NOW,
@@ -129,7 +139,7 @@ function createHandler(overrides: Overrides = {}) {
 		deepseekCallFailedLog: overrides.deepseekCallFailedLog ?? noopLogger,
 	});
 
-	return { handler, marked, published, storedTokens };
+	return { handler, marked, published, storedTokens, selected, blocked };
 }
 
 describe("initComputeRelatedPastReadsHandler", () => {
@@ -343,4 +353,81 @@ it("logs the single Already-read sample with its cache split and duration", asyn
 	await handler(command, buildLambdaContext(), () => {});
 	expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] completed", expect.objectContaining({ sampleCount: 1, samples }));
 	expect(storedTokens).toEqual([{ inputTokens: 200, outputTokens: 40 }]);
+});
+
+describe("initComputeRelatedPastReadsHandler daily budget", () => {
+	const resetsAt = new Date("2026-09-13T00:00:00.000Z");
+	const savedAt = new Date("2026-09-12T09:00:00.000Z");
+	const computedAt = new Date("2026-09-12T09:30:00.000Z");
+	const budgetLimited: SelectRelatedArticles = async () => ({ kind: "budget-limited", resetsAt });
+
+	it.each([
+		{ detailType: QueueEntryCreatedEvent.detailType, trigger: "save" },
+		{ detailType: ComputeRelatedPassesCommand.detailType, trigger: "reader-request" },
+		{ detailType: ComputeRelatedPastReadsCommand.detailType, trigger: "reader-request" },
+	])("hands the selector the $trigger attempt for a $detailType message", async ({ detailType, trigger }) => {
+		const { handler, selected } = createHandler();
+
+		await handler(sqsEvent({ url: TARGET_URL, userId: USER_ID }, detailType), buildLambdaContext(), () => {});
+
+		expect(selected.map((params) => params.attempt)).toEqual([
+			{ userId: USER_ID, trigger, messageId: "msg-1", receiveCount: 1 },
+		]);
+	});
+
+	it("retries a message whose detail-type names no past-reads request", async () => {
+		const { handler, selected } = createHandler();
+
+		const result = await handler(sqsEvent({ url: TARGET_URL, userId: USER_ID }, "SomethingElse"), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(selected).toEqual([]);
+	});
+
+	it.each([
+		{ state: { savedAt }, observed: { savedAt } },
+		{ state: { savedAt, computedAt, fingerprint: "older" }, observed: { savedAt, computedAt } },
+	])("marks the row blocked until the reset against the state it read, observing $observed", async ({ state, observed }) => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, blocked, marked, published } = createHandler({ logger, state, selectPastReads: budgetLimited });
+
+		const result = await handler(command, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(blocked).toEqual([{ userId: USER_ID, url: TARGET_URL, blockedUntil: resetsAt, observed }]);
+		expect({ marked, published }).toEqual({ marked: [], published: [] });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] budget-limited", {
+			url: TARGET_URL,
+			resetsAt,
+			receiveCount: 1,
+		});
+	});
+
+	it("logs superseded when the row changed after it was read", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, blocked, marked, published } = createHandler({
+			logger,
+			state: { savedAt },
+			selectPastReads: budgetLimited,
+			blockedOutcome: "superseded",
+		});
+
+		const result = await handler(command, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(blocked).toHaveLength(1);
+		expect({ marked, published }).toEqual({ marked: [], published: [] });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] superseded", { url: TARGET_URL });
+	});
+
+	it("treats a row without a save time as superseded and writes nothing", async () => {
+		const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
+		const { handler, blocked, marked, published } = createHandler({ logger, state: {}, selectPastReads: budgetLimited });
+
+		const result = await handler(command, buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect({ blocked, marked, published }).toEqual({ blocked: [], marked: [], published: [] });
+		expect(logger.info).toHaveBeenCalledWith("[ComputeRelatedPastReads] superseded", { url: TARGET_URL });
+	});
 });
