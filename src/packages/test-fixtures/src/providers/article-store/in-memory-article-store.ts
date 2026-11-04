@@ -75,6 +75,7 @@ import type {
 	MarkRelatedDismissed,
 	MarkSummaryToggled,
 	ContentProvider,
+	FindItemOwner,
 	ReadArticleImage,
 	SaveArticle,
 	SaveArticleGlobally,
@@ -111,6 +112,7 @@ interface GlobalArticle {
 	crawlVersions?: ArticleCrawlVersion[];
 	purgedAt?: Date;
 	readerAvailableAt?: Date;
+	ownerUserId?: UserId;
 }
 
 interface UserArticle {
@@ -236,6 +238,8 @@ export function initInMemoryArticleStore(): {
 		lastSummaryClosedAt?: Date;
 	} | null>;
 	readContent: ContentProvider;
+	findItemOwner: FindItemOwner;
+	recordItemOwner: (params: { url: string; ownerUserId: UserId }) => Promise<void>;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	readArticleImage: ReadArticleImage;
 	writeImage: (params: {
@@ -1068,6 +1072,14 @@ export function initInMemoryArticleStore(): {
 		return article.content;
 	};
 
+	const findItemOwner: FindItemOwner = async (url) => articles.get(ArticleResourceUniqueId.parse(url).value)?.ownerUserId;
+
+	const recordItemOwner = async (params: { url: string; ownerUserId: UserId }) => {
+		const article = articles.get(ArticleResourceUniqueId.parse(params.url).value);
+		assert(article, `Article not found for URL: ${params.url}`);
+		article.ownerUserId = params.ownerUserId;
+	};
+
 	const writeContent = async (params: { url: string; content: string }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);
@@ -1243,6 +1255,8 @@ export function initInMemoryArticleStore(): {
 		clearReadlistDefinitionPurpose,
 		getSummaryToggleState,
 		readContent,
+		findItemOwner,
+		recordItemOwner,
 		writeContent,
 		readArticleImage,
 		writeImage,

@@ -1,5 +1,14 @@
+import { ANONYMOUS_VIEWER, viewerFor } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
 import { initReadArticleContent } from "./read-article-content";
 import type { ContentProvider } from "./read-article-content";
+import type { FindItemOwner } from "@packages/provider-contracts/article-store";
+
+const PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const OWNER = UserIdSchema.parse("owner-user");
+const noOwnerLookup: FindItemOwner = async () => {
+	throw new Error("the owner is read only for a private upload");
+};
 
 describe("initReadArticleContent", () => {
 	it("returns content from the first provider that succeeds", async () => {
@@ -7,11 +16,12 @@ describe("initReadArticleContent", () => {
 		const dynamodb: ContentProvider = async () => "dynamodb content";
 
 		const readArticleContent = initReadArticleContent({
+			findItemOwner: noOwnerLookup,
 			storageProviderQueryOrder: [s3, dynamodb],
 			logError: () => {},
 		});
 
-		const content = await readArticleContent("https://example.com/article");
+		const content = await readArticleContent({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 		expect(content).toEqual({ kind: "article", body: "s3 content" });
 	});
 
@@ -23,11 +33,12 @@ describe("initReadArticleContent", () => {
 		const errors: string[] = [];
 
 		const readArticleContent = initReadArticleContent({
+			findItemOwner: noOwnerLookup,
 			storageProviderQueryOrder: [s3, dynamodb],
 			logError: (msg) => errors.push(msg),
 		});
 
-		const content = await readArticleContent("https://example.com/article");
+		const content = await readArticleContent({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 		expect(content).toEqual({ kind: "article", body: "dynamodb content" });
 		expect(errors).toHaveLength(1);
 	});
@@ -37,11 +48,12 @@ describe("initReadArticleContent", () => {
 		const dynamodb: ContentProvider = async () => "dynamodb content";
 
 		const readArticleContent = initReadArticleContent({
+			findItemOwner: noOwnerLookup,
 			storageProviderQueryOrder: [s3, dynamodb],
 			logError: () => {},
 		});
 
-		const content = await readArticleContent("https://example.com/article");
+		const content = await readArticleContent({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 		expect(content).toEqual({ kind: "article", body: "dynamodb content" });
 	});
 
@@ -50,11 +62,12 @@ describe("initReadArticleContent", () => {
 		const dynamodb: ContentProvider = async () => "dynamodb content";
 
 		const readArticleContent = initReadArticleContent({
+			findItemOwner: noOwnerLookup,
 			storageProviderQueryOrder: [s3, dynamodb],
 			logError: () => {},
 		});
 
-		const content = await readArticleContent("https://example.com/article");
+		const content = await readArticleContent({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 		expect(content).toEqual({ kind: "article", body: "dynamodb content" });
 	});
 
@@ -65,11 +78,12 @@ describe("initReadArticleContent", () => {
 		const dynamodb: ContentProvider = async () => undefined;
 
 		const readArticleContent = initReadArticleContent({
+			findItemOwner: noOwnerLookup,
 			storageProviderQueryOrder: [s3, dynamodb],
 			logError: () => {},
 		});
 
-		const content = await readArticleContent("https://example.com/article");
+		const content = await readArticleContent({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 		expect(content).toEqual({ kind: "missing" });
 	});
 
@@ -81,13 +95,14 @@ describe("initReadArticleContent", () => {
 		let loggedError: unknown = "unset";
 
 		const readArticleContent = initReadArticleContent({
+			findItemOwner: noOwnerLookup,
 			storageProviderQueryOrder: [s3, dynamodb],
 			logError: (_message, error) => {
 				loggedError = error;
 			},
 		});
 
-		const content = await readArticleContent("https://example.com/article");
+		const content = await readArticleContent({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER });
 		expect(content).toEqual({ kind: "article", body: "dynamodb content" });
 		expect(loggedError).toBeUndefined();
 	});
@@ -100,11 +115,12 @@ describe("initReadArticleContent", () => {
 		};
 
 		const readArticleContent = initReadArticleContent({
+			findItemOwner: noOwnerLookup,
 			storageProviderQueryOrder: [provider],
 			logError: () => {},
 		});
 
-		await readArticleContent("https://example.com/article#heading");
+		await readArticleContent({ url: "https://example.com/article#heading", viewer: ANONYMOUS_VIEWER });
 		expect(receivedValues[0]).toBe("example.com/article");
 	});
 
@@ -112,11 +128,40 @@ describe("initReadArticleContent", () => {
 		const s3: ContentProvider = async () => "<p>Inbox</p>";
 
 		const readArticleContent = initReadArticleContent({
+			findItemOwner: noOwnerLookup,
 			storageProviderQueryOrder: [s3],
 			logError: () => {},
 		});
 
-		const content = await readArticleContent("https://mail.google.com/mail/u/2/");
+		const content = await readArticleContent({ url: "https://mail.google.com/mail/u/2/", viewer: ANONYMOUS_VIEWER });
 		expect(content).toEqual({ kind: "not-an-article" });
+	});
+
+	describe("a private upload", () => {
+		const stored: ContentProvider = async () => "<p>Chapter</p>";
+		const ownerLookups: string[] = [];
+		const readArticleContent = initReadArticleContent({
+			storageProviderQueryOrder: [stored],
+			findItemOwner: async (url) => {
+				ownerLookups.push(url);
+				return OWNER;
+			},
+			logError: () => {},
+		});
+
+		it("gives its owner the body after reading the owner once", async () => {
+			ownerLookups.length = 0;
+			expect(await readArticleContent({ url: PRIVATE_URL, viewer: viewerFor(OWNER) })).toEqual({
+				kind: "article",
+				body: "<p>Chapter</p>",
+			});
+			expect(ownerLookups).toEqual([PRIVATE_URL]);
+		});
+
+		it("gives another reader no body", async () => {
+			expect(
+				await readArticleContent({ url: PRIVATE_URL, viewer: viewerFor(UserIdSchema.parse("other-reader")) }),
+			).toEqual({ kind: "not-an-article" });
+		});
 	});
 });

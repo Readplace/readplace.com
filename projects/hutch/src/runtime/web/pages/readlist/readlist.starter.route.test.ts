@@ -543,6 +543,7 @@ describe("starter readlist", () => {
 			findArticleByUrl: fixture.articleStore.findArticleByUrl,
 			findGeneratedSummary: summary.findGeneratedSummary,
 			readArticleContent: initReadArticleContentOrThrow({
+				findItemOwner: async () => undefined,
 				storageProviderQueryOrder: [fixture.articleStore.readContent],
 			}),
 			buildQueueDigestBook: initBuildQueueDigestBook({

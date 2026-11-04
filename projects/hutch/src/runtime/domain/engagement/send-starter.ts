@@ -19,7 +19,7 @@ import type {
 	ListUserSavesForUrl,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
-import { type ArticleBody, ReaderArticleHashId } from "@packages/domain/article";
+import { type ArticleBody, ReaderArticleHashId, type Viewer, viewerFor } from "@packages/domain/article";
 import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindReaderReadyEmailState } from "@packages/provider-contracts/reader-ready-state";
 import type { EmailAttachment, SendEmail } from "@packages/provider-contracts/email";
@@ -85,20 +85,20 @@ export function initSendStarter(deps: {
 		itemCount?: number;
 	}) => void;
 }): (userId: UserId) => Promise<boolean> {
-	const chaptersFor = (urls: readonly string[]): Promise<BookChapter[]> =>
+	const chaptersFor = (urls: readonly string[], viewer: Viewer): Promise<BookChapter[]> =>
 		Promise.all(
 			urls.map(async (url) => {
 				const [article, summary, stored] = await Promise.all([
 					deps.findArticleByUrl(url),
 					deps.findGeneratedSummary(url),
-					deps.readArticleContent(url),
+					deps.readArticleContent({ url, viewer }),
 				]);
 				assert(article, `a claimed starter pick is a stored article: ${url}`);
 				assert(stored.kind === "article", `a claimed starter pick had a readable body: ${url}`);
 				return toChapter({ article, summary, contentHtml: stored.body });
 			}),
 		);
-	const bookFor = async (input: { pack: StarterPack; message: FrozenStarterMessage }) => {
+	const bookFor = async (input: { pack: StarterPack; message: FrozenStarterMessage; userId: UserId }) => {
 		const { articleUrls, firstAttemptAt } = input.pack;
 		assert(articleUrls, "a claimed starter pack records the articles it lists");
 		assert(firstAttemptAt, "a claimed starter pack records its first attempt");
@@ -106,7 +106,7 @@ export function initSendStarter(deps: {
 			subject: input.message.subject,
 			sendId: input.message.idempotencyKey,
 			sentAt: new Date(firstAttemptAt),
-			chapters: await chaptersFor(articleUrls),
+			chapters: await chaptersFor(articleUrls, viewerFor(input.userId)),
 		});
 	};
 	return async (userId) => {
@@ -177,7 +177,7 @@ export function initSendStarter(deps: {
 					deps.findArticleByUrl(pick.url),
 					deps.findGeneratedSummary(pick.url),
 					deps.listUserSavesForUrl({ userId, url: pick.url }),
-					deps.readArticleContent(pick.url),
+					deps.readArticleContent({ url: pick.url, viewer: viewerFor(userId) }),
 				]);
 				if (
 					article?.purgedAt !== undefined ||
@@ -268,10 +268,10 @@ export function initSendStarter(deps: {
 			message = claim.message;
 			itemCount = claim.itemCount;
 			assert(message, "a claimed starter pack carries its frozen message");
-			book = claim.message === frozen ? freshBook : await bookFor({ pack: claim, message });
+			book = claim.message === frozen ? freshBook : await bookFor({ pack: claim, message, userId });
 		}
 		assert(message, "a starter attempt uses the complete frozen message");
-		const attachment = book ?? (await bookFor({ pack, message }));
+		const attachment = book ?? (await bookFor({ pack, message, userId }));
 		try {
 			await deps.sendEmail({ ...message, attachments: [attachment] });
 		} catch (error) {

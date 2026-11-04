@@ -3,6 +3,7 @@ import type {
 	Minutes,
 	ArticleBody,
 	CaptureTrigger,
+	Viewer,
 } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
@@ -107,6 +108,7 @@ export interface ReaderState {
 export interface ResolveReaderStateParams {
 	article: ArticleSnapshot;
 	pollUrlBuilder: PollUrlBuilder;
+	viewer: Viewer;
 }
 
 /**
@@ -121,6 +123,7 @@ export interface ResolveReaderStateParams {
  */
 export interface HandlePollParams {
 	articleUrl: string;
+	viewer: Viewer;
 	articleId: string | undefined;
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;

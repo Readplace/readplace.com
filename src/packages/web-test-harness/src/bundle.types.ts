@@ -206,6 +206,7 @@ import type {
 	StatPendingUpload,
 	ReadPendingUploadPrefix,
 	RateLimitRules,
+	FindItemOwner,
 	ReadArticleContent,
 	ReadArticleImage,
 	RecordDeleteArticleAcknowledged,
@@ -456,6 +457,8 @@ export interface ArticleStoreBundle {
 		lastSummaryClosedAt?: Date;
 	} | null>;
 	readArticleContent: ReadArticleContent;
+	findItemOwner: FindItemOwner;
+	recordItemOwner: (params: { url: string; ownerUserId: UserId }) => Promise<void>;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	readArticleImage: ReadArticleImage;

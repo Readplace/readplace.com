@@ -6,7 +6,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isNonArticleHost, isWrapperUrl, unwrapWrapperUrl, wrapperFamilyOf } from "@packages/domain/article";
+import { newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isNonArticleHost, isWrapperUrl, unwrapWrapperUrl, viewerFor, wrapperFamilyOf } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	FindArticleCrawlVersions,
@@ -339,7 +339,7 @@ function handleViewArticle(
 				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 				return;
 			}
-			const stored = await deps.readArticleContent(articleUrl);
+			const stored = await deps.readArticleContent({ url: articleUrl, viewer: viewerFor(req.userId) });
 			if (stored.kind !== "article") {
 				sendComponent(req, res, Base(NotFoundPage(), await deps.buildBannerState(req)));
 				return;
@@ -492,6 +492,7 @@ function handleViewArticle(
 		const utmParams = collectUtmParams(req.query);
 		const pollUrlBuilder = pollUrlBuilderFor(articleUrl, utmParams);
 		const state = await reader.resolveReaderState({
+			viewer: viewerFor(req.userId),
 			article: { url: articleUrl, metadata, estimatedReadTime },
 			pollUrlBuilder,
 		});
@@ -613,6 +614,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const utmParams = collectUtmParams(req.query);
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
+			viewer: viewerFor(req.userId),
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
@@ -647,6 +649,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 		const utmParams = collectUtmParams(req.query);
 		const component = await reader.handleReaderPoll({
 			articleUrl,
+			viewer: viewerFor(req.userId),
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),

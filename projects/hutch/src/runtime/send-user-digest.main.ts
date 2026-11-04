@@ -7,6 +7,7 @@ import { initGetEffectiveAccess } from "@packages/subscription-access";
 import {
 	initDynamoDbEngagementStarter,
 	initDynamoDbReadlistDefinitions,
+	initDynamoDbFindItemOwner,
 	initReadArticleContentOrThrow,
 	initReadContentLocation,
 	initS3ReadArticleImage,
@@ -130,6 +131,7 @@ const readArticleContent = initReadArticleContentOrThrow({
 		}),
 		articleStore.readContent,
 	],
+	findItemOwner: initDynamoDbFindItemOwner({ client: dynamoClient, tableName: articlesTable }).findItemOwner,
 });
 const buildQueueDigestBook = initBuildQueueDigestBook({
 	buildBookEpub: initBuildBookEpub({

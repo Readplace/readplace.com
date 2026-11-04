@@ -562,6 +562,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		...articleStore,
 		readArticleContent: initReadArticleContent({
 			storageProviderQueryOrder: [articleStore.readContent],
+			findItemOwner: articleStore.findItemOwner,
 			logError,
 		}),
 		importSessionStore,

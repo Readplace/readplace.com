@@ -128,6 +128,7 @@ async function subject(
 		findArticleByUrl: library.findArticleByUrl,
 		findGeneratedSummary: summaries.findGeneratedSummary,
 		readArticleContent: initReadArticleContentOrThrow({
+			findItemOwner: async () => undefined,
 			storageProviderQueryOrder: [library.readContent],
 		}),
 		buildQueueDigestBook: initBuildQueueDigestBook({
@@ -901,7 +902,7 @@ describe("starter EPUB attachment", () => {
 		const unreadable = app.picks[0];
 		assert(unreadable);
 		const read = app.sendDeps.readArticleContent;
-		app.sendDeps.readArticleContent = async (url) => (url === unreadable.url ? { kind: "missing" } : read(url));
+		app.sendDeps.readArticleContent = async (request) => (request.url === unreadable.url ? { kind: "missing" } : read(request));
 
 		await initSendStarter(app.sendDeps)(app.id);
 

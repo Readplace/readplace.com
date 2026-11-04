@@ -2,7 +2,7 @@ import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { ArticleBody, ReaderArticleHashId } from "@packages/domain/article";
+import { type ArticleBody, type ReaderArticleHashId, viewerFor } from "@packages/domain/article";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/hutch-infra-components";
@@ -367,7 +367,7 @@ async function selectReadyItems(params: {
 		const limit = Math.min(deps.maxDigestItems + 1, deps.maxCandidatesRead - candidatesRequested);
 		const page = await deps.findUnreadSavesForDigest({ userId, ...query, limit, cursor });
 		candidatesRequested += limit;
-		const pageReady = await readyItemsOf({ candidates: page.candidates, deps });
+		const pageReady = await readyItemsOf({ candidates: page.candidates, deps, userId });
 		ready.push(...pageReady.slice(0, deps.maxDigestItems - ready.length));
 		cursor = page.nextCursor;
 	} while (cursor !== undefined && ready.length < deps.maxDigestItems && candidatesRequested < deps.maxCandidatesRead);
@@ -377,6 +377,7 @@ async function selectReadyItems(params: {
 async function readyItemsOf(params: {
 	candidates: DigestCandidate[];
 	deps: SendQueueDigestDeps;
+	userId: UserId;
 }): Promise<ReadyItem[]> {
 	const loaded = params.candidates.filter(
 		(candidate) =>
@@ -390,7 +391,7 @@ async function readyItemsOf(params: {
 		loaded.map(async (candidate): Promise<ReadyItem[]> => {
 			const summary = await params.deps.findGeneratedSummary(candidate.article.url);
 			if (summary?.status !== "ready") return [];
-			const stored = await params.deps.readArticleContent(candidate.article.url);
+			const stored = await params.deps.readArticleContent({ url: candidate.article.url, viewer: viewerFor(params.userId) });
 			return stored.kind === "article" ? [{ candidate, summary, contentHtml: stored.body }] : [];
 		}),
 	);

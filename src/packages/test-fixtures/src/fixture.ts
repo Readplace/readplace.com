@@ -428,10 +428,15 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			setReadlistDefinitionPurpose: articleStoreMemory.setReadlistDefinitionPurpose,
 			clearReadlistDefinitionPurpose: articleStoreMemory.clearReadlistDefinitionPurpose,
 			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
-			readArticleContent: (url) =>
-				articleStoreMemory
-					.readContent(ArticleResourceUniqueId.parse(url))
-					.then((html) => storedArticleBody({ url, html })),
+			readArticleContent: async ({ url, viewer }) =>
+				storedArticleBody({
+					url,
+					html: await articleStoreMemory.readContent(ArticleResourceUniqueId.parse(url)),
+					viewer,
+					ownerUserId: await articleStoreMemory.findItemOwner(url),
+				}),
+			findItemOwner: articleStoreMemory.findItemOwner,
+			recordItemOwner: articleStoreMemory.recordItemOwner,
 			readContent: articleStoreMemory.readContent,
 			writeContent: articleStoreMemory.writeContent,
 			readArticleImage: articleStoreMemory.readArticleImage,

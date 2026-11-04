@@ -31,9 +31,9 @@ function buildDownloadHarness() {
 	const readArticleContent = fixture.articleStore.readArticleContent;
 	fixture.articleStore = {
 		...fixture.articleStore,
-		readArticleContent: async (url: string) => {
-			contentReads.push(url);
-			return readArticleContent(url);
+		readArticleContent: async (request) => {
+			contentReads.push(request.url);
+			return readArticleContent(request);
 		},
 	};
 	const staleChecks: { url: string }[] = [];
@@ -393,6 +393,62 @@ describe("GET /view/<url>?format=<download>", () => {
 		expect(doc.querySelector("main.not-found h1")?.textContent).toBe("Page not found");
 		const markers = ["private.person@example.com", "PRIVATE-INBOX-BODY", "PRIVATE-SUMMARY", "PRIVATE-PARSED-EXCERPT", "private-avatar"];
 		expect(markers.filter((marker) => response.text.includes(marker))).toEqual([]);
+	});
+
+	describe("for a private upload", () => {
+		const privateUrl = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const privateEpubPath = "/view/uploads.readplace.invalid/0123456789abcdef0123456789abcdef?format=epub";
+
+		async function seedPrivateUpload() {
+			const { harness, fixture } = buildDownloadHarness();
+			const created = await harness.auth.createUser({ email: "owner@example.com", password: "password123" });
+			assert(created.ok, "owner should be created");
+			await fixture.articleStore.saveArticleGlobally({
+				url: privateUrl,
+				metadata: { title: "A private book", siteName: "uploads.readplace.invalid", excerpt: "", wordCount: 3 },
+				estimatedReadTime: calculateReadTime(3),
+				savedAt: new Date("2026-09-01T00:00:00.000Z"),
+			});
+			await fixture.articleStore.writeContent({ url: privateUrl, content: "<p>PRIVATE-BOOK-BODY</p>" });
+			await fixture.articleStore.recordItemOwner({ url: privateUrl, ownerUserId: created.userId });
+			return harness;
+		}
+
+		it("serves the owner an EPUB holding the private body", async () => {
+			const harness = await seedPrivateUpload();
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({ email: "owner@example.com", password: "password123" });
+
+			const response = await agent.get(privateEpubPath).set(BROWSER_REQUEST_HEADERS).buffer().parse(binaryParser);
+
+			expect(response.status).toBe(200);
+			expect(response.headers["content-type"]).toBe("application/epub+zip");
+			const files = unzipSync(new Uint8Array(response.body));
+			expect(strFromU8(files["OEBPS/content.xhtml"])).toContain("PRIVATE-BOOK-BODY");
+		});
+
+		it("answers another signed-in reader with the not-found page and no private body", async () => {
+			const harness = await seedPrivateUpload();
+			await harness.auth.createUser({ email: "other@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({ email: "other@example.com", password: "password123" });
+
+			const response = await agent.get(privateEpubPath).set(BROWSER_REQUEST_HEADERS);
+
+			expect(response.status).toBe(404);
+			expect(response.headers["content-disposition"]).toBeUndefined();
+			expect(response.text).not.toContain("PRIVATE-BOOK-BODY");
+		});
+
+		it("answers a signed-out download with the not-found page and no private body", async () => {
+			const harness = await seedPrivateUpload();
+
+			const response = await request(harness.server).get(privateEpubPath).set(BROWSER_REQUEST_HEADERS);
+
+			expect(response.status).toBe(404);
+			expect(response.headers["content-disposition"]).toBeUndefined();
+			expect(response.text).not.toContain("PRIVATE-BOOK-BODY");
+		});
 	});
 
 	it("treats an unrecognised format as a normal reader request", async () => {

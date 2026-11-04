@@ -321,7 +321,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const freshness = await deps.findArticleFreshness(article.url);
 		const versions = await deps.findArticleCrawlVersions(article.url);
 
-		const content = bodyOf(await deps.readArticleContent(article.url));
+		const content = bodyOf(await deps.readArticleContent({ url: article.url, viewer: params.viewer }));
 		const summaryStatus = summary?.status ?? "pending";
 		const summaryPollUrl = summaryStatus === "pending"
 			? pollUrlBuilder.summary(1)
@@ -424,7 +424,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary(articleUrl),
-			deps.readArticleContent(articleUrl).then(bodyOf),
+			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
 			deps.findArticleByUrl(articleUrl),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
@@ -471,7 +471,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary(articleUrl),
-			deps.readArticleContent(articleUrl).then(bodyOf),
+			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
 			deps.findArticleByUrl(articleUrl),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });

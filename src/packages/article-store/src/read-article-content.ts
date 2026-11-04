@@ -1,7 +1,8 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { storedArticleBody } from "@packages/domain/article";
+import { isPrivateItemUrl, storedArticleBody } from "@packages/domain/article";
 import type {
 	ContentProvider,
+	FindItemOwner,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
 
@@ -9,6 +10,7 @@ export type { ContentProvider, ReadArticleContent };
 
 export function initReadArticleContent(deps: {
 	storageProviderQueryOrder: ContentProvider[];
+	findItemOwner: FindItemOwner;
 	logError: (message: string, error?: Error) => void;
 }): ReadArticleContent {
 	const { storageProviderQueryOrder, logError } = deps;
@@ -28,5 +30,8 @@ export function initReadArticleContent(deps: {
 		return undefined;
 	};
 
-	return async (url) => storedArticleBody({ url, html: await firstStoredHtml(url) });
+	return async ({ url, viewer }) => {
+		const ownerUserId = isPrivateItemUrl(url) ? await deps.findItemOwner(url) : undefined;
+		return storedArticleBody({ url, html: await firstStoredHtml(url), viewer, ownerUserId });
+	};
 }

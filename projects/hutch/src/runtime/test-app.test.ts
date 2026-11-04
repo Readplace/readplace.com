@@ -1,4 +1,5 @@
 import request from "supertest";
+import { ANONYMOUS_VIEWER } from "@packages/domain/article";
 import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import { createTestApp, useTestServer } from "./test-app";
 import {
@@ -32,7 +33,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 		expect(typeof result.passwordReset.createPasswordResetToken).toBe("function");
 
 		expect(
-			await result.articleStore.readArticleContent("https://example.com/article"),
+			await result.articleStore.readArticleContent({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER }),
 		).toEqual({ kind: "missing" });
 	});
 

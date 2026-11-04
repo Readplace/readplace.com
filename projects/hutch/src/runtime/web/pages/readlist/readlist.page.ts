@@ -39,7 +39,7 @@ import {
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
 import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
-import { CaptureTriggerSchema, type CaptureTrigger } from "@packages/domain/article";
+import { CaptureTriggerSchema, type CaptureTrigger, viewerFor } from "@packages/domain/article";
 import { articlesSavedAt } from "./articles-saved-at";
 import type { RefreshIdentifiedArticleIfStale, ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
 import type {
@@ -1224,6 +1224,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
 			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, deps.logError),
 			reader.resolveReaderState({
+				viewer: viewerFor(req.userId),
 				article: {
 					url: ownedArticle.url,
 					metadata: ownedArticle.metadata,
@@ -2918,6 +2919,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const component = await reader.handleSummaryPoll({
 			articleUrl: article.url,
+			viewer: viewerFor(userId),
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
@@ -2951,6 +2953,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const pollCount = parsePollParam(req.query.poll, MAX_POLLS);
 		const component = await reader.handleReaderPoll({
 			articleUrl: article.url,
+			viewer: viewerFor(userId),
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),

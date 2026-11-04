@@ -81,6 +81,7 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 		},
 		findGeneratedSummary: summaries.findGeneratedSummary,
 		readArticleContent: initReadArticleContentOrThrow({
+			findItemOwner: async () => undefined,
 			storageProviderQueryOrder: [articleStore.readContent],
 		}),
 		buildQueueDigestBook: initBuildQueueDigestBook({

@@ -487,3 +487,47 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 		expect(document.content).toBe("");
 	});
 });
+
+describe("Private upload reader Markdown (GET /queue/:id/view with Accept: text/markdown)", () => {
+	const privateUrl = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+	const id = ReaderArticleHashId.from(privateUrl).value;
+
+	async function seedPrivateUpload(params: { harness: Harness; ownerUserId: string }) {
+		await params.harness.articleStore.saveArticle({
+			userId: UserIdSchema.parse("test-user-123"),
+			url: privateUrl,
+			metadata: { title: "A private book", siteName: "uploads.readplace.invalid", excerpt: "", wordCount: 3 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+		});
+		await params.harness.articleStore.writeContent({ url: privateUrl, content: "<p>PRIVATE-BOOK-BODY</p>" });
+		await params.harness.articleCrawl.markCrawlReady({ url: privateUrl });
+		await params.harness.articleStore.recordItemOwner({
+			url: privateUrl,
+			ownerUserId: UserIdSchema.parse(params.ownerUserId),
+		});
+	}
+
+	it("gives the owner the private body", async () => {
+		const { harness } = buildHarness();
+		await seedPrivateUpload({ harness, ownerUserId: "test-user-123" });
+		const token = await createAccessToken(harness);
+
+		const response = await markdownGet(harness, { path: `/queue/${id}/view`, token });
+
+		expect(response.status).toBe(200);
+		expect(matter(response.text).content).toContain("PRIVATE-BOOK-BODY");
+	});
+
+	it("withholds the private body from a reader who holds the link but does not own it", async () => {
+		const { harness } = buildHarness();
+		await seedPrivateUpload({ harness, ownerUserId: "someone-else-456" });
+		const token = await createAccessToken(harness);
+
+		const response = await markdownGet(harness, { path: `/queue/${id}/view`, token });
+
+		expect(response.status).toBe(200);
+		expect(response.text).not.toContain("PRIVATE-BOOK-BODY");
+	});
+});

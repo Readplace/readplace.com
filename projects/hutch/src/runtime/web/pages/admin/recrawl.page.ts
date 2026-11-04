@@ -23,7 +23,7 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-view-failed-oob";
 import { initResolveStoredArticle, type ResolveStoredArticle } from "../../shared/resolve-stored-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
 import { cleanWrapperTarget, type ResolveWrapperTarget } from "@packages/save-article";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
@@ -175,6 +175,7 @@ async function renderRecrawlPage(
 	}
 
 	const state = await reader.resolveReaderState({
+		viewer: ANONYMOUS_VIEWER,
 		article: {
 			url: articleUrl,
 			metadata: existing.metadata,
@@ -270,6 +271,7 @@ function handleSummaryPoll(
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
+			viewer: ANONYMOUS_VIEWER,
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
@@ -300,6 +302,7 @@ function handleReaderPoll(
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
 			articleUrl,
+			viewer: ANONYMOUS_VIEWER,
 			articleId: undefined,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),

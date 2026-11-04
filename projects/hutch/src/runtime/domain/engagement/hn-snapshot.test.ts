@@ -51,8 +51,13 @@ function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
 		resolveSaveIdentity: async (url) => resolvedAs(url),
 		findArticleByUrl: articles.findArticleByUrl,
 		findArticleCrawlStatus: crawl.findArticleCrawlStatus,
-		readArticleContent: async (url) =>
-			storedArticleBody({ url, html: await articles.readContent(ArticleResourceUniqueId.parse(url)) }),
+		readArticleContent: async ({ url, viewer }) =>
+			storedArticleBody({
+				url,
+				html: await articles.readContent(ArticleResourceUniqueId.parse(url)),
+				viewer,
+				ownerUserId: undefined,
+			}),
 		findGeneratedSummary: summaries.findGeneratedSummary,
 		startAnonymousCrawl: initStartAnonymousCrawl({
 			saveArticleGlobally: articles.saveArticleGlobally,
@@ -266,7 +271,7 @@ describe("shared HN preparation", () => {
 		await app.prepareSnapshot();
 		expect(await app.statuses()).toEqual(["pending"]);
 		await app.summarised("https://publisher.com/1");
-		await initHnSnapshot({ ...app.deps, readArticleContent: async (url) => storedArticleBody({ url, html: "" }) }).prepareSnapshot();
+		await initHnSnapshot({ ...app.deps, readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "", viewer, ownerUserId: undefined }) }).prepareSnapshot();
 		expect(await app.statuses()).toEqual(["pending"]);
 		await app.prepareSnapshot();
 		expect(await app.statuses()).toEqual(["ready"]);

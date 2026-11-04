@@ -5,6 +5,7 @@ import {
 	isNonArticleHost,
 } from "@packages/domain/article";
 import type { ArticleStatus, SavedArticle } from "@packages/domain/article";
+import { viewerFor } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG } from "@packages/domain/readlist";
 import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
@@ -221,7 +222,7 @@ export function initMcpArticleOperations(
 			const owned = await deps.resolveOwnedArticle({ userId, id });
 			if (!owned) return { status: "not_found" };
 			const { article } = owned;
-			const stored = await deps.readArticleContent(article.url);
+			const stored = await deps.readArticleContent({ url: article.url, viewer: viewerFor(userId) });
 			if (stored.kind === "not-an-article") return { status: "not_an_article" };
 			if (stored.kind === "missing") return { status: "pending" };
 			await deps.recordEngagementActivity({

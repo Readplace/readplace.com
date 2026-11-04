@@ -62,7 +62,7 @@ import { initStripeSubscriptions } from "./stripe-subscriptions/stripe-subscript
 import { initStripePrices } from "./stripe-prices/stripe-prices";
 import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-payment-methods";
 import { initAwsTrialScheduler } from "./trial-scheduler/aws-trial-scheduler";
-import { initReadArticleContent } from "@packages/article-store";
+import { initDynamoDbFindItemOwner, initReadArticleContent } from "@packages/article-store";
 import { initCanonicalAliasStore } from "@packages/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkDequeued } from "./events/eventbridge-link-dequeued";
@@ -232,6 +232,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 			initS3ReadContent({ send: (cmd) => s3Client.send(cmd), readContentLocation: initReadContentLocation({ client, tableName: articlesTable, bucketName: contentBucketName }) }),
 			articleStore.readContent, // Legacy fallback for articles saved before S3 migration
 		],
+		findItemOwner: initDynamoDbFindItemOwner({ client, tableName: articlesTable }).findItemOwner,
 		logError,
 	});
 	const readArticleImage = initS3ReadArticleImage({

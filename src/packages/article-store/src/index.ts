@@ -44,6 +44,7 @@ export { initPurgeArticleContent } from "./purge-article-content";
 export type { PurgeArticleContent } from "./purge-article-content";
 export { initTombstoneArticle } from "./tombstone-article";
 export type { TombstoneArticle } from "./tombstone-article";
+export { initDynamoDbFindItemOwner } from "./dynamodb-find-item-owner";
 export { initReadArticleContent } from "./read-article-content";
 export { initReadArticleContentOrThrow } from "./read-article-content-or-throw";
 export type { ContentProvider, ReadArticleContent } from "./read-article-content";

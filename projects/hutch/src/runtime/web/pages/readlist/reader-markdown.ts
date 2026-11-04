@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { viewerFor } from "@packages/domain/article";
 import { readerReadlists, readlistsHoldingArticle } from "@packages/domain/readlist";
 import type { FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type {
@@ -56,7 +57,7 @@ export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
 		const [crawl, summary, stored, definitions, saves] = await Promise.all([
 			deps.findArticleCrawlStatus(article.url),
 			deps.findGeneratedSummary(article.url),
-			deps.readArticleContent(article.url),
+			deps.readArticleContent({ url: article.url, viewer: viewerFor(userId) }),
 			deps.listReadlistDefinitions(userId),
 			deps.listUserSavesForUrl({ userId, url: article.url }),
 		]);

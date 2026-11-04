@@ -26,6 +26,8 @@ import { initResolveOwnedArticle } from "./article-lookup";
 import type { ResolveReadlistMembership } from "./readlist-membership";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
+const otherUserId = authenticatedUserIdFrom("00000000000000000000000000000002");
+const PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
 const recordedAt = new Date("2026-10-01T10:00:00.000Z");
 
 function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
@@ -220,7 +222,7 @@ describe("initMcpArticleOperations", () => {
 		});
 		const ops = buildOps({
 			findArticleById: async () => article,
-			readArticleContent: async (url) => storedArticleBody({ url, html: "<p>Article</p>" }),
+			readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "<p>Article</p>", viewer, ownerUserId: undefined }),
 			findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "Summary" } }),
 			updateArticleStatusAcrossReadlists: async ({ status }) => ({ ...article, status }),
 			recordEngagementActivity: async (input) => {
@@ -275,7 +277,7 @@ describe("initMcpArticleOperations", () => {
 		const mailbox = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
 		const mailboxOps = buildOps({
 			findArticleById: async () => mailbox,
-			readArticleContent: async (url) => storedArticleBody({ url, html: "<p>42 unread</p>" }),
+			readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "<p>42 unread</p>", viewer, ownerUserId: undefined }),
 			findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "42 unread" } }),
 			recordEngagementActivity,
 		});
@@ -506,7 +508,7 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle();
 			const ops = buildOps({
 				findArticleById: async () => article,
-				readArticleContent: async (url) => storedArticleBody({ url, html: "<article>hi</article>" }),
+				readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "<article>hi</article>", viewer, ownerUserId: undefined }),
 			});
 			expect(
 				await ops.getArticleContent({ userId, id: article.id.value }),
@@ -517,7 +519,31 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
 			const ops = buildOps({
 				findArticleById: async () => article,
-				readArticleContent: async (url) => storedArticleBody({ url, html: "<article>Inbox (42)</article>" }),
+				readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "<article>Inbox (42)</article>", viewer, ownerUserId: undefined }),
+			});
+			expect(
+				await ops.getArticleContent({ userId, id: article.id.value }),
+			).toEqual({ status: "not_an_article" });
+		});
+
+		it("returns a private upload's body to its owner", async () => {
+			const article = buildArticle({ url: PRIVATE_URL });
+			const ops = buildOps({
+				findArticleById: async () => article,
+				readArticleContent: async ({ url, viewer }) =>
+					storedArticleBody({ url, html: "<article>PRIVATE-BOOK-BODY</article>", viewer, ownerUserId: userId }),
+			});
+			expect(
+				await ops.getArticleContent({ userId, id: article.id.value }),
+			).toEqual({ status: "ready", content: "<article>PRIVATE-BOOK-BODY</article>" });
+		});
+
+		it("withholds a private upload's body from a reader who holds its link but does not own it", async () => {
+			const article = buildArticle({ url: PRIVATE_URL });
+			const ops = buildOps({
+				findArticleById: async () => article,
+				readArticleContent: async ({ url, viewer }) =>
+					storedArticleBody({ url, html: "<article>PRIVATE-BOOK-BODY</article>", viewer, ownerUserId: otherUserId }),
 			});
 			expect(
 				await ops.getArticleContent({ userId, id: article.id.value }),
