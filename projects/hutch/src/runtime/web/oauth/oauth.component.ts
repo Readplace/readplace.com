@@ -10,7 +10,6 @@ import { obsidianHandoffHref, type ObsidianHandoff } from "./obsidian-handoff";
 const OAUTH_AUTHORIZE_TEMPLATE = readFileSync(join(__dirname, "oauth-authorize.template.html"), "utf-8");
 const OAUTH_CALLBACK_TEMPLATE = readFileSync(join(__dirname, "oauth-callback.template.html"), "utf-8");
 const OAUTH_OBSIDIAN_HANDOFF_TEMPLATE = readFileSync(join(__dirname, "oauth-obsidian-handoff.template.html"), "utf-8");
-const OAUTH_OBSIDIAN_HANDOFF_SCRIPT = `<script src="/client-dist/oauth-obsidian-handoff.client.js" defer></script>`;
 
 interface AuthorizePageParams {
 	clientName: string;
@@ -42,44 +41,12 @@ const OAUTH_OBSIDIAN_HANDOFF_STYLES = `${OAUTH_CALLBACK_STYLES}
 	width: 100%;
 	margin-top: 16px;
 }
-.oauth-obsidian__copy-field {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 4px 12px;
-	margin-top: 16px;
-	padding: 12px 16px;
-	border: 1px solid var(--border);
-	border-radius: var(--radius);
-	background: var(--muted);
-}
-.oauth-obsidian__copy-label {
-	flex: 1 0 100%;
-	font-size: var(--text-sm);
-	font-weight: 500;
-	color: var(--muted-foreground);
-}
-.oauth-obsidian__copy-value {
-	flex: 1 1 0;
-	min-width: 0;
-	font-family: var(--font-mono);
-	font-size: var(--text-md);
-	overflow-wrap: anywhere;
-	color: var(--foreground);
-}
-.oauth-obsidian__copy-button {
-	flex: none;
-}
-.oauth-obsidian__copy-button[hidden] {
-	display: none;
-}
 `;
 
 interface ObsidianHandoffView {
 	heading: string;
 	body: string;
 	returnLinks: { href: string; variantClass: string }[];
-	signInCodes: string[];
 	statusCode: number;
 }
 
@@ -89,7 +56,6 @@ function obsidianHandoffView(handoff: ObsidianHandoff): ObsidianHandoffView {
 			heading: "This link is incomplete",
 			body: "Start the sign-in again from the Readplace settings in Obsidian.",
 			returnLinks: [],
-			signInCodes: [],
 			statusCode: 400,
 		};
 	}
@@ -98,7 +64,6 @@ function obsidianHandoffView(handoff: ObsidianHandoff): ObsidianHandoffView {
 			heading: "Sign-in cancelled",
 			body: "Nothing was connected. You can return to Obsidian or close this window.",
 			returnLinks: [{ href: obsidianHandoffHref(handoff), variantClass: "btn--secondary" }],
-			signInCodes: [],
 			statusCode: 200,
 		};
 	}
@@ -106,7 +71,6 @@ function obsidianHandoffView(handoff: ObsidianHandoff): ObsidianHandoffView {
 		heading: "Sign-in approved",
 		body: "Return to Obsidian to finish signing in.",
 		returnLinks: [{ href: obsidianHandoffHref(handoff), variantClass: "btn--primary" }],
-		signInCodes: [handoff.code],
 		statusCode: 200,
 	};
 }
@@ -160,7 +124,6 @@ export function OAuthObsidianHandoffPage(handoff: ObsidianHandoff): PageBody {
 		styles: OAUTH_OBSIDIAN_HANDOFF_STYLES,
 		bodyClass: "page-oauth-obsidian",
 		content: { html: render(OAUTH_OBSIDIAN_HANDOFF_TEMPLATE, view) },
-		scripts: OAUTH_OBSIDIAN_HANDOFF_SCRIPT,
 		statusCode,
 	};
 }

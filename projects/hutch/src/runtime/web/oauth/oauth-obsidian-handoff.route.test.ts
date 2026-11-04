@@ -80,7 +80,7 @@ describe("Obsidian sign-in handoff (GET /oauth/obsidian)", () => {
 		expect(location.searchParams.get("state")).toBe(STATE);
 	});
 
-	it("renders the return link, the copy box and the protective headers for an approved code", async () => {
+	it("renders the return link and the protective headers for an approved code", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
 		const location = await approvedRedirect(agent, generatePKCE().challenge);
@@ -95,18 +95,8 @@ describe("Obsidian sign-in handoff (GET /oauth/obsidian)", () => {
 		const doc = parse(response.text);
 		expect(returnHref(doc)).toBe(`obsidian://readplace-auth?code=${code}&state=${STATE}`);
 		expect(doc.querySelector("h1")?.textContent).toBe("Sign-in approved");
-		expect(doc.querySelector("[data-test-code]")?.textContent).toBe(code);
-		const copy = doc.querySelector("[data-oauth-copy]");
-		assert(copy, "the copy button must render");
-		expect(copy.getAttribute("data-oauth-text")).toBe(code);
-		expect(copy.hasAttribute("hidden")).toBe(true);
-		expect(copy.closest(".oauth-obsidian__copy-field")?.querySelector("[data-test-code]")).not.toBeNull();
-		expect(doc.querySelector("[data-test-code-warning]")?.textContent).toBe(
-			"Paste this only into Obsidian's Readplace settings. Readplace never asks you to send it to anyone.",
-		);
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe("noindex, nofollow");
-		expect(response.text.split(code).length - 1).toBe(3);
-		expect(response.text).toContain('<script src="/client-dist/oauth-obsidian-handoff.client.js" defer></script>');
+		expect(response.text.split(code).length - 1).toBe(1);
 	});
 
 	it("exchanges the handed-off code for tokens with the right verifier", async () => {
