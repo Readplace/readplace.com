@@ -10,17 +10,20 @@ import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-com
 import { consoleLogger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { SAVE_EMAIL_ISSUE_COMMAND_ENV } from "./save-email-issue-command.env";
 import { initFileArticleIntoReadlist } from "@packages/save-article";
 import { initSaveEmailIssue } from "./domain/save-email-issue/save-email-issue";
 import { initSaveEmailIssueCommandHandler } from "./domain/save-email-issue/save-email-issue-command-handler";
 import { initPutTierSource } from "@packages/tier-source";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
+const env = readEnv(SAVE_EMAIL_ISSUE_COMMAND_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const onboardingTable = env.DYNAMODB_ONBOARDING_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

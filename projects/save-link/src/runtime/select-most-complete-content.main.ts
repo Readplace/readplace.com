@@ -12,16 +12,19 @@ import {
 } from "@packages/infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { SELECT_MOST_COMPLETE_CONTENT_ENV } from "./select-most-complete-content.env";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initSelectMostCompleteContentHandler } from "./domain/select-content/select-most-complete-content-handler";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(SELECT_MOST_COMPLETE_CONTENT_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

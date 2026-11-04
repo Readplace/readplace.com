@@ -15,7 +15,8 @@ import {
 import { consoleLogger, Logger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initDynamoDbArticleStore } from "@packages/article-store";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { SAVE_LINK_FAILURES_DLQ_ENV } from "./save-link-failures-dlq.env";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { initComprehensiveCrawlDlqHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-dlq-handler";
 import { initRenderCrawlDlqHandler } from "./domain/render-crawl/render-crawl-dlq-handler";
@@ -27,9 +28,11 @@ import { initSaveLinkRawPdfDlqHandler } from "./domain/crawl-article-state/save-
 import { initSimpleCrawlUnsupportedPolicyDlqHandler } from "./domain/simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-dlq-handler";
 import { initSubmitLinkDlqHandler } from "./domain/submit-link/submit-link-dlq-handler";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(SAVE_LINK_FAILURES_DLQ_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const eventBusName = env.EVENT_BUS_NAME;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});

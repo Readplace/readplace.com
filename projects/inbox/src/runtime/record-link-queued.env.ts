@@ -1,0 +1,3 @@
+export const RECORD_LINK_QUEUED_ENV = [
+	"DYNAMODB_INBOX_SAVED_LINKS_TABLE",
+] as const;

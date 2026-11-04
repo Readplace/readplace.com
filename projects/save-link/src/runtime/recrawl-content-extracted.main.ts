@@ -5,18 +5,21 @@ import { consoleLogger, Logger } from "@packages/logger";
 import { type CrawlSettledEvent, initLogCrawlSettled } from "@packages/infra-components";
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { RECRAWL_CONTENT_EXTRACTED_ENV } from "./recrawl-content-extracted.env";
 import { initRecrawlContentExtractedHandler } from "./domain/select-content/recrawl-content-extracted-handler";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(RECRAWL_CONTENT_EXTRACTED_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

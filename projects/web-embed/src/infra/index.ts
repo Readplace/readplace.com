@@ -7,6 +7,7 @@ import {
 	ssrEdgeSecretFromPlatformStack,
 } from "@packages/infra-components/infra";
 import { requireEnv } from "@packages/require-env";
+import { WEB_EMBED_ENV } from "../runtime/lambda.env";
 
 /**
  * web-embed is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -53,6 +54,7 @@ const lambda = new Lambda("web-embed", {
 	assetDir: "./src/runtime/embed",
 	memorySize: 256,
 	timeout: 10,
+	environmentNames: WEB_EMBED_ENV,
 	environment: {
 		NODE_ENV: nodeEnv,
 		APP_ORIGIN: appOrigin,

@@ -1,0 +1,4 @@
+export const GMAIL_DISCOVERY_DLQ_ENV = [
+	"EVENT_BUS_NAME",
+	"DYNAMODB_GMAIL_DISCOVERY_TABLE",
+] as const;

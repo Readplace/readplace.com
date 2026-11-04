@@ -1,0 +1,8 @@
+export const WEB_EMBED_ENV = [
+	"APP_ORIGIN",
+	"STATIC_BASE_URL",
+	"ANALYTICS_SALT",
+	"DYNAMODB_SESSIONS_TABLE",
+	"SSR_EDGE_SECRET",
+	"NODE_ENV",
+] as const;

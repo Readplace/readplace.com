@@ -67,6 +67,38 @@ import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeou
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
 import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "../runtime/domain/pdf-document-diff-review/timeouts";
 import { OCR_HTML_CONVERT_TIMEOUTS } from "../runtime/domain/pdf-page-html-convert/timeouts";
+import { SAVE_LINK_FAILURES_DLQ_ENV } from "../runtime/save-link-failures-dlq.env";
+import { SAVE_LINK_COMMAND_ENV } from "../runtime/save-link-command.env";
+import { SUBMIT_LINK_ENV } from "../runtime/submit-link.env";
+import { SAVE_EMAIL_ISSUE_COMMAND_ENV } from "../runtime/save-email-issue-command.env";
+import { SAVE_LINK_RAW_HTML_COMMAND_ENV } from "../runtime/save-link-raw-html-command.env";
+import { SAVE_ANONYMOUS_LINK_COMMAND_ENV } from "../runtime/save-anonymous-link-command.env";
+import { SIMPLE_CRAWL_UNSUPPORTED_POLICY_ENV } from "../runtime/simple-crawl-unsupported-policy.env";
+import { PDF_PAGE_LLM_CLEANUP_ENV } from "../runtime/pdf-page-llm-cleanup.env";
+import { PDF_PAGE_HTML_CONVERT_ENV } from "../runtime/pdf-page-html-convert.env";
+import { PDF_DOCUMENT_DIFF_REVIEW_ENV } from "../runtime/pdf-document-diff-review.env";
+import { COMPREHENSIVE_CRAWL_COMMAND_ENV } from "../runtime/comprehensive-crawl-command.env";
+import { SAVE_LINK_RAW_PDF_COMMAND_ENV } from "../runtime/save-link-raw-pdf-command.env";
+import { STALE_CHECK_ENV } from "../runtime/stale-check.env";
+import { SELECT_MOST_COMPLETE_CONTENT_ENV } from "../runtime/select-most-complete-content.env";
+import { PDF_PAGE_OCR_ENV } from "../runtime/pdf-page-ocr.env";
+import { RENDER_CRAWL_COMMAND_ENV } from "../runtime/render-crawl-command.env";
+import { REMOVE_MY_CONTENT_COMMAND_ENV } from "../runtime/remove-my-content-command.env";
+import { RESELECT_AFTER_REMOVAL_ENV } from "../runtime/reselect-after-removal.env";
+import { GENERATE_SUMMARY_ENV } from "../runtime/generate-summary.env";
+import { LINK_SAVED_ENV } from "../runtime/link-saved.env";
+import { ANONYMOUS_LINK_SAVED_ENV } from "../runtime/anonymous-link-saved.env";
+import { CANONICAL_CONTENT_CHANGED_ENV } from "../runtime/canonical-content-changed.env";
+import { COMPUTE_RELATED_ARTICLES_ENV } from "../runtime/compute-related-articles.env";
+import { FILTER_EMAIL_LINKS_ENV } from "../runtime/filter-email-links.env";
+import { FILE_ARTICLE_INTO_READLIST_ENV } from "../runtime/file-article-into-readlist.env";
+import { RECRAWL_LINK_INITIATED_ENV } from "../runtime/recrawl-link-initiated.env";
+import { RECRAWL_CONTENT_EXTRACTED_ENV } from "../runtime/recrawl-content-extracted.env";
+import { SUMMARY_GENERATED_ENV } from "../runtime/summary-generated.env";
+import { SUMMARY_GENERATION_FAILED_ENV } from "../runtime/summary-generation-failed.env";
+import { REFRESH_ARTICLE_CONTENT_ENV } from "../runtime/refresh-article-content.env";
+import { REFRESH_CONTENT_EXTRACTED_ENV } from "../runtime/refresh-content-extracted.env";
+import { UPDATE_FETCH_TIMESTAMP_ENV } from "../runtime/update-fetch-timestamp.env";
 
 /* Pulumi requires unique resource names per stack. Two Lambdas that attach
  * the same shared queue's send-policy would collide on the policy's name,
@@ -128,9 +160,9 @@ const ocrImageTags = z
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
 // The proxy URL carries embedded credentials, so it is a secret like
 // deepseekApiKey below — pulumi.secret keeps it encrypted in state.
-const crawlEgressProxyEnvironment: Record<string, pulumi.Input<string>> = {
+const crawlEgressProxyEnvironment = {
 	CRAWL_EGRESS_PROXY_URL: pulumi.secret(requireEnv("CRAWL_EGRESS_PROXY_URL")),
-};
+} satisfies Record<string, pulumi.Input<string>>;
 
 // --- Content S3 Bucket ---
 
@@ -363,12 +395,13 @@ const reselectAfterRemovalQueue = new Sqs(SAVE_LINK_DLQ_SOURCES.reselectAfterRem
 new DLQEventHandler(SAVE_LINK_FAILURES_DLQ_CONSUMER, {
 	deadLetterQueue: failuresDlq,
 	tableArn: articlesTableArn,
-	tableName: articlesTableName,
-	tableNameEnvVar: "DYNAMODB_ARTICLES_TABLE",
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem"],
-	additionalEnvironment: {
+	environmentNames: SAVE_LINK_FAILURES_DLQ_ENV,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	additionalPolicies: renamePolicies(
@@ -396,6 +429,7 @@ const saveLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand,
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: SAVE_LINK_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -469,6 +503,7 @@ const submitLinkLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.submitLink, {
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: SUBMIT_LINK_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -530,6 +565,7 @@ const saveEmailIssueLambda = new Lambda("save-email-issue-command", {
 	assetDir: "./src",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: SAVE_EMAIL_ISSUE_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -573,6 +609,7 @@ const saveLinkRawHtmlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkR
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: SAVE_LINK_RAW_HTML_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -620,6 +657,7 @@ const saveAnonymousLinkCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveAno
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: SAVE_ANONYMOUS_LINK_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -668,6 +706,7 @@ const simpleCrawlUnsupportedPolicyLambda = new Lambda("simple-crawl-unsupported-
 	assetDir: "./src",
 	memorySize: 128,
 	timeout: 30,
+	environmentNames: SIMPLE_CRAWL_UNSUPPORTED_POLICY_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
@@ -727,6 +766,7 @@ const pdfPageOcrLambda = new Lambda("pdf-page-ocr", {
 	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["pdf-page-ocr"] },
+	environmentNames: PDF_PAGE_OCR_ENV,
 	environment: {
 		CONTENT_BUCKET_NAME: contentBucketName,
 	},
@@ -752,6 +792,7 @@ const pdfPageLlmCleanupLambda = new Lambda("pdf-page-llm-cleanup", {
 	entryPoint: "./src/runtime/pdf-page-llm-cleanup.main.ts",
 	outputDir: ".lib/pdf-page-llm-cleanup",
 	assetDir: "./src",
+	environmentNames: PDF_PAGE_LLM_CLEANUP_ENV,
 	environment: {
 		DEEPSEEK_API_KEY: deepseekApiKey,
 	},
@@ -781,6 +822,7 @@ const pdfPageHtmlConvertLambda = new Lambda("pdf-page-html-convert", {
 	entryPoint: "./src/runtime/pdf-page-html-convert.main.ts",
 	outputDir: ".lib/pdf-page-html-convert",
 	assetDir: "./src",
+	environmentNames: PDF_PAGE_HTML_CONVERT_ENV,
 	environment: {
 		DEEPSEEK_API_KEY: deepseekApiKey,
 	},
@@ -805,6 +847,7 @@ const pdfDocumentDiffReviewLambda = new Lambda("pdf-document-diff-review", {
 	entryPoint: "./src/runtime/pdf-document-diff-review.main.ts",
 	outputDir: ".lib/pdf-document-diff-review",
 	assetDir: "./src",
+	environmentNames: PDF_DOCUMENT_DIFF_REVIEW_ENV,
 	environment: {
 		DEEPSEEK_API_KEY: deepseekApiKey,
 	},
@@ -900,6 +943,7 @@ const comprehensiveCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.compre
 	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
+	environmentNames: COMPREHENSIVE_CRAWL_COMMAND_ENV,
 	environment: {
 		...crawlEgressProxyEnvironment,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -961,6 +1005,7 @@ const renderCrawlCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.renderCrawlCo
 	ephemeralStorageSize: 1024,
 	timeout: RENDER_CRAWL_TIMEOUTS.lambdaSeconds,
 	containerImage: { imageUri: ocrImageTags["render-crawl-command"] },
+	environmentNames: RENDER_CRAWL_COMMAND_ENV,
 	environment: {
 		...crawlEgressProxyEnvironment,
 		CRAWL_RESIDENTIAL_PROXY_URL: pulumi.secret(requireEnv("CRAWL_RESIDENTIAL_PROXY_URL")),
@@ -1058,6 +1103,7 @@ const saveLinkRawPdfCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRa
 	ephemeralStorageSize: 2048,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["save-link-raw-pdf-command"] },
+	environmentNames: SAVE_LINK_RAW_PDF_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1121,6 +1167,7 @@ const staleCheckRequestedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.staleCheckRe
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: STALE_CHECK_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1182,6 +1229,7 @@ const selectMostCompleteContentLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.select
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: SELECT_MOST_COMPLETE_CONTENT_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1300,6 +1348,7 @@ const removeMyContentCommandLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.removeMyC
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: REMOVE_MY_CONTENT_COMMAND_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -1341,6 +1390,7 @@ const reselectAfterRemovalLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.reselectAft
 	assetDir: "./src",
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: RESELECT_AFTER_REMOVAL_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1383,6 +1433,7 @@ const generateSummaryLambda = new Lambda("generate-summary", {
 	// input is also char-capped in link-summariser so the model call can't overflow).
 	memorySize: 1769,
 	timeout: GENERATE_SUMMARY_TIMEOUTS.lambdaSeconds,
+	environmentNames: GENERATE_SUMMARY_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
@@ -1418,6 +1469,7 @@ const linkSavedLambda = new Lambda("link-saved", {
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: LINK_SAVED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
@@ -1451,6 +1503,7 @@ const anonymousLinkSavedLambda = new Lambda("anonymous-link-saved", {
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: ANONYMOUS_LINK_SAVED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
@@ -1500,6 +1553,7 @@ const canonicalContentChangedLambda = new Lambda("canonical-content-changed", {
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: CANONICAL_CONTENT_CHANGED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1559,6 +1613,7 @@ const computeRelatedArticlesLambda = new Lambda("compute-related-articles", {
 	memorySize: 1024,
 	external: ["tokenizers"],
 	timeout: RELATED_ARTICLES_TIMEOUTS.lambdaSeconds,
+	environmentNames: COMPUTE_RELATED_ARTICLES_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -1609,6 +1664,7 @@ const filterEmailLinksLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.filterEmailLink
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: FILTER_EMAIL_LINKS_TIMEOUTS.lambdaSeconds,
+	environmentNames: FILTER_EMAIL_LINKS_ENV,
 	environment: {
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
@@ -1650,6 +1706,7 @@ const fileArticleIntoReadlistLambda = new Lambda("file-article-into-readlist", {
 	assetDir: "./src",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: FILE_ARTICLE_INTO_READLIST_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_USER_ARTICLES_TABLE: userArticlesTableName,
@@ -1688,6 +1745,7 @@ const recrawlLinkInitiatedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.recrawlLink
 	memorySize: 3008,
 	timeout: 360,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: RECRAWL_LINK_INITIATED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1734,6 +1792,7 @@ const recrawlContentExtractedLambda = new Lambda("recrawl-content-extracted", {
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: RECRAWL_CONTENT_EXTRACTED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1768,6 +1827,7 @@ const summaryGeneratedLambda = new Lambda("summary-generated", {
 	assetDir: "./src",
 	memorySize: 128,
 	timeout: 10,
+	environmentNames: SUMMARY_GENERATED_ENV,
 	environment: {},
 	policies: [],
 });
@@ -1790,6 +1850,7 @@ const summaryGenerationFailedLambda = new Lambda(SAVE_LINK_LAMBDA_NAMES.summaryG
 	assetDir: "./src",
 	memorySize: 128,
 	timeout: 10,
+	environmentNames: SUMMARY_GENERATION_FAILED_ENV,
 	environment: {},
 	policies: [],
 });
@@ -1822,6 +1883,7 @@ const refreshArticleContentLambda = new Lambda("refresh-article-content", {
 	// HTML staged under refresh-html/) plus the same bytes passed to putTierSource.
 	memorySize: 512,
 	timeout: 30,
+	environmentNames: REFRESH_ARTICLE_CONTENT_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -1868,6 +1930,7 @@ const refreshContentExtractedLambda = new Lambda("refresh-content-extracted", {
 		// page carrying many MB of inline base64 images OOM'd at 256 MB.
 	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environmentNames: REFRESH_CONTENT_EXTRACTED_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1911,6 +1974,7 @@ const updateFetchTimestampLambda = new Lambda("update-fetch-timestamp", {
 	assetDir: "./src",
 	memorySize: 128,
 	timeout: 10,
+	environmentNames: UPDATE_FETCH_TIMESTAMP_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 	},

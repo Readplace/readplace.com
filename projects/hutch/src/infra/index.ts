@@ -69,6 +69,30 @@ import { HutchStaticAssets } from "./hutch-static-assets";
 import { HutchSsrCdn } from "./hutch-ssr-cdn";
 import { CloudFrontInvalidation } from "./cloudfront-invalidation";
 import { OutboundMailAuth } from "./outbound-mail-auth";
+import { COUNT_GMAIL_CONNECTIONS_ENV } from "../runtime/count-gmail-connections.env";
+import { STRIPE_WEBHOOK_RECEIVER_ENV } from "../runtime/stripe-webhook-receiver.env";
+import { REWRITE_GMAIL_FILTER_ENV } from "../runtime/rewrite-gmail-filter.env";
+import { GMAIL_NEWSLETTER_NOTICE_ENV } from "../runtime/gmail-newsletter-notice.env";
+import { GMAIL_NEWSLETTER_MONITOR_ENV } from "../runtime/gmail-newsletter-monitor.env";
+import { GMAIL_DISCOVERY_ENV } from "../runtime/gmail-discovery.env";
+import { GMAIL_DISCOVERY_DLQ_ENV } from "../runtime/gmail-discovery-dlq.env";
+import { NEWSLETTER_CATALOG_SUGGESTIONS_ENV } from "../runtime/newsletter-catalog-suggestions.env";
+import { GMAIL_HISTORY_IMPORT_ENV } from "../runtime/gmail-history-import.env";
+import { GMAIL_HISTORY_IMPORT_OUTCOMES_ENV } from "../runtime/gmail-history-import-outcomes.env";
+import { GMAIL_MESSAGE_UPDATE_ENV } from "../runtime/gmail-message-update.env";
+import { GMAIL_MARK_BACKFILL_ENV } from "../runtime/gmail-mark-backfill.env";
+import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "../runtime/gmail-history-import-dlq.env";
+import { HUTCH_HANDLER_ENV } from "../runtime/lambda.env";
+import { USER_DATA_JOBS_ENV } from "../runtime/user-data-jobs.env";
+import { SEND_USER_DIGEST_ENV } from "../runtime/send-user-digest.env";
+import { DIGEST_SCAN_ENV } from "../runtime/digest-scan.env";
+import { MEDIA_RELEASE_ENV } from "../runtime/media-release.env";
+import { SETTLE_MEDIA_FAILURE_ENV } from "../runtime/settle-media-failure.env";
+import { SUBSCRIPTION_EVENTS_ENV } from "../runtime/subscription-events.env";
+import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "../runtime/send-trial-feedback-email.env";
+import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "../runtime/send-first-inbox-email-notice.env";
+import { FORWARD_ANALYTICS_ENV } from "../runtime/forward-analytics.env";
+import { EVALUATE_OAUTH_REFRESH_ENV } from "../runtime/evaluate-oauth-refresh.env";
 import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
@@ -441,9 +465,9 @@ const lambda = new Lambda(LAMBDA_NAMES.hutchHandler, {
 	timeout: WEB_LAMBDA_TIMEOUT_SECONDS,
 	architectures: ["x86_64"],
 	layers: [curlImpersonateLayerArn],
+	environmentNames: HUTCH_HANDLER_ENV,
 	environment: {
 		NODE_ENV: config.require("nodeEnv"),
-		PERSISTENCE: "prod",
 		/** The app reads PORT at module load via requireEnv, which has no default,
 		 * so it must be present even though serverless-http does not bind a port. */
 		PORT: "3000",
@@ -832,6 +856,7 @@ const userDataJobsLambda = new Lambda("user-data-jobs", {
 	assetDir: "./src/runtime",
 	memorySize: 1024,
 	timeout: 900,
+	environmentNames: USER_DATA_JOBS_ENV,
 	environment: {
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
 		DYNAMODB_GMAIL_MONITORING_TABLE: storage.gmailMonitoringTable.name,
@@ -942,6 +967,7 @@ const sendUserDigestLambda = new Lambda("send-user-digest", {
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: SEND_USER_DIGEST_ENV,
 	environment: {
 		APP_ORIGIN: appOrigin,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1020,6 +1046,7 @@ const digestScanLambda = new Lambda("digest-scan", {
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: DIGEST_SCAN_ENV,
 	environment: {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -1129,6 +1156,7 @@ const countGmailConnectionsLambda = new Lambda("count-gmail-connections", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: COUNT_GMAIL_CONNECTIONS_ENV,
 	environment: {
 		DYNAMODB_GMAIL_CONNECTIONS_TABLE: storage.gmailConnectionsTable.name,
 	},
@@ -1235,6 +1263,7 @@ new StripeWebhookReceiver("stripe-webhook-receiver", {
 	apiGatewayExecutionArn: api.executionArn,
 	routeKey: "POST /webhooks/stripe",
 	eventBus,
+	environmentNames: STRIPE_WEBHOOK_RECEIVER_ENV,
 	subscriptionProvidersTable: {
 		arn: storage.subscriptionProvidersTable.arn,
 		name: storage.subscriptionProvidersTable.name,
@@ -1267,6 +1296,7 @@ const subscriptionEventsLambda = new Lambda(LAMBDA_NAMES.subscriptionEvents, {
 	assetDir: "./src/runtime",
 	memorySize: 128,
 	timeout: 30,
+	environmentNames: SUBSCRIPTION_EVENTS_ENV,
 	environment: {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
@@ -1351,6 +1381,7 @@ const sendTrialFeedbackEmailLambda = new Lambda(
 		assetDir: "./src/runtime",
 		memorySize: 256,
 		timeout: 60,
+		environmentNames: SEND_TRIAL_FEEDBACK_EMAIL_ENV,
 		environment: {
 			ANALYTICS_SALT: analyticsSalt,
 			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
@@ -1419,6 +1450,7 @@ const mediaReleaseLambda = new Lambda("media-release", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: MEDIA_RELEASE_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
@@ -1458,6 +1490,7 @@ const settleMediaFailureLambda = new Lambda("settle-media-failure", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: SETTLE_MEDIA_FAILURE_ENV,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
@@ -1499,6 +1532,7 @@ const sendFirstInboxEmailNoticeLambda = new Lambda("send-first-inbox-email-notic
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: SEND_FIRST_INBOX_EMAIL_NOTICE_ENV,
 	environment: {
 		ANALYTICS_SALT: analyticsSalt,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
@@ -1556,6 +1590,7 @@ const rewriteGmailFilterLambda = new Lambda("rewrite-gmail-filter", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: REWRITE_GMAIL_FILTER_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name,
@@ -1661,6 +1696,7 @@ const gmailNewsletterNoticeLambda = new Lambda("gmail-newsletter-notice", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: GMAIL_NEWSLETTER_NOTICE_ENV,
 	environment: {
 		ANALYTICS_SALT: analyticsSalt,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -1697,6 +1733,7 @@ const gmailNewsletterMonitorLambda = new Lambda("gmail-newsletter-monitor", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: GMAIL_NEWSLETTER_MONITOR_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_NEWSLETTER_MONITOR_QUEUE_URL: gmailNewsletterMonitorQueue.queueUrl,
@@ -1780,6 +1817,7 @@ const gmailDiscoveryLambda = new Lambda("gmail-discovery", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 60,
+	environmentNames: GMAIL_DISCOVERY_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_DISCOVERY_QUEUE_URL: gmailDiscoveryQueue.queueUrl,
@@ -1805,8 +1843,8 @@ assert(gmailDiscoveryOwnDlq, "gmail-discovery owns its DLQ, so its arrival alarm
 new DLQEventHandler("gmail-discovery-dlq", {
 	deadLetterQueue: gmailDiscoveryOwnDlq,
 	tableArn: storage.gmailDiscoveryTable.arn,
-	tableName: storage.gmailDiscoveryTable.name,
-	tableNameEnvVar: "DYNAMODB_GMAIL_DISCOVERY_TABLE",
+	environmentNames: GMAIL_DISCOVERY_DLQ_ENV,
+	environment: { DYNAMODB_GMAIL_DISCOVERY_TABLE: storage.gmailDiscoveryTable.name, EVENT_BUS_NAME: eventBus.eventBusName },
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem"],
@@ -1819,6 +1857,7 @@ const newsletterCatalogSuggestionsLambda = new Lambda("newsletter-catalog-sugges
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: NEWSLETTER_CATALOG_SUGGESTIONS_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		NEWSLETTER_CATALOG_BUCKET_NAME: newsletterCatalogBucket.bucket,
@@ -1879,6 +1918,7 @@ const gmailHistoryImportLambda = new Lambda("gmail-history-import", {
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: GMAIL_HISTORY_IMPORT_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_HISTORY_IMPORT_QUEUE_URL: gmailHistoryImportQueue.queueUrl,
@@ -1929,6 +1969,7 @@ const gmailHistoryImportOutcomesLambda = new Lambda("gmail-history-import-outcom
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: GMAIL_HISTORY_IMPORT_OUTCOMES_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
@@ -1968,6 +2009,7 @@ const gmailMessageUpdatesLambda = new Lambda("gmail-message-updates", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: GMAIL_MESSAGE_UPDATES_TIMEOUT_SECONDS,
+	environmentNames: GMAIL_MESSAGE_UPDATE_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name,
@@ -2027,6 +2069,7 @@ const gmailMarkBackfillLambda = new Lambda("gmail-mark-backfill", {
 	assetDir: "./src/runtime",
 	memorySize: 512,
 	timeout: 60,
+	environmentNames: GMAIL_MARK_BACKFILL_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GMAIL_MARK_BACKFILL_QUEUE_URL: gmailMarkBackfillQueue.queueUrl,
@@ -2067,8 +2110,8 @@ eventBus.subscribeAll(
 const gmailHistoryImportDlqHandler = new DLQEventHandler("gmail-history-import-dlq", {
 	deadLetterQueue: gmailHistoryImportFailuresDlq,
 	tableArn: storage.gmailHistoryImportsTable.arn,
-	tableName: storage.gmailHistoryImportsTable.name,
-	tableNameEnvVar: "DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE",
+	environmentNames: GMAIL_HISTORY_IMPORT_DLQ_ENV,
+	environment: { DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE: storage.gmailHistoryImportsTable.name, EVENT_BUS_NAME: eventBus.eventBusName },
 	eventBus,
 	batchSize: 1,
 	additionalDynamoActions: ["dynamodb:GetItem", "dynamodb:TransactWriteItems"],
@@ -2354,6 +2397,7 @@ const forwardAnalyticsLambda = new Lambda(FORWARD_ANALYTICS_LAMBDA_NAME, {
 	assetDir: "./src/runtime",
 	memorySize: 128,
 	timeout: 30,
+	environmentNames: FORWARD_ANALYTICS_ENV,
 	environment: {
 		DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name,
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
@@ -2527,6 +2571,7 @@ const evaluateRefreshRead = new DynamoDBAccess("evaluate-oauth-refresh-read", {
 const evaluateRefreshLambda = new Lambda("evaluate-oauth-refresh", {
 	entryPoint: "./src/runtime/evaluate-oauth-refresh.main.ts", outputDir: ".lib/evaluate-oauth-refresh", assetDir: "./src/runtime",
 	memorySize: 256, timeout: 30,
+	environmentNames: EVALUATE_OAUTH_REFRESH_ENV,
 	environment: { EVENT_BUS_NAME: eventBus.eventBusName, DYNAMODB_OAUTH_OUTCOMES_TABLE: oauthOutcomes.name, OAUTH_TEST_GRANTS: JSON.stringify(config.requireObject("oauthTestGrants")) },
 	policies: [...evaluateRefreshRead.policies, { name: "oauth-refresh-metrics", policy: JSON.stringify({ Version: "2012-10-17", Statement: [{ Effect: "Allow", Action: "cloudwatch:PutMetricData", Resource: "*", Condition: { StringEquals: { "cloudwatch:namespace": "Readplace/OAuth" } } }] }) }],
 });

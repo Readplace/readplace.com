@@ -23,7 +23,8 @@ import {
 	initS3ReadRawEmail,
 	initS3WriteEmailContent,
 } from "@packages/inbox-store";
-import { getEnv, requireEnv } from "@packages/require-env";
+import { getEnv, readEnv } from "@packages/require-env";
+import { INGEST_GMAIL_IMPORT_ENV } from "./ingest-gmail-import.env";
 import { initEvaluateGmailImportCompletion } from "./domain/gmail-import-completion/evaluate-gmail-import-completion";
 import { initRecordDuplicateGmailOrigin } from "./domain/gmail-import-completion/record-gmail-origin";
 import { initDownloadEmailImages } from "./domain/inbox/download-email-images";
@@ -33,19 +34,17 @@ import { initResolveEmailIdentity } from "./domain/inbox/resolve-email-identity"
 import { initStoreEmailBody } from "./domain/inbox/store-email-body";
 import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
 
-const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
-const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
-const emailIdentitiesTable = requireEnv(
-	"DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE",
-);
-const gmailHistoryImportsTable = requireEnv(
-	"DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE",
-);
-const rawEmailBucketName = requireEnv("RAW_EMAIL_BUCKET_NAME");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
-const maxEmailBytes = Number.parseInt(requireEnv("INBOX_MAX_EMAIL_BYTES"), 10);
+const env = readEnv(INGEST_GMAIL_IMPORT_ENV);
+
+const inboxEmailsTable = env.DYNAMODB_INBOX_EMAILS_TABLE;
+const inboxAddressesTable = env.DYNAMODB_INBOX_ADDRESSES_TABLE;
+const emailIdentitiesTable = env.DYNAMODB_INBOX_EMAIL_IDENTITIES_TABLE;
+const gmailHistoryImportsTable = env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE;
+const rawEmailBucketName = env.RAW_EMAIL_BUCKET_NAME;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
+const maxEmailBytes = Number.parseInt(env.INBOX_MAX_EMAIL_BYTES, 10);
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

@@ -6,16 +6,13 @@ import { Lambda, type LambdaPolicy } from "./lambda";
 import type { AlarmedDeadLetterQueue } from "./shared-dlq";
 
 /**
- * `additionalDynamoActions`, `additionalEnvironment`, and `additionalPolicies`
+ * `additionalDynamoActions` and `additionalPolicies`
  * are escape hatches for callers whose transition needs richer access than
- * the default "UpdateItem only, no extra env". Aggregate-migrated DLQ
+ * the default "UpdateItem only". Aggregate-migrated DLQ
  * handlers use them to add `dynamodb:GetItem` (the aggregate's `store.load`
- * reads before it writes) and to pass `GENERATE_SUMMARY_QUEUE_URL` even
- * when the current transition does not dispatch a summary command — the
- * aggregate effect dispatcher is wired uniformly so a future transition
- * change at the same callsite cannot regress without re-wiring infra.
+ * reads before it writes).
  */
-export class DLQEventHandler extends pulumi.ComponentResource {
+export class DLQEventHandler<const N extends readonly string[]> extends pulumi.ComponentResource {
 	public readonly logGroupName: pulumi.Output<string>;
 
 	constructor(
@@ -23,13 +20,12 @@ export class DLQEventHandler extends pulumi.ComponentResource {
 		args: {
 			deadLetterQueue: AlarmedDeadLetterQueue;
 			tableArn: pulumi.Input<string>;
-			tableName: pulumi.Input<string>;
-			tableNameEnvVar: string;
 			eventBus: EventBus;
 			/** Valid range: 1–10 (AWS SQS EventSourceMapping limit for standard queues). */
 			batchSize: number;
+			environmentNames: N;
+			environment: { [K in NoInfer<N>[number]]: pulumi.Input<string> };
 			additionalDynamoActions?: readonly string[];
-			additionalEnvironment?: Record<string, pulumi.Input<string>>;
 			additionalPolicies?: readonly LambdaPolicy[];
 		},
 		opts?: pulumi.ComponentResourceOptions,
@@ -47,11 +43,8 @@ export class DLQEventHandler extends pulumi.ComponentResource {
 			assetDir: "./src",
 			memorySize: 256,
 			timeout: 30,
-			environment: {
-				[args.tableNameEnvVar]: args.tableName,
-				EVENT_BUS_NAME: args.eventBus.eventBusName,
-				...args.additionalEnvironment,
-			},
+			environmentNames: args.environmentNames,
+			environment: args.environment,
 			policies: [...dynamodb.policies, ...(args.additionalPolicies ?? [])],
 		}, { parent: this });
 

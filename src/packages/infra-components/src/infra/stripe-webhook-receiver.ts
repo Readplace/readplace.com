@@ -37,6 +37,7 @@ export class StripeWebhookReceiver extends pulumi.ComponentResource {
 			webhookSecret: string;
 			events: readonly StripeEventType[];
 			alertEmail: string;
+			environmentNames: readonly ("STRIPE_WEBHOOK_SECRET" | "EVENT_BUS_NAME" | "DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE" | "STRIPE_EVENT_TYPES")[];
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -53,6 +54,7 @@ export class StripeWebhookReceiver extends pulumi.ComponentResource {
 			assetDir: "./src/runtime",
 			memorySize: 128,
 			timeout: 10,
+			environmentNames: args.environmentNames,
 			environment: {
 				STRIPE_WEBHOOK_SECRET: args.webhookSecret,
 				EVENT_BUS_NAME: args.eventBus.eventBusName,

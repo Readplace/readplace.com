@@ -8,6 +8,7 @@ import {
 } from "@packages/infra-components/infra";
 import { BLOG_SITE_LAMBDA_NAME } from "@packages/infra-components";
 import { requireEnv } from "@packages/require-env";
+import { BLOG_SITE_ENV } from "../runtime/lambda.env";
 
 /**
  * blog-site is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -52,6 +53,7 @@ const lambda = new Lambda(BLOG_SITE_LAMBDA_NAME, {
 	assetDir: "./src/runtime",
 	memorySize: 1769,
 	timeout: 10,
+	environmentNames: BLOG_SITE_ENV,
 	environment: {
 		NODE_ENV: nodeEnv,
 		STATIC_BASE_URL: staticBaseUrl,

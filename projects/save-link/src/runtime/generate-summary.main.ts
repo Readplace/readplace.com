@@ -20,13 +20,16 @@ import { MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary
 import { stripHtml } from "./domain/generate-summary/strip-html";
 import { sampleSectionsForSummary } from "./domain/generate-summary/sample-sections";
 import { GENERATE_SUMMARY_TIMEOUTS } from "./domain/generate-summary/timeouts";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { GENERATE_SUMMARY_ENV } from "./generate-summary.env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(GENERATE_SUMMARY_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
+const eventBusName = env.EVENT_BUS_NAME;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});

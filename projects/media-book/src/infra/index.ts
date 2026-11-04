@@ -9,6 +9,8 @@ import {
 	SharedDlq,
 } from "@packages/infra-components/infra";
 import { MEDIA_BOOK_DLQ_SOURCES, MediaUploadCommittedEvent } from "@packages/infra-components";
+import { MEDIA_BOOK_FAILURES_DLQ_ENV } from "../runtime/media-book-failures-dlq.env";
+import { PROCESS_BOOK_ENV } from "../runtime/process-book.env";
 
 const MEDIA_BOOK_FAILURES_DLQ = "media-book-failures";
 
@@ -45,6 +47,7 @@ new MediaProcessor(MEDIA_BOOK_DLQ_SOURCES.processBook, {
 		memorySize: 1769,
 		timeout: 900,
 		ephemeralStorageSize: 2048,
+		environmentNames: PROCESS_BOOK_ENV,
 		environment: {
 			MEDIA_BUCKET_NAME: mediaBucketName,
 			CONTENT_BUCKET_NAME: contentBucketName,
@@ -83,6 +86,7 @@ const failuresDlqLambda = new Lambda(`${MEDIA_BOOK_FAILURES_DLQ}-dlq`, {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: MEDIA_BOOK_FAILURES_DLQ_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},

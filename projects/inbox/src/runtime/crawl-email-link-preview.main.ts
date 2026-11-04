@@ -17,14 +17,17 @@ import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { getEnv, requireEnv } from "@packages/require-env";
+import { getEnv, readEnv } from "@packages/require-env";
+import { CRAWL_EMAIL_LINK_PREVIEW_ENV } from "./crawl-email-link-preview.env";
 import { initCrawlEmailLinkPreviewHandler } from "./domain/inbox/crawl-email-link-preview-handler";
 import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
 import { initDynamoDbInboxEmailLink } from "@packages/inbox-store";
 
-const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
+const env = readEnv(CRAWL_EMAIL_LINK_PREVIEW_ENV);
+
+const inboxEmailLinksTable = env.DYNAMODB_INBOX_EMAIL_LINKS_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

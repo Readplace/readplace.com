@@ -6,12 +6,15 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
 import { consoleLogger } from "@packages/logger";
 import { initReadRefreshHtml } from "./providers/refresh-html/read-refresh-html";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { REFRESH_ARTICLE_CONTENT_ENV } from "./refresh-article-content.env";
 import { initRefreshArticleContentHandler } from "./domain/save-link/refresh-article-content-handler";
 
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
+const env = readEnv(REFRESH_ARTICLE_CONTENT_ENV);
+
+const eventBusName = env.EVENT_BUS_NAME;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const pendingHtmlBucketName = env.PENDING_HTML_BUCKET_NAME;
 
 const s3Client = new S3Client({});
 
@@ -30,7 +33,7 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
-const canonicalAliasStore = initCanonicalAliasStore({ client: createDynamoDocumentClient(), tableName: requireEnv("DYNAMODB_ARTICLES_TABLE") });
+const canonicalAliasStore = initCanonicalAliasStore({ client: createDynamoDocumentClient(), tableName: env.DYNAMODB_ARTICLES_TABLE });
 const resolveOriginalUrl = initResolveCandidateOriginal({ findIdentityRow: canonicalAliasStore.findIdentityRow });
 
 export const handler = initRefreshArticleContentHandler({

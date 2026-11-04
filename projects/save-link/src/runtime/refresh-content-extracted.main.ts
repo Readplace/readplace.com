@@ -10,13 +10,16 @@ import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEventsDepBundle } from "./dep-bundles/events";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { REFRESH_CONTENT_EXTRACTED_ENV } from "./refresh-content-extracted.env";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(REFRESH_CONTENT_EXTRACTED_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();

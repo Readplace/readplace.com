@@ -6,12 +6,15 @@ import {
 	GenerateSummaryCommand,
 } from "@packages/infra-components";
 import { initSqsCommandDispatcher } from "@packages/infra-components/runtime";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { ANONYMOUS_LINK_SAVED_ENV } from "./anonymous-link-saved.env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
 import { initAnonymousLinkSavedHandler } from "./domain/save-link/anonymous-link-saved-handler";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(ANONYMOUS_LINK_SAVED_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});

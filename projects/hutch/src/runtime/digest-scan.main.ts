@@ -39,10 +39,13 @@ import { SendUserDigestCommand } from "@packages/infra-components";
 import { initSqsCommandDispatcher } from "@packages/infra-components/runtime";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDigestScanHandler } from "./digest-scan/digest-scan-handler";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { DIGEST_SCAN_ENV } from "./digest-scan.env";
 
-const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
-const sendUserDigestQueueUrl = requireEnv("SEND_USER_DIGEST_QUEUE_URL");
+const env = readEnv(DIGEST_SCAN_ENV);
+
+const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
+const sendUserDigestQueueUrl = env.SEND_USER_DIGEST_QUEUE_URL;
 
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
@@ -60,9 +63,9 @@ const { dispatch: dispatchSendUserDigest } = initSqsCommandDispatcher({
 
 const logger = Logger.from(consoleLogger);
 const s3 = new S3Client({});
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
 const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
@@ -88,7 +91,7 @@ const rollout = initS3StarterRollout({
 });
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
-	eventBusName: requireEnv("EVENT_BUS_NAME"),
+	eventBusName: env.EVENT_BUS_NAME,
 });
 const { prepareSnapshot } = initHnSnapshot({
 	store: initS3HnSnapshot({
@@ -137,10 +140,10 @@ export const handler = initDigestScanHandler({
 	prepareStarterSnapshot: initPrepareStarterSnapshot({
 		startObservation: rollout.startObservation,
 		prepareSnapshot,
-		deploymentSha: requireEnv("ENGAGEMENT_DEPLOYMENT_SHA"),
+		deploymentSha: env.ENGAGEMENT_DEPLOYMENT_SHA,
 		excludedUserIds: z
 			.array(z.string())
-			.parse(JSON.parse(requireEnv("ENGAGEMENT_EXCLUDED_USER_IDS"))),
+			.parse(JSON.parse(env.ENGAGEMENT_EXCLUDED_USER_IDS)),
 		now: () => new Date(),
 	}),
 	logStarterReport: initLogStarterReport({
@@ -148,8 +151,8 @@ export const handler = initDigestScanHandler({
 			findRollout: rollout.findRollout,
 			listAccounts: initDynamoDbEngagementStarter({
 				client: dynamoClient,
-				onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
-				notificationsTableName: requireEnv("DYNAMODB_READER_READY_NOTIFICATIONS_TABLE"),
+				onboardingTableName: env.DYNAMODB_ONBOARDING_TABLE,
+				notificationsTableName: env.DYNAMODB_READER_READY_NOTIFICATIONS_TABLE,
 				userArticlesTableName: userArticlesTable,
 			}).listStarterObservations,
 			now: () => new Date(),

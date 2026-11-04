@@ -5,7 +5,8 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { consoleLogger } from "@packages/logger";
 import { EventBridgeClient } from "@packages/infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { SAVE_ANONYMOUS_LINK_COMMAND_ENV } from "./save-anonymous-link-command.env";
 import { initCanonicalAliasStore } from "@packages/article-store";
 import { initSaveAnonymousLinkCommandHandler } from "./domain/save-link/save-anonymous-link-command-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
@@ -18,11 +19,13 @@ import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
-const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const env = readEnv(SAVE_ANONYMOUS_LINK_COMMAND_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const imagesCdnBaseUrl = env.IMAGES_CDN_BASE_URL;
+const generateSummaryQueueUrl = env.GENERATE_SUMMARY_QUEUE_URL;
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});

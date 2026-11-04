@@ -35,26 +35,25 @@ import {
 	initDynamoDbInboxEmailLink,
 	initS3ReadRawEmail,
 } from "@packages/inbox-store";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { EXTRACT_EMAIL_LINKS_ENV } from "./extract-email-links.env";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initExtractEmailLinksHandler } from "./domain/inbox/extract-email-links-handler";
 import { initTriageEmailLinks } from "./domain/inbox/triage-email-links";
 
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
-const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
-const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
-const rawEmailBucketName = requireEnv("RAW_EMAIL_BUCKET_NAME");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const truncationAlertQueueUrl = requireEnv(
-	"EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL",
-);
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
-const subscriptionProvidersTable = requireEnv(
-	"DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE",
-);
-const appOrigin = requireEnv("APP_ORIGIN");
-const maxLinks = Number.parseInt(requireEnv("INBOX_MAX_LINKS_PER_EMAIL"), 10);
+const env = readEnv(EXTRACT_EMAIL_LINKS_ENV);
+
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const inboxAddressesTable = env.DYNAMODB_INBOX_ADDRESSES_TABLE;
+const inboxEmailsTable = env.DYNAMODB_INBOX_EMAILS_TABLE;
+const inboxEmailLinksTable = env.DYNAMODB_INBOX_EMAIL_LINKS_TABLE;
+const rawEmailBucketName = env.RAW_EMAIL_BUCKET_NAME;
+const eventBusName = env.EVENT_BUS_NAME;
+const truncationAlertQueueUrl = env.EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL;
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
+const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
+const appOrigin = env.APP_ORIGIN;
+const maxLinks = Number.parseInt(env.INBOX_MAX_LINKS_PER_EMAIL, 10);
 assert(
 	maxLinks <= EMAIL_LINK_ORDINAL_CAPACITY,
 	`INBOX_MAX_LINKS_PER_EMAIL (${maxLinks}) exceeds the email link ordinal capacity (${EMAIL_LINK_ORDINAL_CAPACITY}); a higher cap would mint ordinals too wide for EmailLinkOrdinalSchema to parse`,

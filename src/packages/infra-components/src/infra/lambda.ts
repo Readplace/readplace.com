@@ -1,7 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import { build, type Loader, type Plugin } from "esbuild";
-import assert from "node:assert";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
@@ -176,7 +175,21 @@ export type LambdaPolicy = {
 	policy: pulumi.Input<string>;
 };
 
-export class Lambda extends pulumi.ComponentResource {
+type ZipPackage = { entryPoint: string; outputDir: string; assetDir: string; containerImage?: never };
+
+type ImagePackage = {
+	/**
+	 * When set, the Lambda is provisioned as a container image instead of
+	 * a zip. The image must already be pushed to ECR — typically by a
+	 * `build-image` step that runs before `pulumi up`.
+	 */
+	containerImage: { imageUri: pulumi.Input<string> };
+	entryPoint?: never;
+	outputDir?: never;
+	assetDir?: never;
+};
+
+export class Lambda<const N extends readonly string[] = readonly string[]> extends pulumi.ComponentResource {
 	public readonly name: string;
 	public readonly functionName: pulumi.Output<string>;
 	public readonly arn: pulumi.Output<string>;
@@ -189,13 +202,11 @@ export class Lambda extends pulumi.ComponentResource {
 
 	constructor(
 		name: string,
-		args: {
-			entryPoint?: string;
-			outputDir?: string;
-			assetDir?: string;
+		args: (ZipPackage | ImagePackage) & {
+			environmentNames: N;
+			environment: { [K in NoInfer<N>[number]]: pulumi.Input<string> };
 			memorySize: number;
 			timeout: number;
-			environment: Record<string, pulumi.Input<string>>;
 			policies: LambdaPolicy[];
 			/**
 			 * Packages to leave un-bundled and ship in the Lambda zip's
@@ -217,13 +228,6 @@ export class Lambda extends pulumi.ComponentResource {
 			 */
 			layers?: pulumi.Input<string>[];
 			architectures?: pulumi.Input<string>[];
-			/**
-			 * When set, the Lambda is provisioned as a container image instead of
-			 * a zip. The image must already be pushed to ECR — typically by a
-			 * `build-image` step that runs before `pulumi up`. `entryPoint`,
-			 * `outputDir`, and `assetDir` are ignored when this is set.
-			 */
-			containerImage?: { imageUri: pulumi.Input<string> };
 			ephemeralStorageSize?: number;
 			/**
 			 * Logical name of the top-level `aws.cloudwatch.LogGroup` this call
@@ -328,12 +332,13 @@ export class Lambda extends pulumi.ComponentResource {
 			},
 		}, { parent: this, dependsOn: [logGroup] });
 
-		const hasEnvironment = Object.keys(args.environment).length > 0;
+		const environment: Record<string, pulumi.Input<string>> = args.environment;
+		const hasEnvironment = Object.keys(environment).length > 0;
 		const environmentArg = hasEnvironment
 			? {
 					environment: {
 						variables: pulumi
-							.all([pulumi.output(args.environment), lambdaEnvironmentQuotaKilobytes()])
+							.all([pulumi.output(environment), lambdaEnvironmentQuotaKilobytes()])
 							.apply(([variables, quotaKilobytes]) => {
 								assertLambdaEnvironmentFits({ lambdaName, variables, quotaKilobytes });
 								return variables;
@@ -364,9 +369,6 @@ export class Lambda extends pulumi.ComponentResource {
 				...architecturesArg,
 			}, { parent: this, dependsOn: [logGroup], aliases: [{ parent: pulumi.rootStackResource }] });
 		} else {
-			assert(args.entryPoint, "Lambda zip packaging requires 'entryPoint'");
-			assert(args.outputDir, "Lambda zip packaging requires 'outputDir'");
-			assert(args.assetDir, "Lambda zip packaging requires 'assetDir'");
 			const { entryPoint, outputDir, assetDir } = args;
 
 			mkdirSync(outputDir, { recursive: true });

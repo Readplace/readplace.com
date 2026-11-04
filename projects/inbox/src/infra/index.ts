@@ -33,6 +33,16 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { InboxMail } from "./inbox-mail";
 import { InboxStorage } from "./inbox-storage";
+import { INBOX_WEB_ENV } from "../runtime/lambda.env";
+import { CONFIRM_GMAIL_FORWARDING_ENV } from "../runtime/confirm-gmail-forwarding.env";
+import { CRAWL_EMAIL_LINK_PREVIEW_ENV } from "../runtime/crawl-email-link-preview.env";
+import { EXTRACT_EMAIL_LINKS_ENV } from "../runtime/extract-email-links.env";
+import { GMAIL_IMPORT_COMPLETION_ENV } from "../runtime/gmail-import-completion.env";
+import { INBOX_FAILURES_DLQ_ENV } from "../runtime/inbox-failures-dlq.env";
+import { INGEST_GMAIL_IMPORT_ENV } from "../runtime/ingest-gmail-import.env";
+import { RECEIVE_EMAIL_ENV } from "../runtime/receive-email.env";
+import { RECORD_EMAIL_LINKS_FILTERED_ENV } from "../runtime/record-email-links-filtered.env";
+import { RECORD_LINK_QUEUED_ENV } from "../runtime/record-link-queued.env";
 
 /**
  * inbox is deployed as its own Lambda behind hutch's existing API Gateway:
@@ -210,6 +220,7 @@ const webLambda = new Lambda("inbox-web", {
 	assetDir: "./src/runtime",
 	memorySize: 1024,
 	timeout: 10,
+	environmentNames: INBOX_WEB_ENV,
 	environment: {
 		NODE_ENV: nodeEnv,
 		STATIC_BASE_URL: staticBaseUrl,
@@ -314,6 +325,7 @@ const receiveEmailLambda = new Lambda("inbox-receive-email", {
 	memorySize: CRAWL_LAMBDA_MEMORY_MB,
 	timeout: 120,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: RECEIVE_EMAIL_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: inboxStorage.emailsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
@@ -495,6 +507,7 @@ const extractEmailLinksLambda = new Lambda("inbox-extract-email-links", {
 	// Headroom for the bounded LLM triage attempts on top of the parse and the
 	// per-link write fan-out.
 	timeout: EXTRACT_EMAIL_LINKS_TIMEOUT_SECONDS,
+	environmentNames: EXTRACT_EMAIL_LINKS_ENV,
 	environment: {
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
@@ -565,6 +578,7 @@ const failuresDlqLambda = new Lambda(`${INBOX_FAILURES_DLQ}-dlq`, {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: INBOX_FAILURES_DLQ_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -612,6 +626,7 @@ const ingestGmailImportLambda = new Lambda("inbox-ingest-gmail-import", {
 	memorySize: CRAWL_LAMBDA_MEMORY_MB,
 	timeout: INGEST_GMAIL_IMPORT_TIMEOUT_SECONDS,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: INGEST_GMAIL_IMPORT_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: inboxStorage.emailsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: tableNames.inboxAddresses,
@@ -668,6 +683,7 @@ const crawlEmailLinkPreviewLambda = new Lambda("inbox-crawl-email-link-preview",
 	memorySize: CRAWL_LAMBDA_MEMORY_MB,
 	timeout: 120,
 	layers: [curlImpersonateLayerArn],
+	environmentNames: CRAWL_EMAIL_LINK_PREVIEW_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 		// Uploads each lead image to the shared content bucket, fronted by the
@@ -710,6 +726,7 @@ const confirmGmailForwardingLambda = new Lambda("inbox-confirm-gmail-forwarding"
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: 30,
+	environmentNames: CONFIRM_GMAIL_FORWARDING_ENV,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
@@ -781,6 +798,7 @@ const recordLinkQueuedLambda = new Lambda("inbox-record-link-queued", {
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: RECORD_LINK_QUEUED_TIMEOUT_SECONDS,
+	environmentNames: RECORD_LINK_QUEUED_ENV,
 	environment: {
 		DYNAMODB_INBOX_SAVED_LINKS_TABLE: tableNames.inboxSavedLinks,
 	},
@@ -857,6 +875,7 @@ const recordEmailLinksFilteredLambda = new Lambda("inbox-record-email-links-filt
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: RECORD_EMAIL_LINKS_FILTERED_TIMEOUT_SECONDS,
+	environmentNames: RECORD_EMAIL_LINKS_FILTERED_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAIL_LINKS_TABLE: tableNames.inboxEmailLinks,
 	},
@@ -900,6 +919,7 @@ const gmailImportCompletionLambda = new Lambda("inbox-gmail-import-completion", 
 	assetDir: "./src/runtime",
 	memorySize: 256,
 	timeout: GMAIL_IMPORT_COMPLETION_TIMEOUT_SECONDS,
+	environmentNames: GMAIL_IMPORT_COMPLETION_ENV,
 	environment: {
 		DYNAMODB_INBOX_EMAILS_TABLE: tableNames.inboxEmails,
 		EVENT_BUS_NAME: eventBus.eventBusName,

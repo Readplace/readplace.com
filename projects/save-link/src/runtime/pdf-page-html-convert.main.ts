@@ -3,9 +3,12 @@ import { consoleLogger, Logger } from "@packages/logger";
 import { initConvertPageToHtmlWithDeepseek } from "./domain/pdf-page-html-convert/init-convert-page-to-html-with-deepseek";
 import { initPdfPageHtmlConvertHandler } from "./domain/pdf-page-html-convert/pdf-page-html-convert-handler";
 import { OCR_HTML_CONVERT_TIMEOUTS } from "./domain/pdf-page-html-convert/timeouts";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { PDF_PAGE_HTML_CONVERT_ENV } from "./pdf-page-html-convert.env";
 
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
+const env = readEnv(PDF_PAGE_HTML_CONVERT_ENV);
+
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
 
 const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,

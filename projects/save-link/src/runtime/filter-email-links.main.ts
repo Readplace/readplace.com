@@ -11,15 +11,18 @@ import {
 	initDecideReadlistFitWithDeepseek,
 	ReadlistFitEngineSchema,
 } from "@packages/readlist-fit";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { FILTER_EMAIL_LINKS_ENV } from "./filter-email-links.env";
 import { initFilterEmailLinksHandler } from "./domain/filter-email-links/filter-email-links-handler";
 import type { ReadlistFitDecidedLine, ReadlistFitUnsureLine } from "./domain/filter-email-links/readlist-fit-log-lines.types";
 import { FILTER_EMAIL_LINKS_TIMEOUTS } from "./domain/filter-email-links/timeouts";
 
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const readlistFitEngine = ReadlistFitEngineSchema.parse(requireEnv("READLIST_FIT_ENGINE"));
+const env = readEnv(FILTER_EMAIL_LINKS_ENV);
+
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const deepseekApiKey = env.DEEPSEEK_API_KEY;
+const eventBusName = env.EVENT_BUS_NAME;
+const readlistFitEngine = ReadlistFitEngineSchema.parse(env.READLIST_FIT_ENGINE);
 
 const logger = Logger.from(consoleLogger);
 

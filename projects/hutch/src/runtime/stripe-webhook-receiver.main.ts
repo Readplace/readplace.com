@@ -13,11 +13,14 @@ import {
 	type StripeEventHandler,
 	initStripeWebhookReceiverHandler,
 } from "./stripe-webhook-receiver/stripe-webhook-receiver-handler";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { STRIPE_WEBHOOK_RECEIVER_ENV } from "./stripe-webhook-receiver.env";
 
-const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
-const eventBusName = requireEnv("EVENT_BUS_NAME");
-const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
+const env = readEnv(STRIPE_WEBHOOK_RECEIVER_ENV);
+
+const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
+const eventBusName = env.EVENT_BUS_NAME;
+const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),

@@ -13,7 +13,10 @@ import { createBanMiddleware } from "./web/middleware/ban";
 import { logAndRespondOnError } from "./web/middleware/error-handler";
 import { createReadplaceApp, localServer } from "./app";
 import { assertCurlImpersonateAvailable, defaultCurlImpersonateProbe } from "@packages/crawl-article";
-import { getEnv, requireEnv } from "@packages/require-env";
+import { getEnv, readEnv } from "@packages/require-env";
+import { HUTCH_HANDLER_ROOT_ENV } from "./lambda.env";
+
+const env = readEnv(HUTCH_HANDLER_ROOT_ENV);
 
 const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
 
@@ -29,15 +32,15 @@ const { app, analyticsLogger } = createReadplaceApp();
 
 const log = requestLogger();
 const logger = Logger.from(consoleLogger);
-const salt = requireEnv("ANALYTICS_SALT");
-const viewerIdentity = createViewerIdentityMiddleware({ edgeSecret: requireEnv("SSR_EDGE_SECRET") });
+const salt = env.ANALYTICS_SALT;
+const viewerIdentity = createViewerIdentityMiddleware({ edgeSecret: env.SSR_EDGE_SECRET });
 const ban = createBanMiddleware({ salt, hashIp });
 const analytics = createAnalyticsMiddleware({
 	logger: analyticsLogger,
 	salt,
 	now: () => new Date(),
 	isStaticAssetPath: isStaticAssetRequestPath,
-	ownHost: new URL(requireEnv("APP_ORIGIN")).hostname,
+	ownHost: new URL(env.APP_ORIGIN).hostname,
 });
 
 const application = express()

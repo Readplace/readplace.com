@@ -4,7 +4,7 @@ import { GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES, type GmailEmailUpdateFailedLine
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
 import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbGmailHistoryImport, initDynamoDbGmailMarkBackfill, initDynamoDbGmailMessageUpdate } from "@packages/inbox-store";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import {
 	initGmailHistoryImportOutcomeDlqHandler,
 	initGmailHistoryImportPageDlqHandler,
@@ -12,12 +12,15 @@ import {
 import { initGmailMarkBackfillDlqHandler } from "./domain/gmail/gmail-mark-backfill";
 import { initGmailMessageUpdateDlqHandler } from "./domain/gmail/gmail-message-update-handler";
 import { initRecordGmailDiagnostic } from "./observability/gmail-diagnostics";
+import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "./gmail-history-import-dlq.env";
 
-const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: requireEnv("EVENT_BUS_NAME") });
+const env = readEnv(GMAIL_HISTORY_IMPORT_DLQ_ENV);
+
+const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: env.EVENT_BUS_NAME });
 const now = () => new Date();
 const logger = Logger.from(consoleLogger);
 const client = createDynamoDocumentClient();
-const tableName = requireEnv("DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE");
+const tableName = env.DYNAMODB_GMAIL_HISTORY_IMPORTS_TABLE;
 const dependencies = {
 	imports: initDynamoDbGmailHistoryImport({ client, tableName }),
 	publishEvent,

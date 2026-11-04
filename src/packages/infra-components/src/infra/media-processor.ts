@@ -8,7 +8,7 @@ import { SqsBackedLambda } from "./sqs-backed-lambda";
 
 const MAX_RECEIVE_COUNT = 2;
 
-export class MediaProcessor extends pulumi.ComponentResource {
+export class MediaProcessor<const N extends readonly string[]> extends pulumi.ComponentResource {
 	public readonly lambda: Lambda;
 	public readonly queue: Sqs;
 	public readonly withSqs: SqsBackedLambda;
@@ -29,7 +29,8 @@ export class MediaProcessor extends pulumi.ComponentResource {
 				memorySize: number;
 				timeout: number;
 				ephemeralStorageSize?: number;
-				environment: Record<string, pulumi.Input<string>>;
+				environmentNames: N;
+				environment: { [K in NoInfer<N>[number]]: pulumi.Input<string> };
 				policies: LambdaPolicy[];
 			};
 		},

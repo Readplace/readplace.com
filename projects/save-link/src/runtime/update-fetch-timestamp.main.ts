@@ -1,10 +1,13 @@
 import { createDynamoDocumentClient } from "@packages/storage-client";
 import { consoleLogger } from "@packages/logger";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { UPDATE_FETCH_TIMESTAMP_ENV } from "./update-fetch-timestamp.env";
 import { initUpdateFetchTimestamp } from "./providers/article-crawl/update-fetch-timestamp";
 import { initUpdateFetchTimestampHandler } from "./domain/save-link/update-fetch-timestamp-handler";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
+const env = readEnv(UPDATE_FETCH_TIMESTAMP_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
 
 const client = createDynamoDocumentClient();
 

@@ -9,14 +9,17 @@ import {
 } from "@packages/article-store";
 import { Logger, consoleLogger } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { MEDIA_RELEASE_ENV } from "./media-release.env";
 import { initMediaReleaseHandler } from "./media-release/media-release-handler";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const mediaBucketName = requireEnv("MEDIA_BUCKET_NAME");
+const env = readEnv(MEDIA_RELEASE_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const contentBucketName = env.CONTENT_BUCKET_NAME;
+const mediaBucketName = env.MEDIA_BUCKET_NAME;
 
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});

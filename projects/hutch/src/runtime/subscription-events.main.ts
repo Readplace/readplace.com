@@ -28,37 +28,40 @@ import { initSubscriptionChargeFailedHandler } from "./subscription-charge-faile
 import { initSubscriptionChargeSucceededHandler } from "./subscription-charge-succeeded/subscription-charge-succeeded-handler";
 import { initSubscriptionStartRequestHandler } from "./subscription-start-request/subscription-start-request-handler";
 import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "./observability/subscription-events";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
+import { SUBSCRIPTION_EVENTS_ENV } from "./subscription-events.env";
+
+const env = readEnv(SUBSCRIPTION_EVENTS_ENV);
 
 const logger = Logger.from(consoleLogger);
 const now = () => new Date();
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
 	client: createDynamoDocumentClient(),
-	tableName: requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE"),
+	tableName: env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE,
 	now,
 });
 
 const stripeSubscriptions = initStripeSubscriptions({
-	apiKey: requireEnv("STRIPE_SECRET_KEY"),
+	apiKey: env.STRIPE_SECRET_KEY,
 	fetch: globalThis.fetch,
 });
 
 const stripePrices = initStripePrices({
-	apiKey: requireEnv("STRIPE_SECRET_KEY"),
+	apiKey: env.STRIPE_SECRET_KEY,
 	fetch: globalThis.fetch,
 });
 
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
-	eventBusName: requireEnv("EVENT_BUS_NAME"),
+	eventBusName: env.EVENT_BUS_NAME,
 });
 
 const trialScheduler = initAwsTrialScheduler({
 	client: new SchedulerClient({}),
-	scheduleGroupName: requireEnv("TRIAL_SCHEDULER_GROUP_NAME"),
-	schedulerRoleArn: requireEnv("TRIAL_SCHEDULER_ROLE_ARN"),
-	eventBusArn: requireEnv("EVENT_BUS_ARN"),
+	scheduleGroupName: env.TRIAL_SCHEDULER_GROUP_NAME,
+	schedulerRoleArn: env.TRIAL_SCHEDULER_ROLE_ARN,
+	eventBusArn: env.EVENT_BUS_ARN,
 });
 
 const emit = initEmitSubscriptionEvent({

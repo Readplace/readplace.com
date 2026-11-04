@@ -9,19 +9,20 @@ import { initResendEmail } from "./providers/email/resend-email";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
 import { initSendTrialFeedbackEmailHandler } from "./send-trial-feedback-email/send-trial-feedback-email-handler";
 import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
-import { requireEnv } from "@packages/require-env";
+import { readEnv } from "@packages/require-env";
 import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-unsubscribe-token";
+import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "./send-trial-feedback-email.env";
 
-const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
-const usersTable = requireEnv("DYNAMODB_USERS_TABLE");
-const sessionsTable = requireEnv("DYNAMODB_SESSIONS_TABLE");
-const subscriptionProvidersTable = requireEnv(
-	"DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE",
-);
-const resendApiKey = requireEnv("RESEND_API_KEY");
-const staticBaseUrl = requireEnv("STATIC_BASE_URL");
-const appOrigin = requireEnv("APP_ORIGIN");
+const env = readEnv(SEND_TRIAL_FEEDBACK_EMAIL_ENV);
+
+const articlesTable = env.DYNAMODB_ARTICLES_TABLE;
+const userArticlesTable = env.DYNAMODB_USER_ARTICLES_TABLE;
+const usersTable = env.DYNAMODB_USERS_TABLE;
+const sessionsTable = env.DYNAMODB_SESSIONS_TABLE;
+const subscriptionProvidersTable = env.DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE;
+const resendApiKey = env.RESEND_API_KEY;
+const staticBaseUrl = env.STATIC_BASE_URL;
+const appOrigin = env.APP_ORIGIN;
 
 const dynamoClient = createDynamoDocumentClient();
 
@@ -32,7 +33,7 @@ const subscriptionProviders = initDynamoDbSubscriptionProviders({
 });
 
 const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
+	observeSession: initAuthDiagnosticRecorder({ salt: env.ANALYTICS_SALT, now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: usersTable,
 	sessionsTableName: sessionsTable,
@@ -61,7 +62,7 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	claimTrialNudge: subscriptionProviders.claimTrialNudge,
 	releaseTrialNudge: subscriptionProviders.releaseTrialNudge,
 	findUserContactByUserId: auth.findUserContactByUserId,
-	signUnsubscribeToken: initQueueDigestUnsubscribeToken(requireEnv("ANALYTICS_SALT")).sign,
+	signUnsubscribeToken: initQueueDigestUnsubscribeToken(env.ANALYTICS_SALT).sign,
 	sendEmail,
 	founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 	appOrigin,
