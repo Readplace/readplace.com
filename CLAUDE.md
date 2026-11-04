@@ -34,7 +34,7 @@ One exception: when the origin refuses our egress outright — every transport l
 
 ### A reader's own capture is never failed by the judge
 
-A tier-0 candidate (a browser-extension capture, an iOS share, a `save-content` upload, a PDF upload, a Gmail newsletter body) is the page the reader saw and chose to keep. The model that ranks candidates during content selection may not turn a readable one into a failed save. Its `none` verdict is terminal: the crawl is marked failed and nothing retries it. When every candidate set started going through the judge on 2026-10-07, it rejected the staging reader-path upload in about 30% of runs. The same path was open for real captures saved alongside a live 403 or 404 page.
+A tier-0 candidate (a browser-extension capture, an iOS share, a `save-content` upload, a PDF upload, a Gmail newsletter body) is the page the reader saw and chose to keep. The model that ranks candidates during content selection may not turn a readable one into a failed save. Its `none` verdict is terminal: the crawl is marked failed and nothing retries it, unless the save is a YouTube video (see **YouTube video card** below). When every candidate set started going through the judge on 2026-10-07, it rejected the staging reader-path upload in about 30% of runs. The same path was open for real captures saved alongside a live 403 or 404 page.
 
 Content selection enforces this with two rules (grep the save-link select-content module for the comparison log line's `selectionRule` values):
 
@@ -56,6 +56,8 @@ Content selection enforces this with two rules (grep the save-link select-conten
 - The daily Tier 1+ canary uploads a page through `save-content` and fails unless that upload is the content selected.
 
 Do not remove either rule to "let the judge decide", and do not extend either rule to an automatic capture.
+
+**YouTube video card:** when selection ends with nothing readable and the save's original URL parses as a YouTube video, selection fetches the video's oEmbed and commits a card (title, poster, channel) under `selectionRule: "video-card-fallback"` instead of marking the crawl failed. In the 45 days to 2026-11-02, 77 of 163 prod selections for a YouTube URL ended `no-readable` on a `none` verdict, mostly on an empty shell or the "Sign in to confirm you're not a bot" wall. The card applies only where the save would otherwise fail for having nothing readable: not while the live crawl is deferred to the render tier, not while an older stored capture is withheld from selection, and never over a readable candidate or a retained canonical. When oEmbed refuses or times out, the save fails as before. Do not remove this rule to "let the judge decide" either.
 
 ### Gmail sender discovery is a deliberate Lambda self-loop
 
