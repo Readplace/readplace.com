@@ -1,12 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
 	CONFIRM_POPOVER_STYLES,
 	STATED_PRICING_PANELS,
-	render,
 	withInternalTracking,
 } from "@packages/web-shell";
-import type { PageBody } from "@packages/web-shell";
 import { ADVERTISED_CLIENTS } from "@packages/supported-clients";
 
 import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
@@ -30,9 +26,6 @@ import {
 import { buildHomeSeo } from "./home.seo";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
-const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
-
-/** Discarded — only the pathname and search are read back off the parsed href. */
 const PARSE_ORIGIN = "https://internal.invalid";
 
 const TRACKING_SOURCE = "homepage";
@@ -57,8 +50,6 @@ interface RenderedAction {
 	readonly input?: ActionInput;
 	readonly saveTipState?: SaveTipState;
 	readonly lead?: string;
-	/** What the action would act on, named and linked so a reader who left the
-	 * article minutes ago can tell which one this saves — and reopen it. */
 	readonly target?: RenderedLink;
 }
 
@@ -67,12 +58,6 @@ interface RenderedLink {
 	readonly href: string;
 }
 
-/**
- * A GET form, not an anchor, so an action that needs a field (open a link in the
- * reader) and one that does not (save the article just read) share one item
- * shape. Browsers drop an action URL's query string on GET submit, so the
- * internal-click UTM params ride as hidden inputs rather than on the href.
- */
 function renderAction(input: {
 	key: string;
 	label: string;
@@ -101,7 +86,7 @@ function renderAction(input: {
 	};
 }
 
-function trackedLink(link: {
+export function trackedLink(link: {
 	label: string;
 	href: string;
 	content: string;
@@ -113,20 +98,14 @@ function trackedLink(link: {
 	};
 }
 
-const { hero, ways, assistant, proof, principle, pricing, faq, close } = HOME_CONTENT;
+const { ways, assistant, proof, principle, pricing, faq, close } = HOME_CONTENT;
+
+export type HomeHero = Readonly<Record<keyof typeof HOME_CONTENT.hero, string>>;
 
 function byOrder(left: HomeWayLink, right: HomeWayLink): number {
 	return left.order - right.order;
 }
 
-/**
- * The save routes that get a row: the advertised browser extensions merged into
- * one row, one row per advertised phone app, then the ways in that have no
- * client behind them. An assistant saves a bare URL and gets its own section
- * instead, and a client nobody can install yet is not offered here at all —
- * every map indexed below is keyed by an advertised-only union, so this
- * assembly cannot reach for one.
- */
 const HOMEPAGE_WAYS: readonly HomeWayRow[] = [
 	{
 		...HOME_BROWSER_EXTENSION_ROW,
@@ -166,7 +145,8 @@ const HOMEPAGE_PRICING_PANELS = STATED_PRICING_PANELS.map((panel) => ({
 		cssClass: "btn--primary home-pricing__plan-button",
 	}),
 }));
-function buildPasteAction(input: { primary: boolean; saveTipState: SaveTipState }): RenderedAction {
+function buildPasteAction(input: { hero: HomeHero; primary: boolean; saveTipState: SaveTipState }): RenderedAction {
+	const { hero } = input;
 	return renderAction({
 		key: "homepage-link-input",
 		label: hero.pasteCtaLabel,
@@ -184,8 +164,6 @@ interface ArrivalArticle {
 	readonly display: string;
 }
 
-/** The cookie holds whatever was written to it, so a value that is not a URL
- * leaves the action unnamed rather than throwing on the homepage render. */
 function describeArrivalArticle(url: string): ArrivalArticle | undefined {
 	const parsed = URL.parse(url);
 	if (parsed === null) return undefined;
@@ -194,22 +172,15 @@ function describeArrivalArticle(url: string): ArrivalArticle | undefined {
 	return { host, display: `${host}${path}` };
 }
 
-/**
- * A reader-view arrival is offered the article they just read before anything
- * else, with the paste box demoted rather than replaced so they can still open
- * another link without leaving the hero.
- *
- * The action names the article: both readers who ever clicked its unnamed
- * predecessor had left the page minutes earlier, so the button has to say what
- * it would save rather than assume they still remember.
- */
 function buildHeroActions(input: {
+	hero: HomeHero;
 	lastViewUrl: string | undefined;
 	saveTipState: SaveTipState;
 }): readonly RenderedAction[] {
 	if (input.lastViewUrl === undefined) {
-		return [buildPasteAction({ primary: true, saveTipState: input.saveTipState })];
+		return [buildPasteAction({ hero: input.hero, primary: true, saveTipState: input.saveTipState })];
 	}
+	const { hero } = input;
 	const article = describeArrivalArticle(input.lastViewUrl);
 	const target =
 		article === undefined
@@ -232,106 +203,107 @@ function buildHeroActions(input: {
 		cssClass: "btn--on-dark home-hero__save-button",
 		target,
 	});
-	return [saveLastView, buildPasteAction({ primary: false, saveTipState: input.saveTipState })];
+	return [saveLastView, buildPasteAction({ hero: input.hero, primary: false, saveTipState: input.saveTipState })];
 }
 
-export function HomePage(params: {
+export function buildHomeView(params: {
 	staticBaseUrl: string;
 	saveTip: SaveTip;
 	lastViewUrl: string | undefined;
-}): PageBody {
-	const { staticBaseUrl, saveTip, lastViewUrl } = params;
-
+	hero: HomeHero;
+}) {
+	const { staticBaseUrl, saveTip, lastViewUrl, hero } = params;
 	return {
-		seo: buildHomeSeo({ staticBaseUrl, faq: faq.items }),
-		styles: `${HOME_PAGE_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
+		saveTipHtml: saveTip.html,
+		pageDepthBeacon: renderPageDepthBeacon(),
+		heroEyebrow: lastViewUrl === undefined ? undefined : hero.arrivalEyebrow,
+		heroTitle: hero.title,
+		heroSubhead: hero.subhead,
+		heroActions: buildHeroActions({ hero, lastViewUrl, saveTipState: saveTip.state }),
+		heroReassurance: hero.reassurance,
+		waysTitle: ways.title,
+		ways: HOMEPAGE_WAYS.map((way) => ({
+			name: way.name,
+			bodyLead: way.bodyLead,
+			bodyIcon: way.bodyIcon,
+			bodyMid: way.bodyMid,
+			bodyLink:
+				way.bodyLink === undefined
+					? undefined
+					: trackedLink({ ...way.bodyLink, content: way.bodyLink.trackContent, source: "home-ways" }),
+			examples: way.examples,
+			bodyTail: way.bodyTail,
+			links: way.links.map((link) => ({
+				label: link.label,
+				href: withInternalTracking(link.href, {
+					source: "home-ways",
+					content: link.trackContent,
+				}),
+			})),
+		})),
+		waysNoteLead: ways.noteLead,
+		waysNoteLink: trackedLink({ ...ways.noteLink, source: "home-ways" }),
+		assistantTitle: assistant.title,
+		assistantBodyLead: assistant.bodyLead,
+		assistantNames: AI_ASSISTANTS_OR,
+		assistantBodyTail: assistant.bodyTail,
+		assistantLink: trackedLink({
+			label: assistant.linkLabel,
+			href: assistant.linkHref,
+			content: assistant.trackContent,
+			source: "home-assistant",
+		}),
+		proofTitle: proof.title,
+		proofVideo: {
+			...buildExtensionDemoVideo("chrome", staticBaseUrl),
+			ariaLabel: proof.videoAriaLabel,
+		},
+		proofQuote: proof.quote,
+		proofAttribution: proof.quoteAttribution,
+		proofFounderLead: proof.founderLead,
+		proofJsCookieLink: proof.founderJsCookieLink,
+		proofFounderMid: proof.founderMid,
+		proofFounderLink: trackedLink({ ...proof.founderLink, source: "home-proof" }),
+		proofFounderClose: proof.founderClose,
+		principleTitle: principle.title,
+		principleAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
+		principleAvatarAlt: principle.avatarAlt,
+		principleBody: principle.body,
+		principleSignature: principle.signature,
+		pricingTitleBefore: pricing.titleBefore,
+		pricingPriceAmount: pricing.priceAmount,
+		pricingTitleAfter: pricing.titleAfter,
+		pricingSavesStay: pricing.savesStay,
+		pricingPanels: HOMEPAGE_PRICING_PANELS,
+		pricingNote: pricing.ctaNote,
+		pricingAssurances: pricing.assurances,
+		pricingSourceLead: pricing.sourceLead,
+		pricingSourceLink: pricing.sourceLink,
+		pricingSourceClose: pricing.sourceClose,
+		faqTitle: faq.title,
+		faq: faq.items,
+		closeTitle: close.title,
+		closeInstallLink: trackedLink({
+			label: close.installLabel,
+			href: close.installHref,
+			content: "install",
+			source: "home-close",
+		}),
+		closeImportLink: trackedLink({
+			label: close.importLabel,
+			href: close.importHref,
+			content: "import",
+			source: "home-close",
+		}),
+		closeSignoff: close.signoff,
+	};
+}
+
+export function buildHomePageFrame(params: { staticBaseUrl: string; styles: string }) {
+	return {
+		seo: buildHomeSeo({ staticBaseUrl: params.staticBaseUrl, faq: faq.items }),
+		styles: `${HOME_PAGE_STYLES}\n${params.styles}\n${CONFIRM_POPOVER_STYLES}`,
 		scripts: `${SAVE_TIP_SCRIPT}${PAGE_DEPTH_SCRIPT}`,
 		bodyClass: "page-home",
-		content: {
-			html: render(HOME_TEMPLATE, {
-				saveTipHtml: saveTip.html,
-				pageDepthBeacon: renderPageDepthBeacon(),
-				heroEyebrow: lastViewUrl === undefined ? undefined : hero.arrivalEyebrow,
-				heroTitle: hero.title,
-				heroSubhead: hero.subhead,
-				heroActions: buildHeroActions({ lastViewUrl, saveTipState: saveTip.state }),
-				heroReassurance: hero.reassurance,
-				waysTitle: ways.title,
-				ways: HOMEPAGE_WAYS.map((way) => ({
-					name: way.name,
-					bodyLead: way.bodyLead,
-					bodyIcon: way.bodyIcon,
-					bodyMid: way.bodyMid,
-					bodyLink:
-						way.bodyLink === undefined
-							? undefined
-							: trackedLink({ ...way.bodyLink, content: way.bodyLink.trackContent, source: "home-ways" }),
-					examples: way.examples,
-					bodyTail: way.bodyTail,
-					links: way.links.map((link) => ({
-						label: link.label,
-						href: withInternalTracking(link.href, {
-							source: "home-ways",
-							content: link.trackContent,
-						}),
-					})),
-				})),
-				waysNoteLead: ways.noteLead,
-				waysNoteLink: trackedLink({ ...ways.noteLink, source: "home-ways" }),
-				assistantTitle: assistant.title,
-				assistantBodyLead: assistant.bodyLead,
-				assistantNames: AI_ASSISTANTS_OR,
-				assistantBodyTail: assistant.bodyTail,
-				assistantLink: trackedLink({
-					label: assistant.linkLabel,
-					href: assistant.linkHref,
-					content: assistant.trackContent,
-					source: "home-assistant",
-				}),
-				proofTitle: proof.title,
-				proofVideo: {
-					...buildExtensionDemoVideo("chrome", staticBaseUrl),
-					ariaLabel: proof.videoAriaLabel,
-				},
-				proofQuote: proof.quote,
-				proofAttribution: proof.quoteAttribution,
-				proofFounderLead: proof.founderLead,
-				proofJsCookieLink: proof.founderJsCookieLink,
-				proofFounderMid: proof.founderMid,
-				proofFounderLink: trackedLink({ ...proof.founderLink, source: "home-proof" }),
-				proofFounderClose: proof.founderClose,
-				principleTitle: principle.title,
-				principleAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
-				principleAvatarAlt: principle.avatarAlt,
-				principleBody: principle.body,
-				principleSignature: principle.signature,
-				pricingTitleBefore: pricing.titleBefore,
-				pricingPriceAmount: pricing.priceAmount,
-				pricingTitleAfter: pricing.titleAfter,
-				pricingSavesStay: pricing.savesStay,
-				pricingPanels: HOMEPAGE_PRICING_PANELS,
-				pricingNote: pricing.ctaNote,
-				pricingAssurances: pricing.assurances,
-				pricingSourceLead: pricing.sourceLead,
-				pricingSourceLink: pricing.sourceLink,
-				pricingSourceClose: pricing.sourceClose,
-				faqTitle: faq.title,
-				faq: faq.items,
-				closeTitle: close.title,
-				closeInstallLink: trackedLink({
-					label: close.installLabel,
-					href: close.installHref,
-					content: "install",
-					source: "home-close",
-				}),
-				closeImportLink: trackedLink({
-					label: close.importLabel,
-					href: close.importHref,
-					content: "import",
-					source: "home-close",
-				}),
-				closeSignoff: close.signoff,
-			}),
-		},
 	};
 }

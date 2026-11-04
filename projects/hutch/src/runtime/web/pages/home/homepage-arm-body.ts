@@ -3,7 +3,7 @@ import type { PageBody } from "@packages/web-shell";
 import type { HomepageVariantMarker } from "../../experiments/homepage-split";
 import type { SaveTip } from "../../shared/save-tip/save-tip.component";
 import { HomeVariantBPage } from "../home-b";
-import { HomePage } from "./home.component";
+import { HomeVariantCPage } from "../home-c";
 
 export interface HomepageArmInput {
 	readonly staticBaseUrl: string;
@@ -13,8 +13,8 @@ export interface HomepageArmInput {
 }
 
 const ARM_RENDERERS = {
-	a: (input: HomepageArmInput): PageBody => HomePage(input),
 	b: (input: HomepageArmInput): PageBody => HomeVariantBPage(input),
+	c: (input: HomepageArmInput): PageBody => HomeVariantCPage(input),
 } satisfies Record<HomepageVariantMarker, (input: HomepageArmInput) => PageBody>;
 
 export function buildHomepageArmBody(input: HomepageArmInput): PageBody {

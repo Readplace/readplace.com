@@ -33,7 +33,7 @@ describe("writeHomepageAssignment", () => {
 
 		expect(cookies).toHaveLength(1);
 		expect(cookies[0].name).toBe(EXPERIMENT_COOKIE_NAME);
-		expect(cookies[0].value).toBe("homepage-ai-cost:1:variant-d");
+		expect(cookies[0].value).toBe("homepage-ai-cost:2:variant-f");
 		expect(cookies[0].options).toMatchObject({ httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000 });
 	});
 
@@ -49,11 +49,11 @@ describe("writeHomepageAssignment", () => {
 describe("readHomepageAssignment", () => {
 	it("resolves a current campaign+epoch cookie to its variant", () => {
 		assert.equal(
-			readHomepageAssignment(reqWithCookie("homepage-ai-cost:1:variant-c"), HOMEPAGE_SPLIT),
+			readHomepageAssignment(reqWithCookie("homepage-ai-cost:2:variant-e"), HOMEPAGE_SPLIT),
 			VARIANT_A,
 		);
 		assert.equal(
-			readHomepageAssignment(reqWithCookie("homepage-ai-cost:1:variant-d"), HOMEPAGE_SPLIT),
+			readHomepageAssignment(reqWithCookie("homepage-ai-cost:2:variant-f"), HOMEPAGE_SPLIT),
 			VARIANT_B,
 		);
 	});
@@ -87,16 +87,22 @@ describe("readHomepageAssignment", () => {
 		).toBeUndefined();
 	});
 
+	it("returns undefined for an epoch-1 cookie, so an e1 returner is drawn again", () => {
+		expect(
+			readHomepageAssignment(reqWithCookie("homepage-ai-cost:1:variant-c"), HOMEPAGE_SPLIT),
+		).toBeUndefined();
+	});
+
 	it("returns undefined when the epoch matches but the slug is unknown", () => {
 		expect(
-			readHomepageAssignment(reqWithCookie("homepage-ai-cost:1:variant-z"), HOMEPAGE_SPLIT),
+			readHomepageAssignment(reqWithCookie("homepage-ai-cost:2:variant-z"), HOMEPAGE_SPLIT),
 		).toBeUndefined();
 	});
 });
 
 describe("readHomepageVariantSlug", () => {
 	it("returns the arm slug against the live config", () => {
-		expect(readHomepageVariantSlug(reqWithCookie("homepage-ai-cost:1:variant-d"))).toBe("variant-d");
+		expect(readHomepageVariantSlug(reqWithCookie("homepage-ai-cost:2:variant-f"))).toBe("variant-f");
 	});
 
 	it("returns undefined when no valid assignment is present", () => {

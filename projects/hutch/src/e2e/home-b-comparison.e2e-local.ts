@@ -29,7 +29,7 @@ for (const viewport of VIEWPORTS) {
 			await page.emulateMedia({ colorScheme: "light" });
 			await page.context().addCookies([{
 				name: EXPERIMENT_COOKIE_NAME,
-				value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${HOMEPAGE_SPLIT.variants[1].slug}`,
+				value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${HOMEPAGE_SPLIT.variants[0].slug}`,
 				url: BASE_URL,
 			}]);
 			await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });

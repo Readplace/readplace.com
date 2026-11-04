@@ -343,7 +343,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			.map((widget) => String(widget.properties.query));
 		expect(homepageQueries.length).toBe(2);
 		for (const query of homepageQueries) {
-			expect(query).toContain(`experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "homepage-split-e3", "${campaignTag(HOMEPAGE_SPLIT)}"]`);
+			expect(query).toContain(`experiment in ["${HOMEPAGE_EXPOSURE.campaign}", "homepage-split-e3", "homepage-ai-cost-e1", "${campaignTag(HOMEPAGE_SPLIT)}"]`);
 			expect(query).toContain('utm_campaign = "homepage-split-e3"');
 		}
 	});
@@ -360,7 +360,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const query = String(widget.properties.query);
 		expect(query).toContain("coalesce(experiment_variant, homepage_variant) as arm");
 		expect(query).toContain(`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}" and experiment = "${campaignTag(HOMEPAGE_SPLIT)}") or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant))`);
-		expect(query).toContain('| filter arm in ["variant-c", "variant-d"]');
+		expect(query).toContain('| filter arm in ["variant-e", "variant-f"]');
 		expect(query).toContain("| filter ispresent(visitor_id)");
 		expect(query).toContain("| stats count_distinct(visitor_id) as visitors by arm, event");
 		expect(query).toContain("| sort arm asc");
@@ -378,7 +378,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const query = String(widget.properties.query);
 		expect(query).toContain("homepage_variant as arm");
 		expect(query).toContain(`| filter stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}" and ispresent(homepage_variant)`);
-		expect(query).toContain('| filter arm in ["variant-c", "variant-d"]');
+		expect(query).toContain('| filter arm in ["variant-e", "variant-f"]');
 		expect(query).toContain("| stats count_distinct(user_id) as signups by arm, tier");
 		expect(query).toContain("| sort signups desc");
 	});

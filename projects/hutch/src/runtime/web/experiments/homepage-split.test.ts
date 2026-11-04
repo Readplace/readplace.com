@@ -14,17 +14,24 @@ describe("assignVariant", () => {
 	});
 });
 
+describe("HOMEPAGE_SPLIT", () => {
+	it("serves arm b to the low half of the byte range and arm c to the high half", () => {
+		expect(assignVariant(HOMEPAGE_SPLIT, 0).marker).toBe("b");
+		expect(assignVariant(HOMEPAGE_SPLIT, 255).marker).toBe("c");
+	});
+});
+
 describe("campaignTag", () => {
 	it("folds the epoch into the campaign so a re-bucket scopes the measurement window", () => {
-		expect(campaignTag(HOMEPAGE_SPLIT)).toBe("homepage-ai-cost-e1");
-		expect(campaignTag({ ...HOMEPAGE_SPLIT, epoch: 2 })).toBe("homepage-ai-cost-e2");
+		expect(campaignTag(HOMEPAGE_SPLIT)).toBe("homepage-ai-cost-e2");
+		expect(campaignTag({ ...HOMEPAGE_SPLIT, epoch: 3 })).toBe("homepage-ai-cost-e3");
 	});
 });
 
 describe("variantBySlug", () => {
 	it("resolves a known slug", () => {
-		expect(variantBySlug(HOMEPAGE_SPLIT, "variant-c")).toBe(VARIANT_A);
-		expect(variantBySlug(HOMEPAGE_SPLIT, "variant-d")).toBe(VARIANT_B);
+		expect(variantBySlug(HOMEPAGE_SPLIT, "variant-e")).toBe(VARIANT_A);
+		expect(variantBySlug(HOMEPAGE_SPLIT, "variant-f")).toBe(VARIANT_B);
 	});
 
 	it("returns undefined for an unknown slug", () => {

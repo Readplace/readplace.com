@@ -80,25 +80,32 @@ test.describe("Homepage pricing grid has no empty column", () => {
 test.describe("Homepage settles and then stops moving", () => {
 	test.use({ viewport: VIEWPORT });
 
-	test("holds still while it sits on screen", async ({ page }) => {
-		await page.goto("/");
-		await detachVolatileChrome(page);
+	for (const variant of HOMEPAGE_SPLIT.variants) {
+		test(`holds still while it sits on screen on ${variant.slug}`, async ({ page }) => {
+			await page.context().addCookies([{
+				name: EXPERIMENT_COOKIE_NAME,
+				value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${variant.slug}`,
+				url: BASE_URL,
+			}]);
+			await page.goto("/");
+			await detachVolatileChrome(page);
 
-		expectNothingMoved(
-			await page.evaluate(sampleLayoutStability, {
-				duration: RESTING_WINDOW_MS,
-				interval: SAMPLE_EVERY_MS,
-			}),
-			"resting at the top",
-		);
+			expectNothingMoved(
+				await page.evaluate(sampleLayoutStability, {
+					duration: RESTING_WINDOW_MS,
+					interval: SAMPLE_EVERY_MS,
+				}),
+				"resting at the top",
+			);
 
-		await scrollToBottom(page);
-		expectNothingMoved(
-			await page.evaluate(sampleLayoutStability, {
-				duration: SETTLED_AT_BOTTOM_MS,
-				interval: SAMPLE_EVERY_MS,
-			}),
-			"resting at the bottom",
-		);
-	});
+			await scrollToBottom(page);
+			expectNothingMoved(
+				await page.evaluate(sampleLayoutStability, {
+					duration: SETTLED_AT_BOTTOM_MS,
+					interval: SAMPLE_EVERY_MS,
+				}),
+				"resting at the bottom",
+			);
+		});
+	}
 });

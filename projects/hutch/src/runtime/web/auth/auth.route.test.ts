@@ -602,7 +602,7 @@ describe("Auth routes", () => {
 			}
 
 			const before = Date.now();
-			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A1%3Avariant-d").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A2%3Avariant-f").type("form").send({
 				email: "trial@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -639,7 +639,7 @@ describe("Auth routes", () => {
 
 			const conversionEvent = conversions.events.find((e) => e.method === "email" && e.tier === "trial");
 			assert(conversionEvent, "trial signup must emit a user_created conversion event with tier=trial");
-			expect(conversionEvent.homepage_variant).toBe("variant-d");
+			expect(conversionEvent.homepage_variant).toBe("variant-f");
 
 			// No Stripe checkout, no pending signup row.
 			const consumed = await pendingSignup.consumePendingSignup(
@@ -738,7 +738,7 @@ describe("Auth routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { conversions } = harness;
 
-			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A1%3Avariant-c").type("form").send({
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A2%3Avariant-e").type("form").send({
 				email: "convert-free@example.com",
 				password: "password123",
 				loadedAt: freshLoadedAt(),
@@ -752,9 +752,24 @@ describe("Auth routes", () => {
 				method: "email",
 				tier: "free",
 			});
-			expect(conversions.events[0].homepage_variant).toBe("variant-c");
+			expect(conversions.events[0].homepage_variant).toBe("variant-e");
 			expect(conversions.events[0].email_hash).toBeDefined();
 			expect(conversions.events[0].user_id).toBeDefined();
+		});
+
+		it("records no homepage arm for a signup carrying an epoch-1 assignment", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { conversions } = harness;
+
+			const response = await request(harness.server).post("/signup").set("User-Agent", BROWSER_USER_AGENT).set("Cookie", "hutch_exp=homepage-ai-cost%3A1%3Avariant-d").type("form").send({
+				email: "e1-returner@example.com",
+				password: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(conversions.events).toHaveLength(1);
+			expect(conversions.events[0].homepage_variant).toBeUndefined();
 		});
 
 		it("carries the OAuth client id from the consent return URL onto user_created", async () => {

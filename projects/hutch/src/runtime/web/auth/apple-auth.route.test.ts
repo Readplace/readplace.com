@@ -461,7 +461,7 @@ describe("Apple auth routes", () => {
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
-			const state = signState({ ...freshState(), homepageVariant: "variant-d" });
+			const state = signState({ ...freshState(), homepageVariant: "variant-f" });
 
 			const response = await postCallback(harness.server, {
 				state,
@@ -492,7 +492,7 @@ describe("Apple auth routes", () => {
 
 			const conversionEvent = conversions.events.find((e) => e.method === "apple" && e.tier === "trial");
 			assert(conversionEvent, "Apple trial signup must emit a user_created conversion event with tier=trial");
-			expect(conversionEvent.homepage_variant).toBe("variant-d");
+			expect(conversionEvent.homepage_variant).toBe("variant-f");
 		}, 30000);
 
 		it("preserves the return URL through Apple trial signup when the founding allocation is exhausted", async () => {
@@ -765,7 +765,7 @@ describe("Apple auth routes", () => {
 					`hutch_click=${encodeURIComponent(attributionCookie)}`,
 					`hutch_vid=${TEST_VISITOR_ID}`,
 					`hutch_psid=${TEST_PENDING_SAVE_ID}`,
-					"hutch_exp=homepage-ai-cost%3A1%3Avariant-d",
+					"hutch_exp=homepage-ai-cost%3A2%3Avariant-f",
 				]);
 
 			expect(getResponse.status).toBe(303);
@@ -785,7 +785,7 @@ describe("Apple auth routes", () => {
 			expect(event.utm_source).toBe("applecheck");
 			expect(event.visitor_id).toBe(TEST_VISITOR_ID);
 			expect(event.pending_save_id).toBe(TEST_PENDING_SAVE_ID);
-			expect(event.homepage_variant).toBe("variant-d");
+			expect(event.homepage_variant).toBe("variant-f");
 
 			expect(cookiesFrom(postResponse).join(";")).toContain("hutch_psid=");
 		});

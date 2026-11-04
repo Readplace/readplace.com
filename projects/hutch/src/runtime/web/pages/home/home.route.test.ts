@@ -21,7 +21,6 @@ import {
 } from "./home.content";
 import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { CANONICAL_SLOGAN } from "../../slogans";
-import { HOMEPAGE_EXPOSURE } from "./home.version";
 import { campaignTag, HOMEPAGE_SPLIT } from "../../experiments/homepage-split";
 
 const GOOGLEBOT_UA =
@@ -92,7 +91,7 @@ describe("GET /", () => {
 				event: "pageview",
 				path: "/",
 				experiment: campaignTag(HOMEPAGE_SPLIT),
-				experiment_variant: HOMEPAGE_EXPOSURE.version,
+				experiment_variant: "variant-e",
 			}),
 		);
 	});
@@ -479,10 +478,16 @@ describe("GET / pricing", () => {
 	it("should say the saves stay directly under the pricing headline", async () => {
 		const { doc } = await loadHomepage();
 
-		const saves = doc.querySelector("[data-test-saves-stay]");
+		const saves = doc.querySelector(".home-pricing [data-test-saves-stay]");
 		assert(saves, "the pricing section must say what happens to saves");
 		expect(saves.textContent).toBe(SAVES_STAY_STATEMENT);
 		expect(saves.previousElementSibling?.tagName).toBe("H2");
+	});
+
+	it("should offer no 3-year plan, so the page states one price", async () => {
+		const { response } = await loadHomepage();
+
+		expect(response.text).not.toContain(PRICING_PLANS.triennial.monthlyDisplay);
 	});
 
 	it("should label every panel's signup button with the free trial", async () => {
@@ -792,6 +797,7 @@ describe("GET / metadata", () => {
 			["assistant", "Save from an AI assistant"],
 			["proof", "What that looks like"],
 			["principle", "What Readplace is for"],
+			["compare", "Readplace versus Claude and ChatGPT"],
 			["pricing", "Pricing"],
 			["faq", "Questions"],
 			["close", "Get started"],

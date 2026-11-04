@@ -85,12 +85,12 @@ describe("buildUserCreatedEvent", () => {
 				method: "email",
 				tier: "trial",
 				attribution: undefined,
-				homepageVariant: "variant-d",
+				homepageVariant: "variant-f",
 				oauthClientId: undefined,
 			},
 		);
 
-		expect(event.homepage_variant).toBe("variant-d");
+		expect(event.homepage_variant).toBe("variant-f");
 	});
 
 	it("flattens click attribution into the event so downstream queries can group by utm_* without a join", () => {

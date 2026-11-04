@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import type { Page } from "@playwright/test";
 import { LENSES, NON_TEXT_MINIMUM, contrastRatio, expect, test, textMinimum } from "@packages/e2e-harness";
 import { z } from "zod";
+import { EXPERIMENT_COOKIE_NAME } from "../runtime/web/experiments/homepage-assignment";
+import { HOMEPAGE_SPLIT } from "../runtime/web/experiments/homepage-split";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./admin-extend-trial/admin-e2e-user";
@@ -677,6 +679,18 @@ test.describe("Import colour roles hold their WCAG contrast in both themes", () 
 		await page.goto(`${BASE_URL}/import`, { waitUntil: "domcontentloaded" });
 		await expect(page.locator("[data-test-import-intro]")).toBeVisible({ timeout: SETTLE_MS });
 		await auditRoot(page, { root: "main.import", theme: "light", view: "import/guest" });
+	});
+
+	test("homepage arm C's capabilities clear their contrast minimum", async ({ page }) => {
+		await page.context().addCookies([{
+			name: EXPERIMENT_COOKIE_NAME,
+			value: `${HOMEPAGE_SPLIT.campaign}:${HOMEPAGE_SPLIT.epoch}:${HOMEPAGE_SPLIT.variants[1].slug}`,
+			url: BASE_URL,
+		}]);
+		await page.emulateMedia({ colorScheme: "light" });
+		await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator('[data-test-section="capabilities"]')).toBeVisible({ timeout: SETTLE_MS });
+		await auditRoot(page, { root: '[data-test-section="capabilities"]', theme: "light", view: "home-c/capabilities" });
 	});
 });
 

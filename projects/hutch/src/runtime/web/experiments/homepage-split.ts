@@ -1,4 +1,4 @@
-export type HomepageVariantMarker = "a" | "b";
+export type HomepageVariantMarker = "b" | "c";
 
 export interface HomepageSplitVariant {
 	readonly slug: string;
@@ -15,10 +15,10 @@ export interface HomepageSplitConfig {
 export const HOMEPAGE_SPLIT: HomepageSplitConfig = {
 	active: true,
 	campaign: "homepage-ai-cost",
-	epoch: 1,
+	epoch: 2,
 	variants: [
-		{ slug: "variant-c", marker: "a" },
-		{ slug: "variant-d", marker: "b" },
+		{ slug: "variant-e", marker: "b" },
+		{ slug: "variant-f", marker: "c" },
 	],
 };
 

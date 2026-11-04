@@ -33,7 +33,7 @@ describe("resolveHomepageArm", () => {
 	});
 
 	it("reuses the recorded assignment instead of drawing again, so the arm survives across visits", () => {
-		const arm = resolve({ cookie: "homepage-ai-cost:1:variant-d", byte: 0 });
+		const arm = resolve({ cookie: "homepage-ai-cost:2:variant-f", byte: 0 });
 
 		assert.equal(arm.variant, VARIANT_B);
 		expect(arm.participating).toBe(true);
@@ -61,14 +61,14 @@ describe("resolveHomepageArm", () => {
 	});
 
 	it("ignores a recorded assignment for an ineligible visitor, so a crawler carrying a cookie still gets the incumbent", () => {
-		const arm = resolve({ eligible: false, cookie: "homepage-ai-cost:1:variant-d" });
+		const arm = resolve({ eligible: false, cookie: "homepage-ai-cost:2:variant-f" });
 
 		assert.equal(arm.variant, VARIANT_A);
 		expect(arm.participating).toBe(false);
 	});
 
 	it("serves the incumbent arm to everyone once the kill switch is off", () => {
-		const arm = resolve({ active: false, cookie: "homepage-ai-cost:1:variant-d", byte: 255 });
+		const arm = resolve({ active: false, cookie: "homepage-ai-cost:2:variant-f", byte: 255 });
 
 		assert.equal(arm.variant, VARIANT_A);
 		expect(arm.participating).toBe(false);

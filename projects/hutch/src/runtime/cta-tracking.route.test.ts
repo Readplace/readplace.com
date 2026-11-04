@@ -18,7 +18,8 @@ import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-uns
 import { QUEUE_DIGEST_MARK_READ_PATH, QUEUE_DIGEST_UNSUBSCRIBE_PATH } from "./web/queue-digest-email";
 
 const useApp = useTestServer();
-const useArmB = useTestServer({ drawRandomByte: () => 128 });
+const useArmB = useTestServer({ drawRandomByte: () => 0 });
+const useArmC = useTestServer({ drawRandomByte: () => 255 });
 
 const ARTICLE_CONTENT_REGIONS = ["[data-test-reader-content]"];
 
@@ -348,5 +349,15 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		expect(destination.searchParams.get("utm_source")).toBe("home-compare");
 		expect(destination.searchParams.get("utm_content")).toBe("compare-signup");
 		expect(untrackedOn("homepage arm B", response.text)).toEqual([]);
+	});
+
+	it("holds across homepage arm C, including its capability links", async () => {
+		const harness = useArmC(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS);
+		expect(response.status).toBe(200);
+		const document = new JSDOM(response.text).window.document;
+		const body = document.querySelector("body.page-home.variant-c");
+		assert(body, "the CTA audit must render homepage arm C");
+		expect(untrackedOn("homepage arm C", response.text)).toEqual([]);
 	});
 });

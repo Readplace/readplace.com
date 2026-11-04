@@ -4,6 +4,7 @@
       {{#if heroEyebrow}}<p class="home-hero__eyebrow" data-test-hero-eyebrow>{{heroEyebrow}}</p>{{/if}}
       <h1 class="home-hero__title" data-test-tagline>{{heroTitle}}</h1>
       <p class="home-hero__subhead">{{heroSubhead}}</p>
+      <p class="home-hero__subhead" data-test-saves-stay>{{heroSavesStay}}</p>
       <div class="home-hero__actions">
         {{#each heroActions}}
         <div class="home-hero__action">
@@ -71,7 +72,21 @@
     </div>
   </section>
 
-  <section id="not-becoming" class="home-principle home-band--muted" data-test-section="principle" aria-label="What Readplace is for">
+  <section id="what-you-get" class="home-capabilities home-band--muted" data-test-section="capabilities" aria-label="{{capabilitiesAriaLabel}}">
+    <div class="home-section__container">
+      <h2 class="home-section__title">{{capabilitiesTitle}}</h2>
+      <ul class="home-capabilities__list" role="list">
+        {{#each capabilities}}
+        <li class="home-capabilities__item" data-test-capability="{{key}}">
+          <h3 class="home-capabilities__name">{{name}}</h3>
+          <p class="home-capabilities__body">{{body}}{{#if link}} <a class="home-link" href="{{link.href}}">{{link.label}}</a>{{/if}}</p>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+  </section>
+
+  <section id="not-becoming" class="home-principle" data-test-section="principle" aria-label="What Readplace is for">
     <div class="home-section__container">
       <h2 class="home-section__title home-principle__title"><img class="home-principle__avatar" src="{{principleAvatarUrl}}" alt="{{principleAvatarAlt}}" width="56" height="56">{{principleTitle}}</h2>
       <p class="home-principle__body">{{principleBody}}</p>
@@ -79,7 +94,7 @@
     </div>
   </section>
 
-  <section id="pricing" class="home-pricing" data-test-section="pricing" aria-label="Pricing">
+  <section id="pricing" class="home-pricing home-band--muted" data-test-section="pricing" aria-label="Pricing">
     <div class="home-section__container home-pricing__container">
       <h2 class="home-section__title home-pricing__title">{{pricingTitleBefore}} <span class="home-pricing__amount" data-test-price>{{pricingPriceAmount}}</span> {{pricingTitleAfter}}</h2>
       <p class="home-pricing__note" data-test-saves-stay>{{pricingSavesStay}}</p>
@@ -113,7 +128,7 @@
     </div>
   </section>
 
-  <section id="faq" class="home-faq home-band--muted" data-test-section="faq" aria-label="Questions">
+  <section id="faq" class="home-faq" data-test-section="faq" aria-label="Questions">
     <div class="home-section__container">
       <h2 class="home-section__title">{{faqTitle}}</h2>
       <dl class="home-faq__list">
@@ -127,7 +142,7 @@
     </div>
   </section>
 
-  <section class="home-close" data-test-section="close" aria-label="Get started">
+  <section class="home-close home-band--muted" data-test-section="close" aria-label="Get started">
     <div class="home-section__container home-close__container">
       <h2 class="home-section__title">{{closeTitle}}</h2>
       <p class="home-close__links">
