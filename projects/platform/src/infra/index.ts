@@ -1,7 +1,7 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import * as random from "@pulumi/random";
-import { HutchEcrRepository, HutchEventBus } from "@packages/hutch-infra-components/infra";
+import { HutchEcrRepository, HutchEventBus, HutchS3ReadWrite } from "@packages/hutch-infra-components/infra";
 
 const config = new pulumi.Config();
 const eventBusName = config.require("eventBusName");
@@ -12,6 +12,11 @@ const eventBus = HutchEventBus.create("hutch", { eventBusName });
 const ocrLambdaRepository = HutchEcrRepository.create("hutch-ocr-lambda", {
 	repositoryName: ocrLambdaRepositoryName,
 	keepLastNImages: 200,
+});
+
+new HutchS3ReadWrite("hutch-media-bucket", {
+	bucketName: config.require("mediaBucketName"),
+	expirationRules: [{ id: "pending", expirationDays: 2, prefixes: ["pending/"] }],
 });
 
 // The curl_chrome131 bash wrapper + statically-linked curl-impersonate binary
