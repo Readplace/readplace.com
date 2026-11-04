@@ -44,6 +44,11 @@ export function anchorArticleSections(html: string): string {
 			heading.removeAttribute("id");
 			continue;
 		}
+		const incomingId = heading.getAttribute("id");
+		if (incomingId?.startsWith(ARTICLE_SECTION_ID_PREFIX) && !used.has(incomingId)) {
+			used.add(incomingId);
+			continue;
+		}
 		const slug = slugOf(text);
 		heading.setAttribute("id", mintAnchorId({ slug: slug === "" ? String(used.size + 1) : slug, used }));
 	}

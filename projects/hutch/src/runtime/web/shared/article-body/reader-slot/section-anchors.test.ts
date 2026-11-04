@@ -93,6 +93,34 @@ describe("anchorArticleSections", () => {
 		expect(headingIds(anchored)).toEqual([null, "section-results"]);
 	});
 
+	it("keeps a section id the heading already carries, so a link to it still lands", () => {
+		const anchored = anchorArticleSections('<h2 id="section-ch-3">Chapter Three</h2>');
+
+		expect(headingIds(anchored)).toEqual(["section-ch-3"]);
+	});
+
+	it("mints an id from the text of a heading that carries none, beside one that keeps its own", () => {
+		const anchored = anchorArticleSections(
+			'<h2 id="section-ch-1">Chapter One</h2><h3>Getting started</h3><h2 id="section-ch-2">Chapter Two</h2>',
+		);
+
+		expect(headingIds(anchored)).toEqual(["section-ch-1", "section-getting-started", "section-ch-2"]);
+	});
+
+	it("reserves a kept id, so a later heading whose slug matches it takes the next suffix", () => {
+		const anchored = anchorArticleSections('<h2 id="section-ch-3">Chapter Three</h2><h2>Ch 3</h2>');
+
+		expect(headingIds(anchored)).toEqual(["section-ch-3", "section-ch-3-2"]);
+	});
+
+	it("mints from the text of a heading whose section id an earlier heading already holds, so no id repeats", () => {
+		const anchored = anchorArticleSections(
+			'<h2>Ch 3</h2><h2 id="section-ch-3">Recap</h2><h2 id="section-a">One</h2><h2 id="section-a">Two</h2>',
+		);
+
+		expect(headingIds(anchored)).toEqual(["section-ch-3", "section-recap", "section-a", "section-two"]);
+	});
+
 	it("collapses the heading's whitespace before slugging it", () => {
 		const anchored = anchorArticleSections("<h2>\n  Getting\n\n   started  </h2>");
 

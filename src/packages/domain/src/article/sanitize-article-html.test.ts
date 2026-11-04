@@ -111,6 +111,12 @@ describe("sanitizeArticleHtml", () => {
 		expect(sanitizeArticleHtml(scriptImage)).toBe('<img alt="x" />');
 	});
 
+	it("keeps a link to a section in the same body, which a book's table of contents is made of", () => {
+		const tocLink = '<a href="#section-ch-3">Chapter 3</a>';
+
+		expect(sanitizeArticleHtml(tocLink)).toBe(tocLink);
+	});
+
 	it("keeps target and rel on links, which the same-host retarget and the video facade both write", () => {
 		const facadeLink =
 			'<a href="https://www.youtube.com/watch?v=1" target="_blank" rel="noopener noreferrer">Watch</a>';
