@@ -2,10 +2,10 @@
 title: "Pocket Shut Down in 2025. Here's How to Recover and Move Your Reading List."
 description: "Pocket closed on July 8, 2025. If you missed the export, your articles are often still recoverable. Here's how to find them and move to Readplace."
 excerpt: "Pocket went offline on July 8, 2025, and old emails and browser history can still hold the links."
-tldr: "Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, open the Import Links page and use the \"Upload a file\" tab. Pick the file, untick anything you don't want, then click Import. An account is needed only for that last click. Files over 4.5 MB or above 2,000 links have to be split into smaller files first."
+tldr: "Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the export file, open the Import Links page and use the \"Upload a file\" tab. Pick the file, untick anything you don't want, then click Import. An account is needed only for that last click. Files over 4.5 MB or above 2,000 links have to be split into smaller files first."
 slug: "pocket-migration"
 date: "2026-05-06"
-lastModified: "2026-11-03"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
@@ -20,7 +20,7 @@ Mozilla bought Pocket for an undisclosed amount in 2017. The team stayed small a
 
 By early 2025 Pocket was running in maintenance mode. Mozilla posted the shutdown notice on May 22, 2025. The app went offline on July 8, 2025, and exports stayed open until November 12, 2025.
 
-The export tool produced one HTML file with every saved URL and its title in it.
+The export tool produced one file with every saved URL and its title in it.
 
 If you grabbed that file, you already have what you need and you can skip ahead. I did not grab it, and that is where the work started.
 
@@ -54,7 +54,7 @@ Once I had a Pocket export file in hand, the rest was quick. The importer sits o
 
 The importer pulls in every URL the file holds.
 
-Tags, highlights, and read/unread state do not come across. Pocket's export format only carried URLs and titles, and the in-app importer reads any text-shaped file the same way, so there is nothing more to bring over.
+Tags, highlights, and read/unread state do not come across, because Readplace imports only the URLs. The importer reads any text-shaped file the same way, so there is nothing more to bring over.
 
 One snag worth knowing about. If your file runs over 4.5 MB or holds more than 2,000 links, split it into smaller files and import them one at a time.
 
@@ -101,7 +101,7 @@ If you downloaded the export file before November 12, 2025, it still works fine.
 
 **How do I import Pocket articles into another app?**
 
-Most read-it-later apps take the HTML export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open [Import Links](/import?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=import), upload the file under the "Upload a file" tab, and confirm the link list. For files over 4.5 MB or imports above the 2,000-URL cap, split the export into smaller files and import them one at a time.
+Most read-it-later apps take the export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open [Import Links](/import?utm_source=blog-pocket-migration&utm_medium=internal&utm_content=import), upload the file under the "Upload a file" tab, and confirm the link list. For files over 4.5 MB or imports above the 2,000-URL cap, split the export into smaller files and import them one at a time.
 
 **I lost my Omnivore reading list too. Can Readplace help?**
 

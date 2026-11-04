@@ -5,7 +5,7 @@ excerpt: "A noindex tag hid a working import page from search engines and AI ass
 tldr: "The page that imports your old reading list used to carry a noindex tag, so search engines and AI assistants could not see it. It worked for anyone who reached it: upload a file or paste a link, review the addresses it finds, and sign in only at the end to save them. But the page told crawlers to skip it, so the person searching for a way off Pocket, or asking an assistant, did not land there. It returns index, follow now, with one canonical address and a spot in the sitemap. It also grew a short how-it-works, the file types it reads, and five plain questions with answers, written both as text you can read and as FAQPage structured data a search engine or an assistant can quote. The tabs flipped too, so the page opens on paste-a-link instead of file upload, because most people arriving cold have a link, not an export file."
 slug: "import-page-findable-in-search"
 date: "2026-07-08"
-lastModified: "2026-10-01"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
 keywords: "import pocket links, how to import reading list, import bookmarks to read it later, migrate off pocket, import links without an account, read it later import, import newsletter links, pocket export html, find the import page in search, ai assistant import reading list"
 ---
@@ -30,7 +30,7 @@ Being listed is the floor. A blank page that ranks is still a blank page. So the
 
 The questions are the ones a reader types, or puts to an assistant, right when they are about to move a list.
 
-Do I need an account to import? No, not until you save the selection. What files work? Any text-shaped file, because it scans for `http` addresses and the format around them does not matter. Is there a Pocket import? Yes, the HTML file Pocket handed you on the way out. How many links at once? Up to 2,000, from a file up to 4.5 MB, and anything larger has to be split into parts and imported one at a time.
+Do I need an account to import? No, not until you save the selection. What files work? Any text-shaped file, because it scans for `http` addresses and the format around them does not matter. Is there a Pocket import? Yes, the CSV file Pocket handed you on the way out. How many links at once? Up to 2,000, from a file up to 4.5 MB, and anything larger has to be split into parts and imported one at a time.
 
 Those answers sit on the page as text a reader can see. They also sit in the markup as [FAQPage structured data](/view/schema.org/FAQPage?utm_source=blog-import-page-findable-in-search&utm_medium=internal&utm_content=read-schema-org), the format a search engine reads to show a question and its answer inside the results.
 
