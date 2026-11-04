@@ -5,6 +5,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import type { ReadabilityAdditions } from "./article-parser.types";
 import { readabilityAdditions } from "./readability-additions";
+import { initArticleSiteRules } from "./article-site-rules";
 import { initReadabilityParser } from "./readability-parser";
 import { noExtract, noRecovery, noTransform, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
@@ -1428,5 +1429,60 @@ describe("the publish date", () => {
 		} finally {
 			spy.mockRestore();
 		}
+	});
+});
+
+describe("a Quora shared post, through the registered site rules", () => {
+	const POST_URL = "https://sample-space.quora.com/How-often-is-a-sample-part-designed";
+	const QUESTION = "How often is a sample part designed, rather than combined from existing ones?";
+	const SHARED_ANSWER = "https://www.quora.com/How-often-is-a-sample-part-designed/answer/Sample-Person";
+	const FIRST_TEXT = "Depends on a lot of factors, because a single mould takes months of work to get right.";
+	const BODY = `<article>
+		<p>${FIRST_TEXT}</p>
+		<p>Each new part has to justify its tooling cost against what the existing catalogue can already do, and most proposals never survive that comparison.</p>
+		<p>A designer will usually try several combinations of existing parts first, and only asks for a new mould once none of them holds up in testing.</p>
+	</article>`;
+
+	function postDocument(metas: { title: string; description: string }): string {
+		return `<!DOCTYPE html><html><head><title>${QUESTION} - Sample Space</title>
+			<meta property="og:title" content="${metas.title}">
+			<meta name="twitter:title" content="${metas.title}">
+			<meta property="og:description" content="${metas.description}">
+			<meta name="twitter:description" content="${metas.description}">
+		</head><body>${BODY}</body></html>`;
+	}
+
+	function parseWith(params: { html: string; siteRules: readonly SiteRules[] }) {
+		const { parseHtml } = initReadabilityParser({
+			crawlArticle: async () => ({ status: "fetched" as const, html: params.html, bodyHash: "a".repeat(64) }),
+			siteRules: params.siteRules,
+			readabilityAdditions,
+			logError: () => {},
+		});
+		const result = parseHtml({ url: POST_URL, documentUrl: POST_URL, html: params.html, thumbnailUrl: null });
+		assert(result.ok, "the sanitized Quora document must parse");
+		return result.article;
+	}
+
+	const { siteRules } = initArticleSiteRules({ crawlFetch: async () => new Response(null, { status: 404 }), logError: () => {} });
+
+	it("gives the question as the title, its first text as the excerpt, and the same word count", () => {
+		const html = postDocument({ title: `${SHARED_ANSWER} `, description: `${SHARED_ANSWER} ` });
+
+		const article = parseWith({ html, siteRules });
+
+		assert.equal(article.title, QUESTION);
+		assert.equal(article.excerpt, FIRST_TEXT);
+		assert.equal(article.wordCount, parseWith({ html, siteRules: [] }).wordCount);
+	});
+
+	it("keeps real metadata on a sibling Quora document", () => {
+		const article = parseWith({
+			html: postDocument({ title: "A real title", description: "A real description" }),
+			siteRules,
+		});
+
+		assert.equal(article.title, "A real title");
+		assert.equal(article.excerpt, "A real description");
 	});
 });

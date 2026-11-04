@@ -100,3 +100,14 @@ describe("an emailed Amazon product link's save button", () => {
 		expect(save.getAttribute("data-test-save-state")).toBe("unsaved");
 	});
 });
+
+describe("an emailed link carrying a personal param's save button", () => {
+	it("reads saved once the link was saved under its clean URL", async () => {
+		const save = await cardFor({
+			cardUrl: "https://www.youtube.com/watch?v=abc123&_hsenc=p2ANqtz-placeholder&_hsmi=12345",
+			record: ({ store, userId }) => store.markLinkSaved({ userId, url: "https://www.youtube.com/watch?v=abc123" }),
+		});
+
+		expect(save.getAttribute("data-test-save-state")).toBe("saved");
+	});
+});

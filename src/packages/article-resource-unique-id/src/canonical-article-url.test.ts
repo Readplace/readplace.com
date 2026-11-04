@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { equivalentArticleUrls, toCanonicalArticleUrl } from "./canonical-article-url";
-import { ArticleResourceUniqueId } from "./index";
+import { ArticleResourceUniqueId, canonicalIdentityOf } from "./index";
 
 const SHORT = "https://www.amazon.com.au/dp/1492043451?ref_=mr_direct_us_au_au&showmri";
 const TITLE = "https://www.amazon.com.au/Fundamentals-Software-Architecture-Neal-Ford/dp/1492043451";
@@ -39,6 +39,24 @@ describe("toCanonicalArticleUrl", () => {
 	});
 });
 
+describe("personal link params in the article key", () => {
+	it("saves a link carrying a HubSpot param under the clean URL", () => {
+		assert.equal(
+			toCanonicalArticleUrl("https://www.youtube.com/watch?v=abc123&_hsenc=p2ANqtz-placeholder&_hsmi=12345"),
+			"https://www.youtube.com/watch?v=abc123",
+		);
+	});
+
+	it("gives one identity to the same article saved with two different tokens and with none", () => {
+		const post = "https://www.ai-supremacy.com/p/sample-post";
+
+		assert.deepEqual(
+			[`${post}?token=placeholder-a`, `${post}?token=placeholder-b`, post].map(canonicalIdentityOf),
+			Array(3).fill(canonicalIdentityOf(post)),
+		);
+	});
+});
+
 describe("equivalentArticleUrls", () => {
 	it("lists a title link, then its bare link", () => {
 		expect(equivalentArticleUrls(TITLE)).toEqual([TITLE, BARE]);
@@ -53,6 +71,21 @@ describe("equivalentArticleUrls", () => {
 
 		expect(equivalentArticleUrls(httpBare)).toEqual([httpBare, BARE]);
 		expect(ArticleResourceUniqueId.parse(httpBare).value).toBe(ArticleResourceUniqueId.parse(BARE).value);
+	});
+
+	it("lists a link carrying a personal param, then its clean link", () => {
+		expect(equivalentArticleUrls("https://www.youtube.com/watch?v=abc123&_hsenc=p2ANqtz-placeholder")).toEqual([
+			"https://www.youtube.com/watch?v=abc123&_hsenc=p2ANqtz-placeholder",
+			"https://www.youtube.com/watch?v=abc123",
+		]);
+	});
+
+	it("lists both hosts of a tweet's clean link after one carrying a personal param", () => {
+		expect(equivalentArticleUrls("https://twitter.com/jack/status/20?mc_cid=placeholder")).toEqual([
+			"https://twitter.com/jack/status/20?mc_cid=placeholder",
+			"https://x.com/jack/status/20",
+			"https://twitter.com/jack/status/20",
+		]);
 	});
 
 	it("still lists both hosts for a tweet", () => {

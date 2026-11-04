@@ -12,6 +12,7 @@ import type { SiteRules } from "@packages/site-rules";
 import { linkedinSiteRules } from "./linkedin-site-rules";
 import { mediaWikiSiteRules } from "./mediawiki-site-rules";
 import { mediumSiteRules } from "./medium-site-rules";
+import { quoraSiteRules } from "./quora-site-rules";
 import { substackSiteRules } from "./substack-site-rules";
 import { theInformationSiteRules } from "./the-information-site-rules";
 
@@ -34,7 +35,7 @@ export function initArticleSiteRules(deps: {
 		initHnSearchSiteRules(deps),
 	];
 	return {
-		siteRules: [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, substackSiteRules, ...crawlClaimingSiteRules],
+		siteRules: [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, mediaWikiSiteRules, quoraSiteRules, substackSiteRules, ...crawlClaimingSiteRules],
 		crawlClaimingSiteRules,
 	};
 }

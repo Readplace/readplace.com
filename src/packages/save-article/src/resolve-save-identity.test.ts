@@ -212,6 +212,14 @@ it("cleans a syntactic target for admin recrawl", () => {
 	expect(cleanWrapperTarget({ wrapperUrl: ARCHIVE, targetUrl: WAYBACK })).toEqual({ status: "SUCCESS", url: ORIGINAL });
 });
 
+it("cleans a HubSpot wrapper target of its personal link params", () => {
+	expect(
+		cleanWrapperTarget({
+			wrapperUrl: "https://t.hubspotlinks.example/e3/placeholder",
+			targetUrl: `${ORIGINAL}?_hsenc=p2ANqtz-placeholder&_hsmi=12345`,
+		}),
+	).toEqual({ status: "SUCCESS", url: ORIGINAL });
+});
 
 it("retains an outer capture through nested syntactic wrapper resolution", async () => {
 	const inner = `https://web.archive.org/web/2025/${ORIGINAL}`;
