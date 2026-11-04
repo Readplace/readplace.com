@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId, shownSummary, viewerFor } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, shownSummary, type Viewer, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
@@ -1624,6 +1624,39 @@ describe("initSendQueueDigestHandler", () => {
 				lastSentAt: undefined,
 				lastMessageId: undefined,
 			});
+		});
+
+		it("reads each save's summary and body as the reader the digest is for", async () => {
+			const reads: Array<{ port: string; viewer: Viewer }> = [];
+			const delegates: Partial<Pick<SendQueueDigestDeps, "findGeneratedSummary" | "readArticleContent">> = {};
+			const subject = createSubject({
+				overrides: {
+					findGeneratedSummary: async (read) => {
+						reads.push({ port: "findGeneratedSummary", viewer: read.viewer });
+						assert(delegates.findGeneratedSummary);
+						return delegates.findGeneratedSummary(read);
+					},
+					readArticleContent: async (read) => {
+						reads.push({ port: "readArticleContent", viewer: read.viewer });
+						assert(delegates.readArticleContent);
+						return delegates.readArticleContent(read);
+					},
+				},
+			});
+			delegates.findGeneratedSummary = subject.summaries.findGeneratedSummary;
+			delegates.readArticleContent = initReadArticleContentOrThrow({
+				findItemOwner: async () => undefined,
+				storageProviderQueryOrder: [subject.articleStore.readContent],
+			});
+			await PLANS.regular(subject);
+			await saveReadyArticle(subject, { url: "https://example.com/alpha", title: "Alpha", savedAt: DAY_OLD_SAVE });
+
+			await subject.run();
+
+			expect(reads).toEqual([
+				{ port: "findGeneratedSummary", viewer: viewerFor(USER_ID) },
+				{ port: "readArticleContent", viewer: viewerFor(USER_ID) },
+			]);
 		});
 
 		describe.each(["regular", "pay"] as const)("when the book cannot be built for a %s digest", (kind) => {

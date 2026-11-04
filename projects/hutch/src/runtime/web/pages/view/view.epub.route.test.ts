@@ -425,6 +425,7 @@ describe("GET /view/<url>?format=<download>", () => {
 			expect(response.headers["content-type"]).toBe("application/epub+zip");
 			const files = unzipSync(new Uint8Array(response.body));
 			expect(strFromU8(files["OEBPS/content.xhtml"])).toContain("PRIVATE-BOOK-BODY");
+			expect(strFromU8(files["OEBPS/content.opf"])).toContain("<dc:title>A private book</dc:title>");
 		});
 
 		it("answers another signed-in reader with the not-found page and no private body", async () => {

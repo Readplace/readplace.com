@@ -7,7 +7,7 @@ import type {
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
-import type { FindArticleByUrl, FindArticleCrawlVersions, FindArticleFreshness } from "@packages/provider-contracts/article-store";
+import type { FindArticleByUrl, FindArticleCrawlVersions, FindArticleFreshness, FindItemOwner } from "@packages/provider-contracts/article-store";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
@@ -36,6 +36,7 @@ const RecrawlUrlSchema = z.url();
 export interface AdminRecrawlDependencies {
 	appOrigin: string;
 	findArticleByUrl: FindArticleByUrl;
+	findItemOwner: FindItemOwner;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
 	resolveWrapperTarget: ResolveWrapperTarget;
 	findArticleFreshness: FindArticleFreshness;
@@ -166,7 +167,7 @@ async function renderRecrawlPage(
 		return;
 	}
 
-	const { articleUrl, existing } = await resolveStoredArticle(requestedUrl);
+	const { articleUrl, existing } = await resolveStoredArticle(requestedUrl, ANONYMOUS_VIEWER);
 	if (!existing) {
 		// The endpoint is explicitly for human intervention on an existing
 		// saved URL. Do not create a stub; surface 404.
@@ -220,7 +221,7 @@ function handleTriggerRecrawl(deps: AdminRecrawlDependencies, resolveStoredArtic
 			return;
 		}
 
-		const { articleUrl, existing } = await resolveStoredArticle(requestedUrl);
+		const { articleUrl, existing } = await resolveStoredArticle(requestedUrl, ANONYMOUS_VIEWER);
 		if (!existing) {
 			// The endpoint is explicitly for human intervention on an existing
 			// saved URL. Do not create a stub; surface 404.
@@ -267,7 +268,7 @@ function handleSummaryPoll(
 			res.status(400).type("html").send("");
 			return;
 		}
-		const { articleUrl } = await resolveStoredArticle(new URL(parsed.data).toString());
+		const { articleUrl } = await resolveStoredArticle(new URL(parsed.data).toString(), ANONYMOUS_VIEWER);
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
@@ -298,7 +299,7 @@ function handleReaderPoll(
 			res.status(400).type("html").send("");
 			return;
 		}
-		const { articleUrl } = await resolveStoredArticle(new URL(parsed.data).toString());
+		const { articleUrl } = await resolveStoredArticle(new URL(parsed.data).toString(), ANONYMOUS_VIEWER);
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
 			articleUrl,
@@ -333,6 +334,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
+		findItemOwner: deps.findItemOwner,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,

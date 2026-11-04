@@ -16,6 +16,7 @@ import type {
 } from "@packages/provider-contracts/article-summary";
 import type {
 	FindArticleByUrl,
+	FindItemOwner,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	ReadArticleContent,
@@ -56,6 +57,7 @@ export interface ArticleReaderDeps {
 	 * in place once the crawl writes the real title over the hostname stub.
 	 */
 	findArticleByUrl: FindArticleByUrl;
+	findItemOwner: FindItemOwner;
 	/**
 	 * Each reader keeps its own browser-tab title format
 	 * (queue: "X — Readplace Reader", view: "X | Reader View"). The article-

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
-import { ANONYMOUS_VIEWER, ReaderArticleHashId, shownSummary, storedArticleBody } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, ReaderArticleHashId, shownSummary, storedArticleBody, type Viewer, viewerFor } from "@packages/domain/article";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type { ArticleCrawlVersion } from "@packages/provider-contracts/article-store";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -79,10 +80,15 @@ function initFakeDeps(initial: {
 	contentFetchedAt?: string;
 	crawlVersions?: ArticleCrawlVersion[];
 	requestResolutionOnView?: RequestResolutionOnView;
+	owner?: UserId;
 } = {}): {
 	state: FakeState;
 	deps: ArticleReaderDeps;
+	reads: { port: string; viewer: Viewer | undefined }[];
+	ownerLookups: string[];
 } {
+	const reads: { port: string; viewer: Viewer | undefined }[] = [];
+	const ownerLookups: string[] = [];
 	const state: FakeState = {
 		crawl: initial.crawl,
 		summary: initial.summary,
@@ -93,9 +99,22 @@ function initFakeDeps(initial: {
 	};
 	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
-		findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: state.summary }),
-		readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: state.content, viewer, ownerUserId: undefined }),
-		findArticleByUrl: async () => state.article,
+		findGeneratedSummary: async ({ url, viewer }) => {
+			reads.push({ port: "findGeneratedSummary", viewer });
+			return shownSummary({ url, viewer, ownerUserId: initial.owner, summary: state.summary });
+		},
+		readArticleContent: async ({ url, viewer }) => {
+			reads.push({ port: "readArticleContent", viewer });
+			return storedArticleBody({ url, html: state.content, viewer, ownerUserId: initial.owner });
+		},
+		findArticleByUrl: async (_url, viewer) => {
+			reads.push({ port: "findArticleByUrl", viewer });
+			return state.article;
+		},
+		findItemOwner: async (url) => {
+			ownerLookups.push(url);
+			return initial.owner;
+		},
 		findArticleCrawlVersions: async () => state.crawlVersions,
 		findArticleFreshness: async () =>
 			state.contentFetchedAt === undefined
@@ -106,7 +125,7 @@ function initFakeDeps(initial: {
 		summaryOpen: initial.summaryOpen ?? true,
 		requestResolutionOnView: initial.requestResolutionOnView,
 	};
-	return { state, deps };
+	return { state, deps, reads, ownerLookups };
 }
 
 function parse(html: string): Document {
@@ -641,6 +660,78 @@ describe("initArticleReader", () => {
 			assert(slot, "summary slot must be rendered");
 			expect(slot.getAttribute("data-summary-status")).toBe("skipped");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
+		});
+	});
+
+	describe("polls for a private upload", () => {
+		const PRIVATE_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const OWNER = UserIdSchema.parse("owner-1");
+
+		function pollParams(viewer: Viewer, articleUrl: string) {
+			return {
+				viewer,
+				articleUrl,
+				articleId: undefined,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				capture: NO_CAPTURE_WATCH,
+				extensionInstallUrl: undefined,
+				summaryToggleUrl: undefined,
+				provenance: undefined,
+				saved: undefined,
+				readerViewFailedOob: () => "",
+				renderDownloadsOob: undefined,
+			};
+		}
+
+		function privateUploadReader() {
+			const fake = initFakeDeps({
+				crawl: { status: "ready" },
+				content: "<p>PRIVATE-BOOK-BODY</p>",
+				owner: OWNER,
+			});
+			return { ...fake, reader: initArticleReader(fake.deps) };
+		}
+
+		it.each([
+			["a signed-out reader", ANONYMOUS_VIEWER],
+			["another reader", viewerFor(UserIdSchema.parse("another-reader"))],
+		])("answers %s's reader and summary polls with the not-an-article fragment", async (_name, viewer) => {
+			const { reader } = privateUploadReader();
+
+			const responses = [
+				toHtml(await reader.handleReaderPoll(pollParams(viewer, PRIVATE_URL))),
+				toHtml(await reader.handleSummaryPoll(pollParams(viewer, PRIVATE_URL))),
+			];
+
+			expect(responses.map((html) => parse(html).querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status"))).toEqual([
+				"not-an-article",
+				"not-an-article",
+			]);
+			expect(responses.filter((html) => html.includes("PRIVATE-BOOK-BODY"))).toEqual([]);
+		});
+
+		it("renders the body to its owner and reads every port as the owner", async () => {
+			const { reader, reads } = privateUploadReader();
+			const owner = viewerFor(OWNER);
+
+			const html = toHtml(await reader.handleReaderPoll(pollParams(owner, PRIVATE_URL)));
+
+			expect(html).toContain("PRIVATE-BOOK-BODY");
+			expect(reads).toEqual([
+				{ port: "findGeneratedSummary", viewer: owner },
+				{ port: "readArticleContent", viewer: owner },
+				{ port: "findArticleByUrl", viewer: owner },
+			]);
+		});
+
+		it("reads no owner for an ordinary article's poll", async () => {
+			const { reader, ownerLookups } = privateUploadReader();
+
+			await reader.handleReaderPoll(pollParams(ANONYMOUS_VIEWER, ARTICLE_URL));
+			await reader.handleSummaryPoll(pollParams(ANONYMOUS_VIEWER, ARTICLE_URL));
+
+			expect(ownerLookups).toEqual([]);
 		});
 	});
 

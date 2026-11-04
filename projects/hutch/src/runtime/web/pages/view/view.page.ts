@@ -6,9 +6,10 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isNonArticleHost, isWrapperUrl, unwrapWrapperUrl, viewerFor, wrapperFamilyOf } from "@packages/domain/article";
+import { newSaveAttemptId, articleDestinationUrl, calculateReadTime, hostStubMetadata, isArchiveHost, isPrivateItemUrl, isPubliclyWithheld, isWrapperUrl, unwrapWrapperUrl, viewerFor, wrapperFamilyOf } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
+	FindItemOwner,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindIdentityRow,
@@ -92,6 +93,7 @@ interface ViewDependencies {
 	ownHost: string;
 	secureCookies: boolean;
 	findArticleByUrl: FindArticleByUrl;
+	findItemOwner: FindItemOwner;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	readArticleContent: ReadArticleContent;
@@ -253,6 +255,7 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
+		findItemOwner: deps.findItemOwner,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,
@@ -313,7 +316,7 @@ function handleViewArticle(
 		// Collapse an adopted terminal URL onto the article it aliases before any
 		// read/write, so viewing the terminal shows the deduped article and never
 		// mints a real row on top of the inert alias marker.
-		let { articleUrl, existing } = await resolveStoredArticle(validation.url);
+		let { articleUrl, existing } = await resolveStoredArticle(validation.url, viewerFor(req.userId));
 
 		// Freshness/conditional-GET is delegated to the stale-check Lambda so
 		// /view never blocks on a remote crawl (Medium-hosted articles can take
@@ -378,7 +381,7 @@ function handleViewArticle(
 			return;
 		}
 		const stubReadTime = calculateReadTime(0);
-		const gated = isNonArticleHost(articleUrl);
+		const gated = isPubliclyWithheld(articleUrl);
 		// A prefetch gets the rendered page (stub metadata below) but triggers
 		// none of the paid crawl work: a speculative fetch is not a reader asking
 		// to spend budget. Bots are deliberately NOT excluded — a third-party
@@ -551,11 +554,15 @@ function handleViewArticle(
 		});
 		const actions: ViewAction[] = [
 			PASTE_ANOTHER_ACTION,
-			saveAction({
-				articleUrl,
-				utmParams,
-				saveTipState: state.readerViewFailed ? saveTip.state : undefined,
-			}),
+			...(isPrivateItemUrl(articleUrl)
+				? []
+				: [
+						saveAction({
+							articleUrl,
+							utmParams,
+							saveTipState: state.readerViewFailed ? saveTip.state : undefined,
+						}),
+					]),
 		];
 
 		const showExtensionSuggestionBanner =
@@ -600,7 +607,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			res.status(400).type("html").send("");
 			return;
 		}
-		const { articleUrl, existing } = await resolveStoredArticle(validation.url);
+		const { articleUrl, existing } = await resolveStoredArticle(validation.url, viewerFor(req.userId));
 		// Stop the htmx summary poll chain once the URL is purged.
 		if (existing?.purgedAt !== undefined) {
 			res.status(404).type("html").send("");
@@ -635,7 +642,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			res.status(400).type("html").send("");
 			return;
 		}
-		const { articleUrl, existing } = await resolveStoredArticle(validation.url);
+		const { articleUrl, existing } = await resolveStoredArticle(validation.url, viewerFor(req.userId));
 		// Stop the htmx reader poll chain once the URL is purged.
 		if (existing?.purgedAt !== undefined) {
 			res.status(404).type("html").send("");

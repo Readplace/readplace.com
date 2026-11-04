@@ -1388,7 +1388,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 		return article ? article.originalUrl : null;
 	};
 
-	const findArticleByUrl: FindArticleByUrl = async (url) => {
+	const findArticleByUrl: FindArticleByUrl = async (url, viewer = ANONYMOUS_VIEWER) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await unverifiedArticles.get(
 			{ url: articleResourceUniqueId.value },
@@ -1409,6 +1409,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 					"contentSourceTier",
 					"purgedAt",
 					"readerAvailableAt",
+					"ownerUserId",
 				],
 			},
 		);
@@ -1433,8 +1434,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 				wordCount: row.wordCount,
 				imageUrl: row.imageUrl,
 				publishedOn: row.publishedOn,
-				viewer: ANONYMOUS_VIEWER,
-				ownerUserId: undefined,
+				viewer,
+				ownerUserId: row.ownerUserId,
 			}),
 			estimatedReadTime: row.estimatedReadTime,
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),

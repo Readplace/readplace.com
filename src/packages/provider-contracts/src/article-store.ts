@@ -130,6 +130,7 @@ export interface GlobalArticleData {
 
 export type FindArticleByUrl = (
 	url: string,
+	viewer?: Viewer,
 ) => Promise<GlobalArticleData | null>;
 
 export type FindArticlesByUser = (

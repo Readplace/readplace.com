@@ -229,12 +229,13 @@ export function initProdProviders(input: { appOrigin: string }) {
 	};
 	const resolveSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget });
 	const resolveStoredSaveIdentity = initResolveSaveIdentity({ ...saveIdentityDeps, resolveWrapperTarget: neverResolveWrapperTarget });
+	const { findItemOwner } = initDynamoDbFindItemOwner({ client, tableName: articlesTable });
 	const readArticleContent = initReadArticleContent({
 		storageProviderQueryOrder: [
 			initS3ReadContent({ send: (cmd) => s3Client.send(cmd), readContentLocation: initReadContentLocation({ client, tableName: articlesTable, bucketName: contentBucketName }) }),
 			articleStore.readContent, // Legacy fallback for articles saved before S3 migration
 		],
-		findItemOwner: initDynamoDbFindItemOwner({ client, tableName: articlesTable }).findItemOwner,
+		findItemOwner,
 		logError,
 	});
 	const readArticleImage = initS3ReadArticleImage({
@@ -537,6 +538,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 			metricLog: HutchLogger.fromJSON<ReadlistCapApproachedLine>().info,
 		}),
 		readArticleContent,
+		findItemOwner,
 		readArticleImage,
 		importSessionStore,
 		extractLinksFromPageUrl,

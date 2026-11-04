@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
-import type { UserId } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
 
@@ -2363,6 +2363,28 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 		});
 
 		const data = await initStore(client).findArticleByUrl(PRIVATE_ITEM_URL);
+
+		expect(data?.metadata).toStrictEqual(PRIVATE_ITEM_STUB);
+	});
+
+	it("findArticleByUrl shows a private upload's own title to its owner", async () => {
+		const { client, commands } = createFakeClient({
+			GetCommand: { default: { Item: articleItem(PRIVATE_ITEM_ROW) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl(PRIVATE_ITEM_URL, viewerFor(USER));
+
+		const get = commands.find((c) => c.name === "GetCommand");
+		expect(Object.values(get?.input.ExpressionAttributeNames ?? {})).toContain("ownerUserId");
+		expect(data?.metadata.title).toBe("My private book");
+	});
+
+	it("findArticleByUrl shows the private upload stub to a reader who does not own it", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: articleItem(PRIVATE_ITEM_ROW) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl(PRIVATE_ITEM_URL, viewerFor(UserIdSchema.parse("another-user")));
 
 		expect(data?.metadata).toStrictEqual(PRIVATE_ITEM_STUB);
 	});

@@ -115,6 +115,7 @@ import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindItemOwner,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
@@ -432,6 +433,7 @@ interface AppDependencies {
 	};
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
+	findItemOwner: FindItemOwner;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
@@ -1513,6 +1515,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		countArticlesByUser: deps.countArticlesByUser,
 		findArticleById: deps.findArticleById,
 		findArticleByUrl: deps.findArticleByUrl,
+		findItemOwner: deps.findItemOwner,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		findArticleUrlById: deps.findArticleUrlById,
@@ -1665,6 +1668,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		ownHost,
 		secureCookies,
 		findArticleByUrl: deps.findArticleByUrl,
+		findItemOwner: deps.findItemOwner,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		readArticleContent: deps.readArticleContent,
@@ -1695,6 +1699,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const adminRecrawlRouter = initAdminRecrawlRoutes({
 		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
+		findItemOwner: deps.findItemOwner,
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		resolveWrapperTarget: withSyntacticUnwrap(deps.resolveWrapperTarget),
 		findArticleFreshness: deps.findArticleFreshness,

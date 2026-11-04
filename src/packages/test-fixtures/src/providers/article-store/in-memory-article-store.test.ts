@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { Minutes } from "@packages/domain/article";
 import { formatEmailLinkOrdinal } from "@packages/domain/inbox";
 import {
@@ -219,6 +219,39 @@ describe("initInMemoryArticleStore", () => {
 			const found = await store.findArticleByUrl("https://example.com/article");
 
 			expect(found?.savedAt).toEqual(savedAt);
+		});
+
+		describe("for a private upload", () => {
+			const privateUrl = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+
+			async function seedPrivateUpload() {
+				const store = initInMemoryArticleStore();
+				await store.saveArticleGlobally({
+					url: privateUrl,
+					metadata: { title: "My private book", siteName: "Private press", excerpt: "", wordCount: 3 },
+					estimatedReadTime: 1 as Minutes,
+					savedAt: new Date("2026-09-01T00:00:00.000Z"),
+				});
+				await store.recordItemOwner({ url: privateUrl, ownerUserId: USER_A });
+				return store;
+			}
+
+			it("shows the owner the upload's own title", async () => {
+				const store = await seedPrivateUpload();
+
+				const found = await store.findArticleByUrl(privateUrl, viewerFor(USER_A));
+
+				expect(found?.metadata.title).toBe("My private book");
+			});
+
+			it("shows the private stub to another reader and to a read for no particular reader", async () => {
+				const store = await seedPrivateUpload();
+
+				const forOther = await store.findArticleByUrl(privateUrl, viewerFor(USER_B));
+				const forNobody = await store.findArticleByUrl(privateUrl);
+
+				expect([forOther?.metadata.title, forNobody?.metadata.title]).toEqual(["Private upload", "Private upload"]);
+			});
 		});
 	});
 

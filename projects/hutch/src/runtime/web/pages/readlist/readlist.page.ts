@@ -55,6 +55,7 @@ import type {
 	DeleteReadlistArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindItemOwner,
 	FindArticleCrawlVersions,
 	FindArticleFreshness,
 	FindArticleUrlById,
@@ -418,6 +419,7 @@ interface ReadlistDependencies {
 	countArticlesByUser: CountArticlesByUser;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
+	findItemOwner: FindItemOwner;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
@@ -996,6 +998,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
+		findItemOwner: deps.findItemOwner,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,

@@ -238,6 +238,7 @@ function flattenFixtureToAppDependencies(
 		recordEngagementActivity: fixture.engagementStarter.recordEngagementActivity,
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,
+		findItemOwner: fixture.articleStore.findItemOwner,
 		readArticleImage: fixture.articleStore.readArticleImage,
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(fixture.articleCrawl.findArticleCrawlStatus),

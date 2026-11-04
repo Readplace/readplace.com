@@ -506,7 +506,7 @@ export function initInMemoryArticleStore(): {
 		return article ? article.originalUrl : null;
 	};
 
-	const findArticleByUrl: FindArticleByUrl = async (url) => {
+	const findArticleByUrl: FindArticleByUrl = async (url, viewer = ANONYMOUS_VIEWER) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const article = articles.get(articleResourceUniqueId.value);
 		if (!article) return null;
@@ -525,8 +525,8 @@ export function initInMemoryArticleStore(): {
 				wordCount: article.metadata.wordCount,
 				imageUrl: article.metadata.imageUrl,
 				publishedOn: article.metadata.publishedOn,
-				viewer: ANONYMOUS_VIEWER,
-				ownerUserId: undefined,
+				viewer,
+				ownerUserId: article.ownerUserId,
 			}),
 			content: article.content,
 

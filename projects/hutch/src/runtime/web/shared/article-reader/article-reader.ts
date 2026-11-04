@@ -5,6 +5,8 @@ import {
 	displayableReadTime,
 	hostStubMetadata,
 	isNonArticleHost,
+	isPrivateItemUrl,
+	mayReadItem,
 	type ArticleBody,
 	type ShownSummary,
 	type StoredArticleBody,
@@ -438,7 +440,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
 			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
-			deps.findArticleByUrl(articleUrl),
+			deps.findArticleByUrl(articleUrl, params.viewer),
 		]);
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const { readerPollUrl, summaryPollUrl, capturePollUrls, capture } = computePollUrls({
@@ -505,7 +507,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
 			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
-			deps.findArticleByUrl(articleUrl),
+			deps.findArticleByUrl(articleUrl, params.viewer),
 		]);
 		const { crawl, summary } = await claimAfterDeviceGaveUp(params, { crawl: loadedCrawl, summary: loadedSummary });
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
@@ -546,5 +548,25 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		}));
 	}
 
-	return { resolveReaderState, resolveReaderStateFrom, handleSummaryPoll, handleReaderPoll };
+	function withPrivateItemWithholding(
+		primary: "reader" | "summary",
+		handle: (params: HandlePollParams) => Promise<Component>,
+	): (params: HandlePollParams) => Promise<Component> {
+		return async (params) => {
+			if (isPrivateItemUrl(params.articleUrl)) {
+				const ownerUserId = await deps.findItemOwner(params.articleUrl);
+				if (!mayReadItem({ url: params.articleUrl, viewer: params.viewer, ownerUserId })) {
+					return gatedPollResponse(primary, params.articleUrl);
+				}
+			}
+			return handle(params);
+		};
+	}
+
+	return {
+		resolveReaderState,
+		resolveReaderStateFrom,
+		handleSummaryPoll: withPrivateItemWithholding("summary", handleSummaryPoll),
+		handleReaderPoll: withPrivateItemWithholding("reader", handleReaderPoll),
+	};
 }
