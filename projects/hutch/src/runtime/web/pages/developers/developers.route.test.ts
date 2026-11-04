@@ -221,7 +221,7 @@ describe("/developers documents what the API emits", () => {
 	});
 
 	it("documents every frontmatter key a fully populated article document carries", async () => {
-		const summary = createFakeSummaryProvider();
+		const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
 		const root = await readPage(harness);
 		const url = "https://example.com/frontmatter";

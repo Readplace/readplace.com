@@ -56,7 +56,7 @@ function buildFixture(opts?: { summaryReady?: boolean }): TestAppFixture {
 		summary: opts?.summaryReady
 			? {
 					...base.summary,
-					findGeneratedSummary: async (url) => shownSummary({ url, summary: {
+					findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 						status: "ready",
 						summary: "A concise summary.",
 						excerpt: "Lead line.",

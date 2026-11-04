@@ -12,7 +12,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
-import { ReaderArticleHashId, calculateReadTime, shownSummary } from "@packages/domain/article";
+import { ReaderArticleHashId, calculateReadTime, shownSummary, type Viewer } from "@packages/domain/article";
 
 import request from "supertest";
 import { viewPathFor } from "../view/view-path";
@@ -937,7 +937,7 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Key points from the article distilled into a brief summary.",
 			} });
@@ -1170,7 +1170,7 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "failed" as const,
 				reason: "deepseek timeout",
 			} });
@@ -1248,7 +1248,7 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "skipped" as const,
 				reason: "content-too-short",
 			} });
@@ -1446,7 +1446,7 @@ describe("Readlist routes", () => {
 			</article></body></html>`;
 
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Fragment ready summary.",
 			} });
@@ -2351,7 +2351,7 @@ describe("Readlist routes", () => {
 				...fixture,
 				summary: {
 					...fixture.summary,
-					findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: STORED_SUMMARY } }),
+					findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: STORED_SUMMARY } }),
 				},
 			});
 			const agent = await loginAgent(harness.server, harness.auth);

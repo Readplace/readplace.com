@@ -146,7 +146,7 @@ const useApp = useTestServer();
 
 describe("Process a readlist via a self-registered OAuth client", () => {
 	it("creates a readlist, fills it, and drains every tab by removal while All keeps every article", async () => {
-		const summary = createFakeSummaryProvider();
+		const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
 		const token = await obtainAccessToken(harness, await registerClient(harness));
 

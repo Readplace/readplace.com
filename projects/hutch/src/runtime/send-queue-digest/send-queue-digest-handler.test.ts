@@ -57,7 +57,7 @@ interface LogLine {
 function createSubject(options: { contact?: UserContact | null; overrides?: Partial<SendQueueDigestDeps> } = {}) {
 	const clock = { now: SEND_INSTANT };
 	const articleStore = initInMemoryArticleStore();
-	const summaries = initInMemoryGeneratedSummary();
+	const summaries = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 	const readerReady = initInMemoryReaderReadyState();
 	const subscriptions = initInMemorySubscriptionProviders({ now: () => clock.now });
 	const email = initInMemoryEmail();
@@ -712,7 +712,7 @@ describe("initSendQueueDigestHandler", () => {
 				async (subject) => {
 					await subject.articleStore.setReaderAvailableAt({ url: NOT_READY_URL, at: hoursBefore(40) });
 				},
-				{ findGeneratedSummary: async (url) => shownSummary({ url, summary: failedSummary })},
+				{ findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: failedSummary })},
 			],
 		];
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { MinutesSchema } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, MinutesSchema } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { ParseArticle, ParseArticleResult } from "@packages/article-parser";
 import { useTestServer, type TestAppHarness } from "../../../test-app";
@@ -58,7 +58,7 @@ function buildHarness(
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	// Locally-constructed summary so the harness carries the test-only
 	// `markSummaryReady` helper alongside the production-shaped bundle.
-	const summary = createFakeSummaryProvider();
+	const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 
 	// The admin route is supposed to force `crawlStatus = pending` and then
 	// publish. We want to assert the page renders in pending state, so the
@@ -732,7 +732,7 @@ describe("Admin recrawl routes", () => {
 			const response = await agent.post(`/admin/recrawl/${ENCODED}`);
 
 			expect(response.status).toBe(303);
-			const summaryAfter = await harness.summary.findGeneratedSummary(ARTICLE_URL);
+			const summaryAfter = await harness.summary.findGeneratedSummary({ url: ARTICLE_URL, viewer: ANONYMOUS_VIEWER });
 			expect(summaryAfter).toEqual({
 				status: "ready",
 				summary: "Existing summary",

@@ -42,7 +42,7 @@ function buildDownloadHarness() {
 		reason: "no-content",
 	}) as Awaited<ReturnType<ParseArticle>>;
 	const noop = async () => {};
-	const summary = createFakeSummaryProvider();
+	const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 	const harness = useApp({
 		...fixture,
 		summary,
@@ -365,7 +365,7 @@ describe("GET /view/<url>?format=<download>", () => {
 	it("answers a logged-out EPUB download of a webmail URL with the not-found page and no attachment", async () => {
 		const url = "https://mail.google.com/mail/u/2/";
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const summary = createFakeSummaryProvider();
+		const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const harness = useApp({ ...fixture, summary });
 		await fixture.articleStore.saveArticleGlobally({
 			url,

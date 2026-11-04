@@ -56,7 +56,7 @@ export function initOwnerArticleMarkdown(deps: OwnerArticleMarkdownDeps) {
 		const { article, readlist } = owned;
 		const [crawl, summary, stored, definitions, saves] = await Promise.all([
 			deps.findArticleCrawlStatus(article.url),
-			deps.findGeneratedSummary(article.url),
+			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) }),
 			deps.readArticleContent({ url: article.url, viewer: viewerFor(userId) }),
 			deps.listReadlistDefinitions(userId),
 			deps.listUserSavesForUrl({ userId, url: article.url }),

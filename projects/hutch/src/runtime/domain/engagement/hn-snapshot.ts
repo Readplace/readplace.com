@@ -151,7 +151,7 @@ export function initHnSnapshot(deps: {
 				try {
 					const [crawl, summary, content] = await Promise.all([
 						deps.findArticleCrawlStatus(url),
-						deps.findGeneratedSummary(url),
+						deps.findGeneratedSummary({ url, viewer: ANONYMOUS_VIEWER }),
 						article?.readerAvailableAt === undefined
 							? Promise.resolve(undefined)
 							: deps.readArticleContent({ url, viewer: ANONYMOUS_VIEWER }),

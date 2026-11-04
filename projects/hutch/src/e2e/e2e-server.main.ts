@@ -167,7 +167,7 @@ const e2eValidateSaveableUrl: ValidateSaveableUrl = (value) => {
 // E2E exercises the HTMX polling UI end-to-end, so opt the summary fake into
 // transitioning pending → ready after a few reads. Unit/route tests use the
 // default (stays pending) for deterministic HTML assertions.
-const summary = createFakeSummaryProvider({ readyAfterReads: 3 })
+const summary = createFakeSummaryProvider({ findItemOwner: (url) => fixture.articleStore.findItemOwner(url), readyAfterReads: 3 })
 
 const fixture = createDefaultTestAppFixture(origin)
 

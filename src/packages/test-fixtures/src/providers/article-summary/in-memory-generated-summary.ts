@@ -1,5 +1,6 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { shownSummary } from "@packages/domain/article";
+import type { FindItemOwner } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
@@ -17,7 +18,7 @@ export type InMemoryMarkSummarySkipped = (params: {
 	reason?: string;
 }) => Promise<void>;
 
-export function initInMemoryGeneratedSummary(): {
+export function initInMemoryGeneratedSummary(deps: { findItemOwner: FindItemOwner }): {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	markSummaryReady: InMemoryMarkSummaryReady;
@@ -25,9 +26,9 @@ export function initInMemoryGeneratedSummary(): {
 } {
 	const states = new Map<string, GeneratedSummary>();
 
-	const findGeneratedSummary: FindGeneratedSummary = async (url) => {
+	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => {
 		const id = ArticleResourceUniqueId.parse(url);
-		return shownSummary({ url, summary: states.get(id.value) });
+		return shownSummary({ url, summary: states.get(id.value), viewer, ownerUserId: await deps.findItemOwner(url) });
 	};
 
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {

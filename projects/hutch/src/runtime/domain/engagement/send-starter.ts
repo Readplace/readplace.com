@@ -90,7 +90,7 @@ export function initSendStarter(deps: {
 			urls.map(async (url) => {
 				const [article, summary, stored] = await Promise.all([
 					deps.findArticleByUrl(url),
-					deps.findGeneratedSummary(url),
+					deps.findGeneratedSummary({ url, viewer }),
 					deps.readArticleContent({ url, viewer }),
 				]);
 				assert(article, `a claimed starter pick is a stored article: ${url}`);
@@ -175,7 +175,7 @@ export function initSendStarter(deps: {
 			for (const pick of pack.picks) {
 				const [article, summary, memberships, stored] = await Promise.all([
 					deps.findArticleByUrl(pick.url),
-					deps.findGeneratedSummary(pick.url),
+					deps.findGeneratedSummary({ url: pick.url, viewer: viewerFor(userId) }),
 					deps.listUserSavesForUrl({ userId, url: pick.url }),
 					deps.readArticleContent({ url: pick.url, viewer: viewerFor(userId) }),
 				]);

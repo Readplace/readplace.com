@@ -223,7 +223,7 @@ describe("initMcpArticleOperations", () => {
 		const ops = buildOps({
 			findArticleById: async () => article,
 			readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "<p>Article</p>", viewer, ownerUserId: undefined }),
-			findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "Summary" } }),
+			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "Summary" } }),
 			updateArticleStatusAcrossReadlists: async ({ status }) => ({ ...article, status }),
 			recordEngagementActivity: async (input) => {
 				activity.push(input);
@@ -270,7 +270,7 @@ describe("initMcpArticleOperations", () => {
 		for (const summary of undelivered) {
 			await buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async (url) => shownSummary({ url, summary }),
+				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary }),
 				recordEngagementActivity,
 			}).getArticleSummary({ userId, id: article.id.value });
 		}
@@ -278,7 +278,7 @@ describe("initMcpArticleOperations", () => {
 		const mailboxOps = buildOps({
 			findArticleById: async () => mailbox,
 			readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: "<p>42 unread</p>", viewer, ownerUserId: undefined }),
-			findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "42 unread" } }),
+			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "42 unread" } }),
 			recordEngagementActivity,
 		});
 		await mailboxOps.getArticleContent({ userId, id: mailbox.id.value });
@@ -563,7 +563,7 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle();
 			const ops = buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "TL;DR" } }),
+				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "TL;DR" } }),
 			});
 			expect(
 				await ops.getArticleSummary({ userId, id: article.id.value }),
@@ -574,11 +574,35 @@ describe("initMcpArticleOperations", () => {
 			const article = buildArticle({ url: "https://mail.google.com/mail/u/0/" });
 			const ops = buildOps({
 				findArticleById: async () => article,
-				findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "ready", summary: "42 unread" } }),
+				findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "ready", summary: "42 unread" } }),
 			});
 			expect(
 				await ops.getArticleSummary({ userId, id: article.id.value }),
 			).toEqual({ status: "not_an_article" });
+		});
+
+		it("returns a private upload's summary to its owner", async () => {
+			const article = buildArticle({ url: PRIVATE_URL });
+			const ops = buildOps({
+				findArticleById: async () => article,
+				findGeneratedSummary: async ({ url, viewer }) =>
+					shownSummary({ url, viewer, ownerUserId: userId, summary: { status: "ready", summary: "PRIVATE-BOOK-SUMMARY" } }),
+			});
+			expect(
+				await ops.getArticleSummary({ userId, id: article.id.value }),
+			).toEqual({ status: "ready", summary: "PRIVATE-BOOK-SUMMARY" });
+		});
+
+		it("skips a private upload's summary for a reader who holds its link but does not own it", async () => {
+			const article = buildArticle({ url: PRIVATE_URL });
+			const ops = buildOps({
+				findArticleById: async () => article,
+				findGeneratedSummary: async ({ url, viewer }) =>
+					shownSummary({ url, viewer, ownerUserId: otherUserId, summary: { status: "ready", summary: "PRIVATE-BOOK-SUMMARY" } }),
+			});
+			expect(
+				await ops.getArticleSummary({ userId, id: article.id.value }),
+			).toEqual({ status: "skipped" });
 		});
 	});
 

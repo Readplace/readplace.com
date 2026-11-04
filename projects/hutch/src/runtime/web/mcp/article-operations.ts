@@ -240,7 +240,7 @@ export function initMcpArticleOperations(
 			if (!owned) return { status: "not_found" };
 			const { article } = owned;
 			if (isNonArticleHost(article.url)) return { status: "not_an_article" };
-			const summary = await deps.findGeneratedSummary(article.url);
+			const summary = await deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) });
 			if (summary?.status === "ready") {
 				await deps.recordEngagementActivity({
 					userId,

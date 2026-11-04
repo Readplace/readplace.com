@@ -983,7 +983,7 @@ describe("View routes", () => {
 					...fixture.articleCrawl,
 					findArticleCrawlStatus: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
 				},
-				summary: { ...fixture.summary, findGeneratedSummary: async (url) => shownSummary({ url, summary: { status: "skipped" } }) },
+				summary: { ...fixture.summary, findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }) },
 			});
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
@@ -1329,7 +1329,7 @@ describe("View routes", () => {
 	describe("TL;DR rendering", () => {
 		it("marks the summary slot visible with the text when status=ready", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "Key points from the article.",
 			} });
@@ -1387,7 +1387,7 @@ describe("View routes", () => {
 
 		it("shows a loading indicator with a poll attribute when status=pending", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1440,7 +1440,7 @@ describe("View routes", () => {
 
 		it("shows an inline error when status=failed", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "failed",
 				reason: "deepseek timeout",
 			} });
@@ -1501,7 +1501,7 @@ describe("View routes", () => {
 
 		it("renders a visible info card with the reason copy when status=skipped", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "skipped",
 				reason: "content-too-short",
 			} });
@@ -1563,7 +1563,7 @@ describe("View routes", () => {
 
 		it("hides the summary slot when the crawl has failed (reader-failed card already signals the problem)", async () => {
 			const parseArticle: ParseArticle = async () => ({ ok: false, reason: "blocked" });
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1616,7 +1616,7 @@ describe("View routes", () => {
 
 	describe("GET /view/summary fragment", () => {
 		it("returns a ready fragment without polling attributes", async () => {
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "Fragment summary.",
 			} });
@@ -1642,7 +1642,7 @@ describe("View routes", () => {
 		});
 
 		it("increments the poll counter when status=pending under the cap", async () => {
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -1664,7 +1664,7 @@ describe("View routes", () => {
 		});
 
 		it("stops polling at the cap and collapses to an empty deferred slot while the reader view is not ready", async () => {
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -1693,7 +1693,7 @@ describe("View routes", () => {
 		});
 
 		it("swaps in a header with the public facts", async () => {
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "Fragment summary.",
 			} });
@@ -1762,7 +1762,7 @@ describe("View routes", () => {
 				outcomeRevision: 1,
 				reason: "blocked",
 			});
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: { status: "pending" } });
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -1972,7 +1972,7 @@ describe("View routes", () => {
 		it("appends the banner and gated Save CTA to a settled failed reader poll, carrying the page's utm", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
-				summary: async (url) => shownSummary({ url, summary: { status: "skipped" } }),
+				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }),
 			});
 			await seedRow(fixture);
 
@@ -2004,7 +2004,7 @@ describe("View routes", () => {
 		it("a settled summary-failed poll still swaps the gated Save CTA, and carries no bar", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "ready" }),
-				summary: async (url) => shownSummary({ url, summary: { status: "failed", reason: "model timeout" } }),
+				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "failed", reason: "model timeout" } }),
 			});
 			await seedRow(fixture, { content: "<p>body</p>" });
 
@@ -2029,7 +2029,7 @@ describe("View routes", () => {
 		it("marks the swapped-in Save CTA as already seen for a warned session", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "failed", outcomeRevision: 1, reason: "blocked" }),
-				summary: async (url) => shownSummary({ url, summary: { status: "skipped" } }),
+				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "skipped" } }),
 			});
 			await seedRow(fixture);
 
@@ -2045,7 +2045,7 @@ describe("View routes", () => {
 		it("emits no banner or CTA fragment while the reader view is still loading", async () => {
 			const { fixture, harness } = pollHarness({
 				crawl: async () => ({ status: "pending" }),
-				summary: async (url) => shownSummary({ url, summary: { status: "pending" } }),
+				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } }),
 			});
 			await seedRow(fixture);
 

@@ -345,7 +345,7 @@ function handleViewArticle(
 				return;
 			}
 			const title = existing.metadata.title;
-			const summary = await deps.findGeneratedSummary(articleUrl);
+			const summary = await deps.findGeneratedSummary({ url: articleUrl, viewer: viewerFor(req.userId) });
 			const build = await buildArticleEpub({
 				articleUrl,
 				title,

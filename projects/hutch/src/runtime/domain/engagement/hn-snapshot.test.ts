@@ -1,6 +1,6 @@
 import { NoSuchKey } from "@aws-sdk/client-s3";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, validateSaveableUrl, shownSummary, storedArticleBody } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, MinutesSchema, validateSaveableUrl, shownSummary, storedArticleBody } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
 import { initStartAnonymousCrawl } from "@packages/save-article";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
@@ -33,7 +33,7 @@ function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
 	});
 	const articles = initInMemoryArticleStore();
 	const crawl = initInMemoryArticleCrawl();
-	const summaries = initInMemoryGeneratedSummary();
+	const summaries = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 	const items = new Map<number, unknown>();
 	const published: string[] = [];
 	const requests: string[] = [];
@@ -120,7 +120,7 @@ describe("shared HN preparation", () => {
 		expect(await app.crawl.findArticleCrawlStatus("https://publisher.com/30")).toEqual({
 			status: "pending",
 		});
-		expect(await app.summaries.findGeneratedSummary("https://publisher.com/30")).toEqual({
+		expect(await app.summaries.findGeneratedSummary({ url: "https://publisher.com/30", viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "pending",
 		});
 		expect(await app.findReadySnapshot()).toEqual([]);
@@ -207,10 +207,10 @@ describe("shared HN preparation", () => {
 	});
 	it("does not request another crawl for a story whose crawl or summary ended, or whose crawl is in flight", async () => {
 		const app = subject({
-			findGeneratedSummary: async (url) =>
-				url.endsWith("summary-failed")
-					? shownSummary({ url, summary: { status: "failed", reason: "provider-error" } })
-					: app.summaries.findGeneratedSummary(url),
+			findGeneratedSummary: async (read) =>
+				read.url.endsWith("summary-failed")
+					? shownSummary({ ...read, ownerUserId: undefined, summary: { status: "failed", reason: "provider-error" } })
+					: app.summaries.findGeneratedSummary(read),
 		});
 		const slugs = ["crawl-failed", "crawl-unsupported", "summary-skipped", "summary-failed", "in-flight"];
 		for (const [i, slug] of slugs.entries()) {

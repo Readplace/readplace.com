@@ -39,7 +39,7 @@ import {
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
 import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
-import { CaptureTriggerSchema, type CaptureTrigger, viewerFor } from "@packages/domain/article";
+import { CaptureTriggerSchema, type CaptureTrigger, type Viewer, viewerFor } from "@packages/domain/article";
 import { articlesSavedAt } from "./articles-saved-at";
 import type { RefreshIdentifiedArticleIfStale, ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
 import type {
@@ -545,11 +545,12 @@ import type { ArticleDiscoveryQuery, ReadlistFilter, SavedArticle } from "@packa
 async function loadSummaries(
 	findGeneratedSummaries: FindGeneratedSummaries,
 	articles: readonly SavedArticle[],
+	viewer: Viewer,
 	logError: (message: string, error?: Error) => void,
 ): Promise<Map<string, GeneratedSummary | undefined>> {
 	const urls = articles.map((a) => a.url);
 	try {
-		const byUrl = await findGeneratedSummaries(urls);
+		const byUrl = await findGeneratedSummaries({ urls, viewer });
 		return new Map(urls.map((url) => [url, byUrl.get(url)] as const));
 	} catch (error) {
 		// A whole-batch transport failure degrades every card to "no summary chip"
@@ -1763,7 +1764,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const urls = input.result.articles.map((article) => article.url);
 		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl, readerProvenances] =
 			await Promise.all([
-				loadSummaries(deps.findGeneratedSummaries, input.result.articles, deps.logError),
+				loadSummaries(deps.findGeneratedSummaries, input.result.articles, viewerFor(input.userId), deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
 				effectiveAccessPromise,
 				readlistHoldsAnyArticle({
@@ -1961,7 +1962,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				: result;
 			const [crawlByUrl, summaryByUrl] = await Promise.all([
 				loadCrawls(deps.findArticleCrawlStatuses, filtered.articles, deps.logError),
-				loadSummaries(deps.findGeneratedSummaries, filtered.articles, deps.logError),
+				loadSummaries(deps.findGeneratedSummaries, filtered.articles, viewerFor(userId), deps.logError),
 			]);
 
 			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
@@ -2125,7 +2126,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			});
 			const [crawlByUrl, summaryByUrl] = await Promise.all([
 				loadCrawls(deps.findArticleCrawlStatuses, collection.articles, deps.logError),
-				loadSummaries(deps.findGeneratedSummaries, collection.articles, deps.logError),
+				loadSummaries(deps.findGeneratedSummaries, collection.articles, viewerFor(userId), deps.logError),
 			]);
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(
@@ -3224,7 +3225,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 
 		const [crawl, summary, readerProvenance] = await Promise.all([
 			deps.findArticleCrawlStatus(article.url),
-			deps.findGeneratedSummary(article.url),
+			deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) }),
 			deps.resolveReaderProvenance(article.provenance),
 		]);
 

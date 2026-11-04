@@ -472,7 +472,7 @@ describe("starter readlist", () => {
 		).not.toBeNull();
 	});
 	it("serves every app link of the starter email, tracking term included, and sends the Kindle guide to the blog", async () => {
-		const summary = createFakeSummaryProvider();
+		const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const fixture = { ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary };
 		fixture.shared.now = () => NOW;
 		const created = await fixture.auth.createUser({

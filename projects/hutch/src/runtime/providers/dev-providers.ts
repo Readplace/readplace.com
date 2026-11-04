@@ -1,5 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import type { FindGeneratedSummaries } from "@packages/provider-contracts/article-summary";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import { blockedCauseForStatus } from "@packages/article-state-types";
@@ -376,7 +377,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 				stateSigningSecret: "dev-apple-state-signing-secret",
 			};
 	const crawlStore = initInMemoryArticleCrawl();
-	const summaryStore = initInMemoryGeneratedSummary();
+	const summaryStore = initInMemoryGeneratedSummary({ findItemOwner: articleStore.findItemOwner });
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
@@ -647,7 +648,8 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		findRelatedArticles,
 		findPastReads,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
-		findGeneratedSummaries: batchFromSingular(summaryStore.findGeneratedSummary),
+		findGeneratedSummaries: ({ urls, viewer }: Parameters<FindGeneratedSummaries>[0]) =>
+			batchFromSingular((url: string) => summaryStore.findGeneratedSummary({ url, viewer }))(urls),
 		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(crawlStore.findArticleCrawlStatus),

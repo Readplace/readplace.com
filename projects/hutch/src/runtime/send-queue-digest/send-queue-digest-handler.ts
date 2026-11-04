@@ -389,7 +389,7 @@ async function readyItemsOf(params: {
 	);
 	const ready = await Promise.all(
 		loaded.map(async (candidate): Promise<ReadyItem[]> => {
-			const summary = await params.deps.findGeneratedSummary(candidate.article.url);
+			const summary = await params.deps.findGeneratedSummary({ url: candidate.article.url, viewer: viewerFor(params.userId) });
 			if (summary?.status !== "ready") return [];
 			const stored = await params.deps.readArticleContent({ url: candidate.article.url, viewer: viewerFor(params.userId) });
 			return stored.kind === "article" ? [{ candidate, summary, contentHtml: stored.body }] : [];

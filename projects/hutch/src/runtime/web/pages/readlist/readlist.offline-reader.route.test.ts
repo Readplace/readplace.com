@@ -64,7 +64,7 @@ function buildFixture(now: () => Date): TestAppFixture {
 		parser: { parseArticle, crawlArticle },
 		summary: {
 			...base.summary,
-			findGeneratedSummary: async (url) => shownSummary({ url, summary: {
+			findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "A concise summary.",
 				excerpt: "Lead line.",

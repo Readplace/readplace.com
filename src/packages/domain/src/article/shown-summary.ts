@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { UserId } from "../user";
 import { isNonArticleHost } from "./non-article-host";
+import { mayReadItem, type Viewer } from "./private-item-access";
 import type { SummaryStage } from "./progress-mapping";
 
 export type GeneratedSummary =
@@ -11,8 +13,14 @@ export type GeneratedSummary =
 const ShownSummarySchema = z.custom<GeneratedSummary>().brand<"ShownSummary">();
 export type ShownSummary = z.infer<typeof ShownSummarySchema>;
 
-export function shownSummary(stored: { url: string; summary: GeneratedSummary | undefined }): ShownSummary | undefined {
+export function shownSummary(stored: {
+	url: string;
+	summary: GeneratedSummary | undefined;
+	viewer: Viewer;
+	ownerUserId: UserId | undefined;
+}): ShownSummary | undefined {
 	if (isNonArticleHost(stored.url)) return ShownSummarySchema.parse({ status: "skipped" });
+	if (!mayReadItem(stored)) return ShownSummarySchema.parse({ status: "skipped" });
 	if (stored.summary === undefined) return undefined;
 	return ShownSummarySchema.parse(stored.summary);
 }

@@ -317,7 +317,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const { article, pollUrlBuilder } = params;
 		if (isNonArticleHost(article.url)) return GATED_READER_STATE;
 		const crawl = await deps.findArticleCrawlStatus(article.url);
-		const summary = await deps.findGeneratedSummary(article.url);
+		const summary = await deps.findGeneratedSummary({ url: article.url, viewer: params.viewer });
 		const freshness = await deps.findArticleFreshness(article.url);
 		const versions = await deps.findArticleCrawlVersions(article.url);
 
@@ -423,7 +423,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		if (isNonArticleHost(articleUrl)) return gatedPollResponse("summary", articleUrl);
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
-			deps.findGeneratedSummary(articleUrl),
+			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
 			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
 			deps.findArticleByUrl(articleUrl),
 		]);
@@ -470,7 +470,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		if (isNonArticleHost(articleUrl)) return gatedPollResponse("reader", articleUrl);
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
-			deps.findGeneratedSummary(articleUrl),
+			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
 			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
 			deps.findArticleByUrl(articleUrl),
 		]);

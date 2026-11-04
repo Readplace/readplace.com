@@ -91,7 +91,7 @@ function initFakeDeps(initial: {
 	};
 	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
-		findGeneratedSummary: async (url) => shownSummary({ url, summary: state.summary }),
+		findGeneratedSummary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: state.summary }),
 		readArticleContent: async ({ url, viewer }) => storedArticleBody({ url, html: state.content, viewer, ownerUserId: undefined }),
 		findArticleByUrl: async () => state.article,
 		findArticleCrawlVersions: async () => state.crawlVersions,

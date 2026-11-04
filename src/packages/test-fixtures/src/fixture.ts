@@ -62,6 +62,7 @@ import type {
 	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
+import type { FindItemOwner } from "@packages/provider-contracts/article-store";
 import { initInMemoryLinkDequeued } from "./providers/events/in-memory-link-dequeued";
 import { initInMemoryQueueEntryCreated } from "./providers/events/in-memory-queue-entry-created";
 import { initInMemoryLinkQueued } from "./providers/events/in-memory-link-queued";
@@ -129,7 +130,7 @@ export const createInMemoryPublishUpdateFetchTimestamp = () =>
 export const createNoopLogError = (): ((msg: string, err?: Error) => void) =>
 	() => {};
 
-export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): {
+export function createFakeSummaryProvider(deps: { findItemOwner: FindItemOwner; readyAfterReads?: number }): {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	markSummaryReady: (params: { url: string; summary: string; excerpt: string }) => void;
@@ -139,22 +140,22 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 	// Test-only fake for the Deepseek-backed summary generation. Local E2E
 	// doesn't call a real LLM, so we simulate the pending → ready transition
 	// by counting reads of a pending row and flipping it once the count hits
-	// readyAfterReads. Default (no opts) = stays pending forever, so unit/route
+	// readyAfterReads. Default = stays pending forever, so unit/route
 	// tests get deterministic HTML. E2E opts in (e.g. readyAfterReads: 3) to
 	// exercise the polling UI end-to-end without depending on wall-clock time.
 	const state = new Map<string, GeneratedSummary>();
 	const reads = new Map<string, number>();
-	const findGeneratedSummary: FindGeneratedSummary = async (url) => {
+	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
 		const current = state.get(id);
-		if (opts?.readyAfterReads !== undefined && current?.status === "pending") {
+		if (deps.readyAfterReads !== undefined && current?.status === "pending") {
 			const count = (reads.get(id) ?? 0) + 1;
 			reads.set(id, count);
-			if (count >= opts.readyAfterReads) {
+			if (count >= deps.readyAfterReads) {
 				state.set(id, { status: "ready", summary: `Fake summary for ${url}.` });
 			}
 		}
-		return shownSummary({ url, summary: state.get(id) });
+		return shownSummary({ url, summary: state.get(id), viewer, ownerUserId: await deps.findItemOwner(url) });
 	};
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
@@ -283,7 +284,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		articleCrawl,
 		parseArticle,
 	});
-	const summary = createFakeSummaryProvider();
+	const summary = createFakeSummaryProvider({ findItemOwner: articleStoreMemory.findItemOwner });
 	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
 	const email = initInMemoryEmail();
 	const emailVerification = initInMemoryEmailVerification();

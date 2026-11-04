@@ -32,7 +32,7 @@ interface SeededArticle {
 	readlist?: string;
 }
 
-function pinnedFixture(summary: SummaryProvider = createFakeSummaryProvider()) {
+function pinnedFixture(summary: SummaryProvider = createFakeSummaryProvider({ findItemOwner: async () => undefined })) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	return { ...fixture, summary, shared: { ...fixture.shared, now: () => NOW } };
 }
@@ -344,7 +344,7 @@ describe("Readlist discovery (GET /queue with a search or filters)", () => {
 		});
 
 		it("searches the title, never the generated summary, and ignores a topic filter carried by an old link", async () => {
-			const summary = createFakeSummaryProvider();
+			const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 			const harness = useApp(pinnedFixture(summary));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await seedAll(harness, [

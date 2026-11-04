@@ -14,7 +14,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MAX_POLLS } from "@packages/web-shell";
-import { shownSummary } from "@packages/domain/article";
+import { shownSummary, type Viewer } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -33,7 +33,7 @@ describe("Readlist routes", () => {
 		function createTerminalPipelineFixture() {
 			const articleHtml = `<html><head><title>Terminal Post</title></head><body><article><h1>Terminal Post</h1><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Ready summary.",
 			} });
@@ -275,7 +275,7 @@ describe("Readlist routes", () => {
 		});
 
 		it("GET /queue/:id/card lands the generated excerpt with the summary, past the pending card's ETag", async () => {
-			const summary = createFakeSummaryProvider();
+			const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 			const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
 			const agent = await loginAgent(harness.server, harness.auth);
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/card-excerpt" });

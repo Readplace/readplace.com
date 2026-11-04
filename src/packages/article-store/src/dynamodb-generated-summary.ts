@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 import { summaryMatchesCanonical } from "@packages/domain/article-aggregate";
 import { type ShownSummary, shownSummary } from "@packages/domain/article";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
@@ -34,6 +35,7 @@ const ArticleSummaryRow = z.object({
 	summaryStage: dynamoField(
 		z.enum(["summary-started", "summary-generating"]),
 	),
+	ownerUserId: dynamoField(UserIdSchema),
 });
 
 type ArticleSummaryRowShape = z.infer<typeof ArticleSummaryRow>;
@@ -107,13 +109,13 @@ export function initDynamoDbGeneratedSummary(deps: {
 		schema: ArticleSummaryRow,
 	});
 
-	const findGeneratedSummary: FindGeneratedSummary = async (url) => {
+	const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await table.get({ url: articleResourceUniqueId.value }, { consistentRead: true });
-		return shownSummary({ url, summary: rowToGeneratedSummary(row) });
+		return shownSummary({ url, summary: rowToGeneratedSummary(row), viewer, ownerUserId: row?.ownerUserId });
 	};
 
-	const findGeneratedSummaries: FindGeneratedSummaries = async (urls) => {
+	const findGeneratedSummaries: FindGeneratedSummaries = async ({ urls, viewer }) => {
 		const result = new Map<string, ShownSummary | undefined>();
 		const keyToUrls = new Map<string, string[]>();
 		for (const url of urls) {
@@ -139,7 +141,7 @@ export function initDynamoDbGeneratedSummary(deps: {
 			consistentRead: true,
 		});
 
-		const valueByKey = new Map<string, GeneratedSummary | undefined>();
+		const valueByKey = new Map<string, { summary: GeneratedSummary | undefined; ownerUserId: UserId | undefined }>();
 		for (const row of rows) {
 			const parsed = ArticleSummaryRow.safeParse(row);
 			let value: GeneratedSummary | undefined;
@@ -150,11 +152,15 @@ export function initDynamoDbGeneratedSummary(deps: {
 					value = undefined;
 				}
 			}
-			valueByKey.set(row.url, value);
+			valueByKey.set(row.url, { summary: value, ownerUserId: parsed.data?.ownerUserId });
 		}
 		for (const [key, groupUrls] of keyToUrls) {
-			const value = valueByKey.get(key);
-			for (const url of groupUrls) result.set(url, shownSummary({ url, summary: value }));
+			const stored = valueByKey.get(key);
+			for (const url of groupUrls)
+				result.set(
+					url,
+					shownSummary({ url, summary: stored?.summary, viewer, ownerUserId: stored?.ownerUserId }),
+				);
 		}
 		return result;
 	};

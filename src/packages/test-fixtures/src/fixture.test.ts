@@ -1,4 +1,4 @@
-import { SaveAttemptIdSchema, calculateReadTime } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, SaveAttemptIdSchema, calculateReadTime } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	createFakeSummaryProvider,
@@ -19,55 +19,55 @@ import type { ParseArticle } from "@packages/article-parser";
 
 describe("createFakeSummaryProvider", () => {
 	it("returns the pending state on every read when readyAfterReads is unset (deterministic for unit tests)", async () => {
-		const { findGeneratedSummary, markSummaryPending } = createFakeSummaryProvider();
+		const { findGeneratedSummary, markSummaryPending } = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const url = "https://example.com/article";
 
 		await markSummaryPending({ url });
-		expect(await findGeneratedSummary(url)).toEqual({ status: "pending" });
-		expect(await findGeneratedSummary(url)).toEqual({ status: "pending" });
-		expect(await findGeneratedSummary(url)).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
 	});
 
 	it("transitions a pending summary to ready once readyAfterReads reads have happened", async () => {
-		const { findGeneratedSummary, markSummaryPending } = createFakeSummaryProvider({ readyAfterReads: 3 });
+		const { findGeneratedSummary, markSummaryPending } = createFakeSummaryProvider({ findItemOwner: async () => undefined, readyAfterReads: 3 });
 		const url = "https://example.com/article";
 
 		await markSummaryPending({ url });
-		expect(await findGeneratedSummary(url)).toEqual({ status: "pending" });
-		expect(await findGeneratedSummary(url)).toEqual({ status: "pending" });
-		expect(await findGeneratedSummary(url)).toEqual({
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({ status: "pending" });
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "ready",
 			summary: `Fake summary for ${url}.`,
 		});
 	});
 
 	it("leaves an already-ready summary untouched when markSummaryPending is called again", async () => {
-		const { findGeneratedSummary, markSummaryPending } = createFakeSummaryProvider({ readyAfterReads: 1 });
+		const { findGeneratedSummary, markSummaryPending } = createFakeSummaryProvider({ findItemOwner: async () => undefined, readyAfterReads: 1 });
 		const url = "https://example.com/article";
 
 		await markSummaryPending({ url });
-		await findGeneratedSummary(url);
+		await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER });
 		await markSummaryPending({ url });
 
-		expect(await findGeneratedSummary(url)).toEqual({
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "ready",
 			summary: `Fake summary for ${url}.`,
 		});
 	});
 
 	it("returns undefined for a URL that has never been marked pending", async () => {
-		const { findGeneratedSummary } = createFakeSummaryProvider({ readyAfterReads: 1 });
+		const { findGeneratedSummary } = createFakeSummaryProvider({ findItemOwner: async () => undefined, readyAfterReads: 1 });
 
-		expect(await findGeneratedSummary("https://example.com/never-saved")).toBeUndefined();
+		expect(await findGeneratedSummary({ url: "https://example.com/never-saved", viewer: ANONYMOUS_VIEWER })).toBeUndefined();
 	});
 
 	it("markSummaryReady writes the supplied summary and excerpt", async () => {
-		const { findGeneratedSummary, markSummaryReady } = createFakeSummaryProvider();
+		const { findGeneratedSummary, markSummaryReady } = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const url = "https://example.com/article";
 
 		markSummaryReady({ url, summary: "Manual summary", excerpt: "Lead." });
 
-		expect(await findGeneratedSummary(url)).toEqual({
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "ready",
 			summary: "Manual summary",
 			excerpt: "Lead.",
@@ -75,24 +75,24 @@ describe("createFakeSummaryProvider", () => {
 	});
 
 	it("markSummaryFailed settles the summary as failed with the supplied reason", async () => {
-		const { findGeneratedSummary, markSummaryFailed } = createFakeSummaryProvider();
+		const { findGeneratedSummary, markSummaryFailed } = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const url = "https://example.com/article";
 
 		markSummaryFailed({ url, reason: "deepseek timeout" });
 
-		expect(await findGeneratedSummary(url)).toEqual({
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "failed",
 			reason: "deepseek timeout",
 		});
 	});
 
 	it("markSummarySkipped settles the summary as skipped with the supplied reason", async () => {
-		const { findGeneratedSummary, markSummarySkipped } = createFakeSummaryProvider();
+		const { findGeneratedSummary, markSummarySkipped } = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const url = "https://example.com/article";
 
 		markSummarySkipped({ url, reason: "content-too-short" });
 
-		expect(await findGeneratedSummary(url)).toEqual({
+		expect(await findGeneratedSummary({ url: url, viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "skipped",
 			reason: "content-too-short",
 		});

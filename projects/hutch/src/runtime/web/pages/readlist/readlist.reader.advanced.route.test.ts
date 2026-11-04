@@ -12,7 +12,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { MAX_POLLS } from "@packages/web-shell";
-import { shownSummary } from "@packages/domain/article";
+import { shownSummary, type Viewer } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -83,7 +83,7 @@ describe("Readlist routes", () => {
 		it("should render a ready summary collapsed on /queue/:id/view (internal reader; an expand is a deliberate, measurable act)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Ready summary.",
 			} });
@@ -148,7 +148,7 @@ describe("Readlist routes", () => {
 		it("GET /queue/:id/summary renders a ready summary collapsed on poll (internal reader)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findGeneratedSummary = async (url: string) => shownSummary({ url, summary: {
+			const findGeneratedSummary = async ({ url, viewer }: { url: string; viewer: Viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready" as const,
 				summary: "Poll ready summary.",
 			} });

@@ -679,7 +679,7 @@ describe("View routes", () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const publishSaveAnonymousLink = jest.fn(async () => {});
 			const publishStaleCheckRequested = jest.fn(async () => {});
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: "Cached summary.",
 			} });
@@ -952,7 +952,7 @@ describe("View routes", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const publishSaveAnonymousLink = jest.fn(async () => {});
 			const publishStaleCheckRequested = jest.fn(async () => {});
-			const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+			const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 				status: "ready",
 				summary: STORED_SUMMARY,
 				excerpt: "Re: your invoice is attached",

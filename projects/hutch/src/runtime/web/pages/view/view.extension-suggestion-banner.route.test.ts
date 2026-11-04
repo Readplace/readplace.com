@@ -83,7 +83,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			articleCrawl: fixture.articleCrawl,
 			parseArticle,
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "ready",
 			summary: "TLDR.",
 		} });
@@ -121,7 +121,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			articleCrawl: fixture.articleCrawl,
 			parseArticle,
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
 		} });
 		const harness = useApp({
@@ -218,7 +218,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "ready",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "failed",
 			reason: "model timeout",
 		} });

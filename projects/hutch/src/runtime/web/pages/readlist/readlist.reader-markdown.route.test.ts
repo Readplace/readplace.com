@@ -18,7 +18,7 @@ const useApp = useTestServer();
 type Harness = ReturnType<typeof useApp>;
 
 function buildHarness() {
-	const summary = createFakeSummaryProvider();
+	const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 	const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), summary });
 	return { harness, summary };
 }

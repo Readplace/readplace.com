@@ -53,7 +53,7 @@ async function subject(
 	const clock = { now: NOW };
 	const library = initInMemoryArticleStore();
 	const state = initInMemoryEngagementStarter({ library });
-	const summaries = initInMemoryGeneratedSummary();
+	const summaries = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 	const subscriptions = initInMemorySubscriptionProviders({ now: () => clock.now });
 	await subscriptions.upsertActive({ userId: id, subscriptionId: "sub", customerId: "customer" });
 	const picks: StarterPick[] = Array.from({ length: 10 }, (_, i) => ({

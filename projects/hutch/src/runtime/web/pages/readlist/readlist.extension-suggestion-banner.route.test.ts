@@ -62,7 +62,7 @@ describe("GET /queue — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -99,7 +99,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -123,7 +123,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			outcomeRevision: 1,
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "skipped",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -148,7 +148,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			html: articleHtml,
 			bodyHash: "a".repeat(64),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "ready",
 			summary: "TLDR.",
 		} });
@@ -197,7 +197,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			html: articleHtml,
 			bodyHash: "a".repeat(64),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "failed",
 			reason: "model timeout",
 		} });
@@ -274,7 +274,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			outcomeRevision: 1,
 			reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }),
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "skipped",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -311,7 +311,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			outcomeRevision: 1,
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "skipped",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -340,7 +340,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 			outcomeRevision: 1,
 			reason: "blocked",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "skipped",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -367,7 +367,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending",
 		});
-		const findGeneratedSummary: FindGeneratedSummary = async (url) => shownSummary({ url, summary: {
+		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
 		} });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

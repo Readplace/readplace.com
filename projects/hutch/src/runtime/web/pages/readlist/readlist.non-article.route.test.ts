@@ -25,7 +25,7 @@ function markersIn(text: string): string[] {
 
 async function coSaverOfAWebmailPage() {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-	const summary = createFakeSummaryProvider();
+	const summary = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 	const harness = useApp({ ...fixture, summary });
 	await fixture.articleStore.saveArticleGlobally({
 		url: WEBMAIL_URL,
