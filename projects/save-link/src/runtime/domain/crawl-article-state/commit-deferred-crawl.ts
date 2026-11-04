@@ -47,7 +47,7 @@ export type DeferredCrawlContext = {
 	previousBodyHash?: string;
 };
 
-export type CommitFetchedBodyOutcome = CrawlTermination | { via: "unreadable"; reason: string };
+export type CommitFetchedBodyOutcome = { via: "deferred-to-event"; readable: boolean } | { via: "unreadable"; reason: string };
 
 export function initCommitDeferredCrawl(deps: {
 	resolveOriginalUrl: (url: string) => Promise<string>;
@@ -239,7 +239,7 @@ export function initCommitDeferredCrawl(deps: {
 		if (refresh) logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
 		else if (recrawl) logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
 		else logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
-		return { via: "deferred-to-event" };
+		return { via: "deferred-to-event", readable: finalized.ok };
 	};
 
 	const commitFetchedBody = (body: DeferredCrawlBody, ctx: DeferredCrawlContext) => commitBody(body, ctx, "publish-when-comparing");

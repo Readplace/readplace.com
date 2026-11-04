@@ -97,6 +97,7 @@ const onboardingTableArn = config.require("onboardingTableArn");
 // cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
 const paidCrawlBudget = config.require("paidCrawlBudget");
 const renderCrawlBudget = config.require("renderCrawlBudget");
+const renderRequestDiagnostics = config.require("renderRequestDiagnostics");
 const readlistFitEngine = config.require("readlistFitEngine");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
@@ -964,6 +965,7 @@ const renderCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.renderCr
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
 		RENDER_CRAWL_BUDGET: renderCrawlBudget,
+		RENDER_REQUEST_DIAGNOSTICS: renderRequestDiagnostics,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,

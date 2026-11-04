@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { neverResolveChallengedTracker } from "@packages/save-article";
 import { setTimeout as sleep } from "node:timers/promises";
 import { join } from "node:path";
@@ -12,12 +12,14 @@ import { CRAWL_PERSONAS, defaultResolveAll, initCrawlArticle, initCrawlFetch } f
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { requireEnv } from "@packages/require-env";
+import { z } from "zod";
 import { initCanonicalAliasStore } from "@packages/article-store";
 import { initRenderCrawlHandler } from "./domain/render-crawl/render-crawl-handler";
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initPuppeteerRenderPage } from "./providers/render-page/puppeteer-render-page";
-import { initRenderRequestFilter, initShouldAbortRequest } from "./providers/render-page/render-request-filter";
+import { initRejectRenderRequest, initRenderRequestFilter } from "./providers/render-page/render-request-filter";
+import { initReportProxiedRenderAttempt, type RenderRequestDiagnostics } from "./domain/render-crawl/report-proxied-render-attempt";
 import { classifyRenderedDocument } from "./providers/render-page/classify-rendered-document";
 import { parseRenderProxy } from "./providers/render-page/parse-render-proxy";
 import { initResidentialEgress } from "./providers/render-page/residential-egress";
@@ -41,6 +43,7 @@ const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 const renderCrawlBudget = parseRateLimitRule(requireEnv("RENDER_CRAWL_BUDGET"));
 const crawlEgressProxyUrl = requireEnv("CRAWL_EGRESS_PROXY_URL");
 const crawlResidentialProxyUrl = requireEnv("CRAWL_RESIDENTIAL_PROXY_URL");
+const renderRequestDiagnostics = z.enum(["off", "hosts"]).parse(requireEnv<RenderRequestDiagnostics>("RENDER_REQUEST_DIAGNOSTICS"));
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -99,13 +102,14 @@ const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 });
 const RELAXED_ORIGIN_ARGS = new Set(["--disable-web-security"]);
 
+const MAX_RESOURCE_HOST_BUCKETS = 100;
+const rejectRenderRequest = initRejectRenderRequest({ resolve: defaultResolveAll, isBlocked: isBlockedIpAddress });
+
 const renderPage = initPuppeteerRenderPage({
 	executablePath: () => chromium.executablePath(join(__dirname, "chromium-bin")),
 	launchArgs: chromium.args.filter((arg) => !RELAXED_ORIGIN_ARGS.has(arg)),
 	headless: "shell",
-	createRenderRequestFilter: initRenderRequestFilter({
-		shouldAbortRequest: initShouldAbortRequest({ resolve: defaultResolveAll, isBlocked: isBlockedIpAddress }),
-	}),
+	createRenderRequestFilter: initRenderRequestFilter({ rejectRenderRequest, maxResourceHostBuckets: MAX_RESOURCE_HOST_BUCKETS }),
 	classifyRenderedDocument,
 });
 
@@ -143,5 +147,10 @@ export const handler = initRenderCrawlHandler({
 		newSessionToken: () => randomBytes(8).toString("hex"),
 	}),
 	webUnlockerEgress: { kind: "web-unlocker", proxy: parseRenderProxy(crawlEgressProxyUrl) },
+	reportProxiedRenderAttempt: initReportProxiedRenderAttempt({
+		logger: consoleLogger,
+		diagnostics: renderRequestDiagnostics,
+		newRenderAttemptId: randomUUID,
+	}),
 	now,
 });

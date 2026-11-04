@@ -50,6 +50,7 @@
     "parse-srcset": "1.0.2",
     "posthtml": "0.16.7",
     "puppeteer-core": "25.11.0",
+    "tldts": "6.1.86",
     "zod": "4.4.3"
   },
   "devDependencies": {

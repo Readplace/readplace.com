@@ -29,37 +29,48 @@ const webUnlockerEgress: WebUnlockerEgress = {
 	},
 };
 const requests = {
+	proxiedRequestLimit: 40,
 	continued: 1,
+	continuedProxied: 0,
+	continuedDirect: 1,
+	continuedNavigations: 1,
 	abortedByBudget: 0,
 	abortedByType: 0,
+	abortedBy: { type: 0, address: 0, budget: 0 },
 	continuedByResourceType: { document: 1 },
 };
+const resourceHosts = { initialSite: "example-spa.test", finalSite: "example-spa.test", buckets: [], overflowedRequests: 0 };
 const renderedBody: RenderOutcome = {
 	kind: "rendered",
 	html: "<p>Body</p>",
 	finalUrl: URL,
 	httpStatus: 200,
 	requests,
+	resourceHosts,
 };
 const blockedRender: RenderOutcome = {
 	kind: "blocked",
 	httpStatus: 403,
 	requests,
+	resourceHosts,
 };
 const failedRender: RenderOutcome = {
 	kind: "failed",
 	detail: "navigation timeout",
 	requests,
+	resourceHosts,
 };
 const residentialFailure: RenderOutcome = {
 	kind: "failed",
 	detail: "residential timeout",
 	requests,
+	resourceHosts,
 };
 const unlockerFailure: RenderOutcome = {
 	kind: "failed",
 	detail: "unlocker timeout",
 	requests,
+	resourceHosts,
 };
 const noBodyFetch: ProxiedFetchAttempt = {
 	kind: "no-body",
@@ -211,6 +222,7 @@ describe("runRenderLadder", () => {
 				detail: "no readable content",
 				httpStatus: 200,
 				requests,
+				resourceHosts,
 			},
 			residential: residentialFailure,
 			webUnlockerFetch: { kind: "skipped", reason: "no-block-evidence" },
@@ -510,6 +522,7 @@ describe("runRenderLadder", () => {
 				detail: "still a challenge page",
 				httpStatus: 200,
 				requests,
+				resourceHosts,
 			},
 		});
 		assert.deepEqual(steps, [
