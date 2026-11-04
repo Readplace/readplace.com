@@ -13,6 +13,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly browserHandoffCodesTable: aws.dynamodb.Table;
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
+	public readonly mediaUploadSessionsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly onboardingTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
@@ -36,6 +37,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		browserHandoffCodes: string;
 		pendingSignups: string;
 		importSessions: string;
+		mediaUploadSessions: string;
 		subscriptionProviders: string;
 		onboarding: string;
 		rateLimits: string;
@@ -291,6 +293,17 @@ export class HutchStorage extends pulumi.ComponentResource {
 				enabled: true,
 			},
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		this.mediaUploadSessionsTable = new aws.dynamodb.Table(`hutch-media-upload-sessions`, {
+			name: args.tableNames.mediaUploadSessions,
+			billingMode: "PAY_PER_REQUEST",
+			hashKey: "uploadId",
+			attributes: [{ name: "uploadId", type: "S" }],
+			ttl: {
+				attributeName: "expiresAt",
+				enabled: true,
+			},
+		}, { parent: this });
 
 		/* Fixed-window throttle counters (per-IP buckets + the global paid-crawl
 		 * budget), each row one window. Ephemeral by definition — no deletion

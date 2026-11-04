@@ -15,6 +15,7 @@ const DynamoTablesSchema = z.strictObject({
 	browserHandoffCodes: TableName,
 	pendingSignups: TableName,
 	importSessions: TableName,
+	mediaUploadSessions: TableName,
 	inboxAddresses: TableName,
 	inboxEmailLinks: TableName,
 	inboxSavedLinks: TableName,

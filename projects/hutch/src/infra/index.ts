@@ -138,6 +138,7 @@ const tableNames = {
 	browserHandoffCodes: config.require("dynamodbBrowserHandoffCodesTable"),
 	pendingSignups: config.require("dynamodbPendingSignupsTable"),
 	importSessions: config.require("dynamodbImportSessionsTable"),
+	mediaUploadSessions: config.require("dynamodbMediaUploadSessionsTable"),
 	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
 	inboxEmails: config.require("dynamodbInboxEmailsTable"),
 	inboxEmailLinks: config.require("dynamodbInboxEmailLinksTable"),
@@ -293,6 +294,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.browserHandoffCodesTable.arn, includeIndexes: false },
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
+		{ arn: storage.mediaUploadSessionsTable.arn, includeIndexes: false },
 		{ arn: inboxTableArn(tableNames.inboxAddresses), includeIndexes: true },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.onboardingTable.arn, includeIndexes: true },
@@ -457,6 +459,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 			browserHandoffCodes: storage.browserHandoffCodesTable.name,
 			pendingSignups: storage.pendingSignupsTable.name,
 			importSessions: storage.importSessionsTable.name,
+			mediaUploadSessions: storage.mediaUploadSessionsTable.name,
 			inboxAddresses: tableNames.inboxAddresses,
 			inboxEmailLinks: tableNames.inboxEmailLinks,
 			inboxSavedLinks: tableNames.inboxSavedLinks,
@@ -495,6 +498,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
+		MEDIA_BUCKET_NAME: mediaBucketName,
 		ANALYTICS_SALT: analyticsSalt,
 		ANALYTICS_SALT_GENERATION: String(analyticsSaltGeneration),
 		SSR_EDGE_SECRET: ssrEdgeSecret,
@@ -520,6 +524,19 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-pending-pdf-read", pendingPdfBucketName),
 		...newsletterCatalogBucket.readPolicies("hutch-newsletter-catalog"),
 		...newsletterCatalogBucket.writePolicies("hutch-newsletter-catalog"),
+		{
+			name: "media-pending-write",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Action: ["s3:PutObject", "s3:GetObject"],
+						Resource: `arn:aws:s3:::${mediaBucketName}/pending/*`,
+					},
+				],
+			}),
+		},
 		trialSchedulerManagePolicy,
 	],
 });

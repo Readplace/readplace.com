@@ -37,6 +37,7 @@ config:
   hutch:dynamodbBrowserHandoffCodesTable: hutch-browser-handoff-codes
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
+  hutch:dynamodbMediaUploadSessionsTable: hutch-media-upload-sessions-prod
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
   hutch:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
   hutch:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-prod
