@@ -30,6 +30,24 @@ Every toolchain invocation goes through `scripts/ax.sh`. See
 [`.claude/skills/android-emulator/SKILL.md`](../../../.claude/skills/android-emulator/SKILL.md)
 for the one-time SDK setup and the emulator troubleshooting.
 
+## Releasing
+
+CI's `android-play-publish` job uploads every change to the app's shipping code to Play's
+internal testing track (see `.github/workflows/publish-android-play.yml`). Production is a
+promotion of a tested internal release in Play Console, the counterpart of submitting a
+TestFlight build for App Store review.
+
+- **Version code.** Each upload takes the next `android-readplace@v<N>` tag and pushes the
+  tag before uploading, the same scheme as iOS. Play refuses a version code it has seen, so a
+  failed upload only skips a number. Debug builds stay at version code 1.
+- **Upload key.** Play App Signing holds the key that signs what users install. CI signs with
+  the upload key in the `prod` environment's `ANDROID_UPLOAD_KEYSTORE_BASE64` and
+  `ANDROID_UPLOAD_KEYSTORE_PASSWORD` secrets, alias `upload`. A lost upload key is reset
+  through Play Console support; it never locks the app.
+- **A local signed bundle.** `make bundle VERSION_CODE=<n>` with `READPLACE_UPLOAD_KEYSTORE`
+  and `READPLACE_UPLOAD_KEYSTORE_PASSWORD` set. Without them the build fails at
+  `validateSigningProductionRelease` rather than producing an unsigned bundle Play rejects.
+
 ## What differs from iOS, and why
 
 **One process, one binary.** iOS ships an app *and* a share extension, two binaries

@@ -13,8 +13,23 @@ android {
 		applicationId = "com.readplace.android"
 		minSdk = 29
 		targetSdk = 36
-		versionCode = 1
-		versionName = "1.0.0"
+		versionCode = providers.gradleProperty("readplace.versionCode").map(String::toInt).getOrElse(1)
+		versionName = "1.0.$versionCode"
+	}
+
+	signingConfigs {
+		create("upload") {
+			providers.environmentVariable("READPLACE_UPLOAD_KEYSTORE").orNull?.let { storeFile = file(it) }
+			storePassword = providers.environmentVariable("READPLACE_UPLOAD_KEYSTORE_PASSWORD").orNull
+			keyAlias = "upload"
+			keyPassword = providers.environmentVariable("READPLACE_UPLOAD_KEYSTORE_PASSWORD").orNull
+		}
+	}
+
+	buildTypes {
+		release {
+			signingConfig = signingConfigs.getByName("upload")
+		}
 	}
 
 	/**

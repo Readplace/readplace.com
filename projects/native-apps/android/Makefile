@@ -12,7 +12,7 @@ AVD ?= readplace-android
 APK_STAGING = app/build/outputs/apk/staging/debug/app-staging-debug.apk
 APPLICATION_ID = com.readplace.android
 
-.PHONY: test test-staging apk apk-staging apk-local emulator-create emulator-boot emulator-window emulator-wait emulator-stop install-emulator install-emulator-local screenshot clean stop
+.PHONY: test test-staging apk bundle apk-staging apk-local emulator-create emulator-boot emulator-window emulator-wait emulator-stop install-emulator install-emulator-local screenshot clean stop
 
 ## Full unit suite on the production configuration, the per-file coverage ratchet,
 ## then the staging configuration's own config pins — mirroring `make test` on iOS.
@@ -31,6 +31,9 @@ apk:
 
 apk-staging:
 	$(GRADLE) :app:assembleStagingDebug
+
+bundle:
+	$(GRADLE) :app:bundleProductionRelease -Preadplace.versionCode=$(VERSION_CODE)
 
 ## Points at a hutch dev server on this Mac. Pair it with `adb reverse tcp:3000
 ## tcp:3000` (install-emulator-local does) so the device's localhost is the Mac's.

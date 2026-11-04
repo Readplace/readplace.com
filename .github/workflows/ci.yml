@@ -506,7 +506,7 @@ jobs:
 
       - id: detect
         run: |
-          # Play publish gate (a later phase): fire only when the app's SHIPPING
+          # Play publish gate: fire only when the app's SHIPPING
           # source or its build inputs changed. Same reasoning as the iOS gate —
           # the unit tests live in the same nx project, so nx affected would fire
           # on test/doc/CI changes too.
@@ -559,6 +559,19 @@ jobs:
 
       - name: Run the unit suite, the coverage ratchet, and the staging config pins
         run: make test
+
+  android-play-publish:
+    if: >-
+      always()
+      && github.event_name != 'pull_request'
+      && needs.web-tests.result == 'success'
+      && needs.android-tests.result == 'success'
+      && needs.detect-android.outputs.android-affected == 'true'
+    needs: [web-tests, detect-android, android-tests]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-android-play.yml
+    secrets: inherit
 
   # iOS code OR tests change; publish stays scoped to shipping code via
   # ios-affected (⊆ ios-test-affected), so this always runs when publish would.

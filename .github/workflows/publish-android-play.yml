@@ -1,0 +1,96 @@
+name: Publish Android to Google Play
+
+on:
+  workflow_call: {}
+  workflow_dispatch: {}
+
+concurrency:
+  group: android-play-publish
+  cancel-in-progress: false
+
+jobs:
+  internal:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: projects/native-apps/android
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.TAG_PUSH_TOKEN }}
+
+      - id: preflight
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$PLAY_SERVICE_ACCOUNT_JSON" ] && [ -n "$ANDROID_UPLOAD_KEYSTORE_BASE64" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Google Play secrets not configured — skipping publish."
+          fi
+
+      - uses: actions/setup-java@v5
+        if: steps.preflight.outputs.configured == 'true'
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v5
+        if: steps.preflight.outputs.configured == 'true'
+        with:
+          validate-wrappers: true
+
+      - name: Ensure the SDK platform and build-tools the build pins
+        if: steps.preflight.outputs.configured == 'true'
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Compute the next version code from the latest tag
+        id: version
+        if: steps.preflight.outputs.configured == 'true'
+        run: |
+          LATEST=$(git tag --list 'android-readplace@v*' | sed -E 's/^android-readplace@v//' | sort -n | tail -n1)
+          [ -z "$LATEST" ] && LATEST=0
+          echo "code=$((LATEST + 1))" >> "$GITHUB_OUTPUT"
+          echo "Next Play version code: $((LATEST + 1))"
+
+      - name: Reserve the version code (tag the commit)
+        if: steps.preflight.outputs.configured == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="android-readplace@v${{ steps.version.outputs.code }}"
+          git tag "$TAG"
+          for i in 1 2 3 4 5; do
+            if git push origin "$TAG"; then exit 0; fi
+            echo "Tag push attempt $i failed, retrying..."; sleep 2
+          done
+          echo "ERROR: All 5 tag push attempts failed — aborting before upload"; exit 1
+
+      - name: Build the signed release bundle
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          READPLACE_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          export READPLACE_UPLOAD_KEYSTORE="$RUNNER_TEMP/upload-keystore.p12"
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$READPLACE_UPLOAD_KEYSTORE"
+          make bundle VERSION_CODE=${{ steps.version.outputs.code }}
+
+      - name: Upload to the internal testing track
+        if: steps.preflight.outputs.configured == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.readplace.android
+          releaseFiles: projects/native-apps/android/app/build/outputs/bundle/productionRelease/app-production-release.aab
+          track: internal
+          status: completed
