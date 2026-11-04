@@ -6,6 +6,7 @@ import {
 	hostStubMetadata,
 	isNonArticleHost,
 	type ArticleBody,
+	type ShownSummary,
 	type StoredArticleBody,
 } from "@packages/domain/article";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
@@ -32,11 +33,13 @@ import type {
 	ArticleVersion,
 	CapturePollUrls,
 	HandlePollParams,
+	KnownReaderState,
 	PollUrlBuilder,
 	ReaderState,
 	ReaderViewFailedOob,
 	ResolveReaderStateParams,
 } from "./article-reader.types";
+import { needsResolutionOnView } from "../../../domain/resolve-on-view/needs-resolution-on-view";
 import { isReaderContentUnavailable } from "../article-state/is-reader-content-unavailable";
 import { isReaderViewFailed } from "../article-state/is-reader-view-failed";
 import { MAX_POLLS } from "@packages/web-shell";
@@ -308,16 +311,26 @@ const GATED_READER_STATE: ReaderState = {
 
 export function initArticleReader(deps: ArticleReaderDeps): {
 	resolveReaderState: (params: ResolveReaderStateParams) => Promise<ReaderState>;
+	resolveReaderStateFrom: (params: ResolveReaderStateParams, known: KnownReaderState) => Promise<ReaderState>;
 	handleSummaryPoll: (params: HandlePollParams) => Promise<Component>;
 	handleReaderPoll: (params: HandlePollParams) => Promise<Component>;
 } {
 	async function resolveReaderState(
 		params: ResolveReaderStateParams,
 	): Promise<ReaderState> {
+		if (isNonArticleHost(params.article.url)) return GATED_READER_STATE;
+		const crawl = await deps.findArticleCrawlStatus(params.article.url);
+		const summary = await deps.findGeneratedSummary({ url: params.article.url, viewer: params.viewer });
+		return resolveReaderStateFrom(params, { crawl, summary });
+	}
+
+	async function resolveReaderStateFrom(
+		params: ResolveReaderStateParams,
+		known: KnownReaderState,
+	): Promise<ReaderState> {
 		const { article, pollUrlBuilder } = params;
 		if (isNonArticleHost(article.url)) return GATED_READER_STATE;
-		const crawl = await deps.findArticleCrawlStatus(article.url);
-		const summary = await deps.findGeneratedSummary({ url: article.url, viewer: params.viewer });
+		const { crawl, summary } = known;
 		const freshness = await deps.findArticleFreshness(article.url);
 		const versions = await deps.findArticleCrawlVersions(article.url);
 
@@ -465,15 +478,36 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		}));
 	}
 
+	async function claimAfterDeviceGaveUp(
+		params: HandlePollParams,
+		loaded: { crawl: ArticleCrawl | undefined; summary: ShownSummary | undefined },
+	): Promise<KnownReaderState> {
+		const { capture } = params;
+		if (capture.kind !== "device-gave-up" || deps.requestResolutionOnView === undefined) return loaded;
+		if (loaded.crawl?.status !== "failed" || loaded.crawl.outcomeRevision > capture.since) return loaded;
+		const url = params.articleUrl;
+		if (needsResolutionOnView({ url, ...loaded, viewerCanCapture: true }) !== "device-first") return loaded;
+		const resolved = await deps.requestResolutionOnView({
+			surface: "reader-capture-gave-up",
+			viewer: params.viewer,
+			viewerCanCapture: false,
+			articles: [{ url, ...loaded }],
+		});
+		const claimed = resolved.get(url);
+		assert(claimed, "a device-first row is eligible for a viewer that cannot capture");
+		return claimed;
+	}
+
 	async function handleReaderPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
 		if (isNonArticleHost(articleUrl)) return gatedPollResponse("reader", articleUrl);
-		const [crawl, summary, content, article] = await Promise.all([
+		const [loadedCrawl, loadedSummary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
 			deps.readArticleContent({ url: articleUrl, viewer: params.viewer }).then(bodyOf),
 			deps.findArticleByUrl(articleUrl),
 		]);
+		const { crawl, summary } = await claimAfterDeviceGaveUp(params, { crawl: loadedCrawl, summary: loadedSummary });
 		const destinationUrl = article?.destinationUrl ?? articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const { readerPollUrl, summaryPollUrl, capturePollUrls, capture } = computePollUrls({
 			crawl, summary, content, pollCount, pollUrlBuilder, capture: params.capture,
@@ -512,5 +546,5 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		}));
 	}
 
-	return { resolveReaderState, handleSummaryPoll, handleReaderPoll };
+	return { resolveReaderState, resolveReaderStateFrom, handleSummaryPoll, handleReaderPoll };
 }

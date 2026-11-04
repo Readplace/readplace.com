@@ -26,7 +26,7 @@ export function initStartAnonymousCrawl(deps: StartAnonymousCrawlDependencies): 
 			estimatedReadTime: calculateReadTime(0),
 			savedAt: deps.now(),
 		});
-		await deps.markCrawlPending({ url, measured: false });
+		await deps.markCrawlPending({ url, measured: false, meteredLegs: "run" });
 		await deps.markSummaryPending({ url });
 		if (identity.contentSourceUrl !== undefined && isArchiveHost(identity.contentSourceUrl)) {
 			await deps.pinContentSource({ articleUrl: url, contentSourceUrl: identity.contentSourceUrl, sourceOriginalUrl: identity.sourceOriginalUrl });

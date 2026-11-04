@@ -1,6 +1,8 @@
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
 import { noopLogger } from "@packages/hutch-logger";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { markCrawlExhausted, promoteTier, type Article, type TransitionAndPersist } from "@packages/domain/article-aggregate";
@@ -27,6 +29,7 @@ function setup(overrides: Partial<Parameters<typeof initReselectAfterRemovalHand
 	};
 	const handler = initReselectAfterRemovalHandler({
 		listAvailableTierSources: async () => [source], selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "surviving original", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
+		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),
 		writeCanonicalContent: async () => ({ contentLocation: "s3://content/survivor.html", candidateId: source.metadata.id, tier: source.tier }),
 		recordCrawlVersion: async () => {}, readCanonicalContent: async () => undefined, loadArticle: async () => article,
 		transitionAndPersist, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined, now: () => NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger, ...overrides,

@@ -1,80 +1,21 @@
-import { initCrawlSaveCandidates, type SaveCandidates } from "./crawl-save-candidates";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
+import assert from "node:assert";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
 } from "@packages/hutch-infra-components";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
-import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
-import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
-import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import { ClassifiedCrawlError, initSaveLinkWork, logRecordFailure } from "./save-link-work";
-import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
-import assert from "node:assert";
-import { initCrawlArchiveCapture } from "./crawl-archive-capture";
-import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
-import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
-import type { PutTierSource } from "@packages/tier-source";
-import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
+import type { PrepareArticleIdentity } from "@packages/save-article";
+import { ClassifiedCrawlError, logRecordFailure } from "./save-link-work";
+import { initRunCrawlFromTier1, type RunCrawlFromTier1Deps } from "./run-crawl-from-tier1";
 
-export function initRecrawlLinkInitiatedHandler(deps: {
-	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
-	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
-	putTierSource: PutTierSource;
-	updateFetchTimestamp: UpdateFetchTimestamp;
-	transitionAndPersist: TransitionAndPersist;
-	markCrawlStage: MarkCrawlStage;
-	adoptCanonicalIdentity: AdoptCanonicalIdentity;
-	isSiteRuleUrl: (url: string) => boolean;
-	publishEvent: PublishEvent;
-	now: () => Date;
-	logger: HutchLogger;
-	logParseError: LogParseError;
-	logCrawlOutcome: LogCrawlOutcome;
-	readTierSnapshot: ReadTierSnapshot;
-	resolveOriginalUrl: (url: string) => Promise<string>;
-	verifyWrapperSource: VerifyWrapperSource;
+export function initRecrawlLinkInitiatedHandler(deps: RunCrawlFromTier1Deps & {
 	prepareArticleIdentity: PrepareArticleIdentity;
-	findContentSourceUrl: (url: string) => Promise<string | undefined>;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
 	const logPrefix = "[RecrawlLinkInitiated]";
 
-	const { saveLinkWork } = initSaveLinkWork({
-		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
-		emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported,
-		putTierSource: deps.putTierSource,
-		publishEvent,
-		updateFetchTimestamp: deps.updateFetchTimestamp,
-		transitionAndPersist: deps.transitionAndPersist,
-		markCrawlStage: deps.markCrawlStage,
-		adoptCanonicalIdentity: deps.adoptCanonicalIdentity,
-		isSiteRuleUrl: deps.isSiteRuleUrl,
-		now: deps.now,
-		logger,
-		logParseError: deps.logParseError,
-		logCrawlOutcome: deps.logCrawlOutcome,
-		readTierSnapshot: deps.readTierSnapshot,
-		logPrefix,
-		resolveOriginalUrl: deps.resolveOriginalUrl,
-	});
-
-	const crawlArchiveCapture = initCrawlArchiveCapture({
-		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
-		putTierSource: deps.putTierSource,
-		readTierSnapshot: deps.readTierSnapshot,
-		logCrawlOutcome: deps.logCrawlOutcome,
-		publishEvent,
-		logger,
-		now: deps.now,
-		verifyWrapperSource: deps.verifyWrapperSource,
-	});
-
-	const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
+	const runCrawlFromTier1 = initRunCrawlFromTier1({ ...deps, logPrefix });
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -90,17 +31,8 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 				assert(identity.status === "resolved", "recrawl original identity is unresolved");
 
 				try {
-					const captureUrl = await deps.findContentSourceUrl(detail.url);
-					let extracted: SaveCandidates;
-					if (captureUrl !== undefined) {
-						const result = await crawlSaveCandidates({ url: detail.url, captureUrl, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
-						if ("deferredTo" in result) continue;
-						extracted = result;
-					} else {
-						const result = await saveLinkWork(detail.url, { recrawl: true, saveAttemptId });
-						if (typeof result !== "object" || "deferred" in result) continue;
-						extracted = { candidates: [result.candidate], liveAttempt: { outcome: "body" } };
-					}
+					const extracted = await runCrawlFromTier1({ url: detail.url, saveAttemptId, recrawl: true, sourceOriginalUrl: identity.sourceOriginalUrl });
+					if (extracted === undefined) continue;
 
 					await publishEvent(RecrawlContentExtractedEvent, {
 						url: detail.url,

@@ -13,7 +13,7 @@ import { isBlockedIpAddress } from "@packages/domain/article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { requireEnv } from "@packages/require-env";
 import { z } from "zod";
-import { initCanonicalAliasStore } from "@packages/article-store";
+import { initCanonicalAliasStore, initDynamoDbMeteredLegLedger } from "@packages/article-store";
 import { initRenderCrawlHandler } from "./domain/render-crawl/render-crawl-handler";
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
@@ -93,6 +93,7 @@ const { consumePaidCrawlBudget: consumeRenderCrawlBudget } = initDynamoDbPaidCra
 	now,
 	delay: (milliseconds) => sleep(milliseconds),
 });
+const meteredLegLedger = initDynamoDbMeteredLegLedger({ client: dynamoClient, tableName: articlesTable, now });
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 	adoptDestination: canonicalAliasStore.adoptDestination,
 	reconcileStubMetadata: canonicalAliasStore.reconcileStubMetadata,
@@ -140,6 +141,7 @@ export const handler = initRenderCrawlHandler({
 	...articleCrawl,
 	...observability,
 	consumeRenderCrawlBudget,
+	...meteredLegLedger,
 	adoptCanonicalIdentity,
 	renderPage,
 	residentialEgress: initResidentialEgress({

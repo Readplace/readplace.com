@@ -201,6 +201,11 @@ async function openReaderWithNoRailCard(page: Page, stamp: string): Promise<void
 
 	await page.goto(new URL(href, BASE_URL).href, { waitUntil: "domcontentloaded" });
 	await page.waitForSelector("body.page-reader");
+	await seedCrawlStatus(page, {
+		url: `${UNFETCHABLE_FIXTURE}${stamp}`,
+		status: "failed",
+		reason: JSON.stringify({ kind: "fetch-failed" }),
+	});
 	await page.waitForSelector(SETTLED_NOTICE);
 	await waitForBrandFonts(page, ["Inter"]);
 }
@@ -754,6 +759,7 @@ const COPYING_TITLE = "Copying the page from your device";
 const CAPTURE_MISSING_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader-status="capture-missing"]`;
 const CAPTURE_UNREADABLE_NOTICE = `${VISIBLE_NOTICE}[data-test-reader-notice][data-reader-status="capture-unreadable"]`;
 const CAPTURE_UNREADABLE_REASON = JSON.stringify({ kind: "capture-unreadable", detail: "no readable article candidate: a game" });
+const UNREADABLE_CAPTURE = `${CAPTURE_UNREADABLE_NOTICE} [data-test-reader-action="capture"]`;
 const HISTORY_HOLDING_THE_PAGE_HEIGHT = [
 	"2026-07-10T09:14Z",
 	"2026-06-28T22:01Z",
@@ -763,20 +769,33 @@ const HISTORY_HOLDING_THE_PAGE_HEIGHT = [
 	"2026-02-11T11:08Z",
 ].map((crawledAtMinute) => ({ crawledAtMinute }));
 
-async function openBlockedReader(page: Page, stamp: string): Promise<SeededReader> {
+async function openFailedReader(
+	page: Page,
+	input: { stamp: string; reason: string; notice: string },
+): Promise<SeededReader> {
 	await quietReader(page);
 	const reader = await seedOwnerArticle(page, {
-		stamp,
+		stamp: input.stamp,
 		content: SHORT_ARTICLE,
 		crawlVersions: HISTORY_HOLDING_THE_PAGE_HEIGHT,
 	});
 	await seedCrawlStatus(page, { url: reader.url, status: "pending" });
-	await seedCrawlStatus(page, { url: reader.url, status: "failed", reason: BLOCKED_REASON });
+	await seedCrawlStatus(page, { url: reader.url, status: "failed", reason: input.reason });
 	await openReader(page, { reader, query: "" });
-	await page.waitForSelector(BLOCKED_NOTICE);
+	await seedCrawlStatus(page, { url: reader.url, status: "pending" });
+	await seedCrawlStatus(page, { url: reader.url, status: "failed", reason: input.reason });
+	await page.waitForSelector(input.notice);
 	await expect.poll(() => page.evaluate(htmxIsLive)).toBe(true);
 	await waitForBrandFonts(page, ["Inter"]);
 	return reader;
+}
+
+async function openBlockedReader(page: Page, stamp: string): Promise<SeededReader> {
+	return openFailedReader(page, { stamp, reason: BLOCKED_REASON, notice: BLOCKED_NOTICE });
+}
+
+async function openCaptureUnreadableReader(page: Page, stamp: string): Promise<SeededReader> {
+	return openFailedReader(page, { stamp, reason: CAPTURE_UNREADABLE_REASON, notice: CAPTURE_UNREADABLE_NOTICE });
 }
 
 test.describe("A capture host starting the reader's capture poll", () => {
@@ -806,18 +825,18 @@ test.describe("A capture host starting the reader's capture poll", () => {
 	test("a capture-failed event sent right after a tap, before the copying state lands, shows the copy never arrived, offers the capture again and the page holds still", async ({
 		page,
 	}, testInfo) => {
-		await openBlockedReader(page, `capture-failed-${testInfo.workerIndex}-${Date.now()}`);
+		await openCaptureUnreadableReader(page, `capture-failed-${testInfo.workerIndex}-${Date.now()}`);
 		await page.evaluate(() => document.documentElement.setAttribute("data-reader-capture-host", ""));
-		await expect(page.locator(CAPTURE)).toBeVisible();
+		await expect(page.locator(UNREADABLE_CAPTURE)).toBeVisible();
 		const viewport = page.viewportSize();
 		assert.ok(viewport, "the tap must run with an explicit viewport");
-		const capture = await measuredBox(page, CAPTURE);
+		const capture = await measuredBox(page, UNREADABLE_CAPTURE);
 		await scrollToY(page, Math.round(capture.y + capture.height + 24 - viewport.height));
 		const before = await page.evaluate(readScrollY);
 		expect(before).toBeGreaterThan(0);
 
-		await page.evaluate(recordScrollAfterSwap, CAPTURE);
-		await page.locator(CAPTURE).evaluate((button) => {
+		await page.evaluate(recordScrollAfterSwap, UNREADABLE_CAPTURE);
+		await page.locator(UNREADABLE_CAPTURE).evaluate((button) => {
 			button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 			document.dispatchEvent(new Event("readplace-capture-failed"));
 		});
@@ -834,22 +853,22 @@ test.describe("A capture host starting the reader's capture poll", () => {
 		await expect(page.locator("html")).toHaveAttribute(SCROLL_STAMP, String(before));
 	});
 
-	test("an automatic capture the device gives up on returns the reader to the blocked notice it showed before", async ({
+	test("an automatic capture the device gives up on returns the reader to the notice it showed before", async ({
 		page,
 	}, testInfo) => {
-		await openBlockedReader(page, `capture-automatic-gave-up-${testInfo.workerIndex}-${Date.now()}`);
+		await openCaptureUnreadableReader(page, `capture-automatic-gave-up-${testInfo.workerIndex}-${Date.now()}`);
 		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-started")));
 		await expect(page.locator(PENDING_TITLE)).toHaveText(COPYING_TITLE);
 
 		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-failed")));
 
-		await expect(page.locator(BLOCKED_NOTICE)).toHaveCount(1);
-		await expect(page.locator(CAPTURE)).toHaveClass(/article-body__reader-notice-capture--offered/);
+		await expect(page.locator(CAPTURE_UNREADABLE_NOTICE)).toHaveCount(1);
+		await expect(page.locator(UNREADABLE_CAPTURE)).toHaveClass(/article-body__reader-notice-capture--offered/);
 		await expect(page.locator(CAPTURE_MISSING_NOTICE)).toHaveCount(0);
 		await expect(page.locator(PENDING_SLOT)).toHaveCount(0);
 		expect(
 			await page.locator(READER_SLOT).evaluate((slot) => [slot.getAttribute("data-reader-status"), slot.hasAttribute("hx-get")]),
-		).toEqual(["blocked", false]);
+		).toEqual(["capture-unreadable", false]);
 	});
 
 	test("a capture judged while copying ends on the next poll with the notice for the reader's own capture", async ({

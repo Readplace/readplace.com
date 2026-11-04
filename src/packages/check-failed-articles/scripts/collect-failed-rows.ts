@@ -101,7 +101,8 @@ export function buildScanInput(now: Date, lookbackDays: number) {
 	const bothAxesTerminal =
 		"attribute_exists(crawlStatus) AND attribute_exists(summaryStatus) " +
 		"AND crawlStatus <> :pending AND summaryStatus <> :pending";
-	let filterExpression = `${bothAxesTerminal} AND ${terminalUnsuccessful}`;
+	const meteredLegsTried = "attribute_not_exists(meteredLegsDeferredSince)";
+	let filterExpression = `${bothAxesTerminal} AND ${terminalUnsuccessful} AND ${meteredLegsTried}`;
 	const expressionAttributeValues = { ...baseExpressionAttributeValues };
 	if (lookbackDays > 0) {
 		const since = new Date(now.getTime() - lookbackDays * MS_PER_DAY).toISOString();

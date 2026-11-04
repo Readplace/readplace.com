@@ -54,7 +54,7 @@ import {
 	initDynamoDbRelatedArticles,
 	initDynamoDbRelatedPassRequests,
 } from "@packages/article-store";
-import { initDynamoDbArticleCrawl } from "@packages/article-store";
+import { initDynamoDbArticleCrawl, initDynamoDbClaimResolutionOnView } from "@packages/article-store";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { initS3ReadContent, initS3ReadArticleImage, initReadContentLocation } from "@packages/article-store";
@@ -68,6 +68,8 @@ import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-inf
 import { initEventBridgeLinkDequeued } from "./events/eventbridge-link-dequeued";
 import { initEventBridgeQueueEntryCreated } from "./events/eventbridge-queue-entry-created";
 import { initEventBridgeComputeRelatedPasses } from "./events/eventbridge-compute-related-passes";
+import { initEventBridgeResolveArticleOnView } from "./events/eventbridge-resolve-article-on-view";
+import { initRequestResolutionOnView } from "../domain/resolve-on-view/request-resolution-on-view";
 import { initEventBridgeComputeRelatedPastReads } from "./events/eventbridge-compute-related-past-reads";
 import { initEventBridgeLinkQueued } from "./events/eventbridge-link-queued";
 import { initEventBridgeLinkSaved } from "./events/eventbridge-link-saved";
@@ -295,6 +297,14 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const { publishQueueEntryCreated } = initEventBridgeQueueEntryCreated({ publishEvent });
 	const { publishComputeRelatedPastReads } = initEventBridgeComputeRelatedPastReads({ publishEvent });
 	const { publishComputeRelatedPasses } = initEventBridgeComputeRelatedPasses({ publishEvent });
+	const { publishResolveArticleOnView } = initEventBridgeResolveArticleOnView({ publishEvent });
+	const requestResolutionOnView = initRequestResolutionOnView({
+		claimResolutionOnView: initDynamoDbClaimResolutionOnView({ client, tableName: articlesTable, now: () => new Date() }),
+		publishResolveArticleOnView,
+		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		findGeneratedSummary: summaryStore.findGeneratedSummary,
+		logger,
+	});
 	const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 	const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });
 	const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
@@ -601,6 +611,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		publishQueueEntryCreated,
 		publishComputeRelatedPastReads,
 		publishComputeRelatedPasses,
+		requestResolutionOnView,
 		readRelatedPassRequestState: relatedPassRequests.readRelatedPassRequestState,
 		markRelatedPassesRequested: relatedPassRequests.markRelatedPassesRequested,
 		publishRecrawlLinkInitiated,

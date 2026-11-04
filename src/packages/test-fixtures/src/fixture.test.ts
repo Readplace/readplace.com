@@ -18,6 +18,16 @@ import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-ar
 import type { ParseArticle } from "@packages/article-parser";
 
 describe("createFakeSummaryProvider", () => {
+	it("forces a failed summary back to pending and exposes the stored state", async () => {
+		const { summaryStateOf, forceMarkSummaryPending, markSummaryFailed } = createFakeSummaryProvider({ findItemOwner: async () => undefined });
+		const url = "https://example.com/article";
+		markSummaryFailed({ url, reason: "boom" });
+
+		forceMarkSummaryPending(url);
+
+		expect(summaryStateOf(url)).toEqual({ status: "pending" });
+	});
+
 	it("returns the pending state on every read when readyAfterReads is unset (deterministic for unit tests)", async () => {
 		const { findGeneratedSummary, markSummaryPending } = createFakeSummaryProvider({ findItemOwner: async () => undefined });
 		const url = "https://example.com/article";
@@ -244,7 +254,7 @@ describe("createFakeApplyParseResult", () => {
 		const url = "https://example.com/x";
 
 		await seedGlobalArticle(articleStore, url);
-		await articleCrawl.markCrawlPending({ url, measured: false });
+		await articleCrawl.markCrawlPending({ url, measured: false, meteredLegs: "run" });
 		await apply(url);
 
 		const status = await articleCrawl.findArticleCrawlStatus(url);
@@ -259,7 +269,7 @@ describe("createFakeApplyParseResult", () => {
 		const apply = createFakeApplyParseResult({ articleStore, articleCrawl, parseArticle });
 		const url = "https://example.com/x";
 
-		await articleCrawl.markCrawlPending({ url, measured: false });
+		await articleCrawl.markCrawlPending({ url, measured: false, meteredLegs: "run" });
 		await apply(url);
 
 		const status = await articleCrawl.findArticleCrawlStatus(url);
@@ -285,7 +295,7 @@ describe("createFakeApplyParseResult", () => {
 		const url = "https://example.com/x";
 
 		await seedGlobalArticle(articleStore, url);
-		await articleCrawl.markCrawlPending({ url, measured: false });
+		await articleCrawl.markCrawlPending({ url, measured: false, meteredLegs: "run" });
 		await apply(url);
 
 		const status = await articleCrawl.findArticleCrawlStatus(url);

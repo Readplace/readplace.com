@@ -39,7 +39,7 @@ export function initSaveEmailIssue(deps: {
 		});
 		await deps.setDisplayUrl({ articleUrl: url, displayUrl });
 		if (contentPending) {
-			await deps.markCrawlPending({ url, measured: false });
+			await deps.markCrawlPending({ url, measured: false, meteredLegs: "run" });
 			await deps.markSummaryPending({ url });
 		}
 		await onSavedToAll();

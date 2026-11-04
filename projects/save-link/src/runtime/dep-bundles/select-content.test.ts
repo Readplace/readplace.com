@@ -15,11 +15,13 @@ describe("initSelectContentDepBundle", () => {
 			}),
 			logger: noopLogger,
 			deepseekCallFailedLog: noopLogger,
+			now: () => new Date("2026-01-01T00:00:00Z"),
 		});
 
 		expect(typeof bundle.readTierSource).toBe("function");
 		expect(typeof bundle.listAvailableTierSources).toBe("function");
 		expect(typeof bundle.selectMostCompleteContent).toBe("function");
+		expect(typeof bundle.runMeteredLeg).toBe("function");
 		expect(typeof bundle.writeCanonicalContent).toBe("function");
 		expect(typeof bundle.recordCrawlVersion).toBe("function");
 		expect(bundle.deepseekCallFailedLog).toBe(noopLogger);

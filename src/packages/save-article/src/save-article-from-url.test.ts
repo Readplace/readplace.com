@@ -2,6 +2,7 @@ import { ReaderArticleHashIdSchema, SaveAttemptIdSchema, SaveableUrlSchema, arti
 import { MinutesSchema } from "@packages/domain/article";
 import type { SaveProvenance, SaveTrigger, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
+import type { MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
 import {
 	initSaveArticleFromUrl,
 	type SaveArticleFromUrlDependencies,
@@ -47,14 +48,14 @@ interface CallTracker {
 		pinContentSource: number;
 	};
 	queueEntryCreated: Array<{ url: string; userId: string }>;
-	crawlPendingMarks: Array<{ url: string; measured: boolean }>;
+	crawlPendingMarks: Array<{ url: string; measured: boolean; meteredLegs: MeteredLegsMode }>;
 	deps: SaveArticleFromUrlDependencies;
 }
 
 function makeTracker(savedOverride?: SavedArticle): CallTracker {
 	const saved = savedOverride ?? makeSaved();
 	const queueEntryCreated: Array<{ url: string; userId: string }> = [];
-	const crawlPendingMarks: Array<{ url: string; measured: boolean }> = [];
+	const crawlPendingMarks: Array<{ url: string; measured: boolean; meteredLegs: MeteredLegsMode }> = [];
 	const calls = {
 		markCrawlPending: 0,
 		markSummaryPending: 0,
@@ -214,7 +215,7 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
 
 		expect(tracker.queueEntryCreated).toEqual([]);
-		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured: false }]);
+		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured: false, meteredLegs: "run" }]);
 	});
 
 	it("asks nothing when a tapped save lands on the row an automatic save created", async () => {
@@ -238,14 +239,14 @@ describe("saveArticleFromUrl", () => {
 			{ kind: "mcp", registeredName: "claude" },
 			{ kind: "import" },
 		];
-		const triggers: { saveTrigger: SaveTrigger; asks: number; measured: boolean }[] = [
-			{ saveTrigger: "manual", asks: 1, measured: true },
-			{ saveTrigger: "automatic", asks: 0, measured: false },
+		const triggers: { saveTrigger: SaveTrigger; asks: number; measured: boolean; meteredLegs: MeteredLegsMode }[] = [
+			{ saveTrigger: "manual", asks: 1, measured: true, meteredLegs: "run" },
+			{ saveTrigger: "automatic", asks: 0, measured: false, meteredLegs: "deferred" },
 		];
 
 		it.each(provenances.flatMap((saveProvenance) => triggers.map((trigger) => ({ saveProvenance, ...trigger }))))(
-			"asks $asks time(s) for a $saveTrigger $saveProvenance.kind save, and marks the crawl pending with measured=$measured",
-			async ({ saveProvenance, saveTrigger: trigger, asks, measured }) => {
+			"asks $asks time(s) for a $saveTrigger $saveProvenance.kind save, and marks the crawl pending with measured=$measured and meteredLegs=$meteredLegs",
+			async ({ saveProvenance, saveTrigger: trigger, asks, measured, meteredLegs }) => {
 				const tracker = makeTracker();
 
 				await initSaveArticleFromUrl(tracker.deps)({
@@ -258,7 +259,7 @@ describe("saveArticleFromUrl", () => {
 				});
 
 				expect(tracker.calls.publishQueueEntryCreated).toBe(asks);
-				expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured }]);
+				expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured, meteredLegs }]);
 			},
 		);
 	});
@@ -511,6 +512,17 @@ describe("saveArticleFromUrl", () => {
 				`pinContentSource:${exampleUrl}→${snapshot}`,
 				`markCrawlPending:${exampleUrl}`,
 			]);
+		});
+
+		it.each([
+			{ saveTrigger: "automatic" as const },
+			{ saveTrigger: "manual" as const },
+		])("runs the metered legs for a $saveTrigger save that carries a capture", async ({ saveTrigger: trigger }) => {
+			const tracker = makeTracker();
+
+			await initSaveArticleFromUrl(tracker.deps)({ userId, url: exampleUrl, provenance, saveTrigger: trigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: snapshotIdentity } });
+
+			expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured: trigger === "manual", meteredLegs: "run" }]);
 		});
 
 		it("asks for the snapshot to be crawled as a content candidate after priming the live crawl", async () => {

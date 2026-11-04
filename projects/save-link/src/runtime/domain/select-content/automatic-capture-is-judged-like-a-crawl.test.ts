@@ -1,6 +1,8 @@
 import { type CaptureTrigger, type SaveAttemptId, SaveAttemptIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
-import { type Article, type TransitionAndPersist, promoteTier } from "@packages/domain/article-aggregate";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
+import { type Article, type TransitionAndPersist, markCrawlAwaitingReader, promoteTier } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { SQSEvent } from "aws-lambda";
 import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
@@ -62,13 +64,14 @@ function reply(decision: object): CreateDeepseekChatCompletion {
 	return async () => ({ choices: [{ message: { content: JSON.stringify(decision) } }] });
 }
 
-async function selectContent(params: { article: Article; capture: VerifiedTierSource; others: readonly VerifiedTierSource[]; createChatCompletion: CreateDeepseekChatCompletion }) {
+async function selectContent(params: { article: Article; capture: VerifiedTierSource; others: readonly VerifiedTierSource[]; createChatCompletion: CreateDeepseekChatCompletion; legsDeferred: boolean }) {
 	const persisted: { transition: unknown; input: unknown }[] = [];
 	const transitionAndPersist: TransitionAndPersist = async (transition, { input }) => { persisted.push({ transition, input }); };
 	const info = jest.fn();
 	const handler = initSelectMostCompleteContentHandler({
 		listAvailableTierSources: async () => [params.capture, ...params.others],
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: params.createChatCompletion }).selectMostCompleteContent,
+		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => params.legsDeferred, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }),
 		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, originalUrl: URL, tier: source.tier }),
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => undefined, loadArticle: async () => params.article, transitionAndPersist,
@@ -82,7 +85,7 @@ async function selectContent(params: { article: Article; capture: VerifiedTierSo
 	return { result, persisted, comparisons: comparisons.map(({ selectionRule, ownCaptureFailed, candidates }) => ({ selectionRule, ownCaptureFailed, captureTrigger: candidates[0].captureTrigger })) };
 }
 
-type Outcome = "marked unreadable" | "promoted" | "passed over for the canonical" | "retried";
+type Outcome = "marked unreadable" | "promoted" | "passed over for the canonical" | "retried" | "left awaiting a reader";
 
 const COMPANIONS = [
 	{ companions: "alone", holdsContent: false, article: failedArticle, others: (): VerifiedTierSource[] => [] },
@@ -90,22 +93,23 @@ const COMPANIONS = [
 	{ companions: "with committed content present", holdsContent: true, article: () => articleHolding(committedCanonical()), others: () => [committedCanonical()] },
 ];
 
-const JUDGES: readonly { verdict: string; rule?: PreparedContentSelection["selectionRule"]; withoutContent: Outcome; withContent: Outcome; createChatCompletion: (labels: readonly string[]) => CreateDeepseekChatCompletion }[] = [
-	{ verdict: "finds nothing readable", rule: "judge", withoutContent: "marked unreadable", withContent: "passed over for the canonical", createChatCompletion: (labels) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((label) => ({ candidate: label, readable: false })) }) },
-	{ verdict: "picks the capture", rule: "judge", withoutContent: "promoted", withContent: "promoted", createChatCompletion: (labels) => reply({ kind: "winner", candidate: labels[0], reason: "The capture is the article", readability: labels.map((label, index) => ({ candidate: label, readable: index === 0 })) }) },
-	{ verdict: "is refused by its provider", rule: "provider-rejected-fallback", withoutContent: "promoted", withContent: "passed over for the canonical", createChatCompletion: () => async () => { throw Object.assign(new Error("bad request"), { status: 400 }); } },
-	{ verdict: "fails with HTTP 500", withoutContent: "retried", withContent: "retried", createChatCompletion: () => async () => { throw Object.assign(new Error("server error"), { status: 500 }); } },
+const JUDGES: readonly { verdict: string; rule?: PreparedContentSelection["selectionRule"]; withoutContent: Outcome; withContent: Outcome; legsDeferred: boolean; createChatCompletion: (labels: readonly string[]) => CreateDeepseekChatCompletion }[] = [
+	{ verdict: "finds nothing readable", rule: "judge", withoutContent: "marked unreadable", withContent: "passed over for the canonical", legsDeferred: false, createChatCompletion: (labels) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((label) => ({ candidate: label, readable: false })) }) },
+	{ verdict: "picks the capture", rule: "judge", withoutContent: "promoted", withContent: "promoted", legsDeferred: false, createChatCompletion: (labels) => reply({ kind: "winner", candidate: labels[0], reason: "The capture is the article", readability: labels.map((label, index) => ({ candidate: label, readable: index === 0 })) }) },
+	{ verdict: "is refused by its provider", rule: "provider-rejected-fallback", withoutContent: "promoted", withContent: "passed over for the canonical", legsDeferred: false, createChatCompletion: () => async () => { throw Object.assign(new Error("bad request"), { status: 400 }); } },
+	{ verdict: "is deferred until a reader opens the article", rule: "judge-deferred", withoutContent: "left awaiting a reader", withContent: "passed over for the canonical", legsDeferred: true, createChatCompletion: () => async () => { throw new Error("the judge ran while its leg was deferred"); } },
+	{ verdict: "fails with HTTP 500", withoutContent: "retried", withContent: "retried", legsDeferred: false, createChatCompletion: () => async () => { throw Object.assign(new Error("server error"), { status: 500 }); } },
 ];
 
 const ROWS = COMPANIONS.flatMap((companions) => JUDGES.map((judge) => ({
 	...companions, ...judge, expected: companions.holdsContent ? judge.withContent : judge.withoutContent,
 })));
 
-it.each(ROWS)("an automatic capture $companions, when the judge $verdict, is $expected and never takes a capture rule", async ({ article, others, createChatCompletion, rule, expected }) => {
+it.each(ROWS)("an automatic capture $companions, when the judge $verdict, is $expected and never takes a capture rule", async ({ article, others, createChatCompletion, rule, legsDeferred, expected }) => {
 	const capture = automaticCapture();
 	const companions = others();
 
-	const selection = await selectContent({ article: article(), capture, others: companions, createChatCompletion: createChatCompletion([capture, ...companions].map((_source, index) => labelForIndex(index))) });
+	const selection = await selectContent({ article: article(), capture, others: companions, createChatCompletion: createChatCompletion([capture, ...companions].map((_source, index) => labelForIndex(index))), legsDeferred });
 
 	const compared = [{ selectionRule: rule, ownCaptureFailed: false, captureTrigger: "automatic" }];
 	const outcomes: Record<Outcome, unknown> = {
@@ -113,6 +117,7 @@ it.each(ROWS)("an automatic capture $companions, when the judge $verdict, is $ex
 		promoted: { result: { batchItemFailures: [] }, persisted: [{ transition: promoteTier, input: expect.objectContaining({ tier: "tier-0", metadata: expect.objectContaining({ id: capture.metadata.id }) }) }], comparisons: compared },
 		"passed over for the canonical": { result: { batchItemFailures: [] }, persisted: [{ transition: promoteTier, input: expect.objectContaining({ tier: "tier-1", metadata: expect.objectContaining({ id: committedCanonical().metadata.id }) }) }], comparisons: compared },
 		retried: { result: { batchItemFailures: [{ itemIdentifier: "message-0" }] }, persisted: [], comparisons: [] },
+		"left awaiting a reader": { result: { batchItemFailures: [] }, persisted: [{ transition: markCrawlAwaitingReader, input: { deferredLeg: "content-judge" } }], comparisons: compared },
 	};
 	expect(selection).toEqual(outcomes[expected]);
 });
@@ -126,7 +131,7 @@ it.each([
 	const capture = candidate({ tier: "tier-0", attemptId: RESCUE, captureTrigger: "automatic", wordCount: 9, html: `<article>${prose}<img src="${image}"></article>` });
 	const createChatCompletion = jest.fn<ReturnType<CreateDeepseekChatCompletion>, Parameters<CreateDeepseekChatCompletion>>();
 
-	const selection = await selectContent({ article: articleHolding(canonical), capture, others: [canonical], createChatCompletion });
+	const selection = await selectContent({ article: articleHolding(canonical), capture, others: [canonical], createChatCompletion, legsDeferred: true });
 
 	expect(createChatCompletion).not.toHaveBeenCalled();
 	expect(selection).toEqual({
@@ -140,7 +145,7 @@ it("an automatic capture alone, with 100 words or more and no content, takes the
 	const capture = candidate({ tier: "tier-0", attemptId: RESCUE, captureTrigger: "automatic", wordCount: 100, html: "<article><h1>Article</h1><p>The page the reader's device loaded on its own, long enough to stand alone.</p></article>" });
 	const createChatCompletion = jest.fn<ReturnType<CreateDeepseekChatCompletion>, Parameters<CreateDeepseekChatCompletion>>();
 
-	const selection = await selectContent({ article: failedArticle(), capture, others: [], createChatCompletion });
+	const selection = await selectContent({ article: failedArticle(), capture, others: [], createChatCompletion, legsDeferred: true });
 
 	expect(createChatCompletion).not.toHaveBeenCalled();
 	expect(selection).toEqual({

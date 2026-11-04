@@ -53,6 +53,17 @@ const CRAWL_OUTCOMES = {
 } as const satisfies Record<string, { status: "failed" | "unsupported"; reason: string }>;
 
 type NoticeVariant = keyof typeof CRAWL_OUTCOMES;
+
+const RESOLVED_ON_VIEW = {
+	failed: true,
+	blocked: true,
+	"origin-down": true,
+	"not-found": false,
+	unsupported: true,
+	"capture-unreadable": true,
+} as const satisfies Record<NoticeVariant, boolean>;
+
+const SURFACE_QUERY = { browser: "", "ios-app": "?platform=ios" } as const;
 type NoticeCheck = (page: Page) => Promise<void>;
 
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
@@ -109,15 +120,20 @@ async function loginAs(page: Page, email: string): Promise<void> {
 
 async function openOwnerReader(
 	page: Page,
-	input: { stamp: string; variant: NoticeVariant; query: string },
+	input: { stamp: string; variant: NoticeVariant; surface: keyof typeof SURFACE_QUERY },
 ): Promise<void> {
 	const owner = await createOwner(page, input.stamp);
 	const url = `https://example.com/reader-notice-${input.stamp}`;
 	const articleId = await seedArticle(page, { url, savedByUserId: owner.userId });
 	assert(articleId, "the seeded article must be saved to the owner");
-	await settleCrawlAs(page, { url, variant: input.variant });
 	await loginAs(page, owner.email);
-	await page.goto(`${BASE_URL}/queue/${articleId}/view${input.query}`, { waitUntil: "domcontentloaded" });
+	await settleCrawlAs(page, { url, variant: input.variant });
+	await page.goto(`${BASE_URL}/queue/${articleId}/view${SURFACE_QUERY[input.surface]}`, {
+		waitUntil: "domcontentloaded",
+	});
+	if (input.surface === "browser" && RESOLVED_ON_VIEW[input.variant]) {
+		await settleCrawlAs(page, { url, variant: input.variant });
+	}
 }
 
 function assertNear(measured: { actual: number; expected: number; tolerance: number }, message: string): void {
@@ -251,7 +267,7 @@ test.describe("The reader's failed-crawl notice on a desktop", () => {
 			await openOwnerReader(page, {
 				stamp: `${notice.name}-${testInfo.workerIndex}-${Date.now()}`,
 				variant: notice.variant,
-				query: "",
+				surface: "browser",
 			});
 
 			await captureCheckpoint(page, noticeCheckpoint(notice));
@@ -265,11 +281,13 @@ test.describe("The reader's failed-crawl notice on a desktop", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		await openOwnerReader(page, {
 			stamp: `capture-missing-${testInfo.workerIndex}-${Date.now()}`,
-			variant: "blocked",
-			query: "",
+			variant: "capture-unreadable",
+			surface: "browser",
 		});
-		await page.waitForSelector(`${NOTICE}[data-reader-status="blocked"]`);
-		await page.locator(`${NOTICE}[data-reader-status="blocked"] [data-test-reader-action="capture"]`).dispatchEvent("click");
+		await page.waitForSelector(`${NOTICE}[data-reader-status="capture-unreadable"]`);
+		await page
+			.locator(`${NOTICE}[data-reader-status="capture-unreadable"] [data-test-reader-action="capture"]`)
+			.dispatchEvent("click");
 		await page.waitForSelector('[data-test-reader-slot][data-reader-status="pending"]');
 		await page.evaluate(() => document.dispatchEvent(new Event("readplace-capture-failed")));
 
@@ -313,7 +331,7 @@ test.describe("The reader's failed-crawl notice on a phone", () => {
 		await openOwnerReader(page, {
 			stamp: `failed-phone-${testInfo.workerIndex}-${Date.now()}`,
 			variant: "failed",
-			query: "",
+			surface: "browser",
 		});
 
 		await captureCheckpoint(
@@ -334,7 +352,7 @@ test.describe("The reader's failed-crawl notice on a phone", () => {
 		await openOwnerReader(page, {
 			stamp: `blocked-chromeless-${testInfo.workerIndex}-${Date.now()}`,
 			variant: "blocked",
-			query: "?platform=ios",
+			surface: "ios-app",
 		});
 		await page.waitForSelector("body.page-reader--chromeless");
 

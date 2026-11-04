@@ -13,13 +13,16 @@ import {
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import { GenerateSummaryCommand } from "./index";
-import type { SummarizeArticle } from "./link-summariser";
+import type { SummarizeArticle, SummarizeResult } from "./link-summariser";
+import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { GENERATE_SUMMARY_TIMEOUTS } from "./timeouts";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "./max-receive-count";
 
 interface GenerateSummaryHandlerDeps {
 	summarizeArticle: SummarizeArticle;
+	runMeteredLeg: RunMeteredLeg;
 	findArticleContent: FindArticleContent;
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
@@ -30,7 +33,7 @@ interface GenerateSummaryHandlerDeps {
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Handler<SQSEvent, SQSBatchResponse> {
-	const { summarizeArticle, findArticleContent, loadArticle, transitionAndPersist, now, logger, deepseekCallFailedLog } = deps;
+	const { summarizeArticle, runMeteredLeg, findArticleContent, loadArticle, transitionAndPersist, now, logger, deepseekCallFailedLog } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -91,36 +94,74 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				const sourceContentHash = computeCanonicalContentHash(article.content);
 				if (existing?.freshness.canonicalContentHash !== undefined) assert(sourceContentHash === existing.freshness.canonicalContentHash, "summary fetched a different canonical snapshot");
 
-				const result = await summarizeArticle({
+				const summarized: { result?: Exclude<SummarizeResult, { kind: "ready" }> } = {};
+				const leg = await runMeteredLeg({
 					url: command.url,
-					textContent: article.content,
-				});
-
-				if (result.kind === "ready") {
-					/* Tag the persisted ready summary with the hash of the canonical
-					 * content it was generated against so a future caller can compare
-					 * hashes and short-circuit on cacheability. */
-					await transitionAndPersist(markSummaryReady, {
-						url: command.url,
-						selectionExpected,
-						input: {
-							summary: result.summary,
-							excerpt: result.excerpt,
+					leg: "summary",
+					inputs: [sourceContentHash, existing?.summary.kind === "pending" ? existing.summary.pendingSince : ""],
+					claimId: record.messageId,
+					claimTtlMs: GENERATE_SUMMARY_TIMEOUTS.sqsVisibilitySeconds * 1000,
+					run: async (permit) => {
+						const result = await summarizeArticle({
+							url: command.url,
+							textContent: article.content,
+							permit,
+						});
+						if (result.kind !== "ready") {
+							summarized.result = result;
+							return { kind: "unsucceeded" };
+						}
+						/* Tag the persisted ready summary with the hash of the canonical
+						 * content it was generated against so a future caller can compare
+						 * hashes and short-circuit on cacheability. */
+						await transitionAndPersist(markSummaryReady, {
+							url: command.url,
+							selectionExpected,
+							input: {
+								summary: result.summary,
+								excerpt: result.excerpt,
+								inputTokens: result.inputTokens,
+								outputTokens: result.outputTokens,
+								sourceContentHash,
+								now: now().toISOString(),
+							},
+						});
+						logger.info("[GenerateSummary] completed", {
+							url: command.url,
 							inputTokens: result.inputTokens,
 							outputTokens: result.outputTokens,
-							sourceContentHash,
-							now: now().toISOString(),
-						},
-					});
-					logger.info("[GenerateSummary] completed", {
+							cacheHitInputTokens: result.cacheHitInputTokens ?? "unknown",
+							cacheMissInputTokens: result.cacheMissInputTokens ?? "unknown",
+						});
+						return { kind: "succeeded", outcome: sourceContentHash };
+					},
+				});
+
+				if (leg.kind === "deferred") {
+					await transitionAndPersist(markSummarySkipped, {
 						url: command.url,
-						inputTokens: result.inputTokens,
-						outputTokens: result.outputTokens,
-						cacheHitInputTokens: result.cacheHitInputTokens ?? "unknown",
-						cacheMissInputTokens: result.cacheMissInputTokens ?? "unknown",
+						selectionExpected,
+						input: { reason: "awaiting-reader", now: now().toISOString() },
 					});
+					logger.info("[GenerateSummary] deferred until a reader opens it", { url: command.url });
 					continue;
 				}
+
+				if (leg.kind === "settled") {
+					logger.info("[GenerateSummary] cache hit", { url: command.url, kind: "settled" });
+					continue;
+				}
+
+				if (leg.kind === "in-flight") {
+					logger.info("[GenerateSummary] summary already in flight — leaving the message for redelivery", { url: command.url });
+					batchItemFailures.push({ itemIdentifier: record.messageId });
+					continue;
+				}
+
+				if (leg.kind === "ran") continue;
+
+				const result = summarized.result;
+				assert(result, "an unsucceeded summary leg ran the summariser");
 
 				if (result.kind === "skipped") {
 					await transitionAndPersist(markSummarySkipped, {

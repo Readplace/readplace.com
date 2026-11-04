@@ -165,6 +165,10 @@
       "types": "./dist/providers/pending-upload/index.d.ts",
       "default": "./dist/providers/pending-upload/index.js"
     },
+    "./providers/metered-leg-ledger": {
+      "types": "./dist/providers/metered-leg-ledger/index.d.ts",
+      "default": "./dist/providers/metered-leg-ledger/index.js"
+    },
     "./providers/rate-limit": {
       "types": "./dist/providers/rate-limit/index.d.ts",
       "default": "./dist/providers/rate-limit/index.js"
@@ -324,6 +328,9 @@
       ],
       "providers/pending-upload": [
         "./dist/providers/pending-upload/index.d.ts"
+      ],
+      "providers/metered-leg-ledger": [
+        "./dist/providers/metered-leg-ledger/index.d.ts"
       ],
       "providers/rate-limit": [
         "./dist/providers/rate-limit/index.d.ts"

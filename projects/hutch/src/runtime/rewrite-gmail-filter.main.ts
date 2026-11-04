@@ -1,5 +1,5 @@
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
@@ -17,7 +17,6 @@ import { initGmailForwardingConfirmFailedHandler } from "./domain/gmail/gmail-fo
 import { initGmailForwardingConfirmedHandler } from "./domain/gmail/gmail-forwarding-confirmed-handler";
 import { initRewriteGmailFilter } from "./domain/gmail/rewrite-gmail-filter";
 import { initRewriteGmailFilterHandler } from "./domain/gmail/rewrite-gmail-filter-handler";
-import { initHandleByDetailType } from "./handle-by-detail-type";
 import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
 import { initGmailFilters } from "./providers/gmail-api/gmail-filters";
 import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";

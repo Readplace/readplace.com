@@ -164,7 +164,17 @@ async function seedPendingSummary(
 	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
 }
 
-async function seedFailedReader(page: Page, stamp: string): Promise<{ email: string; readerUrl: string }> {
+async function settleFailed(page: Page, url: string): Promise<void> {
+	for (const crawl of [
+		{ url, status: "pending" },
+		{ url, status: "failed", reason: JSON.stringify({ kind: "fetch-failed" }) },
+	]) {
+		const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: crawl });
+		assert.equal(moved.status(), 201, `the crawl-status seed must move the crawl to ${crawl.status}`);
+	}
+}
+
+async function seedFailedReader(page: Page, stamp: string): Promise<{ email: string; url: string; readerUrl: string }> {
 	const { email, userId } = await createEinkUser(page, stamp);
 	const url = `https://example.com/eink-greyscale-notice-${stamp}`;
 
@@ -184,15 +194,9 @@ async function seedFailedReader(page: Page, stamp: string): Promise<{ email: str
 	});
 	assert.equal(seeded.status(), 201, "the seed endpoint must create the reader article");
 	const { articleId } = SeededArticle.parse(await seeded.json());
-	for (const crawl of [
-		{ url, status: "pending" },
-		{ url, status: "failed", reason: JSON.stringify({ kind: "fetch-failed" }) },
-	]) {
-		const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: crawl });
-		assert.equal(moved.status(), 201, `the crawl-status seed must move the crawl to ${crawl.status}`);
-	}
+	await settleFailed(page, url);
 
-	return { email, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
+	return { email, url, readerUrl: `${BASE_URL}/queue/${articleId}/view` };
 }
 
 async function createReadlist(page: Page, label: string): Promise<string> {
@@ -354,12 +358,13 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 
 		test(`the failed-crawl notice keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
-			const { email, readerUrl } = await seedFailedReader(
+			const { email, url, readerUrl } = await seedFailedReader(
 				page,
 				`notice-${theme}-${testInfo.workerIndex}-${Date.now()}`,
 			);
 			await loginAs(page, email);
 			await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
+			await settleFailed(page, url);
 			await page.waitForSelector(FAILED_NOTICE);
 			await settle(page, FAILED_NOTICE);
 

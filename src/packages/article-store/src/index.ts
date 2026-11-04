@@ -4,7 +4,9 @@ export { initDynamoDbReadlistDefinitions } from "./dynamodb-readlist-definitions
 export { initDynamoDbReadlistFitOverrides } from "./dynamodb-readlist-fit-overrides";
 export { initFindSavedArticleForLink } from "./find-saved-article-for-link";
 export { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
+export { initDynamoDbMeteredLegLedger } from "./dynamodb-metered-leg-ledger";
 export { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
+export { initDynamoDbClaimResolutionOnView } from "./dynamodb-resolution-on-view";
 export { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";
 export { initDynamoDbPastReads } from "./dynamodb-past-reads";
 export { initDynamoDbRelatedPassRequests } from "./dynamodb-related-pass-requests";

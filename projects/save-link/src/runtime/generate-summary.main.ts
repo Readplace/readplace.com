@@ -10,11 +10,12 @@ import {
 import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekMessage, initDeepseekClient } from "@packages/ai-message";
-import { initDynamoDbArticleStore } from "@packages/article-store";
+import { initDynamoDbArticleStore, initDynamoDbMeteredLegLedger } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { initDynamoDbMarkSummaryStage } from "./providers/article-crawl/mark-summary-stage";
 import { initGenerateSummaryHandler } from "./domain/generate-summary/generate-summary-handler";
 import { initLinkSummariser } from "./domain/generate-summary/link-summariser";
+import { initRunMeteredLeg } from "./domain/metered-leg/run-metered-leg";
 import { MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import { stripHtml } from "./domain/generate-summary/strip-html";
 import { GENERATE_SUMMARY_TIMEOUTS } from "./domain/generate-summary/timeouts";
@@ -65,6 +66,18 @@ const { summarizeArticle } = initLinkSummariser({
 	markSummaryStage,
 });
 
+const meteredLegLedger = initDynamoDbMeteredLegLedger({
+	client: dynamoClient,
+	tableName: articlesTable,
+	now: () => new Date(),
+});
+
+const runMeteredLeg = initRunMeteredLeg({
+	...meteredLegLedger,
+	logger: consoleLogger,
+	now: () => new Date(),
+});
+
 const { store } = initDynamoDbArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
@@ -95,6 +108,7 @@ const { transitionAndPersist } = initTransitionAndPersist({
 
 export const handler = initGenerateSummaryHandler({
 	summarizeArticle,
+	runMeteredLeg,
 	findArticleContent,
 	loadArticle: store.load,
 	transitionAndPersist,

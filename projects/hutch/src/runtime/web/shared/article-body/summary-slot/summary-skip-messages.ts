@@ -11,6 +11,7 @@ const SUMMARY_SKIP_MESSAGES: Record<z.infer<typeof RenderedSkipReasonSchema>, st
 		"Readplace couldn't generate a useful summary for this article.",
 	"declined":
 		"Readplace couldn't generate a useful summary for this article.",
+	"awaiting-reader": "Fetching this article…",
 };
 
 const SUMMARY_SKIP_FALLBACK = "No summary was generated for this article.";

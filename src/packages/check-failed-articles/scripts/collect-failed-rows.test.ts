@@ -54,6 +54,11 @@ describe("buildScanInput", () => {
 		);
 	});
 
+	it("excludes a failed row whose metered legs were deferred to the reader, since the paid crawl never tried it", () => {
+		const input = buildScanInput(NOW, 0);
+		assert.match(input.FilterExpression, /AND attribute_not_exists\(meteredLegsDeferredSince\)/);
+	});
+
 	it("matches the two genuine-error terminal values; unsupported and summary-skipped are complete, not failures", () => {
 		const input = buildScanInput(NOW, 0);
 		assert.match(input.FilterExpression, /crawlStatus = :crawlFailed/);

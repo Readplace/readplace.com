@@ -182,6 +182,7 @@ test.describe('Readlist management flow (staging)', () => {
 						baseUrl: baseURL,
 						publicViewTestUrl: `${baseURL}/e2e/fixtures/unfetchable/${runId}-banner-on-public-view`,
 						privateReaderTestUrl: `${baseURL}/e2e/fixtures/unfetchable/${runId}-banner-on-private-reader`,
+						settlePrivateReaderCrawl: async () => {},
 					},
 					cleanupProgress,
 					bannerOnReaderProgress,

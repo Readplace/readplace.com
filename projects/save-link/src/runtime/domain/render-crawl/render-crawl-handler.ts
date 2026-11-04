@@ -6,7 +6,24 @@ import { initCrawlAndFinalizeArticle, type FinalizeArticle } from "@packages/fin
 import type { HutchLogger } from "@packages/hutch-logger";
 import { type CrawlArticle, type CrawlUnsupportedReason, MAX_HTML_BYTES } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { type TransitionAndPersist, markCrawlExhausted, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import {
+	type TransitionAndPersist,
+	markCrawlAwaitingReader,
+	markCrawlBlocked,
+	markCrawlExhausted,
+	markCrawlUnsupported,
+} from "@packages/domain/article-aggregate";
+import { CandidateIdSchema } from "@packages/domain/article";
+import { ContentTierSchema } from "@packages/article-state-types";
+import type {
+	ClaimMeteredLeg,
+	PaidLegPermit,
+	ReleaseMeteredLeg,
+	SettleMeteredLeg,
+} from "@packages/provider-contracts/metered-leg-ledger";
+import { z } from "zod";
+import { legInputHash } from "../metered-leg/leg-input-hash";
+import { RENDER_CRAWL_TIMEOUTS } from "./timeouts";
 import { ComprehensiveCrawlCommand, RenderCrawlCommand, type LogCrawlOutcome, type LogParseError } from "@packages/hutch-infra-components";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import { deferJavascriptShells } from "../save-link/javascript-shell";
@@ -30,7 +47,9 @@ import {
 	type ProxiedFetchAttempt,
 	type RenderCommit,
 	type RenderLadderResult,
+	type RenderLegClaim,
 	type RenderLegReport,
+	type RenderMeteredLeg,
 	runRenderLadder,
 } from "./render-ladder";
 import type { ProxiedRenderLeg, ReportProxiedRenderAttempt } from "./report-proxied-render-attempt";
@@ -48,6 +67,8 @@ const loggedLeg = (report: RenderLegReport) => (report.kind === "skipped" ? repo
 
 type Unrendered = Extract<RenderLadderResult, { kind: "unrendered" }>;
 
+const RecordedCandidateSchema = z.object({ id: CandidateIdSchema, tier: ContentTierSchema });
+
 export function initRenderCrawlHandler(deps: {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	prepareArticleIdentity: PrepareArticleIdentity;
@@ -61,10 +82,13 @@ export function initRenderCrawlHandler(deps: {
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
 	consumeRenderCrawlBudget: ConsumePaidCrawlBudget;
+	claimMeteredLeg: ClaimMeteredLeg;
+	settleMeteredLeg: SettleMeteredLeg;
+	releaseMeteredLeg: ReleaseMeteredLeg;
 	adoptCanonicalIdentity: AdoptCanonicalIdentity;
 	publishEvent: PublishEvent;
 	renderPage: RenderPage;
-	residentialEgress: () => ResidentialEgress;
+	residentialEgress: (permit: PaidLegPermit) => ResidentialEgress;
 	webUnlockerEgress: WebUnlockerEgress;
 	reportProxiedRenderAttempt: ReportProxiedRenderAttempt;
 	now: () => Date;
@@ -159,7 +183,11 @@ export function initRenderCrawlHandler(deps: {
 		return pinned === undefined ? params.observedUrl : undefined;
 	};
 
-	const fetchThroughWebUnlocker = async (ctx: DeferredCrawlContext, target: { fetchUrl: string; resumedAt: string | undefined }): Promise<ProxiedFetchAttempt> => {
+	const fetchThroughWebUnlocker = async (
+		ctx: DeferredCrawlContext,
+		target: { fetchUrl: string; resumedAt: string | undefined },
+		_permit: PaidLegPermit,
+	): Promise<ProxiedFetchAttempt> => {
 		const { url } = ctx;
 		const result = await proxiedCrawlAndFinalize({
 			url: target.fetchUrl,
@@ -190,7 +218,7 @@ export function initRenderCrawlHandler(deps: {
 		);
 		if (committed.via === "unreadable") return { kind: "no-body", outcome: "unreadable" };
 		logger.info(`${logPrefix} fetched`, { url, fetchedThrough: "web-unlocker-fetch", httpStatus });
-		return { kind: "committed" };
+		return { kind: "committed", candidate: committed.candidate };
 	};
 
 	const settleTooLarge = async (render: LadderRender, ctx: DeferredCrawlContext): Promise<void> => {
@@ -231,7 +259,7 @@ export function initRenderCrawlHandler(deps: {
 			const readability = committed.via === "deferred-to-event" && committed.readable ? "readable" : "unreadable";
 			deps.reportProxiedRenderAttempt({ outcome: render, readability, saveAttemptId: ctx.saveAttemptId, renderedThrough: proxiedLeg });
 		}
-		if (committed.via !== "unreadable") return { kind: "settled" };
+		if (committed.via !== "unreadable") return { kind: "committed", candidate: committed.candidate };
 		const detail = `no readable article after render (${renderedThrough}): ${committed.reason}`;
 		if (escalation === "available") return { kind: "unreadable", detail };
 		await resolveUnreadable({ url, detail });
@@ -249,6 +277,12 @@ export function initRenderCrawlHandler(deps: {
 		if (webUnlockerRender.kind === "blocked") return resolveBlocked({ url, httpStatus: webUnlockerRender.httpStatus });
 		if (residential.kind === "blocked") return resolveBlocked({ url, httpStatus: residential.httpStatus });
 		if (direct.kind === "blocked") return resolveBlocked({ url, httpStatus: direct.httpStatus });
+		if (webUnlockerRender.kind === "skipped" && webUnlockerRender.reason === "deferred") {
+			logParseError({ url, reason: "crawl-blocked: paid render legs deferred" });
+			await emitTier1FailureOutcome({ url });
+			await transitionAndPersist(markCrawlBlocked, { url, input: { reason: { kind: "blocked", cause: "edge-block" } } });
+			return { via: "committed-in-process" };
+		}
 		const renderLegs = [webUnlockerRender, residential, direct];
 		const detail = [
 			`render-failed: direct-egress: ${legDetail(direct)}`,
@@ -270,6 +304,25 @@ export function initRenderCrawlHandler(deps: {
 		const { url } = ctx;
 		if (rendered.kind === "settled") {
 			logger.info(`${logPrefix} ladder settled`, { url, settledThrough: rendered.settledThrough, residentialSkipped: rendered.residentialSkipped });
+			return;
+		}
+		if (rendered.kind === "in-flight") {
+			logger.info(`${logPrefix} leg in flight under another message`, { url, leg: rendered.leg });
+			return;
+		}
+		if (rendered.kind === "recorded") {
+			const candidate = RecordedCandidateSchema.parse(JSON.parse(rendered.outcome));
+			logger.info(`${logPrefix} replaying a settled render leg`, { url, leg: rendered.leg });
+			await publishArchiveComparison({ ...ctx, candidates: [...(ctx.candidates ?? []), candidate] });
+			return;
+		}
+		if (rendered.kind === "deferred") {
+			logger.info(`${logPrefix} paid render legs deferred until a reader asks`, { url, awaiting: rendered.awaiting, direct: rendered.direct });
+			if (ctx.candidates !== undefined) {
+				await publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
+				return;
+			}
+			await transitionAndPersist(markCrawlAwaitingReader, { url, input: { deferredLeg: rendered.awaiting } });
 			return;
 		}
 		if (rendered.kind === "budget-exhausted") {
@@ -333,6 +386,24 @@ export function initRenderCrawlHandler(deps: {
 					refresh: refresh ? 1 : 0,
 					resumedAtObservedPage: resumedAt === undefined ? 0 : 1,
 				});
+				let budgetConsumed = false;
+				const claimLeg = async (leg: RenderMeteredLeg): Promise<RenderLegClaim> => {
+					const claim = await deps.claimMeteredLeg({
+						url,
+						leg,
+						inputHash: legInputHash({ url, leg, inputs: [fetchUrl, previousBodyHash ?? ""] }),
+						claimId: record.messageId,
+						expiresAt: new Date(deps.now().getTime() + RENDER_CRAWL_TIMEOUTS.sqsVisibilitySeconds * 1000).toISOString(),
+					});
+					if (claim.kind !== "granted" || leg === "render-web-unlocker-fetch" || budgetConsumed) return claim;
+					const budget = await deps.consumeRenderCrawlBudget({ messageId: record.messageId });
+					if (!budget.allowed) {
+						await deps.releaseMeteredLeg({ url, permit: claim.permit });
+						return { kind: "budget-exhausted" };
+					}
+					budgetConsumed = true;
+					return claim;
+				};
 				const rendered = await runRenderLadder({
 					renderPage: async (params) => {
 						const outcome = await deps.renderPage(params);
@@ -343,11 +414,14 @@ export function initRenderCrawlHandler(deps: {
 					},
 					url: fetchUrl,
 					residentialEgress: deps.residentialEgress,
-					webUnlockerEgress: deps.webUnlockerEgress,
+					webUnlockerEgress: () => deps.webUnlockerEgress,
 					unsupportedReason,
 					commitRender: (render, escalation) => commitRender(render, escalation, ctx),
-					fetchThroughWebUnlocker: () => fetchThroughWebUnlocker(ctx, { fetchUrl, resumedAt }),
-					consumeBudget: () => deps.consumeRenderCrawlBudget({ messageId: record.messageId }),
+					fetchThroughWebUnlocker: (permit) => fetchThroughWebUnlocker(ctx, { fetchUrl, resumedAt }, permit),
+					claimLeg,
+					settleLeg: ({ permit, candidate }) =>
+						deps.settleMeteredLeg({ url, permit, outcome: JSON.stringify(candidate), settledAt: deps.now().toISOString() }),
+					releaseLeg: (permit) => deps.releaseMeteredLeg({ url, permit }),
 					remainingMilliseconds: () => context.getRemainingTimeInMillis(),
 				});
 				await resolveLadder(rendered, ctx, Number(record.attributes.ApproximateReceiveCount));

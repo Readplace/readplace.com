@@ -1,3 +1,4 @@
+import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import express, { type Express } from "express";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
@@ -248,6 +249,13 @@ function flattenFixtureToAppDependencies(
 		publishQueueEntryCreated: fixture.events.publishQueueEntryCreated,
 		publishComputeRelatedPastReads: fixture.events.publishComputeRelatedPastReads,
 		publishComputeRelatedPasses: fixture.events.publishComputeRelatedPasses,
+		requestResolutionOnView: initRequestResolutionOnView({
+			claimResolutionOnView: fixture.resolutionOnView.claimResolutionOnView,
+			publishResolveArticleOnView: fixture.resolutionOnView.publishResolveArticleOnView,
+			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
+			findGeneratedSummary: fixture.summary.findGeneratedSummary,
+			logger: noopLogger,
+		}),
 		publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 		publishRemoveMyContent: fixture.events.publishRemoveMyContent,
 		publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,

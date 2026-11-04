@@ -338,6 +338,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
 		summaryOpen: false,
+		requestResolutionOnView: undefined,
 	});
 
 	const resolveStoredArticle = initResolveStoredArticle({

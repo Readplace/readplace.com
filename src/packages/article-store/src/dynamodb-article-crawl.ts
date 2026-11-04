@@ -17,7 +17,7 @@ import type {
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
 
-const ArticleCrawlRow = z.object({
+export const ArticleCrawlRow = z.object({
 	url: z.string(),
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	crawlFailureReason: dynamoField(z.string()),
@@ -41,7 +41,7 @@ const ArticleCrawlRow = z.object({
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
 
-function rowToArticleCrawl(
+export function rowToArticleCrawl(
 	row: ArticleCrawlRowShape | undefined,
 ): ArticleCrawl | undefined {
 	if (!row) return undefined;
@@ -154,24 +154,47 @@ export function initDynamoDbArticleCrawl(deps: {
 		return result;
 	};
 
-	const markCrawlPending: MarkCrawlPending = async ({ url, measured }) => {
+	const markCrawlPending: MarkCrawlPending = async ({ url, measured, meteredLegs }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const setPending = measured
+			? "SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince)"
+			: "SET crawlStatus = :pending, crawlPendingSince = :pendingSince";
+		const pendingSince = deps.now().toISOString();
 		try {
-			await table.update({
-				Key: { url: articleResourceUniqueId.value },
-				UpdateExpression: measured
-					? "SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince)"
-					: "SET crawlStatus = :pending, crawlPendingSince = :pendingSince",
-				ConditionExpression:
-					"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
-				ExpressionAttributeValues: {
-					":pending": "pending",
-					":pendingSince": deps.now().toISOString(),
-					":ready": "ready",
-				},
-			});
+			await table.update(
+				meteredLegs === "deferred"
+					? {
+							Key: { url: articleResourceUniqueId.value },
+							UpdateExpression: `${setPending}, meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince)`,
+							ConditionExpression:
+								"attribute_not_exists(crawlStatus) OR crawlStatus IN (:failed, :unsupported)",
+							ExpressionAttributeValues: {
+								":pending": "pending",
+								":pendingSince": pendingSince,
+								":failed": "failed",
+								":unsupported": "unsupported",
+							},
+						}
+					: {
+							Key: { url: articleResourceUniqueId.value },
+							UpdateExpression: `${setPending} REMOVE meteredLegsDeferredSince`,
+							ConditionExpression:
+								"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
+							ExpressionAttributeValues: {
+								":pending": "pending",
+								":pendingSince": pendingSince,
+								":ready": "ready",
+							},
+						},
+			);
 		} catch (err) {
 			if (!(err instanceof ConditionalCheckFailedException)) throw err;
+			if (meteredLegs === "run") {
+				await table.update({
+					Key: { url: articleResourceUniqueId.value },
+					UpdateExpression: "REMOVE meteredLegsDeferredSince",
+				});
+			}
 		}
 	};
 
@@ -180,7 +203,14 @@ export function initDynamoDbArticleCrawl(deps: {
 		await table.update({
 			Key: { url: articleResourceUniqueId.value },
 			UpdateExpression:
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, #ledgerResidential, #ledgerUnlockerFetch, #ledgerUnlockerRender, #ledgerComprehensive, #ledgerContentJudge, meteredLegsDeferredSince",
+			ExpressionAttributeNames: {
+				"#ledgerResidential": "ledger_render-residential-per-gb",
+				"#ledgerUnlockerFetch": "ledger_render-web-unlocker-fetch",
+				"#ledgerUnlockerRender": "ledger_render-web-unlocker-render",
+				"#ledgerComprehensive": "ledger_comprehensive",
+				"#ledgerContentJudge": "ledger_content-judge",
+			},
 			ExpressionAttributeValues: {
 				":pending": "pending",
 				":pendingSince": deps.now().toISOString(),

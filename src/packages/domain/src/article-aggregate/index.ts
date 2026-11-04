@@ -54,6 +54,10 @@ export {
 	type MarkCrawlBlockedInput,
 } from "./transitions/mark-crawl-blocked";
 export {
+	markCrawlAwaitingReader,
+	type MarkCrawlAwaitingReaderInput,
+} from "./transitions/mark-crawl-awaiting-reader";
+export {
 	markCrawlNotFound,
 	type MarkCrawlNotFoundInput,
 } from "./transitions/mark-crawl-not-found";

@@ -53,6 +53,15 @@ describe("renderSummarySkipped", () => {
 		},
 	);
 
+	it("renders the fetching message when the reason is awaiting-reader", () => {
+		const doc = parse(renderSummarySkipped({ reason: "awaiting-reader" }));
+
+		const slot = skippedSlot(doc);
+		expect(skippedAlert(slot).querySelector("[data-test-alert-title]")?.textContent).toBe(
+			"Fetching this article…",
+		);
+	});
+
 	it("falls back to a generic message when reason is undefined (legacy rows)", () => {
 		const doc = parse(renderSummarySkipped({ reason: undefined }));
 

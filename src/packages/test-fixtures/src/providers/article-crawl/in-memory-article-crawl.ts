@@ -25,8 +25,12 @@ export function initInMemoryArticleCrawl(): {
 	markCrawlFailed: InMemoryMarkCrawlFailed;
 	markCrawlUnsupported: InMemoryMarkCrawlUnsupported;
 	markCrawlStage: InMemoryMarkCrawlStage;
+	isMeteredLegsDeferred: (url: string) => boolean;
+	crawlStateOf: (url: string) => ArticleCrawl | undefined;
+	resumeMeteredLegs: (url: string) => void;
 } {
 	const states = new Map<string, ArticleCrawl>();
+	const meteredLegsDeferred = new Set<string>();
 	const outcomeRevisions = new Map<string, number>();
 
 	function bumpOutcomeRevision(key: string): number {
@@ -40,9 +44,16 @@ export function initInMemoryArticleCrawl(): {
 		return states.get(id.value);
 	};
 
-	const markCrawlPending: MarkCrawlPending = async ({ url }) => {
+	const markCrawlPending: MarkCrawlPending = async ({ url, meteredLegs }) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		const current = states.get(id.value);
+		if (meteredLegs === "deferred") {
+			if (current?.status === "pending" || current?.status === "ready") return;
+			meteredLegsDeferred.add(id.value);
+			states.set(id.value, { status: "pending" });
+			return;
+		}
+		meteredLegsDeferred.delete(id.value);
 		if (current?.status === "ready") return;
 		// Preserve any previously recorded stage when re-marking pending so the
 		// progress indicator does not reset.
@@ -58,6 +69,7 @@ export function initInMemoryArticleCrawl(): {
 
 	const forceMarkCrawlPending: ForceMarkCrawlPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url);
+		meteredLegsDeferred.delete(id.value);
 		states.set(id.value, { status: "pending" });
 	};
 
@@ -97,7 +109,20 @@ export function initInMemoryArticleCrawl(): {
 		states.set(id.value, { status: "pending", stage });
 	};
 
+	const isMeteredLegsDeferred = (url: string): boolean =>
+		meteredLegsDeferred.has(ArticleResourceUniqueId.parse(url).value);
+
+	const crawlStateOf = (url: string): ArticleCrawl | undefined =>
+		states.get(ArticleResourceUniqueId.parse(url).value);
+
+	const resumeMeteredLegs = (url: string): void => {
+		meteredLegsDeferred.delete(ArticleResourceUniqueId.parse(url).value);
+	};
+
 	return {
+		isMeteredLegsDeferred,
+		crawlStateOf,
+		resumeMeteredLegs,
 		findArticleCrawlStatus,
 		markCrawlPending,
 		forceMarkCrawlPending,

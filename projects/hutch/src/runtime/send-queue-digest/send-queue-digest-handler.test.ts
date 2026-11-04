@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { strFromU8, unzipSync } from "fflate";
 import { JSDOM } from "jsdom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { MinutesSchema, ReaderArticleHashId, shownSummary } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, shownSummary, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { DigestPageCursorSchema } from "@packages/provider-contracts/article-store";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { UserContact } from "@packages/provider-contracts/auth";
@@ -23,6 +24,7 @@ import { CONSENT_SEED_ARTICLE_URL } from "../web/oauth/consent-seed-save";
 import { initReadArticleContentOrThrow } from "@packages/article-store";
 import { initBuildQueueDigestBook } from "../web/queue-digest-book";
 import { initBuildBookEpub } from "../web/shared/epub/book-epub";
+import type { RequestResolutionOnView } from "../domain/resolve-on-view/request-resolution-on-view";
 import { initSendQueueDigestHandler, type SendQueueDigestDeps } from "./send-queue-digest-handler";
 
 const USER_ID = UserIdSchema.parse("user-1");
@@ -67,6 +69,8 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 	const pageReads: Array<{ limit: number; candidates: number }> = [];
 	const events: QueueDigestLogEvent[] = [];
 	const logs: LogLine[] = [];
+	const crawls = new Map<string, ArticleCrawl>();
+	const resolutionRequests: Parameters<RequestResolutionOnView>[0][] = [];
 	const contact = options.contact === undefined ? VERIFIED_CONTACT : options.contact;
 	const deps: SendQueueDigestDeps = {
 		enrollStarter: async () => {},
@@ -80,6 +84,11 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 			return page;
 		},
 		findGeneratedSummary: summaries.findGeneratedSummary,
+		findArticleCrawlStatus: async (url) => crawls.get(url),
+		requestResolutionOnView: async (params) => {
+			resolutionRequests.push(params);
+			return new Map();
+		},
 		readArticleContent: initReadArticleContentOrThrow({
 			findItemOwner: async () => undefined,
 			storageProviderQueryOrder: [articleStore.readContent],
@@ -142,6 +151,8 @@ function createSubject(options: { contact?: UserContact | null; overrides?: Part
 		pageReads,
 		events,
 		logs,
+		crawls,
+		resolutionRequests,
 	};
 }
 
@@ -752,6 +763,95 @@ describe("initSendQueueDigestHandler", () => {
 			expect(cardTitlesOf(first?.text)).toEqual(["Ready"]);
 			expect(cardTitlesOf(second?.text)).toEqual(["Loading"]);
 			expect((await emailSentAtByUrl(subject)).get(NOT_READY_URL)).toEqual(nextTick);
+		});
+	});
+
+	describe("resolution of saves that are not ready", () => {
+		const FAILED_CRAWL: ArticleCrawl = { status: "failed", reason: "blocked", outcomeRevision: 1 };
+
+		it("asks to resolve a save whose reader view never loaded and leaves it out of this digest", async () => {
+			const subject = createSubject();
+			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TEN_DAYS_OUT });
+			await saveReadyArticle(subject, { url: "https://example.com/ready", title: "Ready", savedAt: hoursBefore(50) });
+			await saveArticle(subject, { url: "https://example.com/parked", title: "Parked", savedAt: hoursBefore(40) });
+			subject.crawls.set("https://example.com/parked", FAILED_CRAWL);
+
+			await subject.run();
+
+			expect(cardTitlesOf(onlySentEmail(subject).text)).toEqual(["Ready"]);
+			expect(subject.resolutionRequests).toEqual([
+				{
+					surface: "queue-digest",
+					viewer: viewerFor(USER_ID),
+					viewerCanCapture: false,
+					articles: [{ url: "https://example.com/parked", crawl: FAILED_CRAWL, summary: undefined }],
+				},
+			]);
+			expect((await emailSentAtByUrl(subject)).get("https://example.com/parked")).toBeUndefined();
+		});
+
+		it("asks to resolve a loaded save whose summary was skipped, handing over the summary it read", async () => {
+			const subject = createSubject();
+			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TEN_DAYS_OUT });
+			await saveArticle(subject, { url: "https://example.com/skipped", title: "Skipped", savedAt: hoursBefore(40) });
+			await subject.articleStore.setReaderAvailableAt({ url: "https://example.com/skipped", at: hoursBefore(40) });
+			await subject.summaries.markSummarySkipped({ url: "https://example.com/skipped", reason: "awaiting-reader" });
+			subject.crawls.set("https://example.com/skipped", { status: "ready" });
+
+			await subject.run();
+
+			expect(subject.email.getSentEmails()).toEqual([]);
+			expect(subject.resolutionRequests.map((request) => request.articles)).toEqual([
+				[
+					{
+						url: "https://example.com/skipped",
+						crawl: { status: "ready" },
+						summary: { status: "skipped", reason: "awaiting-reader" },
+					},
+				],
+			]);
+		});
+
+		it("asks to resolve at most ten saves in one run, however many pages it reads", async () => {
+			const subject = createSubject();
+			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TEN_DAYS_OUT });
+			for (let index = 1; index <= 30; index++) {
+				await saveArticle(subject, {
+					url: `https://example.com/loading-${index}`,
+					title: `Loading ${index}`,
+					savedAt: hoursBefore(100 - index),
+				});
+			}
+
+			await subject.run();
+
+			expect(subject.pageReads.length).toBeGreaterThan(1);
+			expect(subject.resolutionRequests.flatMap((request) => request.articles)).toHaveLength(MAX_DIGEST_ITEMS);
+			expect(subject.resolutionRequests.flatMap((request) => request.articles.map((article) => article.url))).toEqual(
+				Array.from({ length: MAX_DIGEST_ITEMS }, (_, offset) => `https://example.com/loading-${30 - offset}`),
+			);
+		});
+
+		it("asks nothing when every listed save is ready", async () => {
+			const subject = createSubject();
+			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TEN_DAYS_OUT });
+			await saveReadyArticle(subject, { url: "https://example.com/ready", title: "Ready", savedAt: hoursBefore(50) });
+
+			await subject.run();
+
+			expect(cardTitlesOf(onlySentEmail(subject).text)).toEqual(["Ready"]);
+			expect(subject.resolutionRequests).toEqual([]);
+		});
+
+		it("asks nothing for a save whose content was purged", async () => {
+			const subject = createSubject();
+			await subject.subscriptions.upsertTrialing({ userId: USER_ID, trialEndsAt: TRIAL_ENDS_TEN_DAYS_OUT });
+			await saveArticle(subject, { url: "https://example.com/purged", title: "Purged", savedAt: hoursBefore(40) });
+			await subject.articleStore.setPurgedAt({ url: "https://example.com/purged", at: hoursBefore(2) });
+
+			await subject.run();
+
+			expect(subject.resolutionRequests).toEqual([]);
 		});
 	});
 

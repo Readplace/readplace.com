@@ -8,7 +8,7 @@ import {
 	type HutchEvent,
 	RewriteGmailFilterCommand,
 } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { initHandleByDetailType, type PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
@@ -21,7 +21,6 @@ import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initGmailForwardingConfirmedHandler } from "../../../domain/gmail/gmail-forwarding-confirmed-handler";
 import { initRewriteGmailFilter } from "../../../domain/gmail/rewrite-gmail-filter";
 import { initRewriteGmailFilterHandler } from "../../../domain/gmail/rewrite-gmail-filter-handler";
-import { initHandleByDetailType } from "../../../handle-by-detail-type";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 // The confirmation leg had never completed once in prod or staging (commit

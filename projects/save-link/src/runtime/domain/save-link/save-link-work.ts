@@ -32,6 +32,7 @@ export type SaveLinkWorkResult =
 export function deferredUnsupportedKind(reason: CrawlUnsupportedReason | undefined): DeferredUnsupportedKind {
 	if (reason === undefined) return undefined;
 	assert(reason.kind !== "content-too-large", "a terminal unsupported reason is never deferred");
+	assert(reason.kind !== "awaiting-reader", "a terminal unsupported reason is never deferred");
 	return reason.kind;
 }
 

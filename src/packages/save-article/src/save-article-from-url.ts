@@ -1,6 +1,6 @@
 import { calculateReadTime, isNonArticleHost, stubMetadataFor, isArchiveHost } from "@packages/domain/article";
 import type { ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
-import type { MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
+import type { MarkCrawlPending, MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
 import type { PinContentSource, SaveArticle, UpdateArticleStatus, WrapperSourceBinding } from "@packages/provider-contracts/article-store";
 import type {
@@ -72,9 +72,10 @@ async function saveByFreshness(
 		freshness: ResolvedFreshnessResult;
 		written: { saved: SavedArticle; createdUserArticle: boolean; wroteUserArticle: boolean };
 		resurfacesEarlierSaves: boolean;
+		meteredLegs: MeteredLegsMode;
 	},
 ): Promise<SaveOutcome> {
-	const { userId, url, source, saveAttemptId, freshness, written, resurfacesEarlierSaves } = params;
+	const { userId, url, source, saveAttemptId, freshness, written, resurfacesEarlierSaves, meteredLegs } = params;
 
 	if (source !== undefined && isArchiveHost(source.contentSourceUrl)) {
 		await deps.pinContentSource({ articleUrl: url, ...source });
@@ -84,7 +85,7 @@ async function saveByFreshness(
 		if (isNonArticleHost(url)) {
 			return markUnreadIfRead(deps.updateArticleStatus, written);
 		}
-		await deps.markCrawlPending({ url, measured: resurfacesEarlierSaves });
+		await deps.markCrawlPending({ url, measured: resurfacesEarlierSaves, meteredLegs });
 		await deps.markSummaryPending({ url });
 		const [outcome] = await Promise.all([
 			markUnreadIfRead(deps.updateArticleStatus, written),
@@ -139,6 +140,7 @@ export function initSaveArticleFromUrl(
 			freshness: params.freshness,
 			written,
 			resurfacesEarlierSaves,
+			meteredLegs: params.saveTrigger === "automatic" && source === undefined ? "deferred" : "run",
 		});
 		// The row is committed, so the save is accepted on every freshness branch —
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,

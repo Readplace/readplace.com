@@ -8,6 +8,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
+	initHandleByDetailType,
 } from "@packages/hutch-infra-components/runtime";
 import { DeleteAccountCommand, ExportUserDataCommand } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
@@ -39,7 +40,6 @@ import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
 import { initGmailFilters } from "./providers/gmail-api/gmail-filters";
 import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
-import { initHandleByDetailType } from "./handle-by-detail-type";
 import { initDynamoDbInboxEmail, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink, initDynamoDbInboxAddress, initS3DeleteObjects, initS3DeleteObjectsByPrefix } from "@packages/inbox-store";
 import { initDynamoDbGmailDiscovery, initDynamoDbGmailMonitoring, initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbGmailSender, initDynamoDbEmailIdentity } from "@packages/inbox-store";
 import {

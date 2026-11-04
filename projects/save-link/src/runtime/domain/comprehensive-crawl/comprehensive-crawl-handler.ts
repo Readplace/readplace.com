@@ -1,4 +1,8 @@
-import type { SaveAttemptId } from "@packages/domain/article";
+import { CandidateIdSchema, type SaveAttemptId } from "@packages/domain/article";
+import { z } from "zod";
+import type { PaidLegPermit } from "@packages/provider-contracts/metered-leg-ledger";
+import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { COMPREHENSIVE_CRAWL_TIMEOUTS } from "./timeouts";
 import assert from "node:assert";
 import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import { initCrawlAndFinalizeArticle } from "@packages/finalize-article";
@@ -9,7 +13,12 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
-import { markCrawlExhausted, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import {
+	markCrawlAwaitingReader,
+	markCrawlExhausted,
+	markCrawlNotFound,
+	markCrawlUnsupported,
+} from "@packages/domain/article-aggregate";
 import { crawlFailureReasonForFetchFailure } from "../save-link/crawl-failure-reason-for-fetch-failure";
 import { ComprehensiveCrawlCommand } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
@@ -27,12 +36,19 @@ import { type CrawlTermination, initCommitDeferredCrawl } from "../crawl-article
 import type { FinalizeArticle } from "@packages/finalize-article";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
 
+type CrawlArticleWithPermit = (
+	params: Parameters<CrawlArticle>[0] & { permit: PaidLegPermit },
+) => ReturnType<CrawlArticle>;
+
+const RecordedComprehensiveCandidate = z.object({ id: CandidateIdSchema, tier: z.literal("tier-1") });
+
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComprehensiveCrawlHandler(deps: {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	prepareArticleIdentity: PrepareArticleIdentity;
 	verifyWrapperSource: VerifyWrapperSource;
-	crawlArticle: CrawlArticle;
+	crawlArticleWithPermit: CrawlArticleWithPermit;
+	runMeteredLeg: RunMeteredLeg;
 	finalizeArticle: FinalizeArticle;
 	putTierSource: PutTierSource;
 	updateFetchTimestamp: UpdateFetchTimestamp;
@@ -51,7 +67,8 @@ export function initComprehensiveCrawlHandler(deps: {
 	progressIntervalMs?: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
-		crawlArticle,
+		crawlArticleWithPermit,
+		runMeteredLeg,
 		finalizeArticle,
 		putTierSource,
 		updateFetchTimestamp,
@@ -71,8 +88,8 @@ export function initComprehensiveCrawlHandler(deps: {
 	} = deps;
 
 	const logPrefix = "[ComprehensiveCrawlCommand]";
-	const crawlArchiveCapture = initCrawlArchiveCapture({
-		crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle }),
+	const crawlArchiveCapture = (permit: PaidLegPermit) => initCrawlArchiveCapture({
+		crawlAndFinalizeArticle: initCrawlAndFinalizeArticle({ crawlArticle: (params) => crawlArticleWithPermit({ ...params, permit }), finalizeArticle }),
 		putTierSource,
 		readTierSnapshot,
 		logCrawlOutcome,
@@ -119,7 +136,7 @@ export function initComprehensiveCrawlHandler(deps: {
 			candidates?: CandidateReference[];
 			receiveCount: number;
 		},
-	): Promise<CrawlTermination> => {
+	): Promise<CrawlTermination | { via: "deferred-to-event"; candidate: CandidateReference }> => {
 		const { url, previousBodyHash } = ctx;
 		if (ctx.candidates !== undefined && crawlResult.status !== "fetched") {
 			return publishArchiveComparison({ ...ctx, candidates: ctx.candidates });
@@ -199,16 +216,7 @@ export function initComprehensiveCrawlHandler(deps: {
 				const { url, userId, recrawl, refresh, previousBodyHash, saveAttemptId } = detail;
 				const identity = await deps.prepareArticleIdentity(url);
 				assert(identity.status === "resolved", "queued comprehensive article original is unresolved");
-				let candidates = detail.candidates;
-				if (candidates === undefined && !refresh && identity.contentSourceUrl !== undefined) {
-					const capture = await crawlArchiveCapture({
-						url,
-						captureUrl: identity.contentSourceUrl,
-						sourceOriginalUrl: identity.sourceOriginalUrl,
-						saveAttemptId,
-					});
-					candidates = capture === undefined ? [] : [capture];
-				}
+				const candidates = detail.candidates;
 
 				logger.info(`${logPrefix} processing`, {
 					url,
@@ -216,79 +224,7 @@ export function initComprehensiveCrawlHandler(deps: {
 					refresh: refresh ? 1 : 0,
 				});
 
-				/* Consume one spend slot, keyed on the message so the gate is safe to
-				 * run on every receive: the provider claims a per-message marker in
-				 * the same transaction as the counter increment, so a redelivery of an
-				 * already-counted message re-checks the gate but adds nothing to the
-				 * counter (one persistently-failing crawl can't drain the window
-				 * through retries). A consume that errors — rather than denies —
-				 * rethrows so the gate re-runs next receive (fail closed) instead of
-				 * slipping past an exhausted budget. */
-				const budget = await consumePaidCrawlBudget({ messageId: record.messageId });
-				if (!budget.allowed) {
-					logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
-					await resolveBudgetExhausted({ url, refresh, recrawl, userId, saveAttemptId, candidates });
-					continue;
-				}
-
-				/*
-				 * Server commits three coarse stages for the comprehensive path —
-				 * `comprehensive-fetching` (written by the dispatcher in save-link-work
-				 * before this Lambda is even invoked), `comprehensive-extracting`
-				 * (Tesseract fan-out), and `comprehensive-cleaning` (LLM cleanup +
-				 * diff review). The extractor signals the active stage on each
-				 * onProgress call; we latch a stage write whenever the value
-				 * changes. Falling back to `comprehensive-extracting` when the
-				 * extractor omits a stage preserves the prior behaviour for any
-				 * provider that hasn't been updated. Per-part progress
-				 * (partCurrent/partTotal) is routed through a throttle so the OCR
-				 * fan-out's chunk-completion firehose collapses to ~1 DDB write per
-				 * `progressIntervalMs`, matching the UI's 3 s poll cadence.
-				 */
-				let latchedStage: "comprehensive-extracting" | "comprehensive-cleaning" | undefined;
-				const progressThrottle = initProgressThrottle({
-					markCrawlProgress,
-					intervalMs: progressIntervalMs,
-					now: () => Date.now(),
-					logger,
-				});
-				const crawlResult = await crawlArticle({
-					url: identity.originalUrl,
-					previousBodyHash,
-					...(candidates !== undefined ? { retainResponseBody: true } : {}),
-					onProgress: ({ partIndex, partCount, stage }) => {
-						const effectiveStage = stage ?? "comprehensive-extracting";
-						if (effectiveStage !== latchedStage) {
-							latchedStage = effectiveStage;
-							markCrawlStage({ url, stage: effectiveStage }).catch((error: unknown) => {
-								logger.warn(`${logPrefix} ${effectiveStage} stage write failed`, {
-									url,
-									error: String(error),
-								});
-							});
-						}
-						progressThrottle.report({ url, partCurrent: partIndex, partTotal: partCount });
-					},
-				});
-				await progressThrottle.flush({ url });
-
-				/* The pre-parse byte gate fired: a not-modified crawl did no OCR/LLM
-				 * work, so the slot it reserved before crawlArticle goes back to the
-				 * window rather than starve a genuinely-expensive crawl. Refund only a
-				 * freshly-consumed slot — never an idempotent re-consume on redelivery,
-				 * whose slot was already accounted on the first receive; best-effort,
-				 * since a failed refund merely leaves the window slightly over-counted,
-				 * which fails safe toward under-spending. */
-				if (budget.consumed && crawlResult.status === "not-modified") {
-					await refundPaidCrawlBudget().catch((error: unknown) => {
-						logger.warn(`${logPrefix} paid-crawl budget refund failed`, {
-							url,
-							error: String(error),
-						});
-					});
-				}
-
-				await resolveCrawlResult(crawlResult, {
+				const ctx = {
 					url,
 					originalUrl: identity.originalUrl,
 					saveAttemptId,
@@ -298,7 +234,113 @@ export function initComprehensiveCrawlHandler(deps: {
 					userId,
 					previousBodyHash,
 					receiveCount: Number(record.attributes.ApproximateReceiveCount),
+				};
+				const leg = await runMeteredLeg({
+					url,
+					leg: "comprehensive",
+					inputs: [identity.originalUrl, previousBodyHash ?? ""],
+					claimId: record.messageId,
+					claimTtlMs: COMPREHENSIVE_CRAWL_TIMEOUTS.sqsVisibilitySeconds * 1000,
+					run: async (permit) => {
+						let runCandidates = candidates;
+						if (runCandidates === undefined && !refresh && identity.contentSourceUrl !== undefined) {
+							const capture = await crawlArchiveCapture(permit)({
+								url,
+								captureUrl: identity.contentSourceUrl,
+								sourceOriginalUrl: identity.sourceOriginalUrl,
+								saveAttemptId,
+							});
+							runCandidates = capture === undefined ? [] : [capture];
+						}
+						/* Consume one spend slot, keyed on the message so the gate is safe to
+						 * run on every receive: the provider claims a per-message marker in
+						 * the same transaction as the counter increment, so a redelivery of an
+						 * already-counted message re-checks the gate but adds nothing to the
+						 * counter (one persistently-failing crawl can't drain the window
+						 * through retries). A consume that errors — rather than denies —
+						 * rethrows so the gate re-runs next receive (fail closed) instead of
+						 * slipping past an exhausted budget. */
+						const budget = await consumePaidCrawlBudget({ messageId: record.messageId });
+						if (!budget.allowed) {
+							logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
+							await resolveBudgetExhausted({ url, refresh, recrawl, userId, saveAttemptId, candidates: runCandidates });
+							return { kind: "unsucceeded" };
+						}
+
+						/*
+						 * Server commits three coarse stages for the comprehensive path —
+						 * `comprehensive-fetching` (written by the dispatcher in save-link-work
+						 * before this Lambda is even invoked), `comprehensive-extracting`
+						 * (Tesseract fan-out), and `comprehensive-cleaning` (LLM cleanup +
+						 * diff review). The extractor signals the active stage on each
+						 * onProgress call; we latch a stage write whenever the value
+						 * changes. Falling back to `comprehensive-extracting` when the
+						 * extractor omits a stage preserves the prior behaviour for any
+						 * provider that hasn't been updated. Per-part progress
+						 * (partCurrent/partTotal) is routed through a throttle so the OCR
+						 * fan-out's chunk-completion firehose collapses to ~1 DDB write per
+						 * `progressIntervalMs`, matching the UI's 3 s poll cadence.
+						 */
+						let latchedStage: "comprehensive-extracting" | "comprehensive-cleaning" | undefined;
+						const progressThrottle = initProgressThrottle({
+							markCrawlProgress,
+							intervalMs: progressIntervalMs,
+							now: () => Date.now(),
+							logger,
+						});
+						const crawlResult = await crawlArticleWithPermit({
+							permit,
+							url: identity.originalUrl,
+							previousBodyHash,
+							...(runCandidates !== undefined ? { retainResponseBody: true } : {}),
+							onProgress: ({ partIndex, partCount, stage }) => {
+								const effectiveStage = stage ?? "comprehensive-extracting";
+								if (effectiveStage !== latchedStage) {
+									latchedStage = effectiveStage;
+									markCrawlStage({ url, stage: effectiveStage }).catch((error: unknown) => {
+										logger.warn(`${logPrefix} ${effectiveStage} stage write failed`, {
+											url,
+											error: String(error),
+										});
+									});
+								}
+								progressThrottle.report({ url, partCurrent: partIndex, partTotal: partCount });
+							},
+						});
+						await progressThrottle.flush({ url });
+
+						/* The pre-parse byte gate fired: a not-modified crawl did no OCR/LLM
+						 * work, so the slot it reserved before crawlArticle goes back to the
+						 * window rather than starve a genuinely-expensive crawl. Refund only a
+						 * freshly-consumed slot — never an idempotent re-consume on redelivery,
+						 * whose slot was already accounted on the first receive; best-effort,
+						 * since a failed refund merely leaves the window slightly over-counted,
+						 * which fails safe toward under-spending. */
+						if (budget.consumed && crawlResult.status === "not-modified") {
+							await refundPaidCrawlBudget().catch((error: unknown) => {
+								logger.warn(`${logPrefix} paid-crawl budget refund failed`, {
+									url,
+									error: String(error),
+								});
+							});
+						}
+
+						const termination = await resolveCrawlResult(crawlResult, { ...ctx, candidates: runCandidates });
+						return "candidate" in termination
+							? { kind: "succeeded", outcome: JSON.stringify(termination.candidate) }
+							: { kind: "unsucceeded" };
+					},
 				});
+				if (leg.kind === "in-flight") logger.info(`${logPrefix} leg in flight under another message`, { url, leg: "comprehensive" });
+				if (leg.kind === "deferred") {
+					if (candidates !== undefined) await publishArchiveComparison({ ...ctx, candidates });
+					else if (!refresh) await transitionAndPersist(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+					logger.info(`${logPrefix} comprehensive leg deferred until a reader opens the article`, { url });
+				}
+				if (leg.kind === "settled" && !refresh) {
+					const recorded = RecordedComprehensiveCandidate.parse(JSON.parse(leg.outcome));
+					await publishArchiveComparison({ ...ctx, candidates: [...(candidates ?? []), recorded] });
+				}
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {
 					messageId: record.messageId,

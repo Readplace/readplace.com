@@ -814,18 +814,22 @@ test.describe("The reader's failed-crawl notice holds its WCAG contrast in both 
 		});
 		assert.equal(seeded.status(), 201);
 		const { articleId } = z.object({ articleId: z.string() }).parse(await seeded.json());
-		for (const crawl of [
-			{ url, status: "pending" },
-			{ url, status: "failed", reason: JSON.stringify({ kind: "fetch-failed" }) },
-		]) {
-			const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: crawl });
-			assert.equal(moved.status(), 201, `the crawl-status seed must move the crawl to ${crawl.status}`);
-		}
+		const failCrawl = async () => {
+			for (const crawl of [
+				{ url, status: "pending" },
+				{ url, status: "failed", reason: JSON.stringify({ kind: "fetch-failed" }) },
+			]) {
+				const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, { data: crawl });
+				assert.equal(moved.status(), 201, `the crawl-status seed must move the crawl to ${crawl.status}`);
+			}
+		};
+		await failCrawl();
 		await loginChipReader(page, email);
 
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.goto(`${BASE_URL}/queue/${articleId}/view`, { waitUntil: "domcontentloaded" });
+			await failCrawl();
 			await expect(
 				page.locator('[data-test-reader-notice] [data-test-alert="reader-capture-pitch"][data-test-alert-variant="info"]'),
 			).toBeVisible({ timeout: SETTLE_MS });

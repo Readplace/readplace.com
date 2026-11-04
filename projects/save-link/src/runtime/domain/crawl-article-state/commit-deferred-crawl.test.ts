@@ -64,7 +64,7 @@ describe("initCommitDeferredCrawl", () => {
 
 			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: "user-1" });
 
-			expect(outcome).toEqual({ via: "deferred-to-event", readable: true });
+			expect(outcome).toEqual({ via: "deferred-to-event", readable: true, candidate: { id: expect.any(String), tier: "tier-1" } });
 			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 				url,
 				tier: "tier-1",
@@ -100,7 +100,7 @@ describe("initCommitDeferredCrawl", () => {
 
 			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, candidates: [{ id: CandidateIdSchema.parse("wrapper-candidate"), tier: "tier-2" }] });
 
-			expect(outcome).toEqual({ via: "deferred-to-event", readable: false });
+			expect(outcome).toEqual({ via: "deferred-to-event", readable: false, candidate: { id: expect.any(String), tier: "tier-1" } });
 		});
 
 		it("emits RecrawlContentExtractedEvent on a recrawl", async () => {
@@ -287,7 +287,7 @@ describe("initCommitDeferredCrawl", () => {
 					["logger.info", "[Test] emitted RefreshContentExtractedEvent", { url }],
 				],
 			};
-			expect(outcome).toEqual({ via: "deferred-to-event", readable: true });
+			expect(outcome).toEqual({ via: "deferred-to-event", readable: true, candidate: { id: metadata.id, tier: "tier-1" } });
 			expect(trace).toStrictEqual([
 				["now"],
 				["finalizeArticle"],
@@ -326,7 +326,7 @@ describe("initCommitDeferredCrawl", () => {
 
 			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: "user-1" });
 
-			expect(outcome).toEqual({ via: "deferred-to-event", readable: true });
+			expect(outcome).toEqual({ via: "deferred-to-event", readable: true, candidate: { id: expect.any(String), tier: "tier-1" } });
 			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 				url,
 				tier: "tier-1",

@@ -8,6 +8,7 @@ import type { VerifyWrapperSource } from "@packages/save-article";
 import {
 	type LoadArticle,
 	type TransitionAndPersist,
+	markCrawlAwaitingReader,
 	markCrawlExhausted,
 	promoteTier,
 	recrawlPromoteTier,
@@ -25,11 +26,15 @@ import { resolveCanonicalPublishedOn } from "./resolve-canonical-published-on";
 import { type LiveAttempt, type PreparedContentSelection, initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "./max-receive-count";
+import { SELECT_CONTENT_TIMEOUTS } from "./timeouts";
+import { initJudgeUnderLedger } from "./judge-under-ledger";
+import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 
 export interface SelectContentDependencies {
 	listAvailableTierSources: ListAvailableTierSources;
 	selectMostCompleteContent: SelectMostCompleteContent;
+	runMeteredLeg: RunMeteredLeg;
 	writeCanonicalContent: WriteCanonicalContent;
 	recordCrawlVersion: RecordCrawlVersion;
 	loadArticle: LoadArticle;
@@ -78,14 +83,18 @@ function noReadableReason(params: { selection: PreparedContentSelection; saveAtt
 }
 
 export function initSelectContentWork(deps: SelectContentDependencies) {
-	const prepare = initPrepareContentSelection(deps);
+	const judge = initJudgeUnderLedger({ selectMostCompleteContent: deps.selectMostCompleteContent, runMeteredLeg: deps.runMeteredLeg, claimTtlMs: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds * 1000 });
+	const prepare = initPrepareContentSelection({ ...deps, judge });
 	const logContentSelection = initLogContentSelection(deps);
-	return async (params: SelectContentRequest): Promise<void> => {
+	return async (params: SelectContentRequest & { claimId: string }): Promise<void> => {
 		const selection = await prepare(params);
 		const expected = selection.article.contentSelection;
 		const source = selection.selected;
 		if (source === undefined) {
-			if (params.liveAttempt?.outcome !== "deferred" && !selection.legacyCanonicalWithheld) {
+			const keepRow = params.liveAttempt?.outcome === "deferred" || selection.legacyCanonicalWithheld;
+			if (!keepRow && selection.selectionRule === "judge-deferred") {
+				await deps.transitionAndPersist(markCrawlAwaitingReader, { url: params.url, input: { deferredLeg: "content-judge" }, selectionExpected: { snapshot: expected } });
+			} else if (!keepRow) {
 				await deps.transitionAndPersist(markNoReadableArticle, { url: params.url, input: { reason: noReadableReason({ selection, saveAttemptId: params.saveAttemptId, liveAttempt: params.liveAttempt }) }, selectionExpected: { snapshot: expected } });
 			}
 			logContentSelection({ saveAttemptId: params.saveAttemptId, selection, liveAttempt: params.liveAttempt });
@@ -140,7 +149,7 @@ export function initSelectionQueueHandler(queue: {
 				try {
 					const request = queue.toRequest(JSON.parse(record.body).detail, record);
 					recordUrl = request.url;
-					await selectContent(request);
+					await selectContent({ ...request, claimId: record.messageId });
 				} catch (error) {
 					deps.logger.error(`[${queue.tag}] record failed`, { messageId: record.messageId, error });
 					const receiveCount = Number(record.attributes.ApproximateReceiveCount);

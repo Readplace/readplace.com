@@ -4,6 +4,7 @@ import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary
 import { initLinkSummariser } from "./link-summariser";
 import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
+import { PaidLegPermitSchema } from "@packages/provider-contracts/metered-leg-ledger";
 
 function createStubCreateMessage(payload: { summary: string; excerpt?: string }): CreateAiMessage {
 	return async () => ({
@@ -12,6 +13,7 @@ function createStubCreateMessage(payload: { summary: string; excerpt?: string })
 	});
 }
 
+const permit = PaidLegPermitSchema.parse({ leg: "summary", claimId: "claim-1", inputHash: "hash-1" });
 const noopMarkStage: MarkSummaryStage = async () => {};
 const identity = (text: string) => text;
 
@@ -30,7 +32,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/long",
 			textContent: "A long article with lots of content.",
 		});
@@ -57,7 +59,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => true,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/short",
 			textContent: "Short article text.",
 		});
@@ -80,7 +82,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/unavailable",
 			textContent: "Content that cannot be summarised.",
 		});
@@ -105,7 +107,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		await summarizeArticle({
+		await summarizeArticle({ permit,
 			url: "https://example.com/registry",
 			textContent: "A registry table with little prose.",
 		});
@@ -135,7 +137,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({ url, textContent: "Some article content." });
+		const result = await summarizeArticle({ permit, url, textContent: "Some article content." });
 
 		expect(result).toEqual({ kind: "unusable-answer" });
 		expect(warn).toHaveBeenCalledWith("[summarize] model answer is not the JSON shape asked for", {
@@ -164,7 +166,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({ url, textContent: "Some article content." });
+		const result = await summarizeArticle({ permit, url, textContent: "Some article content." });
 
 		expect(result).toEqual({ kind: "unusable-answer" });
 		expect(warn).toHaveBeenCalledWith("[summarize] model answer is not the JSON shape asked for", {
@@ -189,7 +191,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/no-text-block",
 			textContent: "Some article content.",
 		});
@@ -219,7 +221,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		await summarizeArticle({
+		await summarizeArticle({ permit,
 			url: "https://example.com/x",
 			textContent: "Long content.",
 		});
@@ -249,7 +251,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		await summarizeArticle({
+		await summarizeArticle({ permit,
 			url: "https://example.com/x",
 			textContent: "Long content.",
 		});
@@ -276,7 +278,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/long",
 			textContent: "x",
 		});
@@ -299,7 +301,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/no-excerpt",
 			textContent: "A long article with lots of content.",
 		});
@@ -330,7 +332,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/blank-excerpt",
 			textContent: "A long article with lots of content.",
 		});
@@ -351,7 +353,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		await summarizeArticle({ url: "https://example.com/x", textContent: "Long content." });
+		await summarizeArticle({ permit, url: "https://example.com/x", textContent: "Long content." });
 
 		const { system } = createMessage.mock.calls[0][0];
 		expect(system).not.toMatch(/\{\{[A-Z_]+\}\}/u);
@@ -369,7 +371,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		await summarizeArticle({ url: "https://example.com/x", textContent: "Long content." });
+		await summarizeArticle({ permit, url: "https://example.com/x", textContent: "Long content." });
 
 		expect(createMessage.mock.calls[0][0].feature).toBe("summary");
 	});
@@ -385,7 +387,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/paragraphs",
 			textContent: "x",
 		});
@@ -408,7 +410,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/no-excerpt-long",
 			textContent: "x",
 		});
@@ -431,7 +433,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		const result = await summarizeArticle({
+		const result = await summarizeArticle({ permit,
 			url: "https://example.com/no-spaces",
 			textContent: "x",
 		});
@@ -455,7 +457,7 @@ describe("initLinkSummariser", () => {
 			isTooShortToSummarize: () => false,
 		});
 
-		await summarizeArticle({
+		await summarizeArticle({ permit,
 			url: "https://example.com/article",
 			textContent: "Some article content about prompt injection.",
 		});

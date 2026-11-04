@@ -1,3 +1,4 @@
+import type { RequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
 import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
 import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
@@ -490,6 +491,7 @@ interface AppDependencies {
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	publishComputeRelatedPasses: PublishComputeRelatedPasses;
+	requestResolutionOnView: RequestResolutionOnView;
 	readRelatedPassRequestState: ReadRelatedPassRequestState;
 	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
@@ -1551,6 +1553,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishQueueEntryCreated: deps.publishQueueEntryCreated,
 		publishComputeRelatedPastReads: deps.publishComputeRelatedPastReads,
 		publishComputeRelatedPasses: deps.publishComputeRelatedPasses,
+		requestResolutionOnView: deps.requestResolutionOnView,
 		readRelatedPassRequestState: deps.readRelatedPassRequestState,
 		markRelatedPassesRequested: deps.markRelatedPassesRequested,
 		findRelatedArticles: deps.findRelatedArticles,

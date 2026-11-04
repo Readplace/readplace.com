@@ -1,4 +1,10 @@
 import assert from "node:assert/strict";
+import { CandidateIdSchema } from "@packages/domain/article";
+import {
+	type MeteredLeg,
+	type PaidLegPermit,
+	PaidLegPermitSchema,
+} from "@packages/provider-contracts/metered-leg-ledger";
 import type {
 	RenderOutcome,
 	RenderPage,
@@ -12,6 +18,8 @@ import {
 	type RenderCommit,
 	type RenderedThrough,
 	type RenderLadderLegs,
+	type RenderLegClaim,
+	type RenderMeteredLeg,
 	runRenderLadder,
 } from "./render-ladder";
 
@@ -72,6 +80,16 @@ const unlockerFailure: RenderOutcome = {
 	requests,
 	resourceHosts,
 };
+const candidate = { id: CandidateIdSchema.parse("candidate-1"), tier: "tier-1" as const };
+const committed = { kind: "committed", candidate } as const;
+const SHORT_LEG: Record<MeteredLeg, string> = {
+	"render-residential-per-gb": "residential",
+	"render-web-unlocker-fetch": "fetch",
+	"render-web-unlocker-render": "render",
+	comprehensive: "comprehensive",
+	"content-judge": "content-judge",
+	summary: "summary",
+};
 const noBodyFetch: ProxiedFetchAttempt = {
 	kind: "no-body",
 	outcome: "blocked",
@@ -84,10 +102,16 @@ function ladderWith(script: {
 	commits?: Partial<Record<RenderedThrough, RenderCommit>>;
 	webUnlockerFetch?: ProxiedFetchAttempt;
 	budgetAllowed?: boolean;
+	claims?: Partial<Record<RenderMeteredLeg, RenderLegClaim>>;
 	unsupportedReason?: "javascript-required" | "blocked";
 	remaining?: number[];
 }) {
 	const steps: string[] = [];
+	const ledger: string[] = [];
+	const permitFor = (leg: RenderMeteredLeg): PaidLegPermit =>
+		PaidLegPermitSchema.parse({ leg, claimId: "msg-1", inputHash: `hash-${leg}` });
+	const assertHeld = (permit: PaidLegPermit, leg: RenderMeteredLeg) =>
+		assert.equal(permit.leg, leg);
 	const renderedEgresses: Parameters<RenderPage>[0]["egress"][] = [];
 	const remaining = [...(script.remaining ?? [])];
 	let residentialSessions = 0;
@@ -109,7 +133,8 @@ function ladderWith(script: {
 	const legs: RenderLadderLegs = {
 		renderPage,
 		url: URL,
-		residentialEgress: (): ResidentialEgress => {
+		residentialEgress: (permit): ResidentialEgress => {
+			assertHeld(permit, "render-residential-per-gb");
 			residentialSessions += 1;
 			steps.push(`mint residential session-${residentialSessions}`);
 			return {
@@ -121,7 +146,10 @@ function ladderWith(script: {
 				},
 			};
 		},
-		webUnlockerEgress,
+		webUnlockerEgress: (permit) => {
+			assertHeld(permit, "render-web-unlocker-render");
+			return webUnlockerEgress;
+		},
 		unsupportedReason: script.unsupportedReason ?? "javascript-required",
 		commitRender: async (render: LadderRender, escalation: Escalation) => {
 			steps.push(`commit ${render.renderedThrough} ${escalation}`);
@@ -132,7 +160,8 @@ function ladderWith(script: {
 			);
 			return commit;
 		},
-		fetchThroughWebUnlocker: async () => {
+		fetchThroughWebUnlocker: async (permit) => {
+			assertHeld(permit, "render-web-unlocker-fetch");
 			steps.push("web unlocker fetch");
 			assert(
 				script.webUnlockerFetch,
@@ -140,9 +169,19 @@ function ladderWith(script: {
 			);
 			return script.webUnlockerFetch;
 		},
-		consumeBudget: async () => {
-			steps.push("budget");
-			return { allowed: script.budgetAllowed ?? true };
+		claimLeg: async (leg) => {
+			steps.push(`claim ${SHORT_LEG[leg]}`);
+			const scripted = script.claims?.[leg];
+			if (scripted) return scripted;
+			if (script.budgetAllowed === false && leg !== "render-web-unlocker-fetch")
+				return { kind: "budget-exhausted" };
+			return { kind: "granted", permit: permitFor(leg) };
+		},
+		settleLeg: async ({ permit, candidate: settled }) => {
+			ledger.push(`settle ${SHORT_LEG[permit.leg]} ${settled.id}`);
+		},
+		releaseLeg: async (permit) => {
+			ledger.push(`release ${SHORT_LEG[permit.leg]}`);
 		},
 		remainingMilliseconds: () => {
 			const next = remaining.shift() ?? ENOUGH_TIME;
@@ -150,7 +189,7 @@ function ladderWith(script: {
 			return next;
 		},
 	};
-	return { run: () => runRenderLadder(legs), steps, renderedEgresses };
+	return { run: () => runRenderLadder(legs), steps, ledger, renderedEgresses };
 }
 
 describe("runRenderLadder", () => {
@@ -185,7 +224,7 @@ describe("runRenderLadder", () => {
 			commits: {
 				"direct-egress": { kind: "unreadable", detail: "no readable content" },
 			},
-			webUnlockerFetch: { kind: "committed" },
+			webUnlockerFetch: committed,
 		});
 
 		const result = await run();
@@ -199,6 +238,7 @@ describe("runRenderLadder", () => {
 			"render direct 30000",
 			"commit direct-egress available",
 			"time 10000000",
+			"claim fetch",
 			"web unlocker fetch",
 		]);
 	});
@@ -232,10 +272,11 @@ describe("runRenderLadder", () => {
 			"render direct 30000",
 			"commit direct-egress exhausted",
 			"time 10000000",
-			"budget",
+			"claim residential",
 			"mint residential session-1",
 			"render residential 30000",
 			"time 10000000",
+			"claim render",
 			"render web-unlocker 90000",
 		]);
 	});
@@ -253,7 +294,7 @@ describe("runRenderLadder", () => {
 			gate: "residential-per-gb",
 			direct: failedRender,
 		});
-		assert.deepEqual(steps, ["render direct 30000", "time 10000000", "budget"]);
+		assert.deepEqual(steps, ["render direct 30000", "time 10000000", "claim residential"]);
 	});
 
 	it("passes a freshly minted residential egress to each run's residential render with a 30000 navigation", async () => {
@@ -303,7 +344,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
-			"budget",
+			"claim residential",
 			"mint residential session-1",
 			"render residential 30000",
 			"commit residential-per-gb available",
@@ -329,10 +370,11 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
-			"budget",
+			"claim residential",
 			"mint residential session-1",
 			"render residential 30000",
 			"time 10000000",
+			"claim render",
 			"render web-unlocker 90000",
 			"commit web-unlocker-render exhausted",
 		]);
@@ -356,7 +398,7 @@ describe("runRenderLadder", () => {
 		const { run, steps } = ladderWith({
 			unsupportedReason,
 			direct,
-			webUnlockerFetch: { kind: "committed" },
+			webUnlockerFetch: committed,
 		});
 
 		const result = await run();
@@ -369,6 +411,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
+			"claim fetch",
 			"web unlocker fetch",
 		]);
 	});
@@ -377,7 +420,7 @@ describe("runRenderLadder", () => {
 		const { run, steps } = ladderWith({
 			direct: failedRender,
 			residential: blockedRender,
-			webUnlockerFetch: { kind: "committed" },
+			webUnlockerFetch: committed,
 		});
 
 		const result = await run();
@@ -390,10 +433,11 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
-			"budget",
+			"claim residential",
 			"mint residential session-1",
 			"render residential 30000",
 			"time 10000000",
+			"claim fetch",
 			"web unlocker fetch",
 		]);
 	});
@@ -417,19 +461,21 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
-			"budget",
+			"claim residential",
 			"mint residential session-1",
 			"render residential 30000",
 			"time 10000000",
+			"claim fetch",
 			"web unlocker fetch",
 			"time 10000000",
+			"claim render",
 			"render web-unlocker 90000",
 			"commit web-unlocker-render exhausted",
 		]);
 	});
 
 	it.each([
-		{ kind: "committed" as const },
+		committed,
 		{ kind: "settled" as const },
 	])("stops at a web unlocker fetch that ended $kind", async (webUnlockerFetch) => {
 		const { run, steps } = ladderWith({
@@ -465,9 +511,10 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
+			"claim fetch",
 			"web unlocker fetch",
 			"time 10000000",
-			"budget",
+			"claim render",
 			"render web-unlocker 90000",
 			"commit web-unlocker-render exhausted",
 		]);
@@ -491,9 +538,10 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
+			"claim fetch",
 			"web unlocker fetch",
 			"time 10000000",
-			"budget",
+			"claim render",
 		]);
 	});
 
@@ -528,9 +576,10 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			"time 10000000",
+			"claim fetch",
 			"web unlocker fetch",
 			"time 10000000",
-			"budget",
+			"claim render",
 			"render web-unlocker 90000",
 			"commit web-unlocker-render exhausted",
 		]);
@@ -570,7 +619,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			`time ${RESIDENTIAL_THRESHOLD}`,
-			"budget",
+			"claim residential",
 			"mint residential session-1",
 			"render residential 30000",
 			"commit residential-per-gb available",
@@ -597,7 +646,7 @@ describe("runRenderLadder", () => {
 			"render direct 30000",
 			`time ${FETCH_THRESHOLD - 1}`,
 			`time ${WEB_UNLOCKER_RENDER_THRESHOLD}`,
-			"budget",
+			"claim render",
 			"render web-unlocker 90000",
 		]);
 	});
@@ -621,6 +670,7 @@ describe("runRenderLadder", () => {
 		assert.deepEqual(steps, [
 			"render direct 30000",
 			`time ${FETCH_THRESHOLD}`,
+			"claim fetch",
 			"web unlocker fetch",
 			`time ${WEB_UNLOCKER_RENDER_THRESHOLD - 1}`,
 		]);
@@ -641,6 +691,179 @@ describe("runRenderLadder", () => {
 			residential: residentialFailure,
 			webUnlockerFetch: { kind: "skipped", reason: "no-block-evidence" },
 			webUnlockerRender: { kind: "skipped", reason: "time-exhausted" },
+		});
+	});
+
+	describe("under the metered-leg ledger", () => {
+		const DEFERRED_LEG = { kind: "skipped", reason: "deferred" } as const;
+
+		it("returns deferred before the residential render when its claim is deferred and the free legs saw no block evidence", async () => {
+			const { run, steps, ledger } = ladderWith({
+				direct: failedRender,
+				claims: { "render-residential-per-gb": { kind: "deferred" } },
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, {
+				kind: "deferred",
+				awaiting: "render-residential-per-gb",
+				direct: failedRender,
+			});
+			assert.deepEqual(steps, ["render direct 30000", "time 10000000", "claim residential"]);
+			assert.deepEqual(ledger, []);
+		});
+
+		it("returns the recorded outcome of a residential leg already settled for the same inputs", async () => {
+			const { run, steps } = ladderWith({
+				direct: failedRender,
+				claims: { "render-residential-per-gb": { kind: "settled", outcome: "recorded-candidate" } },
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, { kind: "recorded", leg: "render-residential-per-gb", outcome: "recorded-candidate" });
+			assert.equal(steps.at(-1), "claim residential");
+		});
+
+		it("returns in-flight when another message holds the residential claim", async () => {
+			const { run } = ladderWith({
+				direct: failedRender,
+				claims: { "render-residential-per-gb": { kind: "in-flight" } },
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, { kind: "in-flight", leg: "render-residential-per-gb" });
+		});
+
+		it("settles the residential claim with the committed candidate", async () => {
+			const { run, ledger } = ladderWith({
+				direct: failedRender,
+				residential: renderedBody,
+				commits: { "residential-per-gb": committed },
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, { kind: "settled", settledThrough: "residential-per-gb", residentialSkipped: false });
+			assert.deepEqual(ledger, ["settle residential candidate-1"]);
+		});
+
+		it("releases the residential claim when the residential render commits nothing", async () => {
+			const { run, ledger } = ladderWith({
+				direct: failedRender,
+				residential: residentialFailure,
+				webUnlockerRender: unlockerFailure,
+			});
+
+			await run();
+
+			assert.deepEqual(ledger, ["release residential", "release render"]);
+		});
+
+		it("releases the residential claim and rethrows when the residential leg throws", async () => {
+			const { run, ledger } = ladderWith({
+				direct: failedRender,
+				residential: renderedBody,
+			});
+
+			await assert.rejects(run(), /the residential-per-gb commit was not expected to run/);
+			assert.deepEqual(ledger, ["release residential"]);
+		});
+
+		it("reports both web unlocker legs as deferred on block evidence when their claims are deferred", async () => {
+			const { run, steps, ledger } = ladderWith({
+				direct: blockedRender,
+				claims: {
+					"render-web-unlocker-fetch": { kind: "deferred" },
+					"render-web-unlocker-render": { kind: "deferred" },
+				},
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, {
+				kind: "unrendered",
+				direct: blockedRender,
+				residential: SKIPPED_FOR_BLOCK_EVIDENCE,
+				webUnlockerFetch: DEFERRED_LEG,
+				webUnlockerRender: DEFERRED_LEG,
+			});
+			assert.deepEqual(steps, ["render direct 30000", "time 10000000", "claim fetch", "time 10000000", "claim render"]);
+			assert.deepEqual(ledger, []);
+		});
+
+		it("returns the recorded outcome of a web unlocker fetch already settled for the same inputs", async () => {
+			const { run } = ladderWith({
+				direct: blockedRender,
+				claims: { "render-web-unlocker-fetch": { kind: "settled", outcome: "recorded-fetch" } },
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, { kind: "recorded", leg: "render-web-unlocker-fetch", outcome: "recorded-fetch" });
+		});
+
+		it("settles the web unlocker fetch claim with the committed candidate", async () => {
+			const { run, ledger } = ladderWith({
+				direct: blockedRender,
+				webUnlockerFetch: committed,
+			});
+
+			await run();
+
+			assert.deepEqual(ledger, ["settle fetch candidate-1"]);
+		});
+
+		it("releases the web unlocker fetch claim when the fetch settles without a candidate", async () => {
+			const { run, ledger } = ladderWith({
+				direct: blockedRender,
+				webUnlockerFetch: { kind: "settled" },
+			});
+
+			await run();
+
+			assert.deepEqual(ledger, ["release fetch"]);
+		});
+
+		it("returns in-flight when another message holds the web unlocker render claim", async () => {
+			const { run } = ladderWith({
+				direct: blockedRender,
+				webUnlockerFetch: noBodyFetch,
+				claims: { "render-web-unlocker-render": { kind: "in-flight" } },
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, { kind: "in-flight", leg: "render-web-unlocker-render" });
+		});
+
+		it("settles the web unlocker render claim with the committed candidate", async () => {
+			const { run, ledger } = ladderWith({
+				direct: blockedRender,
+				webUnlockerFetch: noBodyFetch,
+				webUnlockerRender: renderedBody,
+				commits: { "web-unlocker-render": committed },
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, { kind: "settled", settledThrough: "web-unlocker-render", residentialSkipped: true });
+			assert.deepEqual(ledger, ["release fetch", "settle render candidate-1"]);
+		});
+
+		it("settles through the direct render when it commits a candidate, claiming nothing", async () => {
+			const { run, steps, ledger } = ladderWith({
+				direct: renderedBody,
+				commits: { "direct-egress": committed },
+			});
+
+			const result = await run();
+
+			assert.deepEqual(result, { kind: "settled", settledThrough: "direct-egress", residentialSkipped: false });
+			assert.deepEqual(steps, ["render direct 30000", "commit direct-egress exhausted"]);
+			assert.deepEqual(ledger, []);
 		});
 	});
 });

@@ -5,6 +5,8 @@ import { z } from "zod";
 import { generateReadlistSlug } from "@packages/domain/readlist";
 import { initGetEffectiveAccess } from "@packages/subscription-access";
 import {
+	initDynamoDbArticleCrawl,
+	initDynamoDbClaimResolutionOnView,
 	initDynamoDbEngagementStarter,
 	initDynamoDbReadlistDefinitions,
 	initDynamoDbFindItemOwner,
@@ -35,6 +37,8 @@ import { initQueueDigestUnsubscribeToken } from "./domain/email/queue-digest-uns
 import { QUEUE_DIGEST_MIN_GAP_MS, QUEUE_DIGEST_MIN_SAVE_AGE_MS } from "./domain/email/queue-digest-cadence";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "./observability/queue-digest-events";
 import { initSendQueueDigestHandler } from "./send-queue-digest/send-queue-digest-handler";
+import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
+import { initEventBridgeResolveArticleOnView } from "./providers/events/eventbridge-resolve-article-on-view";
 import { initBuildQueueDigestBook } from "./web/queue-digest-book";
 import { initBuildBookEpub } from "./web/shared/epub/book-epub";
 import { requireEnv } from "@packages/require-env";
@@ -115,6 +119,20 @@ const { sendEmail } = initSkipReservedDomain({
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
+});
+
+const crawlStore = initDynamoDbArticleCrawl({
+	client: dynamoClient,
+	tableName: articlesTable,
+	now: () => new Date(),
+});
+
+const requestResolutionOnView = initRequestResolutionOnView({
+	claimResolutionOnView: initDynamoDbClaimResolutionOnView({ client: dynamoClient, tableName: articlesTable, now: () => new Date() }),
+	publishResolveArticleOnView: initEventBridgeResolveArticleOnView({ publishEvent }).publishResolveArticleOnView,
+	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+	findGeneratedSummary: summaryStore.findGeneratedSummary,
+	logger,
 });
 
 const s3 = new S3Client({});
@@ -209,6 +227,8 @@ export const handler = initSendQueueDigestHandler({
 	findReaderReadyEmailState: readerReadyState.findReaderReadyEmailState,
 	findUnreadSavesForDigest: articleStore.findUnreadSavesForDigest,
 	findGeneratedSummary: summaryStore.findGeneratedSummary,
+	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+	requestResolutionOnView,
 	readArticleContent,
 	buildQueueDigestBook,
 	claimReaderReadyEmailSlot: readerReadyState.claimReaderReadyEmailSlot,

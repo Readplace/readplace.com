@@ -6,6 +6,7 @@ import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { RenderCrawlCommand, SimpleCrawlUnsupportedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { initEmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import { initSaveLinkWork } from "../save-link/save-link-work";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "../simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-handler";
@@ -124,6 +125,7 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 			transitionAndPersist: async () => {},
 			markCrawlStage: async () => {},
 			consumeRenderCrawlBudget: async () => ({ allowed: true, consumed: true }),
+			...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date("2026-11-03T00:00:00.000Z") }),
 			adoptCanonicalIdentity: async () => {},
 			publishEvent,
 			renderPage,

@@ -8,6 +8,7 @@ import type { GeneratedSummary } from "@packages/test-fixtures/providers/article
 import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
 import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 import { destinationUrl, siteLabel } from "../../test-helpers/article-fixtures";
+import type { RequestResolutionOnView } from "../../../domain/resolve-on-view/request-resolution-on-view";
 import { initArticleReader } from "./article-reader";
 import { type CaptureWatch, captureWatchQuery, NO_CAPTURE_WATCH } from "./capture-watch";
 import type {
@@ -77,6 +78,7 @@ function initFakeDeps(initial: {
 	summaryOpen?: boolean;
 	contentFetchedAt?: string;
 	crawlVersions?: ArticleCrawlVersion[];
+	requestResolutionOnView?: RequestResolutionOnView;
 } = {}): {
 	state: FakeState;
 	deps: ArticleReaderDeps;
@@ -102,6 +104,7 @@ function initFakeDeps(initial: {
 		formatDocumentTitle: (title) => `${title} — TestReader`,
 		appOrigin: "https://readplace.com",
 		summaryOpen: initial.summaryOpen ?? true,
+		requestResolutionOnView: initial.requestResolutionOnView,
 	};
 	return { state, deps };
 }
@@ -2324,5 +2327,137 @@ describe("initArticleReader", () => {
 			assert(doc.querySelector("#reader-article-title"), "the stub title must swap in");
 			assert.equal(doc.querySelector("#reader-readlist-tags"), null);
 		});
+	});
+});
+
+describe("resolveReaderStateFrom", () => {
+	it("renders the state it is handed instead of reading the crawl and summary again", async () => {
+		const { deps } = initFakeDeps({ crawl: { status: "failed", outcomeRevision: 1, reason: "blocked" }, content: undefined });
+
+		const state = await initArticleReader(deps).resolveReaderStateFrom(
+			{ viewer: ANONYMOUS_VIEWER, article: makeSnapshot(), pollUrlBuilder: makePollUrlBuilder() },
+			{
+				crawl: { status: "pending" },
+				summary: shownSummary({ url: makeSnapshot().url, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: { status: "pending" } }),
+			},
+		);
+
+		expect({ crawl: state.crawl, summary: state.summary, readerPollUrl: state.readerPollUrl, summaryPollUrl: state.summaryPollUrl }).toEqual({
+			crawl: { status: "pending" },
+			summary: { status: "pending" },
+			readerPollUrl: "/test/reader?poll=1",
+			summaryPollUrl: "/test/summary?poll=1",
+		});
+	});
+
+	it("gates a link whose host can never hold an article", async () => {
+		const { deps } = initFakeDeps();
+
+		const state = await initArticleReader(deps).resolveReaderStateFrom(
+			{ viewer: ANONYMOUS_VIEWER, article: { ...makeSnapshot(), url: "https://mail.google.com/mail/u/0/" }, pollUrlBuilder: makePollUrlBuilder() },
+			{ crawl: { status: "pending" }, summary: undefined },
+		);
+
+		expect(state.notice).toBe("not-an-article");
+	});
+});
+
+describe("the reader's gave-up poll", () => {
+	const EDGE_BLOCK = JSON.stringify({ kind: "blocked", cause: "edge-block" });
+	type ResolutionCall = Parameters<RequestResolutionOnView>[0];
+
+	function recordingResolution(answer: (call: ResolutionCall) => ReturnType<RequestResolutionOnView>) {
+		const calls: ResolutionCall[] = [];
+		const requestResolutionOnView: RequestResolutionOnView = (call) => {
+			calls.push(call);
+			return answer(call);
+		};
+		return { calls, requestResolutionOnView };
+	}
+
+	const claimPending = recordingResolution;
+	const pendingAnswer = async (call: ResolutionCall) =>
+		new Map(
+			call.articles.map(({ url }) => [
+				url,
+				{ crawl: { status: "pending" } as const, summary: shownSummary({ url, viewer: call.viewer, ownerUserId: undefined, summary: { status: "pending" } }) },
+			]),
+		);
+
+	async function gaveUpPoll(params: {
+		crawl: ArticleCrawl;
+		capture: CaptureWatch;
+		requestResolutionOnView: RequestResolutionOnView;
+	}): Promise<Document> {
+		const { deps } = initFakeDeps({ crawl: params.crawl, content: undefined, requestResolutionOnView: params.requestResolutionOnView });
+		const component = await initArticleReader(deps).handleReaderPoll({
+			viewer: ANONYMOUS_VIEWER,
+			articleUrl: ARTICLE_URL,
+			articleId: "0123456789abcdef0123456789abcdef",
+			pollCount: 2,
+			pollUrlBuilder: makePollUrlBuilder(),
+			capture: params.capture,
+			extensionInstallUrl: undefined,
+			summaryToggleUrl: undefined,
+			provenance: undefined,
+			saved: undefined,
+			readerViewFailedOob: () => "",
+			renderDownloadsOob: undefined,
+		});
+		return parse(toHtml(component));
+	}
+
+	it("claims the paid legs for a block-evidence row the device gave up on and renders the reader pending", async () => {
+		const resolution = claimPending(pendingAnswer);
+
+		const doc = await gaveUpPoll({
+			crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 2 },
+			capture: { kind: "device-gave-up", since: 2, trigger: "manual" },
+			requestResolutionOnView: resolution.requestResolutionOnView,
+		});
+
+		expect(resolution.calls).toEqual([
+			{
+				surface: "reader-capture-gave-up",
+				viewer: ANONYMOUS_VIEWER,
+				viewerCanCapture: false,
+				articles: [{ url: ARTICLE_URL, crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 2 }, summary: undefined }],
+			},
+		]);
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect({ status: slot.getAttribute("data-reader-status"), poll: slot.getAttribute("hx-get") }).toEqual({
+			status: "pending",
+			poll: "/test/reader?poll=3&captureSince=2&captureGaveUp=1&captureTrigger=manual",
+		});
+	});
+
+	it.each([
+		{ when: "the device is still copying", crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 2 } as const, capture: { kind: "watching", since: 2, trigger: "manual" } as const },
+		{ when: "a newer outcome than the one the device gave up on landed", crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 3 } as const, capture: { kind: "device-gave-up", since: 2, trigger: "manual" } as const },
+		{ when: "the row is already pending", crawl: { status: "pending" } as const, capture: { kind: "device-gave-up", since: 2, trigger: "manual" } as const },
+		{
+			when: "the row has no block evidence",
+			crawl: { status: "failed", reason: JSON.stringify({ kind: "capture-unreadable", detail: "none" }), outcomeRevision: 2 } as const,
+			capture: { kind: "device-gave-up", since: 2, trigger: "manual" } as const,
+		},
+	])("claims nothing when $when", async ({ crawl, capture }) => {
+		const resolution = claimPending(pendingAnswer);
+
+		await gaveUpPoll({ crawl, capture, requestResolutionOnView: resolution.requestResolutionOnView });
+
+		expect(resolution.calls).toEqual([]);
+	});
+
+	it("refuses a resolution that leaves the gave-up row out", async () => {
+		const resolution = claimPending(async () => new Map());
+
+		await expect(
+			gaveUpPoll({
+				crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 2 },
+				capture: { kind: "device-gave-up", since: 2, trigger: "automatic" },
+				requestResolutionOnView: resolution.requestResolutionOnView,
+			}),
+		).rejects.toThrow("a device-first row is eligible for a viewer that cannot capture");
 	});
 });

@@ -739,8 +739,12 @@ describe("Readlist routes", () => {
 				.querySelector("[data-test-article-list] .readlist-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/view`);
-			const doc = new JSDOM(readerResponse.text).window.document;
+			const opened = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+			expect(opened.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status")).toBe("pending");
+			await applyParseResult("https://example.com/broken");
+
+			const pollResponse = await agent.get(`/queue/${articleId}/reader?poll=1`);
+			const doc = new JSDOM(pollResponse.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("failed");

@@ -2,7 +2,7 @@ import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type ArticleBody, type ReaderArticleHashId, viewerFor } from "@packages/domain/article";
+import { type ArticleBody, type ReaderArticleHashId, type ShownSummary, viewerFor } from "@packages/domain/article";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/hutch-infra-components";
@@ -15,6 +15,7 @@ import type {
 	MarkReaderReadyEmailSent,
 	ReadArticleContent,
 } from "@packages/provider-contracts/article-store";
+import type { FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type { FindGeneratedSummary, GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { FindUserContactByUserId } from "@packages/provider-contracts/auth";
 import { EmailRejectedError, type SendEmail } from "@packages/provider-contracts/email";
@@ -34,6 +35,7 @@ import type {
 } from "@packages/provider-contracts/subscription-providers";
 import { resolveEffectiveAccess } from "@packages/subscription-access";
 import type { QueueDigestKind } from "@packages/web-analytics";
+import type { RequestResolutionOnView } from "../domain/resolve-on-view/request-resolution-on-view";
 import { isPayDigestDue } from "../domain/stripe/stripe-trial-config";
 import { trialDayOf } from "../domain/trial/trial-day";
 import type {
@@ -64,6 +66,8 @@ export interface SendQueueDigestDeps {
 	findReaderReadyEmailState: FindReaderReadyEmailState;
 	findUnreadSavesForDigest: FindUnreadSavesForDigest;
 	findGeneratedSummary: FindGeneratedSummary;
+	findArticleCrawlStatus: FindArticleCrawlStatus;
+	requestResolutionOnView: RequestResolutionOnView;
 	readArticleContent: ReadArticleContent;
 	buildQueueDigestBook: BuildQueueDigestBook;
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
@@ -90,6 +94,16 @@ interface ReadyItem {
 	candidate: DigestCandidate;
 	summary: GeneratedSummary;
 	contentHtml: ArticleBody;
+}
+
+interface ParkedItem {
+	candidate: DigestCandidate;
+	summary: ShownSummary | undefined;
+}
+
+interface PageItems {
+	ready: ReadyItem[];
+	parked: ParkedItem[];
 }
 
 interface DigestQuery {
@@ -361,14 +375,18 @@ async function selectReadyItems(params: {
 }): Promise<ReadyItem[]> {
 	const { deps, userId, query } = params;
 	const ready: ReadyItem[] = [];
+	let resolutionBudget = deps.maxDigestItems;
 	let candidatesRequested = 0;
 	let cursor: DigestPageCursor | undefined;
 	do {
 		const limit = Math.min(deps.maxDigestItems + 1, deps.maxCandidatesRead - candidatesRequested);
 		const page = await deps.findUnreadSavesForDigest({ userId, ...query, limit, cursor });
 		candidatesRequested += limit;
-		const pageReady = await readyItemsOf({ candidates: page.candidates, deps, userId });
-		ready.push(...pageReady.slice(0, deps.maxDigestItems - ready.length));
+		const pageItems = await readyItemsOf({ candidates: page.candidates, deps, userId });
+		ready.push(...pageItems.ready.slice(0, deps.maxDigestItems - ready.length));
+		const parked = pageItems.parked.slice(0, resolutionBudget);
+		resolutionBudget -= parked.length;
+		await requestResolutionOf({ parked, deps, userId });
 		cursor = page.nextCursor;
 	} while (cursor !== undefined && ready.length < deps.maxDigestItems && candidatesRequested < deps.maxCandidatesRead);
 	return ready;
@@ -378,24 +396,46 @@ async function readyItemsOf(params: {
 	candidates: DigestCandidate[];
 	deps: SendQueueDigestDeps;
 	userId: UserId;
-}): Promise<ReadyItem[]> {
-	const loaded = params.candidates.filter(
+}): Promise<PageItems> {
+	const listable = params.candidates.filter(
 		(candidate) =>
 			ArticleResourceUniqueId.parse(candidate.article.url).value !== CONSENT_SEED_ARTICLE_KEY &&
 			candidate.article.provenance?.kind !== "hn-suggestion" &&
 			candidate.article.provenance?.kind !== "founder-seed" &&
-			candidate.readerAvailableAt !== undefined &&
 			candidate.purgedAt === undefined,
 	);
-	const ready = await Promise.all(
-		loaded.map(async (candidate): Promise<ReadyItem[]> => {
+	const items = await Promise.all(
+		listable.map(async (candidate): Promise<PageItems> => {
 			const summary = await params.deps.findGeneratedSummary({ url: candidate.article.url, viewer: viewerFor(params.userId) });
-			if (summary?.status !== "ready") return [];
+			if (candidate.readerAvailableAt === undefined || summary?.status !== "ready") {
+				return { ready: [], parked: [{ candidate, summary }] };
+			}
 			const stored = await params.deps.readArticleContent({ url: candidate.article.url, viewer: viewerFor(params.userId) });
-			return stored.kind === "article" ? [{ candidate, summary, contentHtml: stored.body }] : [];
+			return { ready: stored.kind === "article" ? [{ candidate, summary, contentHtml: stored.body }] : [], parked: [] };
 		}),
 	);
-	return ready.flat();
+	return { ready: items.flatMap((item) => item.ready), parked: items.flatMap((item) => item.parked) };
+}
+
+async function requestResolutionOf(params: {
+	parked: ParkedItem[];
+	deps: SendQueueDigestDeps;
+	userId: UserId;
+}): Promise<void> {
+	if (params.parked.length === 0) return;
+	const articles = await Promise.all(
+		params.parked.map(async ({ candidate, summary }) => ({
+			url: candidate.article.url,
+			crawl: await params.deps.findArticleCrawlStatus(candidate.article.url),
+			summary,
+		})),
+	);
+	await params.deps.requestResolutionOnView({
+		surface: "queue-digest",
+		viewer: viewerFor(params.userId),
+		viewerCanCapture: false,
+		articles,
+	});
 }
 
 function toEmailItem({ candidate, summary }: ReadyItem): QueueDigestEmailItem {

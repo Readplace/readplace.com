@@ -21,6 +21,10 @@
       "types": "./dist/article-freshness.d.ts",
       "default": "./dist/article-freshness.js"
     },
+    "./article-resolution-on-view": {
+      "types": "./dist/article-resolution-on-view.d.ts",
+      "default": "./dist/article-resolution-on-view.js"
+    },
     "./article-store": {
       "types": "./dist/article-store.d.ts",
       "default": "./dist/article-store.js"
@@ -160,6 +164,10 @@
     "./logs-insights": {
       "types": "./dist/logs-insights.d.ts",
       "default": "./dist/logs-insights.js"
+    },
+    "./metered-leg-ledger": {
+      "types": "./dist/metered-leg-ledger.d.ts",
+      "default": "./dist/metered-leg-ledger.js"
     }
   },
   "typesVersions": {
@@ -167,6 +175,7 @@
       "apple-auth": ["./dist/apple-auth.d.ts"],
       "article-crawl": ["./dist/article-crawl.d.ts"],
       "article-freshness": ["./dist/article-freshness.d.ts"],
+      "article-resolution-on-view": ["./dist/article-resolution-on-view.d.ts"],
       "article-store": ["./dist/article-store.d.ts"],
       "article-summary": ["./dist/article-summary.d.ts"],
       "auth": ["./dist/auth.d.ts"],
@@ -201,7 +210,8 @@
       "trial-scheduler": ["./dist/trial-scheduler.d.ts"],
       "engagement-starter": ["./dist/engagement-starter.d.ts"],
       "canary-report": ["./dist/canary-report.d.ts"],
-      "logs-insights": ["./dist/logs-insights.d.ts"]
+      "logs-insights": ["./dist/logs-insights.d.ts"],
+      "metered-leg-ledger": ["./dist/metered-leg-ledger.d.ts"]
     }
   },
   "private": true,

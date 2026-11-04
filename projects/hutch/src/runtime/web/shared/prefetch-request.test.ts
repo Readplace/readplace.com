@@ -1,7 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
-import { isPrefetchRequest } from "./prefetch-request";
+import { isPrefetchOrBot, isPrefetchRequest } from "./prefetch-request";
 
 const serve = useLoopbackServer();
 
@@ -38,5 +38,37 @@ describe("isPrefetchRequest", () => {
 		const response = await request(serve(buildApp())).get("/article");
 
 		expect(response.body).toEqual({ prefetch: false });
+	});
+});
+
+describe("isPrefetchOrBot", () => {
+	function buildBotApp() {
+		const app = express();
+		app.get("/article", (req, res) => {
+			res.json({ skipped: isPrefetchOrBot(req) });
+		});
+		return app;
+	}
+
+	it("skips a browser prefetch", async () => {
+		const response = await request(serve(buildBotApp())).get("/article").set("Sec-Purpose", "prefetch");
+
+		expect(response.body).toEqual({ skipped: true });
+	});
+
+	it("skips a crawler user agent", async () => {
+		const response = await request(serve(buildBotApp()))
+			.get("/article")
+			.set("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
+
+		expect(response.body).toEqual({ skipped: true });
+	});
+
+	it("keeps a reader's own browser open", async () => {
+		const response = await request(serve(buildBotApp()))
+			.get("/article")
+			.set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15");
+
+		expect(response.body).toEqual({ skipped: false });
 	});
 });

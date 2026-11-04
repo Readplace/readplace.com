@@ -1,6 +1,9 @@
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import type { Article } from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/hutch-logger";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
+import { initJudgeUnderLedger } from "./judge-under-ledger";
 import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@packages/tier-source";
 import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import type { SelectMostCompleteContent } from "./select-content";
@@ -42,11 +45,11 @@ function setup(sources: TierSource[], overrides: Partial<Parameters<typeof initP
 		}));
 	const prepare = initPrepareContentSelection({
 		loadArticle: async () => article(), readCanonicalContent: async () => undefined,
-		listAvailableTierSources: async () => sources, selectMostCompleteContent: judge,
+		listAvailableTierSources: async () => sources, judge: initJudgeUnderLedger({ selectMostCompleteContent: judge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }),
 		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => ({ originalUrl: URL, sourceUrl: ARCHIVE }),
 		...overrides,
 	});
-	return { prepare: (candidates?: Parameters<typeof prepare>[0]["candidates"]) => prepare({ url: URL, saveAttemptId: ATTEMPT, candidates }), judge };
+	return { prepare: (candidates?: Parameters<typeof prepare>[0]["candidates"]) => prepare({ url: URL, saveAttemptId: ATTEMPT, claimId: "message-1", candidates }), judge };
 }
 
 describe("verified direct resource selection", () => {

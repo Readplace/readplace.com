@@ -1,7 +1,7 @@
 /* c8 ignore start -- composition root, no logic to test */
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
 import {
 	CancelSubscriptionCommand,
 	SubscriptionCancellationScheduledEvent,
@@ -28,7 +28,6 @@ import { initSubscriptionChargeFailedHandler } from "./subscription-charge-faile
 import { initSubscriptionChargeSucceededHandler } from "./subscription-charge-succeeded/subscription-charge-succeeded-handler";
 import { initSubscriptionStartRequestHandler } from "./subscription-start-request/subscription-start-request-handler";
 import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "./observability/subscription-events";
-import { initHandleByDetailType } from "./handle-by-detail-type";
 import { requireEnv } from "@packages/require-env";
 
 const logger = HutchLogger.from(consoleLogger);

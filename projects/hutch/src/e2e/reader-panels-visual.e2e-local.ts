@@ -500,12 +500,15 @@ test.describe("The reader's pipeline panels on a desktop", () => {
 			stamp: `capture-${testInfo.workerIndex}-${Date.now()}`,
 			urlSuffix: "",
 			summary: {},
-			crawl: [
-				{ status: "pending" },
-				{ status: "failed", reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
-			],
+			crawl: [],
 		});
 		await loginAs(page, seeded.email);
+		await seedCrawlStatus(page, { url: seeded.url, status: "pending" });
+		await seedCrawlStatus(page, {
+			url: seeded.url,
+			status: "failed",
+			reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }),
+		});
 		await holdReaderPollsAfterTheCaptureStarts(page);
 		await page.goto(`${seeded.readerUrl}?platform=ios`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-reader--chromeless");
@@ -563,7 +566,6 @@ test.describe("The reader's pipeline panels on a desktop", () => {
 			status: "unsupported",
 			reason: JSON.stringify({ kind: "javascript-required" }),
 		});
-		await page.reload({ waitUntil: "domcontentloaded" });
 
 		await expect(page.locator("[data-test-reader-notice]")).toHaveAttribute("data-reader-status", "unsupported", {
 			timeout: SETTLE_MS,

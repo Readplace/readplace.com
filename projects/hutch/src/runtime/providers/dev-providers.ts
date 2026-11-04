@@ -1,5 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { FindGeneratedSummaries } from "@packages/provider-contracts/article-summary";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
@@ -77,7 +78,8 @@ import { initInMemoryBrowserHandoff } from "@packages/test-fixtures/providers/br
 import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import { parseRateLimitRules } from "./rate-limit-rules";
 import { devSummariseInline } from "./article-summary/dev-summarise-inline";
-import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import { initInMemoryArticleCrawl, initInMemoryClaimResolutionOnView } from "@packages/test-fixtures/providers/article-crawl";
+import { initRequestResolutionOnView } from "../domain/resolve-on-view/request-resolution-on-view";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { batchFromSingular } from "../batch-from-singular";
 import { initReadArticleContent } from "@packages/article-store";
@@ -94,6 +96,7 @@ import {
 import {
 	initInMemoryComputeRelatedPastReads,
 	initInMemoryComputeRelatedPasses,
+	initInMemoryResolveArticleOnView,
 	initInMemoryQueueEntryCreated,
 	initInMemoryLinkDequeued,
 	initInMemoryLinkQueued,
@@ -456,6 +459,24 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const { publishComputeRelatedPasses } = initInMemoryComputeRelatedPasses({
 		logger: consoleLogger,
 	});
+	const { publishResolveArticleOnView: logOnlyPublishResolveArticleOnView } = initInMemoryResolveArticleOnView({ logger: consoleLogger });
+	const publishResolveArticleOnView: typeof logOnlyPublishResolveArticleOnView = async (params) => {
+		await logOnlyPublishResolveArticleOnView(params);
+		if (params.axes === "crawl-and-summary") {
+			await runCrawlAndSummariseInline(params.url);
+			return;
+		}
+		const html = await articleStore.readContent(ArticleResourceUniqueId.parse(params.url));
+		if (html === undefined) return;
+		await finaliseSummaryFromContent({ url: params.url, html });
+	};
+	const requestResolutionOnView = initRequestResolutionOnView({
+		claimResolutionOnView: initInMemoryClaimResolutionOnView({ crawl: crawlStore, summary: summaryStore, findItemOwner: articleStore.findItemOwner }),
+		publishResolveArticleOnView,
+		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		findGeneratedSummary: summaryStore.findGeneratedSummary,
+		logger,
+	});
 	const { findRelatedArticles, readSettledNextRead, forgetRow: forgetNextReadRow } = initInMemoryRelatedArticles({
 		findArticleByUrl: articleStore.findArticleByUrl,
 		findArticleById: articleStore.findArticleById,
@@ -628,6 +649,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		publishQueueEntryCreated,
 		publishComputeRelatedPastReads,
 		publishComputeRelatedPasses,
+		requestResolutionOnView,
 		readRelatedPassRequestState,
 		markRelatedPassesRequested,
 		publishRecrawlLinkInitiated,

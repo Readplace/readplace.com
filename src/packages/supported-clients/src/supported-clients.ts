@@ -239,6 +239,18 @@ export function isBuiltInOAuthClientId(value: string): value is BuiltInOAuthClie
 
 export type BuiltInClientName = Extract<SupportedClient, { auth: { kind: "builtIn" } }>["name"];
 
+const CONTENT_CAPTURE_OAUTH_CLIENT_IDS: ReadonlySet<string> = new Set(
+	SUPPORTED_CLIENTS.flatMap((client) =>
+		client.auth.kind === "builtIn" && GROUP_CATEGORY[client.group] === "contentCapture"
+			? [client.auth.oauthClientId]
+			: [],
+	),
+);
+
+export function isContentCaptureOAuthClientId(clientId: string): boolean {
+	return CONTENT_CAPTURE_OAUTH_CLIENT_IDS.has(clientId);
+}
+
 const BUILT_IN_CLIENT_NAME_BY_OAUTH_ID = {
 	"hutch-firefox-extension": "firefox",
 	"hutch-chrome-extension": "chrome",

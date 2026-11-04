@@ -11,6 +11,8 @@ export {
 	type DispatchCommand,
 } from "./sqs-command-dispatcher";
 
+export { initHandleByDetailType } from "./handle-by-detail-type";
+
 export type PublishEvent = <E extends HutchEvent<z.ZodTypeAny>>(
 	event: E,
 	detail: z.infer<E["detailSchema"]>,

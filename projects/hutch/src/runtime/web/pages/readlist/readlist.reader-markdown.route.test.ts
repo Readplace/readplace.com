@@ -462,7 +462,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			savedAt: new Date("2026-09-30T01:02:03.000Z"),
 		});
 		await harness.articleStore.writeContent({ url, content: "<p>Older body.</p>" });
-		await harness.articleCrawl.markCrawlPending({ url, measured: false });
+		await harness.articleCrawl.markCrawlPending({ url, measured: false, meteredLegs: "run" });
 		const token = await createAccessToken(harness);
 
 		const response = await markdownGet(harness, { path: `/queue/${id}/view`, token });

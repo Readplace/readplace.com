@@ -45,6 +45,7 @@ const selectContent = initSelectContentDepBundle({
 	createChatCompletion: initCreateDeepseekChatCompletion({ client: deepseekClient }),
 	logger: consoleLogger,
 	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	now: () => new Date(),
 });
 
 export const handler = initRecrawlContentExtractedHandler({

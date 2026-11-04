@@ -1,6 +1,8 @@
 import { type SaveAttemptId, SaveAttemptIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/hutch-logger";
-import { type Article, type TransitionAndPersist, promoteTier } from "@packages/domain/article-aggregate";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
+import { type Article, type TransitionAndPersist, markCrawlAwaitingReader, promoteTier } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { SQSEvent } from "aws-lambda";
 import type { CreateDeepseekChatCompletion } from "@packages/ai-message";
@@ -82,17 +84,18 @@ const COMPANIONS = [
 ];
 
 const JUDGES = [
-	{ verdict: "finds nothing readable", whenJudged: "promoted", createChatCompletion: (labels: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((candidate) => ({ candidate, readable: false })) }) },
-	{ verdict: "is refused by its provider", whenJudged: "promoted", createChatCompletion: (): CreateDeepseekChatCompletion => async () => { throw Object.assign(new Error("bad request"), { status: 400 }); } },
-	{ verdict: "contradicts itself", whenJudged: "retried", createChatCompletion: (labels: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((candidate) => ({ candidate, readable: true })) }) },
-	{ verdict: "fails with HTTP 500", whenJudged: "retried", createChatCompletion: (): CreateDeepseekChatCompletion => async () => { throw Object.assign(new Error("server error"), { status: 500 }); } },
+	{ verdict: "is deferred until a reader opens the article", whenJudged: "awaiting-reader", legsDeferred: true, createChatCompletion: (): CreateDeepseekChatCompletion => async () => { throw new Error("the judge ran while its leg was deferred"); } },
+	{ verdict: "finds nothing readable", whenJudged: "promoted", legsDeferred: false, createChatCompletion: (labels: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((candidate) => ({ candidate, readable: false })) }) },
+	{ verdict: "is refused by its provider", whenJudged: "promoted", legsDeferred: false, createChatCompletion: (): CreateDeepseekChatCompletion => async () => { throw Object.assign(new Error("bad request"), { status: 400 }); } },
+	{ verdict: "contradicts itself", whenJudged: "retried", legsDeferred: false, createChatCompletion: (labels: readonly string[]) => reply({ kind: "none", reason: "Nothing readable", readability: labels.map((candidate) => ({ candidate, readable: true })) }) },
+	{ verdict: "fails with HTTP 500", whenJudged: "retried", legsDeferred: false, createChatCompletion: (): CreateDeepseekChatCompletion => async () => { throw Object.assign(new Error("server error"), { status: 500 }); } },
 ];
 
 const ROWS = ARTICLE_STATES.flatMap((state) => PRODUCERS.flatMap((producer) => COMPANIONS.flatMap((companions) => JUDGES.map((judge) => ({
 	...state, ...producer, ...companions, ...judge, expected: companions.judged || state.judgedBesideFresh > 0 ? judge.whenJudged : "promoted",
 })))));
 
-it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge $verdict, is $expected and never failed", async ({ article, canonicalContent, canonical, judgedBesideFresh, page, live, createChatCompletion, expected }) => {
+it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge $verdict, is $expected and never failed", async ({ article, canonicalContent, canonical, judgedBesideFresh, page, live, createChatCompletion, legsDeferred, expected }) => {
 	const capture = candidate({ tier: "tier-0", ...page });
 	const fresh = [capture, ...live(page)];
 	const sources = [...canonical(), ...fresh];
@@ -101,6 +104,7 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 	const handler = initSelectMostCompleteContentHandler({
 		listAvailableTierSources: async () => sources,
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + new Set(fresh.map((source) => computeCanonicalContentHash(source.html))).size }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
+		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => legsDeferred, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }),
 		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, tier: source.tier }),
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => canonicalContent, loadArticle: async () => article, transitionAndPersist,
@@ -113,5 +117,7 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 	expect(persisted.map((entry) => entry.transition)).not.toContain(markNoReadableArticle);
 	expect({ result, persisted }).toEqual(expected === "promoted"
 		? { result: { batchItemFailures: [] }, persisted: [{ transition: promoteTier, input: expect.objectContaining({ metadata: expect.objectContaining({ contentHash: capture.metadata.contentHash }) }) }] }
+		: expected === "awaiting-reader"
+		? { result: { batchItemFailures: [] }, persisted: [{ transition: markCrawlAwaitingReader, input: { deferredLeg: "content-judge" } }] }
 		: { result: { batchItemFailures: [{ itemIdentifier: "message-0" }] }, persisted: [] });
 });

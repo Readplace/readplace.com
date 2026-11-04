@@ -74,6 +74,8 @@ export const handler = initDeadLetterRouter({
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.submitLink]: initSubmitLinkDlqHandler({
 			publishEvent,
+			loadArticle: store.load,
+			transitionAndPersist,
 			logger,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveLinkRawHtmlCommand]: initSaveLinkRawHtmlDlqHandler({

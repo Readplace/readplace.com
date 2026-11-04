@@ -6,5 +6,6 @@ export const SummarySkipReasonSchema = z.enum([
 	"crawl-unsupported",
 	"crawl-failed",
 	"declined",
+	"awaiting-reader",
 ]);
 export type SummarySkipReason = z.infer<typeof SummarySkipReasonSchema>;

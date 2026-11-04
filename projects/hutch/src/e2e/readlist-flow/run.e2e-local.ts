@@ -136,6 +136,16 @@ test.describe('Readlist management flow (local)', () => {
 						baseUrl: BASE_URL,
 						publicViewTestUrl: `${BASE_URL}/e2e/fixtures/unfetchable/${runStamp}-banner-on-public-view`,
 						privateReaderTestUrl: `${BASE_URL}/e2e/fixtures/unfetchable/${runStamp}-banner-on-private-reader`,
+						settlePrivateReaderCrawl: async (page) => {
+							const moved = await page.request.post(`${BASE_URL}/e2e/seed-crawl-status`, {
+								data: {
+									url: `${BASE_URL}/e2e/fixtures/unfetchable/${runStamp}-banner-on-private-reader`,
+									status: 'failed',
+									reason: JSON.stringify({ kind: 'fetch-failed' }),
+								},
+							})
+							assert.equal(moved.status(), 201, 'the crawl-status seed must fail the private reader crawl')
+						},
 					},
 					cleanupProgress,
 					bannerOnReaderProgress,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { expect } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { BannerOnReaderActionKey } from './action-catalog'
 import { isOnPage, clickAndWaitForPageReload, deleteArticleWithConfirmation, saveWithAddLink } from '../page-interactions'
@@ -25,7 +25,12 @@ export type BannerOnReaderProgress = {
  * the client wiring, and the close-button affordance all line up. Route
  * tests cover the SSR side; this file covers the rendered state. */
 export function createBannerOnReaderActions(
-	config: { baseUrl: string; publicViewTestUrl: string; privateReaderTestUrl: string },
+	config: {
+		baseUrl: string
+		publicViewTestUrl: string
+		privateReaderTestUrl: string
+		settlePrivateReaderCrawl: (page: Page) => Promise<void>
+	},
 	cleanupProgress: CleanupProgress,
 	progress: BannerOnReaderProgress,
 ): (authProgress: AuthProgress) => Record<BannerOnReaderActionKey, PageAction> {
@@ -107,6 +112,7 @@ export function createBannerOnReaderActions(
 
 				await expect(page.locator('[data-test-reader-slot][data-reader-status]')).toHaveCount(1)
 				await expect(page.locator('body.page-reader')).toHaveCount(1)
+				await config.settlePrivateReaderCrawl(page)
 
 				// Same body-direct-child anchor as verify-banner-on-public-view —
 				// the saved article's reader slot replays the chrome wrapper too.

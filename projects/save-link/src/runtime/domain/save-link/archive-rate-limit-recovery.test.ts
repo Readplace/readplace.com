@@ -5,6 +5,9 @@ import { initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import { noopLogger } from "@packages/hutch-logger";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
+import { initJudgeUnderLedger } from "../select-content/judge-under-ledger";
 import { initVerifyWrapperSource } from "@packages/save-article";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
@@ -102,8 +105,8 @@ it("judges the retained archive 429 after the retry and proxy fail, and keeps th
 		...initListAvailableTierSources({ readTierSource: async ({ tier, candidateId }) => stored.find((source) => source.tier === tier && source.metadata.id === candidateId) }),
 		resolveOriginalUrl: async () => ORIGINAL,
 		verifyWrapperSource,
-		...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger, deepseekCallFailedLog: noopLogger }),
-	})({ url: ORIGINAL, saveAttemptId: ATTEMPT, candidates: [capture] });
+		judge: initJudgeUnderLedger({ ...initSelectMostCompleteContent({ createChatCompletion, logger: noopLogger, deepseekCallFailedLog: noopLogger }), runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }),
+	})({ url: ORIGINAL, saveAttemptId: ATTEMPT, claimId: "message-1", candidates: [capture] });
 
 	expect(primaryCalls).toBe(3);
 	expect(fresh).toMatchObject({

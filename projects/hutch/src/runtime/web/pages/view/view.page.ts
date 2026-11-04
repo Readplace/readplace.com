@@ -30,7 +30,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
-import { articleHostFrom, buildViewEndCtaShownEvent, classifyOsFamily, hashIp, isBotUserAgent, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
+import { articleHostFrom, buildViewEndCtaShownEvent, classifyOsFamily, hashIp, isCountableBrowserRequest, type AnalyticsEvent, type RecordAudienceEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, SAVE_SURFACE_QUERY, SAVE_SURFACES, STREAMS } from "../../../observability/events";
@@ -59,7 +59,7 @@ import type {
 	ReaderViewFailedOob,
 } from "../../shared/article-reader/article-reader.types";
 import { extensionSuggestionBannerOob } from "../../shared/article-reader/reader-view-failed-oob";
-import { isPrefetchRequest } from "../../shared/prefetch-request";
+import { isPrefetchOrBot, isPrefetchRequest } from "../../shared/prefetch-request";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { NotFoundPage } from "../not-found";
@@ -247,11 +247,6 @@ function viewReaderViewFailedOob(input: {
 		);
 }
 
-function isPrefetchOrBot(req: Request): boolean {
-	if (isPrefetchRequest(req)) return true;
-	return isBotUserAgent(req.get("user-agent"));
-}
-
 function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 	return {
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
@@ -263,6 +258,7 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatViewDocumentTitle,
 		summaryOpen: false,
+		requestResolutionOnView: undefined,
 	};
 }
 

@@ -17,4 +17,9 @@ describe("terminalUnsupportedReason", () => {
 		const reason = { kind: "content-too-large" as const, bytes: 54_090_542 };
 		expect(terminalUnsupportedReason(reason)).toBe(reason);
 	});
+
+	it("returns an awaiting-reader reason unchanged so a parked row is never deferred to the comprehensive crawl", () => {
+		const reason = { kind: "awaiting-reader" as const, deferredLeg: "comprehensive" as const };
+		expect(terminalUnsupportedReason(reason)).toBe(reason);
+	});
 });

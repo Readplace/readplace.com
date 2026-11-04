@@ -41,7 +41,7 @@ describe("initStartAnonymousCrawl", () => {
 
 		expect(calls).toEqual([
 			STUB_SAVE,
-			["markCrawlPending", { url: URL_TO_CRAWL, measured: false }],
+			["markCrawlPending", { url: URL_TO_CRAWL, measured: false, meteredLegs: "run" }],
 			["markSummaryPending", { url: URL_TO_CRAWL }],
 			[
 				"publishSaveAnonymousLink",
@@ -64,7 +64,7 @@ describe("initStartAnonymousCrawl", () => {
 
 		expect(calls).toEqual([
 			STUB_SAVE,
-			["markCrawlPending", { url: URL_TO_CRAWL, measured: false }],
+			["markCrawlPending", { url: URL_TO_CRAWL, measured: false, meteredLegs: "run" }],
 			["markSummaryPending", { url: URL_TO_CRAWL }],
 			["pinContentSource", { articleUrl: URL_TO_CRAWL, contentSourceUrl: capture, sourceOriginalUrl: URL_TO_CRAWL }],
 			[
@@ -88,7 +88,7 @@ describe("initStartAnonymousCrawl", () => {
 
 		expect(calls).toEqual([
 			STUB_SAVE,
-			["markCrawlPending", { url: URL_TO_CRAWL, measured: false }],
+			["markCrawlPending", { url: URL_TO_CRAWL, measured: false, meteredLegs: "run" }],
 			["markSummaryPending", { url: URL_TO_CRAWL }],
 			[
 				"publishSaveAnonymousLink",

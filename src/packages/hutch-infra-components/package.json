@@ -43,19 +43,21 @@
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {
-    "@packages/article-state-types": "workspace:*",
-    "@packages/media-contracts": "workspace:*",
     "@aws-sdk/client-eventbridge": "3.1057.0",
     "@aws-sdk/client-sqs": "3.1057.0",
+    "@packages/article-state-types": "workspace:*",
+    "@packages/hutch-logger": "workspace:*",
+    "@packages/media-contracts": "workspace:*",
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "esbuild": "catalog:",
+    "@packages/test-fixtures": "workspace:*",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
     "@types/aws-lambda": "8.10.161",
     "@types/jest": "30.0.0",
     "concurrently": "10.0.0",
+    "esbuild": "catalog:",
     "jest": "30.4.2",
     "typescript": "6.0.3"
   }

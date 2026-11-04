@@ -30,6 +30,8 @@ import type { FindCanaryReport, SaveCanaryReport } from "@packages/provider-cont
 import type { MintBrowserHandoffCode, RedeemBrowserHandoffCode } from "@packages/provider-contracts/browser-handoff";
 import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { ClaimResolutionOnView } from "@packages/provider-contracts/article-resolution-on-view";
+import type { PublishResolveArticleOnView } from "@packages/provider-contracts/events";
 import type {
 	ArticleMetadata,
 	ArticleStatus,
@@ -750,6 +752,11 @@ export interface TestAppFixture {
 	events: EventsBundle;
 	publishedQueueEntryCreated: { url: string; userId: UserId }[];
 	publishedComputeRelatedPasses: { url: string; userId: UserId }[];
+	resolutionOnView: {
+		claimResolutionOnView: ClaimResolutionOnView;
+		publishResolveArticleOnView: PublishResolveArticleOnView;
+		publishedResolveArticleOnView: Parameters<PublishResolveArticleOnView>[0][];
+	};
 	publishedComputeRelatedPastReads: { url: string; userId: UserId; readlist?: string }[];
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;

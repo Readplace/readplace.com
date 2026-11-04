@@ -1,6 +1,7 @@
 export type * from "./apple-auth";
 export type * from "./article-crawl";
 export type * from "./article-freshness";
+export type * from "./article-resolution-on-view";
 export type * from "./article-store";
 export * from "./article-summary";
 export type * from "./auth";
@@ -10,6 +11,7 @@ export type * from "./email-verification";
 export type * from "./events";
 export type * from "./google-auth";
 export * from "./hosted-checkout";
+export * from "./metered-leg-ledger";
 export type * from "./onboarding-signals";
 export type * from "./oauth";
 export * from "./password-reset";

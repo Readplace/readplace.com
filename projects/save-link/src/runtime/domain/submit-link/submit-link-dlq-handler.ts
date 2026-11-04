@@ -7,7 +7,18 @@ import type {
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { LinkQueueFailedEvent } from "@packages/hutch-infra-components";
+import { initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
+import {
+	LinkQueueFailedEvent,
+	ResolveArticleOnViewCommand,
+	SubmitLinkCommand,
+} from "@packages/hutch-infra-components";
+import {
+	type LoadArticle,
+	type TransitionAndPersist,
+	markCrawlExhausted,
+	markSummaryExhausted,
+} from "@packages/domain/article-aggregate";
 
 const REASON = "accept-retries-exhausted";
 
@@ -40,7 +51,7 @@ const DeadLetteredSubmission = z.object({
  * at error level and left to the DLQ alarm rather than being forced into a fact
  * whose `userId` is the one thing it cannot supply.
  */
-export function initSubmitLinkDlqHandler(deps: {
+function initSubmissionDlqHandler(deps: {
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -84,4 +95,59 @@ export function initSubmitLinkDlqHandler(deps: {
 
 		return { batchItemFailures };
 	};
+}
+
+const DeadLetteredResolution = ResolveArticleOnViewCommand.detailSchema.pick({ url: true });
+
+function initResolutionDlqHandler(deps: {
+	loadArticle: LoadArticle;
+	transitionAndPersist: TransitionAndPersist;
+	logger: HutchLogger;
+}): Handler<SQSEvent, SQSBatchResponse> {
+	const { loadArticle, transitionAndPersist, logger } = deps;
+
+	return async (event): Promise<SQSBatchResponse> => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+
+		for (const record of event.Records) {
+			try {
+				const { url } = DeadLetteredResolution.parse(JSON.parse(record.body).detail);
+				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+				const reason = { kind: "exhausted-retries", receiveCount } as const;
+				const article = await loadArticle(url);
+				if (article?.crawl.kind === "pending") {
+					await transitionAndPersist(markCrawlExhausted, { url, input: { reason, receiveCount } });
+				} else if (article?.summary.kind === "pending") {
+					await transitionAndPersist(markSummaryExhausted, { url, input: { reason, receiveCount } });
+				}
+				logger.error(`[SubmitLinkDlq] resolve-on-view dead-lettered after ${receiveCount} receives`, {
+					url,
+					messageId: record.messageId,
+				});
+			} catch (error) {
+				logger.error("[SubmitLinkDlq] resolve-on-view record failed", {
+					messageId: record.messageId,
+					error,
+				});
+				batchItemFailures.push({ itemIdentifier: record.messageId });
+			}
+		}
+
+		return { batchItemFailures };
+	};
+}
+
+export function initSubmitLinkDlqHandler(deps: {
+	publishEvent: PublishEvent;
+	loadArticle: LoadArticle;
+	transitionAndPersist: TransitionAndPersist;
+	logger: HutchLogger;
+}): Handler<SQSEvent, SQSBatchResponse> {
+	return initHandleByDetailType({
+		routes: {
+			[SubmitLinkCommand.detailType]: [initSubmissionDlqHandler(deps)],
+			[ResolveArticleOnViewCommand.detailType]: [initResolutionDlqHandler(deps)],
+		},
+		logger: deps.logger,
+	});
 }

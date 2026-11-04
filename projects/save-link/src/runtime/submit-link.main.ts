@@ -2,8 +2,8 @@ import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
-import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
+import { EventBridgeClient, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
+import { ResolveArticleOnViewCommand, StaleCheckRequestedEvent, SubmitLinkCommand } from "@packages/hutch-infra-components";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
@@ -15,6 +15,8 @@ import {
 	initDynamoDbSavedArticleStore,
 } from "@packages/article-store";
 import { initSubmitLinkCommandHandler } from "./domain/submit-link/submit-link-command-handler";
+import { initResolveArticleOnViewHandler } from "./domain/resolve-on-view/resolve-article-on-view-handler";
+import { initRunCrawlFromTier1 } from "./domain/save-link/run-crawl-from-tier1";
 import {
 	initFileArticleIntoReadlist,
 	initResolveSaveIdentity,
@@ -131,7 +133,7 @@ const { refreshArticleIfStale } = initSubmitFreshness({
 	publishStaleCheckRequested: (params) => events.publishEvent(StaleCheckRequestedEvent, params),
 });
 
-export const handler = initSubmitLinkCommandHandler({
+const crawlDeps = {
 	...articleStore,
 	...sourceIdentity,
 	...events,
@@ -143,6 +145,10 @@ export const handler = initSubmitLinkCommandHandler({
 	adoptCanonicalIdentity,
 	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
+};
+
+const submitLinkHandler = initSubmitLinkCommandHandler({
+	...crawlDeps,
 	validateSaveableUrl,
 	saveArticle: savedArticleStore.saveArticle,
 	allocateSavedAt: savedArticleStore.allocateSavedAt,
@@ -158,4 +164,25 @@ export const handler = initSubmitLinkCommandHandler({
 	publishUpdateFetchTimestamp: articleCrawl.updateFetchTimestamp,
 	refreshArticleIfStale,
 	pinContentSource: canonicalAliasStore.pinContentSource,
+});
+
+const resolveArticleOnViewHandler = initResolveArticleOnViewHandler({
+	loadArticle: articleAggregate.store.load,
+	transitionAndPersist: articleAggregate.transitionAndPersist,
+	runCrawlFromTier1: initRunCrawlFromTier1({
+		...crawlDeps,
+		findContentSourceUrl: canonicalAliasStore.findContentSourceUrl,
+		logPrefix: "[ResolveOnView]",
+	}),
+	publishEvent: events.publishEvent,
+	now,
+	logger: observability.logger,
+});
+
+export const handler = initHandleByDetailType({
+	routes: {
+		[SubmitLinkCommand.detailType]: [submitLinkHandler],
+		[ResolveArticleOnViewCommand.detailType]: [resolveArticleOnViewHandler],
+	},
+	logger: observability.logger,
 });

@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_view_claims_and_publishes" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_view_claims_and_publishes" name="view-claims-and-publishes" isExecutable="false">
+    <bpmn:serviceTask id="n_HTML" name="GET /queue surface readlist-html">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_SIREN" name="Siren GET /queue surface readlist-siren">
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_READER" name="Reader open /queue/:id/view surface reader">
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_GAVEUP" name="Reader poll after device capture gave up surface reader-capture-gave-up">
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_DIGEST" name="Queue digest Lambda surface queue-digest, up to 10 per run">
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_BOT" name="Bot user agent or prefetch?">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="n_SKIP" name="Render rows as loaded publish nothing">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="n_NEED" name="needsResolutionOnView webmail, not-found, robots, content-too-large: none blocked and viewer can capture: device-first failed or unsupported crawl: crawl-and-summary ready crawl, summary failed or skipped awaiting-reader or ai-unavailable: summary">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_CLAIM" name="claimResolutionOnView conditional UpdateItem">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_ROW" name="Article row crawl and summary status, meteredLegsDeferredSince"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_WON" name="Claimed?">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_PUB" name="Publish ResolveArticleOnViewCommand a publish error is logged">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_RAV" name="ResolveArticleOnViewCommand">
+      <bpmn:incoming>f_12</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_LOST" name="Lost the race: read the current crawl and summary">
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_OVERLAY" name="overlayResolution card or reader renders pending and polls">
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:incoming>f_15</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_HTML" targetRef="n_BOT" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_SIREN" targetRef="n_BOT" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_READER" targetRef="n_BOT" />
+    <bpmn:sequenceFlow id="f_3" name="yes" sourceRef="n_BOT" targetRef="n_SKIP" />
+    <bpmn:sequenceFlow id="f_4" name="no" sourceRef="n_BOT" targetRef="n_NEED" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_GAVEUP" targetRef="n_NEED" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_DIGEST" targetRef="n_NEED" />
+    <bpmn:sequenceFlow id="f_7" name="none or device-first" sourceRef="n_NEED" targetRef="n_SKIP" />
+    <bpmn:sequenceFlow id="f_8" name="crawl-and-summary or summary" sourceRef="n_NEED" targetRef="n_CLAIM" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_CLAIM" targetRef="n_WON" />
+    <bpmn:sequenceFlow id="f_11" name="yes" sourceRef="n_WON" targetRef="n_PUB" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_PUB" targetRef="n_RAV" />
+    <bpmn:sequenceFlow id="f_13" name="no" sourceRef="n_WON" targetRef="n_LOST" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_PUB" targetRef="n_OVERLAY" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_LOST" targetRef="n_OVERLAY" />
+    <bpmn:association id="f_9" sourceRef="n_CLAIM" targetRef="n_ROW" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_view_claims_and_publishes">
+    <bpmndi:BPMNPlane id="Plane_view_claims_and_publishes" bpmnElement="Process_view_claims_and_publishes">
+      <bpmndi:BPMNShape id="n_HTML_di" bpmnElement="n_HTML">
+        <dc:Bounds x="28" y="44" width="166.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SIREN_di" bpmnElement="n_SIREN">
+        <dc:Bounds x="230.5" y="44" width="169" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_READER_di" bpmnElement="n_READER">
+        <dc:Bounds x="435.5" y="36" width="127.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GAVEUP_di" bpmnElement="n_GAVEUP">
+        <dc:Bounds x="598.75" y="28" width="180" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DIGEST_di" bpmnElement="n_DIGEST">
+        <dc:Bounds x="814.75" y="36" width="201.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_BOT_di" bpmnElement="n_BOT">
+        <dc:Bounds x="452.88" y="170" width="138.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SKIP_di" bpmnElement="n_SKIP">
+        <dc:Bounds x="331.75" y="550" width="168" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NEED_di" bpmnElement="n_NEED">
+        <dc:Bounds x="421.5" y="280" width="201" height="212" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CLAIM_di" bpmnElement="n_CLAIM">
+        <dc:Bounds x="535.75" y="550" width="176.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ROW_di" bpmnElement="n_ROW">
+        <dc:Bounds x="364.11" y="660" width="175.78" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_WON_di" bpmnElement="n_WON">
+        <dc:Bounds x="575.89" y="682.25" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_PUB_di" bpmnElement="n_PUB">
+        <dc:Bounds x="295.25" y="810.5" width="214" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RAV_di" bpmnElement="n_RAV">
+        <dc:Bounds x="316.13" y="944.5" width="204" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_LOST_di" bpmnElement="n_LOST">
+        <dc:Bounds x="545.25" y="818.5" width="203.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_OVERLAY_di" bpmnElement="n_OVERLAY">
+        <dc:Bounds x="556.13" y="936.5" width="171.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="111.25" y="96" />
+        <di:waypoint x="111.25" y="133" />
+        <di:waypoint x="522" y="133" />
+        <di:waypoint x="522" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="315" y="96" />
+        <di:waypoint x="315" y="133" />
+        <di:waypoint x="522" y="133" />
+        <di:waypoint x="522" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="499.13" y="104" />
+        <di:waypoint x="499.13" y="137" />
+        <di:waypoint x="522" y="137" />
+        <di:waypoint x="522" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="522" y="222" />
+        <di:waypoint x="522" y="386" />
+        <di:waypoint x="415.75" y="386" />
+        <di:waypoint x="415.75" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="522" y="222" />
+        <di:waypoint x="522" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="688.75" y="112" />
+        <di:waypoint x="688.75" y="196" />
+        <di:waypoint x="522" y="196" />
+        <di:waypoint x="522" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="915.38" y="104" />
+        <di:waypoint x="915.38" y="192" />
+        <di:waypoint x="522" y="192" />
+        <di:waypoint x="522" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="522" y="492" />
+        <di:waypoint x="522" y="521" />
+        <di:waypoint x="415.75" y="521" />
+        <di:waypoint x="415.75" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="522" y="492" />
+        <di:waypoint x="522" y="521" />
+        <di:waypoint x="624" y="521" />
+        <di:waypoint x="624" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="624" y="602" />
+        <di:waypoint x="624" y="642.13" />
+        <di:waypoint x="627.89" y="642.13" />
+        <di:waypoint x="627.89" y="682.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="627.89" y="730.25" />
+        <di:waypoint x="627.89" y="770.38" />
+        <di:waypoint x="402.25" y="770.38" />
+        <di:waypoint x="402.25" y="810.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="402.25" y="878.5" />
+        <di:waypoint x="402.25" y="911.5" />
+        <di:waypoint x="418.13" y="911.5" />
+        <di:waypoint x="418.13" y="944.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="627.89" y="730.25" />
+        <di:waypoint x="627.89" y="774.38" />
+        <di:waypoint x="647" y="774.38" />
+        <di:waypoint x="647" y="818.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="402.25" y="878.5" />
+        <di:waypoint x="402.25" y="907.5" />
+        <di:waypoint x="642" y="907.5" />
+        <di:waypoint x="642" y="936.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="647" y="870.5" />
+        <di:waypoint x="647" y="903.5" />
+        <di:waypoint x="642" y="903.5" />
+        <di:waypoint x="642" y="936.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="624" y="602" />
+        <di:waypoint x="624" y="631" />
+        <di:waypoint x="452" y="631" />
+        <di:waypoint x="452" y="660" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

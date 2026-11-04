@@ -143,6 +143,28 @@ export const SubmitLinkCommand = defineEvent({
 });
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
 
+const ResolveOnViewSurfaceSchema = z.enum([
+	"readlist-html",
+	"readlist-siren",
+	"reader",
+	"reader-capture-gave-up",
+	"queue-digest",
+]);
+export type ResolveOnViewSurface = z.infer<typeof ResolveOnViewSurfaceSchema>;
+
+export const ResolveArticleOnViewCommand = defineEvent({
+	name: "resolve-article-on-view-command",
+	source: "hutch.api",
+	detailType: "ResolveArticleOnViewCommand",
+	detailSchema: z.object({
+		url: z.string(),
+		saveAttemptId: SaveAttemptId,
+		axes: z.enum(["crawl-and-summary", "summary"]),
+		surface: ResolveOnViewSurfaceSchema,
+	}),
+});
+export type ResolveArticleOnViewDetail = z.infer<typeof ResolveArticleOnViewCommand.detailSchema>;
+
 const PurposeVersionSchema = z.string().regex(/^[0-9a-f]{12}$/);
 
 const EmailFitSourceSchema = z.object({ kind: z.literal("email"), receivedAtMessageId: z.string(), ordinal: z.string() });

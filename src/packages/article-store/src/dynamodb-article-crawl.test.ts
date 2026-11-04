@@ -376,7 +376,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await markCrawlPending({ url: URL, measured: false });
+			await markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
 
 			const command = received as {
 				input: {
@@ -386,7 +386,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE meteredLegsDeferredSince",
 			);
 			expect(command.input.ConditionExpression).toBe(
 				"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
@@ -412,7 +412,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await markCrawlPending({ url: URL, measured: true });
+			await markCrawlPending({ url: URL, measured: true, meteredLegs: "run" });
 
 			const command = received as {
 				input: {
@@ -422,7 +422,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince)",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince) REMOVE meteredLegsDeferredSince",
 			);
 			expect(command.input.ConditionExpression).toBe(
 				"attribute_not_exists(crawlStatus) OR crawlStatus <> :ready",
@@ -432,7 +432,62 @@ describe("initDynamoDbArticleCrawl", () => {
 			);
 		});
 
-		it("swallows ConditionalCheckFailedException so ready rows stay ready", async () => {
+		it("stamps meteredLegsDeferredSince once on a deferred save, and only on a row that is new, failed or unsupported", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { markCrawlPending } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now,
+			});
+
+			await markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" });
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toBe(
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince)",
+			);
+			expect(command.input.ConditionExpression).toBe(
+				"attribute_not_exists(crawlStatus) OR crawlStatus IN (:failed, :unsupported)",
+			);
+			expect(command.input.ExpressionAttributeValues).toEqual({
+				":pending": "pending",
+				":pendingSince": FROZEN_NOW.toISOString(),
+				":failed": "failed",
+				":unsupported": "unsupported",
+			});
+		});
+
+		it("keeps the first crawlStartedAt on a measured deferred save", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { markCrawlPending } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now,
+			});
+
+			await markCrawlPending({ url: URL, measured: true, meteredLegs: "deferred" });
+
+			const command = received as { input: { UpdateExpression?: string } };
+			expect(command.input.UpdateExpression).toBe(
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince, crawlStartedAt = if_not_exists(crawlStartedAt, :pendingSince), meteredLegsDeferredSince = if_not_exists(meteredLegsDeferredSince, :pendingSince)",
+			);
+		});
+
+		it("swallows ConditionalCheckFailedException on a deferred save so a pending or ready row is left alone", async () => {
 			const client = createFakeClient(() => {
 				throw new ConditionalCheckFailedException({
 					$metadata: {},
@@ -445,7 +500,37 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await expect(markCrawlPending({ url: URL, measured: false })).resolves.toBeUndefined();
+			await expect(markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" })).resolves.toBeUndefined();
+		});
+
+		it("keeps a ready row ready on a run save and clears its parked marker with an unconditional REMOVE", async () => {
+			const calls: unknown[] = [];
+			const client = createFakeClient((input) => {
+				calls.push(input);
+				if (calls.length === 1) {
+					throw new ConditionalCheckFailedException({
+						$metadata: {},
+						message: "condition failed",
+					});
+				}
+				return {};
+			});
+			const { markCrawlPending } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now,
+			});
+
+			await markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
+
+			expect(calls).toHaveLength(2);
+			expect(calls[1]).toMatchObject({
+				input: {
+					TableName: TABLE,
+					Key: { url: "example.com/article" },
+					UpdateExpression: "REMOVE meteredLegsDeferredSince",
+				},
+			});
 		});
 
 		it("rethrows non-ConditionalCheck errors", async () => {
@@ -458,7 +543,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await expect(markCrawlPending({ url: URL, measured: false })).rejects.toThrow("throttled");
+			await expect(markCrawlPending({ url: URL, measured: false, meteredLegs: "run" })).rejects.toThrow("throttled");
 		});
 	});
 
@@ -481,12 +566,20 @@ describe("initDynamoDbArticleCrawl", () => {
 				input: {
 					UpdateExpression?: string;
 					ConditionExpression?: string;
+					ExpressionAttributeNames?: Record<string, string>;
 					ExpressionAttributeValues?: Record<string, unknown>;
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt",
+				"SET crawlStatus = :pending, crawlPendingSince = :pendingSince REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, #ledgerResidential, #ledgerUnlockerFetch, #ledgerUnlockerRender, #ledgerComprehensive, #ledgerContentJudge, meteredLegsDeferredSince",
 			);
+			expect(command.input.ExpressionAttributeNames).toEqual({
+				"#ledgerResidential": "ledger_render-residential-per-gb",
+				"#ledgerUnlockerFetch": "ledger_render-web-unlocker-fetch",
+				"#ledgerUnlockerRender": "ledger_render-web-unlocker-render",
+				"#ledgerComprehensive": "ledger_comprehensive",
+				"#ledgerContentJudge": "ledger_content-judge",
+			});
 			expect(command.input.ConditionExpression).toBeUndefined();
 			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(
 				"pending",

@@ -6,6 +6,7 @@ import {
 	clientNameForBuiltInOAuthClientId,
 	isBuiltInOAuthClientId,
 	isClientName,
+	isContentCaptureOAuthClientId,
 	SUPPORTED_CLIENTS,
 } from "./supported-clients";
 
@@ -133,6 +134,23 @@ describe("isBuiltInOAuthClientId", () => {
 
 	it("rejects a dynamically-registered client id", () => {
 		assert.equal(isBuiltInOAuthClientId("randomly-minted-dcr-id"), false);
+	});
+});
+
+describe("isContentCaptureOAuthClientId", () => {
+	it("accepts the OAuth ids of the extensions and the native apps", () => {
+		assert.equal(isContentCaptureOAuthClientId("hutch-firefox-extension"), true);
+		assert.equal(isContentCaptureOAuthClientId("hutch-chrome-extension"), true);
+		assert.equal(isContentCaptureOAuthClientId("ios-app"), true);
+		assert.equal(isContentCaptureOAuthClientId("android-app"), true);
+	});
+
+	it("rejects a dynamically-registered MCP client id", () => {
+		assert.equal(isContentCaptureOAuthClientId("randomly-minted-dcr-id"), false);
+	});
+
+	it("rejects an empty client id", () => {
+		assert.equal(isContentCaptureOAuthClientId(""), false);
 	});
 });
 

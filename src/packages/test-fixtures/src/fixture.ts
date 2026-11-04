@@ -71,6 +71,8 @@ import { initInMemoryPastReads } from "./providers/related-articles/in-memory-pa
 import { initInMemoryRelatedPassRequests } from "./providers/related-articles/in-memory-related-pass-requests";
 import { initInMemoryComputeRelatedPastReads } from "./providers/events/in-memory-compute-related-past-reads";
 import { initInMemoryComputeRelatedPasses } from "./providers/events/in-memory-compute-related-passes";
+import { initInMemoryResolveArticleOnView } from "./providers/events/in-memory-resolve-article-on-view";
+import { initInMemoryClaimResolutionOnView } from "./providers/article-crawl/in-memory-resolution-on-view";
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
@@ -136,6 +138,8 @@ export function createFakeSummaryProvider(deps: { findItemOwner: FindItemOwner; 
 	markSummaryReady: (params: { url: string; summary: string; excerpt: string }) => void;
 	markSummaryFailed: (params: { url: string; reason: string }) => void;
 	markSummarySkipped: (params: { url: string; reason: string }) => void;
+	summaryStateOf: (url: string) => GeneratedSummary | undefined;
+	forceMarkSummaryPending: (url: string) => void;
 } {
 	// Test-only fake for the Deepseek-backed summary generation. Local E2E
 	// doesn't call a real LLM, so we simulate the pending → ready transition
@@ -174,12 +178,18 @@ export function createFakeSummaryProvider(deps: { findItemOwner: FindItemOwner; 
 	const markSummarySkipped = ({ url, reason }: { url: string; reason: string }) => {
 		state.set(ArticleResourceUniqueId.parse(url).value, { status: "skipped", reason });
 	};
-	return { findGeneratedSummary, markSummaryPending, markSummaryReady, markSummaryFailed, markSummarySkipped };
+	const summaryStateOf = (url: string) => state.get(ArticleResourceUniqueId.parse(url).value);
+	const forceMarkSummaryPending = (url: string) => {
+		const id = ArticleResourceUniqueId.parse(url).value;
+		state.set(id, { status: "pending" });
+		reads.set(id, 0);
+	};
+	return { findGeneratedSummary, markSummaryPending, markSummaryReady, markSummaryFailed, markSummarySkipped, summaryStateOf, forceMarkSummaryPending };
 }
 
 export function createFakeApplyParseResult(deps: {
 	articleStore: Omit<ReturnType<typeof initInMemoryArticleStore>, "onDefaultRowDeleted">;
-	articleCrawl: ReturnType<typeof initInMemoryArticleCrawl>;
+	articleCrawl: Pick<ReturnType<typeof initInMemoryArticleCrawl>, "markCrawlFailed" | "markCrawlReady">;
 	parseArticle: ParseArticle;
 }): (url: string) => Promise<void> {
 	// Test-only fixture for the async crawl worker: parses (using the injected
@@ -287,6 +297,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		parseArticle,
 	});
 	const summary = createFakeSummaryProvider({ findItemOwner: articleStoreMemory.findItemOwner });
+	const claimResolutionOnView = initInMemoryClaimResolutionOnView({ crawl: articleCrawl, summary, findItemOwner: articleStoreMemory.findItemOwner });
+	const resolveArticleOnView = initInMemoryResolveArticleOnView({ logger: noopLogger });
 	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
 	const email = initInMemoryEmail();
 	const emailVerification = initInMemoryEmailVerification();
@@ -471,6 +483,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		parser: { parseArticle, crawlArticle },
 		publishedQueueEntryCreated: queueEntryCreated.publishedQueueEntryCreated,
 		publishedComputeRelatedPasses: computeRelatedPasses.publishedComputeRelatedPasses,
+		resolutionOnView: { claimResolutionOnView, ...resolveArticleOnView },
 		publishedComputeRelatedPastReads: computeRelatedPastReads.publishedComputeRelatedPastReads,
 		events: {
 			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),

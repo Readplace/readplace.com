@@ -21,6 +21,7 @@ import {
 	SaveLinkCommand,
 	SaveEmailIssueCommand,
 	SubmitLinkCommand,
+	ResolveArticleOnViewCommand,
 	FileArticleIntoReadlistCommand,
 	SaveAnonymousLinkCommand,
 	SaveLinkRawHtmlCommand,
@@ -53,6 +54,7 @@ import {
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { RENDER_CRAWL_TIMEOUTS } from "../runtime/domain/render-crawl/timeouts";
+import { COMPREHENSIVE_CRAWL_TIMEOUTS } from "../runtime/domain/comprehensive-crawl/timeouts";
 import { OWN_CAPTURE_FAILED_METRIC } from "../runtime/domain/select-content/comparison-log";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "../runtime/domain/generate-summary/max-receive-count";
 import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "../runtime/domain/select-content/max-receive-count";
@@ -496,7 +498,7 @@ const submitLinkLambdaWithSQS = new HutchSQSBackedLambda("submit-link", {
 	batchSize: 1,
 });
 
-eventBus.subscribe(SubmitLinkCommand, submitLinkLambdaWithSQS);
+eventBus.subscribeAll([SubmitLinkCommand, ResolveArticleOnViewCommand], submitLinkLambdaWithSQS, { name: SubmitLinkCommand.name });
 
 const saveEmailIssueQueue = new HutchSQS("save-email-issue-command", {
 	visibilityTimeoutSeconds: 120,
@@ -829,7 +831,7 @@ const pdfDocumentDiffReviewLambda = new HutchLambda("pdf-document-diff-review", 
 const comprehensiveCrawlCommandQueue = new HutchSQS(
 	SAVE_LINK_DLQ_SOURCES.comprehensiveCrawlCommand,
 	{
-		visibilityTimeoutSeconds: 1800,
+		visibilityTimeoutSeconds: COMPREHENSIVE_CRAWL_TIMEOUTS.sqsVisibilitySeconds,
 		dlqMaxReceiveCount: 1,
 		sharedDlq: failuresDlq,
 	},

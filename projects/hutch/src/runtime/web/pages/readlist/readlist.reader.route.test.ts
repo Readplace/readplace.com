@@ -15,9 +15,11 @@ import { MAX_CAPTURE_POLLS, MAX_POLLS } from "@packages/web-shell";
 import { ReaderArticleHashId, calculateReadTime, shownSummary, type Viewer } from "@packages/domain/article";
 
 import request from "supertest";
+import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import { viewPathFor } from "../view/view-path";
 
 const useApp = useTestServer();
+const EXTENSION_ALIVE_COOKIE = `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`;
 
 describe("Readlist routes", () => {
 	describe("Reader view", () => {
@@ -1326,7 +1328,7 @@ describe("Readlist routes", () => {
 			// delivery.
 			const articleHtml = `<html><body><article><p>Placeholder — parse will report failure below.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const parseArticle = async () => ({ ok: false as const, reason: "blocked" });
+			const parseArticle = async () => ({ ok: false as const, reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1384,7 +1386,7 @@ describe("Readlist routes", () => {
 		it("GET /queue/:id/summary hides the slot when the crawl has failed (no further polling)", async () => {
 			const articleHtml = `<html><body><article><p>Placeholder.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const parseArticle = async () => ({ ok: false as const, reason: "blocked" });
+			const parseArticle = async () => ({ ok: false as const, reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1675,7 +1677,10 @@ describe("Readlist routes", () => {
 				.querySelector("[data-test-article-list] .readlist-article")
 				?.getAttribute("data-test-article");
 			assert(articleId, "saved article must appear in the listing");
-			return (await agent.get(`/queue/${articleId}/view`).set("User-Agent", userAgent)).text;
+			const opened = new JSDOM((await agent.get(`/queue/${articleId}/view`).set("User-Agent", userAgent)).text).window.document;
+			expect(opened.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status")).toBe("pending");
+			await applyParseResult("https://example.com/blocked-post");
+			return (await agent.get(`/queue/${articleId}/reader?poll=1`).set("User-Agent", userAgent)).text;
 		}
 
 		it("offers the extension install CTA on a desktop browser", async () => {
@@ -1835,7 +1840,7 @@ describe("Readlist routes", () => {
 	describe("GET /queue/:id/view — the table of contents", () => {
 		const ARTICLE_URL = "https://example.com/sectioned-post";
 
-		async function ownerReader(seed: (fixture: ReturnType<typeof createDefaultTestAppFixture>) => Promise<void>) {
+		async function ownerReader(seed: (fixture: ReturnType<typeof createDefaultTestAppFixture>) => Promise<void>, headers: Record<string, string> = {}) {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -1845,7 +1850,7 @@ describe("Readlist routes", () => {
 				?.getAttribute("data-test-article");
 			assert(articleId, "the saved article must render with an id");
 			await seed(fixture);
-			const response = await agent.get(`/queue/${articleId}/view`);
+			const response = await agent.get(`/queue/${articleId}/view`).set(headers);
 			expect(response.status).toBe(200);
 			return new JSDOM(response.text).window.document;
 		}
@@ -1926,7 +1931,7 @@ describe("Readlist routes", () => {
 			const doc = await ownerReader(async (fixture) => {
 				await fixture.articleCrawl.forceMarkCrawlPending({ url: ARTICLE_URL });
 				await fixture.articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason });
-			});
+			}, { "Sec-Purpose": "prefetch" });
 
 			expect([
 				doc.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status"),
@@ -1966,12 +1971,12 @@ describe("Readlist routes", () => {
 			});
 			const agent = await loginAgent(harness.server, harness.auth);
 			await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
-			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+			const articleId = new JSDOM((await agent.get("/queue").set("Cookie", EXTENSION_ALIVE_COOKIE)).text).window.document
 				.querySelector("[data-test-article-list] .readlist-article")
 				?.getAttribute("data-test-article");
 			assert(articleId, "the saved article must render with an id");
 
-			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`).set("Cookie", EXTENSION_ALIVE_COOKIE)).text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
 
@@ -2023,7 +2028,7 @@ describe("Readlist routes", () => {
 			});
 			const agent = await loginAgent(harness.server, harness.auth);
 			await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
-			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+			const articleId = new JSDOM((await agent.get("/queue").set("Cookie", EXTENSION_ALIVE_COOKIE)).text).window.document
 				.querySelector("[data-test-article-list] .readlist-article")
 				?.getAttribute("data-test-article");
 			assert(articleId, "the saved article must render with an id");
@@ -2032,9 +2037,9 @@ describe("Readlist routes", () => {
 			const asAdmin = (path: string) => visitor.get(path).set("x-service-token", fixture.admin.recrawlServiceToken);
 
 			const surfaces = [
-				{ surface: "owner reader", response: await agent.get(`/queue/${articleId}/view`) },
-				{ surface: "owner reader poll", response: await agent.get(`/queue/${articleId}/reader?poll=1`) },
-				{ surface: "owner summary poll", response: await agent.get(`/queue/${articleId}/summary?poll=1`) },
+				{ surface: "owner reader", response: await agent.get(`/queue/${articleId}/view`).set("Cookie", EXTENSION_ALIVE_COOKIE) },
+				{ surface: "owner reader poll", response: await agent.get(`/queue/${articleId}/reader?poll=1`).set("Cookie", EXTENSION_ALIVE_COOKIE) },
+				{ surface: "owner summary poll", response: await agent.get(`/queue/${articleId}/summary?poll=1`).set("Cookie", EXTENSION_ALIVE_COOKIE) },
 				{ surface: "public view", response: await visitor.get(viewPathFor(ARTICLE_URL)) },
 				{ surface: "public reader poll", response: await visitor.get(`/view/reader?url=${encodedUrl}&poll=1`) },
 				{ surface: "public summary poll", response: await visitor.get(`/view/summary?url=${encodedUrl}&poll=1`) },
@@ -2096,12 +2101,12 @@ describe("Readlist routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const url = "https://example.com/edge-blocked-capture";
 			await agent.post("/queue/save").type("form").send({ url });
-			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+			const articleId = new JSDOM((await agent.get("/queue").set("Cookie", EXTENSION_ALIVE_COOKIE)).text).window.document
 				.querySelector("[data-test-article-list] .readlist-article")
 				?.getAttribute("data-test-article");
 			assert(articleId, "the saved article must render with an id");
 
-			const capturing = await agent.get(`/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual`);
+			const capturing = await agent.get(`/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual`).set("Cookie", EXTENSION_ALIVE_COOKIE);
 			expect(capturing.status).toBe(200);
 			const capturingSlot = new JSDOM(capturing.text).window.document.querySelector(
 				"[data-test-reader-slot]",
@@ -2118,7 +2123,7 @@ describe("Readlist routes", () => {
 			await fixture.articleStore.writeContent({ url, content: "<p>Captured body</p>" });
 			await fixture.articleCrawl.markCrawlReady({ url });
 
-			const healed = await agent.get(`/queue/${articleId}/reader?poll=2&captureSince=1&captureTrigger=manual`);
+			const healed = await agent.get(`/queue/${articleId}/reader?poll=2&captureSince=1&captureTrigger=manual`).set("Cookie", EXTENSION_ALIVE_COOKIE);
 			const healedSlot = new JSDOM(healed.text).window.document.querySelector(
 				"[data-test-reader-slot]",
 			);
@@ -2161,7 +2166,7 @@ describe("Readlist routes", () => {
 		}
 
 		it("offers the capture the reader's own device can still perform, beside the link to the original", async () => {
-			const { harness } = failedCrawlHarness();
+			const { fixture, harness } = failedCrawlHarness();
 			const agent = await loginAgent(harness.server, harness.auth);
 			const url = "https://example.com/unparseable-post";
 			await agent.post("/queue/save").type("form").send({ url });
@@ -2170,7 +2175,11 @@ describe("Readlist routes", () => {
 				?.getAttribute("data-test-article");
 			assert(articleId, "the saved article must render with an id");
 
-			const doc = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+			const opened = new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
+			expect(opened.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status")).toBe("pending");
+			await fixture.articleCrawl.markCrawlFailed({ url, reason: PARSE_ERROR });
+
+			const doc = new JSDOM((await agent.get(`/queue/${articleId}/reader?poll=1`)).text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
 			const notice = doc.querySelector("[data-test-reader-notice]");
@@ -2190,8 +2199,8 @@ describe("Readlist routes", () => {
 				explanation:
 					"Readplace couldn't load the full article from this site. You can still read it on the original website, or save the full page using the browser extension or the iPhone app.",
 				offered: true,
-				pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual`,
-				automaticPollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=automatic`,
+				pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=manual`,
+				automaticPollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=automatic`,
 				primaryHref: url,
 			});
 		});
@@ -2204,6 +2213,7 @@ describe("Readlist routes", () => {
 				.querySelector("[data-test-article-list] .readlist-article")
 				?.getAttribute("data-test-article");
 			assert(articleId, "the saved article must render with an id");
+			await fixture.articleCrawl.markCrawlFailed({ url, reason: PARSE_ERROR });
 			const poll = async (query: string) => new JSDOM((await agent.get(`/queue/${articleId}/reader?${query}`)).text).window.document;
 			return { fixture, articleId, poll };
 		}
@@ -2227,13 +2237,13 @@ describe("Readlist routes", () => {
 		it.each(["manual", "automatic"])("shows the %s copy in progress from the kick-off, listening for the device to say it gave up", async (trigger) => {
 			const { articleId, poll } = await savedFailedArticle("https://example.com/unparseable-capture");
 
-			const doc = await poll(`poll=1&captureNotice=1&captureTrigger=${trigger}`);
+			const doc = await poll(`poll=1&captureNotice=2&captureTrigger=${trigger}`);
 
 			expect(readerRegions(doc)).toEqual({
 				slot: "pending",
-				slotPoll: `/queue/${articleId}/reader?poll=2&captureSince=1&captureTrigger=${trigger}`,
+				slotPoll: `/queue/${articleId}/reader?poll=2&captureSince=2&captureTrigger=${trigger}`,
 				notice: "none",
-				noticePoll: `/queue/${articleId}/reader?poll=2&captureSince=1&captureGaveUp=1&captureTrigger=${trigger}`,
+				noticePoll: `/queue/${articleId}/reader?poll=2&captureSince=2&captureGaveUp=1&captureTrigger=${trigger}`,
 				noticeTrigger: "readplace-capture-failed from:document",
 				captureOffered: null,
 			});
@@ -2242,19 +2252,19 @@ describe("Readlist routes", () => {
 
 		it("renders the judged capture's own notice on the first poll after the row records it, still offering a capture", async () => {
 			const { fixture, articleId, poll } = await savedFailedArticle("https://example.com/unparseable-judged");
-			await poll("poll=1&captureNotice=1&captureTrigger=manual");
+			await poll("poll=1&captureNotice=2&captureTrigger=manual");
 			await fixture.articleCrawl.markCrawlFailed({
 				url: "https://example.com/unparseable-judged",
 				reason: JSON.stringify({ kind: "capture-unreadable", detail: "no readable article candidate: a game" }),
 			});
 
-			const doc = await poll("poll=2&captureSince=1&captureTrigger=manual");
+			const doc = await poll("poll=2&captureSince=2&captureTrigger=manual");
 
 			expect(readerRegions(doc)).toEqual({
 				slot: "capture-unreadable",
 				slotPoll: null,
 				notice: "capture-unreadable",
-				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=automatic`,
+				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=3&captureTrigger=automatic`,
 				noticeTrigger: "readplace-capture-started from:document",
 				captureOffered: true,
 			});
@@ -2262,8 +2272,8 @@ describe("Readlist routes", () => {
 		});
 
 		it.each([
-			{ when: "the capture budget is spent", query: `poll=${MAX_CAPTURE_POLLS}&captureSince=1&captureTrigger=manual` },
-			{ when: "the device says it gave up", query: "poll=2&captureSince=1&captureGaveUp=1&captureTrigger=manual" },
+			{ when: "the capture budget is spent", query: `poll=${MAX_CAPTURE_POLLS}&captureSince=2&captureTrigger=manual` },
+			{ when: "the device says it gave up", query: "poll=2&captureSince=2&captureGaveUp=1&captureTrigger=manual" },
 		])("says a tapped copy never arrived when $when, offering the capture again and polling no further", async ({ query }) => {
 			const { articleId, poll } = await savedFailedArticle("https://example.com/unparseable-missing");
 
@@ -2273,7 +2283,7 @@ describe("Readlist routes", () => {
 				slot: "capture-missing",
 				slotPoll: null,
 				notice: "capture-missing",
-				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=automatic`,
+				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=automatic`,
 				noticeTrigger: "readplace-capture-started from:document",
 				captureOffered: true,
 			});
@@ -2281,8 +2291,8 @@ describe("Readlist routes", () => {
 		});
 
 		it.each([
-			{ when: "the capture budget is spent", query: `poll=${MAX_CAPTURE_POLLS}&captureSince=1&captureTrigger=automatic` },
-			{ when: "the device says it gave up", query: "poll=2&captureSince=1&captureGaveUp=1&captureTrigger=automatic" },
+			{ when: "the capture budget is spent", query: `poll=${MAX_CAPTURE_POLLS}&captureSince=2&captureTrigger=automatic` },
+			{ when: "the device says it gave up", query: "poll=2&captureSince=2&captureGaveUp=1&captureTrigger=automatic" },
 		])("renders the row's stored notice when $when on an automatic capture, offering the capture again and polling no further", async ({ query }) => {
 			const { articleId, poll } = await savedFailedArticle("https://example.com/unparseable-automatic");
 
@@ -2292,7 +2302,7 @@ describe("Readlist routes", () => {
 				slot: "failed",
 				slotPoll: null,
 				notice: "failed",
-				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=automatic`,
+				noticePoll: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=automatic`,
 				noticeTrigger: "readplace-capture-started from:document",
 				captureOffered: true,
 			});
@@ -2313,7 +2323,7 @@ describe("Readlist routes", () => {
 			await fixture.articleStore.writeContent({ url, content: "<p>Captured body</p>" });
 			await fixture.articleCrawl.markCrawlReady({ url });
 
-			const healedSlot = (await poll("poll=2&captureSince=1")).querySelector("[data-test-reader-slot]");
+			const healedSlot = (await poll("poll=2&captureSince=2")).querySelector("[data-test-reader-slot]");
 
 			assert(healedSlot, "reader slot must be rendered once the row heals");
 			expect([healedSlot.getAttribute("data-reader-status"), healedSlot.hasAttribute("hx-get")]).toEqual(["ready", false]);

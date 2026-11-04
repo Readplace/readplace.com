@@ -1,6 +1,8 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/hutch-logger";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { type Article, type TransitionAndPersist, markCrawlExhausted, promoteTier, recrawlPromoteTier, refreshContent } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { SQSEvent } from "aws-lambda";
@@ -38,6 +40,7 @@ function setupHandler(init: typeof initSelectMostCompleteContentHandler, overrid
 	const handler = init({
 		listAvailableTierSources: async () => [source],
 		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "readable article", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
+		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW }), logger: noopLogger, now: () => NOW }),
 		writeCanonicalContent: async () => { order.push("upload"); return { contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, tier: source.tier }; },
 		recordCrawlVersion: async () => { order.push("version"); },
 		readCanonicalContent: async () => undefined, loadArticle: async () => article,

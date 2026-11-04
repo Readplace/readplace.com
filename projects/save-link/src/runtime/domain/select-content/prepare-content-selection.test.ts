@@ -1,6 +1,9 @@
 import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/hutch-logger";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
+import { initJudgeUnderLedger } from "./judge-under-ledger";
 import type { Article } from "@packages/domain/article-aggregate";
 import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
@@ -85,7 +88,7 @@ function judgeReply(decision: ContentDecision, candidates: Parameters<SelectMost
 		: decision;
 	return JSON.stringify({ ...answer, readability: candidates.map((candidate) => ({ candidate: label(candidate.id), readable: decision.kind === "winner" ? candidate.id === decision.candidateId : decision.kind === "tie" && decision.candidateIds.includes(candidate.id) })) });
 }
-type Dependencies = Omit<Parameters<typeof initPrepareContentSelection>[0], "selectMostCompleteContent"> & {
+type Dependencies = Omit<Parameters<typeof initPrepareContentSelection>[0], "judge"> & {
 	selectMostCompleteContent: (params: Parameters<SelectMostCompleteContent>[0]) => Promise<ContentDecision>;
 };
 function setup(overrides: Partial<Dependencies> = {}) {
@@ -99,8 +102,9 @@ function setup(overrides: Partial<Dependencies> = {}) {
 		const decision = await deps.selectMostCompleteContent(params);
 		return initSelectMostCompleteContent({ createChatCompletion: async () => ({ choices: [{ message: { content: judgeReply(decision, params.candidates) } }] }), logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent(params);
 	};
-	const prepare = initPrepareContentSelection({ ...deps, selectMostCompleteContent });
-	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId">) => prepare({ ...params, saveAttemptId: FRESH }), deps };
+	const judge = initJudgeUnderLedger({ selectMostCompleteContent, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 });
+	const prepare = initPrepareContentSelection({ ...deps, judge });
+	return { prepare: (params: Omit<Parameters<typeof prepare>[0], "saveAttemptId" | "claimId">) => prepare({ ...params, saveAttemptId: FRESH, claimId: "message-1" }), deps };
 }
 
 describe("initPrepareContentSelection", () => {
@@ -726,9 +730,9 @@ describe("initPrepareContentSelection", () => {
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [live],
-			selectMostCompleteContent: rejectingJudge, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
-		const result = await prepare({ url: URL, saveAttemptId: FRESH, candidates: [{ tier: "tier-1", id: cid("live") }] });
+		const result = await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1", candidates: [{ tier: "tier-1", id: cid("live") }] });
 		expect(result.audit?.responseStatus).toBe("rejected");
 		expect(result.selectionRule).toBe("provider-rejected-fallback");
 		expect(result.outcome).toBe("selected");
@@ -742,9 +746,9 @@ describe("initPrepareContentSelection", () => {
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [blank],
-			selectMostCompleteContent: rejectingJudge, resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+			judge: initJudgeUnderLedger({ selectMostCompleteContent: rejectingJudge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }), claimTtlMs: 60_000 }), resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
 		});
-		expect((await prepare({ url: URL, saveAttemptId: FRESH })).outcome).toBe("no-readable");
+		expect((await prepare({ url: URL, saveAttemptId: FRESH, claimId: "message-1" })).outcome).toBe("no-readable");
 	});
 
 	describe("a lone body on an article with no content yet", () => {

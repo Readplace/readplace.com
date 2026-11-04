@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { noopLogger } from "@packages/hutch-logger";
 import type { CrawlArticle, CrawlUnsupportedReason } from "@packages/crawl-article";
 import { MAX_HTML_BYTES } from "@packages/crawl-article";
-import { markCrawlBlocked, markCrawlExhausted, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { markCrawlAwaitingReader, markCrawlBlocked, markCrawlExhausted, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import {
 	ComprehensiveCrawlCommand,
 	RecrawlContentExtractedEvent,
@@ -13,7 +13,9 @@ import { initFinalizeArticle, type FinalizeArticle, type FinalizedArticle } from
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
+import { legInputHash } from "../metered-leg/leg-input-hash";
 import { initRenderCrawlHandler } from "./render-crawl-handler";
 
 const URL = "https://example-spa.test/post";
@@ -162,6 +164,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		consumeRenderCrawlBudget: jest.fn().mockResolvedValue({ allowed: true, consumed: true }),
+		...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date("2026-10-28T12:00:00.000Z") }),
 		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		renderPage: renderPageAnswering({ direct: rendered() }),
@@ -1414,5 +1417,186 @@ describe("initRenderCrawlHandler", () => {
 		const response = await run(handler, detail);
 
 		expect(response).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
+	describe("the metered-leg ledger", () => {
+		const NOW = new Date("2026-10-28T12:00:00.000Z");
+		const deferringLedger = () => initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => true, now: () => NOW });
+
+		it("claims the residential leg for the page the ladder starts at under the message id, until the queue's visibility timeout", async () => {
+			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
+			const claimMeteredLeg = jest.fn(ledger.claimMeteredLeg);
+			const handler = createHandler({
+				...ledger,
+				claimMeteredLeg,
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() }),
+			});
+
+			await run(handler, { url: URL });
+
+			expect(claimMeteredLeg).toHaveBeenCalledWith({
+				url: URL,
+				leg: "render-residential-per-gb",
+				inputHash: legInputHash({ url: URL, leg: "render-residential-per-gb", inputs: [URL, ""] }),
+				claimId: "msg-1",
+				expiresAt: "2026-10-28T12:10:00.000Z",
+			});
+		});
+
+		it("settles a residential render with the candidate it committed", async () => {
+			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
+			const settleMeteredLeg = jest.fn(ledger.settleMeteredLeg);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				...ledger,
+				settleMeteredLeg,
+				publishEvent,
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() }),
+			});
+
+			await run(handler, { url: URL });
+
+			const announced = publishEvent.mock.calls.find(([event]) => event === TierContentExtractedEvent)?.[1];
+			expect(settleMeteredLeg).toHaveBeenCalledWith({
+				url: URL,
+				permit: expect.objectContaining({ leg: "render-residential-per-gb", claimId: "msg-1" }),
+				outcome: JSON.stringify(announced.candidates[0]),
+				settledAt: "2026-10-28T12:00:00.000Z",
+			});
+		});
+
+		it("replays a residential render already settled for the same page through the archive comparison instead of rendering again", async () => {
+			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
+			const firstPublish = jest.fn().mockResolvedValue(undefined);
+			await run(createHandler({
+				...ledger,
+				publishEvent: firstPublish,
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() }),
+			}), { url: URL });
+			const recorded = firstPublish.mock.calls.find(([event]) => event === TierContentExtractedEvent)?.[1].candidates[0];
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
+
+			const response = await run(createHandler({ ...ledger, publishEvent, renderPage }), { url: URL });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+				candidates: [recorded],
+				liveAttempt: { outcome: "no-body" },
+			}));
+		});
+
+		it("replays a settled leg after the reader's carried candidates", async () => {
+			const recorded = { id: "recorded-candidate", tier: "tier-1" };
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				claimMeteredLeg: async () => ({ kind: "settled", outcome: JSON.stringify(recorded) }),
+				publishEvent,
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") }),
+			});
+
+			await run(handler, { url: URL, candidates: wrapperRefs });
+
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+				candidates: [...wrapperRefs, recorded],
+			}));
+		});
+
+		it("acks without a write while another message holds the leg's claim", async () => {
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ claimMeteredLeg: async () => ({ kind: "in-flight" }), renderPage, transitionAndPersist, publishEvent });
+
+			const response = await run(handler, { url: URL });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(transitionAndPersist).not.toHaveBeenCalled();
+			expect(publishEvent).not.toHaveBeenCalled();
+		});
+
+		it("renders a refresh again after a save-time render of the same page settled its leg", async () => {
+			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
+			await run(createHandler({
+				...ledger,
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() }),
+			}), { url: URL });
+			const claimMeteredLeg = jest.fn(ledger.claimMeteredLeg);
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() });
+
+			await run(createHandler({ ...ledger, claimMeteredLeg, renderPage }), { url: URL, refresh: true, previousBodyHash: "previous-hash" });
+
+			expect(await claimMeteredLeg.mock.results[0].value).toEqual(expect.objectContaining({ kind: "granted" }));
+			expect(renderPage).toHaveBeenCalledTimes(2);
+		});
+
+		it("releases the residential claim when the render budget is denied", async () => {
+			const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => NOW });
+			const releaseMeteredLeg = jest.fn(ledger.releaseMeteredLeg);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({
+				...ledger,
+				releaseMeteredLeg,
+				transitionAndPersist,
+				consumeRenderCrawlBudget: async () => ({ allowed: false }),
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") }),
+			});
+
+			await run(handler, { url: URL });
+
+			expect(releaseMeteredLeg).toHaveBeenCalledWith({ url: URL, permit: expect.objectContaining({ leg: "render-residential-per-gb" }) });
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "spend-capped" } } });
+		});
+
+		it("parks the crawl awaiting a reader, before any residential render or budget, when the free legs saw no block evidence", async () => {
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
+			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ ...deferringLedger(), renderPage, consumeRenderCrawlBudget, transitionAndPersist });
+
+			const response = await run(handler, { url: URL });
+
+			expect(response).toEqual({ batchItemFailures: [] });
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(consumeRenderCrawlBudget).not.toHaveBeenCalled();
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url: URL, input: { deferredLeg: "render-residential-per-gb" } });
+		});
+
+		it("hands the reader's carried candidates to selection when the residential render is deferred", async () => {
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ ...deferringLedger(), publishEvent, transitionAndPersist, renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") }) });
+
+			await run(handler, { url: URL, candidates: wrapperRefs });
+
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+				candidates: wrapperRefs,
+				liveAttempt: { outcome: "no-body" },
+			}));
+			expect(transitionAndPersist).not.toHaveBeenCalled();
+		});
+
+		it("commits today's blocked failure from the direct render's status when the paid legs are deferred on block evidence", async () => {
+			const proxiedCrawlArticle = jest.fn(refusedProxiedCrawl);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ ...deferringLedger(), proxiedCrawlArticle, transitionAndPersist, renderPage: renderPageAnswering({ direct: blocked(429) }) });
+
+			await run(handler, { url: URL });
+
+			expect(proxiedCrawlArticle).not.toHaveBeenCalled();
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "rate-limited" } } });
+		});
+
+		it("commits an edge-block failure when tier-1 saw the block and the direct render failed without one, with the paid legs deferred", async () => {
+			const logParseError = jest.fn();
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const handler = createHandler({ ...deferringLedger(), logParseError, transitionAndPersist, renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") }) });
+
+			await run(handler, { url: URL, unsupportedReason: "blocked" });
+
+			expect(logParseError).toHaveBeenCalledWith({ url: URL, reason: "crawl-blocked: paid render legs deferred" });
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "edge-block" } } });
+		});
 	});
 });

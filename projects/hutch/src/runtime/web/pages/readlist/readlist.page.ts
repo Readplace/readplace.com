@@ -27,7 +27,7 @@ import type {
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import type { UserId } from "@packages/domain/user";
 import { SaveAttemptIdSchema, newSaveAttemptId, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema } from "@packages/domain/article";
-import { buildSaveIntentEvent, classifyDeviceClass, classifyOsFamily, hashIp, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
+import { buildSaveIntentEvent, classifyDeviceClass, classifyOsFamily, hashIp, isBotUserAgent, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import { appClientOf, saveClientOf } from "../../shared/save-client";
@@ -80,6 +80,7 @@ import type {
 	ReadlistDefinitionData,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
+import type { ResolveOnViewSurface } from "@packages/provider-contracts/events";
 import type { PublishRemoveMyContent } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawPdfCommand, PublishSubmitLink } from "@packages/provider-contracts/events";
 import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
@@ -108,7 +109,6 @@ import type {
 import type {
 	FindGeneratedSummaries,
 	FindGeneratedSummary,
-	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
@@ -136,6 +136,8 @@ import {
 } from "@packages/save-article";
 import type { PublishQueueEntryCreated } from "@packages/provider-contracts/events";
 import type { PublishComputeRelatedPastReads, PublishComputeRelatedPasses } from "@packages/provider-contracts/events";
+import { type RequestResolutionOnView, overlayResolution } from "../../../domain/resolve-on-view/request-resolution-on-view";
+import { requestCanCapture } from "../../onboarding/capture-capable-request";
 import type {
 	MarkRelatedPassesRequested,
 	ReadRelatedPassRequestState,
@@ -263,7 +265,7 @@ import type { PageBody } from "@packages/web-shell";
 import { ReaderPage, formatReaderDocumentTitle, readerMarkStatusConfirm } from "../reader/reader.component";
 import { renderNextRead } from "../../shared/next-read/next-read.component";
 import { renderPastReadsSection } from "../../shared/past-reads/past-reads.component";
-import { isPrefetchRequest } from "../../shared/prefetch-request";
+import { isPrefetchOrBot, isPrefetchRequest } from "../../shared/prefetch-request";
 import { OFFLINE_READER_SCRIPT } from "../../shared/offline-reader/offline-reader-script";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
 import { offlineCopyRowScript } from "../../shared/article-body/article-history/offline-copy-row-script";
@@ -456,6 +458,7 @@ interface ReadlistDependencies {
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	publishComputeRelatedPasses: PublishComputeRelatedPasses;
+	requestResolutionOnView: RequestResolutionOnView;
 	readRelatedPassRequestState: ReadRelatedPassRequestState;
 	markRelatedPassesRequested: MarkRelatedPassesRequested;
 	findRelatedArticles: FindRelatedArticles;
@@ -541,14 +544,14 @@ interface ReadlistDependencies {
 	now: () => Date;
 }
 
-import type { ArticleDiscoveryQuery, ReadlistFilter, SavedArticle } from "@packages/domain/article";
+import type { ArticleDiscoveryQuery, ReadlistFilter, SavedArticle, ShownSummary } from "@packages/domain/article";
 
 async function loadSummaries(
 	findGeneratedSummaries: FindGeneratedSummaries,
 	articles: readonly SavedArticle[],
 	viewer: Viewer,
 	logError: (message: string, error?: Error) => void,
-): Promise<Map<string, GeneratedSummary | undefined>> {
+): Promise<Map<string, ShownSummary | undefined>> {
 	const urls = articles.map((a) => a.url);
 	try {
 		const byUrl = await findGeneratedSummaries({ urls, viewer });
@@ -998,6 +1001,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		summaryOpen: false,
+		requestResolutionOnView: deps.requestResolutionOnView,
 	});
 	const resolveReaderPermalinkIn = (readlist: ReadlistSlug) =>
 		initReaderPermalink({
@@ -1195,6 +1199,36 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * and the `?platform=ios` chromeless renders of `/view` inherit it identically.
 	 * Stamps reader-view presence on the owner open — the only server-side signal
 	 * that the reader was opened. */
+	const readerStateOnOpen = async (
+		req: Request<{ id: string }>,
+		ownedArticle: SavedArticle,
+	): Promise<ResolvedReaderState> => {
+		const params = {
+			viewer: viewerFor(req.userId),
+			article: {
+				url: ownedArticle.url,
+				metadata: ownedArticle.metadata,
+				estimatedReadTime: ownedArticle.estimatedReadTime,
+			},
+			pollUrlBuilder: pollUrlBuilderFor(req, ownedArticle.id.value),
+		};
+		if (!isDeliberateReaderRequest(req) || isBotUserAgent(req.get("user-agent"))) {
+			return reader.resolveReaderState(params);
+		}
+		const { url } = ownedArticle;
+		const [crawl, summary] = await Promise.all([
+			deps.findArticleCrawlStatus(url),
+			deps.findGeneratedSummary({ url, viewer: params.viewer }),
+		]);
+		const resolved = await deps.requestResolutionOnView({
+			surface: "reader",
+			viewer: params.viewer,
+			viewerCanCapture: requestCanCapture(req),
+			articles: [{ url, crawl, summary }],
+		});
+		return reader.resolveReaderStateFrom(params, resolved.get(url) ?? { crawl, summary });
+	};
+
 	const resolveOwnerReader = async (
 		req: Request<{ id: string }>,
 	): Promise<OwnerReaderResolution> => {
@@ -1226,15 +1260,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const [related, previouslyRead, state, { readlistFiling, deleteAcknowledged }, provenance] = await Promise.all([
 			loadRelatedArticles(deps.findRelatedArticles, ownedArticle, deps.logError),
 			loadPastReads(deps.findPastReads, ownedArticle, readerReadlist, deps.logError),
-			reader.resolveReaderState({
-				viewer: viewerFor(req.userId),
-				article: {
-					url: ownedArticle.url,
-					metadata: ownedArticle.metadata,
-					estimatedReadTime: ownedArticle.estimatedReadTime,
-				},
-				pollUrlBuilder: pollUrlBuilderFor(req, ownedArticle.id.value),
-			}),
+			readerStateOnOpen(req, ownedArticle),
 			readerOwnerControlsFor({
 				userId: ownedArticle.userId,
 				article: ownedArticle,
@@ -1746,6 +1772,30 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	 * tail shared by the top-of-page GET and the card-mutation fallback. Never
 	 * fetches the listing itself, so GET stays single-fetch and the fallback can
 	 * feed it the metadata-only page probe it already holds. */
+	const resolveListedOnView = async (
+		req: Request,
+		listed: {
+			userId: UserId;
+			surface: ResolveOnViewSurface;
+			articles: readonly SavedArticle[];
+			crawlByUrl: ReadonlyMap<string, ArticleCrawl | undefined>;
+			summaryByUrl: ReadonlyMap<string, ShownSummary | undefined>;
+		},
+	) => {
+		if (isPrefetchOrBot(req)) return { crawlByUrl: listed.crawlByUrl, summaryByUrl: listed.summaryByUrl };
+		const resolved = await deps.requestResolutionOnView({
+			surface: listed.surface,
+			viewer: viewerFor(listed.userId),
+			viewerCanCapture: requestCanCapture(req),
+			articles: listed.articles.map((article) => ({
+				url: article.url,
+				crawl: listed.crawlByUrl.get(article.url),
+				summary: listed.summaryByUrl.get(article.url),
+			})),
+		});
+		return overlayResolution(listed.crawlByUrl, listed.summaryByUrl, resolved);
+	};
+
 	const renderReadlistListing = async (
 		req: Request,
 		res: Response,
@@ -1764,7 +1814,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	): Promise<void> => {
 		const effectiveAccessPromise = deps.getEffectiveAccess(input.userId);
 		const urls = input.result.articles.map((article) => article.url);
-		const [summaryByUrl, crawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl, readerProvenances] =
+		const [loadedSummaryByUrl, loadedCrawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl, readerProvenances] =
 			await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, input.result.articles, viewerFor(input.userId), deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
@@ -1784,6 +1834,13 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				savesAcrossReadlists({ userId: input.userId, context: input.context, urls }),
 				deps.resolveReaderProvenances(input.result.articles.map((article) => article.provenance)),
 			]);
+		const { crawlByUrl, summaryByUrl } = await resolveListedOnView(req, {
+			userId: input.userId,
+			surface: "readlist-html",
+			articles: input.result.articles,
+			crawlByUrl: loadedCrawlByUrl,
+			summaryByUrl: loadedSummaryByUrl,
+		});
 		const readerProvenanceByUrl = new Map(
 			input.result.articles.map((article, index): [string, ReaderProvenance | undefined] => [
 				article.url,
@@ -1962,10 +2019,19 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const filtered = filterUrl
 				? { ...result, articles: filteredArticles, total: filteredArticles.length }
 				: result;
-			const [crawlByUrl, summaryByUrl] = await Promise.all([
+			const [loadedCrawlByUrl, loadedSummaryByUrl] = await Promise.all([
 				loadCrawls(deps.findArticleCrawlStatuses, filtered.articles, deps.logError),
 				loadSummaries(deps.findGeneratedSummaries, filtered.articles, viewerFor(userId), deps.logError),
 			]);
+			const { crawlByUrl, summaryByUrl } = filterUrl
+				? { crawlByUrl: loadedCrawlByUrl, summaryByUrl: loadedSummaryByUrl }
+				: await resolveListedOnView(req, {
+						userId,
+						surface: "readlist-siren",
+						articles: filtered.articles,
+						crawlByUrl: loadedCrawlByUrl,
+						summaryByUrl: loadedSummaryByUrl,
+					});
 
 			const appearance = (await deps.findUserById(userId))?.appearance ?? "system";
 			setSirenCollectionCaching(req, res);

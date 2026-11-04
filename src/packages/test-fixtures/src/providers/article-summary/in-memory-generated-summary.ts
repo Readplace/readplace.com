@@ -18,11 +18,19 @@ export type InMemoryMarkSummarySkipped = (params: {
 	reason?: string;
 }) => Promise<void>;
 
+export type InMemoryMarkSummaryFailed = (params: {
+	url: string;
+	reason: string;
+}) => Promise<void>;
+
 export function initInMemoryGeneratedSummary(deps: { findItemOwner: FindItemOwner }): {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	markSummaryReady: InMemoryMarkSummaryReady;
 	markSummarySkipped: InMemoryMarkSummarySkipped;
+	markSummaryFailed: InMemoryMarkSummaryFailed;
+	summaryStateOf: (url: string) => GeneratedSummary | undefined;
+	forceMarkSummaryPending: (url: string) => void;
 } {
 	const states = new Map<string, GeneratedSummary>();
 
@@ -54,10 +62,24 @@ export function initInMemoryGeneratedSummary(deps: { findItemOwner: FindItemOwne
 		states.set(id.value, skipped);
 	};
 
+	const markSummaryFailed: InMemoryMarkSummaryFailed = async ({ url, reason }) => {
+		states.set(ArticleResourceUniqueId.parse(url).value, { status: "failed", reason });
+	};
+
+	const summaryStateOf = (url: string): GeneratedSummary | undefined =>
+		states.get(ArticleResourceUniqueId.parse(url).value);
+
+	const forceMarkSummaryPending = (url: string): void => {
+		states.set(ArticleResourceUniqueId.parse(url).value, { status: "pending" });
+	};
+
 	return {
+		summaryStateOf,
+		forceMarkSummaryPending,
 		findGeneratedSummary,
 		markSummaryPending,
 		markSummaryReady,
 		markSummarySkipped,
+		markSummaryFailed,
 	};
 }

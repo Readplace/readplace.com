@@ -1,4 +1,5 @@
-import { initCanonicalAliasStore } from "@packages/article-store";
+import { initCanonicalAliasStore, initDynamoDbMeteredLegLedger } from "@packages/article-store";
+import { initRunMeteredLeg, type RunMeteredLeg } from "../domain/metered-leg/run-metered-leg";
 import { initSelectionSourceIdentity } from "./source-identity";
 import { initFindArticleContent, type FindArticleContent } from "../providers/article-store/find-article-content";
 import type { VerifyWrapperSource } from "@packages/save-article";
@@ -33,6 +34,7 @@ export type SelectContentDepBundle = {
 	readTierSource: ReadTierSource;
 	listAvailableTierSources: ListAvailableTierSources;
 	selectMostCompleteContent: SelectMostCompleteContent;
+	runMeteredLeg: RunMeteredLeg;
 	writeCanonicalContent: WriteCanonicalContent;
 	recordCrawlVersion: RecordCrawlVersion;
 	readCanonicalContent: FindArticleContent;
@@ -47,6 +49,7 @@ export function initSelectContentDepBundle(deps: {
 	createChatCompletion: CreateDeepseekChatCompletion;
 	logger: HutchLogger;
 	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	now: () => Date;
 }): SelectContentDepBundle {
 	const { readTierSource } = initReadTierSource({
 		client: deps.s3Client,
@@ -67,6 +70,8 @@ export function initSelectContentDepBundle(deps: {
 		dynamoClient: deps.dynamoClient,
 		tableName: deps.articlesTable,
 	});
+	const ledger = initDynamoDbMeteredLegLedger({ client: deps.dynamoClient, tableName: deps.articlesTable, now: deps.now });
+	const runMeteredLeg = initRunMeteredLeg({ ...ledger, logger: deps.logger, now: deps.now });
 	const identities = initCanonicalAliasStore({ client: deps.dynamoClient, tableName: deps.articlesTable });
 	const sourceIdentity = initSelectionSourceIdentity({ findIdentityRow: identities.findIdentityRow });
 	return {
@@ -75,6 +80,7 @@ export function initSelectContentDepBundle(deps: {
 		readTierSource,
 		listAvailableTierSources,
 		selectMostCompleteContent,
+		runMeteredLeg,
 		writeCanonicalContent,
 		recordCrawlVersion,
 		deepseekCallFailedLog: deps.deepseekCallFailedLog,

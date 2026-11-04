@@ -1511,6 +1511,9 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../hutch-logger
       '@packages/media-contracts':
         specifier: workspace:*
         version: link:../media-contracts
@@ -1518,6 +1521,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../test-fixtures
       '@pulumi/aws':
         specifier: 7.32.0
         version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)

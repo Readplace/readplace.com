@@ -10,6 +10,7 @@ export {
 	IPHONE_APP_STORE_URL,
 	isBuiltInOAuthClientId,
 	isClientName,
+	isContentCaptureOAuthClientId,
 	SUPPORTED_CLIENTS,
 	UNADVERTISED_CLIENTS,
 } from "./supported-clients";

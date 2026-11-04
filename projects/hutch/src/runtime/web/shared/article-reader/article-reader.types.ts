@@ -3,6 +3,7 @@ import type {
 	Minutes,
 	ArticleBody,
 	CaptureTrigger,
+	ShownSummary,
 	Viewer,
 } from "@packages/domain/article";
 import type {
@@ -23,6 +24,7 @@ import type { ReaderProvenance } from "../article-body/article-header/provenance
 import type { LocalTime } from "@packages/web-shell/local-time.format";
 import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { CaptureWatch } from "./capture-watch";
+import type { RequestResolutionOnView } from "../../../domain/resolve-on-view/request-resolution-on-view";
 
 export type ReaderViewFailure = { readerContentUnavailable: boolean };
 
@@ -67,6 +69,12 @@ export interface ArticleReaderDeps {
 	 * deliberate, measurable act — while the public /view reader stays open.
 	 */
 	summaryOpen: boolean;
+	requestResolutionOnView: RequestResolutionOnView | undefined;
+}
+
+export interface KnownReaderState {
+	crawl: ArticleCrawl | undefined;
+	summary: ShownSummary | undefined;
 }
 
 export interface ArticleSnapshot {

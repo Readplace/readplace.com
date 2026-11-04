@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { isBotUserAgent } from "@packages/web-analytics";
 
 /** A browser prefetch (`Sec-Purpose: prefetch`, its `prefetch;prerender` form,
  * or the legacy `Purpose: prefetch`) is not a reader deciding to open the
@@ -7,4 +8,9 @@ import type { Request } from "express";
 export function isPrefetchRequest(req: Request): boolean {
 	if (String(req.get("sec-purpose")).includes("prefetch")) return true;
 	return String(req.get("purpose")).includes("prefetch");
+}
+
+export function isPrefetchOrBot(req: Request): boolean {
+	if (isPrefetchRequest(req)) return true;
+	return isBotUserAgent(req.get("user-agent"));
 }

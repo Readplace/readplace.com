@@ -1,4 +1,6 @@
 import type { RenderCrawlDetail } from "@packages/hutch-infra-components";
+import type { MeteredLeg, PaidLegPermit } from "@packages/provider-contracts/metered-leg-ledger";
+import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import type {
 	RenderOutcome,
 	RenderPage,
@@ -22,17 +24,18 @@ export type LadderRender = RenderedPage & { renderedThrough: RenderedThrough };
 
 export type Escalation = "available" | "exhausted";
 export type RenderCommit =
+	| { kind: "committed"; candidate: CandidateReference }
 	| { kind: "settled" }
 	| { kind: "unreadable"; detail: string };
 
 export type ProxiedFetchAttempt =
-	| { kind: "committed" }
+	| { kind: "committed"; candidate: CandidateReference }
 	| { kind: "settled" }
 	| { kind: "no-body"; outcome: string };
 
 export type SkippedLeg = {
 	kind: "skipped";
-	reason: "time-exhausted" | "no-block-evidence" | "block-evidence";
+	reason: "time-exhausted" | "no-block-evidence" | "block-evidence" | "deferred";
 };
 export type RenderLegReport = TerminalRenderOutcome | SkippedLeg;
 export type FetchLegReport =
@@ -53,29 +56,76 @@ type SettledLadder = {
 	residentialSkipped: boolean;
 };
 
+export type RenderMeteredLeg = Extract<
+	MeteredLeg,
+	| "render-residential-per-gb"
+	| "render-web-unlocker-fetch"
+	| "render-web-unlocker-render"
+>;
+
+const BUDGET_GATE = {
+	"render-residential-per-gb": "residential-per-gb",
+	"render-web-unlocker-fetch": "web-unlocker-fetch",
+	"render-web-unlocker-render": "web-unlocker-render",
+} as const;
+
 type BudgetExhaustedLadder = {
 	kind: "budget-exhausted";
-	gate: "residential-per-gb" | "web-unlocker-render";
+	gate: (typeof BUDGET_GATE)[RenderMeteredLeg];
 	direct: TerminalRenderOutcome;
+};
+
+type DeferredLadder = {
+	kind: "deferred";
+	awaiting: "render-residential-per-gb";
+	direct: TerminalRenderOutcome;
+};
+
+type RecordedLadder = {
+	kind: "recorded";
+	leg: RenderMeteredLeg;
+	outcome: string;
+};
+
+type InFlightLadder = {
+	kind: "in-flight";
+	leg: RenderMeteredLeg;
 };
 
 export type RenderLadderResult =
 	| SettledLadder
 	| BudgetExhaustedLadder
-	| UnrenderedLadder;
+	| UnrenderedLadder
+	| DeferredLadder
+	| RecordedLadder
+	| InFlightLadder;
+
+export type RenderLegClaim =
+	| { kind: "granted"; permit: PaidLegPermit }
+	| { kind: "deferred" }
+	| { kind: "settled"; outcome: string }
+	| { kind: "in-flight" }
+	| { kind: "budget-exhausted" };
 
 export type RenderLadderLegs = {
 	renderPage: RenderPage;
 	url: string;
-	residentialEgress: () => ResidentialEgress;
-	webUnlockerEgress: WebUnlockerEgress;
+	residentialEgress: (permit: PaidLegPermit) => ResidentialEgress;
+	webUnlockerEgress: (permit: PaidLegPermit) => WebUnlockerEgress;
 	unsupportedReason: RenderCrawlDetail["unsupportedReason"];
 	commitRender: (
 		render: LadderRender,
 		escalation: Escalation,
 	) => Promise<RenderCommit>;
-	fetchThroughWebUnlocker: () => Promise<ProxiedFetchAttempt>;
-	consumeBudget: () => Promise<{ allowed: boolean }>;
+	fetchThroughWebUnlocker: (
+		permit: PaidLegPermit,
+	) => Promise<ProxiedFetchAttempt>;
+	claimLeg: (leg: RenderMeteredLeg) => Promise<RenderLegClaim>;
+	settleLeg: (p: {
+		permit: PaidLegPermit;
+		candidate: CandidateReference;
+	}) => Promise<void>;
+	releaseLeg: (permit: PaidLegPermit) => Promise<void>;
 	remainingMilliseconds: () => number;
 };
 
@@ -91,6 +141,10 @@ const NO_BLOCK_EVIDENCE: SkippedLeg = {
 	kind: "skipped",
 	reason: "no-block-evidence",
 };
+const DEFERRED: SkippedLeg = {
+	kind: "skipped",
+	reason: "deferred",
+};
 
 const renderAllowance = (navigationTimeoutMilliseconds: number) =>
 	navigationTimeoutMilliseconds + RENDER_CRAWL_TIMEOUTS.renderOverheadMs;
@@ -99,6 +153,7 @@ const WEB_UNLOCKER_FETCH_ALLOWANCE =
 	RENDER_CRAWL_TIMEOUTS.webUnlockerFetch.bodyMs;
 
 type LegOutcome =
+	| { kind: "committed"; candidate: CandidateReference }
 	| { kind: "settled" }
 	| { kind: "continue"; report: TerminalRenderOutcome };
 
@@ -126,7 +181,7 @@ export async function runRenderLadder(
 			{ ...outcome, renderedThrough: leg.renderedThrough },
 			leg.escalation,
 		);
-		if (commit.kind === "settled") return { kind: "settled" };
+		if (commit.kind !== "unreadable") return commit;
 		return {
 			kind: "continue",
 			report: {
@@ -139,6 +194,35 @@ export async function runRenderLadder(
 		};
 	};
 
+	const underPermit = async <Outcome extends LegOutcome | ProxiedFetchAttempt>(
+		permit: PaidLegPermit,
+		attempt: () => Promise<Outcome>,
+	): Promise<Outcome> => {
+		let outcome: Outcome;
+		try {
+			outcome = await attempt();
+		} catch (error) {
+			await legs.releaseLeg(permit);
+			throw error;
+		}
+		const ran: LegOutcome | ProxiedFetchAttempt = outcome;
+		if (ran.kind === "committed")
+			await legs.settleLeg({ permit, candidate: ran.candidate });
+		else await legs.releaseLeg(permit);
+		return outcome;
+	};
+
+	const stopped = (
+		leg: RenderMeteredLeg,
+		claim: Exclude<RenderLegClaim, { kind: "granted" } | { kind: "deferred" }>,
+		direct: TerminalRenderOutcome,
+	): RenderLadderResult => {
+		if (claim.kind === "settled")
+			return { kind: "recorded", leg, outcome: claim.outcome };
+		if (claim.kind === "in-flight") return { kind: "in-flight", leg };
+		return { kind: "budget-exhausted", gate: BUDGET_GATE[leg], direct };
+	};
+
 	const direct = await renderLeg({
 		egress: { kind: "direct" },
 		navigationTimeoutMilliseconds: RENDER_CRAWL_TIMEOUTS.directNavigationMs,
@@ -146,7 +230,7 @@ export async function runRenderLadder(
 		escalation:
 			legs.unsupportedReason === "blocked" ? "available" : "exhausted",
 	});
-	if (direct.kind === "settled")
+	if (direct.kind !== "continue")
 		return {
 			kind: "settled",
 			settledThrough: "direct-egress",
@@ -155,7 +239,6 @@ export async function runRenderLadder(
 
 	const blockedBeforeResidential =
 		legs.unsupportedReason === "blocked" || direct.report.kind === "blocked";
-	let budgetConsumed = false;
 	let residentialReport: RenderLegReport = BLOCK_EVIDENCE;
 	if (!blockedBeforeResidential) {
 		if (
@@ -171,22 +254,25 @@ export async function runRenderLadder(
 				webUnlockerRender: TIME_EXHAUSTED,
 			};
 		}
-		const budget = await legs.consumeBudget();
-		if (!budget.allowed)
+		const claim = await legs.claimLeg("render-residential-per-gb");
+		if (claim.kind === "deferred")
 			return {
-				kind: "budget-exhausted",
-				gate: "residential-per-gb",
+				kind: "deferred",
+				awaiting: "render-residential-per-gb",
 				direct: direct.report,
 			};
-		budgetConsumed = true;
-		const residential = await renderLeg({
-			egress: legs.residentialEgress(),
-			navigationTimeoutMilliseconds:
-				RENDER_CRAWL_TIMEOUTS.residentialNavigationMs,
-			renderedThrough: "residential-per-gb",
-			escalation: "available",
-		});
-		if (residential.kind === "settled")
+		if (claim.kind !== "granted")
+			return stopped("render-residential-per-gb", claim, direct.report);
+		const residential = await underPermit(claim.permit, () =>
+			renderLeg({
+				egress: legs.residentialEgress(claim.permit),
+				navigationTimeoutMilliseconds:
+					RENDER_CRAWL_TIMEOUTS.residentialNavigationMs,
+				renderedThrough: "residential-per-gb",
+				escalation: "available",
+			}),
+		);
+		if (residential.kind !== "continue")
 			return {
 				kind: "settled",
 				settledThrough: "residential-per-gb",
@@ -198,11 +284,23 @@ export async function runRenderLadder(
 
 	const blockEvidence =
 		blockedBeforeResidential || residentialReport.kind === "blocked";
-	const webUnlockerFetch: ProxiedFetchAttempt | SkippedLeg = !blockEvidence
-		? NO_BLOCK_EVIDENCE
-		: fitsInTime(WEB_UNLOCKER_FETCH_ALLOWANCE)
-			? await legs.fetchThroughWebUnlocker()
-			: TIME_EXHAUSTED;
+	let webUnlockerFetch: ProxiedFetchAttempt | SkippedLeg = NO_BLOCK_EVIDENCE;
+	if (blockEvidence) {
+		if (!fitsInTime(WEB_UNLOCKER_FETCH_ALLOWANCE)) {
+			webUnlockerFetch = TIME_EXHAUSTED;
+		} else {
+			const claim = await legs.claimLeg("render-web-unlocker-fetch");
+			if (claim.kind === "deferred") {
+				webUnlockerFetch = DEFERRED;
+			} else if (claim.kind !== "granted") {
+				return stopped("render-web-unlocker-fetch", claim, direct.report);
+			} else {
+				webUnlockerFetch = await underPermit(claim.permit, () =>
+					legs.fetchThroughWebUnlocker(claim.permit),
+				);
+			}
+		}
+	}
 	if (
 		webUnlockerFetch.kind === "committed" ||
 		webUnlockerFetch.kind === "settled"
@@ -224,23 +322,27 @@ export async function runRenderLadder(
 			webUnlockerRender: TIME_EXHAUSTED,
 		};
 	}
-	if (!budgetConsumed) {
-		const budget = await legs.consumeBudget();
-		if (!budget.allowed)
-			return {
-				kind: "budget-exhausted",
-				gate: "web-unlocker-render",
-				direct: direct.report,
-			};
-	}
-	const webUnlockerRender = await renderLeg({
-		egress: legs.webUnlockerEgress,
-		navigationTimeoutMilliseconds:
-			RENDER_CRAWL_TIMEOUTS.webUnlockerNavigationMs,
-		renderedThrough: "web-unlocker-render",
-		escalation: "exhausted",
-	});
-	if (webUnlockerRender.kind === "settled")
+	const renderClaim = await legs.claimLeg("render-web-unlocker-render");
+	if (renderClaim.kind === "deferred")
+		return {
+			kind: "unrendered",
+			direct: direct.report,
+			residential: residentialReport,
+			webUnlockerFetch,
+			webUnlockerRender: DEFERRED,
+		};
+	if (renderClaim.kind !== "granted")
+		return stopped("render-web-unlocker-render", renderClaim, direct.report);
+	const webUnlockerRender = await underPermit(renderClaim.permit, () =>
+		renderLeg({
+			egress: legs.webUnlockerEgress(renderClaim.permit),
+			navigationTimeoutMilliseconds:
+				RENDER_CRAWL_TIMEOUTS.webUnlockerNavigationMs,
+			renderedThrough: "web-unlocker-render",
+			escalation: "exhausted",
+		}),
+	);
+	if (webUnlockerRender.kind !== "continue")
 		return {
 			kind: "settled",
 			settledThrough: "web-unlocker-render",

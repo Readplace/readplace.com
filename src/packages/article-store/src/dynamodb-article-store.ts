@@ -67,6 +67,7 @@ const ArticleAggregateRow = z.object({
 	contentLocation: dynamoField(z.string()),
 	...VerificationFields,
 	sourceOriginalUrl: dynamoField(z.string()),
+	meteredLegsDeferredSince: dynamoField(z.string()),
 });
 
 type RowShape = z.infer<typeof ArticleAggregateRow>;

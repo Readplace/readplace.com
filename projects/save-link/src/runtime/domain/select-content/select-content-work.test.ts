@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type ContentDecision, type SelectMostCompleteContent } from "./select-content";
 import { noopLogger } from "@packages/hutch-logger";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { type Article, type CanonicalCommit, type TransitionAndPersist, initTransitionAndPersist, requestRecrawl, promoteTier, recrawlPromoteTier, recrawlTieKeptCanonical, refreshContent } from "@packages/domain/article-aggregate";
 import { initSelectContentWork, type SelectContentDependencies } from "./select-content-work";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
@@ -52,6 +54,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	const deps: TestDependencies = {
 		listAvailableTierSources: async () => [source()],
 		selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("tier-1"), reason: "Most complete" }),
+		runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => new Date(NOW) }), logger: noopLogger, now: () => new Date(NOW) }),
 		writeCanonicalContent: jest.fn(async () => { events.push("upload"); return stored; }),
 		recordCrawlVersion: jest.fn(async () => { events.push("version"); }),
 		readCanonicalContent: async () => undefined, loadArticle: async () => article(), transitionAndPersist,
@@ -66,7 +69,7 @@ function setup(overrides: Partial<TestDependencies> = {}) {
 	};
 	return { work: initSelectContentWork({ ...deps, selectMostCompleteContent }), deps, commit, events };
 }
-const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), mode: "save" as const };
+const request = { url: URL, saveAttemptId: SaveAttemptIdSchema.parse("attempt"), claimId: "message-1", mode: "save" as const };
 const laterRequest = { ...request, saveAttemptId: SaveAttemptIdSchema.parse("later-attempt") };
 
 describe("initSelectContentWork", () => {

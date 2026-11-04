@@ -1,6 +1,7 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { initCrawlArticle, type CrawlArticle } from "@packages/crawl-article";
 import {
+	markCrawlAwaitingReader,
 	markCrawlBlocked,
 	markCrawlExhausted,
 	markCrawlFailed,
@@ -17,6 +18,8 @@ import { initFinalizeArticle, type FinalizeArticle, type FinalizedArticle } from
 import type { PutTierSource } from "@packages/tier-source";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -76,12 +79,21 @@ type HandlerDeps = Parameters<typeof initComprehensiveCrawlHandler>[0];
 
 const fixedNow = () => new Date("2026-04-18T12:00:00.000Z");
 
-function createHandler(overrides: Partial<HandlerDeps> = {}) {
+function initRunMeteredLegOver(ledger: { isMeteredLegsDeferred: (url: string) => boolean }) {
+	return initRunMeteredLeg({
+		...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: ledger.isMeteredLegsDeferred, now: fixedNow }),
+		logger: noopLogger,
+		now: fixedNow,
+	});
+}
+
+function createHandler({ crawlArticle = successfulComprehensiveCrawl, ...overrides }: Partial<HandlerDeps> & { crawlArticle?: CrawlArticle } = {}) {
 	return initComprehensiveCrawlHandler({
 		resolveOriginalUrl: async (url) => url,
 		prepareArticleIdentity: async (url) => ({ status: "resolved", url, originalUrl: url }),
 		verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }),
-		crawlArticle: successfulComprehensiveCrawl,
+		crawlArticleWithPermit: ({ permit: _permit, ...params }) => crawlArticle(params),
+		runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }),
 		finalizeArticle: okFinalize,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
@@ -1108,6 +1120,28 @@ it.each([true, false])("recovers a legacy wrapper source before deferred live wo
 	expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: captureSucceeds ? [{ id: expect.any(String), tier: "tier-2" }] : [], liveAttempt: { outcome: "no-body" } }));
 });
 
+it("defers a wrapper save to the reader without fetching the capture while paid legs wait for a reader", async () => {
+	const url = "https://example.com/article";
+	const captureUrl = `https://web.archive.org/web/20081203/${url}`;
+	const crawlArticle = jest.fn(successfulComprehensiveCrawl);
+	const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+	const publishEvent = jest.fn().mockResolvedValue(undefined);
+	const handler = createHandler({
+		prepareArticleIdentity: async () => ({ status: "resolved", url, originalUrl: url, contentSourceUrl: captureUrl, sourceOriginalUrl: url }),
+		crawlArticle,
+		transitionAndPersist,
+		publishEvent,
+		runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => true }),
+	});
+
+	const response = await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+	expect(response).toEqual({ batchItemFailures: [] });
+	expect(crawlArticle).not.toHaveBeenCalled();
+	expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+	expect(publishEvent).not.toHaveBeenCalled();
+});
+
 describe("deferred refresh of a source-bound article", () => {
 	const url = "https://example.com/doc.pdf";
 	const captureUrl = `https://web.archive.org/web/20081203/${url}`;
@@ -1179,4 +1213,156 @@ it.each<{ contentType: string; kind: "image" | "plain-text" }>([
 	}));
 	expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({ url }));
 	expect(parseHtml).toHaveBeenCalledTimes(0);
+});
+
+describe("comprehensive crawl under the metered-leg ledger", () => {
+	const url = "https://example.com/doc.pdf";
+	const refs = [{ id: "immutable-wrapper", tier: "tier-2" as const }];
+
+	it("hands the crawl the comprehensive permit claimed under the message id", async () => {
+		const crawlArticleWithPermit = jest.fn(async ({ permit: _permit, ...params }: Parameters<HandlerDeps["crawlArticleWithPermit"]>[0]) => successfulComprehensiveCrawl(params));
+		const handler = createHandler({ crawlArticleWithPermit });
+
+		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+		expect(crawlArticleWithPermit).toHaveBeenCalledWith(expect.objectContaining({
+			url,
+			permit: expect.objectContaining({ leg: "comprehensive", claimId: "msg-1" }),
+		}));
+	});
+
+	it("marks the row awaiting a reader without consuming budget or crawling when the leg is deferred", async () => {
+		const crawlArticle = jest.fn(successfulComprehensiveCrawl);
+		const consumePaidCrawlBudget = jest.fn().mockResolvedValue({ allowed: true, consumed: true });
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			crawlArticle,
+			consumePaidCrawlBudget,
+			transitionAndPersist,
+			runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => true }),
+		});
+
+		const result = await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlAwaitingReader, { url, input: { deferredLeg: "comprehensive" } });
+		expect(consumePaidCrawlBudget).not.toHaveBeenCalled();
+		expect(crawlArticle).not.toHaveBeenCalled();
+	});
+
+	it("publishes the archive comparison over the carried candidates when the leg is deferred", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			publishEvent,
+			transitionAndPersist,
+			runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => true }),
+		});
+
+		await handler(createSqsEvent({ url, candidates: refs }), buildLambdaContext(), () => {});
+
+		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({ candidates: refs, liveAttempt: { outcome: "no-body" } }));
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("leaves a refresh's row and events untouched when the leg is deferred", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({
+			publishEvent,
+			transitionAndPersist,
+			runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => true }),
+		});
+
+		const result = await handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("replays the committed tier-1 candidate instead of crawling again when the same inputs already settled", async () => {
+		const crawlArticle = jest.fn(successfulComprehensiveCrawl);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ crawlArticle, publishEvent, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
+
+		await handler(createSqsEvent({ url, previousBodyHash: "hash-1" }), buildLambdaContext(), () => {});
+		const committed = publishEvent.mock.calls[0][1].candidates;
+		await handler(createSqsEvent({ url, previousBodyHash: "hash-1", candidates: refs, saveAttemptId: "attempt-2" }), buildLambdaContext(), () => {});
+
+		expect(crawlArticle).toHaveBeenCalledTimes(1);
+		expect(committed).toEqual([{ id: expect.any(String), tier: "tier-1" }]);
+		expect(publishEvent).toHaveBeenLastCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			saveAttemptId: "attempt-2",
+			candidates: [...refs, ...committed],
+			liveAttempt: { outcome: "no-body" },
+		}));
+	});
+
+	it("replays the recorded candidate alone when the settled save carries no archive candidates", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ publishEvent, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
+
+		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+		const committed = publishEvent.mock.calls[0][1].candidates;
+		await handler(createSqsEvent({ url, recrawl: true }), buildLambdaContext(), () => {});
+
+		expect(publishEvent).toHaveBeenLastCalledWith(RecrawlContentExtractedEvent, expect.objectContaining({ candidates: committed }));
+	});
+
+	it("crawls again once the previous body hash changes the leg's inputs", async () => {
+		const crawlArticle = jest.fn(successfulComprehensiveCrawl);
+		const handler = createHandler({ crawlArticle, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
+
+		await handler(createSqsEvent({ url, previousBodyHash: "hash-1" }), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url, previousBodyHash: "hash-2" }), buildLambdaContext(), () => {});
+
+		expect(crawlArticle).toHaveBeenCalledTimes(2);
+	});
+
+	it("acks a settled refresh without publishing, since the served canonical already holds the recorded body", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ publishEvent, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
+
+		await handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {});
+		const result = await handler(createSqsEvent({ url, refresh: true }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(publishEvent).toHaveBeenCalledTimes(1);
+		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, expect.objectContaining({ url }));
+	});
+
+	it("records nothing for a crawl that committed no candidate, so the next delivery crawls again", async () => {
+		const crawlArticle = jest.fn<ReturnType<CrawlArticle>, Parameters<CrawlArticle>>(async () => ({ status: "failed" }));
+		const handler = createHandler({ crawlArticle, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
+
+		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+		expect(crawlArticle).toHaveBeenCalledTimes(2);
+	});
+
+	it("re-runs the budget gate on the next delivery after the budget refused the leg", async () => {
+		const consumePaidCrawlBudget = jest.fn().mockResolvedValue({ allowed: false });
+		const handler = createHandler({ consumePaidCrawlBudget, runMeteredLeg: initRunMeteredLegOver({ isMeteredLegsDeferred: () => false }) });
+
+		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+		await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+		expect(consumePaidCrawlBudget).toHaveBeenCalledTimes(2);
+	});
+
+	it("acks without a write while another message holds the leg", async () => {
+		const crawlArticle = jest.fn(successfulComprehensiveCrawl);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const handler = createHandler({ crawlArticle, transitionAndPersist, publishEvent, runMeteredLeg: async () => ({ kind: "in-flight" }) });
+
+		const result = await handler(createSqsEvent({ url }), buildLambdaContext(), () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(crawlArticle).not.toHaveBeenCalled();
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
 });

@@ -178,3 +178,12 @@ export type PublishUpdateFetchTimestamp = (params: {
 	contentFetchedAt: string;
 	bodyHash?: string;
 }) => Promise<void>;
+
+export type ResolveOnViewSurface = "readlist-html" | "readlist-siren" | "reader" | "reader-capture-gave-up" | "queue-digest";
+
+export type PublishResolveArticleOnView = (params: {
+	url: string;
+	saveAttemptId: SaveAttemptId;
+	axes: "crawl-and-summary" | "summary";
+	surface: ResolveOnViewSurface;
+}) => Promise<void>;

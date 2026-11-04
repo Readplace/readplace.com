@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { ArticleCrawl, MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
 import { initFileArticleIntoReadlist } from "@packages/save-article";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initSaveEmailIssue } from "./save-email-issue";
@@ -16,7 +16,7 @@ function harness(crawl: ArticleCrawl | undefined, opts: { failFiling?: boolean }
 	const store = initInMemoryArticleStore();
 	const calls: string[] = [];
 	const displayUrls: { articleUrl: string; displayUrl: string }[] = [];
-	const crawlPendingMarks: { url: string; measured: boolean }[] = [];
+	const crawlPendingMarks: { url: string; measured: boolean; meteredLegs: MeteredLegsMode }[] = [];
 	const fileIntoReadlist = initFileArticleIntoReadlist({
 		allocateSavedAt: store.allocateSavedAt,
 		saveReadlistArticle: store.saveReadlistArticle,
@@ -72,7 +72,7 @@ describe("initSaveEmailIssue", () => {
 		);
 		assert.deepEqual(h.displayUrls, [{ articleUrl: ISSUE_URL, displayUrl: INBOX_PAGE }]);
 		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all"]);
-		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: false }]);
+		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: false, meteredLegs: "run" }]);
 	});
 
 	it("marks a still-pending issue's crawl unmeasured on a repeat save too", async () => {
@@ -84,7 +84,7 @@ describe("initSaveEmailIssue", () => {
 		await h.save([]);
 
 		assert.deepEqual(h.calls, ["crawl-pending", "summary-pending", "saved-to-all"]);
-		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: false }]);
+		assert.deepEqual(h.crawlPendingMarks, [{ url: ISSUE_URL, measured: false, meteredLegs: "run" }]);
 	});
 
 	it("files the issue into every custom readlist the newsletter is mapped to, as well as All", async () => {

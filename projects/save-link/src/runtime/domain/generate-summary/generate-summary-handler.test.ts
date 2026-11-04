@@ -15,6 +15,8 @@ import type { SummarizeArticle } from "./link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "./max-receive-count";
+import { initRunMeteredLeg, type RunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 
@@ -88,9 +90,19 @@ type HandlerDeps = Parameters<typeof initGenerateSummaryHandler>[0];
 
 const NOW = new Date("2026-05-30T12:00:00.000Z");
 
+function createRunMeteredLeg(isMeteredLegsDeferred: (url: string) => boolean = () => false): RunMeteredLeg {
+	const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred, now: () => NOW });
+	return initRunMeteredLeg({ ...ledger, logger: noopLogger, now: () => NOW });
+}
+
+function readySummary(): Awaited<ReturnType<SummarizeArticle>> {
+	return { kind: "ready", summary: "A summary.", excerpt: "A blurb.", inputTokens: 10, outputTokens: 5 };
+}
+
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	const deps: HandlerDeps = {
 		summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>(),
+		runMeteredLeg: createRunMeteredLeg(),
 		findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue({ content: "<p>content</p>" }),
 		loadArticle: jest.fn().mockResolvedValue(pendingArticle("https://example.com/x")),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
@@ -720,6 +732,113 @@ describe("initGenerateSummaryHandler", () => {
 		const { handler } = createHandler({ loadArticle: async () => ({ ...pendingArticle(url), summary: { kind: "ready", summary: "Private stale summary" }, freshness: { contentFetchedAt: NOW.toISOString(), canonicalContentHash: "current-hash" }, contentSelection }), findArticleContent });
 		expect(await handler(createSqsEvent({ url }), buildLambdaContext(), () => {})).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(findArticleContent).toHaveBeenCalled();
+	});
+
+	describe("under the metered-leg ledger", () => {
+		const URL = "https://example.com/metered";
+		const html = "<p>metered content</p>";
+
+		it("hands the summariser a summary permit claimed for the canonical content hash", async () => {
+			const summarizeArticle = jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue(readySummary());
+			const { handler } = createHandler({ summarizeArticle, findArticleContent: async () => ({ content: html }), loadArticle: async () => pendingArticle(URL) });
+
+			await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+			expect(summarizeArticle).toHaveBeenCalledWith({
+				url: URL,
+				textContent: html,
+				permit: expect.objectContaining({ leg: "summary", claimId: "msg-1" }),
+			});
+		});
+
+		it("marks the summary skipped awaiting a reader without calling the summariser when the row defers metered legs", async () => {
+			const summarizeArticle = jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>();
+			const { handler, deps } = createHandler({
+				summarizeArticle,
+				runMeteredLeg: createRunMeteredLeg(() => true),
+				findArticleContent: async () => ({ content: html }),
+				loadArticle: async () => pendingArticle(URL),
+			});
+
+			const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(summarizeArticle).not.toHaveBeenCalled();
+			expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
+				url: URL,
+				selectionExpected: { scope: "canonical-content", snapshot: undefined },
+				input: { reason: "awaiting-reader", now: NOW.toISOString() },
+			});
+		});
+
+		it("acks without summarising again when the summary leg already settled for the same content", async () => {
+			const summarizeArticle = jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue(readySummary());
+			const { handler, deps } = createHandler({ summarizeArticle, findArticleContent: async () => ({ content: html }), loadArticle: async () => pendingArticle(URL) });
+
+			await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+			const second = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+			expect(second).toEqual({ batchItemFailures: [] });
+			expect(summarizeArticle).toHaveBeenCalledTimes(1);
+			expect(deps.transitionAndPersist).toHaveBeenCalledTimes(1);
+		});
+
+		it("summarises again when a ready summary is reset to pending for the same content", async () => {
+			const summarizeArticle = jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue(readySummary());
+			const loadArticle = jest.fn<Promise<Article>, [string]>()
+				.mockResolvedValueOnce(pendingArticle(URL))
+				.mockResolvedValueOnce({ ...pendingArticle(URL), summary: { kind: "pending", pendingSince: "2026-06-01T00:00:00.000Z" } });
+			const { handler, deps } = createHandler({ summarizeArticle, loadArticle, findArticleContent: async () => ({ content: html }) });
+
+			await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+			const reset = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+			expect(reset).toEqual({ batchItemFailures: [] });
+			expect(summarizeArticle).toHaveBeenCalledTimes(2);
+			expect(deps.transitionAndPersist).toHaveBeenNthCalledWith(2, markSummaryReady, expect.objectContaining({ url: URL }));
+		});
+
+		it("leaves the message for redelivery while another message holds the summary claim", async () => {
+			const runMeteredLeg = createRunMeteredLeg();
+			const summarizeArticle = jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue(readySummary());
+			const { handler, deps } = createHandler({ summarizeArticle, runMeteredLeg, findArticleContent: async () => ({ content: html }), loadArticle: async () => pendingArticle(URL) });
+			const holding = new Promise<void>((resolve) => {
+				void runMeteredLeg({
+					url: URL,
+					leg: "summary",
+					inputs: [computeCanonicalContentHash(html), "2026-01-01T00:00:00.000Z"],
+					claimId: "other-message",
+					claimTtlMs: 60_000,
+					run: async () => {
+						resolve();
+						await new Promise(() => {});
+						return { kind: "unsucceeded" };
+					},
+				});
+			});
+			await holding;
+
+			const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+			expect(summarizeArticle).not.toHaveBeenCalled();
+			expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		});
+
+		it("releases the claim when the summariser does not produce a summary, so the next receive summarises again", async () => {
+			const summarizeArticle = jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>()
+				.mockResolvedValueOnce({ kind: "declined" })
+				.mockResolvedValueOnce(readySummary());
+			const { handler, deps } = createHandler({ summarizeArticle, findArticleContent: async () => ({ content: html }), loadArticle: async () => pendingArticle(URL) });
+
+			const first = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+			const second = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
+
+			expect(first).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+			expect(second).toEqual({ batchItemFailures: [] });
+			expect(summarizeArticle).toHaveBeenCalledTimes(2);
+			expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, expect.objectContaining({ url: URL }));
+		});
 	});
 
 });

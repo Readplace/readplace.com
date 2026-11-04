@@ -5,6 +5,7 @@ const TIER_1_DISPOSITION = {
 	paywall: "defer",
 	"javascript-required": "defer",
 	"content-too-large": "terminal",
+	"awaiting-reader": "terminal",
 } satisfies Record<CrawlUnsupportedReason["kind"], "defer" | "terminal">;
 
 export function terminalUnsupportedReason(

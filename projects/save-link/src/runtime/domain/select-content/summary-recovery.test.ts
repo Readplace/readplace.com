@@ -12,6 +12,8 @@ import {
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-aggregate";
 import { initSelectMostCompleteContentHandler } from "./select-most-complete-content-handler";
 import { initGenerateSummaryHandler } from "../generate-summary/generate-summary-handler";
+import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
+import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { initCanonicalContentChangedHandler } from "../save-link/canonical-content-changed-handler";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { initLinkSummariser, type SummarizeArticle } from "../generate-summary/link-summariser";
@@ -121,12 +123,12 @@ describe("summary recovery on canonical content change", () => {
 			}
 		};
 		const { transitionAndPersist } = initTransitionAndPersist({ store, dispatchEffect, logCrawlSettled: () => {} });
-		summaryHandler = initGenerateSummaryHandler({ summarizeArticle, findArticleContent, loadArticle: store.load, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger });
+		summaryHandler = initGenerateSummaryHandler({ summarizeArticle, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => FIXED_NOW }), logger: noopLogger, now: () => FIXED_NOW }), findArticleContent, loadArticle: store.load, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger, deepseekCallFailedLog: noopLogger });
 		canonicalChangedHandler = initCanonicalContentChangedHandler({ findArticleContent, transitionAndPersist, now: () => FIXED_NOW, logger: noopLogger });
 		const judge = jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>();
 		const recordCrawlVersion = jest.fn(async () => {});
 		const work = initSelectContentWork({
-			listAvailableTierSources: async () => [historical, resource], selectMostCompleteContent: judge,
+			listAvailableTierSources: async () => [historical, resource], selectMostCompleteContent: judge, runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => FIXED_NOW }), logger: noopLogger, now: () => FIXED_NOW }),
 			writeCanonicalContent: async ({ source }) => {
 				const contentLocation = `s3://content/${source.metadata.id}.html`;
 				bodies.set(contentLocation, source.html);
@@ -137,7 +139,7 @@ describe("summary recovery on canonical content change", () => {
 			now: () => FIXED_NOW, logger: noopLogger,
 		});
 
-		await work({ url: URL, saveAttemptId: attemptId, candidates: [{ id: resource.metadata.id, tier: "tier-1" }], mode: "recrawl" });
+		await work({ url: URL, saveAttemptId: attemptId, claimId: "message-1", candidates: [{ id: resource.metadata.id, tier: "tier-1" }], mode: "recrawl" });
 
 		const persisted = await store.load(URL);
 		expect(judge).toHaveBeenCalledTimes(0);
@@ -196,6 +198,11 @@ describe("summary recovery on canonical content change", () => {
 
 		generateSummaryHandler = initGenerateSummaryHandler({
 			summarizeArticle,
+			runMeteredLeg: initRunMeteredLeg({
+				...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => FIXED_NOW }),
+				logger: noopLogger,
+				now: () => FIXED_NOW,
+			}),
 			findArticleContent,
 			loadArticle: store.load,
 			transitionAndPersist,
@@ -214,6 +221,7 @@ describe("summary recovery on canonical content change", () => {
 			readCanonicalContent: async () => undefined,
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
 			selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: async () => ({ choices: [{ message: { content: JSON.stringify({ kind: "winner", candidate: "A", reason: "readable article", readability: [{ candidate: "A", readable: true }] }) } }] }) }).selectMostCompleteContent,
+			runMeteredLeg: initRunMeteredLeg({ ...initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: () => false, now: () => FIXED_NOW }), logger: noopLogger, now: () => FIXED_NOW }),
 			writeCanonicalContent: async () => ({ contentLocation: "s3://content/current.html", candidateId: tier1.metadata.id, tier: "tier-1" }),
 			resolveOriginalUrl: async () => URL,
 			verifyWrapperSource: async () => undefined,

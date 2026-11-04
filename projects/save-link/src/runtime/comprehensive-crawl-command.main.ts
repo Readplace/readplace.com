@@ -12,7 +12,8 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { requireEnv } from "@packages/require-env";
-import { initCanonicalAliasStore } from "@packages/article-store";
+import { initCanonicalAliasStore, initDynamoDbMeteredLegLedger } from "@packages/article-store";
+import { initRunMeteredLeg } from "./domain/metered-leg/run-metered-leg";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
 import { initAdoptCanonicalIdentity } from "./domain/save-link/adopt-canonical-identity";
 import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
@@ -122,6 +123,11 @@ const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlB
 	now,
 	delay: (milliseconds) => sleep(milliseconds),
 });
+const runMeteredLeg = initRunMeteredLeg({
+	...initDynamoDbMeteredLegLedger({ client: dynamoClient, tableName: articlesTable, now }),
+	logger: consoleLogger,
+	now,
+});
 const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 	adoptDestination: canonicalAliasStore.adoptDestination,
 	reconcileStubMetadata: canonicalAliasStore.reconcileStubMetadata,
@@ -132,7 +138,8 @@ const adoptCanonicalIdentity = initAdoptCanonicalIdentity({
 
 export const handler = initComprehensiveCrawlHandler({
 	...sourceIdentity,
-	crawlArticle: parser.crawlArticle,
+	crawlArticleWithPermit: ({ permit: _permit, ...params }) => parser.crawlArticle(params),
+	runMeteredLeg,
 	finalizeArticle: crawlAndFinalize.finalizeArticle,
 	...articleStore,
 	...events,

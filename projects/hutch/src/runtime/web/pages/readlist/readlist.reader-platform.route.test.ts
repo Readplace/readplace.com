@@ -18,7 +18,7 @@ import { MARKED_READ_EVENT } from "../reader/reader-exit-confirm.client";
 import { saveAccessTokenForUser } from "../../test-helpers/oauth-token";
 
 import request from "supertest";
-import { shownSummary, type Viewer } from "@packages/domain/article";
+import { ReaderArticleHashId, shownSummary, type Viewer } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -91,11 +91,13 @@ function buildBlockedHarness(): ReturnType<typeof useApp> {
 	});
 }
 
-function buildFailedHarness(): ReturnType<typeof useApp> {
+const PARSE_ERROR_REASON = JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" });
+
+function buildFailedHarness() {
 	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
 	const parseArticle = async () => ({
 		ok: false as const,
-		reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }),
+		reason: PARSE_ERROR_REASON,
 	});
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const applyParseResult = createFakeApplyParseResult({
@@ -103,7 +105,7 @@ function buildFailedHarness(): ReturnType<typeof useApp> {
 		articleCrawl: fixture.articleCrawl,
 		parseArticle,
 	});
-	return useApp({
+	const harness = useApp({
 		...fixture,
 		parser: { parseArticle, crawlArticle },
 		events: {
@@ -113,6 +115,8 @@ function buildFailedHarness(): ReturnType<typeof useApp> {
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 		},
 	});
+	const failAgain = (url: string) => fixture.articleCrawl.markCrawlFailed({ url, reason: PARSE_ERROR_REASON });
+	return { harness, failAgain };
 }
 
 function buildNotFoundHarness(): ReturnType<typeof useApp> {
@@ -161,12 +165,7 @@ async function saveAndGetArticleId(
 	url: string,
 ): Promise<string> {
 	await agent.post("/queue/save").type("form").send({ url });
-	const readlistDoc = new JSDOM((await agent.get("/queue")).text).window.document;
-	const articleId = readlistDoc
-		.querySelector("[data-test-article-list] .readlist-article")
-		?.getAttribute("data-test-article");
-	assert(articleId, "saved article must appear in the readlist listing");
-	return articleId;
+	return ReaderArticleHashId.from(url).value;
 }
 
 describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)", () => {
@@ -363,11 +362,15 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 	});
 
 	it("stamps the failed notice's capture control with the reader-poll URL that arms the capturing state", async () => {
-		const harness = buildFailedHarness();
+		const { harness, failAgain } = buildFailedHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
-		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-failed-capture-kickoff");
+		const url = "https://example.com/app-failed-capture-kickoff";
+		const articleId = await saveAndGetArticleId(agent, url);
 
-		const doc = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
+		const opened = new JSDOM((await agent.get(`/queue/${articleId}/view?platform=ios`)).text).window.document;
+		expect(opened.querySelector("[data-test-reader-slot]")?.getAttribute("data-reader-status")).toBe("pending");
+		await failAgain(url);
+		const doc = new JSDOM((await agent.get(`/queue/${articleId}/reader?poll=1&platform=ios`)).text).window.document;
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -380,7 +383,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		}).toEqual({
 			status: "failed",
 			offered: true,
-			pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=1&captureTrigger=manual&platform=ios`,
+			pollUrl: `/queue/${articleId}/reader?poll=1&captureNotice=2&captureTrigger=manual&platform=ios`,
 		});
 	});
 
@@ -484,19 +487,43 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 		reader.dom.window.close();
 	});
 
+	async function openBlockedNoticeReader() {
+		const harness = buildBlockedHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const articleId = await saveAndGetArticleId(agent, "https://example.com/app-capture-tap-blocked");
+		return openAppReaderPage({
+			html: (await agent.get(`/queue/${articleId}/view?platform=ios`)).text,
+			htmxLive: true,
+		});
+	}
+
+	async function openFailedNoticeReader() {
+		const { harness, failAgain } = buildFailedHarness();
+		const agent = await loginAgent(harness.server, harness.auth);
+		const url = "https://example.com/app-capture-tap-failed";
+		const articleId = await saveAndGetArticleId(agent, url);
+		const reader = openAppReaderPage({
+			html: (await agent.get(`/queue/${articleId}/view?platform=ios`)).text,
+			htmxLive: true,
+		});
+		await failAgain(url);
+		const poll = new JSDOM((await agent.get(`/queue/${articleId}/reader?poll=1&platform=ios`)).text).window.document;
+		const arrivingNotice = poll.querySelector("#article-body-reader-notice");
+		assert(arrivingNotice, "the poll must carry the failed notice");
+		const pendingNotice = reader.dom.window.document.querySelector("#article-body-reader-notice");
+		assert(pendingNotice, "the pending reader must hold the notice region");
+		pendingNotice.outerHTML = arrivingNotice.outerHTML;
+		reader.dom.window.document.body.dispatchEvent(new reader.dom.window.Event("htmx:afterSettle"));
+		return reader;
+	}
+
 	it("a tap posts captureBlocked and the bridge does nothing else", async () => {
 		const notices = [
-			{ variant: "blocked", buildNoticeHarness: buildBlockedHarness },
-			{ variant: "failed", buildNoticeHarness: buildFailedHarness },
+			{ variant: "blocked", openNoticeReader: openBlockedNoticeReader },
+			{ variant: "failed", openNoticeReader: openFailedNoticeReader },
 		];
-		for (const { variant, buildNoticeHarness } of notices) {
-			const harness = buildNoticeHarness();
-			const agent = await loginAgent(harness.server, harness.auth);
-			const articleId = await saveAndGetArticleId(agent, `https://example.com/app-capture-tap-${variant}`);
-			const reader = openAppReaderPage({
-				html: (await agent.get(`/queue/${articleId}/view?platform=ios`)).text,
-				htmxLive: true,
-			});
+		for (const { variant, openNoticeReader } of notices) {
+			const reader = await openNoticeReader();
 			const notice = reader.dom.window.document.querySelector("[data-test-reader-notice]");
 			assert(notice, `the ${variant} notice must be rendered`);
 			const button = notice.querySelector<HTMLButtonElement>('[data-test-reader-action="capture"]');

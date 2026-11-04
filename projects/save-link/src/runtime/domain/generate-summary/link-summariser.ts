@@ -6,6 +6,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
+import type { PaidLegPermit } from "@packages/provider-contracts/metered-leg-ledger";
 import { DEEPSEEK_CONTEXT_TOKENS } from "../select-content/deepseek-limits";
 
 const SUMMARY_MAX_OUTPUT_TOKENS = 10240;
@@ -48,6 +49,7 @@ export type SummarizeResult =
 export type SummarizeArticle = (params: {
 	url: string;
 	textContent: string;
+	permit: PaidLegPermit;
 }) => Promise<SummarizeResult>;
 
 function clipExcerpt(text: string): string {
