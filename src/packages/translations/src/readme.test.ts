@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ALL_SURFACES } from "./all-surfaces";
 import { NATIVE_CATALOGS } from "./native/native-catalogs";
-import { WEB_CATALOG } from "./web-catalog";
+import { WEB_SURFACE_NAMES } from "./web-catalog";
 
 function readmeRows(): Map<string, string> {
 	const readme = readFileSync(path.resolve(__dirname, "../README.md"), "utf8");
@@ -23,7 +23,22 @@ describe("README surface table", () => {
 		assert.deepEqual(readmeRows(), expected);
 	});
 
-	it("combines the web surfaces without a namespace clash", () => {
-		assert.ok(Array.isArray(WEB_CATALOG.keys()));
+	it("combines every surface except the API, stored and extension ones into the web catalog", () => {
+		assert.deepEqual(
+			[...WEB_SURFACE_NAMES].sort(),
+			[
+				"blog-site",
+				"common",
+				"hutch-account",
+				"hutch-auth",
+				"hutch-emails",
+				"hutch-integrations",
+				"hutch-reader",
+				"hutch-readlist",
+				"inbox",
+				"shell",
+				"web-embed",
+			],
+		);
 	});
 });
