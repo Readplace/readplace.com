@@ -65,7 +65,7 @@ describe("related computation passes", () => {
 			],
 		});
 		expect(calls).toEqual([
-			{ Records: [saved] },
+			{ Records: [] },
 			{ Records: [saved, refresh] },
 			{ Records: [contentChanged] },
 		]);
@@ -93,6 +93,32 @@ describe("related computation passes", () => {
 		expect(calls).toEqual({
 			nextRead: [{ Records: [bothPasses] }],
 			pastReads: [{ Records: [bothPasses] }],
+			recompute: [{ Records: [] }],
+		});
+	});
+
+	it("sends a QueueEntryCreated record only to the Past reads pass", async () => {
+		const calls: Record<string, SQSEvent[]> = { nextRead: [], pastReads: [], recompute: [] };
+		const handler = initComputeRelatedPasses({
+			nextReadHandler: async (e) => {
+				calls.nextRead?.push(e);
+				return { batchItemFailures: [] };
+			},
+			pastReadsHandler: async (e) => {
+				calls.pastReads?.push(e);
+				return { batchItemFailures: [] };
+			},
+			recomputeNextReadHandler: async (e) => {
+				calls.recompute?.push(e);
+				return { batchItemFailures: [] };
+			},
+		});
+
+		await handler({ Records: [saved] }, buildLambdaContext(), () => {});
+
+		expect(calls).toEqual({
+			nextRead: [{ Records: [] }],
+			pastReads: [{ Records: [saved] }],
 			recompute: [{ Records: [] }],
 		});
 	});

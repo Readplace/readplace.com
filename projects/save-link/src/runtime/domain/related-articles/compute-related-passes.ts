@@ -27,13 +27,9 @@ export function initComputeRelatedPasses(deps: {
 		context,
 		callback,
 	) => {
-		const nextReadRecords = event.Records.filter((record) => {
-			const detailType = detailTypeOf(record);
-			return (
-				detailType === QueueEntryCreatedEvent.detailType ||
-				detailType === ComputeRelatedPassesCommand.detailType
-			);
-		});
+		const nextReadRecords = event.Records.filter(
+			(record) => detailTypeOf(record) === ComputeRelatedPassesCommand.detailType,
+		);
 		const pastReadsRecords = event.Records.filter((record) => {
 			const detailType = detailTypeOf(record);
 			return (

@@ -14,8 +14,7 @@ import type {
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
 } from "@packages/provider-contracts/related-articles";
-import { z } from "zod";
-import { ComputeRelatedPassesCommand, QueueEntryCreatedEvent } from "./index";
+import { ComputeRelatedPassesCommand } from "./index";
 import { COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT } from "./max-receive-count";
 import { MetadataNotReadyError, initNextReadComputation } from "./next-read-computation";
 import type { GatherRelatedCandidatePools } from "./related-articles-candidates";
@@ -33,11 +32,6 @@ interface ComputeRelatedArticlesHandlerDeps {
 	logger: HutchLogger;
 	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
 }
-
-const NextReadRequestDetail = z.union([
-	QueueEntryCreatedEvent.detailSchema,
-	ComputeRelatedPassesCommand.detailSchema,
-]);
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComputeRelatedArticlesHandler(
@@ -72,7 +66,7 @@ export function initComputeRelatedArticlesHandler(
 			const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 			try {
 				const envelope = JSON.parse(record.body);
-				const entry = NextReadRequestDetail.parse(envelope.detail);
+				const entry = ComputeRelatedPassesCommand.detailSchema.parse(envelope.detail);
 				const userId = UserIdSchema.parse(entry.userId);
 
 				const existing = await findRelatedArticles({ userId, url: entry.url });
