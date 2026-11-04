@@ -85,5 +85,6 @@ export const handler = initSaveAnonymousLinkCommandHandler({
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	emitSimpleCrawlUnsupported,
 	adoptCanonicalIdentity,
+	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
 });

@@ -39,7 +39,7 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 					saveAttemptId: detail.saveAttemptId,
 					candidates: detail.candidates,
 				};
-				if (needsRender) await publishEvent(RenderCrawlCommand, { ...forwarded, unsupportedReason });
+				if (needsRender) await publishEvent(RenderCrawlCommand, { ...forwarded, unsupportedReason, finalUrl: detail.finalUrl });
 				else await publishEvent(ComprehensiveCrawlCommand, forwarded);
 				const command = needsRender ? RenderCrawlCommand : ComprehensiveCrawlCommand;
 

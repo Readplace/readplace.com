@@ -34,7 +34,7 @@ describe("archive attempt orchestration", () => {
 		};
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
-		const { saveLinkWork } = initSaveLinkWork({ ...shared, emitSimpleCrawlUnsupported, publishEvent: async () => {}, resolveOriginalUrl: async () => url, updateFetchTimestamp: async () => {}, transitionAndPersist, markCrawlStage: async () => {}, adoptCanonicalIdentity: async () => {}, logParseError: () => {}, logPrefix: "test" });
+		const { saveLinkWork } = initSaveLinkWork({ ...shared, emitSimpleCrawlUnsupported, publishEvent: async () => {}, resolveOriginalUrl: async () => url, updateFetchTimestamp: async () => {}, transitionAndPersist, markCrawlStage: async () => {}, adoptCanonicalIdentity: async () => {}, isSiteRuleUrl: () => false, logParseError: () => {}, logPrefix: "test" });
 		const verifyWrapperSource = async () => ({ originalUrl: url, sourceUrl: captureUrl });
 		const crawlArchiveCapture = initCrawlArchiveCapture({ ...shared, verifyWrapperSource, publishEvent: async () => {} });
 		const attempt = await initCrawlSaveCandidates({ saveLinkWork, crawlArchiveCapture, emitSimpleCrawlUnsupported })(params);
@@ -84,6 +84,12 @@ describe("archive attempt orchestration", () => {
 		expect(await save(params)).toEqual({ deferredTo: "simple-crawl-unsupported", carriedCandidates: 0 });
 		expect(emit).toHaveBeenCalledWith(expect.objectContaining({ url, unsupportedReason: "blocked", candidates: [] }));
 	});
+	it("keeps the page the live crawl reached on the deferral it emits once the archive capture finishes", async () => {
+		const emit = jest.fn().mockResolvedValue(undefined);
+		const save = initCrawlSaveCandidates({ crawlArchiveCapture: async () => wrapper, saveLinkWork: async () => ({ deferred: "blocked", finalUrl: "https://publisher.example/story" }), emitSimpleCrawlUnsupported: emit });
+		await save({ ...params, userId: "user-1" });
+		expect(emit).toHaveBeenCalledWith({ url, unsupportedReason: "blocked", userId: "user-1", saveAttemptId: params.saveAttemptId, candidates: [wrapper], finalUrl: "https://publisher.example/story" });
+	});
 	it("records an empty live response as a live failure while the extracted archive still reaches selection", async () => {
 		const crawlArticle = initCrawlArticle({ crawlFetch: async (target) => new Response(target === url ? "" : `<html><head><title>Archived report</title></head><body><article><p>${"A real article contains important facts and readable paragraphs. ".repeat(30)}</p></article></body></html>`, { status: 200, headers: { "content-type": "text/html" } }), siteRules: [], logError: () => {}, logInfo: () => {}, logThumbnailNotDelivered: () => {} });
 		const { parseHtml } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: () => {} });
@@ -93,7 +99,7 @@ describe("archive attempt orchestration", () => {
 		const readTierSnapshot = async () => ({ tier0Status: "not_attempted" as const, tier1Status: "failed" as const, pickedTier: "none" as const });
 		const emitSimpleCrawlUnsupported = async () => {};
 		const shared = { crawlAndFinalizeArticle, putTierSource, readTierSnapshot, logCrawlOutcome: () => {}, logger: noopLogger, now: () => new Date("2026-10-01T00:00:00Z") };
-		const { saveLinkWork } = initSaveLinkWork({ ...shared, emitSimpleCrawlUnsupported, publishEvent: async () => {}, resolveOriginalUrl: async (input) => input, updateFetchTimestamp: async () => {}, transitionAndPersist: async () => {}, markCrawlStage: async () => {}, adoptCanonicalIdentity: async () => {}, logParseError: () => {}, logPrefix: "test" });
+		const { saveLinkWork } = initSaveLinkWork({ ...shared, emitSimpleCrawlUnsupported, publishEvent: async () => {}, resolveOriginalUrl: async (input) => input, updateFetchTimestamp: async () => {}, transitionAndPersist: async () => {}, markCrawlStage: async () => {}, adoptCanonicalIdentity: async () => {}, isSiteRuleUrl: () => false, logParseError: () => {}, logPrefix: "test" });
 		const crawlArchiveCapture = initCrawlArchiveCapture({ ...shared, verifyWrapperSource: async ({ articleUrl, sourceUrl }) => ({ originalUrl: articleUrl, sourceUrl }), publishEvent: async () => {} });
 		const result = await initCrawlSaveCandidates({ saveLinkWork, crawlArchiveCapture, emitSimpleCrawlUnsupported })(params);
 		expect(result).toEqual({ candidates: [{ id: expect.any(String), tier: "tier-2" }], liveAttempt: { outcome: "no-body", failureReason: { kind: "parse-error", detail: "no <html> element in response body" } } });

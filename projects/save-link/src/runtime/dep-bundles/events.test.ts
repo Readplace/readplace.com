@@ -84,4 +84,18 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 			saveAttemptId,
 		});
 	});
+
+	it("carries the page the free crawl reached so the render crawl can start there", async () => {
+		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
+		await emit({ url: "https://links.tracker.example/r/abc", unsupportedReason: "blocked", saveAttemptId, finalUrl: "https://publisher.example/story" });
+
+		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+			url: "https://links.tracker.example/r/abc",
+			unsupportedReason: "blocked",
+			saveAttemptId,
+			finalUrl: "https://publisher.example/story",
+		});
+	});
 });

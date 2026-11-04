@@ -31,6 +31,7 @@ function defineCommand<T extends z.ZodTypeAny>(definition: {
 const SaveAttemptId = z.string().min(1).brand<"SaveAttemptId">();
 const CandidateReferences = z.array(z.object({ id: z.string().min(1).brand<"CandidateId">(), tier: z.enum(["tier-0", "tier-1", "tier-2"]) }));
 const LiveAttempt = z.object({ outcome: z.enum(["body", "no-body", "deferred"]), failureReason: CrawlFailureReasonSchema.optional() });
+const ObservedFetchTarget = z.url({ protocol: /^https?$/ });
 const DeferredCrawlFields = z.object({
 	url: z.string(),
 	saveAttemptId: SaveAttemptId,
@@ -214,6 +215,7 @@ export const SimpleCrawlUnsupportedEvent = defineEvent({
 		refresh: z.boolean().optional(),
 		previousBodyHash: z.string().optional(),
 		unsupportedReason: z.enum(["non-html-content", "paywall", "javascript-required", "blocked"]).optional(),
+		finalUrl: ObservedFetchTarget.optional(),
 	}).refine(
 		(d) => !(d.recrawl && d.refresh),
 		{ message: "recrawl and refresh are mutually exclusive" },
@@ -254,6 +256,7 @@ export const RenderCrawlCommand = defineEvent({
 	detailType: "RenderCrawlCommand",
 	detailSchema: DeferredCrawlFields.extend({
 		unsupportedReason: z.enum(["javascript-required", "blocked"]),
+		finalUrl: ObservedFetchTarget.optional(),
 	}).refine(isRecrawlOrRefresh, RECRAWL_OR_REFRESH),
 });
 export type RenderCrawlDetail = z.infer<

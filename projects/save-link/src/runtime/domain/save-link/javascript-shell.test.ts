@@ -4,10 +4,13 @@ import { deferJavascriptShells } from "./javascript-shell";
 
 const SHELL_HTML = '<html><head><title>App</title><script src="/static/app.js"></script></head><body><div id="root"></div></body></html>';
 
+const url = "https://example-spa.test/post";
+
 const JAVASCRIPT_REQUIRED = {
 	status: "unsupported",
 	reason: "javascript-required",
 	unsupportedReason: { kind: "javascript-required" },
+	finalUrl: url,
 };
 
 function fetchedPage(page: {
@@ -45,8 +48,6 @@ function fakeCrawl(result: CrawlAndFinalizeResult) {
 function deferring(crawlAndFinalizeArticle: CrawlAndFinalizeArticle) {
 	return deferJavascriptShells({ crawlAndFinalizeArticle });
 }
-
-const url = "https://example-spa.test/post";
 
 describe("deferJavascriptShells", () => {
 	it("defers a 2xx HTML page with no readable words and an external script to the render crawl", async () => {
@@ -166,11 +167,11 @@ describe("deferJavascriptShells", () => {
 		});
 	});
 
-	it("defers a shell that a site rule redirected to and the crawl fetched over HTTP", async () => {
+	it("defers a shell that a site rule redirected to and the crawl fetched over HTTP, keeping the page it landed on so the render starts there", async () => {
 		const result = fetchedPage({ evaluationHtml: SHELL_HTML, wordCount: 0, finalUrl: "https://publisher-spa.test/story" });
 		const crawl = deferring(fakeCrawl(result));
 
-		await expect(crawl({ url: "https://news-wrapper.test/A123" })).resolves.toEqual(JAVASCRIPT_REQUIRED);
+		await expect(crawl({ url: "https://news-wrapper.test/A123" })).resolves.toEqual({ ...JAVASCRIPT_REQUIRED, finalUrl: "https://publisher-spa.test/story" });
 	});
 
 	it("leaves an archive or wrapper fetch untouched, even when it returns a shell", async () => {

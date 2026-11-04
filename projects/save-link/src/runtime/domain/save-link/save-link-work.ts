@@ -17,15 +17,16 @@ import type { PutTierSource } from "@packages/tier-source";
 import type { DeferredUnsupportedKind, EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import { isProxyWorthyError } from "@packages/crawl-article";
-import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
+import { type AdoptCanonicalIdentity, isGatedTerminal } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
 import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
+import { changedFetchTarget } from "./changed-fetch-target";
 
 export type SaveLinkWorkResult =
 	| { candidate: { id: CandidateId; tier: "tier-1" } }
-	| { deferred: DeferredUnsupportedKind }
+	| { deferred: DeferredUnsupportedKind; finalUrl?: string }
 	| "tier-1-terminal";
 
 export function deferredUnsupportedKind(reason: CrawlUnsupportedReason | undefined): DeferredUnsupportedKind {
@@ -105,6 +106,7 @@ export function initSaveLinkWork(deps: {
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
 	adoptCanonicalIdentity: AdoptCanonicalIdentity;
+	isSiteRuleUrl: (url: string) => boolean;
 	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
@@ -137,12 +139,19 @@ export function initSaveLinkWork(deps: {
 		logPrefix,
 	});
 
-	const deferBlocked = async (params: { url: string; options: SaveLinkWorkOptions; reason: string }): Promise<SaveLinkWorkResult> => {
-		const { url, options, reason } = params;
+	const observedFetchTarget = (params: { requestedUrl: string; finalUrl: string | undefined; options: SaveLinkWorkOptions }): string | undefined => {
+		if (params.options.recrawl) return undefined;
+		const target = changedFetchTarget(params);
+		if (target === undefined) return undefined;
+		return isGatedTerminal({ finalUrl: target, isSiteRuleUrl: deps.isSiteRuleUrl }) ? undefined : target;
+	};
+
+	const deferBlocked = async (params: { url: string; finalUrl: string | undefined; options: SaveLinkWorkOptions; reason: string }): Promise<SaveLinkWorkResult> => {
+		const { url, finalUrl, options, reason } = params;
 		await markCrawlStage({ url, stage: "comprehensive-fetching" });
-		if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason: "blocked", userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId });
+		if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason: "blocked", userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId, finalUrl });
 		logger.info(`${logPrefix} tier-1 deferred to render crawl`, { url, reason });
-		return { deferred: "blocked" };
+		return { deferred: "blocked", finalUrl };
 	};
 
 	const saveLinkWork = async (url: string, options: SaveLinkWorkOptions): Promise<SaveLinkWorkResult> => {
@@ -168,14 +177,15 @@ export function initSaveLinkWork(deps: {
 			 * `comprehensive-fetching` is written before the emit so the reader's
 			 * progress bar moves forward immediately. */
 			const unsupportedReason = deferredUnsupportedKind(result.unsupportedReason);
+			const finalUrl = observedFetchTarget({ requestedUrl: originalUrl, finalUrl: result.finalUrl, options });
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
-			if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason, userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId });
+			if (!options.deferUnsupported) await emitSimpleCrawlUnsupported({ url, unsupportedReason, userId: options.userId, recrawl: options.recrawl, saveAttemptId: options.saveAttemptId, finalUrl });
 			logger.info(`${logPrefix} tier-1 deferred to comprehensive crawl`, {
 				url,
 				reason: result.reason,
 				unsupportedReason,
 			});
-			return { deferred: unsupportedReason };
+			return { deferred: unsupportedReason, finalUrl };
 		}
 
 		if (result.status === "not-found") {
@@ -200,7 +210,7 @@ export function initSaveLinkWork(deps: {
 				outcome: { kind: "crawl-failed" },
 				recrawl: options.recrawl,
 			});
-			return deferBlocked({ url, options, reason: `HTTP ${result.httpStatus}` });
+			return deferBlocked({ url, finalUrl: observedFetchTarget({ requestedUrl: originalUrl, finalUrl: result.finalUrl, options }), options, reason: `HTTP ${result.httpStatus}` });
 		}
 
 		if (result.status === "failed") {
@@ -211,7 +221,7 @@ export function initSaveLinkWork(deps: {
 					outcome: { kind: "crawl-failed" },
 					recrawl: options.recrawl,
 				});
-				return deferBlocked({ url, options, reason: "transport failure" });
+				return deferBlocked({ url, finalUrl: observedFetchTarget({ requestedUrl: originalUrl, finalUrl: result.finalUrl, options }), options, reason: "transport failure" });
 			}
 			if (result.reason !== CRAWL_FAILED_REASON) {
 				logParseError({ url, reason: result.reason });

@@ -23,6 +23,7 @@ function createSqsEvent(detail: {
 	refresh?: boolean;
 	previousBodyHash?: string;
 	unsupportedReason?: string;
+	finalUrl?: string;
 }): SQSEvent {
 	return {
 		Records: [{
@@ -194,6 +195,52 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			recrawl: undefined,
 			refresh: true,
 			previousBodyHash: "h".repeat(64),
+		});
+	});
+
+	it("forwards the page the free crawl reached to the render crawl so its paid legs start there", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initSimpleCrawlUnsupportedPolicyHandler({
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://links.tracker.example/r/abc", unsupportedReason: "blocked", finalUrl: "https://publisher.example/story" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(publishEvent).toHaveBeenCalledWith(RenderCrawlCommand, {
+			url: "https://links.tracker.example/r/abc",
+			saveAttemptId: "attempt-1",
+			unsupportedReason: "blocked",
+			finalUrl: "https://publisher.example/story",
+		});
+	});
+
+	it("keeps the comprehensive crawl's command as it was when the deferral carries an observed page", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initSimpleCrawlUnsupportedPolicyHandler({
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://links.tracker.example/r/doc", unsupportedReason: "non-html-content", finalUrl: "https://publisher.example/doc.pdf" }),
+			buildLambdaContext(),
+			() => {},
+		);
+
+		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+			url: "https://links.tracker.example/r/doc",
+			saveAttemptId: "attempt-1",
+			userId: undefined,
+			recrawl: undefined,
+			refresh: undefined,
+			previousBodyHash: undefined,
 		});
 	});
 

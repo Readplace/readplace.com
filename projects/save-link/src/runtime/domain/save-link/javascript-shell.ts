@@ -18,8 +18,8 @@ const EXECUTABLE_SCRIPT_TYPES = new Set([
 	"application/ecmascript",
 ]);
 
-function javascriptRequired(): CrawlAndFinalizeResult {
-	return { status: "unsupported", reason: "javascript-required", unsupportedReason: { kind: "javascript-required" } };
+function javascriptRequired(finalUrl: string): CrawlAndFinalizeResult {
+	return { status: "unsupported", reason: "javascript-required", unsupportedReason: { kind: "javascript-required" }, finalUrl };
 }
 
 type FetchedResult = Extract<CrawlAndFinalizeResult, { status: "fetched" }>;
@@ -68,7 +68,7 @@ export function deferJavascriptShells(deps: {
 			httpStatus: params.retainResponseBody ? result.httpStatus : OK_STATUS,
 			mediaType: result.article.metadata.directResourceKind ?? "html",
 		});
-		if (shell) return javascriptRequired();
+		if (shell) return javascriptRequired(result.finalUrl);
 		return withoutForcedFields({ params, result });
 	};
 }

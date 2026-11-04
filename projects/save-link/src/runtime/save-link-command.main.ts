@@ -85,5 +85,6 @@ export const handler = initSaveLinkCommandHandler({
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	emitSimpleCrawlUnsupported,
 	adoptCanonicalIdentity,
+	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
 });

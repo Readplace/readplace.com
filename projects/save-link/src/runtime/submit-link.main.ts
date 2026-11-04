@@ -148,6 +148,7 @@ export const handler = initSubmitLinkCommandHandler({
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	emitSimpleCrawlUnsupported,
 	adoptCanonicalIdentity,
+	isSiteRuleUrl: parser.isSiteRuleUrl,
 	now,
 	validateSaveableUrl,
 	saveArticle: savedArticleStore.saveArticle,

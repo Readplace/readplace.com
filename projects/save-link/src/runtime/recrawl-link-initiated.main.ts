@@ -85,6 +85,7 @@ export const handler = initRecrawlLinkInitiatedHandler({
 	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	emitSimpleCrawlUnsupported,
 	adoptCanonicalIdentity,
+	isSiteRuleUrl: parser.isSiteRuleUrl,
 	findContentSourceUrl: canonicalAliasStore.findContentSourceUrl,
 	now,
 });
