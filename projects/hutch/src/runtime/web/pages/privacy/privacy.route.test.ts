@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
@@ -42,6 +43,7 @@ describe("GET /privacy", () => {
 		expect(Array.from(doc.querySelectorAll('.legal-page__section a[href^="/account"]')).map((link) => link.getAttribute("href"))).toEqual([
 			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-assistants#connected-apps",
 			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-rights",
+			"/account?utm_source=privacy&utm_medium=internal&utm_content=account-delete",
 		]);
 	});
 
@@ -54,6 +56,31 @@ describe("GET /privacy", () => {
 		expect(items.filter((text) => text?.startsWith("Connected app sign-ins:"))).toEqual([
 			"Connected app sign-ins: when you connect an app or an AI assistant, Readplace records the time you approved it, the browser and operating system you approved it from, and the city and country your network address pointed to at that moment. These show under Connected apps on your Account page and are deleted when that sign-in ends.",
 		]);
+	});
+
+	it("covers the iOS and Android apps and what they send", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		expect(response.text).toContain("the website, the browser extensions, and the iOS and Android apps");
+		expect(response.text).toContain("the app also sends the page as your device showed it");
+		expect(response.text).toContain("keep a random id for each installation");
+		expect(response.text).toContain("app sign-in diagnostics for a year");
+	});
+
+	it("lists the account-deletion steps publicly under a linkable anchor", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/privacy");
+
+		const doc = new JSDOM(response.text).window.document;
+		const section = doc.getElementById("delete-account");
+		assert(section, "the deletion section must carry the delete-account anchor");
+		expect(Array.from(section.querySelectorAll("ol li"), (item) => item.textContent)).toEqual([
+			"Sign in and open your Account page. In the app, open Account.",
+			"Under Danger zone, choose Delete account.",
+			"Type delete my account permanently and confirm.",
+		]);
+		expect(section.textContent).toContain("unless another reader has saved the same page");
 	});
 
 	it("names the homepage experiment cookie among the first-party cookies", async () => {
