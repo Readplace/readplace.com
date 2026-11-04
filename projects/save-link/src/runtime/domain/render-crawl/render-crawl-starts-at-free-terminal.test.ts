@@ -62,6 +62,7 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 			transitionAndPersist: async () => {},
 			markCrawlStage: async () => {},
 			adoptCanonicalIdentity: async () => {},
+			isSiteRuleUrl: () => false,
 			now: () => new Date("2026-11-03T00:00:00.000Z"),
 			logger: noopLogger,
 			logParseError: () => {},

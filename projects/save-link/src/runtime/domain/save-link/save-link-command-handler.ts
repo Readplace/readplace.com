@@ -28,6 +28,7 @@ export function initSaveLinkCommandHandler(deps: {
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
 	adoptCanonicalIdentity: AdoptCanonicalIdentity;
+	isSiteRuleUrl: (url: string) => boolean;
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
@@ -50,6 +51,7 @@ export function initSaveLinkCommandHandler(deps: {
 		transitionAndPersist: deps.transitionAndPersist,
 		markCrawlStage: deps.markCrawlStage,
 		adoptCanonicalIdentity: deps.adoptCanonicalIdentity,
+		isSiteRuleUrl: deps.isSiteRuleUrl,
 		now: deps.now,
 		logger,
 		logParseError: deps.logParseError,

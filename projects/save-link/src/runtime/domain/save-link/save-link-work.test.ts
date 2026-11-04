@@ -35,6 +35,7 @@ function createWork(overrides: Partial<WorkDeps> = {}) {
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		adoptCanonicalIdentity: jest.fn().mockResolvedValue(undefined),
+		isSiteRuleUrl: () => false,
 		now: fixedNow,
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -799,6 +800,29 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 
 		await saveLinkWork(TRACKER, { saveAttemptId });
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith(expect.objectContaining({ finalUrl: "https://links.tracker.example/landing" }));
+	});
+
+	it.each([
+		{ label: "an SSO transit hop", finalUrl: "https://idp.example/transit?redirect_uri=https://publisher.example/story" },
+		{ label: "a wrapper", finalUrl: "https://web.archive.org/web/20180630081250/https://publisher.example/story" },
+	])("names no target when the free crawl ended on $label, so the paid legs never render the detour", async ({ finalUrl }) => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const blockedAtDetour: CrawlAndFinalizeArticle = async () => ({ status: "blocked", httpStatus: 403, finalUrl });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: blockedAtDetour, emitSimpleCrawlUnsupported });
+
+		await expect(saveLinkWork(TRACKER, { saveAttemptId })).resolves.toEqual({ deferred: "blocked" });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "blocked", saveAttemptId });
+	});
+
+	it("names no target when the free crawl ended on a site-rule URL, which keeps its bespoke crawl", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<ReturnType<EmitSimpleCrawlUnsupported>, Parameters<EmitSimpleCrawlUnsupported>>().mockResolvedValue(undefined);
+		const unsupportedAtSiteRule: CrawlAndFinalizeArticle = async () => ({ status: "unsupported", reason: "non-html", unsupportedReason: { kind: "javascript-required" }, finalUrl: PUBLISHER });
+
+		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: unsupportedAtSiteRule, emitSimpleCrawlUnsupported, isSiteRuleUrl: (url) => url === PUBLISHER });
+
+		await expect(saveLinkWork(TRACKER, { saveAttemptId })).resolves.toEqual({ deferred: "javascript-required" });
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({ url: TRACKER, unsupportedReason: "javascript-required", saveAttemptId });
 	});
 
 	it("leaves an admin recrawl on its pinned path with no observed target", async () => {

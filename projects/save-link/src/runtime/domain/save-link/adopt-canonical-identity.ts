@@ -40,6 +40,11 @@ function carriesReturnUrl(url: string): boolean {
 	return [...new URL(url).searchParams.values()].some((value) => parseHttpUrl(value) !== undefined);
 }
 
+export function isGatedTerminal(params: { finalUrl: string; isSiteRuleUrl: (url: string) => boolean }): boolean {
+	const { finalUrl, isSiteRuleUrl } = params;
+	return isSiteRuleUrl(finalUrl) || isWrapperUrl(finalUrl) || carriesReturnUrl(finalUrl);
+}
+
 /**
  * Pure so every gate is unit-testable in isolation. Gates:
  *   - never on an admin recrawl (first-crawl-of-a-new-article only);
@@ -64,9 +69,7 @@ export function adoptableTerminal(params: {
 	if (outcome.kind === "finalized" && outcome.wordCount <= 0) return undefined;
 	if (finalUrl === undefined) return undefined;
 	if (canonicalIdentityOf(finalUrl) === canonicalIdentityOf(url)) return undefined;
-	if (isSiteRuleUrl(finalUrl)) return undefined;
-	if (isWrapperUrl(finalUrl)) return undefined;
-	if (carriesReturnUrl(finalUrl)) return undefined;
+	if (isGatedTerminal({ finalUrl, isSiteRuleUrl })) return undefined;
 	return toCanonicalArticleUrl(finalUrl);
 }
 

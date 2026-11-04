@@ -17,7 +17,7 @@ import type { PutTierSource } from "@packages/tier-source";
 import type { DeferredUnsupportedKind, EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import { isProxyWorthyError } from "@packages/crawl-article";
-import type { AdoptCanonicalIdentity } from "./adopt-canonical-identity";
+import { type AdoptCanonicalIdentity, isGatedTerminal } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
 import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -106,6 +106,7 @@ export function initSaveLinkWork(deps: {
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
 	adoptCanonicalIdentity: AdoptCanonicalIdentity;
+	isSiteRuleUrl: (url: string) => boolean;
 	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
@@ -138,8 +139,12 @@ export function initSaveLinkWork(deps: {
 		logPrefix,
 	});
 
-	const observedFetchTarget = (params: { requestedUrl: string; finalUrl: string | undefined; options: SaveLinkWorkOptions }): string | undefined =>
-		params.options.recrawl ? undefined : changedFetchTarget(params);
+	const observedFetchTarget = (params: { requestedUrl: string; finalUrl: string | undefined; options: SaveLinkWorkOptions }): string | undefined => {
+		if (params.options.recrawl) return undefined;
+		const target = changedFetchTarget(params);
+		if (target === undefined) return undefined;
+		return isGatedTerminal({ finalUrl: target, isSiteRuleUrl: deps.isSiteRuleUrl }) ? undefined : target;
+	};
 
 	const deferBlocked = async (params: { url: string; finalUrl: string | undefined; options: SaveLinkWorkOptions; reason: string }): Promise<SaveLinkWorkResult> => {
 		const { url, finalUrl, options, reason } = params;
