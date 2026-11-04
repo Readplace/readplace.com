@@ -1,7 +1,7 @@
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type {
 	CountUsers,
 	CreateSession,
@@ -133,7 +133,7 @@ interface AuthDependencies {
 	secureCookies: boolean;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
-	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
+	botDefenseLogger: Logger.Typed<BotDefenseEvent>;
 	recordConversionEvent: RecordAudienceEvent<ConversionEvent>;
 	recordAnalyticsEvent: RecordAudienceEvent<AnalyticsEvent>;
 	salt: string;

@@ -3,8 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@packages/hutch-infra-components/runtime": ["../../src/packages/hutch-infra-components/dist/runtime/index.d.ts"],
-      "@packages/hutch-logger": ["../../src/packages/hutch-logger/dist/index.d.ts"]
+      "@packages/infra-components/runtime": ["../../src/packages/infra-components/dist/runtime/index.d.ts"],
+      "@packages/logger": ["../../src/packages/logger/dist/index.d.ts"]
     }
   },
   "exclude": ["dist", "node_modules"]

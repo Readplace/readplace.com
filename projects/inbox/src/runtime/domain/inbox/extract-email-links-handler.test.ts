@@ -21,8 +21,8 @@ import {
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
-import { type EmailReceivedDetail, EmailLinksFilteredEvent } from "@packages/hutch-infra-components";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type EmailReceivedDetail, EmailLinksFilteredEvent } from "@packages/infra-components";
+import { Logger, noopLogger } from "@packages/logger";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
@@ -282,7 +282,7 @@ function makeHarness(opts?: {
 		},
 		now: () => new Date(NOW),
 		triageEmailLinks: opts?.triageEmailLinks ?? everythingIsAnArticle,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 		maxLinks: opts?.maxLinks ?? 200,
 		appOrigin: "https://readplace.com",
 	});

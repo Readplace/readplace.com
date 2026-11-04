@@ -14,6 +14,6 @@
   "support_email": { "en-US": "readplace@readplace.com" },
   "version": {
     "license": "all-rights-reserved",
-    "approval_notes": "Source: https://github.com/Readplace/readplace.com (public), tag firefox-extension@v<version>. Build with Node.js 22 and pnpm 10.28.0: pnpm install --frozen-lockfile && EXTENSION_VERSION=<version> pnpm nx run-many --target=compile --projects=browser-extension-core,firefox-extension — the unpacked extension is projects/browser-extensions/firefox-extension/dist-extension-compiled/ (esbuild bundles of src/runtime, browser-extension-core/src and src/packages/{hutch-logger,ui-icons,article-resource-unique-id})."
+    "approval_notes": "Source: https://github.com/Readplace/readplace.com (public), tag firefox-extension@v<version>. Build with Node.js 22 and pnpm 10.28.0: pnpm install --frozen-lockfile && EXTENSION_VERSION=<version> pnpm nx run-many --target=compile --projects=browser-extension-core,firefox-extension — the unpacked extension is projects/browser-extensions/firefox-extension/dist-extension-compiled/ (esbuild bundles of src/runtime, browser-extension-core/src and src/packages/{logger,ui-icons,article-resource-unique-id})."
   }
 }

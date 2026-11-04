@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
 	batchGetFromTable,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 
 type SendFn = DynamoDBDocumentClient["send"];
 

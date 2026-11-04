@@ -4,7 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 	TransactWriteCommand,
 	TransactionCanceledException,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type { BudgetReservation } from "../../domain/related-articles/recommendation-budget";
 import { initDynamoDbRecommendationBudget } from "./dynamodb-recommendation-budget";
 

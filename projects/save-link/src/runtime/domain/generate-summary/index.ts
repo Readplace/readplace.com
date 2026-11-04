@@ -5,4 +5,4 @@ export {
 	type SummaryGenerationFailedDetail,
 	GenerateSummaryCommand,
 	type GenerateSummaryDetail,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";

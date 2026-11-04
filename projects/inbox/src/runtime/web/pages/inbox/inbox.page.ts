@@ -37,8 +37,8 @@ import type {
 	ListReadlistFitOverrides,
 	RecordReadlistFitOverride,
 } from "@packages/provider-contracts/article-store";
-import type { FileArticleIntoReadlistDetail } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { FileArticleIntoReadlistDetail } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
@@ -110,7 +110,7 @@ export interface InboxReadlistFitDependencies {
 	deleteReadlistFitOverride: DeleteReadlistFitOverride;
 	deleteReadlistArticleByUrl: DeleteReadlistArticleByUrl;
 	publishFileArticleIntoReadlist: (detail: FileArticleIntoReadlistDetail) => Promise<void>;
-	fitChoiceLog: HutchLogger.Typed<ReadlistFitOverriddenLogLine>;
+	fitChoiceLog: Logger.Typed<ReadlistFitOverriddenLogLine>;
 }
 
 interface InboxDependencies extends InboxReadlistFitDependencies {

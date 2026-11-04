@@ -4,7 +4,7 @@ import type {
 	SubscribePlansSource,
 } from "@packages/provider-contracts/hosted-checkout";
 import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { STREAMS, SUBSCRIPTION_EVENTS } from "./events";
 import type { CheckoutReturnFailureReason, CheckoutVariant } from "./events";
 
@@ -178,7 +178,7 @@ export function buildResubscribeCompletedEvent(
 }
 
 export function initEmitSubscriptionEvent(deps: {
-	logger: HutchLogger.Typed<SubscriptionLogEvent>;
+	logger: Logger.Typed<SubscriptionLogEvent>;
 	now: () => Date;
 }): EmitSubscriptionEvent {
 	return {

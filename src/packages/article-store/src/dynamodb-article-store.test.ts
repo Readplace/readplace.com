@@ -3,7 +3,7 @@ import type { AggregateField, Article } from "@packages/domain/article-aggregate
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { initDynamoDbArticleStore } from "./dynamodb-article-store";
 

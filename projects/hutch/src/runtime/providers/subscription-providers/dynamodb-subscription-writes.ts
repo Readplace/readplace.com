@@ -3,7 +3,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import {
 	type ClaimPayDigest,
 	type ClaimTrialNudge,

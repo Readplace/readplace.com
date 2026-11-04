@@ -1,5 +1,5 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { RefreshArticleContentCommand } from "@packages/hutch-infra-components";
+import { RefreshArticleContentCommand } from "@packages/infra-components";
 import { initEventBridgeRefreshArticleContent } from "./eventbridge-refresh-article-content";
 
 const PARAMS = {

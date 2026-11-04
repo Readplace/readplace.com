@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initHandleSubscriptionCancellationScheduledHandler } from "./handle-subscription-cancellation-scheduled-handler";
 
 const USER_ID = UserIdSchema.parse("user-cancel-scheduled");
@@ -49,7 +49,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 			markPendingCancellation: async ({ userId, cancellationEffectiveAt }) => {
 				calls.push({ userId, cancellationEffectiveAt });
 			},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -80,7 +80,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 			markPendingCancellation: async ({ userId, cancellationEffectiveAt }) => {
 				calls.push({ userId, cancellationEffectiveAt });
 			},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -109,7 +109,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 			markPendingCancellation: async () => {
 				throw new Error("DynamoDB timeout");
 			},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -134,7 +134,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 	it("reports a batch item failure for malformed JSON without dropping the batch", async () => {
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
 			markPendingCancellation: async () => {},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -160,7 +160,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 	it("reports a batch item failure when the detail is missing cancellationEffectiveAt", async () => {
 		const handler = initHandleSubscriptionCancellationScheduledHandler({
 			markPendingCancellation: async () => {},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const result = await handler(
@@ -181,7 +181,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 			markPendingCancellation: async ({ userId, cancellationEffectiveAt }) => {
 				calls.push({ userId, cancellationEffectiveAt });
 			},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const body = buildEventBridgeBody({

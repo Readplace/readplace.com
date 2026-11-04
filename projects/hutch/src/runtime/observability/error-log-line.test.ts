@@ -1,8 +1,8 @@
-import { formatErrorLogLine } from "@packages/hutch-logger";
+import { formatErrorLogLine } from "@packages/logger";
 import { classifyForwardedLine } from "../forward-analytics/forward-analytics-handler";
 import { FORWARDED_STREAMS } from "./events";
 
-// formatErrorLogLine lives in @packages/hutch-logger, whose own check runs lint
+// formatErrorLogLine lives in @packages/logger, whose own check runs lint
 // only. Its test lives here — alongside observability-filter.test.ts, for the
 // same reason — because this project runs tests under coverage enforcement, and
 // because what the format has to satisfy is defined by this pipeline: the filter

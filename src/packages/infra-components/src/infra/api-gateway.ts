@@ -1,0 +1,176 @@
+import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+import assert from "node:assert";
+import type { Lambda } from "./lambda";
+
+export class APIGateway extends pulumi.ComponentResource {
+	public readonly apiUrl: pulumi.Output<string> | string;
+	public readonly defaultRoute: aws.apigatewayv2.Route;
+	public readonly apiGatewayId: pulumi.Output<string>;
+	public readonly apiGatewayExecutionArn: pulumi.Output<string>;
+
+	constructor(
+		name: string,
+		args: {
+			api: aws.apigatewayv2.Api;
+			lambda: Lambda;
+			stage: string;
+			domains: string[];
+			zoneId?: Promise<string>;
+			certificateArn?: pulumi.Output<string>;
+			/**
+			 * Stage-wide token bucket applied by API Gateway before the Lambda is
+			 * invoked. Bounds TOTAL request rate (every caller combined), so it is
+			 * a spend ceiling, not a fairness mechanism — per-client limiting lives
+			 * in the application's DynamoDB-backed limiter. WAFv2 web ACLs cannot
+			 * attach to v2 HTTP APIs, which makes this the only edge-side control
+			 * available without fronting the API with CloudFront.
+			 */
+			throttling: { burstLimit: number; rateLimit: number };
+			dnsAlias?: {
+				domain: string;
+				domainName: pulumi.Input<string>;
+				hostedZoneId: pulumi.Input<string>;
+			};
+		},
+		opts?: pulumi.ComponentResourceOptions,
+	) {
+		super("hutch:infra:HutchAPIGateway", name, {}, opts);
+
+		this.apiGatewayId = args.api.id;
+		this.apiGatewayExecutionArn = args.api.executionArn;
+
+		const accessLogGroup = new aws.cloudwatch.LogGroup(`${name}-api-access-logs`, {
+			name: `/aws/apigateway/${name}-access`,
+			retentionInDays: 30,
+		}, { parent: this });
+
+		const apiStage = new aws.apigatewayv2.Stage(`${name}-api-stage`, {
+			apiId: args.api.id,
+			name: "$default",
+			autoDeploy: true,
+			description: `${args.stage} stage`,
+			/**
+			 * One JSON line per request, capturing the User-Agent (browser/OS/device,
+			 * finer than the app's device_class buckets) plus method/status/latency for
+			 * every request — including the htmx polls, POSTs, and bot hits the pageview
+			 * analytics stream drops. Deliberately omits `$context.identity.sourceIp` and
+			 * `$context.path`: the `/view/<url>` reader route carries the article URL in
+			 * its path (reading history), so logging the raw path — or the raw IP — would
+			 * break the hashed-identity / no-reading-history posture the app keeps. Per-page
+			 * counts already live in the pageview analytics stream. API Gateway provisions
+			 * the CloudWatch Logs delivery permission itself when this stage is applied.
+			 */
+			accessLogSettings: {
+				destinationArn: accessLogGroup.arn,
+				format: JSON.stringify({
+					requestId: "$context.requestId",
+					time: "$context.requestTime",
+					method: "$context.httpMethod",
+					status: "$context.status",
+					protocol: "$context.protocol",
+					responseLength: "$context.responseLength",
+					responseLatency: "$context.responseLatency",
+					userAgent: "$context.identity.userAgent",
+				}),
+			},
+			defaultRouteSettings: {
+				throttlingBurstLimit: args.throttling.burstLimit,
+				throttlingRateLimit: args.throttling.rateLimit,
+			},
+		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		const lambdaIntegration = new aws.apigatewayv2.Integration(
+			`${name}-lambda-integration`,
+			{
+				apiId: args.api.id,
+				integrationType: "AWS_PROXY",
+				integrationUri: args.lambda.arn,
+				payloadFormatVersion: "2.0",
+			},
+			{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+		);
+
+		this.defaultRoute = new aws.apigatewayv2.Route(
+			`${name}-default-route`,
+			{
+				apiId: args.api.id,
+				routeKey: "$default",
+				target: pulumi.interpolate`integrations/${lambdaIntegration.id}`,
+			},
+			{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+		);
+
+		new aws.lambda.Permission(`${name}-api-gw-perm`, {
+			statementId: `${name}-api-gw-perm`,
+			action: "lambda:InvokeFunction",
+			function: args.lambda.functionName,
+			principal: "apigateway.amazonaws.com",
+			sourceArn: pulumi.interpolate`${args.api.executionArn}/*/*`,
+		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		if (args.domains.length > 0) {
+			const primaryDomain = args.domains[0];
+			assert(args.certificateArn, "certificateArn required when domains are provided");
+			assert(args.zoneId, "zoneId required when domains are provided");
+
+			for (const domain of args.domains) {
+				const safeName = domain.replace(/\./g, "-");
+
+				const customDomain = new aws.apigatewayv2.DomainName(
+					`${name}-domain-${safeName}`,
+					{
+						domainName: domain,
+						domainNameConfiguration: {
+							certificateArn: args.certificateArn,
+							endpointType: "REGIONAL",
+							securityPolicy: "TLS_1_2",
+						},
+					},
+					{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+				);
+
+				new aws.apigatewayv2.ApiMapping(
+					`${name}-mapping-${safeName}`,
+					{
+						apiId: args.api.id,
+						domainName: customDomain.domainName,
+						stage: apiStage.id,
+					},
+					{ parent: this, aliases: [{ parent: pulumi.rootStackResource }] },
+				);
+
+				const servesThisDomain =
+					args.dnsAlias?.domain === domain
+						? args.dnsAlias
+						: {
+								domainName: customDomain.domainNameConfiguration.apply(
+									(c) => c.targetDomainName,
+								),
+								hostedZoneId: customDomain.domainNameConfiguration.apply(
+									(c) => c.hostedZoneId,
+								),
+							};
+
+				new aws.route53.Record(`${name}-record-${safeName}`, {
+					zoneId: args.zoneId,
+					name: domain,
+					type: "A",
+					aliases: [
+						{
+							name: servesThisDomain.domainName,
+							zoneId: servesThisDomain.hostedZoneId,
+							evaluateTargetHealth: false,
+						},
+					],
+				}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+			}
+
+			this.apiUrl = `https://${primaryDomain}`;
+		} else {
+			this.apiUrl = pulumi.interpolate`${args.api.apiEndpoint}/${apiStage.name}`;
+		}
+
+		this.registerOutputs();
+	}
+}

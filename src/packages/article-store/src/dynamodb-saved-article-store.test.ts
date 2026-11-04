@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId, resolveArticleDiscovery, viewerFor } from "@packages/domain/article";
 import type { SaveProvenance } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initDynamoDbSavedArticleStore } from "./dynamodb-saved-article-store";
 
 const USER = "abc123" as UserId;
@@ -91,7 +91,7 @@ function batchGetKeys(commands: CapturedCommand[]): { url: string }[] {
 const STORE_NOW = new Date("2026-05-30T12:00:00.000Z");
 const OPERATION_SAVED_AT = new Date("2026-05-30T11:30:00.000Z");
 
-function initStore(client: DynamoDBDocumentClient, logger: HutchLogger = HutchLogger.from(noopLogger)) {
+function initStore(client: DynamoDBDocumentClient, logger: Logger = Logger.from(noopLogger)) {
 	return initDynamoDbSavedArticleStore({
 		client,
 		tableName: "articles",
@@ -3524,7 +3524,7 @@ describe("initDynamoDbSavedArticleStore discovery", () => {
 			client,
 			tableName: "articles",
 			userArticlesTableName: "user-articles",
-			logger: HutchLogger.from({ ...noopLogger, info: (...args) => lines.push(args[0]) }),
+			logger: Logger.from({ ...noopLogger, info: (...args) => lines.push(args[0]) }),
 			now: () => {
 				const instant = clock.shift();
 				assert(instant, "the discovery read takes two clock readings");

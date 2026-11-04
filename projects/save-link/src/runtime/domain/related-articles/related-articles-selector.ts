@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { ArticleDestinationUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type {
 	RelatedArticleLink,
 	RelatedCandidate,
@@ -245,7 +245,7 @@ export function buildRelatedArticlesRequest(input: {
 export function initSelectRelatedArticles(deps: {
 	createMessage: CreateAiMessage;
 	nowMs: () => number;
-	logger: HutchLogger;
+	logger: Logger;
 	selection: RelatedSelection;
 }): { selectRelatedArticles: SelectRelatedArticles } {
 	const selectRelatedArticles: SelectRelatedArticles = async (params) => {

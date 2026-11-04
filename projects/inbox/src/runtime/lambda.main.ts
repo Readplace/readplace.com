@@ -6,8 +6,8 @@ import helmet from "helmet";
 import compression from "compression";
 import serverless from "serverless-http";
 import { S3Client } from "@aws-sdk/client-s3";
-import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initGetSessionUserId, initResolveLogin, initObserveSession } from "@packages/web-session";
 import {
 	initDynamoDbInboxAddress,
@@ -23,10 +23,10 @@ import {
 	initFindSavedArticleForLink,
 	initS3ReadContent,
 } from "@packages/article-store";
-import { FileArticleIntoReadlistCommand, SubmitLinkCommand } from "@packages/hutch-infra-components";
+import { FileArticleIntoReadlistCommand, SubmitLinkCommand } from "@packages/infra-components";
 import type { ReadlistFitOverriddenLogLine } from "@packages/domain/readlist";
 import { initResolveCanonicalIdentity } from "@packages/save-article";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { getEnv, requireEnv } from "@packages/require-env";
@@ -35,7 +35,7 @@ import { initDynamoDbUserStanding } from "./providers/user-standing/dynamodb-use
 
 const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 const client = createDynamoDocumentClient();
 const s3Client = new S3Client({});
@@ -44,7 +44,7 @@ const sessionsTableName = requireEnv("DYNAMODB_SESSIONS_TABLE");
 
 const getSessionUserId = initGetSessionUserId({
 	client, sessionsTableName,
-	observeSession: initObserveSession({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>(), context: () => ({ client: "web", surface: "website" }) }),
+	observeSession: initObserveSession({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>(), context: () => ({ client: "web", surface: "website" }) }),
 });
 const resolveLogin = initResolveLogin({ getSessionUserId, logger });
 
@@ -135,7 +135,7 @@ const application = express()
 				recordReadlistFitOverride: readlistFitOverrides.recordReadlistFitOverride,
 				deleteReadlistFitOverride: readlistFitOverrides.deleteReadlistFitOverride,
 				deleteReadlistArticleByUrl: readlistFitOverrides.deleteReadlistArticleByUrl,
-				fitChoiceLog: HutchLogger.fromJSON<ReadlistFitOverriddenLogLine>(),
+				fitChoiceLog: Logger.fromJSON<ReadlistFitOverriddenLogLine>(),
 				recordEngagementActivity: initDynamoDbEngagementActivity({
 					client,
 					onboardingTableName: requireEnv("DYNAMODB_ONBOARDING_TABLE"),
@@ -143,7 +143,7 @@ const application = express()
 				logError: (message, error) =>
 					logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),
 				now: () => new Date(),
-				analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+				analyticsLogger: Logger.fromJSON<AnalyticsEvent>(),
 				salt: requireEnv("ANALYTICS_SALT"),
 				generateVisitorId: randomUUID,
 				secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),

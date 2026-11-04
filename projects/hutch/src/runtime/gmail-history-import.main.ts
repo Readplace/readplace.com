@@ -1,9 +1,9 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
-import { GmailHistoryImportMessageFetchedEvent, ProcessGmailHistoryImportPageCommand } from "@packages/hutch-infra-components";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/infra-components/runtime";
+import { GmailHistoryImportMessageFetchedEvent, ProcessGmailHistoryImportPageCommand } from "@packages/infra-components";
+import { Logger, consoleLogger } from "@packages/logger";
 import {
 	initDynamoDbGmailConnection,
 	initDynamoDbGmailCredentials,
@@ -20,7 +20,7 @@ import { initGmailHistory } from "./providers/gmail-api/gmail-history";
 
 const client = createDynamoDocumentClient();
 const now = () => new Date();
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const recordDiagnostic = initRecordGmailDiagnostic({ logger, now });
 const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: requireEnv("EVENT_BUS_NAME") });
 const credentials = initDynamoDbGmailCredentials({ client, tableName: requireEnv("DYNAMODB_GMAIL_CREDENTIALS_TABLE"), now });

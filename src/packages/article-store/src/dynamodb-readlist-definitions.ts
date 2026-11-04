@@ -11,7 +11,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type {
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,

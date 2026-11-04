@@ -3,7 +3,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbPaidCrawlBudget } from "./dynamodb-paid-crawl-budget";
 
 type SendFn = DynamoDBDocumentClient["send"];

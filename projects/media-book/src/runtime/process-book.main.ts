@@ -1,9 +1,9 @@
 import { tmpdir } from "node:os";
 import { S3Client } from "@aws-sdk/client-s3";
 import { initDynamoDbPrivateItem } from "@packages/article-store";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initPutTierSource } from "@packages/tier-source";
 import { initProcessBookHandler } from "./process-book/process-book-handler";
@@ -35,5 +35,5 @@ export const handler = initProcessBookHandler({
 	readerBodyByteLimit: READER_BODY_BYTE_LIMIT,
 	wholeBodyByteLimit: WHOLE_BODY_BYTE_LIMIT,
 	largestSectionByteLimit: LARGEST_SECTION_BYTE_LIMIT,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });

@@ -2,7 +2,7 @@ import type { ReadingListItemId } from "./domain/reading-list-item.types";
 import type { Auth, GuardedResult } from "./auth/auth.types";
 import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, LoadSort } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { createEventBus } from "./event-bus";
 import { UnauthorizedError } from "./auth/unauthorized-error";
 import { initSaveCurrentTab } from "./save-current-tab";
@@ -52,7 +52,7 @@ export interface Core {
 	once(event: "fetched-reading-list", handler: ResultCallbacks<LoadPageResult>): void;
 }
 
-export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; logger: HutchLogger; readingList: ReadingList }): Core {
+export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; logger: Logger; readingList: ReadingList }): Core {
 	const logger = deps.logger;
 	const eventBus = createEventBus();
 	const auth = deps.auth;

@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import type { RequestHandler } from "express";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { RenewSession } from "@packages/provider-contracts/auth";
 import { SESSION_COOKIE_NAME, isSessionDueForRenewal } from "@packages/web-session";
 import { persistentSessionCookieOptions } from "../auth/session-cookie-options";
@@ -8,7 +8,7 @@ import { persistentSessionCookieOptions } from "../auth/session-cookie-options";
 export function initSlideSession(deps: {
 	renewSession: RenewSession;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	secureCookies: boolean;
 }): RequestHandler {
 	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);

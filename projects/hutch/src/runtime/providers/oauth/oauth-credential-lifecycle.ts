@@ -6,7 +6,7 @@ import {
 	TransactionCanceledException,
 	defineDynamoTable,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initKeepCurrentGrant, isCurrentGrant, isExemptGrant, laterSignIn, type OAuthClientId, OAuthClientIdSchema, type OAuthGrantId as GrantId, type OAuthSignIn } from "@packages/domain/oauth";
 import type {
 	ListUserOAuthClients,

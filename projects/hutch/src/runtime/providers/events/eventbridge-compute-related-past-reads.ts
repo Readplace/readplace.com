@@ -1,6 +1,6 @@
 /* c8 ignore start -- thin SDK wrapper, only used in prod path */
-import { ComputeRelatedPastReadsCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { ComputeRelatedPastReadsCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { PublishComputeRelatedPastReads } from "@packages/provider-contracts/events";
 
 export function initEventBridgeComputeRelatedPastReads(deps: {

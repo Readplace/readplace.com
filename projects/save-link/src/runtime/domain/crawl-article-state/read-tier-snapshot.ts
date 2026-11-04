@@ -1,4 +1,4 @@
-import type { TierName } from "@packages/hutch-infra-components";
+import type { TierName } from "@packages/infra-components";
 import type { CrawlStatus as PersistedCrawlStatus } from "@packages/article-state-types";
 
 export type PickedTier = TierName | "none";

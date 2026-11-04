@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initDynamoDbOAuthClients } from "./dynamodb-oauth-clients";
 
 type Command = { input: { Item?: Record<string, unknown>; Key?: { pk?: unknown } } };

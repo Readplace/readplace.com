@@ -1,6 +1,6 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { EventBridgeClient } from "@packages/infra-components/runtime";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initEventsDepBundle } from "./events";
 import { initArticleAggregateDepBundle } from "./article-aggregate";
 

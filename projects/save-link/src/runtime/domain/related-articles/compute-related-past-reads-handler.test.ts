@@ -3,8 +3,8 @@ import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { type Logger, noopLogger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	MarkPastReadsBudgetBlocked,
 	MarkPastReadsReady,
@@ -85,8 +85,8 @@ interface Overrides {
 	selectPastReads?: SelectRelatedArticles;
 	markOutcome?: Awaited<ReturnType<MarkPastReadsReady>>;
 	blockedOutcome?: Awaited<ReturnType<MarkPastReadsBudgetBlocked>>;
-	logger?: HutchLogger;
-	deepseekCallFailedLog?: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger?: Logger;
+	deepseekCallFailedLog?: Logger.Typed<DeepseekCallFailedLogLine>;
 }
 
 function createHandler(overrides: Overrides = {}) {

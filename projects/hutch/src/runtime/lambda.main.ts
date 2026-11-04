@@ -4,7 +4,7 @@ import express from "express";
 import helmet from "helmet";
 import compression from "compression";
 import serverless from "serverless-http";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import { logger as requestLogger } from "./domain/logger";
 import { createAnalyticsMiddleware, hashIp } from "@packages/web-analytics";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
@@ -28,7 +28,7 @@ if (lambda) {
 const { app, analyticsLogger } = createReadplaceApp();
 
 const log = requestLogger();
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const salt = requireEnv("ANALYTICS_SALT");
 const viewerIdentity = createViewerIdentityMiddleware({ edgeSecret: requireEnv("SSR_EDGE_SECRET") });
 const ban = createBanMiddleware({ salt, hashIp });

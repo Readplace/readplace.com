@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type { CapturedContent } from "../capture-active-tab-bytes";
 import type { CaptureTrigger, UploadContent, UploadContentResult } from "../reading-list/reading-list.types";
@@ -106,7 +106,7 @@ function createHarness(
 				uploads.push({ url, title, bytes: content.bytes.byteLength, mediaType: content.mediaType, trigger });
 				return { ok: true };
 			}),
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			...noopLogger,
 			warn: (...args) => warns.push(String(args[0])),
 			error: (...args) => errors.push(String(args[0])),

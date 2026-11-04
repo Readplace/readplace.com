@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
 
 export function initInMemoryExportUserDataCommand(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishExportUserDataCommand: PublishExportUserDataCommand } {
 	const { logger } = deps;
 

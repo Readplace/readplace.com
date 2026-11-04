@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import assert from "node:assert";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
@@ -63,7 +63,7 @@ function clipExcerpt(text: string): string {
 export function initLinkSummariser(deps: {
 	createMessage: CreateAiMessage;
 	markSummaryStage: MarkSummaryStage;
-	logger: HutchLogger;
+	logger: Logger;
 	cleanContent: (html: string) => string;
 	isTooShortToSummarize: (cleanedText: string) => boolean;
 	fitSummaryInput: (input: { html: string; maxChars: number }) => string;

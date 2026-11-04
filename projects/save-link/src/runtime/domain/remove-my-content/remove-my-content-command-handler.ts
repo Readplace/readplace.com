@@ -2,13 +2,13 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { newSaveAttemptId } from "@packages/domain/article";
 import { isCanonicalCandidateRevoked, type LoadArticle, type SaveArticle } from "@packages/domain/article-aggregate";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import {
 	RecrawlLinkInitiatedEvent,
 	RemoveMyContentCommand,
 	ReselectAfterRemovalEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import type {
 	CountSaversByUrl,
 	RevokeContentCandidates,
@@ -34,7 +34,7 @@ export function initRemoveMyContentCommandHandler(deps: {
 	tombstoneArticle: TombstoneArticle;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		resolveAuthoredContentKeys,

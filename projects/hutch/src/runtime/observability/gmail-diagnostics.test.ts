@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { GmailHttpRequestSettings, GmailHttpResponseHeaders } from "@packages/provider-contracts/gmail-history";
 import { classifyForwardedLine } from "../forward-analytics/forward-analytics-handler";
 import { FORWARDED_STREAMS } from "./events";
@@ -22,14 +22,14 @@ const FINGERPRINT_A = "a4".repeat(32);
 const FINGERPRINT_B = "b7".repeat(32);
 const STATE_TTL_MS = 300_000;
 
-type LogMethodName = keyof HutchLogger;
+type LogMethodName = keyof Logger;
 
 interface LoggedCall {
 	method: LogMethodName;
 	args: unknown[];
 }
 
-function createCapturingLogger(): { logger: HutchLogger; calls: LoggedCall[] } {
+function createCapturingLogger(): { logger: Logger; calls: LoggedCall[] } {
 	const calls: LoggedCall[] = [];
 	const capture = (method: LogMethodName) => (...args: unknown[]) => {
 		calls.push({ method, args });
@@ -40,7 +40,7 @@ function createCapturingLogger(): { logger: HutchLogger; calls: LoggedCall[] } {
 	};
 }
 
-function createThrowingLogger(): { logger: HutchLogger; attempts: LogMethodName[] } {
+function createThrowingLogger(): { logger: Logger; attempts: LogMethodName[] } {
 	const attempts: LogMethodName[] = [];
 	const fail = (method: LogMethodName) => () => {
 		attempts.push(method);

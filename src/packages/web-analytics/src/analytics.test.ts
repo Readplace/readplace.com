@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { createViewerIdentityMiddleware, type ViewerIdentity, viewerOf } from "@packages/viewer-identity";
 import { type AnalyticsClick, type AnalyticsEmailClick, type AnalyticsEvent, type AnalyticsPageview, buildMcpRequestRefusedEvent, buildMcpSaveIntentEvent, buildMcpSessionInitializedEvent, buildMcpToolCalledEvent, buildMcpToolsListedEvent, buildOAuthTokenRevokedEvent, mcpUaClientOf, buildOAuthTokenIssuedEvent, buildOAuthTokenRefusedEvent, buildPageDepthEvent, buildSaveIntentEvent, buildViewEndCtaShownEvent, buildKeepOfferClickedEvent, buildKeepOfferShownEvent, buildSaveRefusedEvent, buildSignupAttemptedEvent, classifyBrowser, classifyDeviceClass, classifyOsFamily, createAnalyticsMiddleware, deriveSaveSurface, hashIp, isBotRequest, isBotUserAgent, isCountableBrowserRequest, type SignupAttemptedEvent, suppressClickCount, tagPageviewExperiment, tagPageviewSortOrder, type ViewSaveIntentEvent } from "./analytics";
@@ -15,11 +15,11 @@ const ANDROID_APP_USER_AGENT = "Readplace/1 Android/17";
 const OWN_HOST = "readplace.test";
 
 function createCapturingLogger(): {
-	logger: HutchLogger.Typed<AnalyticsEvent>;
+	logger: Logger.Typed<AnalyticsEvent>;
 	captured: AnalyticsEvent[];
 } {
 	const captured: AnalyticsEvent[] = [];
-	const logger: HutchLogger.Typed<AnalyticsEvent> = {
+	const logger: Logger.Typed<AnalyticsEvent> = {
 		info: (data) => { captured.push(data); },
 		error: () => {},
 		warn: () => {},

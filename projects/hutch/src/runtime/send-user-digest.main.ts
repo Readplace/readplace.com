@@ -22,9 +22,9 @@ import { initEnrollStarter } from "./domain/engagement/enroll-starter";
 import { initSendStarter } from "./domain/engagement/send-starter";
 import { initEngagementEvents, type EngagementEvent } from "./domain/engagement/engagement-events";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
 import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
@@ -61,7 +61,7 @@ const MAX_CANDIDATES_READ = 50;
 
 const MAX_DIGEST_BOOK_IMAGE_BYTES = 10_000_000;
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const appOrigin = requireEnv("APP_ORIGIN");
 const resendApiKey = requireEnv("RESEND_API_KEY");
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -90,7 +90,7 @@ const articleStore = initDynamoDbSavedArticleStore({
 });
 
 const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession,
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: usersTable,
 	sessionsTableName: sessionsTable,
@@ -182,7 +182,7 @@ const findReadySnapshot = initFindReadySnapshot({
 	now: () => new Date(),
 });
 const emitStarterEvent = initEngagementEvents({
-	logger: HutchLogger.fromJSON<EngagementEvent>(),
+	logger: Logger.fromJSON<EngagementEvent>(),
 	now: () => new Date(),
 });
 const enrollStarter = initEnrollStarter({
@@ -245,7 +245,7 @@ export const handler = initSendQueueDigestHandler({
 	sendEmail,
 	publishEvent,
 	emitQueueDigestEvent: initEmitQueueDigestEvent({
-		logger: HutchLogger.fromJSON<QueueDigestLogEvent>(),
+		logger: Logger.fromJSON<QueueDigestLogEvent>(),
 		now: () => new Date(),
 	}),
 	signUnsubscribeToken: initQueueDigestUnsubscribeToken(analyticsSalt).sign,

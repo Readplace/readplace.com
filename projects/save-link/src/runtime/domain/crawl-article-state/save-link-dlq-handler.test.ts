@@ -1,4 +1,4 @@
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { initSaveLinkDlqHandler } from "./save-link-dlq-handler";
@@ -131,7 +131,7 @@ describe("initSaveLinkDlqHandler", () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
 			calls.push(["transition"]);
 		});
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args) => {
 				calls.push(args);
@@ -161,7 +161,7 @@ describe("initSaveLinkDlqHandler", () => {
 		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
 			throw new Error("ddb down");
 		});
-		const logger: HutchLogger = {
+		const logger: Logger = {
 			...noopLogger,
 			error: (...args) => {
 				calls.push(args);

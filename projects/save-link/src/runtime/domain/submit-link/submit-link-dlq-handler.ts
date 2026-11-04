@@ -5,14 +5,14 @@ import type {
 	SQSEvent,
 } from "aws-lambda";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { initHandleByDetailType } from "@packages/infra-components/runtime";
 import {
 	LinkQueueFailedEvent,
 	ResolveArticleOnViewCommand,
 	SubmitLinkCommand,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import {
 	type LoadArticle,
 	type TransitionAndPersist,
@@ -53,7 +53,7 @@ const DeadLetteredSubmission = z.object({
  */
 function initSubmissionDlqHandler(deps: {
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
 
@@ -102,7 +102,7 @@ const DeadLetteredResolution = ResolveArticleOnViewCommand.detailSchema.pick({ u
 function initResolutionDlqHandler(deps: {
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { loadArticle, transitionAndPersist, logger } = deps;
 
@@ -141,7 +141,7 @@ export function initSubmitLinkDlqHandler(deps: {
 	publishEvent: PublishEvent;
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return initHandleByDetailType({
 		routes: {

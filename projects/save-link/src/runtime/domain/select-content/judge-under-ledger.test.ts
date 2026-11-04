@@ -1,5 +1,5 @@
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { initRunMeteredLeg, type RunMeteredLeg } from "../metered-leg/run-metered-leg";

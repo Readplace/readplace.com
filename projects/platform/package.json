@@ -14,7 +14,7 @@
     "post-deploy": "echo 'No post-deploy steps'"
   },
   "dependencies": {
-    "@packages/hutch-infra-components": "workspace:*"
+    "@packages/infra-components": "workspace:*"
   },
   "devDependencies": {
     "@pulumi/aws": "7.32.0",

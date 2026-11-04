@@ -1,7 +1,7 @@
 import { type EmailImportCompletionStore, isEmailSavedToAll } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import { MarkGmailEmailImportedCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { MarkGmailEmailImportedCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 
 export type GmailImportCompletionOutcome = "email-missing" | "not-saved" | "no-gmail-origin" | "mark-requested";
 

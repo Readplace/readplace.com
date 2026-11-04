@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { PaidLegPermitSchema } from "@packages/provider-contracts/metered-leg-ledger";
 import { initDynamoDbMeteredLegLedger } from "./dynamodb-metered-leg-ledger";
 

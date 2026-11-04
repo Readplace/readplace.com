@@ -1,20 +1,20 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import * as random from "@pulumi/random";
-import { HutchEcrRepository, HutchEventBus, HutchS3ReadWrite } from "@packages/hutch-infra-components/infra";
+import { EcrRepository, EventBus, S3ReadWrite } from "@packages/infra-components/infra";
 
 const config = new pulumi.Config();
 const eventBusName = config.require("eventBusName");
 const ocrLambdaRepositoryName = config.require("ocrLambdaRepositoryName");
 
-const eventBus = HutchEventBus.create("hutch", { eventBusName });
+const eventBus = EventBus.create("hutch", { eventBusName });
 
-const ocrLambdaRepository = HutchEcrRepository.create("hutch-ocr-lambda", {
+const ocrLambdaRepository = EcrRepository.create("hutch-ocr-lambda", {
 	repositoryName: ocrLambdaRepositoryName,
 	keepLastNImages: 200,
 });
 
-new HutchS3ReadWrite("hutch-media-bucket", {
+new S3ReadWrite("hutch-media-bucket", {
 	bucketName: config.require("mediaBucketName"),
 	expirationRules: [{ id: "pending", expirationDays: 2, prefixes: ["pending/"] }],
 });

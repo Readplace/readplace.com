@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishDeleteAccountCommand } from "@packages/provider-contracts/events";
 
 export function initInMemoryDeleteAccountCommand(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishDeleteAccountCommand: PublishDeleteAccountCommand } {
 	const { logger } = deps;
 

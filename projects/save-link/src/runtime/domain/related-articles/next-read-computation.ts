@@ -1,7 +1,7 @@
 import { hasEnoughSavesForNextRead } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	MarkRelatedArticlesReady,
 	MarkRelatedArticlesSkipped,
@@ -57,7 +57,7 @@ export function initNextReadComputation(deps: {
 	markRelatedArticlesSkipped: MarkRelatedArticlesSkipped;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): { skipNextRead: SkipNextRead; computeNextRead: ComputeNextRead } {
 	const {
 		gatherRelatedCandidatePools,

@@ -7,7 +7,7 @@ import {
 	markSummaryReady,
 	markSummarySkipped,
 } from "@packages/domain/article-aggregate";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initGenerateSummaryHandler } from "./generate-summary-handler";

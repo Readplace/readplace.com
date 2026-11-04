@@ -6,9 +6,9 @@ import {
 	ArticleFiledIntoReadlistEvent,
 	type FileArticleIntoReadlistDetail,
 	FileArticleIntoReadlistCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { formatErrorLogLine, type Logger } from "@packages/logger";
 import type { FindSavedArticleForLink } from "@packages/provider-contracts/article-store";
 import type { FileArticleIntoReadlist } from "@packages/save-article";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
@@ -35,7 +35,7 @@ export function initFileArticleIntoReadlistCommandHandler(deps: {
 	findSavedArticleForLink: FindSavedArticleForLink;
 	fileArticleIntoReadlist: FileArticleIntoReadlist;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event): Promise<SQSBatchResponse> => {

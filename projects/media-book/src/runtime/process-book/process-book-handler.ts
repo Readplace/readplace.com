@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { initDynamoDbPrivateItem } from "@packages/article-store";
 import { calculateReadTime } from "@packages/domain/article";
-import { MediaProcessingFailedEvent, MediaUploadCommittedEvent, TierContentExtractedEvent, type MediaUploadCommittedDetail } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { MediaProcessingFailedEvent, MediaUploadCommittedEvent, TierContentExtractedEvent, type MediaUploadCommittedDetail } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import { candidateProvenance, KIND_BY_TIER, type PutTierSource } from "@packages/tier-source";
 import { z } from "zod";
 import { buildBookBody } from "../epub/book-body";
@@ -41,7 +41,7 @@ export function initProcessBookHandler(deps: {
 	readerBodyByteLimit: number;
 	wholeBodyByteLimit: number;
 	largestSectionByteLimit: number;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const fail = async (detail: MediaUploadCommittedDetail, failure: BookFailure) => {
 		const { reason, notice } = BOOK_FAILURES[failure];

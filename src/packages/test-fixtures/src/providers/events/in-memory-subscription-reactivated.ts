@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishSubscriptionReactivated } from "@packages/provider-contracts/events";
 
 export function initInMemorySubscriptionReactivated(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishSubscriptionReactivated: PublishSubscriptionReactivated } {
 	const { logger } = deps;
 

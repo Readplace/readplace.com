@@ -22,7 +22,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { prepareCanonicalCommit, prepareExpectedSelection } from "./canonical-commit";
 import { VerificationFields } from "./verified-content";

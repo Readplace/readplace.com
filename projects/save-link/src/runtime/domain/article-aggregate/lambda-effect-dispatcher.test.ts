@@ -8,7 +8,7 @@ import {
 	SubmitLinkCommand,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { initLambdaEffectDispatcher } from "./lambda-effect-dispatcher";
 
 describe("initLambdaEffectDispatcher", () => {

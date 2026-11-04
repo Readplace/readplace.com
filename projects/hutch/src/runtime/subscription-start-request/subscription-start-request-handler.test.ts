@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { initInMemorySubscriptionBilling } from "@packages/test-fixtures/providers/subscription-billing";
 import type {
@@ -58,7 +58,7 @@ function buildSubject(opts?: { stripeFails?: boolean }): Subject {
 		publishSubscriptionChargeSucceeded,
 		publishSubscriptionChargeFailed,
 		resolvePriceId: async (plan) => STRIPE_PRICE_IDS[plan],
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { handler, providers, stripe, succeededEvents, failedEvents };
 }

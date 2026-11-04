@@ -1,14 +1,14 @@
 import assert from "node:assert";
 import type { SaveAttemptId } from "@packages/domain/article";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	decideSummaryAutoHeal,
 	incrementSummaryAutoHealAttempt,
 	type LoadArticle,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
-import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
+import { StaleCheckRequestedEvent } from "@packages/infra-components";
 import { decideTerminalAction } from "@packages/finalize-article";
 import type {
 	FindArticleFreshness,
@@ -81,7 +81,7 @@ export function initStaleCheckHandler(deps: {
 	now: () => Date;
 	newSaveAttemptId: () => SaveAttemptId;
 	staleTtlMs: number;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		findArticleFreshness,

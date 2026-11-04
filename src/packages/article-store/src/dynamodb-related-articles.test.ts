@@ -4,7 +4,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { initDynamoDbRelatedArticles } from "./dynamodb-related-articles";
 

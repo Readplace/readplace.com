@@ -2,8 +2,8 @@ import type { PutTierSource } from "@packages/tier-source";
 import assert from "node:assert";
 import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { ReadRefreshHtml } from "@packages/provider-contracts/refresh-html";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { RefreshArticleContentCommand } from "./index";
@@ -28,7 +28,7 @@ export function initRefreshArticleContentHandler(deps: {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	putTierSource: PutTierSource;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { readRefreshHtml, logger } = deps;
 	const commitTierCandidate = initCommitTierCandidate(deps);

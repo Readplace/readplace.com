@@ -44,11 +44,11 @@ import {
 	type WakeScheduler,
 } from "browser-extension-core";
 import { initCreateContextMenus } from "./create-context-menus";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import type { BuiltInOAuthClientId } from "@packages/supported-clients";
 import { createBrowserSetIcon } from "./action-icon.browser";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 function withServiceWorkerKeepalive<T>(work: Promise<T>): Promise<T> {
 	void browser.storage.local.get(STORAGE_KEY).catch(() => {});

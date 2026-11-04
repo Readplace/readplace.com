@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import type { PaidLegPermit } from "@packages/provider-contracts/metered-leg-ledger";
 import { legInputHash } from "./leg-input-hash";
@@ -10,7 +10,7 @@ const NOW = new Date("2026-11-04T10:00:00.000Z");
 
 function recordingLogger() {
 	const lines: unknown[][] = [];
-	const logger: HutchLogger = {
+	const logger: Logger = {
 		info: (...args: unknown[]) => {
 			lines.push(args);
 		},

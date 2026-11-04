@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initSkipReservedDomain } from "./skip-reserved-domain";
 
@@ -9,7 +9,7 @@ const MESSAGE = {
 	html: "<p>hi</p>",
 };
 
-function build(logger: HutchLogger) {
+function build(logger: Logger) {
 	const inner = initInMemoryEmail();
 	const { sendEmail } = initSkipReservedDomain({
 		sendEmail: inner.sendEmail,
@@ -18,9 +18,9 @@ function build(logger: HutchLogger) {
 	return { sendEmail, getSentEmails: inner.getSentEmails };
 }
 
-function captureWarnings(): { logger: HutchLogger; warnings: unknown[][] } {
+function captureWarnings(): { logger: Logger; warnings: unknown[][] } {
 	const warnings: unknown[][] = [];
-	const logger = HutchLogger.from({
+	const logger = Logger.from({
 		...noopLogger,
 		warn: (...args: unknown[]) => {
 			warnings.push(args);
@@ -31,7 +31,7 @@ function captureWarnings(): { logger: HutchLogger; warnings: unknown[][] } {
 
 describe("skip-reserved-domain", () => {
 	it("forwards a deliverable recipient to the wrapped sender", async () => {
-		const { sendEmail, getSentEmails } = build(HutchLogger.from(noopLogger));
+		const { sendEmail, getSentEmails } = build(Logger.from(noopLogger));
 
 		await sendEmail({ ...MESSAGE, to: "reader@readplace.com" });
 
@@ -40,7 +40,7 @@ describe("skip-reserved-domain", () => {
 	});
 
 	it("drops a reserved second-level domain so it never reaches the provider", async () => {
-		const { sendEmail, getSentEmails } = build(HutchLogger.from(noopLogger));
+		const { sendEmail, getSentEmails } = build(Logger.from(noopLogger));
 
 		await sendEmail({ ...MESSAGE, to: "oauth-revoke-e2e@example.com" });
 
@@ -48,7 +48,7 @@ describe("skip-reserved-domain", () => {
 	});
 
 	it("drops every reserved second-level domain, not just example.com", async () => {
-		const { sendEmail, getSentEmails } = build(HutchLogger.from(noopLogger));
+		const { sendEmail, getSentEmails } = build(Logger.from(noopLogger));
 
 		await sendEmail({ ...MESSAGE, to: "someone@example.net" });
 		await sendEmail({ ...MESSAGE, to: "someone@example.org" });
@@ -57,7 +57,7 @@ describe("skip-reserved-domain", () => {
 	});
 
 	it("drops a reserved TLD", async () => {
-		const { sendEmail, getSentEmails } = build(HutchLogger.from(noopLogger));
+		const { sendEmail, getSentEmails } = build(Logger.from(noopLogger));
 
 		await sendEmail({ ...MESSAGE, to: "someone@staging.test" });
 
@@ -65,7 +65,7 @@ describe("skip-reserved-domain", () => {
 	});
 
 	it("matches the reserved domain regardless of case", async () => {
-		const { sendEmail, getSentEmails } = build(HutchLogger.from(noopLogger));
+		const { sendEmail, getSentEmails } = build(Logger.from(noopLogger));
 
 		await sendEmail({ ...MESSAGE, to: "Someone@EXAMPLE.CoM" });
 
@@ -73,7 +73,7 @@ describe("skip-reserved-domain", () => {
 	});
 
 	it("keeps a deliverable address that merely looks synthetic", async () => {
-		const { sendEmail, getSentEmails } = build(HutchLogger.from(noopLogger));
+		const { sendEmail, getSentEmails } = build(Logger.from(noopLogger));
 
 		await sendEmail({ ...MESSAGE, to: "test+2@readplace.com" });
 

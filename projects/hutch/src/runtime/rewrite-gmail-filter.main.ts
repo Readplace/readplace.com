@@ -1,6 +1,6 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailSender, initDynamoDbGmailDiscovery, initDynamoDbGmailHistoryImport, initDynamoDbGmailMapping, initDynamoDbInboxAddress } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import {
@@ -9,7 +9,7 @@ import {
 	GmailForwardingConfirmFailedEvent,
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { initCancelGmailHistoryImports } from "./domain/gmail/cancel-gmail-history-imports";
 import { initDisconnectGmail } from "./domain/gmail/disconnect-gmail";
 import { initDisconnectGmailHandler } from "./domain/gmail/disconnect-gmail-handler";
@@ -21,7 +21,7 @@ import { initGmailAccessToken } from "./providers/gmail-api/gmail-access-token";
 import { initGmailFilters } from "./providers/gmail-api/gmail-filters";
 import { initRevokeGmailGrant } from "./providers/gmail-api/gmail-revoke";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const client = createDynamoDocumentClient();
 const now = () => new Date();
 
@@ -83,7 +83,7 @@ const rewriteGmailFilter = initRewriteGmailFilter({ ...filterDeps, mappings });
 const rewriteHandler = initRewriteGmailFilterHandler({
 	rewriteGmailFilter,
 	publishEvent,
-	metricLog: HutchLogger.fromJSON<GmailFilterRewriteFailedLine>(),
+	metricLog: Logger.fromJSON<GmailFilterRewriteFailedLine>(),
 	logger,
 });
 

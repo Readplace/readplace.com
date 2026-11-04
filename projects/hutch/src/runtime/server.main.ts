@@ -1,12 +1,12 @@
 import express from "express";
 import { MAX_PORT_ATTEMPTS, findAvailablePort } from "@packages/find-available-port";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import { requireEnv } from "@packages/require-env";
 import { createDevReadplaceApp } from "./dev-app";
 import { PORT } from "./server";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 async function main(): Promise<void> {
 	// Never fight another process for the port: a second checkout running its own

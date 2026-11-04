@@ -17,7 +17,7 @@ import {
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 
 /** Sort key of the per-email meta item co-located in the links partition. Holds

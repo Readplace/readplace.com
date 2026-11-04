@@ -4,7 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import type { GmailHeldMailEntry, GmailHeldMailStore } from "@packages/domain/gmail";

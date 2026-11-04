@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import type { Handler, SQSEvent, SQSBatchResponse } from "aws-lambda";
 import { ForwardableSenderSchema } from "@packages/domain/gmail";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
-import { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, MonitorGmailNewslettersCommand, GmailNewsletterMonitoringProgressedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { CheckGmailNewslettersCommand, GmailNewsletterAccountsCheckedEvent, MonitorGmailNewslettersCommand, GmailNewsletterMonitoringProgressedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import type { GmailMonitoringPage } from "@packages/provider-contracts/gmail-monitoring";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -47,7 +47,7 @@ function harness() {
 		dispatchMonitor: async (input) => { dispatched.push(input); },
 		dispatchNotice: async (input) => { notices.push(input); },
 		publishEvent,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	};
 	return { deps, published, accountsQueries, checked, dispatched, notices, started, pages, complete: () => { result = { nextPage: undefined, notices: [] }; } };
 }

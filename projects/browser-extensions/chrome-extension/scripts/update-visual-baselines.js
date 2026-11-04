@@ -2,12 +2,12 @@
 const { execFileSync } = require('node:child_process');
 const { globSync } = require('node:fs');
 const path = require('node:path');
-const { HutchLogger, consoleLogger } = require('@packages/hutch-logger');
+const { Logger, consoleLogger } = require('@packages/logger');
 const { defaultDeps } = require('@packages/test-phase-runner');
 const { initVisualBaselines, packagingPath } = require('browser-extension-core/build');
 const { devDependencies } = require('../package.json');
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const WORKSPACE_ROOT = path.resolve(PROJECT_ROOT, '..', '..', '..');
 

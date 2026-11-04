@@ -5,8 +5,8 @@ import type {
 	SQSEvent,
 } from "aws-lambda";
 import { z } from "zod";
-import { CrawlEmailLinkPreview } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { CrawlEmailLinkPreview } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 
@@ -41,7 +41,7 @@ const DeadLetteredPreview = CrawlEmailLinkPreview.detailSchema.pipe(
  */
 export function initCrawlEmailLinkPreviewDlqHandler(deps: {
 	failPendingLink: InboxEmailLinkStore["failPendingLink"];
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { failPendingLink, logger } = deps;
 

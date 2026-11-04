@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { CreateAiMessage } from "@packages/ai-message";
 import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
 import type { BudgetWindow, RecommendationBudget } from "../domain/related-articles/recommendation-budget";
 import type { SelectionAttempt } from "../domain/related-articles/related-articles-selector";

@@ -7,7 +7,7 @@ import type {
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { RevokeGmailGrant } from "@packages/provider-contracts/gmail-oauth";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { CancelGmailHistoryImports } from "./cancel-gmail-history-imports";
 import type { RewriteGmailFilter } from "./rewrite-gmail-filter";
 
@@ -27,7 +27,7 @@ export function initDisconnectGmail(deps: {
 	removeGmailFilter: RewriteGmailFilter;
 	revokeGmailGrant: RevokeGmailGrant;
 	cancelGmailHistoryImports: CancelGmailHistoryImports;
-	logger: HutchLogger;
+	logger: Logger;
 }): DisconnectGmail {
 	const { connections, credentials, senders, addresses, removeGmailFilter, revokeGmailGrant, logger } = deps;
 

@@ -1,7 +1,7 @@
 import { NoSuchKey } from "@aws-sdk/client-s3";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ANONYMOUS_VIEWER, MinutesSchema, validateSaveableUrl, shownSummary, storedArticleBody } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initStartAnonymousCrawl } from "@packages/save-article";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";

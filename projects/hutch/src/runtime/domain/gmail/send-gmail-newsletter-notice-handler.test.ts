@@ -5,9 +5,9 @@ import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { NewsletterNameSchema, type DetectNewsletters } from "@packages/domain/newsletter-catalog";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
-import { GmailNewsletterNoticeProcessedEvent, SendGmailNewsletterNoticeCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { GmailNewsletterNoticeProcessedEvent, SendGmailNewsletterNoticeCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { GmailMonitoringCheckpoint } from "@packages/provider-contracts/gmail-monitoring";
 import type { EmailMessage } from "@packages/provider-contracts/email";
@@ -49,7 +49,7 @@ async function harness() {
 	await observe(SENDER);
 	const published: { event: unknown; detail: unknown }[] = [];
 	const sent: EmailMessage[] = [];
-	const deps = { connections, monitoring, mappings, detectNewsletters: recognizing([[SENDER, "Example Letter"], [SECOND, "Another Digest"], [THIRD, undefined]]), listReadlistDefinitions: async (): Promise<ReadlistDefinitionData[]> => [WORK], findEmailByUserId: async (): Promise<string | null> => "readplace-account@example.com", sendEmail: async (message: EmailMessage) => { sent.push(message); }, founderAvatarUrl: "https://static.test/fayner.jpg", appOrigin: "https://readplace.test", now, publishEvent: (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent, logger: HutchLogger.from(noopLogger) };
+	const deps = { connections, monitoring, mappings, detectNewsletters: recognizing([[SENDER, "Example Letter"], [SECOND, "Another Digest"], [THIRD, undefined]]), listReadlistDefinitions: async (): Promise<ReadlistDefinitionData[]> => [WORK], findEmailByUserId: async (): Promise<string | null> => "readplace-account@example.com", sendEmail: async (message: EmailMessage) => { sent.push(message); }, founderAvatarUrl: "https://static.test/fayner.jpg", appOrigin: "https://readplace.test", now, publishEvent: (async (event, detail) => { published.push({ event, detail }); }) as PublishEvent, logger: Logger.from(noopLogger) };
 	async function run(records = [{ messageId: "notice", body: JSON.stringify({ detail: { userId: USER } }) }]) {
 		const response = await initSendGmailNewsletterNoticeHandler(deps)(buildSqsEvent(records), buildLambdaContext(), () => {}); assert(response); return response;
 	}

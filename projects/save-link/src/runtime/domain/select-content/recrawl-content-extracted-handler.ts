@@ -1,4 +1,4 @@
-import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
+import { RecrawlContentExtractedEvent } from "@packages/infra-components";
 import { initSelectionQueueHandler } from "./select-content-work";
 
 export const initRecrawlContentExtractedHandler = initSelectionQueueHandler({

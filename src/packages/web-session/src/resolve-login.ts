@@ -1,5 +1,5 @@
 import type { AuthenticatedUserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import { readCookie } from "./cookie";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
@@ -28,7 +28,7 @@ export type ResolveLogin = (cookieHeader: string | undefined) => Promise<LoginSt
  *    swallowed silently. */
 export function initResolveLogin(deps: {
 	getSessionUserId: GetSessionUserId;
-	logger: HutchLogger;
+	logger: Logger;
 }): ResolveLogin {
 	return async (cookieHeader) => {
 		const sessionId = readCookie(cookieHeader, SESSION_COOKIE_NAME);

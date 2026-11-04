@@ -3,7 +3,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { resolutionOnViewCoolDownCutoff, shownSummary } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {

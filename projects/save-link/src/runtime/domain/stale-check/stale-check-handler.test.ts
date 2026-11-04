@@ -6,7 +6,7 @@ import { parseHTML } from "linkedom";
 import { initEventBridgeRefreshArticleContent } from "@packages/refresh-article-content";
 import { initRefreshArticleContentHandler } from "../save-link/refresh-article-content-handler";
 import type { LoadArticle, TransitionAndPersist } from "@packages/domain/article-aggregate";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,

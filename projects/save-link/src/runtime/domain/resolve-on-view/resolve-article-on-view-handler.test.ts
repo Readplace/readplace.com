@@ -1,9 +1,9 @@
 import type { Article, TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted, markSummaryPending } from "@packages/domain/article-aggregate";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { TierContentExtractedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { type Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { ClassifiedCrawlError } from "../save-link/save-link-work";
@@ -45,7 +45,7 @@ function createHandler(overrides: {
 	const published: Array<{ detailType: string; detail: unknown }> = [];
 	const crawls: Array<Parameters<RunCrawlFromTier1>[0]> = [];
 	const infos: unknown[][] = [];
-	const logger: HutchLogger = { ...noopLogger, info: (...args: unknown[]) => { infos.push(args); } };
+	const logger: Logger = { ...noopLogger, info: (...args: unknown[]) => { infos.push(args); } };
 	const publishEvent: PublishEvent = async (event, detail) => {
 		published.push({ detailType: event.detailType, detail });
 	};

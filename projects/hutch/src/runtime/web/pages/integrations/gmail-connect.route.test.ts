@@ -12,7 +12,7 @@ import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initConfirmOnConnectGmailConnection } from "../../../domain/gmail/confirm-on-connect-gmail-connection";
 import { initDisconnectGmail } from "../../../domain/gmail/disconnect-gmail";
 import { signState } from "../../auth/oauth-state";
@@ -1083,7 +1083,7 @@ describe("Gmail mappings across a disconnect and reconnect", () => {
 			removeGmailFilter: async () => ({ ok: true, filterCount: 0, senderCount: 0 }),
 			revokeGmailGrant: async () => ({ ok: true }),
 			cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
 		const agent = await loginAgent(harness.server, harness.auth);

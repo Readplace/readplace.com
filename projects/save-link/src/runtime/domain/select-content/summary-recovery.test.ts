@@ -1,7 +1,7 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent, type SelectMostCompleteContent } from "./select-content";
 import { initSelectContentWork } from "./select-content-work";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { CreateAiMessage } from "@packages/ai-message";
 import { MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import {

@@ -1,6 +1,6 @@
 import { ReadingListItemIdSchema } from "./domain/reading-list-item-id";
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
 import { UnauthorizedError } from "./auth/unauthorized-error";
 import { BrowserExtensionCore } from "./core";
@@ -130,7 +130,7 @@ describe("BrowserExtensionCore save", () => {
 			createFakeShell({ id: 7, url: "https://other.example", title: "Other" });
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
@@ -157,7 +157,7 @@ describe("BrowserExtensionCore save", () => {
 		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
@@ -183,7 +183,7 @@ describe("BrowserExtensionCore save", () => {
 		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
@@ -211,7 +211,7 @@ describe("BrowserExtensionCore save", () => {
 		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
@@ -243,7 +243,7 @@ describe("BrowserExtensionCore save", () => {
 		});
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 
@@ -361,7 +361,7 @@ function makeItem(url: string): ReadingListItem {
 	};
 }
 
-const logger = HutchLogger.from(noopLogger);
+const logger = Logger.from(noopLogger);
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function collectionPage(page: LoadPageResult | undefined): CollectionPage {
@@ -379,7 +379,7 @@ describe("BrowserExtensionCore init", () => {
 			createFakeShell();
 		const core = BrowserExtensionCore(shell, {
 			auth,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			readingList,
 		});
 		core.init();
@@ -458,7 +458,7 @@ describe("BrowserExtensionCore init", () => {
 
 	it("logs when resolving the shortcut target rejects", async () => {
 		const errors: unknown[] = [];
-		const recordingLogger = HutchLogger.from({
+		const recordingLogger = Logger.from({
 			...noopLogger,
 			error: (...args: unknown[]) => {
 				errors.push(args);
@@ -849,7 +849,7 @@ describe("BrowserExtensionCore invoke/fetch", () => {
 			throw new Error("mint failed");
 		};
 		const warns: unknown[][] = [];
-		const capturingLogger = HutchLogger.from({
+		const capturingLogger = Logger.from({
 			...noopLogger,
 			warn: (...args) => warns.push(args),
 		});

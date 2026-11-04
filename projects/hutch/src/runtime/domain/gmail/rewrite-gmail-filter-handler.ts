@@ -6,17 +6,17 @@ import {
 	GmailFilterRewrittenEvent,
 	METERED_GMAIL_FILTER_REWRITE_REASONS,
 	RewriteGmailFilterCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import { UserIdSchema } from "@packages/domain/user";
 import type { RewriteGmailFilter } from "./rewrite-gmail-filter";
 
 export function initRewriteGmailFilterHandler(deps: {
 	rewriteGmailFilter: RewriteGmailFilter;
 	publishEvent: PublishEvent;
-	metricLog: HutchLogger.Typed<GmailFilterRewriteFailedLine>;
-	logger: HutchLogger;
+	metricLog: Logger.Typed<GmailFilterRewriteFailedLine>;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { rewriteGmailFilter, publishEvent, metricLog, logger } = deps;
 

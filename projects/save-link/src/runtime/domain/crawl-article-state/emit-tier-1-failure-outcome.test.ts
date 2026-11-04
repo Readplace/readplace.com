@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initEmitTier1FailureOutcome } from "./emit-tier-1-failure-outcome";
 import type { ReadTierSnapshot } from "./read-tier-snapshot";
 

@@ -14,8 +14,8 @@ import { initRecoverAuthenticatedToken } from "../oauth-refresh/authenticate";
 import { CredentialHistory } from "../oauth-refresh/evidence";
 import { initVerifyRefreshRecovery } from "../oauth-refresh/recovery";
 import { initDynamoRefreshOutcomes } from "../oauth-refresh/dynamodb-outcomes";
-import { defineDynamoTable } from "@packages/hutch-storage-client";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { defineDynamoTable } from "@packages/storage-client";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initDynamoDbAuth } from "./auth/dynamodb-auth";
 import { parseDynamoTables } from "./dynamodb-tables";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
@@ -64,7 +64,7 @@ import { initStripePaymentMethods } from "./stripe-payment-methods/stripe-paymen
 import { initAwsTrialScheduler } from "./trial-scheduler/aws-trial-scheduler";
 import { initDynamoDbFindItemOwner, initReadArticleContent } from "@packages/article-store";
 import { initCanonicalAliasStore } from "@packages/article-store";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
 import { initEventBridgeLinkDequeued } from "./events/eventbridge-link-dequeued";
 import { initEventBridgeQueueEntryCreated } from "./events/eventbridge-queue-entry-created";
 import { initEventBridgeComputeRelatedPasses } from "./events/eventbridge-compute-related-passes";
@@ -122,7 +122,7 @@ import {
 	GmailModifyPermissionGrantedEvent,
 	StartGmailSenderDiscoveryCommand,
 	SubmitNewsletterSenderCommand,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { randomBytes, randomUUID } from "node:crypto";
 import {
 	type ForwardableSender,
@@ -140,7 +140,7 @@ import { initStripeCheckout } from "./stripe-checkout/stripe-checkout";
 import { initDynamoDbPendingSignup } from "./pending-signup/dynamodb-pending-signup";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDynamoDbSubscriptionWrites } from "./subscription-providers/dynamodb-subscription-writes";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxAddress, initDynamoDbInboxEmailLink, initDynamoDbInboxSavedLink } from "@packages/inbox-store";
@@ -156,7 +156,7 @@ const ADMIN_DASHBOARD_QUERY_MAX_WAIT_MS = 25_000;
  * dev server may have bound a different port than `APP_ORIGIN` names, and every
  * absolute URL handed to a client has to point back at this process. */
 export function initProdProviders(input: { appOrigin: string }) {
-	const logger = HutchLogger.from(consoleLogger);
+	const logger = Logger.from(consoleLogger);
 	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 	const logInfo = (message: string) => logger.info(JSON.stringify({ level: "INFO", timestamp: new Date().toISOString(), message }));
 
@@ -207,7 +207,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	const schedulerClient = new SchedulerClient({});
 
 	const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession, client, usersTableName: usersTable, sessionsTableName: sessionsTable });
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession, client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 	const engagementStarter = initDynamoDbEngagementStarter({
 		client,
 		onboardingTableName: onboardingTable,
@@ -556,7 +556,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	return {
 		recordEngagementActivity: initRecordEngagementActivity({
 			state: engagementStarter,
-			logger: HutchLogger.fromJSON<EngagementEvent>(),
+			logger: Logger.fromJSON<EngagementEvent>(),
 		}),
 		...auth,
 		...articleStore,
@@ -564,7 +564,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		...readlistFitOverrides,
 		createReadlistDefinition: initReportReadlistCap({
 			createReadlistDefinition: queueDefinitions.createReadlistDefinition,
-			metricLog: HutchLogger.fromJSON<ReadlistCapApproachedLine>().info,
+			metricLog: Logger.fromJSON<ReadlistCapApproachedLine>().info,
 		}),
 		readArticleContent,
 		findItemOwner,

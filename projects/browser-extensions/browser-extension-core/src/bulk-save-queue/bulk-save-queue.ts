@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type { BulkSavePage, BulkSaveResult } from "../reading-list/reading-list.types";
 import {
@@ -95,7 +95,7 @@ export function initBulkSaveQueue(deps: {
 	scheduler: WakeScheduler;
 	openSession: OpenBulkSaveSession;
 	progress: (events: QueueEvent[]) => Promise<void>;
-	logger: HutchLogger;
+	logger: Logger;
 }): BulkSaveQueue {
 	let pending: Promise<unknown> = Promise.resolve();
 	let resuming: Promise<ResumeOutcome> | undefined;

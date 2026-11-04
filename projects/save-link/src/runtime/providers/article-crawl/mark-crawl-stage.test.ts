@@ -1,4 +1,4 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { CRAWL_STAGE_TO_PCT, type CrawlStage as DomainCrawlStage } from "@packages/domain/article";
 import { initDynamoDbMarkCrawlStage, type CrawlStage } from "./mark-crawl-stage";
 

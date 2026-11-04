@@ -1,5 +1,5 @@
 import type { CanonicalCommit } from "@packages/domain/article-aggregate";
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient, defineDynamoTable, dynamoField } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, type DynamoDBDocumentClient, defineDynamoTable, dynamoField } from "@packages/storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId, toCrawlVersionMinuteId } from "@packages/article-resource-unique-id";
 import { type CrawlVersionEntry, StoredCrawlVersionSchema } from "@packages/article-store";

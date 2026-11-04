@@ -6,8 +6,8 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import { SubscriptionChargeFailedEvent } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { SubscriptionChargeFailedEvent } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type {
 	CancelSubscriptionReason,
 	PublishCancelSubscriptionCommand,
@@ -26,7 +26,7 @@ const cancelReasonByChargeFailure: Record<
 export function initSubscriptionChargeFailedHandler(deps: {
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	emit: EmitSubscriptionEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];

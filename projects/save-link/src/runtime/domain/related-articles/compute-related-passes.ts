@@ -9,7 +9,7 @@ import {
 	ComputeRelatedPastReadsCommand,
 	ComputeRelatedPassesCommand,
 	QueueEntryCreatedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 
 const detailTypeOf = (record: SQSRecord): unknown =>
 	JSON.parse(record.body)["detail-type"];

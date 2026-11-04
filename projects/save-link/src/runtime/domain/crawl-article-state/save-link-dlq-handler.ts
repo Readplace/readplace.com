@@ -4,14 +4,14 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
-import { SaveLinkCommand } from "@packages/hutch-infra-components";
+import { SaveLinkCommand } from "@packages/infra-components";
 
 interface SaveLinkDlqHandlerDeps {
 	transitionAndPersist: TransitionAndPersist;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }
 

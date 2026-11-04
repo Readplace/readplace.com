@@ -4,10 +4,10 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { InboxEmailLinkStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { EmailReceivedEvent } from "@packages/hutch-infra-components";
+import { EmailReceivedEvent } from "@packages/infra-components";
 
 /**
  * Turns a dead-lettered extraction into the barrier that says it gave up, so the
@@ -26,7 +26,7 @@ import { EmailReceivedEvent } from "@packages/hutch-infra-components";
  */
 export function initExtractEmailLinksDlqHandler(deps: {
 	markLinksExtractionFailed: InboxEmailLinkStore["markLinksExtractionFailed"];
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { markLinksExtractionFailed, logger } = deps;
 

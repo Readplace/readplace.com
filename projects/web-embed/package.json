@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@packages/domain": "workspace:*",
-    "@packages/hutch-logger": "workspace:*",
-    "@packages/hutch-storage-client": "workspace:*",
+    "@packages/logger": "workspace:*",
+    "@packages/storage-client": "workspace:*",
     "@packages/require-env": "workspace:*",
     "@packages/web-session": "workspace:*",
     "@packages/viewer-identity": "workspace:*",
@@ -33,7 +33,7 @@
   "devDependencies": {
     "@packages/check-unused-css": "workspace:*",
     "@packages/e2e-harness": "workspace:*",
-    "@packages/hutch-infra-components": "workspace:*",
+    "@packages/infra-components": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@playwright/test": "1.60.0",

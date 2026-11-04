@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initConfirmGmailForwardingDlqHandler } from "./confirm-gmail-forwarding-dlq-handler";
@@ -9,7 +9,7 @@ const GATEWAY = "gmail-a7b2c9@read.place";
 function makeHarness() {
 	const errors: { message: string; data: unknown }[] = [];
 	const handler = initConfirmGmailForwardingDlqHandler({
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			info: () => {},
 			warn: () => {},
 			error: (...args: unknown[]) => {

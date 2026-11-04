@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type IconName, iconSvg } from "@packages/ui-icons";
 import type { ZodType } from "zod";
 import { advertisesBulkSave } from "../advertised-capabilities";
@@ -148,7 +148,7 @@ function lowerFirst(text: string): string {
 export function initPopup(deps: {
 	browser: PopupBrowser;
 	appDomains: readonly string[];
-	logger: HutchLogger;
+	logger: Logger;
 	views: string;
 }): void {
 	const { browser, appDomains, logger } = deps;

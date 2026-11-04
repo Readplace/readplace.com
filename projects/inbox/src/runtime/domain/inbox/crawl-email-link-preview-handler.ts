@@ -4,8 +4,8 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import { CrawlEmailLinkPreview } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { CrawlEmailLinkPreview } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
@@ -24,7 +24,7 @@ import { toResolvedUrl } from "./to-resolved-url";
 export function initCrawlEmailLinkPreviewHandler(deps: {
 	crawlAndFinalize: CrawlAndFinalizeArticle;
 	setLinkOutcome: InboxEmailLinkStore["setLinkOutcome"];
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { crawlAndFinalize, setLinkOutcome, logger } = deps;
 

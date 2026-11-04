@@ -1,5 +1,5 @@
 import { assert } from "../invariant";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { WhenLoggedIn } from "../auth/auth.types";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import { bulkSaveNotification } from "../bulk-save-notification";
@@ -65,7 +65,7 @@ export function initSaveAllRuns(deps: {
 	capture: (tab: SaveableTab) => Promise<TabContent | undefined>;
 	notify: (notification: Notification) => void;
 	keepAlive: <T>(work: Promise<T>) => Promise<T>;
-	logger: HutchLogger;
+	logger: Logger;
 }) {
 	const { record, queue, logger } = deps;
 	const captures = new Map<BulkSaveRunId, Captures>();

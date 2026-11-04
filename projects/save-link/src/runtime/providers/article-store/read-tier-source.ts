@@ -1,7 +1,7 @@
 import { GetObjectCommand, S3ServiceException } from "@aws-sdk/client-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { CandidateId } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { TierSourceMetadataSchema, candidateManifestKey, type Tier, type TierSource } from "@packages/tier-source";
 
@@ -10,7 +10,7 @@ export type ReadTierSource = (params: { url: string; tier: Tier; candidateId?: C
 export function initReadTierSource(deps: {
 	client: Pick<S3Client, "send">;
 	bucketName: string;
-	logger: HutchLogger;
+	logger: Logger;
 }): { readTierSource: ReadTierSource } {
 	const { client, bucketName, logger } = deps;
 	async function tryGetObject(key: string): Promise<string | undefined> {

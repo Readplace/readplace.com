@@ -1,5 +1,5 @@
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
-import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { RecrawlContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import { initPublishArchiveComparison } from "./publish-archive-comparison";
 
 const wrapper = { id: CandidateIdSchema.parse("wrapper-candidate"), tier: "tier-2" as const };

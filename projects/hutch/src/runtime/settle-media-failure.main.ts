@@ -1,6 +1,6 @@
 import { initDynamoDbPrivateItem } from "@packages/article-store";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbMediaUploadSessions } from "./providers/media-upload-session/dynamodb-media-upload-sessions";
 import { initSettleMediaFailureHandler } from "./settle-media-failure/settle-media-failure-handler";
@@ -22,5 +22,5 @@ const { failMediaUpload } = initDynamoDbMediaUploadSessions({
 export const handler = initSettleMediaFailureHandler({
 	recordPrivateItemFailure,
 	failMediaUpload,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });

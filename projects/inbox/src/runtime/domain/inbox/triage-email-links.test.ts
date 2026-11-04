@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import type { CreateAiMessage } from "@packages/ai-message";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { EmailLinkOrdinalSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initTriageEmailLinks } from "./triage-email-links";
 
-const logger = HutchLogger.from(noopLogger);
+const logger = Logger.from(noopLogger);
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
 const RECEIVED_AT_MESSAGE_ID = "2026-11-02T00:00:00.000Z#<m@x>";

@@ -1,5 +1,5 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { consoleLogger } from "@packages/logger";
 import { requireEnv } from "@packages/require-env";
 import { initUpdateFetchTimestamp } from "./providers/article-crawl/update-fetch-timestamp";
 import { initUpdateFetchTimestampHandler } from "./domain/save-link/update-fetch-timestamp-handler";

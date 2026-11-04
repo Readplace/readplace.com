@@ -8,9 +8,9 @@ import {
 	GmailHistoryImportPageProcessedEvent,
 	ProcessGmailHistoryImportPageCommand,
 	StartGmailHistoryImportCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
 import type { GmailHistoryImport, GmailHistoryImportPage } from "./gmail-history-import";
 import { type GmailImportRecordIdentity, type GmailImportRecordTrace, startGmailImportRecordTrace } from "./gmail-import-record-trace";
@@ -40,7 +40,7 @@ export function initGmailHistoryImportHandler(deps: {
 	importer: GmailHistoryImport;
 	dispatchPage: (input: GmailHistoryImportPage) => Promise<void>;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 	recordDiagnostic: RecordGmailDiagnostic;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {

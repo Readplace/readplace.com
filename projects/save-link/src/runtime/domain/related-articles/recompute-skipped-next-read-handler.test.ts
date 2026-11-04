@@ -1,7 +1,7 @@
 import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { type Logger, noopLogger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	MarkRelatedArticlesOutcome,
 	RelatedCandidate,
@@ -87,7 +87,7 @@ interface HandlerOverrides {
 	pools?: RelatedCandidatePools;
 	selectRelatedArticles?: SelectRelatedArticles;
 	markOutcome?: MarkRelatedArticlesOutcome;
-	logger?: HutchLogger;
+	logger?: Logger;
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {

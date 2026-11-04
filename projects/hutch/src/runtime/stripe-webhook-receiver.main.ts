@@ -1,11 +1,11 @@
 /* c8 ignore start -- composition root, no logic to test */
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import type { StripeEventType } from "@packages/hutch-infra-components";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
+import type { StripeEventType } from "@packages/infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components/runtime";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initHandleCustomerSubscriptionDeleted } from "./stripe-webhook-receiver/handlers/customer-subscription-deleted";
 import { initHandleInvoicePaymentFailed } from "./stripe-webhook-receiver/handlers/invoice-payment-failed";
@@ -43,7 +43,7 @@ const eventHandlers: Record<StripeEventType, StripeEventHandler> = {
 
 export const handler = initStripeWebhookReceiverHandler({
 	webhookSecret,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 	now: () => new Date(),
 	eventHandlers,
 });

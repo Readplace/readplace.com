@@ -1,4 +1,4 @@
-import { noopLogger, HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, Logger } from "@packages/logger";
 import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers
 import { MinutesSchema } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import { UserDataExportedEvent } from "@packages/hutch-infra-components";
+import { UserDataExportedEvent } from "@packages/infra-components";
 import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
 import { initExportUserDataHandler } from "./export-user-data-handler";
 
@@ -85,7 +85,7 @@ function createHarness(): HandlerHarness {
 				detail,
 			});
 		},
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 		now: fixedNow,
 	});
 
@@ -390,7 +390,7 @@ describe("initExportUserDataHandler", () => {
 			publishEvent: async (_event, detail) => {
 				publishedEvents.push({ detail });
 			},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 			now: fixedNow,
 		});
 

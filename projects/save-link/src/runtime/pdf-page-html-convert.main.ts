@@ -1,5 +1,5 @@
 import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
+import { consoleLogger, Logger } from "@packages/logger";
 import { initConvertPageToHtmlWithDeepseek } from "./domain/pdf-page-html-convert/init-convert-page-to-html-with-deepseek";
 import { initPdfPageHtmlConvertHandler } from "./domain/pdf-page-html-convert/pdf-page-html-convert-handler";
 import { OCR_HTML_CONVERT_TIMEOUTS } from "./domain/pdf-page-html-convert/timeouts";
@@ -15,7 +15,7 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "warn",
 	callTimeoutMs: null,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 
@@ -26,5 +26,5 @@ const convertPageToHtmlWithLlm = initConvertPageToHtmlWithDeepseek({
 export const handler = initPdfPageHtmlConvertHandler({
 	convertPageToHtmlWithLlm,
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 });

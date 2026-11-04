@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { GMAIL_FORWARDING_ALIAS } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { RevokeGmailGrantResult } from "@packages/provider-contracts/gmail-oauth";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailCredentials } from "@packages/test-fixtures/providers/gmail-credentials";
@@ -75,7 +75,7 @@ async function makeHarness(options: {
 			return options.revoked ?? { ok: true };
 		},
 		cancelGmailHistoryImports: initCancelGmailHistoryImports({ imports, now: () => NOW }),
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 
 	return { disconnect, connections, credentials, senders, discovery, addresses, gateway, rewrites, revokes, imports };

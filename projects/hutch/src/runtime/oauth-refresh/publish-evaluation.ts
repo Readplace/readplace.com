@@ -1,12 +1,12 @@
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { OAuthRefreshEvaluatedEvent } from "@packages/hutch-infra-components";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { OAuthRefreshEvaluatedEvent } from "@packages/infra-components";
 import type { RefreshCounts } from "./outcomes";
 
 export function initPublishRefreshEvaluation(deps: {
 	publish: (input: { minute: number; counts: RefreshCounts }) => Promise<void>;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }) {
 	return async (input: { minute: number; counts: RefreshCounts }) => {
 		await deps.publish(input);

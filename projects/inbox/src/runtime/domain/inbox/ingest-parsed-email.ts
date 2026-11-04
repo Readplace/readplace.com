@@ -12,9 +12,9 @@ import type { UserId } from "@packages/domain/user";
 import {
 	type EmailReceivedDetail,
 	EmailReceivedEvent,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import { acceptedGmailRouting } from "./accepted-gmail-routing";
 import type { DownloadedEmailImage } from "./download-email-images";
 import type { StoreEmailBody } from "./store-email-body";
@@ -38,7 +38,7 @@ export function initIngestParsedEmail(deps: {
 	getEmail: InboxEmailStore["getEmail"];
 	addGmailOrigins: EmailImportCompletionStore["addGmailOrigins"];
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): IngestParsedEmail {
 	const { storeBody, putEmail, getEmail, addGmailOrigins, publishEvent, logger } = deps;
 

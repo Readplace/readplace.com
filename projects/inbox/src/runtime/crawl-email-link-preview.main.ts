@@ -15,8 +15,8 @@ import {
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
-import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { getEnv, requireEnv } from "@packages/require-env";
 import { initCrawlEmailLinkPreviewHandler } from "./domain/inbox/crawl-email-link-preview-handler";
 import { initS3PutImageObject } from "./providers/article-image/s3-put-image-object";
@@ -28,7 +28,7 @@ const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const logError = (message: string, error?: Error) =>
 	logger.error(formatErrorLogLine({ message, error, now: () => new Date() }));
 const logInfo = (message: string) =>
@@ -58,7 +58,7 @@ if (getEnv("AWS_LAMBDA_FUNCTION_NAME")) {
 	assertCurlImpersonateAvailable({ probe: defaultCurlImpersonateProbe });
 }
 const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
-const logThumbnailNotDelivered = HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
+const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError, logInfo, logThumbnailNotDelivered });
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,

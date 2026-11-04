@@ -1,9 +1,9 @@
 import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { ConfirmGmailForwardingCommand } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { ConfirmGmailForwardingCommand } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 
 export function initConfirmGmailForwardingDlqHandler(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { logger } = deps;
 

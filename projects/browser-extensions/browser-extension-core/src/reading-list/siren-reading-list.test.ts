@@ -1,6 +1,6 @@
 import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import assert from "node:assert/strict";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { CollectionPage, LoadPageResult } from "./reading-list.types";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import {

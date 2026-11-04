@@ -5,7 +5,7 @@ import type { FindArticleCrawlStatus } from "@packages/provider-contracts/articl
 import type { FindArticleByUrl, ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { StarterPick } from "@packages/provider-contracts/engagement-starter";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { ResolveSaveIdentity, StartAnonymousCrawl } from "@packages/save-article";
 
 const HnItemSchema = z
@@ -71,7 +71,7 @@ export function initHnSnapshot(deps: {
 	findGeneratedSummary: FindGeneratedSummary;
 	startAnonymousCrawl: StartAnonymousCrawl;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): { prepareSnapshot: () => Promise<void>; findReadySnapshot: () => Promise<StarterPick[]> } {
 	const readJson = async (path: string) => {
 		const response = await deps.fetch(`https://hacker-news.firebaseio.com/v0/${path}.json`, {

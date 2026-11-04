@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initCaptureHost } from "./capture-host";
 
 type Attributes = Record<string, string>;
@@ -60,7 +60,7 @@ function createHarness(answer: () => Promise<unknown>) {
 		announceCaptureFailed: () => {
 			failures += 1;
 		},
-		logger: HutchLogger.from({ ...noopLogger, warn: (...args) => warnings.push(String(args[0])) }),
+		logger: Logger.from({ ...noopLogger, warn: (...args) => warnings.push(String(args[0])) }),
 	});
 
 	return { host, elements, rootAttributes, requests, warnings, announcements: () => announcements, failures: () => failures };

@@ -1,6 +1,6 @@
 /* c8 ignore start -- composition root, no logic to test */
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbGmailConnection } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import type { GmailConnectionsCountLine } from "./observability/events";
@@ -17,7 +17,7 @@ const { countConnected } = initDynamoDbGmailConnection({
 
 export const handler = initCountGmailConnectionsHandler({
 	countConnected,
-	metricLog: HutchLogger.fromJSON<GmailConnectionsCountLine>(),
-	logger: HutchLogger.from(consoleLogger),
+	metricLog: Logger.fromJSON<GmailConnectionsCountLine>(),
+	logger: Logger.from(consoleLogger),
 });
 /* c8 ignore stop */

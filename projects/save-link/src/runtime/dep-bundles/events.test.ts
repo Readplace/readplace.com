@@ -3,8 +3,8 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import {
 	EventBridgeClient,
 	type PublishEvent,
-} from "@packages/hutch-infra-components/runtime";
-import { SimpleCrawlUnsupportedEvent } from "@packages/hutch-infra-components";
+} from "@packages/infra-components/runtime";
+import { SimpleCrawlUnsupportedEvent } from "@packages/infra-components";
 import {
 	initEmitSimpleCrawlUnsupported,
 	initEventsDepBundle,

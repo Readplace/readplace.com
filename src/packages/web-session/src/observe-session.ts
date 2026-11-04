@@ -1,11 +1,11 @@
 import { createHmac, randomUUID } from "node:crypto";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { ObserveSession } from "@packages/provider-contracts/auth";
 
 export function initObserveSession(deps: {
 	salt: string;
 	now: () => Date;
-	logger: HutchLogger.Typed<Record<string, unknown>>;
+	logger: Logger.Typed<Record<string, unknown>>;
 	context: () => Record<string, unknown>;
 }): ObserveSession {
 	const reference = (kind: string, value: string) => createHmac("sha256", deps.salt)

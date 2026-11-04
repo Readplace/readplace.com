@@ -11,9 +11,9 @@ import {
 	GmailModifyPermissionGrantedEvent,
 	METERED_GMAIL_EMAIL_UPDATE_FAILURE_REASONS,
 	MarkGmailEmailImportedCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { MarkGmailEmailImported } from "./mark-gmail-email-imported";
 
 export const GmailMessageUpdateEnvelope = z.union([
@@ -38,8 +38,8 @@ export function initGmailMessageUpdateHandler(deps: {
 	markImported: MarkGmailEmailImported;
 	listPendingByAccount: GmailMessageUpdateStore["listPendingByAccount"];
 	publishEvent: PublishEvent;
-	metricLog: HutchLogger.Typed<GmailEmailUpdateFailedLine>;
-	logger: HutchLogger;
+	metricLog: Logger.Typed<GmailEmailUpdateFailedLine>;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, metricLog, logger } = deps;
 
@@ -99,8 +99,8 @@ export function initGmailMessageUpdateHandler(deps: {
 export function initGmailMessageUpdateDlqHandler(deps: {
 	markFailed: GmailMessageUpdateStore["markFailed"];
 	publishEvent: PublishEvent;
-	metricLog: HutchLogger.Typed<GmailEmailUpdateFailedLine>;
-	logger: HutchLogger;
+	metricLog: Logger.Typed<GmailEmailUpdateFailedLine>;
+	logger: Logger;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { ExtractPdfMetadata } from "@packages/crawl-article";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";

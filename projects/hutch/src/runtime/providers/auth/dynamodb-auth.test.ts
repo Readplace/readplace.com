@@ -4,7 +4,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { OAuthClientIdSchema, OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { DisplayNameSchema, UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";

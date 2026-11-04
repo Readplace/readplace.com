@@ -3,14 +3,14 @@ import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 import assert from "node:assert";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
 	initHandleByDetailType,
-} from "@packages/hutch-infra-components/runtime";
-import { DeleteAccountCommand, ExportUserDataCommand } from "@packages/hutch-infra-components";
+} from "@packages/infra-components/runtime";
+import { DeleteAccountCommand, ExportUserDataCommand } from "@packages/infra-components";
 import { requireEnv } from "@packages/require-env";
 import { initCreateAppleClientSecret } from "./providers/apple-auth/apple-client-secret";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
@@ -55,13 +55,13 @@ import {
 	initTombstoneArticle,
 } from "@packages/article-store";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const now = () => new Date();
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
 
 const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession,
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: requireEnv("DYNAMODB_USERS_TABLE"),
 	sessionsTableName: requireEnv("DYNAMODB_SESSIONS_TABLE"),

@@ -1,4 +1,4 @@
-import { defineDynamoTable, forEachQueryPage, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { defineDynamoTable, forEachQueryPage, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { RefreshOutcome, type RefreshRefusal } from "./outcomes";
 import type { RefreshAttempt } from "./evidence";
 

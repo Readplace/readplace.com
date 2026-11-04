@@ -1,5 +1,5 @@
 import { initFindSavedArticleForLink } from "@packages/article-store";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type Logger, noopLogger } from "@packages/logger";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	MinutesSchema,
@@ -20,8 +20,8 @@ import {
 	TierContentExtractedEvent,
 	EmailOutputSavedToAllEvent,
 	LinkQueueFailedEvent,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { RefreshIdentifiedArticleIfStale, ResolvedSaveIdentity } from "@packages/provider-contracts/article-freshness";
 import type { DecideReadlistFit } from "@packages/readlist-fit";
 import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
@@ -235,7 +235,7 @@ describe("initSubmitLinkCommandHandler", () => {
 				usage: { inputTokens: 10, outputTokens: 10, reasoningTokens: 0 },
 			};
 		};
-		const discardLines: HutchLogger.Typed<unknown> = {
+		const discardLines: Logger.Typed<unknown> = {
 			info: () => {},
 			error: () => {},
 			warn: () => {},

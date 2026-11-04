@@ -11,7 +11,7 @@ import { type ReadlistFitOverriddenLogLine, ReadlistSlugSchema } from "@packages
 import { initFindSavedArticleForLink } from "@packages/article-store";
 import { initResolveCanonicalIdentity } from "@packages/save-article";
 import type { UserId } from "@packages/domain/user";
-import { HutchLogger, consoleLogger, formatErrorLogLine } from "@packages/hutch-logger";
+import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import { SESSION_COOKIE_NAME, initResolveLogin } from "@packages/web-session";
 import type { ResolveLogin } from "@packages/web-session";
 import {
@@ -23,7 +23,7 @@ import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
 import { requireEnv } from "@packages/require-env";
 import { createInboxApp, PORT } from "./app";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 /** Local dev needs no AWS: in-memory stores seeded with a fixed dev user and a
  * couple of example newsletters, and a resolveLogin pinned to that user so
@@ -221,12 +221,12 @@ async function main(): Promise<void> {
 			recordReadlistFitOverride: fixture.articleStore.recordReadlistFitOverride,
 			deleteReadlistFitOverride: fixture.articleStore.deleteReadlistFitOverride,
 			deleteReadlistArticleByUrl: fixture.articleStore.deleteReadlistArticleByUrl,
-			fitChoiceLog: HutchLogger.fromJSON<ReadlistFitOverriddenLogLine>(),
+			fitChoiceLog: Logger.fromJSON<ReadlistFitOverriddenLogLine>(),
 			recordEngagementActivity: fixture.engagementStarter.recordEngagementActivity,
 			logError: (message, error) =>
 				logger.error(formatErrorLogLine({ message, error, now: () => new Date() })),
 			now: () => new Date(),
-			analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+			analyticsLogger: Logger.fromJSON<AnalyticsEvent>(),
 			salt: requireEnv("ANALYTICS_SALT"),
 			generateVisitorId: randomUUID,
 			secureCookies: isHttpsOrigin(requireEnv("APP_ORIGIN")),

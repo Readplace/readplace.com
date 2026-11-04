@@ -6,8 +6,8 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import { SendFirstInboxEmailNoticeCommand } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { SendFirstInboxEmailNoticeCommand } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { MarkFirstInboxEmailNoticeSent } from "@packages/provider-contracts/onboarding-signals";
@@ -31,7 +31,7 @@ export interface SendFirstInboxEmailNoticeDeps {
 	founderAvatarUrl: string;
 	appOrigin: string;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 function trackedUrl(input: { appOrigin: string; path: string }): string {

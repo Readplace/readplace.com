@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { z } from "zod";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbSubscriptionRead } from "./dynamodb-subscription-read";
 

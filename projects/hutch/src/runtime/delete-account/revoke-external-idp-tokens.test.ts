@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { initRevokeExternalIdpTokens } from "./revoke-external-idp-tokens";
 
@@ -19,7 +19,7 @@ function buildRevoker(opts: {
 		appleClientId: "com.readplace.web",
 		createAppleClientSecret: () => "minted-client-secret-jwt",
 		fetch: fakeFetch,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { revokeExternalIdpTokens, fetchCalls };
 }

@@ -5,7 +5,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbPastReads } from "./dynamodb-past-reads";
 
 type SendFn = DynamoDBDocumentClient["send"];

@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 
 const MAX_BYTES = 512 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 300_000;
@@ -19,7 +19,7 @@ export type CapturedContent = { bytes: ArrayBuffer; mediaType: string };
 export async function captureActiveTabBytes(deps: {
 	tabUrl: string;
 	fetchFn: typeof fetch;
-	logger: HutchLogger;
+	logger: Logger;
 }): Promise<CapturedContent | undefined> {
 	const { tabUrl, fetchFn, logger } = deps;
 	try {

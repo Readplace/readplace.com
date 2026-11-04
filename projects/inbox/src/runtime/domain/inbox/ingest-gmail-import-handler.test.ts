@@ -23,9 +23,9 @@ import {
 	EmailReceivedEvent,
 	type GmailHistoryImportMessageFetchedDetail,
 	GmailHistoryImportMessageIngestedEvent,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { initInMemoryRawEmailBucket } from "@packages/test-fixtures/providers/gmail-history";
@@ -121,11 +121,11 @@ function makeHarness(opts?: {
 			getEmail: emails.getEmail,
 			addGmailOrigins: completion.addGmailOrigins,
 			publishEvent,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		}),
 		publishEvent,
 		maxEmailBytes: opts?.maxEmailBytes ?? 20 * 1024 * 1024,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 
 	const deliver = async (details: GmailHistoryImportMessageFetchedDetail[]) => {
@@ -648,7 +648,7 @@ describe("initIngestGmailImportHandler", () => {
 				published.push(detail);
 			}) as PublishEvent,
 			maxEmailBytes: 1,
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		const response = await handler(

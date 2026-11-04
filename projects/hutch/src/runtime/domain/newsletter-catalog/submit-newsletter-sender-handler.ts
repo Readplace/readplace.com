@@ -6,9 +6,9 @@ import {
 	type NewsletterSenderSubmittedDetail,
 	NewsletterSenderSubmittedEvent,
 	SubmitNewsletterSenderCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { UpdateNewsletterCatalog, UpdateNewsletterCatalogResult } from "./update-newsletter-catalog";
 
 function submissionOutcome(
@@ -28,7 +28,7 @@ export function initSubmitNewsletterSenderHandler(deps: {
 	updateCatalog: UpdateNewsletterCatalog;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];

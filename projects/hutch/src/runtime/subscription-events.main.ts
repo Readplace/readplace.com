@@ -1,7 +1,7 @@
 /* c8 ignore start -- composition root, no logic to test */
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { EventBridgeClient, initEventBridgePublisher, initHandleByDetailType } from "@packages/infra-components/runtime";
 import {
 	CancelSubscriptionCommand,
 	SubscriptionCancellationScheduledEvent,
@@ -9,8 +9,8 @@ import {
 	SubscriptionChargeFailedEvent,
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
-} from "@packages/hutch-infra-components";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
 import { initStripePrices } from "./providers/stripe-prices/stripe-prices";
@@ -30,7 +30,7 @@ import { initSubscriptionStartRequestHandler } from "./subscription-start-reques
 import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "./observability/subscription-events";
 import { requireEnv } from "@packages/require-env";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const now = () => new Date();
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
@@ -62,7 +62,7 @@ const trialScheduler = initAwsTrialScheduler({
 });
 
 const emit = initEmitSubscriptionEvent({
-	logger: HutchLogger.fromJSON<SubscriptionLogEvent>(),
+	logger: Logger.fromJSON<SubscriptionLogEvent>(),
 	now,
 });
 

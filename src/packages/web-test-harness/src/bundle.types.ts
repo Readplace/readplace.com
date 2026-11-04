@@ -36,7 +36,7 @@ import type { ReadNewsletterCatalog, WriteNewsletterCatalog } from "@packages/pr
 import type { FindCanaryReport, SaveCanaryReport } from "@packages/provider-contracts/canary-report";
 import type { MintBrowserHandoffCode, RedeemBrowserHandoffCode } from "@packages/provider-contracts/browser-handoff";
 import type { ReadExcludedIdentities, RunLogsInsightsQuery } from "@packages/provider-contracts/logs-insights";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { ClaimResolutionOnView } from "@packages/provider-contracts/article-resolution-on-view";
 import type { PublishResolveArticleOnView } from "@packages/provider-contracts/events";
 import type {
@@ -699,7 +699,7 @@ export interface GmailIntegrationBundle {
 	publishSubmitNewsletterSender: (input: { senderEmail: ForwardableSender }) => Promise<void>;
 	newGmailHistoryImportJobId: () => GmailHistoryImportJobId;
 	newGmailHistoryImportGeneration: () => string;
-	diagnosticsLogger: HutchLogger;
+	diagnosticsLogger: Logger;
 }
 
 export interface NewsletterCatalogBundle {
@@ -768,12 +768,12 @@ export interface InboxEmailBundle {
 }
 
 export interface BotDefenseBundle {
-	logger: HutchLogger.Typed<BotDefenseEvent>;
+	logger: Logger.Typed<BotDefenseEvent>;
 	events: BotDefenseEvent[];
 }
 
 export interface ConversionsBundle {
-	logger: HutchLogger.Typed<ConversionEvent>;
+	logger: Logger.Typed<ConversionEvent>;
 	events: ConversionEvent[];
 }
 

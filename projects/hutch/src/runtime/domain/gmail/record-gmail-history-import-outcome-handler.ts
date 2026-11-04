@@ -6,9 +6,9 @@ import {
 	GmailMessageIdSchema,
 } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
-import { GmailHistoryImportCompletedEvent, GmailHistoryImportMessageIngestedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { GmailHistoryImportCompletedEvent, GmailHistoryImportMessageIngestedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
 import { type GmailImportRecordTrace, startGmailImportRecordTrace } from "./gmail-import-record-trace";
 
@@ -16,7 +16,7 @@ interface OutcomeHandlerDependencies {
 	imports: GmailHistoryImportStore;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	recordDiagnostic: RecordGmailDiagnostic;
 }
 

@@ -5,16 +5,16 @@ import {
 	type GmailForwardingConfirmFailedLine,
 	GmailForwardingConfirmedEvent,
 	GmailForwardingConfirmFailedEvent,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { ConfirmForwardingAddress } from "./confirm-forwarding-address";
 
 export function initConfirmGmailForwardingHandler(deps: {
 	confirmForwardingAddress: ConfirmForwardingAddress;
 	publishEvent: PublishEvent;
-	metricLog: HutchLogger.Typed<GmailForwardingConfirmFailedLine>;
-	logger: HutchLogger;
+	metricLog: Logger.Typed<GmailForwardingConfirmFailedLine>;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { confirmForwardingAddress, publishEvent, metricLog, logger } = deps;
 

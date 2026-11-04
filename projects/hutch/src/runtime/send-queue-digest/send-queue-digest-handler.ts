@@ -4,9 +4,9 @@ import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { type ArticleBody, type ReaderArticleHashId, type ShownSummary, viewerFor } from "@packages/domain/article";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	DigestCandidate,
 	DigestEmailFilter,
@@ -87,7 +87,7 @@ export interface SendQueueDigestDeps {
 	maxDigestItems: number;
 	maxCandidatesRead: number;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 interface ReadyItem {

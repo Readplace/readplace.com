@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import type { SavedArticle } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { FindArticlesByUser } from "@packages/provider-contracts/article-store";
 import type { FindUserContactByUserId, UserContact } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
@@ -35,7 +35,7 @@ export interface TrialNudgeDeps {
 	sendEmail: SendEmail;
 	appOrigin: string;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
 

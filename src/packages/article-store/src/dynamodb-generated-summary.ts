@@ -6,7 +6,7 @@ import {
 	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { summaryMatchesCanonical } from "@packages/domain/article-aggregate";
 import { type ShownSummary, shownSummary } from "@packages/domain/article";

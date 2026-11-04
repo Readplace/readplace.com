@@ -3,9 +3,9 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { deriveEmailIssueMetadata, emailIssueArticleUrl, emailIssueReceivedAt } from "@packages/domain/inbox";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import { EmailOutputSavedToAllEvent, SaveEmailIssueCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { EmailOutputSavedToAllEvent, SaveEmailIssueCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
@@ -22,7 +22,7 @@ export function initSaveEmailIssueCommandHandler(deps: {
 	recordInboxArticleQueued: RecordInboxArticleQueued;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { logger } = deps;
 	const commitTierCandidate = initCommitTierCandidate(deps);

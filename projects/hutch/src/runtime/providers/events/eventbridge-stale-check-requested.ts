@@ -1,6 +1,6 @@
 /* c8 ignore start -- thin SDK wrapper, only used in prod path */
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { StaleCheckRequestedEvent } from "@packages/infra-components";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 
 export function initEventBridgeStaleCheckRequested(deps: {

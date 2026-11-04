@@ -1545,7 +1545,7 @@ Trigger chain:
 
 Sent only when:
 
-- invoice.payment_failed is enabled on the Stripe Dashboard webhook endpoint for POST /webhooks/stripe, an operator setting outside the repo `src/packages/hutch-infra-components/src/stripe-events.ts:8`
+- invoice.payment_failed is enabled on the Stripe Dashboard webhook endpoint for POST /webhooks/stripe, an operator setting outside the repo `src/packages/infra-components/src/stripe-events.ts:8`
 - The webhook carries a valid Stripe signature timestamped within 300 seconds of receipt `projects/hutch/src/runtime/stripe-webhook-receiver/verify-stripe-signature.ts:56`
 - The failed invoice is a renewal (billing_reason subscription_cycle) `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:44`
 - Stripe has another automatic retry scheduled (next_payment_attempt is set) `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:53`
@@ -1580,7 +1580,7 @@ Not sent when:
 - The handler reads the subscription id from either the older top-level `subscription` field or the newer `parent.subscription_details.subscription`, so a webhook API version change on the Stripe endpoint still works `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:60`
 - An invoice whose subscription arrives as an expanded object fails the payload parse and is skipped with a warning `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:34`
 - Every skipped webhook still returns 200, so Stripe never redelivers it `projects/hutch/src/runtime/stripe-webhook-receiver/stripe-webhook-receiver-handler.ts:59`
-- A webhook Lambda timeout (10 s) after EventBridge already accepted the command returns 5xx; Stripe redelivers and the member gets a second copy `src/packages/hutch-infra-components/src/infra/hutch-stripe-webhook-receiver.ts:55`
+- A webhook Lambda timeout (10 s) after EventBridge already accepted the command returns 5xx; Stripe redelivers and the member gets a second copy `src/packages/infra-components/src/infra/stripe-webhook-receiver.ts:55`
 - The send-time re-check reads the row by user and checks only that it is active, not that it is still on the failing Stripe subscription; a member whose row moved to a new subscription between webhook and send still gets the email `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:435`
 - The recipient lookup reads the users table userId-index with Limit 1; Gmail canonical-claim items carry ownerUserId instead of userId, so they never stand in for the real address `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:84`
 - Reserved-domain matching is exact and case-insensitive on the whole domain or the TLD, so an address like user@mail.example.com is not matched and is sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
@@ -1604,7 +1604,7 @@ Not sent when:
 > - When the reserved-domain filter drops a recipient, the handler still logs 'payment-failed email sent' `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:467`
 > - A permanent Resend 4xx rejection is retried like a 5xx, up to 3 receives, then lands in the DLQ and alarms `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:104`
 > - The email shows no amount, plan or retry date because the builder takes only the avatar and CTA URLs `projects/hutch/src/runtime/web/auth/payment-failed-email.ts:15`; the test asserts only that no dollar amount appears `projects/hutch/src/runtime/web/auth/payment-failed-email.test.ts:30`
-> - Several behaviours live in the Stripe Dashboard, outside the repo: enabling invoice.payment_failed on the webhook endpoint, the Smart Retries schedule that sets how many copies a member gets, and whether Stripe also sends its own failed-payment email (unverified) `src/packages/hutch-infra-components/src/stripe-events.ts:8`
+> - Several behaviours live in the Stripe Dashboard, outside the repo: enabling invoice.payment_failed on the webhook endpoint, the Smart Retries schedule that sets how many copies a member gets, and whether Stripe also sends its own failed-payment email (unverified) `src/packages/infra-components/src/stripe-events.ts:8`
 > - The 'Make primary' action the copy tells members to use sits in the account page's payment panel, behind 'Update payment method' `projects/hutch/src/runtime/web/pages/account/account.view-model.ts:496`
 
 ### Message
@@ -1813,7 +1813,7 @@ Not sent when:
 - The address is not checked for verification before sending `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
 - Staging deploys the same Lambda with its own Resend wiring and a founding allocation of 5 accounts, so staging trial accounts receive this email too `projects/hutch/Pulumi.staging.yaml:80` (prod is 50 at `projects/hutch/Pulumi.prod.yaml:87`)
 - Local dev never sends it: the handler is wired only in the Lambda composition root, and dev uses an in-memory trial scheduler that records schedules but never fires them `projects/hutch/src/runtime/providers/dev-providers.ts:171`
-- The command must carry no kind; kind "feedback" is accepted for backward compatibility but no producer emits it, and every other kind selects a different email from the same Lambda `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:97`, `src/packages/hutch-infra-components/src/events.ts:836`
+- The command must carry no kind; kind "feedback" is accepted for backward compatibility but no producer emits it, and every other kind selects a different email from the same Lambda `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:97`, `src/packages/infra-components/src/events.ts:836`
 - Any CancelSubscriptionCommand processed while the row is pending_cancellation makes the cancellation final at once: a second POST /account/cancel, a duplicate delivery of the trial_expired_no_card command, or a retry after a cancel-<userId> name conflict; the email then goes out 3 days after that instead of at trialEndsAt + 1 hour + 3 days `projects/hutch/src/runtime/cancel-subscription/cancel-subscription-handler.ts:109`
 - A redelivered SubscriptionCancelled deletes and recreates the schedule, which pushes the send time later `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:59`
 - Both SubscriptionCancelled handlers receive the record independently, so the schedule is created even if marking the row cancelled fails; if the mark never succeeds, the status guard skips the send `projects/hutch/src/runtime/handle-by-detail-type.ts:39`
@@ -3062,7 +3062,7 @@ Not sent when:
 - Newsletter names appear raw in the subject and plain text but HTML-escaped everywhere in the HTML, including the title, opening, list and footer ("Energy & Capital" becomes Energy &amp; Capital in the HTML source) `projects/hutch/src/runtime/web/auth/gmail-newsletter-notice-email.template.html:6`, `projects/hutch/src/runtime/web/auth/gmail-newsletter-notice-email.template.html:31`
 - The 7-day interval belongs to the Readplace reader and survives disconnecting, reconnecting or switching Gmail accounts; only account deletion removes the NOTICE_BATCH row `src/packages/inbox-store/src/dynamodb-gmail-monitoring.ts:143`
 - The 7-day interval counts only emails sent since grouping: a reader notified one sender at a time before the deploy has no NOTICE_BATCH row and can get a grouped email at the next check, and resending a claim made before grouping does not start the interval (inferred from code) `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:136`
-- A SendGmailNewsletterNotice queued before grouping still names one sender; the schema drops senderEmail and the worker handles the whole reader `src/packages/hutch-infra-components/src/events.ts:1333`
+- A SendGmailNewsletterNotice queued before grouping still names one sender; the schema drops senderEmail and the worker handles the whole reader `src/packages/infra-components/src/events.ts:1333`
 
 </details>
 
@@ -3378,7 +3378,7 @@ Not sent when:
 - A malformed utm_* query value gets a 400 before the route runs; the page's own form always sends valid values `src/packages/web-analytics/src/utm-validation.middleware.ts:23`
 - The recipient is the stored account address, lowercased and trimmed, with Gmail dots and +tags kept and never the Gmail canonical identity key: a signup as " Sam.Reader@Gmail.com" is mailed at "sam.reader@gmail.com" `src/packages/domain/src/user/email.ts:8`
 - If the address lookup or the EventBridge publish throws, the customer sees the JSON body {"error":"Internal Server Error","statusCode":500} instead of the preparing page, and nothing retries `projects/hutch/src/runtime/web/middleware/error-handler.ts:33`
-- If EventBridge cannot deliver the command to the queue, it applies its default retry policy and then sends the event to the target's dead-letter queue, user-data-jobs-dlq `src/packages/hutch-infra-components/src/infra/event-bus.ts:89`
+- If EventBridge cannot deliver the command to the queue, it applies its default retry policy and then sends the event to the target's dead-letter queue, user-data-jobs-dlq `src/packages/infra-components/src/infra/event-bus.ts:89`
 - The worker runs only if its whole composition root initialises: about 40 required environment variables, including unrelated Stripe, Apple and Gmail secrets, plus an assert that the Apple key decodes to a PKCS#8 PEM. Any failure there fails every export `projects/hutch/src/runtime/user-data-jobs.main.ts:199`
 - A malformed message body, a detail that fails the schema, or an unknown detail-type is retried until the dead-letter queue and never emailed `projects/hutch/src/runtime/handle-by-detail-type.ts:24`
 - A retry after a successful send reruns the whole export and sends a second email with a new file and link. This happens when publishing UserDataExported fails, or when Resend returns an ambiguous 5xx after accepting the message, because no idempotency key is passed `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117`
@@ -3397,7 +3397,7 @@ Not sent when:
 > - The download link is a raw presigned S3 URL of about 1.6 KB on hutch-user-exports-prod.s3.ap-southeast-2.amazonaws.com, not a readplace.com address. The email no longer prints it: the fallback line reads "If the button above doesn't work, use this download link." and links the same URL as the button, so the customer cannot see or copy the address from the text, and the fallback helps only when the button fails to render, not when the link itself fails `projects/hutch/src/runtime/web/pages/export/user-data-export-email.template.html:31`
 > - The message is HTML only, with no plain-text part `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:117`
 > - An empty export still emails "Readplace packaged 0 articles"; the handler test asserts this, so it appears intended `projects/hutch/src/runtime/export-user-data/export-user-data-handler.test.ts:308`
-> - The worker never reads the command's requestedAt, and no rule subscribes to UserDataExported, so the event triggers nothing `src/packages/hutch-infra-components/src/events.ts:636`
+> - The worker never reads the command's requestedAt, and no rule subscribes to UserDataExported, so the event triggers nothing `src/packages/infra-components/src/events.ts:636`
 
 ### Message
 

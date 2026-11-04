@@ -18,11 +18,11 @@ import {
 	neverResolveWrapperTarget,
 } from "@packages/save-article";
 import { validateSaveableUrl, withNewSavePreparation } from "@packages/domain/article";
-import { SaveAnonymousLinkCommand } from "@packages/hutch-infra-components";
+import { SaveAnonymousLinkCommand } from "@packages/infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components/runtime";
 import { initS3HnSnapshot } from "./providers/hn-snapshot/s3-hn-snapshot";
 import { initS3StarterRollout } from "./providers/hn-snapshot/s3-starter-rollout";
 import { initHnSnapshot } from "./domain/engagement/hn-snapshot";
@@ -33,10 +33,10 @@ import {
 	type StarterReportLine,
 } from "./domain/engagement/log-starter-report";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { SendUserDigestCommand } from "@packages/hutch-infra-components";
-import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
+import { SendUserDigestCommand } from "@packages/infra-components";
+import { initSqsCommandDispatcher } from "@packages/infra-components/runtime";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDigestScanHandler } from "./digest-scan/digest-scan-handler";
 import { requireEnv } from "@packages/require-env";
@@ -58,7 +58,7 @@ const { dispatch: dispatchSendUserDigest } = initSqsCommandDispatcher({
 	command: SendUserDigestCommand,
 });
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const s3 = new S3Client({});
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -154,7 +154,7 @@ export const handler = initDigestScanHandler({
 			}).listStarterObservations,
 			now: () => new Date(),
 		}),
-		logger: HutchLogger.fromJSON<StarterReportLine>(),
+		logger: Logger.fromJSON<StarterReportLine>(),
 		now: () => new Date(),
 	}),
 	listUserIdsByStatus,

@@ -17,8 +17,8 @@ import {
 	GmailHistoryImportPageProcessedEvent,
 	ProcessGmailHistoryImportPageCommand,
 	StartGmailHistoryImportCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { GmailHistory, GmailHistoryResult, GmailHttpAttempt } from "@packages/provider-contracts/gmail-history";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";

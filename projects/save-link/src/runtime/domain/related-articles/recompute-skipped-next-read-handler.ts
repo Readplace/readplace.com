@@ -4,9 +4,9 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { CanonicalContentChangedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import { CanonicalContentChangedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	FindRelatedTargetArticle,
 	FindSkippedNextReadSaves,
@@ -53,7 +53,7 @@ export function initRecomputeSkippedNextReadHandler(deps: {
 	replaceSkippedRelatedArticlesWithSkip: MarkRelatedArticlesSkipped;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { findRelatedTargetArticle, findSkippedNextReadSaves, logger } = deps;
 	const { computeNextRead } = initNextReadComputation({

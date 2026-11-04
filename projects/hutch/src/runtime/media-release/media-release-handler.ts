@@ -1,13 +1,13 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
-import { LinkDequeuedEvent } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { LinkDequeuedEvent } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import { z } from "zod";
 import type { ReleasePrivateItem } from "./private-item-release-steps";
 
 export function initMediaReleaseHandler(deps: {
 	releasePrivateItem: ReleasePrivateItem;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];

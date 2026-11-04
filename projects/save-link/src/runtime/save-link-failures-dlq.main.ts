@@ -6,14 +6,14 @@ import {
 	SAVE_LINK_DLQ_SOURCE_QUEUES,
 	type CrawlSettledEvent,
 	initLogCrawlSettled,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
 	initSqsCommandDispatcher,
-} from "@packages/hutch-infra-components/runtime";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components/runtime";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { requireEnv } from "@packages/require-env";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
@@ -55,7 +55,7 @@ const { dispatchEffect } = initLambdaEffectDispatcher({
 	publishEvent,
 });
 
-const { logCrawlSettled } = initLogCrawlSettled({ logger: HutchLogger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
+const { logCrawlSettled } = initLogCrawlSettled({ logger: Logger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
 const { transitionAndPersist } = initTransitionAndPersist({
 	store,
 	dispatchEffect,

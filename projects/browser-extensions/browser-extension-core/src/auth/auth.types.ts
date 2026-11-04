@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { OAuthTokens } from "./oauth-tokens";
 
 export type { OAuthTokens };
@@ -51,5 +51,5 @@ export interface OAuthAuthDeps {
 	closeTab(tabId: number): Promise<void>;
 	fetchFn(url: string, init: { method: string; headers: Record<string, string>; body?: string; credentials?: "include" }): Promise<{ ok: boolean; status: number; json(): Promise<Record<string, string>> }>;
 	tokenStorage: TokenStorage;
-	logger: HutchLogger;
+	logger: Logger;
 }

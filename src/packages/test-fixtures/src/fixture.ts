@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { noopLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
+import { noopLogger } from "@packages/logger";
 import { calculateReadTime, shownSummary, storedArticleBody, validateSaveableUrl } from "@packages/domain/article";
 import type {
 	BotDefenseEvent,
@@ -379,7 +379,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	* .info(), so the other levels collapse onto the same function. Avoids per-
 	* level no-op closures that V8 reports as uncovered functions. */
 	const capture = (data: BotDefenseEvent) => { botDefenseEvents.push(data); };
-	const botDefenseLogger: HutchLogger.Typed<BotDefenseEvent> = {
+	const botDefenseLogger: Logger.Typed<BotDefenseEvent> = {
 		info: capture,
 		error: capture,
 		warn: capture,
@@ -388,7 +388,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 
 	const conversionEvents: ConversionEvent[] = [];
 	const captureConversion = (data: ConversionEvent) => { conversionEvents.push(data); };
-	const conversionLogger: HutchLogger.Typed<ConversionEvent> = {
+	const conversionLogger: Logger.Typed<ConversionEvent> = {
 		info: captureConversion,
 		error: captureConversion,
 		warn: captureConversion,

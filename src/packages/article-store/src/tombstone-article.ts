@@ -3,7 +3,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 
 /** Every derived-from-content column the tombstone strips. The row itself

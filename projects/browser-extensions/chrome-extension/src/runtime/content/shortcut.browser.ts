@@ -1,12 +1,12 @@
 /* c8 ignore start -- content script, runs in browser page context only */
 import browser from "webextension-polyfill";
 import { initAnnounceCaptureStarted, initCaptureHost, installShortcuts, isAppUrl, isHtmlDocument, matchesShortcut, navigationResponseStatus, resolveCanonicalUrlFromDocument, resolveContentShortcuts, ADVERTISED_CAPABILITIES_STORAGE_KEY, CAPTURE_FAILED_EVENT, CAPTURE_STARTED_EVENT, COMMAND_BINDINGS_STORAGE_KEY, DEFAULT_SAVE_SHORTCUT, SAVE_ALL_SHORTCUT_MESSAGE_TYPE, type ContentShortcuts } from "browser-extension-core";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import { isChromePdfViewerShell } from "./is-chrome-pdf-viewer-shell";
 
 declare const __APP_DOMAINS__: string[];
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 /** The listener is installed at document_start, before storage can answer, so
  * the matchers read this spec on every keystroke instead of being registered

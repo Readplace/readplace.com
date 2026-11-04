@@ -6,9 +6,9 @@ import {
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components/runtime";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
 import { initFileArticleIntoReadlistCommandHandler } from "./domain/file-article-into-readlist/file-article-into-readlist-command-handler";
@@ -17,7 +17,7 @@ const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const now = () => new Date();
 const dynamoClient = createDynamoDocumentClient();
 

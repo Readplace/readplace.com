@@ -4,18 +4,18 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import {
 	SimpleCrawlUnsupportedEvent,
 	ComprehensiveCrawlCommand,
 	RenderCrawlCommand,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { publishEvent, logger } = deps;
 	const logPrefix = "[SimpleCrawlUnsupportedPolicy]";

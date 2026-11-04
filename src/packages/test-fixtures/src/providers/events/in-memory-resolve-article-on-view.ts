@@ -1,10 +1,10 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishResolveArticleOnView } from "@packages/provider-contracts/events";
 
 export type ResolveArticleOnViewRecord = Parameters<PublishResolveArticleOnView>[0];
 
 export function initInMemoryResolveArticleOnView(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): {
 	publishResolveArticleOnView: PublishResolveArticleOnView;
 	publishedResolveArticleOnView: ResolveArticleOnViewRecord[];

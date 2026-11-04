@@ -1,7 +1,7 @@
-import type { GmailEmailUpdateFailedLine } from "@packages/hutch-infra-components";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import type { GmailEmailUpdateFailedLine } from "@packages/infra-components";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	initDynamoDbGmailConnection,
 	initDynamoDbGmailCredentials,
@@ -36,6 +36,6 @@ export const handler = initGmailMessageUpdateHandler({
 	}),
 	listPendingByAccount: updates.listPendingByAccount,
 	publishEvent,
-	metricLog: HutchLogger.fromJSON<GmailEmailUpdateFailedLine>(),
-	logger: HutchLogger.from(consoleLogger),
+	metricLog: Logger.fromJSON<GmailEmailUpdateFailedLine>(),
+	logger: Logger.from(consoleLogger),
 });

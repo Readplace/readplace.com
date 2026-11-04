@@ -4,7 +4,7 @@ import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import type { PrepareArticleIdentity } from "@packages/save-article";
 import { ClassifiedCrawlError, logRecordFailure } from "./save-link-work";
 import { initRunCrawlFromTier1, type RunCrawlFromTier1Deps } from "./run-crawl-from-tier1";

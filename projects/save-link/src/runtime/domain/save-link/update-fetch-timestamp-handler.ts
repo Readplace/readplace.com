@@ -1,5 +1,5 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { UpdateFetchTimestampCommand } from "./index";
 
 export type UpdateFetchTimestamp = (params: {
@@ -12,7 +12,7 @@ export type UpdateFetchTimestamp = (params: {
 
 export function initUpdateFetchTimestampHandler(deps: {
 	updateFetchTimestamp: UpdateFetchTimestamp;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { updateFetchTimestamp, logger } = deps;
 

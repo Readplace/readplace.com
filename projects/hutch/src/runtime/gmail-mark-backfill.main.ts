@@ -1,8 +1,8 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { ProcessGmailMarkBackfillPageCommand } from "@packages/hutch-infra-components";
-import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { ProcessGmailMarkBackfillPageCommand } from "@packages/infra-components";
+import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	initDynamoDbEmailImportCompletion,
 	initDynamoDbGmailConnection,
@@ -44,6 +44,6 @@ export const handler = initGmailMarkBackfillHandler({
 		delaySeconds: 10,
 	}).dispatch,
 	publishEvent,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 	now,
 });

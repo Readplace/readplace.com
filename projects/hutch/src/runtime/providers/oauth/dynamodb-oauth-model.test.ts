@@ -5,7 +5,7 @@ import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
 import OAuthServer from "@node-oauth/oauth2-server";
 import { z } from "zod";
-import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { OAuthClientIdSchema, type OAuthGrantId, OAuthGrantIdSchema, type RefreshCredential, getBuiltInClient } from "@packages/domain/oauth";
 import { createViewerIdentityMiddleware } from "@packages/viewer-identity";

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initObserveSession } from "@packages/web-session";
 import { initAuthDiagnosticPermits } from "./permit";
 
@@ -21,7 +21,7 @@ export interface AuthDiagnosticContext {
 
 export const authDiagnosticContext = new AsyncLocalStorage<AuthDiagnosticContext>();
 
-export function initAuthDiagnosticRecorder(deps: { salt: string; now: () => Date; logger: HutchLogger.Typed<Record<string, unknown>> }) {
+export function initAuthDiagnosticRecorder(deps: { salt: string; now: () => Date; logger: Logger.Typed<Record<string, unknown>> }) {
 	const permits = initAuthDiagnosticPermits(deps);
 	const write = (event: Record<string, unknown>) => deps.logger.info({
 		...event, stream: "auth-diagnostics", schema_version: 1, recorded_at: deps.now().toISOString(),

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { CaptureHtmlAnswer, HiddenTab, TabLoad } from "./hidden-tab";
 import { type RescueCaptureResult, initRescueCapture } from "./rescue-capture";
 
@@ -56,7 +56,7 @@ function createHarness(script: Script) {
 			},
 		},
 		loadTimeoutMs: LOAD_TIMEOUT_MS,
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			...noopLogger,
 			info: (...args) => infos.push(String(args[0])),
 			debug: (...args) => debugs.push(String(args[0])),

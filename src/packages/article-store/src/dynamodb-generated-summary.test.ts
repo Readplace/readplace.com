@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ANONYMOUS_VIEWER, viewerFor } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";

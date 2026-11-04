@@ -1,17 +1,17 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	CRAWL_SETTLED_EVENT,
 	CRAWL_SETTLED_METRIC,
 	type CrawlSettledEvent,
 	initLogCrawlSettled,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 
 function createCapturingLogger(): {
-	logger: HutchLogger.Typed<CrawlSettledEvent>;
+	logger: Logger.Typed<CrawlSettledEvent>;
 	captured: CrawlSettledEvent[];
 } {
 	const captured: CrawlSettledEvent[] = [];
-	const logger: HutchLogger.Typed<CrawlSettledEvent> = {
+	const logger: Logger.Typed<CrawlSettledEvent> = {
 		info: (data) => { captured.push(data); },
 		error: () => {},
 		warn: () => {},

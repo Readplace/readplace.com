@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type Logger, noopLogger } from "@packages/logger";
 import {
 	CardSetupIdSchema,
 	PaymentMethodIdSchema,
@@ -231,7 +231,7 @@ describe("initStripePaymentMethods", () => {
 
 		it("warns when the funding payment method is absent from the returned card list", async () => {
 			const warnings: unknown[][] = [];
-			const logger: HutchLogger = {
+			const logger: Logger = {
 				...noopLogger,
 				warn: (...args) => {
 					warnings.push(args);
@@ -259,7 +259,7 @@ describe("initStripePaymentMethods", () => {
 
 		it("does not warn when the funding card is present in the list", async () => {
 			const warnings: unknown[][] = [];
-			const logger: HutchLogger = {
+			const logger: Logger = {
 				...noopLogger,
 				warn: (...args) => {
 					warnings.push(args);

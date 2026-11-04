@@ -1,5 +1,5 @@
 import type { SaveAttemptId } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { RenderOutcome } from "../../providers/render-page/render-page.types";
 import type { RenderedThrough } from "./render-ladder";
 
@@ -17,7 +17,7 @@ export type ReportProxiedRenderAttempt = (attempt: {
 }) => void;
 
 export function initReportProxiedRenderAttempt(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 	diagnostics: RenderRequestDiagnostics;
 	newRenderAttemptId: () => string;
 }): ReportProxiedRenderAttempt {

@@ -13,7 +13,7 @@ import {
 } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import type { GmailHistoryImportMessageFetchedDetail } from "@packages/hutch-infra-components";
+import type { GmailHistoryImportMessageFetchedDetail } from "@packages/infra-components";
 import type { GmailHistory, GmailHttpAttempt, GmailHttpClassification, GmailHttpOperation, PutGmailImportRaw } from "@packages/provider-contracts/gmail-history";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailHistory, initInMemoryRawEmailBucket } from "@packages/test-fixtures/providers/gmail-history";

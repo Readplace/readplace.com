@@ -1,4 +1,4 @@
-import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
+import { RefreshContentExtractedEvent } from "@packages/infra-components";
 import { initSelectionQueueHandler } from "./select-content-work";
 
 export const initRefreshContentExtractedHandler = initSelectionQueueHandler({

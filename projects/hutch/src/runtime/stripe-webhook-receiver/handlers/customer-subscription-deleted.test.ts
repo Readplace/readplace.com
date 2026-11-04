@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
+import { Logger, noopLogger } from "@packages/logger";
+import { SubscriptionCancelledEvent } from "@packages/infra-components";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import type { StripeEvent } from "../verify-stripe-signature";
 import { initHandleCustomerSubscriptionDeleted } from "./customer-subscription-deleted";
@@ -41,7 +41,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 
 		await handle({
 			stripeEvent: buildStripeEvent("sub_cancel_me"),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 1);
@@ -68,7 +68,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 			stripeEvent: buildStripeEvent("sub_dunned", {
 				cancellation_details: { reason: "payment_failure" },
 			}),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 1);
@@ -93,7 +93,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 			stripeEvent: buildStripeEvent("sub_requested", {
 				cancellation_details: { reason: "cancellation_requested" },
 			}),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.deepStrictEqual(published[0].detail, {
@@ -115,7 +115,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 
 		await handle({
 			stripeEvent: buildStripeEvent("sub_odd", { cancellation_details: "not-an-object" }),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.deepStrictEqual(published[0].detail, {
@@ -128,7 +128,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 	it("logs a structured ERROR (not WARN) with customerId and a no-retry warning, and skips emission, when no row matches", async () => {
 		const published: unknown[] = [];
 		const errorCalls: unknown[][] = [];
-		const logger = HutchLogger.from({
+		const logger = Logger.from({
 			info: () => {},
 			warn: () => {},
 			debug: () => {},
@@ -162,7 +162,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 
 	it("falls back to customerId 'unknown' when the deleted event carries no customer field", async () => {
 		const errorCalls: unknown[][] = [];
-		const logger = HutchLogger.from({
+		const logger = Logger.from({
 			info: () => {},
 			warn: () => {},
 			debug: () => {},
@@ -201,7 +201,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 			async () => {
 				await handle({
 					stripeEvent: buildStripeEvent("sub_fail"),
-					logger: HutchLogger.from(noopLogger),
+					logger: Logger.from(noopLogger),
 				});
 			},
 			{ message: "EventBridge down" },
@@ -229,7 +229,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 
 		await handle({
 			stripeEvent: buildStripeEvent("sub_converge"),
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		assert.equal(published.length, 1);

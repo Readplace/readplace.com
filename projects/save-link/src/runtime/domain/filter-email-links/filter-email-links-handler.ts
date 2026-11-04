@@ -28,9 +28,9 @@ import {
 	EmailLinksTriagedEvent,
 	FileArticleIntoReadlistCommand,
 	type FileArticleIntoReadlistDetail,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type {
 	ListReadlistDefinitions,
 	ListReadlistFitOverrides,
@@ -89,10 +89,10 @@ export function initFilterEmailLinksHandler(deps: {
 	listReadlistFitOverrides: ListReadlistFitOverrides;
 	decideReadlistFit: DecideReadlistFit;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
-	fitDecidedLog: HutchLogger.Typed<ReadlistFitDecidedLine>;
-	fitUnsureLog: HutchLogger.Typed<ReadlistFitUnsureLine>;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	fitDecidedLog: Logger.Typed<ReadlistFitDecidedLine>;
+	fitUnsureLog: Logger.Typed<ReadlistFitUnsureLine>;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 	now: () => Date;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {

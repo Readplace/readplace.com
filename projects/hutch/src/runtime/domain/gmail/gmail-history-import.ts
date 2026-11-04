@@ -12,7 +12,7 @@ import {
 	resolveGmailDeliveryMode,
 } from "@packages/domain/gmail";
 import type { UserId } from "@packages/domain/user";
-import type { GmailHistoryImportMessageFetchedDetail } from "@packages/hutch-infra-components";
+import type { GmailHistoryImportMessageFetchedDetail } from "@packages/infra-components";
 import type { GmailHistory, GmailHistoryResult, GmailHttpOperation, ObserveGmailHttpAttempt, PutGmailImportRaw } from "@packages/provider-contracts/gmail-history";
 import { errorClassName } from "./error-class-name";
 import type { GmailHistoryImportObservation, ObserveGmailHistoryImport } from "./gmail-history-import-observation.types";

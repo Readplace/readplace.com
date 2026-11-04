@@ -1,5 +1,5 @@
 import { UserIdSchema } from "@packages/domain/user";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initSelectRelatedArticles } from "./related-articles-selector";
 import assert from "node:assert/strict";
 import { articleDestinationUrl } from "@packages/domain/article";

@@ -2,7 +2,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbRelatedPassRequests } from "./dynamodb-related-pass-requests";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");

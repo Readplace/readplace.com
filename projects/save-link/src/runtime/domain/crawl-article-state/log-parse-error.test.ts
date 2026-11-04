@@ -1,16 +1,16 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	PARSE_ERROR_STREAM,
 	type ParseErrorEvent,
 	initLogParseError,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 
 function createCapturingLogger(): {
-	logger: HutchLogger.Typed<ParseErrorEvent>;
+	logger: Logger.Typed<ParseErrorEvent>;
 	captured: ParseErrorEvent[];
 } {
 	const captured: ParseErrorEvent[] = [];
-	const logger: HutchLogger.Typed<ParseErrorEvent> = {
+	const logger: Logger.Typed<ParseErrorEvent> = {
 		info: (data) => { captured.push(data); },
 		error: () => {},
 		warn: () => {},

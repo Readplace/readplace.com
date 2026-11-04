@@ -2,7 +2,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
 import { readlistPartitionPrefix } from "./user-readlist-partition";

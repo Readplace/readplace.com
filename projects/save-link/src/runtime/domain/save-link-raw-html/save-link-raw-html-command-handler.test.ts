@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { candidateProvenance } from "@packages/tier-source";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { CaptureTrigger } from "@packages/domain/article";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
-import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { TierContentExtractedEvent } from "@packages/infra-components";
 import { initSaveLinkRawHtmlCommandHandler } from "./save-link-raw-html-command-handler";
 import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "@packages/tier-source";

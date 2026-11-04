@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initInMemoryGmailDiscovery } from "@packages/test-fixtures/providers/gmail-discovery";
 import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE } from "./discover-gmail-senders";
 import { initRunGmailDiscoveryLocally } from "./run-gmail-discovery-locally";
@@ -17,7 +17,7 @@ function capturingLogger() {
 	const at = (level: LoggedCall["level"]) => (...args: unknown[]) => {
 		calls.push({ level, args });
 	};
-	const logger: HutchLogger = { info: at("info"), warn: at("warn"), error: at("error"), debug: at("debug") };
+	const logger: Logger = { info: at("info"), warn: at("warn"), error: at("error"), debug: at("debug") };
 	return { calls, logger };
 }
 

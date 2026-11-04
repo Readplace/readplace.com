@@ -4,9 +4,9 @@ import { z } from "zod";
 import type { ForwardableSender, GmailConnectionStore, GmailMappingStore } from "@packages/domain/gmail";
 import type { DetectNewsletters } from "@packages/domain/newsletter-catalog";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
-import { SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { SendGmailNewsletterNoticeCommand, GmailNewsletterNoticeProcessedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { EmailMessage, SendEmail } from "@packages/provider-contracts/email";
@@ -35,7 +35,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	appOrigin: string;
 	now: () => Date;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const publish = (input: { userId: UserId; senderEmail: ForwardableSender; outcome: "sent" | "suppressed" }) => deps.publishEvent(GmailNewsletterNoticeProcessedEvent, input);
 

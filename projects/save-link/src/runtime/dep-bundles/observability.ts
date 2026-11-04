@@ -1,5 +1,5 @@
 import type { LogThumbnailNotDelivered, ThumbnailNotDeliveredEvent } from "@packages/crawl-article";
-import { formatErrorLogLine, HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, Logger } from "@packages/logger";
 import {
 	initLogParseError,
 	initLogCrawlOutcome,
@@ -10,7 +10,7 @@ import {
 	type LogParseError,
 	type LogCrawlOutcome,
 	type LogCrawlSettled,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import type { ImageLeftAtOriginEvent } from "../domain/save-link/download-media";
 
 export type LogError = (message: string, error?: Error) => void;
@@ -24,7 +24,7 @@ export type LogImageLeftAtOrigin = (event: ImageLeftAtOriginEvent) => void;
 export type ParseErrorSource = ParseErrorEvent["source"];
 
 export type ObservabilityDepBundle = {
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	logCrawlSettled: LogCrawlSettled;
@@ -35,7 +35,7 @@ export type ObservabilityDepBundle = {
 };
 
 export function initObservabilityDepBundle(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 	source: ParseErrorSource;
 	now: () => Date;
 }): ObservabilityDepBundle {
@@ -43,16 +43,16 @@ export function initObservabilityDepBundle(deps: {
 		deps.logger.error(formatErrorLogLine({ message, error, now: deps.now }));
 	const logInfo: LogInfo = (message) => deps.logger.info(message);
 	const { logParseError } = initLogParseError({
-		logger: HutchLogger.fromJSON<ParseErrorEvent>(),
+		logger: Logger.fromJSON<ParseErrorEvent>(),
 		now: deps.now,
 		source: deps.source,
 	});
 	const { logCrawlOutcome } = initLogCrawlOutcome({
-		logger: HutchLogger.fromJSON<CrawlOutcomeEvent>(),
+		logger: Logger.fromJSON<CrawlOutcomeEvent>(),
 		now: deps.now,
 	});
 	const { logCrawlSettled } = initLogCrawlSettled({
-		logger: HutchLogger.fromJSON<CrawlSettledEvent>(),
+		logger: Logger.fromJSON<CrawlSettledEvent>(),
 		now: deps.now,
 	});
 	return {
@@ -62,7 +62,7 @@ export function initObservabilityDepBundle(deps: {
 		logCrawlSettled,
 		logError,
 		logInfo,
-		logThumbnailNotDelivered: HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn,
-		logImageLeftAtOrigin: HutchLogger.fromJSON<ImageLeftAtOriginEvent>().warn,
+		logThumbnailNotDelivered: Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn,
+		logImageLeftAtOrigin: Logger.fromJSON<ImageLeftAtOriginEvent>().warn,
 	};
 }

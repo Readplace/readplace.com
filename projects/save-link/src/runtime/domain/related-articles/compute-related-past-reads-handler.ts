@@ -7,9 +7,9 @@ import type {
 	SQSEvent,
 } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	FindReadCandidatesAcrossReadlists,
 	FindRelatedTargetArticle,
@@ -38,8 +38,8 @@ interface ComputeRelatedPastReadsHandlerDeps {
 	markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 }
 
 class MetadataNotReadyError extends Error {

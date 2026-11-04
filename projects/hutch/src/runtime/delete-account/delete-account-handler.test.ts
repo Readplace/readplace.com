@@ -13,7 +13,7 @@ import {
 } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import {
@@ -115,7 +115,7 @@ function buildSubject() {
 			appleRevokeCalls.push(new URLSearchParams(body).get("token") ?? "");
 			return new Response(null, { status: 200 });
 		},
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 
 	const rewriteCalls: UserId[] = [];
@@ -146,7 +146,7 @@ function buildSubject() {
 			},
 		}),
 		cancelGmailHistoryImports: gmail.bundle.cancelGmailHistoryImports,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 
 	// Test-only failure injection: the article-store fake throws for any user id
@@ -285,7 +285,7 @@ function buildSubject() {
 		},
 		destroyUserSessions: auth.destroyUserSessions,
 		closeUserAccount: auth.closeUserAccount,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 
 	return {

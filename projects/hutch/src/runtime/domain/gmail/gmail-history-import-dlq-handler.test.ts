@@ -16,8 +16,8 @@ import {
 	GmailHistoryImportPageProcessedEvent,
 	ProcessGmailHistoryImportPageCommand,
 	StartGmailHistoryImportCommand,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initInMemoryGmailHistoryImport } from "@packages/test-fixtures/providers/gmail-history-import";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";

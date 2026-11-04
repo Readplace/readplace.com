@@ -6,7 +6,7 @@ import {
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
 import { ServedBodyFields, servedBodyOf } from "./served-body";
@@ -29,7 +29,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { StoredCrawlVersionSchema, normalizeCrawlVersion } from "./crawl-version-log";
 import { CONTENT_BEARING_COLUMNS } from "./tombstone-article";
 import { ItemMediaSchema, ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import assert from "node:assert";
@@ -219,7 +219,7 @@ export function initDynamoDbSavedArticleStore(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 	userArticlesTableName: string;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }): {
 	saveArticle: SaveArticle;

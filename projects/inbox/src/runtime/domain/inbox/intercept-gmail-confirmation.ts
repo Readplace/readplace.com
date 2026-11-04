@@ -1,6 +1,6 @@
 import type { InboxAddress, InboxAddressEntry, ParsedEmail } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { findGoogleForwardingConfirmationUrl } from "./google-confirmation-link";
 
 export interface InterceptionRecipient {
@@ -20,7 +20,7 @@ export function initInterceptGmailConfirmation(deps: {
 		forwardingAddress: InboxAddress;
 		verifyUrl: string;
 	}) => Promise<void>;
-	logger: HutchLogger;
+	logger: Logger;
 }): InterceptGmailConfirmation {
 	const { publishConfirmGmailForwarding, logger } = deps;
 

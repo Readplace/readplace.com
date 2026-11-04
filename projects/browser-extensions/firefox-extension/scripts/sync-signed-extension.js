@@ -5,11 +5,11 @@ const { execSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
-const { HutchLogger, consoleLogger } = require("@packages/hutch-logger");
+const { Logger, consoleLogger } = require("@packages/logger");
 const { firefoxS3Config } = require("browser-extension-core/s3-config");
 const { getBucketName, getBucketBaseUrl } = firefoxS3Config;
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 const AMO_API_BASE = "https://addons.mozilla.org/api/v5";
 

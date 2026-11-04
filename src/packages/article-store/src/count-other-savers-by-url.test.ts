@@ -1,5 +1,5 @@
 import type { UserId } from "@packages/domain/user";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initCountOtherSaversByUrl } from "./count-other-savers-by-url";
 
 const REMOVING_USER = "user-1" as UserId;

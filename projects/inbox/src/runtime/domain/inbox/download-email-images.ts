@@ -6,7 +6,7 @@ import {
 	readBodyWithCap,
 } from "@packages/crawl-article";
 import type { CrawlFetch } from "@packages/crawl-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { parseHTML } from "linkedom";
 
 const MAX_IMAGES = 20;
@@ -43,7 +43,7 @@ export type DownloadEmailImages = (input: { html: string }) => Promise<Downloade
  */
 export function initDownloadEmailImages(deps: {
 	crawlFetch: CrawlFetch;
-	logger: HutchLogger;
+	logger: Logger;
 }): DownloadEmailImages {
 	const { crawlFetch, logger } = deps;
 

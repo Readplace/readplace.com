@@ -1,12 +1,12 @@
 import * as pulumi from "@pulumi/pulumi";
 import { firefoxS3Config } from "browser-extension-core/s3-config";
-import { HutchS3PublicRead } from "@packages/hutch-infra-components/infra";
+import { S3PublicRead } from "@packages/infra-components/infra";
 const { getBucketName } = firefoxS3Config;
 
 const config = new pulumi.Config();
 const stage = config.require("stage");
 
-const publicBucket = new HutchS3PublicRead("hutch-extension", {
+const publicBucket = new S3PublicRead("hutch-extension", {
 	bucketName: getBucketName(stage),
 	allowListBucket: true,
 });

@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initRefreshProof, CredentialHistory, OAuthGrantId } from "./evidence";
 import { initVerifyRefreshRecovery } from "./recovery";
 

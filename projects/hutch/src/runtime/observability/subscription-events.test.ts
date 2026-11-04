@@ -1,5 +1,5 @@
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { CHECKOUT_RETURN_FAILURE_REASONS, CHECKOUT_VARIANTS } from "./events";
 import {
 	buildCheckoutCompletedEvent,
@@ -11,11 +11,11 @@ import {
 } from "./subscription-events";
 
 function createCapturingLogger(): {
-	logger: HutchLogger.Typed<SubscriptionLogEvent>;
+	logger: Logger.Typed<SubscriptionLogEvent>;
 	captured: SubscriptionLogEvent[];
 } {
 	const captured: SubscriptionLogEvent[] = [];
-	const logger: HutchLogger.Typed<SubscriptionLogEvent> = {
+	const logger: Logger.Typed<SubscriptionLogEvent> = {
 		info: (data) => { captured.push(data); },
 		error: () => {},
 		warn: () => {},

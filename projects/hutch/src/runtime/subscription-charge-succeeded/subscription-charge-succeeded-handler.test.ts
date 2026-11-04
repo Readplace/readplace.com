@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initSubscriptionChargeSucceededHandler } from "./subscription-charge-succeeded-handler";
@@ -33,7 +33,7 @@ function setup() {
 	const handler = initSubscriptionChargeSucceededHandler({
 		upsertActive: providers.upsertActive,
 		emit,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { providers, captured, handler };
 }

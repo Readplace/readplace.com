@@ -5,7 +5,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	TransactionCanceledException,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbPrivateItem } from "./dynamodb-private-item";
 
 type SendFn = DynamoDBDocumentClient["send"];

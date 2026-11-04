@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
-import { RecrawlContentExtractedEvent, RefreshContentExtractedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { RecrawlContentExtractedEvent, RefreshContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { TierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { candidateProvenance } from "@packages/tier-source";
 import { initCommitTierCandidate } from "./commit-tier-candidate";

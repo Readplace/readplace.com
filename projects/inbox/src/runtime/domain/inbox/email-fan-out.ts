@@ -3,7 +3,7 @@ import {
 	type EmailDeliveryFanOut,
 	LEGACY_DELIVERY_MODE,
 } from "@packages/domain/inbox";
-import type { EmailReceivedDetail } from "@packages/hutch-infra-components";
+import type { EmailReceivedDetail } from "@packages/infra-components";
 import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 
 export function resolveEmailFanOut({

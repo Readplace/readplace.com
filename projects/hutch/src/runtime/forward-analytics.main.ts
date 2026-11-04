@@ -1,10 +1,10 @@
 /* c8 ignore start -- composition root, no logic to test */
-import { createDynamoDocumentClient, defineDynamoTable } from "@packages/hutch-storage-client";
+import { createDynamoDocumentClient, defineDynamoTable } from "@packages/storage-client";
 import { initDynamoRefreshOutcomes } from "./oauth-refresh/dynamodb-outcomes";
 import { initAttributeRefreshRefusal } from "./oauth-refresh/attribute-refusal";
 import { CredentialHistory } from "./oauth-refresh/evidence";
 import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import { requireEnv } from "@packages/require-env";
 import { initCloudWatchLogsAnalyticsForward } from "./providers/analytics-forward/cloudwatch-logs-analytics-forward";
 import { initForwardAnalyticsHandler } from "./forward-analytics/forward-analytics-handler";
@@ -30,6 +30,6 @@ export const handler = initForwardAnalyticsHandler({
 	errorsLogGroupName,
 	authDiagnosticsLogGroupName: requireEnv("AUTH_DIAGNOSTICS_LOG_GROUP_NAME"),
 	analyticsStreams: FORWARDED_STREAMS,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });
 /* c8 ignore stop */

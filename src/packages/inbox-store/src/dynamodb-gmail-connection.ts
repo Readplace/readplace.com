@@ -3,7 +3,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import type { ListConnectedGmailAccounts } from "@packages/provider-contracts/gmail-account";
 import { GmailAccountEmailSchema } from "@packages/domain/gmail";

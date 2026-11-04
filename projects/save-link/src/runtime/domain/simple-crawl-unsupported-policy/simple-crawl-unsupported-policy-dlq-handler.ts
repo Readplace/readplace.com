@@ -4,19 +4,19 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { formatErrorLogLine, type Logger } from "@packages/logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { initPublishArchiveComparison } from "../crawl-leg/publish-archive-comparison";
-import { SimpleCrawlUnsupportedEvent } from "@packages/hutch-infra-components";
+import { SimpleCrawlUnsupportedEvent } from "@packages/infra-components";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSimpleCrawlUnsupportedPolicyDlqHandler(
 	deps: {
 		transitionAndPersist: TransitionAndPersist;
 		publishEvent: PublishEvent;
-		logger: HutchLogger;
+		logger: Logger;
 		now: () => Date;
 	},
 ): Handler<SQSEvent, SQSBatchResponse> {

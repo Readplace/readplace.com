@@ -6,8 +6,8 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { SubscriptionCancelledEvent } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type {
 	CreateTrialFeedbackEmailSchedule,
 	DeleteTrialFeedbackEmailSchedule,
@@ -28,7 +28,7 @@ export function initScheduleTrialFeedbackEmailHandler(deps: {
 	createTrialFeedbackEmailSchedule: CreateTrialFeedbackEmailSchedule;
 	deleteTrialFeedbackEmailSchedule: DeleteTrialFeedbackEmailSchedule;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];

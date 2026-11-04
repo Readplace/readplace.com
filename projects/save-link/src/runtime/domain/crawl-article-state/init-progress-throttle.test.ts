@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initProgressThrottle } from "./init-progress-throttle";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
 

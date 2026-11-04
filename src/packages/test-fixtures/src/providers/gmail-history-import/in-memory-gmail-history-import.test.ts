@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import {
 	ForwardableSenderSchema,
 	GmailAccountEmailSchema,

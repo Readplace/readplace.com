@@ -5,7 +5,7 @@ import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
 import { isWrapperUrl } from "@packages/domain/article";
 import type { Article, LoadArticle } from "@packages/domain/article-aggregate";
 import type { VerifyWrapperSource } from "@packages/save-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { CrawlFailureReason } from "@packages/article-state-types";
 import { CandidateProvenanceSchema, KIND_BY_TIER, candidateProvenance, type CandidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import type { ListAvailableTierSources, CandidateReference } from "./list-available-tier-sources";
@@ -256,7 +256,7 @@ export function initPrepareContentSelection(deps: {
 
 export type LiveAttempt = { outcome: "body" | "no-body" | "deferred"; failureReason?: CrawlFailureReason };
 
-export function initLogContentSelection(deps: { logger: HutchLogger }): (params: {
+export function initLogContentSelection(deps: { logger: Logger }): (params: {
 	saveAttemptId: SaveAttemptId;
 	selection: PreparedContentSelection;
 	liveAttempt?: LiveAttempt;

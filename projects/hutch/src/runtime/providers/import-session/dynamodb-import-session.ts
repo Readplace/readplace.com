@@ -4,7 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
 import {

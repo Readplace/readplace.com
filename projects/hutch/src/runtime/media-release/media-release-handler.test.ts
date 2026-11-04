@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { calculateReadTime } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -43,7 +43,7 @@ async function buildSubject(overrides: { failRowDelete?: boolean } = {}) {
 	});
 	const handler = initMediaReleaseHandler({
 		releasePrivateItem: initReleasePrivateItem({ findItemOwner: store.findItemOwner, steps }),
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { calls, handler };
 }

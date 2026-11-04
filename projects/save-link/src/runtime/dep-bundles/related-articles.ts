@@ -1,6 +1,6 @@
 import type { CreateAiMessage } from "@packages/ai-message";
 import { isSameArticle } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initSelectAgreedPicks } from "../domain/related-articles/agreed-picks";
 import { initSelectRelatedArticlesWithinDailyBudget, type RecommendationBudgetDeniedLine } from "../domain/related-articles/daily-budget";
 import type { CountPromptTokens } from "../domain/related-articles/deepseek-flash-tokenizer/deepseek-flash-tokenizer";
@@ -18,10 +18,10 @@ export type RelatedArticlesDepBundle = {
 export function initRelatedArticlesDepBundle(deps: {
 	createMessage: CreateAiMessage;
 	nowMs: () => number;
-	logger: HutchLogger;
+	logger: Logger;
 	budget: RecommendationBudget;
 	countPromptTokens: CountPromptTokens;
-	budgetDeniedLog: HutchLogger.Typed<RecommendationBudgetDeniedLine>;
+	budgetDeniedLog: Logger.Typed<RecommendationBudgetDeniedLine>;
 }): RelatedArticlesDepBundle {
 	const withinDailyBudget = (input: {
 		selection: "nextRead" | "pastReads";

@@ -1,4 +1,4 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initDeleteArticleRow } from "./delete-article-row";
 
 function createFakeDynamo(impl: (input: Record<string, unknown>) => unknown): DynamoDBDocumentClient {

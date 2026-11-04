@@ -1,6 +1,6 @@
 import "../zod-config";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type {
 	ActionDescriptor,
 	LinkDescriptor,
@@ -512,7 +512,7 @@ export function packRequests(
 export function degradeOversizedPages(params: {
 	pages: readonly BulkSavePage[];
 	limits: BulkSaveLimits;
-	logger: HutchLogger;
+	logger: Logger;
 }): { pages: BulkSavePage[]; tooBig: { url: string; mb: number }[] } {
 	const tooBig: { url: string; mb: number }[] = [];
 	const pages = params.pages.map((page) => {
@@ -699,7 +699,7 @@ export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 async function followSaveFallback(args: {
 	response: Response;
 	context: ActionContext;
-	logger: HutchLogger;
+	logger: Logger;
 	fallbackFields: Record<string, string>;
 }): Promise<NavigationResult> {
 	const { response, context, logger, fallbackFields } = args;
@@ -728,7 +728,7 @@ async function followSaveFallback(args: {
 }
 
 export function initSaveContentUnderstanding(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
 	handlers.set("save-content", (sirenAction, context) => {
@@ -1085,7 +1085,7 @@ export interface SirenReadingListDeps {
 	fetchFn: typeof fetch;
 	onUnauthorized: (refusedAccessToken: string) => Promise<void>;
 	refreshTokens: RefreshTokens;
-	logger: HutchLogger;
+	logger: Logger;
 	onAdvertisedActions: (names: string[]) => void;
 }
 

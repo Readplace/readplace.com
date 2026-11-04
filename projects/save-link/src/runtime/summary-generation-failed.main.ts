@@ -1,9 +1,9 @@
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import type { ParseErrorEvent } from "@packages/hutch-infra-components";
+import { Logger, consoleLogger } from "@packages/logger";
+import type { ParseErrorEvent } from "@packages/infra-components";
 import { initSummaryGenerationFailedHandler } from "./domain/generate-summary/summary-generation-failed-handler";
 
 export const handler = initSummaryGenerationFailedHandler({
-	parseErrorLogger: HutchLogger.fromJSON<ParseErrorEvent>(),
-	logger: HutchLogger.from(consoleLogger),
+	parseErrorLogger: Logger.fromJSON<ParseErrorEvent>(),
+	logger: Logger.from(consoleLogger),
 	now: () => new Date(),
 });

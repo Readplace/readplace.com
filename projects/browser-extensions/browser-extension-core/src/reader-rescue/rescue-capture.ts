@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { TabContent } from "../reading-list/reading-list.types";
 import type { HiddenTab, OpenHiddenTab, Timers } from "./hidden-tab";
 
@@ -20,7 +20,7 @@ export function initRescueCapture(deps: {
 	openHiddenTab: OpenHiddenTab;
 	timers: Timers;
 	loadTimeoutMs: number;
-	logger: HutchLogger;
+	logger: Logger;
 }): RescueCapture {
 	async function waitForArticle(params: {
 		tab: HiddenTab;

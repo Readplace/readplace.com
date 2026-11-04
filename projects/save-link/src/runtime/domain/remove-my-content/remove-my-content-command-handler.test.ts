@@ -1,9 +1,9 @@
 import { type CandidateId, CandidateIdSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import {
 	RecrawlLinkInitiatedEvent,
 	ReselectAfterRemovalEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import type { Article } from "@packages/domain/article-aggregate";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";

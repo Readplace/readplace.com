@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { ConditionalCheckFailedException, TransactionCanceledException, createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, TransactionCanceledException, createDynamoDocumentClient } from "@packages/storage-client";
 import type { EmailMessage } from "@packages/provider-contracts/email";
 import type { GmailMonitoringCheckpoint, GmailNewsletterNotice } from "@packages/provider-contracts/gmail-monitoring";
 import { initDynamoDbGmailMonitoring } from "./dynamodb-gmail-monitoring";

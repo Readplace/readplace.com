@@ -1,13 +1,13 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import {
 	type LoadArticle,
 	type TransitionAndPersist,
 	markCrawlExhausted,
 	markSummaryPending,
 } from "@packages/domain/article-aggregate";
-import { ResolveArticleOnViewCommand, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { ResolveArticleOnViewCommand, TierContentExtractedEvent } from "@packages/infra-components";
 import { ClassifiedCrawlError, logRecordFailure } from "../save-link/save-link-work";
 import type { RunCrawlFromTier1 } from "../save-link/run-crawl-from-tier1";
 
@@ -19,7 +19,7 @@ export function initResolveArticleOnViewHandler(deps: {
 	runCrawlFromTier1: RunCrawlFromTier1;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { logger } = deps;
 

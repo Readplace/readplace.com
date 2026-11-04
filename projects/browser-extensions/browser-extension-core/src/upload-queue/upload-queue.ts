@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type { CaptureTrigger, TabContent, UploadContent, UploadContentResult } from "../reading-list/reading-list.types";
 import { type UploadJob, parseUploadJobs } from "./upload-job";
@@ -40,7 +40,7 @@ export function initUploadQueue(deps: {
 	scheduler: WakeScheduler;
 	capture: CaptureForJob;
 	uploadContent: UploadContent;
-	logger: HutchLogger;
+	logger: Logger;
 }): UploadQueue {
 	let pending: Promise<void> = Promise.resolve();
 	let resuming: Promise<void> | undefined;

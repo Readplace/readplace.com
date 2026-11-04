@@ -1,7 +1,7 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import { randomUUID } from "node:crypto";
 import { DeleteObjectCommand, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { StagedPdf, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 
 /**
@@ -14,7 +14,7 @@ export const PDF_STAGING_PREFIX = "pdf-rasterise-staging";
 export function initStagePdfToS3(deps: {
 	client: S3Client;
 	bucketName: string;
-	logger: HutchLogger;
+	logger: Logger;
 }): { stagePdf: StagePdfToS3 } {
 	const { client, bucketName, logger } = deps;
 

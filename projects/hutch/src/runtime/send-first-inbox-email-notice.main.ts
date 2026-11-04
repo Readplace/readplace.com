@@ -1,6 +1,6 @@
 import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbSubscriptionRead } from "@packages/subscription-access";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
@@ -27,7 +27,7 @@ const { findByUserId } = initDynamoDbSubscriptionRead({
 });
 
 const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession,
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: usersTable,
 	sessionsTableName: sessionsTable,
@@ -41,7 +41,7 @@ const onboardingSignals = initOnboardingSignals({
 
 const { sendEmail } = initSkipReservedDomain({
 	...initResendEmail(resendApiKey),
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });
 
 export const handler = initSendFirstInboxEmailNoticeHandler({
@@ -52,5 +52,5 @@ export const handler = initSendFirstInboxEmailNoticeHandler({
 	founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 	appOrigin,
 	now: () => new Date(),
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });

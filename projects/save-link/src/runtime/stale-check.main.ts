@@ -4,10 +4,10 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import {
 	SaveAnonymousLinkCommand,
 	UpdateFetchTimestampCommand,
-} from "@packages/hutch-infra-components";
-import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
-import { consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components";
+import { EventBridgeClient } from "@packages/infra-components/runtime";
+import { consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,

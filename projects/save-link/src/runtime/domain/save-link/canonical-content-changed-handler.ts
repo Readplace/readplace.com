@@ -1,17 +1,17 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	markSummaryPending,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
-import { CanonicalContentChangedEvent } from "@packages/hutch-infra-components";
+import { CanonicalContentChangedEvent } from "@packages/infra-components";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 
 export function initCanonicalContentChangedHandler(deps: {
 	findArticleContent: FindArticleContent;
 	transitionAndPersist: TransitionAndPersist;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { findArticleContent, transitionAndPersist, now, logger } = deps;
 

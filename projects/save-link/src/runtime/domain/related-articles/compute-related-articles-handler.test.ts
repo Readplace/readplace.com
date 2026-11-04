@@ -1,8 +1,8 @@
 import { articleDestinationUrl } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import type { DeepseekCallFailedLogLine } from "@packages/ai-message";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import { type Logger, noopLogger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	MarkRelatedArticlesOutcome,
 	RelatedArticles,
@@ -82,8 +82,8 @@ interface HandlerOverrides {
 	pools?: RelatedCandidatePools;
 	selectRelatedArticles?: SelectRelatedArticles;
 	markOutcome?: MarkRelatedArticlesOutcome;
-	logger?: HutchLogger;
-	deepseekCallFailedLog?: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger?: Logger;
+	deepseekCallFailedLog?: Logger.Typed<DeepseekCallFailedLogLine>;
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {

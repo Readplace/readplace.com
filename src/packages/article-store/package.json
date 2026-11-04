@@ -18,8 +18,8 @@
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-state-types": "workspace:*",
     "@packages/domain": "workspace:*",
-    "@packages/hutch-logger": "workspace:*",
-    "@packages/hutch-storage-client": "workspace:*",
+    "@packages/logger": "workspace:*",
+    "@packages/storage-client": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "zod": "4.4.3"
   },

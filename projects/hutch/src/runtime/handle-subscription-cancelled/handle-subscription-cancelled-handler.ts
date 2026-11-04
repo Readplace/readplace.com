@@ -5,17 +5,17 @@ import type {
 	SQSEvent,
 } from "aws-lambda";
 import { z } from "zod";
-import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
+import type { Logger } from "@packages/logger";
+import { SubscriptionCancelledEvent } from "@packages/infra-components";
 import type { MarkSubscriptionCancelledByUserId } from "@packages/provider-contracts/subscription-providers";
 import type { EmitSubscriptionEvent } from "../observability/subscription-events";
 
 export function initHandleSubscriptionCancelledHandler(deps: {
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	emit: EmitSubscriptionEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];

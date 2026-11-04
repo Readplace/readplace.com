@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { ClaimMeteredLeg, MeteredLeg } from "@packages/provider-contracts/metered-leg-ledger";
 
 export type MeteredLegAction = "claimed" | "settled" | "released" | "deferred" | "skipped-settled" | "skipped-in-flight";
@@ -11,6 +11,6 @@ export const REFUSED_CLAIM_ACTION: Record<RefusedClaimKind, MeteredLegAction> = 
 	"in-flight": "skipped-in-flight",
 };
 
-export function logMeteredLeg(logger: HutchLogger, line: { url: string; leg: MeteredLeg; action: MeteredLegAction }): void {
+export function logMeteredLeg(logger: Logger, line: { url: string; leg: MeteredLeg; action: MeteredLegAction }): void {
 	logger.info("[metered-leg]", line);
 }

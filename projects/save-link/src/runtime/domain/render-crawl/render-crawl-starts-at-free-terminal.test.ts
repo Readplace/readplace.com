@@ -1,9 +1,9 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { FinalizeArticle } from "@packages/finalize-article";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { RenderCrawlCommand, SimpleCrawlUnsupportedEvent, TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { RenderCrawlCommand, SimpleCrawlUnsupportedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";

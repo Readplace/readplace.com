@@ -3,7 +3,7 @@ import { ForwardableSenderSchema, GmailAccountEmailSchema } from "@packages/doma
 import type { InboxAddress, ParsedEmail } from "@packages/domain/inbox";
 import { InboxAddressSchema, MessageIdSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailHeldMail } from "@packages/test-fixtures/providers/gmail-held-mail";
 import { initInMemoryGmailMapping } from "@packages/test-fixtures/providers/gmail-mapping";
@@ -52,7 +52,7 @@ async function harness(options: { connectedAs?: typeof ACCOUNT | undefined } = {
 		mappings,
 		senders,
 		heldMail,
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			info: capture,
 			warn: capture,
 			error: capture,

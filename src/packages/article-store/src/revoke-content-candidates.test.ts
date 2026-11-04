@@ -1,5 +1,5 @@
 import { CandidateIdSchema } from "@packages/domain/article";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { z } from "zod";
 import { initRevokeContentCandidates } from "./revoke-content-candidates";
 

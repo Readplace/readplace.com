@@ -10,9 +10,9 @@ import {
 	NormalizedMessageIdSchema,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { MarkGmailEmailImportedCommand } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { MarkGmailEmailImportedCommand } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -65,7 +65,7 @@ async function setup(input: { origins?: GmailMessageOrigin[]; emailExists?: bool
 		marks.push(detail);
 	}) as PublishEvent;
 	const evaluate = initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent });
-	const handler = initGmailImportCompletionHandler({ acknowledgeOutput: completion.acknowledgeOutput, evaluate, logger: HutchLogger.from(noopLogger) });
+	const handler = initGmailImportCompletionHandler({ acknowledgeOutput: completion.acknowledgeOutput, evaluate, logger: Logger.from(noopLogger) });
 	const run = (bodies: string[]) =>
 		handler(buildSqsEvent(bodies.map((body, index) => ({ messageId: `m-${index}`, body }))), buildLambdaContext(), () => {});
 	const select = (outputs: EmailOutputKey[], truncated = false) =>

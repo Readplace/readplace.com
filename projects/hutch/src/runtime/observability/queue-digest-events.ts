@@ -1,5 +1,5 @@
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { EffectiveAccess } from "@packages/subscription-access";
 import { QUEUE_DIGEST_EVENTS, STREAMS } from "./events";
 
@@ -58,7 +58,7 @@ function sentKindFields(params: QueueDigestSentKind): QueueDigestSentKindFields 
 }
 
 export function initEmitQueueDigestEvent(deps: {
-	logger: HutchLogger.Typed<QueueDigestLogEvent>;
+	logger: Logger.Typed<QueueDigestLogEvent>;
 	now: () => Date;
 }): EmitQueueDigestEvent {
 	return {

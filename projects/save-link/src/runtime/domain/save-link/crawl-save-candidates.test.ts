@@ -5,7 +5,7 @@ import { initCrawlArchiveCapture } from "./crawl-archive-capture";
 import { initCrawlArticle } from "@packages/crawl-article";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { PutTierSource, TierSource } from "@packages/tier-source";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);

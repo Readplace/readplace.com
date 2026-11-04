@@ -16,7 +16,7 @@
   "dependencies": {
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/domain": "workspace:*",
-    "@packages/hutch-logger": "workspace:*",
+    "@packages/logger": "workspace:*",
     "@packages/provider-contracts": "workspace:*"
   },
   "devDependencies": {

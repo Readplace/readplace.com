@@ -9,9 +9,9 @@ import { initCrawlAndFinalizeArticle } from "@packages/finalize-article";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { CrawlArticle } from "@packages/crawl-article";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
 	markCrawlAwaitingReader,
@@ -20,7 +20,7 @@ import {
 	markCrawlUnsupported,
 } from "@packages/domain/article-aggregate";
 import { crawlFailureReasonForFetchFailure } from "../save-link/crawl-failure-reason-for-fetch-failure";
-import { ComprehensiveCrawlCommand } from "@packages/hutch-infra-components";
+import { ComprehensiveCrawlCommand } from "@packages/infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
 import type {
@@ -30,7 +30,7 @@ import type {
 import { initProgressThrottle } from "../crawl-article-state/init-progress-throttle";
 import type { PutTierSource } from "@packages/tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
-import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
+import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { type CrawlTermination, initCommitDeferredCrawl } from "../crawl-article-state/commit-deferred-crawl";
 import type { FinalizeArticle } from "@packages/finalize-article";
@@ -60,7 +60,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	adoptCanonicalIdentity: AdoptCanonicalIdentity;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;

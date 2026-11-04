@@ -6,10 +6,10 @@ import type { VerifyWrapperSource } from "@packages/save-article";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type Logger } from "@packages/logger";
 import type { ExtractPdf } from "@packages/crawl-article";
 import { MAX_PDF_BYTES, parsePdfFromBuffer } from "@packages/crawl-article";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import {
 	markCrawlFailed,
 	markCrawlUnsupported,
@@ -19,7 +19,7 @@ import {
 	SaveLinkRawPdfCommand,
 	type LogCrawlOutcome,
 	type LogParseError,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import type { ParseHtml } from "@packages/article-parser";
 import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
 import { estimatedReadTimeFromWordCount, type DownloadMedia, type ProcessContent } from "@packages/finalize-article";
@@ -41,7 +41,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 	publishEvent: PublishEvent;
 	transitionAndPersist: TransitionAndPersist;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;

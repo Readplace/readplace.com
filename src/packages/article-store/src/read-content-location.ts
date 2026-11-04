@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineDynamoTable, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { defineDynamoTable, type DynamoDBDocumentClient } from "@packages/storage-client";
 import type { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ServedBodyFields, servedBodyOf } from "./served-body";
 

@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initRefreshProof, type CredentialHistory, type CredentialFingerprint, type RefreshAttempt } from "./evidence";
 
 export function initVerifyRefreshRecovery(deps: {
@@ -6,7 +6,7 @@ export function initVerifyRefreshRecovery(deps: {
 	findHistory: (fingerprint: CredentialFingerprint) => Promise<CredentialHistory | undefined>;
 	recover: (attempt: RefreshAttempt, recoveredAt: number) => Promise<void>;
 	now: () => number;
-	logger: HutchLogger;
+	logger: Logger;
 }) {
 	const proof = initRefreshProof(deps.secret);
 	return async (input: { proof: string; authenticatedRefreshToken: string }) => {

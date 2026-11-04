@@ -1,7 +1,7 @@
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import express, { type Express } from "express";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type Logger, noopLogger } from "@packages/logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
 import type { GetSessionUserId } from "@packages/provider-contracts/auth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
@@ -104,17 +104,17 @@ export function fakeFirefoxPointerFetch(body: string, status = 200): typeof fetc
 }
 
 export interface AnalyticsBundle {
-	logger: HutchLogger.Typed<AnalyticsEvent>;
+	logger: Logger.Typed<AnalyticsEvent>;
 	events: AnalyticsEvent[];
 }
 
 export interface SubscriptionEventsBundle {
-	logger: HutchLogger.Typed<SubscriptionLogEvent>;
+	logger: Logger.Typed<SubscriptionLogEvent>;
 	events: SubscriptionLogEventView[];
 }
 
 export interface FunnelEventsBundle {
-	logger: HutchLogger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
+	logger: Logger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
 	events: (ActivationThresholdReachedEvent | LifecycleEmailSentEvent)[];
 }
 

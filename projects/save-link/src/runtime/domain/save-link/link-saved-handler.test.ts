@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initLinkSavedHandler } from "./link-saved-handler";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";

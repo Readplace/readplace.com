@@ -9,4 +9,4 @@ export {
 	type RefreshArticleContentDetail,
 	UpdateFetchTimestampCommand,
 	type UpdateFetchTimestampDetail,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";

@@ -1,4 +1,4 @@
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import { initPdfPageHtmlConvertHandler } from "./pdf-page-html-convert-handler";
 import type { ConvertPageToHtmlWithLlm } from "./pdf-page-html-convert-handler.types";
 
@@ -9,7 +9,7 @@ function stubLlm(
 	return async () => ({ text, tokens });
 }
 
-function capturingLogger(): { logger: HutchLogger; messages: string[] } {
+function capturingLogger(): { logger: Logger; messages: string[] } {
 	const messages: string[] = [];
 	const record = (msg: unknown) => { messages.push(String(msg)); };
 	return {

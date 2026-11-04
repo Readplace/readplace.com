@@ -7,8 +7,8 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
-import { DeleteAccountCommand } from "@packages/hutch-infra-components";
+import type { Logger } from "@packages/logger";
+import { DeleteAccountCommand } from "@packages/infra-components";
 import type {
 	CloseUserAccount,
 	DestroyUserSessions,
@@ -101,7 +101,7 @@ export interface DeleteAccountHandlerDependencies {
 	revokeAllUserOAuthTokens: RevokeAllUserOAuthTokens;
 	destroyUserSessions: DestroyUserSessions;
 	closeUserAccount: CloseUserAccount;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 /** Erase every user-owned store for a deleted account. Each step is idempotent

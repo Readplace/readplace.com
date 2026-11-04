@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { candidateProvenance } from "@packages/tier-source";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
-import { ArchiveCaptureCrawlFailedEvent } from "@packages/hutch-infra-components";
+import { noopLogger } from "@packages/logger";
+import { ArchiveCaptureCrawlFailedEvent } from "@packages/infra-components";
 import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult, FinalizedArticle } from "@packages/finalize-article";
 import { initCrawlArchiveCapture } from "./crawl-archive-capture";
 

@@ -1,6 +1,6 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { noopLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { noopLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initSelectContentDepBundle } from "./select-content";
 
 describe("initSelectContentDepBundle", () => {

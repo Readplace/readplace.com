@@ -1,6 +1,6 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { markCrawlExhausted, markCrawlFailed, markCrawlNotFound } from "@packages/domain/article-aggregate";
-import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
+import { TierContentExtractedEvent } from "@packages/infra-components";
 import { initSaveAnonymousLinkCommandHandler } from "./save-anonymous-link-command-handler";
 import type {
 	CrawlAndFinalizeArticle,

@@ -1,5 +1,5 @@
 import type { ExtractPdf, ExtractPdfMetadata } from "@packages/crawl-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initOcrPdf } from "./ocr-pdf";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
@@ -25,7 +25,7 @@ export function initSaveLinkPdfExtract(deps: {
 	invokePageLlmCleanup: InvokePdfPageLlmCleanup;
 	invokeDocumentDiffReview: InvokePdfDocumentDiffReview;
 	invokePageHtmlConvert: InvokePdfPageHtmlConvert;
-	logger: HutchLogger;
+	logger: Logger;
 }): ExtractPdf {
 	return initOcrPdf({
 		extractPdfMetadata: deps.extractPdfMetadata,

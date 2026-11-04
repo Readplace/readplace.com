@@ -1,7 +1,7 @@
 import { UserIdSchema } from "@packages/domain/user";
 import { articleDestinationUrl } from "@packages/domain/article";
 import type { CreateAiMessage } from "@packages/ai-message";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
 import {
 	RELATED_REASON_MAX_CHARS,

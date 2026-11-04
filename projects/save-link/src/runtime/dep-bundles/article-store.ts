@@ -1,5 +1,5 @@
 import type { S3Client } from "@aws-sdk/client-s3";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import type { PutImageObject } from "@packages/finalize-article";
 import { initS3PutImageObject } from "../providers/article-store/s3-put-image-object";
 import { initPutTierSource, type PutTierSource } from "@packages/tier-source";

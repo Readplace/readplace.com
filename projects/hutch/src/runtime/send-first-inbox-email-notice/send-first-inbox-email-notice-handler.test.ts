@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { MarkFirstInboxEmailNoticeSent } from "@packages/provider-contracts/onboarding-signals";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initInMemoryOnboardingSignals } from "@packages/test-fixtures/providers/onboarding-signals";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
@@ -68,7 +68,7 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 		appOrigin: "https://readplace.com",
 		now: () => SENT_AT,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	};
 	const handler = initSendFirstInboxEmailNoticeHandler(deps);
 	return { handler, providers, onboarding, email };

@@ -1,4 +1,4 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initDynamoDbMarkCrawlProgress } from "./mark-crawl-progress";
 
 type SendFn = DynamoDBDocumentClient["send"];

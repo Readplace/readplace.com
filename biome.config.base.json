@@ -41,8 +41,8 @@
           "level": "error",
           "options": {
             "paths": {
-              "@aws-sdk/lib-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
-              "@aws-sdk/client-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling.",
+              "@aws-sdk/lib-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+              "@aws-sdk/client-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling.",
               "openai": "Import from @packages/ai-message instead — it is the one door to DeepSeek: every request names its feature and is priced for the cost chart.",
               "@packages/domain/user": {
                 "importNames": ["authenticatedUserIdFrom"],
@@ -70,8 +70,8 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "@aws-sdk/lib-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
-                  "@aws-sdk/client-dynamodb": "Import from @packages/hutch-storage-client instead — it forces schema-driven null handling.",
+                  "@aws-sdk/lib-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling (see projects/save-link/src/save-link/find-article-content.ts for the bug this prevents).",
+                  "@aws-sdk/client-dynamodb": "Import from @packages/storage-client instead — it forces schema-driven null handling.",
                   "openai": "Import from @packages/ai-message instead — it is the one door to DeepSeek: every request names its feature and is priced for the cost chart."
                 }
               }

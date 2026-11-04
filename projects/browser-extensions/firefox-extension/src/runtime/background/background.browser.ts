@@ -42,12 +42,12 @@ import {
 	type UploadQueue,
 	type WakeScheduler,
 } from "browser-extension-core";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import type { BuiltInOAuthClientId } from "@packages/supported-clients";
 import { createBrowserSetIcon } from "./tinted-icon.browser";
 import { initCreateContextMenus } from "./create-context-menus";
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 const STORAGE_KEY = "hutch_oauth_tokens";
 const UPLOAD_JOBS_KEY = "hutch_upload_jobs";

@@ -4,7 +4,7 @@ import {
 	TransactWriteCommand,
 	TransactionCanceledException,
 	defineDynamoTable,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { fixedWindowStartSeconds } from "@packages/domain/rate-limit";
 import type { UserId } from "@packages/domain/user";
 import { z } from "zod";

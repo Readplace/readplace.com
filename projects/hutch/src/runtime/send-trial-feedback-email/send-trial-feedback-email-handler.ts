@@ -7,8 +7,8 @@ import type {
 import assert from "node:assert";
 import { z } from "zod";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
-import { SendTrialFeedbackEmailCommand, type SendTrialFeedbackEmailDetail } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { SendTrialFeedbackEmailCommand, type SendTrialFeedbackEmailDetail } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { FindEmailByUserId, FindUserContactByUserId } from "@packages/provider-contracts/auth";
 import type { FindArticlesByUser } from "@packages/provider-contracts/article-store";
 import type { SendEmail } from "@packages/provider-contracts/email";
@@ -70,7 +70,7 @@ export interface SendTrialFeedbackEmailDeps {
 	founderAvatarUrl: string;
 	appOrigin: string;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	emitLifecycleEmailSent: EmitLifecycleEmailSent;
 }
 

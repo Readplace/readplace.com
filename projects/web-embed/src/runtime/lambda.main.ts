@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Handler } from "aws-lambda";
 import serverless from "serverless-http";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initBase, GlobalNav, HtmxOmitted } from "@packages/web-shell";
 import { initGetSessionUserId, initResolveLogin, initObserveSession } from "@packages/web-session";
 import { type AnalyticsEvent, isHttpsOrigin } from "@packages/web-analytics";
@@ -10,7 +10,7 @@ import { createEmbedApp } from "./app";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 const appOrigin = requireEnv("APP_ORIGIN");
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 const base = initBase({
 	staticBaseUrl: requireEnv("STATIC_BASE_URL"),
@@ -20,7 +20,7 @@ const base = initBase({
 });
 
 const getSessionUserId = initGetSessionUserId({
-	observeSession: initObserveSession({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>(), context: () => ({ client: "web", surface: "website" }) }),
+	observeSession: initObserveSession({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>(), context: () => ({ client: "web", surface: "website" }) }),
 	client: createDynamoDocumentClient(),
 	sessionsTableName: requireEnv("DYNAMODB_SESSIONS_TABLE"),
 });
@@ -30,7 +30,7 @@ const app = createEmbedApp({
 	appOrigin,
 	base,
 	resolveLogin,
-	analyticsLogger: HutchLogger.fromJSON<AnalyticsEvent>(),
+	analyticsLogger: Logger.fromJSON<AnalyticsEvent>(),
 	salt: requireEnv("ANALYTICS_SALT"),
 	now: () => new Date(),
 	generateVisitorId: randomUUID,

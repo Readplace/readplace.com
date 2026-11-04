@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type BulkSaveRun, type BulkSaveRunId, compareRecords, isActive } from "../bulk-save-run/bulk-save-run";
 import type { FollowSaveAllReply, SaveAllStartReply } from "../bulk-save-run/save-all-messages";
 
@@ -17,7 +17,7 @@ export function initSaveAllFollower(deps: {
 	showFailure: () => void;
 	showLogin: () => void;
 	mark: () => void;
-	logger: HutchLogger;
+	logger: Logger;
 }) {
 	let boundId: BulkSaveRunId | null = null;
 	let shown: BulkSaveRun | null = null;

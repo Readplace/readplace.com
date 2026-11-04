@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { OAuthRefreshEvaluatedEvent } from "@packages/hutch-infra-components";
+import type { OAuthRefreshEvaluatedEvent } from "@packages/infra-components";
 import type { ProofValidation } from "./dpop";
 import { OAuthGrantId, RefreshAttempt } from "./evidence";
 

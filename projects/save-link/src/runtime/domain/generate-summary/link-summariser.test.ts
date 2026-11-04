@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import assert from "node:assert/strict";
 import { initLinkSummariser, MAX_SUMMARY_INPUT_CHARS } from "./link-summariser";

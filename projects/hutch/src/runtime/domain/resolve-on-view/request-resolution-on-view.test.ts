@@ -1,5 +1,5 @@
 import { ANONYMOUS_VIEWER, SaveAttemptIdSchema, type ShownSummary, shownSummary } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { initInMemoryArticleCrawl, initInMemoryClaimResolutionOnView } from "@packages/test-fixtures/providers/article-crawl";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
@@ -18,7 +18,7 @@ function setup(overrides: { publishFails?: boolean } = {}) {
 	const summary = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 	const claimResolutionOnView = initInMemoryClaimResolutionOnView({ crawl, summary, findItemOwner: async () => undefined, now: () => NOW });
 	const publisher = initInMemoryResolveArticleOnView({ logger: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() } });
-	const logger: HutchLogger = { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() };
+	const logger: Logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() };
 	const publishError = new Error("eventbridge down");
 	const requestResolutionOnView = initRequestResolutionOnView({
 		claimResolutionOnView,

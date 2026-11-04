@@ -21,13 +21,13 @@ import {
 	SendFirstInboxEmailNoticeCommand,
 	SendTrialFeedbackEmailCommand,
 	SubmitLinkCommand,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components/runtime";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	initDynamoDbEmailImportCompletion,
 	initDynamoDbInboxAddress,
@@ -64,7 +64,7 @@ const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
 const dynamoClient = createDynamoDocumentClient();
 const eventBridgeClient = new EventBridgeClient({});
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const TRIAGE_DEEPSEEK_TIMEOUT_MS = 60_000;
 const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
@@ -76,14 +76,14 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "warn",
 	callTimeoutMs: null,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 const createAiMessage = initCreateDeepseekMessage({ client: deepseekClient });
 const { triageEmailLinks } = initTriageEmailLinks({
 	createAiMessage,
 	logger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 const inboxAddressStore = initDynamoDbInboxAddress({

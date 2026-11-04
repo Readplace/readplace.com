@@ -1,14 +1,14 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { FailMediaUpload } from "@packages/domain";
-import { MediaProcessingFailedEvent } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { MediaProcessingFailedEvent } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { RecordPrivateItemFailure } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
 
 export function initSettleMediaFailureHandler(deps: {
 	recordPrivateItemFailure: RecordPrivateItemFailure;
 	failMediaUpload: FailMediaUpload;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];

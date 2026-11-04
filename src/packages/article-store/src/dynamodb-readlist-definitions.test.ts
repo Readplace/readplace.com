@@ -7,7 +7,7 @@ import type { UserId } from "@packages/domain/user";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbReadlistDefinitions } from "./dynamodb-readlist-definitions";
 
 /**

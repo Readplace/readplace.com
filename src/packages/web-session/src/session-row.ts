@@ -1,4 +1,4 @@
-import { dynamoField } from "@packages/hutch-storage-client";
+import { dynamoField } from "@packages/storage-client";
 import { ReadlistFilterSchema } from "@packages/domain/article";
 import { OAuthGrantIdSchema } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";

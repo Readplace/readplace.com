@@ -2,9 +2,9 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecor
 import type { z } from "zod";
 import { type GmailHistoryImportStore, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { UserIdSchema } from "@packages/domain/user";
-import { GmailHistoryImportFailedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { GmailHistoryImportFailedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
 import { GmailHistoryImportEnvelope, gmailHistoryImportRecordIdentity } from "./gmail-history-import-handler";
 import { type GmailImportRecordTrace, startGmailImportRecordTrace } from "./gmail-import-record-trace";
@@ -14,7 +14,7 @@ interface DlqHandlerDependencies {
 	imports: GmailHistoryImportStore;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	recordDiagnostic: RecordGmailDiagnostic;
 }
 

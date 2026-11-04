@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { initCrawlArticle, type CrawlArticleResult, type CrawlFetch, type ExtractPdf } from "@packages/crawl-article";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initArticleSiteRules } from "@packages/article-parser";
-import { noopLogger } from "@packages/hutch-logger";
-import { ComprehensiveCrawlCommand, RenderCrawlCommand } from "@packages/hutch-infra-components";
+import { noopLogger } from "@packages/logger";
+import { ComprehensiveCrawlCommand, RenderCrawlCommand } from "@packages/infra-components";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "./simple-crawl-unsupported-policy-handler";
 import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";

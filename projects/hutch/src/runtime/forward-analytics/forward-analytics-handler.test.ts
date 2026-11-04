@@ -2,7 +2,7 @@ import { gzipSync } from "node:zlib";
 import { ZodError } from "zod";
 import type { CloudWatchLogsEvent, Handler } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import {
 	classifyForwardedLine,
 	extractJsonPayload,
@@ -364,7 +364,7 @@ describe("initForwardAnalyticsHandler", () => {
 
 	it("logs an error when PutLogEvents accepts the batch but discards events, so a replay-edge drop is never silent", async () => {
 		const error = jest.fn();
-		const logger: HutchLogger = { ...noopLogger, error };
+		const logger: Logger = { ...noopLogger, error };
 		const { handler } = createHandler({
 			logger,
 			putLogEvents: jest.fn().mockResolvedValue({ tooOldLogEventEndIndex: 2 }),

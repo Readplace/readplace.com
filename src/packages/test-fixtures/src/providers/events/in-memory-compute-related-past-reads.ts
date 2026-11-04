@@ -1,5 +1,5 @@
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishComputeRelatedPastReads } from "@packages/provider-contracts/events";
 
 export interface ComputeRelatedPastReadsRecord {
@@ -9,7 +9,7 @@ export interface ComputeRelatedPastReadsRecord {
 }
 
 export function initInMemoryComputeRelatedPastReads(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): {
 	publishComputeRelatedPastReads: PublishComputeRelatedPastReads;
 	publishedComputeRelatedPastReads: ComputeRelatedPastReadsRecord[];

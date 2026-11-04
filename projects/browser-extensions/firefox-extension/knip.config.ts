@@ -17,7 +17,7 @@ export default {
 		// Workspace dependency — knip can't trace through esbuild-bundled entry points
 		"@packages/onboarding-extension-signal",
 		"@packages/supported-clients",
-		// Type-only dependency — needed for TypeScript inference of HutchS3PublicRead properties, not directly imported
+		// Type-only dependency — needed for TypeScript inference of S3PublicRead properties, not directly imported
 		"@pulumi/aws",
 	],
 	ignoreBinaries: [

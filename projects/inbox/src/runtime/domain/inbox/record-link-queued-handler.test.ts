@@ -1,4 +1,4 @@
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxSavedLink } from "@packages/test-fixtures/providers/inbox-email";
@@ -6,7 +6,7 @@ import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initRecordLinkQueuedHandler } from "./record-link-queued-handler";
 
 const userId = UserIdSchema.parse("user-1");
-const logger = HutchLogger.from(noopLogger);
+const logger = Logger.from(noopLogger);
 const POST_URL = "https://example.com/post";
 
 function queuedBody(url: string): string {

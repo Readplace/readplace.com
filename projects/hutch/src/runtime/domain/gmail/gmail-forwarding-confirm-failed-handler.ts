@@ -1,14 +1,14 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { GmailForwardingConfirmFailedEvent } from "@packages/hutch-infra-components";
+import { GmailForwardingConfirmFailedEvent } from "@packages/infra-components";
 import type { GmailConnectionStore } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 
 export function initGmailForwardingConfirmFailedHandler(deps: {
 	connections: GmailConnectionStore;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { connections, now, logger } = deps;
 

@@ -1,6 +1,6 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbGmailDiscovery } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import { initGmailDiscoveryDlqHandler } from "./domain/gmail/gmail-discovery-handler";
@@ -10,5 +10,5 @@ const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClien
 export const handler = initGmailDiscoveryDlqHandler({
 	discovery: initDynamoDbGmailDiscovery({ client, tableName: requireEnv("DYNAMODB_GMAIL_DISCOVERY_TABLE"), now: () => new Date() }),
 	publishEvent,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });

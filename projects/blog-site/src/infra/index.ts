@@ -1,12 +1,12 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import {
-	HutchAPIGatewayLambdaRoute,
-	HutchDynamoDBAccess,
-	HutchLambda,
+	APIGatewayLambdaRoute,
+	DynamoDBAccess,
+	Lambda,
 	ssrEdgeSecretFromPlatformStack,
-} from "@packages/hutch-infra-components/infra";
-import { BLOG_SITE_LAMBDA_NAME } from "@packages/hutch-infra-components";
+} from "@packages/infra-components/infra";
+import { BLOG_SITE_LAMBDA_NAME } from "@packages/infra-components";
 import { requireEnv } from "@packages/require-env";
 
 /**
@@ -41,12 +41,12 @@ const sessionsTableArn = pulumi.interpolate`arn:aws:dynamodb:${awsRegion}:${awsA
 /** Least-privilege: the blog only reads a single session row per logged-in page
  * view to flip the header nav, so it gets GetItem on the sessions table and
  * nothing else (no indexes, no write actions). */
-const sessionsRead = new HutchDynamoDBAccess("blog-site-sessions-read", {
+const sessionsRead = new DynamoDBAccess("blog-site-sessions-read", {
 	tables: [{ arn: sessionsTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem"],
 });
 
-const lambda = new HutchLambda(BLOG_SITE_LAMBDA_NAME, {
+const lambda = new Lambda(BLOG_SITE_LAMBDA_NAME, {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/blog-site",
 	assetDir: "./src/runtime",
@@ -67,14 +67,14 @@ const lambda = new HutchLambda(BLOG_SITE_LAMBDA_NAME, {
 	policies: [...sessionsRead.policies],
 });
 
-const blogRoutes = new HutchAPIGatewayLambdaRoute("blog-site", {
+const blogRoutes = new APIGatewayLambdaRoute("blog-site", {
 	apiGatewayId,
 	apiGatewayExecutionArn,
 	lambda,
 	routeKeys: ["GET /blog", "ANY /blog/{proxy+}"],
 });
 
-// The subscription filter that used to live here is gone: HutchLambda attaches
+// The subscription filter that used to live here is gone: Lambda attaches
 // one to every log group it creates, including this stack's. It also re-derived
 // the forwarded stream list by hand, so widening that list never reached the
 // blog — a drift this deletion removes rather than fixes.

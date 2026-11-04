@@ -36,8 +36,8 @@ import { type UserId, UserIdSchema } from "@packages/domain/user";
 import {
 	type EmailReceivedDetail,
 	EmailReceivedEvent,
-} from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 import { resolveWriteAccess } from "@packages/subscription-access";
@@ -155,7 +155,7 @@ export function initExtractEmailLinksHandler(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	now: () => Date;
 	triageEmailLinks: TriageEmailLinks;
-	logger: HutchLogger;
+	logger: Logger;
 	maxLinks: number;
 	appOrigin: string;
 }): Handler<SQSEvent, SQSBatchResponse> {

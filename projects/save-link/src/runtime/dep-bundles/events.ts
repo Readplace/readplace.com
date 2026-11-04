@@ -6,12 +6,12 @@ import {
 	initSqsCommandDispatcher,
 	type DispatchCommand,
 	type PublishEvent,
-} from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components/runtime";
 import {
 	SimpleCrawlUnsupportedEvent,
 	type SimpleCrawlUnsupportedDetail,
 	GenerateSummaryCommand,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import type { CandidateReference } from "../domain/select-content/list-available-tier-sources";
 
 export type DispatchGenerateSummary = DispatchCommand<typeof GenerateSummaryCommand>;

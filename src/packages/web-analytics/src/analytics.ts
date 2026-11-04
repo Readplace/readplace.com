@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { isbot } from "isbot";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 import { type ViewerIp, viewerOf } from "@packages/viewer-identity";
 import {
@@ -1219,7 +1219,7 @@ export function buildSignupAttemptedEvent(
 }
 
 export function createAnalyticsMiddleware(deps: {
-	logger: HutchLogger.Typed<AnalyticsEvent>;
+	logger: Logger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 	isStaticAssetPath: (path: string) => boolean;

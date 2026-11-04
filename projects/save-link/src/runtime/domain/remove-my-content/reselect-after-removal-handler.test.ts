@@ -1,6 +1,6 @@
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import type { SQSEvent } from "aws-lambda";

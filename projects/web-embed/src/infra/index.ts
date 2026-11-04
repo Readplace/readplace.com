@@ -1,11 +1,11 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import {
-	HutchAPIGatewayLambdaRoute,
-	HutchDynamoDBAccess,
-	HutchLambda,
+	APIGatewayLambdaRoute,
+	DynamoDBAccess,
+	Lambda,
 	ssrEdgeSecretFromPlatformStack,
-} from "@packages/hutch-infra-components/infra";
+} from "@packages/infra-components/infra";
 import { requireEnv } from "@packages/require-env";
 
 /**
@@ -42,12 +42,12 @@ const sessionsTableArn = pulumi.interpolate`arn:aws:dynamodb:${awsRegion}:${awsA
 /** Least-privilege: the embed only reads a single session row per logged-in page
  * view to flip the header nav, so it gets GetItem on the sessions table and
  * nothing else (no indexes, no write actions). */
-const sessionsRead = new HutchDynamoDBAccess("web-embed-sessions-read", {
+const sessionsRead = new DynamoDBAccess("web-embed-sessions-read", {
 	tables: [{ arn: sessionsTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem"],
 });
 
-const lambda = new HutchLambda("web-embed", {
+const lambda = new Lambda("web-embed", {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/web-embed",
 	assetDir: "./src/runtime/embed",
@@ -64,7 +64,7 @@ const lambda = new HutchLambda("web-embed", {
 	policies: [...sessionsRead.policies],
 });
 
-const embedRoutes = new HutchAPIGatewayLambdaRoute("web-embed", {
+const embedRoutes = new APIGatewayLambdaRoute("web-embed", {
 	apiGatewayId,
 	apiGatewayExecutionArn,
 	lambda,

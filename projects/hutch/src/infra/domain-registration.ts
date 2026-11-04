@@ -1,6 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import { HutchCertificate } from "@packages/hutch-infra-components/infra";
+import { Certificate } from "@packages/infra-components/infra";
 
 export class DomainRegistration extends pulumi.ComponentResource {
 	public readonly certificateArn?: pulumi.Output<string>;
@@ -25,7 +25,7 @@ export class DomainRegistration extends pulumi.ComponentResource {
 		const zoneId = zone.then((z) => z.zoneId);
 		this.zoneId = zoneId;
 
-		const cert = new HutchCertificate(name, {
+		const cert = new Certificate(name, {
 			primaryDomain,
 			altDomains,
 			zoneId,

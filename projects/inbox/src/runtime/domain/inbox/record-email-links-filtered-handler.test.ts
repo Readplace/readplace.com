@@ -8,7 +8,7 @@ import {
 	readlistPurposeVersion,
 } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
@@ -104,7 +104,7 @@ function createHandler() {
 	const handler = initRecordEmailLinksFilteredHandler({
 		putReadlistOutcome: store.putReadlistOutcome,
 		listLinksByEmail: store.listLinksByEmail,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	const run = (bodies: string[]) =>
 		handler(

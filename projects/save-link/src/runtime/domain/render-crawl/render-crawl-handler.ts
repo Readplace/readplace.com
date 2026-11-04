@@ -3,9 +3,9 @@ import { createHash } from "node:crypto";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import { initCrawlAndFinalizeArticle, type FinalizeArticle } from "@packages/finalize-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { type CrawlArticle, type CrawlUnsupportedReason, MAX_HTML_BYTES } from "@packages/crawl-article";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import {
 	type TransitionAndPersist,
 	markCrawlAwaitingReader,
@@ -25,7 +25,7 @@ import { z } from "zod";
 import { legInputHash } from "../metered-leg/leg-input-hash";
 import { logMeteredLeg, REFUSED_CLAIM_ACTION } from "../metered-leg/metered-leg-line";
 import { RENDER_CRAWL_TIMEOUTS } from "./timeouts";
-import { ComprehensiveCrawlCommand, RenderCrawlCommand, type LogCrawlOutcome, type LogParseError } from "@packages/hutch-infra-components";
+import { ComprehensiveCrawlCommand, RenderCrawlCommand, type LogCrawlOutcome, type LogParseError } from "@packages/infra-components";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import { deferJavascriptShells } from "../save-link/javascript-shell";
 import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-reason";
@@ -93,7 +93,7 @@ export function initRenderCrawlHandler(deps: {
 	webUnlockerEgress: WebUnlockerEgress;
 	reportProxiedRenderAttempt: ReportProxiedRenderAttempt;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;

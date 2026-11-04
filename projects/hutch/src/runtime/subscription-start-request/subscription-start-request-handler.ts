@@ -6,8 +6,8 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import { SubscriptionStartRequestCommand } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { SubscriptionStartRequestCommand } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import {
 	DEFAULT_BILLING_PLAN,
 	type FindSubscriptionByUserId,
@@ -27,7 +27,7 @@ interface HandlerDeps {
 	publishSubscriptionChargeSucceeded: PublishSubscriptionChargeSucceeded;
 	publishSubscriptionChargeFailed: PublishSubscriptionChargeFailed;
 	resolvePriceId: ResolvePriceId;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 export function initSubscriptionStartRequestHandler(

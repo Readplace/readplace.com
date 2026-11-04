@@ -1,5 +1,5 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { ClassifiedCrawlError, initSaveLinkWork } from "./save-link-work";
 import { type CrawlAndFinalizeArticle, type FinalizeArticle, initCrawlAndFinalizeArticle } from "@packages/finalize-article";

@@ -6,15 +6,15 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import { SubscriptionChargeSucceededEvent } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { SubscriptionChargeSucceededEvent } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { UpsertActiveSubscription } from "@packages/provider-contracts/subscription-providers";
 import type { EmitSubscriptionEvent } from "../observability/subscription-events";
 
 export function initSubscriptionChargeSucceededHandler(deps: {
 	upsertActive: UpsertActiveSubscription;
 	emit: EmitSubscriptionEvent;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];

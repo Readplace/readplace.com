@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
 
 interface PendingProgress {
@@ -32,7 +32,7 @@ export function initProgressThrottle(deps: {
 	markCrawlProgress: MarkCrawlProgress;
 	intervalMs: number;
 	now: () => number;
-	logger: HutchLogger;
+	logger: Logger;
 }): ProgressThrottle {
 	const { markCrawlProgress, intervalMs, now, logger } = deps;
 	const pending = new Map<string, PendingProgress>();

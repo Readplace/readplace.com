@@ -11,7 +11,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { MediaKindNameSchema, UploadIdSchema } from "@packages/media-contracts";
 import { z } from "zod";
 

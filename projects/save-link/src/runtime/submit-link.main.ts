@@ -1,10 +1,10 @@
 import { initSourceIdentityDepBundle } from "./dep-bundles/source-identity";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient, initHandleByDetailType } from "@packages/hutch-infra-components/runtime";
-import { ResolveArticleOnViewCommand, StaleCheckRequestedEvent, SubmitLinkCommand } from "@packages/hutch-infra-components";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { consoleLogger } from "@packages/logger";
+import { EventBridgeClient, initHandleByDetailType } from "@packages/infra-components/runtime";
+import { ResolveArticleOnViewCommand, StaleCheckRequestedEvent, SubmitLinkCommand } from "@packages/infra-components";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { requireEnv } from "@packages/require-env";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { CRAWL_PERSONAS, DEFAULT_CRAWL_HEADERS, initCrawlFetch, initResolveThroughUnlocker } from "@packages/crawl-article";

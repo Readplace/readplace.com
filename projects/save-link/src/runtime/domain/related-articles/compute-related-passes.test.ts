@@ -4,7 +4,7 @@ import {
 	ComputeRelatedPastReadsCommand,
 	ComputeRelatedPassesCommand,
 	QueueEntryCreatedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initComputeRelatedPasses } from "./compute-related-passes";
 

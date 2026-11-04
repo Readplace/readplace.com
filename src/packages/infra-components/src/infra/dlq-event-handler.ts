@@ -1,0 +1,69 @@
+import * as pulumi from "@pulumi/pulumi";
+import { attachDlqConsumer } from "./attach-dlq-consumer";
+import type { EventBus } from "./event-bus";
+import { DynamoDBAccess } from "./dynamodb-access";
+import { Lambda, type LambdaPolicy } from "./lambda";
+import type { AlarmedDeadLetterQueue } from "./shared-dlq";
+
+/**
+ * `additionalDynamoActions`, `additionalEnvironment`, and `additionalPolicies`
+ * are escape hatches for callers whose transition needs richer access than
+ * the default "UpdateItem only, no extra env". Aggregate-migrated DLQ
+ * handlers use them to add `dynamodb:GetItem` (the aggregate's `store.load`
+ * reads before it writes) and to pass `GENERATE_SUMMARY_QUEUE_URL` even
+ * when the current transition does not dispatch a summary command — the
+ * aggregate effect dispatcher is wired uniformly so a future transition
+ * change at the same callsite cannot regress without re-wiring infra.
+ */
+export class DLQEventHandler extends pulumi.ComponentResource {
+	public readonly logGroupName: pulumi.Output<string>;
+
+	constructor(
+		name: string,
+		args: {
+			deadLetterQueue: AlarmedDeadLetterQueue;
+			tableArn: pulumi.Input<string>;
+			tableName: pulumi.Input<string>;
+			tableNameEnvVar: string;
+			eventBus: EventBus;
+			/** Valid range: 1–10 (AWS SQS EventSourceMapping limit for standard queues). */
+			batchSize: number;
+			additionalDynamoActions?: readonly string[];
+			additionalEnvironment?: Record<string, pulumi.Input<string>>;
+			additionalPolicies?: readonly LambdaPolicy[];
+		},
+		opts?: pulumi.ComponentResourceOptions,
+	) {
+		super("hutch:infra:HutchDLQEventHandler", name, {}, opts);
+
+		const dynamodb = new DynamoDBAccess(`${name}-dynamodb`, {
+			tables: [{ arn: args.tableArn, includeIndexes: false }],
+			actions: ["dynamodb:UpdateItem", ...(args.additionalDynamoActions ?? [])],
+		});
+
+		const lambda = new Lambda(name, {
+			entryPoint: `./src/runtime/${name}.main.ts`,
+			outputDir: `.lib/${name}`,
+			assetDir: "./src",
+			memorySize: 256,
+			timeout: 30,
+			environment: {
+				[args.tableNameEnvVar]: args.tableName,
+				EVENT_BUS_NAME: args.eventBus.eventBusName,
+				...args.additionalEnvironment,
+			},
+			policies: [...dynamodb.policies, ...(args.additionalPolicies ?? [])],
+		}, { parent: this });
+
+		args.eventBus.grantPublish(lambda);
+		this.logGroupName = lambda.logGroupName;
+
+		attachDlqConsumer(name, {
+			deadLetterQueue: args.deadLetterQueue,
+			lambda,
+			batchSize: args.batchSize,
+		}, { parent: this });
+
+		this.registerOutputs();
+	}
+}

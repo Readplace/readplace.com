@@ -1,6 +1,6 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { spawn } from "node:child_process";
-import { consoleLogger } from "@packages/hutch-logger";
+import { consoleLogger } from "@packages/logger";
 import { renderPdfPageToPng } from "@packages/crawl-article";
 import { requireEnv } from "@packages/require-env";
 import { initPdfPageOcrHandler } from "./domain/pdf-page-ocr/pdf-page-ocr-handler";

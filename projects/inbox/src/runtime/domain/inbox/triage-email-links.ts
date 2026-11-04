@@ -7,7 +7,7 @@ import {
 	deepseekCallFailedLogLine,
 	describeAiProviderError,
 } from "@packages/ai-message";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { z } from "zod";
 import {
 	type EmailLinkOrdinal,
@@ -59,8 +59,8 @@ export type TriageEmailLinks = (input: {
 
 export function initTriageEmailLinks(deps: {
 	createAiMessage: CreateAiMessage;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 }): { triageEmailLinks: TriageEmailLinks } {
 	const requestVerdicts = async (
 		input: Parameters<TriageEmailLinks>[0],

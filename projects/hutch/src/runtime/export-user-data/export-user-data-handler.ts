@@ -5,13 +5,13 @@ import type {
 	SQSEvent,
 } from "aws-lambda";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	ExportUserDataCommand,
 	type ExportUserDataDetail,
 	UserDataExportedEvent,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { FindArticlesAcrossReadlists } from "@packages/provider-contracts/article-store";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { EngagementStarterState } from "@packages/provider-contracts/engagement-starter";
@@ -36,7 +36,7 @@ export interface ExportUserDataDependencies {
 	uploadUserDataExport: UploadUserDataExport;
 	sendEmail: SendEmail;
 	publishEvent: PublishEvent;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }
 

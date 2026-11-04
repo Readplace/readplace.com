@@ -11,11 +11,11 @@ import {
 	SubmitLinkCommand,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import type {
 	DispatchCommand,
 	PublishEvent,
-} from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components/runtime";
 
 export function initLambdaEffectDispatcher(deps: {
 	dispatchGenerateSummary: DispatchCommand<typeof GenerateSummaryCommand>;

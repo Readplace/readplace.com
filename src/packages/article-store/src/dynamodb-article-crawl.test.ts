@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
 
 type SendFn = DynamoDBDocumentClient["send"];

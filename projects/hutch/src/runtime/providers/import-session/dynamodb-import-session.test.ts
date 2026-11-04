@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { ImportSessionIdSchema } from "@packages/domain/import-session";
 import { UserIdSchema, type UserId } from "@packages/domain/user";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initDynamoDbImportSession } from "./dynamodb-import-session";
 
 interface CapturedCommand {

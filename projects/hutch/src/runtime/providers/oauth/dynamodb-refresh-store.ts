@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { createHmac, randomUUID } from "node:crypto";
 import { type AdvanceEpochKeeping, isCurrentGrant, type RefreshAccount, type RefreshCommit, type RefreshCredential, type RefreshGrant, type RefreshStore } from "@packages/domain/oauth";
-import { defineDynamoTable, dynamoField, type DynamoDBDocumentClient, TransactWriteCommand, TransactionCanceledException } from "@packages/hutch-storage-client";
+import { defineDynamoTable, dynamoField, type DynamoDBDocumentClient, TransactWriteCommand, TransactionCanceledException } from "@packages/storage-client";
 import { z } from "zod";
 import { CredentialHistory, initRefreshProof, OAuthGrantId, refreshContext } from "../../oauth-refresh/evidence";
 import { authDiagnosticContext } from "../../auth-diagnostics/record";

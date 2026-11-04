@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { type CreateAiMessage, DEEPSEEK_SPECIAL_TOKENS } from "@packages/ai-message";
 import { articleDestinationUrl, ReaderArticleHashId } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type Logger, noopLogger } from "@packages/logger";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
 import { initSelectAgreedPicks } from "./agreed-picks";
 import { type RecommendationBudgetDeniedLine, initSelectRelatedArticlesWithinDailyBudget } from "./daily-budget";
@@ -128,7 +128,7 @@ function ledgerBudget(limitNanodollars: number) {
 function recordingLogger() {
 	const infos: unknown[][] = [];
 	const warns: unknown[][] = [];
-	const logger: HutchLogger = {
+	const logger: Logger = {
 		info: (...args) => infos.push(args),
 		warn: (...args) => warns.push(args),
 		error: () => {},

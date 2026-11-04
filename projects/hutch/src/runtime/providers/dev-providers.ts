@@ -139,7 +139,7 @@ import { initCreateAppleClientSecret } from "./apple-auth/apple-client-secret";
 import { deriveStateSigningSecret } from "./apple-auth/apple-state-secret";
 import { initInMemoryHostedCheckout } from "@packages/test-fixtures/providers/hosted-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { Logger, consoleLogger } from "@packages/logger";
 import {
 	WRAPPER_RESOLVE_BUDGETS,
 	neverResolveChallengedTracker,
@@ -173,7 +173,7 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 }
 
 export function initDevProviders(input: { appOrigin: string; putImageObject: PutImageObject }) {
-	const logger = HutchLogger.from(consoleLogger);
+	const logger = Logger.from(consoleLogger);
 	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 	const logInfo = (message: string) => logger.info(JSON.stringify({ level: "INFO", timestamp: new Date().toISOString(), message }));
 
@@ -392,7 +392,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 	const { siteRules } = initArticleSiteRules({ crawlFetch, logError });
-	const logThumbnailNotDelivered = HutchLogger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
+	const logThumbnailNotDelivered = Logger.fromJSON<ThumbnailNotDeliveredEvent>().warn;
 	const crawlArticle = initFetchPinnedCrawl({
 		crawlArticle: initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError, logInfo, logThumbnailNotDelivered }),
 		findAdoptedFetchUrl: articleStore.findAdoptedFetchUrl,
@@ -634,7 +634,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		resolvePriceId: async (plan: BillingPlan) => `price_dev_${plan}`,
 		stripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY"),
 
-		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),
+		...initLogEmail({ logger: Logger.from(consoleLogger) }),
 		...initInMemoryEmailVerification(),
 		...initInMemoryPasswordReset(),
 		...initInMemoryBrowserHandoff({ now: () => new Date() }),

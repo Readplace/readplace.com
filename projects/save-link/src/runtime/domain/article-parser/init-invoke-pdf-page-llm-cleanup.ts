@@ -1,7 +1,7 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import { InvokeCommand, type LambdaClient } from "@aws-sdk/client-lambda";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { normalizeUnknownError } from "./normalize-error";
 import type {
 	InvokePdfPageLlmCleanup,
@@ -25,7 +25,7 @@ const OutputSchema = z.object({
 export function initInvokePdfPageLlmCleanup(deps: {
 	client: LambdaClient;
 	functionName: string;
-	logger: HutchLogger;
+	logger: Logger;
 }): { invokePageLlmCleanup: InvokePdfPageLlmCleanup } {
 	const { client, functionName, logger } = deps;
 

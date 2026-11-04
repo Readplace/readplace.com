@@ -1,11 +1,11 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { consoleLogger } from "@packages/hutch-logger";
+import { consoleLogger } from "@packages/logger";
 import {
 	GenerateSummaryCommand,
-} from "@packages/hutch-infra-components";
-import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components";
+import { initSqsCommandDispatcher } from "@packages/infra-components/runtime";
 import { requireEnv } from "@packages/require-env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
 import { initLinkSavedHandler } from "./domain/save-link/link-saved-handler";

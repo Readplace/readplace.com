@@ -6,9 +6,9 @@ import {
 	initDynamoDbSavedArticleStore,
 	initS3ReadContent,
 } from "@packages/article-store";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
+import { consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initOnboardingSignals } from "@packages/onboarding-signals";
 import { requireEnv } from "@packages/require-env";
 import { initFileArticleIntoReadlist } from "@packages/save-article";

@@ -20,9 +20,9 @@ import {
 	GmailHistoryImportMessageFetchedEvent,
 	type GmailHistoryImportMessageIngestedDetail,
 	GmailHistoryImportMessageIngestedEvent,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { HutchLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import type { Logger } from "@packages/logger";
 import type {
 	Handler,
 	SQSBatchItemFailure,
@@ -55,7 +55,7 @@ export function initIngestGmailImportHandler(deps: {
 	recordDuplicateGmailOrigin: RecordDuplicateGmailOrigin;
 	publishEvent: PublishEvent;
 	maxEmailBytes: number;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		readRawEmail,

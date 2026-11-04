@@ -1,4 +1,4 @@
-import { ConditionalCheckFailedException, TransactionCanceledException, TransactWriteCommand, defineDynamoTable, dynamoField, forEachQueryPage, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, TransactionCanceledException, TransactWriteCommand, defineDynamoTable, dynamoField, forEachQueryPage, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { z } from "zod";
 import { ForwardableSenderSchema, GmailAccountEmailSchema, type DiscoveredGmailSender } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";

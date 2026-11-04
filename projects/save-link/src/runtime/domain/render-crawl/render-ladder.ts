@@ -1,4 +1,4 @@
-import type { RenderCrawlDetail } from "@packages/hutch-infra-components";
+import type { RenderCrawlDetail } from "@packages/infra-components";
 import type { MeteredLeg, PaidLegPermit } from "@packages/provider-contracts/metered-leg-ledger";
 import type { CandidateReference } from "../select-content/list-available-tier-sources";
 import type {

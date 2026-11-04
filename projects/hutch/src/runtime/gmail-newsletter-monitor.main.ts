@@ -6,10 +6,10 @@ import {
 	CheckGmailNewslettersCommand,
 	MonitorGmailNewslettersCommand,
 	SendGmailNewsletterNoticeCommand,
-} from "@packages/hutch-infra-components";
-import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components";
+import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	initDynamoDbGmailConnection,
 	initDynamoDbGmailCredentials,
@@ -26,7 +26,7 @@ import { NEWSLETTER_CATALOG_OBJECT_KEY, initS3NewsletterCatalog } from "./provid
 
 const client = createDynamoDocumentClient();
 const now = () => new Date();
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const sqsClient = new SQSClient({});
 const queueUrl = requireEnv("GMAIL_NEWSLETTER_MONITOR_QUEUE_URL");
 const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: requireEnv("EVENT_BUS_NAME") });

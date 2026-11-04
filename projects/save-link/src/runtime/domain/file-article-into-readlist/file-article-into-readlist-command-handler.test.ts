@@ -7,9 +7,9 @@ import {
 	ArticleFiledIntoReadlistEvent,
 	FileArticleIntoReadlistCommand,
 	type FileArticleIntoReadlistDetail,
-} from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+} from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { initFileArticleIntoReadlist, initResolveCanonicalIdentity } from "@packages/save-article";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
@@ -48,7 +48,7 @@ function harness(opts: { fileArticleIntoReadlist?: Parameters<typeof initFileArt
 		}),
 		fileArticleIntoReadlist: opts.fileArticleIntoReadlist ?? initFileArticleIntoReadlist(store),
 		publishEvent,
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			...noopLogger,
 			info: (...args) => infos.push(args),
 			error: (...args) => errors.push(args),

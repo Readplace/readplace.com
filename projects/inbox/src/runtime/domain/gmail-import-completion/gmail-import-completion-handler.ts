@@ -1,14 +1,14 @@
 import { EmailOutputKeySchema, type EmailImportCompletionStore } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { EmailOutputSavedToAllEvent, EmailOutputsSelectedEvent } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { EmailOutputSavedToAllEvent, EmailOutputsSelectedEvent } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { EvaluateGmailImportCompletion } from "./evaluate-gmail-import-completion";
 
 export function initGmailImportCompletionHandler(deps: {
 	acknowledgeOutput: EmailImportCompletionStore["acknowledgeOutput"];
 	evaluate: EvaluateGmailImportCompletion;
-	logger: HutchLogger;
+	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { acknowledgeOutput, evaluate, logger } = deps;
 

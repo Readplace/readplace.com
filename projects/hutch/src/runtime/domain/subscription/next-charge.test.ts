@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { SubscriptionNextCharge } from "@packages/provider-contracts/subscription-billing";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { initLoadNextCharge } from "./next-charge";
@@ -49,7 +49,7 @@ function harness(input: {
 			if (input.persistThrows) throw new Error("conditional check failed");
 			persisted.push(write);
 		},
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			...noopLogger,
 			error: (message) => errors.push(String(message)),
 		}),

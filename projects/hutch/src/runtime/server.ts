@@ -222,7 +222,7 @@ import type {
 	ValidateAccessToken,
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import {
 	type AnalyticsEvent,
 	createClickAttributionMiddleware,
@@ -629,12 +629,12 @@ interface AppDependencies {
 	};
 	resolvePriceId: ResolvePriceId;
 	stripePublishableKey: string | undefined;
-	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
-	conversionLogger: HutchLogger.Typed<ConversionEvent>;
-	subscriptionLogger: HutchLogger.Typed<SubscriptionLogEvent>;
-	funnelLogger: HutchLogger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
-	analytics: HutchLogger.Typed<AnalyticsEvent>;
-	authDiagnosticsLogger: HutchLogger.Typed<Record<string, unknown>>;
+	botDefenseLogger: Logger.Typed<BotDefenseEvent>;
+	conversionLogger: Logger.Typed<ConversionEvent>;
+	subscriptionLogger: Logger.Typed<SubscriptionLogEvent>;
+	funnelLogger: Logger.Typed<ActivationThresholdReachedEvent | LifecycleEmailSentEvent>;
+	analytics: Logger.Typed<AnalyticsEvent>;
+	authDiagnosticsLogger: Logger.Typed<Record<string, unknown>>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	consumeRateLimit: ConsumeRateLimit;
@@ -915,7 +915,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use(contentSignalMiddleware);
 	app.use(linkHeaderMiddleware);
 
-	const sessionLogger = HutchLogger.from({
+	const sessionLogger = Logger.from({
 		info: noop,
 		warn: noop,
 		debug: noop,
@@ -1938,7 +1938,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
 			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
 		appOrigin,
-		logger: HutchLogger.from({
+		logger: Logger.from({
 			info: noop,
 			error: (...args) => {
 				deps.logError(String(args[0]), args[1] instanceof Error ? args[1] : undefined);

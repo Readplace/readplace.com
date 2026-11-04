@@ -1,12 +1,12 @@
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { DisconnectGmail } from "./disconnect-gmail";
 import type { RewriteGmailFilter } from "./rewrite-gmail-filter";
 
 export function initLocalGmailCommands(deps: {
 	rewriteGmailFilter: RewriteGmailFilter;
 	disconnectGmail: DisconnectGmail;
-	logger: HutchLogger;
+	logger: Logger;
 }): {
 	publishRewriteGmailFilter: (input: {
 		userId: UserId;

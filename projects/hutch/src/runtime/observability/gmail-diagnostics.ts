@@ -1,5 +1,5 @@
 import type { GmailHistoryImportMessageOutcome } from "@packages/domain/gmail";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { GmailHttpAttempt } from "@packages/provider-contracts/gmail-history";
 import type { GmailHistoryImportObservation } from "../domain/gmail/gmail-history-import-observation.types";
 
@@ -125,7 +125,7 @@ export type GmailDiagnosticEvent =
 
 export type RecordGmailDiagnostic = (event: GmailDiagnosticEvent) => void;
 
-export function initRecordGmailDiagnostic(deps: { logger: HutchLogger; now: () => Date }): RecordGmailDiagnostic {
+export function initRecordGmailDiagnostic(deps: { logger: Logger; now: () => Date }): RecordGmailDiagnostic {
 	return (event) => {
 		try {
 			const line = JSON.stringify({ version: GMAIL_DIAGNOSTIC_VERSION, timestamp: deps.now().toISOString(), ...event });

@@ -2,7 +2,7 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecor
 import { type SaveAttemptId, hasWrapperShape } from "@packages/domain/article";
 import { blockedCauseForStatus, type CrawlFailureReason } from "@packages/article-state-types";
 import { isBlockClassStatus } from "@packages/crawl-article";
-import { formatErrorLogLine, type HutchLogger } from "@packages/hutch-logger";
+import { formatErrorLogLine, type Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import {
@@ -43,7 +43,7 @@ export interface SelectContentDependencies {
 	resolveOriginalUrl: (url: string) => Promise<string>;
 	verifyWrapperSource: VerifyWrapperSource;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 type SelectContentRequest = {
@@ -139,7 +139,7 @@ export function initSelectionQueueHandler(queue: {
 	feature: "select-most-complete-content" | "recrawl-content-extracted" | "refresh-content-extracted" | "reselect-after-removal";
 	toRequest: (detail: unknown, record: SQSRecord) => SelectContentRequest;
 	onExhaustion: "mark-crawl-exhausted" | "keep-row";
-}): (deps: SelectContentDependencies & { deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine> }) => Handler<SQSEvent, SQSBatchResponse> {
+}): (deps: SelectContentDependencies & { deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine> }) => Handler<SQSEvent, SQSBatchResponse> {
 	return (deps) => {
 		const selectContent = initSelectContentWork(deps);
 		return async (event) => {

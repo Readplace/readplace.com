@@ -3,7 +3,7 @@ import {
 	buildObservabilityFilterPattern,
 	ERROR_STREAMS,
 	RUNTIME_FAILURE_MARKERS,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { FORWARDED_STREAMS, STREAMS } from "./events";
 import { classifyForwardedLine } from "../forward-analytics/forward-analytics-handler";
 
@@ -18,7 +18,7 @@ function matchesPattern(line: string): boolean {
 }
 
 describe("observability filter", () => {
-	// The stream names are literals in @packages/hutch-infra-components because
+	// The stream names are literals in @packages/infra-components because
 	// @packages/web-analytics already depends on it, so importing STREAMS back
 	// would close a dependency cycle. These two assertions are what stop the
 	// duplicated literals drifting from the definitions they mirror.

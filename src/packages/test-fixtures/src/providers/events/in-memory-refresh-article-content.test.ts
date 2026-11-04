@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import { initInMemoryRefreshArticleContent } from "./in-memory-refresh-article-content";
 
 describe("initInMemoryRefreshArticleContent", () => {
 	it("logs once and completes without throwing", async () => {
 		const logged: unknown[] = [];
-		const logger = HutchLogger.from({
+		const logger = Logger.from({
 			info: (...args: unknown[]) => {
 				logged.push(args);
 			},

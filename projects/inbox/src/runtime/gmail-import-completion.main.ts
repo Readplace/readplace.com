@@ -1,9 +1,9 @@
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components/runtime";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initDynamoDbEmailImportCompletion } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import { initEvaluateGmailImportCompletion } from "./domain/gmail-import-completion/evaluate-gmail-import-completion";
@@ -21,5 +21,5 @@ const { publishEvent } = initEventBridgePublisher({
 export const handler = initGmailImportCompletionHandler({
 	acknowledgeOutput: completion.acknowledgeOutput,
 	evaluate: initEvaluateGmailImportCompletion({ findCompletion: completion.findCompletion, publishEvent }),
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });

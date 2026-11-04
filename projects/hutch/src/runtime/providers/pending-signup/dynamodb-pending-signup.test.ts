@@ -1,7 +1,7 @@
 import { CheckoutSessionIdSchema } from "@packages/provider-contracts/hosted-checkout";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
-import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { type Logger, noopLogger } from "@packages/logger";
 import { initDynamoDbPendingSignup } from "./dynamodb-pending-signup";
 
 type SendFn = DynamoDBDocumentClient["send"];
@@ -519,7 +519,7 @@ describe("initDynamoDbPendingSignup", () => {
 				},
 			}));
 			const warnings: string[] = [];
-			const logger: HutchLogger = {
+			const logger: Logger = {
 				...noopLogger,
 				warn: (...args: unknown[]) => {
 					warnings.push(args.map(String).join(" "));

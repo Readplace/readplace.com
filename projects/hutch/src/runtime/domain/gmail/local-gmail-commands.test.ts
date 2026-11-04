@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { DisconnectGmail } from "./disconnect-gmail";
 import { initLocalGmailCommands } from "./local-gmail-commands";
 import type { RewriteGmailFilter } from "./rewrite-gmail-filter";
@@ -14,7 +14,7 @@ function capturingLogger() {
 	const at = (level: LoggedCall["level"]) => (...args: unknown[]) => {
 		calls.push({ level, args });
 	};
-	const logger: HutchLogger = { info: at("info"), warn: at("warn"), error: at("error"), debug: at("debug") };
+	const logger: Logger = { info: at("info"), warn: at("warn"), error: at("error"), debug: at("debug") };
 	return { calls, logger };
 }
 

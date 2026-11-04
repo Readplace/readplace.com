@@ -143,8 +143,8 @@ export const FORWARDED_STREAMS = [
 ] as const;
 
 /**
- * Names passed to `new HutchLambda(...)` for the Lambdas whose log groups
- * the analytics dashboard queries. `HutchLambda` appends `-handler` to this
+ * Names passed to `new Lambda(...)` for the Lambdas whose log groups
+ * the analytics dashboard queries. `Lambda` appends `-handler` to this
  * name when it creates the `aws.lambda.Function`, so the matching log group
  * AWS creates on first invocation is `/aws/lambda/<name>-handler`. Each
  * entry here is the *single* place that name is written; `LOG_GROUPS` and

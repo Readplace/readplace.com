@@ -1,5 +1,5 @@
-import { consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { consoleLogger } from "@packages/logger";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
 import { requireEnv } from "@packages/require-env";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "./domain/simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-handler";
 

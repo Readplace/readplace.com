@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/schema",
-  "$id": "hutch-workspace-project",
+  "$id": "readplace-workspace-project",
   "title": "Scaffold a project under projects/ from the workspace's standard template",
   "type": "object",
   "properties": {

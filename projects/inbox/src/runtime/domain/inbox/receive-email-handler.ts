@@ -14,7 +14,7 @@ import {
 	UNROUTED_USER_ID,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type {
 	Handler,
 	SQSBatchItemFailure,
@@ -60,7 +60,7 @@ export function initReceiveEmailHandler(deps: {
 	routeGmailForwardedEmail: RouteGmailForwardedEmail;
 	recordDuplicateGmailOrigin: RecordDuplicateGmailOrigin;
 	findConnectedGmailAccount: (userId: UserId) => Promise<GmailAccountEmail | undefined>;
-	logger: HutchLogger;
+	logger: Logger;
 	maxEmailBytes: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {

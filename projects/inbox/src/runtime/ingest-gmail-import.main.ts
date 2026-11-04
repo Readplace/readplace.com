@@ -11,9 +11,9 @@ import { parseEmail } from "@packages/domain/inbox";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components/runtime";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	initDynamoDbEmailIdentity,
 	initDynamoDbEmailImportCompletion,
@@ -49,7 +49,7 @@ const maxEmailBytes = Number.parseInt(requireEnv("INBOX_MAX_EMAIL_BYTES"), 10);
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const now = () => new Date();
 
 const inboxEmailStore = initDynamoDbInboxEmail({

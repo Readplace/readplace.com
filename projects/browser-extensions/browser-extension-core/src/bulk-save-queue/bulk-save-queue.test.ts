@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { BulkSavePage } from "../reading-list/reading-list.types";
 import type { BulkChunkSummary, BulkSaveSession } from "../reading-list/siren-reading-list";
 import { UnauthorizedError } from "../auth/unauthorized-error";
@@ -112,7 +112,7 @@ function createQueue(overrides?: {
 		progress: async (events) => {
 			reports.push(events);
 		},
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	return { queue, jobs, payloads, scheduler, session, reports };
 }
@@ -663,7 +663,7 @@ describe("initBulkSaveQueue progress", () => {
 			progress: async (events) => {
 				order.push(...events.map((event) => `${event.kind}:${event.url}`));
 			},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		await queue.savePages({
@@ -734,7 +734,7 @@ describe("initBulkSaveQueue progress", () => {
 			progress: async (events) => {
 				if (events.some((event) => event.kind === "sending")) throw new Error("store down");
 			},
-			logger: HutchLogger.from({
+			logger: Logger.from({
 				...noopLogger,
 				error: (...args) => errors.push(String(args[0])),
 			}),
@@ -844,7 +844,7 @@ describe("initBulkSaveQueue progress", () => {
 				kinds.delete("sending");
 				log.push(...kinds);
 			},
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		await savePages(queue, urlOnlyPages(21));

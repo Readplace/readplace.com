@@ -6,9 +6,9 @@ import {
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components/runtime";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initRelatedArticlesDepBundle } from "./dep-bundles/related-articles";
 import { initDynamoDbRecommendationBudget } from "./providers/recommendation-budget/dynamodb-recommendation-budget";
@@ -40,7 +40,7 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "info",
 	callTimeoutMs: RELATED_ARTICLES_TIMEOUTS.deepseekMs,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 
@@ -62,7 +62,7 @@ const { selectRelatedArticles, selectPastReads } = initRelatedArticlesDepBundle(
 	logger: consoleLogger,
 	budget,
 	countPromptTokens,
-	budgetDeniedLog: HutchLogger.fromJSON<RecommendationBudgetDeniedLine>(),
+	budgetDeniedLog: Logger.fromJSON<RecommendationBudgetDeniedLine>(),
 });
 
 const {
@@ -108,7 +108,7 @@ const nextReadHandler = initComputeRelatedArticlesHandler({
 	publishEvent,
 	now: () => new Date(),
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 const pastReadsHandler = initComputeRelatedPastReadsHandler({
@@ -121,7 +121,7 @@ const pastReadsHandler = initComputeRelatedPastReadsHandler({
 	publishEvent,
 	now: () => new Date(),
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 });
 
 const recomputeNextReadHandler = initRecomputeSkippedNextReadHandler({

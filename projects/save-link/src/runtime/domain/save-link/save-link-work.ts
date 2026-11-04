@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import type { CandidateId, SaveAttemptId } from "@packages/domain/article";
 import type { CrawlFailureReason, CrawlUnsupportedReason } from "@packages/article-state-types";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	markCrawlFailed,
 	markCrawlNotFound,
@@ -10,7 +10,7 @@ import {
 } from "@packages/domain/article-aggregate";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
-import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
+import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "../crawl-article-state/emit-tier-1-failure-outcome";
 import type { PutTierSource } from "@packages/tier-source";
@@ -20,7 +20,7 @@ import { isProxyWorthyError } from "@packages/crawl-article";
 import { type AdoptCanonicalIdentity, isGatedTerminal } from "./adopt-canonical-identity";
 import { crawlFailureReasonForFetchFailure } from "./crawl-failure-reason-for-fetch-failure";
 import { terminalUnsupportedReason } from "./terminal-unsupported-reason";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import { changedFetchTarget } from "./changed-fetch-target";
 
@@ -78,7 +78,7 @@ class CrawlParseFailedError extends ClassifiedCrawlError {
 }
 
 export function logRecordFailure(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 	logPrefix: string;
 	record: { messageId: string };
 	error: unknown;
@@ -109,7 +109,7 @@ export function initSaveLinkWork(deps: {
 	adoptCanonicalIdentity: AdoptCanonicalIdentity;
 	isSiteRuleUrl: (url: string) => boolean;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;

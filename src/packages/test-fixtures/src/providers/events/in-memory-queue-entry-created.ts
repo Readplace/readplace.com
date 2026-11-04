@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { UserId } from "@packages/domain/user";
 import type { PublishQueueEntryCreated } from "@packages/provider-contracts/events";
 
@@ -8,7 +8,7 @@ export interface QueueEntryCreatedRecord {
 }
 
 export function initInMemoryQueueEntryCreated(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): {
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 	publishedQueueEntryCreated: QueueEntryCreatedRecord[];

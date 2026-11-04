@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import type { RenderOutcome } from "../../providers/render-page/render-page.types";
 import { initReportProxiedRenderAttempt, type ProxiedRenderLeg, type RenderRequestDiagnostics } from "./report-proxied-render-attempt";

@@ -1,8 +1,8 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
 
 export function initInMemoryRecrawlLinkInitiated(deps: {
-	logger: HutchLogger;
+	logger: Logger;
 }): { publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated } {
 	const { logger } = deps;
 

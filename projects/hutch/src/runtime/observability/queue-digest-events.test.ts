@@ -1,13 +1,13 @@
 import { UserIdSchema } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { initEmitQueueDigestEvent, type QueueDigestLogEvent } from "./queue-digest-events";
 
 function createCapturingLogger(): {
-	logger: HutchLogger.Typed<QueueDigestLogEvent>;
+	logger: Logger.Typed<QueueDigestLogEvent>;
 	captured: QueueDigestLogEvent[];
 } {
 	const captured: QueueDigestLogEvent[] = [];
-	const logger: HutchLogger.Typed<QueueDigestLogEvent> = {
+	const logger: Logger.Typed<QueueDigestLogEvent> = {
 		info: (data) => { captured.push(data); },
 		error: () => {},
 		warn: () => {},

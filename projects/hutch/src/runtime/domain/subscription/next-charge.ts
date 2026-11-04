@@ -1,5 +1,5 @@
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type {
 	FindSubscriptionNextCharge,
 	SubscriptionNextCharge,
@@ -30,7 +30,7 @@ export type LoadNextCharge = (input: {
 export function initLoadNextCharge(deps: {
 	findSubscriptionNextCharge: FindSubscriptionNextCharge;
 	setSubscriptionNextCharge: SetSubscriptionNextCharge;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }): LoadNextCharge {
 	return async ({ userId, row, suppressed }) => {

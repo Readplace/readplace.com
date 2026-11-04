@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { SendEmail } from "@packages/provider-contracts/email";
 
 const RESERVED_DOMAINS: ReadonlySet<string> = new Set([
@@ -23,7 +23,7 @@ export function reservedDomainOf(address: string): string | undefined {
 
 export function initSkipReservedDomain(deps: {
 	sendEmail: SendEmail;
-	logger: HutchLogger;
+	logger: Logger;
 }): { sendEmail: SendEmail } {
 	const { sendEmail: inner, logger } = deps;
 

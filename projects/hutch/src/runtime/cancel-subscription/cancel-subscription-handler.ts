@@ -7,8 +7,8 @@ import type {
 } from "aws-lambda";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import { CancelSubscriptionCommand } from "@packages/hutch-infra-components";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { CancelSubscriptionCommand } from "@packages/infra-components";
+import type { Logger } from "@packages/logger";
 import type {
 	FindSubscriptionByUserId,
 	SubscriptionRecord,
@@ -41,7 +41,7 @@ interface HandlerDeps {
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
 	publishSubscriptionCancellationScheduled: PublishSubscriptionCancellationScheduled;
 	publishSubscriptionCancelled: PublishSubscriptionCancelled;
-	logger: HutchLogger;
+	logger: Logger;
 }
 
 /** 1 hour after the cancellation-effective instant — gives Stripe's

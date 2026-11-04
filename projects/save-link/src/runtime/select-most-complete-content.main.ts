@@ -2,14 +2,14 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { type DeepseekCallFailedLogLine, type DeepseekUsageLine, initCreateDeepseekChatCompletion, initDeepseekClient } from "@packages/ai-message";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { type CrawlSettledEvent, GenerateSummaryCommand, initLogCrawlSettled } from "@packages/hutch-infra-components";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { type CrawlSettledEvent, GenerateSummaryCommand, initLogCrawlSettled } from "@packages/infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
 	initSqsCommandDispatcher,
-} from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { requireEnv } from "@packages/require-env";
@@ -34,7 +34,7 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "info",
 	callTimeoutMs: SELECT_CONTENT_TIMEOUTS.deepseekMs,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 
@@ -45,7 +45,7 @@ const selectContent = initSelectContentDepBundle({
 	articlesTable,
 	createChatCompletion: initCreateDeepseekChatCompletion({ client: deepseekClient }),
 	logger: consoleLogger,
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 	now: () => new Date(),
 });
 
@@ -70,7 +70,7 @@ const { dispatchEffect } = initLambdaEffectDispatcher({
 	publishEvent,
 });
 
-const { logCrawlSettled } = initLogCrawlSettled({ logger: HutchLogger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
+const { logCrawlSettled } = initLogCrawlSettled({ logger: Logger.fromJSON<CrawlSettledEvent>(), now: () => new Date() });
 const { transitionAndPersist } = initTransitionAndPersist({
 	store,
 	dispatchEffect,

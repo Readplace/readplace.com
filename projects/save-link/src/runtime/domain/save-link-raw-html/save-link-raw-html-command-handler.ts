@@ -5,8 +5,8 @@ import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import { initResolveSubmittedSource } from "../select-content/resolve-submitted-source";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import {
 	markCrawlFailed,
 	type TransitionAndPersist,
@@ -15,7 +15,7 @@ import {
 	SaveLinkRawHtmlCommand,
 	type LogCrawlOutcome,
 	type LogParseError,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import { type FinalizeArticle, UNREADABLE_ARTICLE } from "@packages/finalize-article";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { ReadPendingHtml } from "../../providers/article-store/read-pending-html";
@@ -32,7 +32,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 	publishEvent: PublishEvent;
 	transitionAndPersist: TransitionAndPersist;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;

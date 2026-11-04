@@ -1,16 +1,16 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	CRAWL_OUTCOME_STREAM,
 	type CrawlOutcomeEvent,
 	initLogCrawlOutcome,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 
 function createCapturingLogger(): {
-	logger: HutchLogger.Typed<CrawlOutcomeEvent>;
+	logger: Logger.Typed<CrawlOutcomeEvent>;
 	captured: CrawlOutcomeEvent[];
 } {
 	const captured: CrawlOutcomeEvent[] = [];
-	const logger: HutchLogger.Typed<CrawlOutcomeEvent> = {
+	const logger: Logger.Typed<CrawlOutcomeEvent> = {
 		info: (data) => { captured.push(data); },
 		error: () => {},
 		warn: () => {},

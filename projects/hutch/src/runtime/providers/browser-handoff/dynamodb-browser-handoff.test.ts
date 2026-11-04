@@ -1,7 +1,7 @@
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { BrowserHandoffCodeSchema } from "@packages/provider-contracts/browser-handoff";
 import { initDynamoDbBrowserHandoff } from "./dynamodb-browser-handoff";

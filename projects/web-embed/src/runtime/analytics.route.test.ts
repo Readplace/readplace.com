@@ -2,14 +2,14 @@ import request from "supertest";
 import { useLoopbackServer } from "@packages/web-test-harness";
 import { GlobalNav, HtmxOmitted, initBase } from "@packages/web-shell";
 import type { ResolveLogin } from "@packages/web-session";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { AnalyticsClick, AnalyticsEvent, AnalyticsPageview } from "@packages/web-analytics";
 import { createEmbedApp } from "./app";
 
 const serve = useLoopbackServer();
 
 const events: AnalyticsEvent[] = [];
-const capture: HutchLogger.Typed<AnalyticsEvent> = {
+const capture: Logger.Typed<AnalyticsEvent> = {
 	info: (e) => events.push(e),
 	error: (e) => events.push(e),
 	warn: (e) => events.push(e),

@@ -1,6 +1,6 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CandidateId } from "@packages/domain/article";
-import { defineDynamoTable, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { defineDynamoTable, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { z } from "zod";
 
 export type RevokeContentCandidates = (params: { url: string; candidateIds: readonly CandidateId[] }) => Promise<void>;

@@ -9,8 +9,8 @@ import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contrac
 import type { RecordInboxArticleQueued } from "@packages/provider-contracts/onboarding-signals";
 import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import { prepareNewSaveUrl, SaveProvenanceSchema } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { Logger } from "@packages/logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import {
@@ -20,8 +20,8 @@ import {
 	QueueEntryCreatedEvent,
 	SubmitLinkCommand,
 	TierContentExtractedEvent,
-} from "@packages/hutch-infra-components";
-import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
+import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import {
 	type FileArticleIntoReadlist,
 	initSaveArticleAtReadlistTop,
@@ -63,7 +63,7 @@ export function initSubmitLinkCommandHandler(deps: {
 	isSiteRuleUrl: (url: string) => boolean;
 	publishEvent: PublishEvent;
 	now: () => Date;
-	logger: HutchLogger;
+	logger: Logger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;

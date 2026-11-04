@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { z } from "zod";
 import { initDynamoRefreshOutcomes } from "./dynamodb-outcomes";
 import { RefreshAttempt } from "./evidence";

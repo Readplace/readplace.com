@@ -10,7 +10,7 @@ import {
 } from "@packages/domain/gmail";
 import type { InboxAddress, ParsedEmail } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 
 export interface GmailDelivery {
 	destinationAddresses: [InboxAddress, ...InboxAddress[]];
@@ -32,7 +32,7 @@ export function initRouteGmailForwardedEmail(deps: {
 	mappings: Pick<GmailMappingStore, "findMapping">;
 	senders: Pick<GmailSenderStore, "recordSenderSeen">;
 	heldMail: GmailHeldMailStore;
-	logger: HutchLogger;
+	logger: Logger;
 }): RouteGmailForwardedEmail {
 	const { connections, mappings, senders, heldMail, logger } = deps;
 

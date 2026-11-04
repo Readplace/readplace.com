@@ -7,8 +7,8 @@ import {
 	initS3DeleteContentObjects,
 	initS3ListContentKeys,
 } from "@packages/article-store";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initMediaReleaseHandler } from "./media-release/media-release-handler";
 import { initPrivateItemReleaseSteps, initReleasePrivateItem } from "./media-release/private-item-release-steps";
@@ -40,5 +40,5 @@ const releasePrivateItem = initReleasePrivateItem({
 
 export const handler = initMediaReleaseHandler({
 	releasePrivateItem,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });

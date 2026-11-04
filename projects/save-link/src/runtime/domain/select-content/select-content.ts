@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { z } from "zod";
 import type { CandidateId } from "@packages/domain/article";
 import { createHash } from "node:crypto";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	SELECT_CONTENT_SYSTEM_PROMPT,
 	type SelectorCandidate,
@@ -57,8 +57,8 @@ type JudgeAttempt =
 
 export function initSelectMostCompleteContent(deps: {
 	createChatCompletion: CreateDeepseekChatCompletion;
-	logger: HutchLogger;
-	deepseekCallFailedLog: HutchLogger.Typed<DeepseekCallFailedLogLine>;
+	logger: Logger;
+	deepseekCallFailedLog: Logger.Typed<DeepseekCallFailedLogLine>;
 }): { selectMostCompleteContent: SelectMostCompleteContent } {
 	const { createChatCompletion, logger, deepseekCallFailedLog } = deps;
 	const selectMostCompleteContent: SelectMostCompleteContent = async (params) => {

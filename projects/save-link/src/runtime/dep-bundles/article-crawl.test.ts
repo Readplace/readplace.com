@@ -1,4 +1,4 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initArticleCrawlDepBundle } from "./article-crawl";
 
 describe("initArticleCrawlDepBundle", () => {

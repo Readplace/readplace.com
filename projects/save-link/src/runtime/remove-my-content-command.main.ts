@@ -1,10 +1,10 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
+} from "@packages/infra-components/runtime";
 import {
 	initCountSaversByUrl,
 	initDynamoDbArticleStore,

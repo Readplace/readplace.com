@@ -14,7 +14,7 @@ export default {
 		// knip doesn't resolve workspace subpath for @packages/* imports
 		"@packages/web-shell",
 		// Used in src/infra (reached via the Pulumi entry point, which knip ignores)
-		"@packages/hutch-infra-components",
+		"@packages/infra-components",
 		"@pulumi/aws",
 		"@pulumi/pulumi",
 	],

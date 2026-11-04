@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { MediaUploadCommittedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { MediaUploadCommittedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import type { PutTierSource } from "@packages/tier-source";
 import { buildTestEpub } from "../epub/build-test-epub";
 import type { DownloadStagedObject } from "../s3/download-staged-object";
@@ -71,7 +71,7 @@ function setUp(overrides: { download?: DownloadStagedObject; sections?: "recorde
 		wholeBodyByteLimit: 2_000_000,
 		largestSectionByteLimit: 1_000_000,
 		...overrides.limits,
-		logger: HutchLogger.from({ ...noopLogger, info: (...args: unknown[]) => infoLines.push(args) }),
+		logger: Logger.from({ ...noopLogger, info: (...args: unknown[]) => infoLines.push(args) }),
 	});
 	const run = (body: unknown = { time: TIME, detail: DETAIL }) => handler(sqsEvent(body), buildLambdaContext(), () => {});
 	return { run, published, tierSources, sectionWrites, puts, infoLines };

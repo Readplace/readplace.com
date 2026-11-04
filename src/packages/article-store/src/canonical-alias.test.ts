@@ -1,4 +1,4 @@
-import { ConditionalCheckFailedException, TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException, TransactionCanceledException, type DynamoDBDocumentClient } from "@packages/storage-client";
 import { z } from "zod";
 import { initCanonicalAliasStore } from "./canonical-alias";
 

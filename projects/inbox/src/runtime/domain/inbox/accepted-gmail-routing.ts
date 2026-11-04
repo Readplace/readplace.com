@@ -1,6 +1,6 @@
 import { LEGACY_DELIVERY_MODE } from "@packages/domain/gmail";
 import type { InboxEmailEntry } from "@packages/domain/inbox";
-import type { EmailReceivedDetail } from "@packages/hutch-infra-components";
+import type { EmailReceivedDetail } from "@packages/infra-components";
 
 export function acceptedGmailRouting(
 	email: Pick<InboxEmailEntry, "gmailDestinationAddresses" | "gmailDeliveryMode">,

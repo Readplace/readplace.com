@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
-import { DiscoverGmailSendersPageCommand } from "@packages/hutch-infra-components";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/infra-components/runtime";
+import { DiscoverGmailSendersPageCommand } from "@packages/infra-components";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbGmailConnection, initDynamoDbGmailCredentials, initDynamoDbGmailDiscovery } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import { initDiscoverGmailSenders } from "./domain/gmail/discover-gmail-senders";
@@ -13,7 +13,7 @@ import { initGmailMailbox } from "./providers/gmail-api/gmail-mailbox";
 
 const client = createDynamoDocumentClient();
 const now = () => new Date();
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const sqs = new SQSClient({});
 const queueUrl = requireEnv("GMAIL_DISCOVERY_QUEUE_URL");
 const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: requireEnv("EVENT_BUS_NAME") });

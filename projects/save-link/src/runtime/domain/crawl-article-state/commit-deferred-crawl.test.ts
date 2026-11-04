@@ -1,11 +1,11 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { markCrawlBlocked, markCrawlFailed } from "@packages/domain/article-aggregate";
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
 import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
 	TierContentExtractedEvent,
-} from "@packages/hutch-infra-components";
+} from "@packages/infra-components";
 import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
 import { initCommitDeferredCrawl } from "./commit-deferred-crawl";
 import { candidateProvenance } from "@packages/tier-source";

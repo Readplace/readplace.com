@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { CaptureTrigger } from "../reading-list/reading-list.types";
 import {
 	type OfferedRescue,
@@ -24,7 +24,7 @@ export function initCaptureHost(deps: {
 	requestRescue: (request: ReaderRescueRequest) => Promise<unknown>;
 	announceCaptureStarted: () => void;
 	announceCaptureFailed: () => void;
-	logger: HutchLogger;
+	logger: Logger;
 }): {
 	pageChanged: () => Promise<void>;
 	tapped: (target: RescueTapTarget) => Promise<void>;

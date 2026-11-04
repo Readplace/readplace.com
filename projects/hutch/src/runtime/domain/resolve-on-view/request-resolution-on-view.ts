@@ -1,5 +1,5 @@
 import { newSaveAttemptId, resolutionOnViewCoolDownCutoff, type ShownSummary, type Viewer } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { ArticleCrawl, FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type { ClaimResolutionOnView, ResolutionAxes } from "@packages/provider-contracts/article-resolution-on-view";
 import type { FindGeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -41,7 +41,7 @@ export function initRequestResolutionOnView(deps: {
 	publishResolveArticleOnView: PublishResolveArticleOnView;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	findGeneratedSummary: FindGeneratedSummary;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 }): RequestResolutionOnView {
 	const publish = async (params: { url: string; axes: ResolutionAxes; surface: ResolveOnViewSurface }) => {

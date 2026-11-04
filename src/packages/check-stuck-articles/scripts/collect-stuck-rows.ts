@@ -12,7 +12,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
-} from "@packages/hutch-storage-client";
+} from "@packages/storage-client";
 import { z } from "zod";
 import { checkTerminalState } from "./check-terminal-state";
 import type { StuckReason } from "./classify-row";
@@ -51,7 +51,7 @@ const MAX_PAGES = 50;
  * 1. Anchored to retry-chain wall-clock = visibility × maxReceiveCount per
  *    crawl-pipeline-rca §4. The longest pending-crawl chain is the
  *    `save-link-command` queue (visibility 360s × default maxReceiveCount 3 =
- *    1080s = 18 min); after that exhausts, `HutchDLQEventHandler` flips
+ *    1080s = 18 min); after that exhausts, `DLQEventHandler` flips
  *    `crawlStatus` to `failed`. Allow 2 min margin for AWS dispatch variance
  *    and writer/canary clock skew → 20 min.
  */

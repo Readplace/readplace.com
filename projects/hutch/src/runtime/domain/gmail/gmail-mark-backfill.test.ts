@@ -11,8 +11,8 @@ import {
 } from "@packages/domain/gmail";
 import { ISSUE_OUTPUT_KEY, InboxAddressSchema, MessageIdSchema, NormalizedMessageIdSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger } from "@packages/hutch-logger";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger } from "@packages/logger";
 import type { GmailApiResult } from "@packages/provider-contracts/gmail-filters";
 import type { GmailMessageCandidate, OpenedGmailMailbox, OpenGmailMailboxResult } from "@packages/provider-contracts/gmail-message-update";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
@@ -116,7 +116,7 @@ async function harness(opts: { open?: (fake: ReturnType<typeof fakeMailbox>) => 
 			dispatched.push(detail);
 		},
 		publishEvent,
-		logger: HutchLogger.from({ info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") }),
+		logger: Logger.from({ info: record("info"), warn: record("warn"), error: record("error"), debug: record("debug") }),
 		now,
 	});
 
@@ -668,7 +668,7 @@ describe("initGmailMarkBackfillDlqHandler", () => {
 		};
 		const handler = initGmailMarkBackfillDlqHandler({
 			failBackfill: backfills.failBackfill,
-			logger: HutchLogger.from({ info: record, warn: record, error: record, debug: record }),
+			logger: Logger.from({ info: record, warn: record, error: record, debug: record }),
 			now: () => new Date("2026-10-27T00:00:00.000Z"),
 		});
 		const run = (body: string) => handler(buildSqsEvent([{ messageId: "m-0", body }]), buildLambdaContext(), () => {});

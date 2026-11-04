@@ -1,5 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { type DynamoDBDocumentClient, defineDynamoTable } from "@packages/hutch-storage-client";
+import { type DynamoDBDocumentClient, defineDynamoTable } from "@packages/storage-client";
 import { z } from "zod";
 
 const ArticleKeyRow = z.object({ url: z.string() });

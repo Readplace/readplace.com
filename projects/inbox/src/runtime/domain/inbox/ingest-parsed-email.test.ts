@@ -6,9 +6,9 @@ import {
 	type ParsedEmail,
 } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { EmailReceivedEvent } from "@packages/hutch-infra-components";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { EmailReceivedEvent } from "@packages/infra-components";
+import type { PublishEvent } from "@packages/infra-components/runtime";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemoryEmailImportCompletion, initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { initIngestParsedEmail } from "./ingest-parsed-email";
 import type { StoreEmailBody } from "./store-email-body";
@@ -50,7 +50,7 @@ function makeIngest(storeBody: StoreEmailBody) {
 		publishEvent: (async (event, detail) => {
 			published.push({ event, detail });
 		}) as PublishEvent,
-		logger: HutchLogger.from(noopLogger),
+		logger: Logger.from(noopLogger),
 	});
 	const ingestIssue = () =>
 		ingest({

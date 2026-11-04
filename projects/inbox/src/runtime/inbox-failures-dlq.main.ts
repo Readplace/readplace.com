@@ -1,8 +1,8 @@
 import { initDeadLetterRouter } from "@packages/dead-letter-routing";
-import { INBOX_DLQ_SOURCE_QUEUES } from "@packages/hutch-infra-components";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { INBOX_DLQ_SOURCE_QUEUES } from "@packages/infra-components";
+import { EventBridgeClient, initEventBridgePublisher } from "@packages/infra-components/runtime";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxEmailLink } from "@packages/inbox-store";
 import { initConfirmGmailForwardingDlqHandler } from "./domain/gmail/confirm-gmail-forwarding-dlq-handler";
@@ -13,7 +13,7 @@ import { initIngestGmailImportDlqHandler } from "./domain/inbox/ingest-gmail-imp
 const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const inboxEmailLinkStore = initDynamoDbInboxEmailLink({
 	client: createDynamoDocumentClient(),
 	tableName: inboxEmailLinksTable,

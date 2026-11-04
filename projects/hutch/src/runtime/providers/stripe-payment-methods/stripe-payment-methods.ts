@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	type BeginAddCard,
 	CardSetupIdSchema,
@@ -82,7 +82,7 @@ const CARD_SETUP_STATUS: Record<z.infer<typeof StripeSetupIntent>["status"], Car
 export function initStripePaymentMethods(deps: {
 	apiKey: string;
 	fetch: typeof globalThis.fetch;
-	logger: HutchLogger;
+	logger: Logger;
 }): {
 	listCards: ListCards;
 	beginAddCard: BeginAddCard;

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import type { GuardedResult } from "../auth/auth.types";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import { type BulkSaveJob, parseBulkSaveJobs } from "../bulk-save-queue/bulk-save-job";
@@ -59,7 +59,7 @@ function createContext(
 	const captured: string[] = [];
 	const heldCaptures: { url: string; resolve: (content: TabContent | undefined) => void }[] = [];
 	const errors: unknown[] = [];
-	const logger = HutchLogger.from({ ...noopLogger, error: (...args: unknown[]) => errors.push(args) });
+	const logger = Logger.from({ ...noopLogger, error: (...args: unknown[]) => errors.push(args) });
 	const jobs = {
 		read: async (): Promise<unknown> => world.jobs,
 		write: async (written: BulkSaveJob[]) => {

@@ -1,12 +1,12 @@
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initDynamoDbInboxSavedLink } from "@packages/inbox-store";
 import { initRecordLinkQueuedHandler } from "./domain/inbox/record-link-queued-handler";
 
 const inboxSavedLinksTable = requireEnv("DYNAMODB_INBOX_SAVED_LINKS_TABLE");
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 const inboxSavedLinkStore = initDynamoDbInboxSavedLink({
 	client: createDynamoDocumentClient(),
 	tableName: inboxSavedLinksTable,

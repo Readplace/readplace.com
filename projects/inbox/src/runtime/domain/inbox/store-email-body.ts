@@ -6,7 +6,7 @@ import {
 import type { ParsedEmailInlineImage } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { PutImageObject } from "@packages/finalize-article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import type { DownloadedEmailImage } from "./download-email-images";
 import { emailContentResourceId } from "./email-content-id";
 
@@ -42,7 +42,7 @@ export function initStoreEmailBody(deps: {
 	putContent: (input: { key: string; html: string }) => Promise<void>;
 	putImageObject: PutImageObject;
 	imagesCdnBaseUrl: string;
-	logger: HutchLogger;
+	logger: Logger;
 }): StoreEmailBody {
 	return async ({ userId, receivedAtMessageId, html, inlineImages, downloadedImages }) => {
 		const rehostedRemoteImages: Record<string, string> = {};

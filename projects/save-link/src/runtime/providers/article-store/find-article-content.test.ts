@@ -1,5 +1,5 @@
 import type { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import type { DynamoDBDocumentClient } from "@packages/storage-client";
 import { initFindArticleContent } from "./find-article-content";
 
 const URL = "https://example.com/post";

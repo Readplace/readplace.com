@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import {
 	markSummaryPending,
 	type TransitionAndPersist,

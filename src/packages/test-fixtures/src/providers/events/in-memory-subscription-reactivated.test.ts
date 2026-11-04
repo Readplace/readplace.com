@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { Logger, noopLogger } from "@packages/logger";
 import { initInMemorySubscriptionReactivated } from "./in-memory-subscription-reactivated";
 import type { UserId } from "@packages/domain/user";
 
 describe("initInMemorySubscriptionReactivated", () => {
 	it("logs and completes without throwing", async () => {
 		const logged: unknown[] = [];
-		const logger = HutchLogger.from({
+		const logger = Logger.from({
 			info: (...args: unknown[]) => {
 				logged.push(args);
 			},
@@ -26,7 +26,7 @@ describe("initInMemorySubscriptionReactivated", () => {
 
 	it("works without optional subscriptionId (trial reactivate path)", async () => {
 		const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({
-			logger: HutchLogger.from(noopLogger),
+			logger: Logger.from(noopLogger),
 		});
 
 		await assert.doesNotReject(

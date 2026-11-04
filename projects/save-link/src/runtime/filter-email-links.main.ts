@@ -3,9 +3,9 @@ import { initDynamoDbReadlistDefinitions, initDynamoDbReadlistFitOverrides } fro
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
-import { consoleLogger, HutchLogger } from "@packages/hutch-logger";
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+} from "@packages/infra-components/runtime";
+import { consoleLogger, Logger } from "@packages/logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
 import {
 	createAiMessageForEngine,
 	initDecideReadlistFitWithDeepseek,
@@ -21,7 +21,7 @@ const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const readlistFitEngine = ReadlistFitEngineSchema.parse(requireEnv("READLIST_FIT_ENGINE"));
 
-const logger = HutchLogger.from(consoleLogger);
+const logger = Logger.from(consoleLogger);
 
 const deepseekClient = initDeepseekClient({
 	apiKey: deepseekApiKey,
@@ -31,7 +31,7 @@ const deepseekClient = initDeepseekClient({
 	logLevel: "warn",
 	callTimeoutMs: FILTER_EMAIL_LINKS_TIMEOUTS.deepseekMs,
 	fetch: globalThis.fetch,
-	logUsage: HutchLogger.fromJSON<DeepseekUsageLine>().info,
+	logUsage: Logger.fromJSON<DeepseekUsageLine>().info,
 	now: () => new Date(),
 });
 
@@ -61,8 +61,8 @@ export const handler = initFilterEmailLinksHandler({
 	decideReadlistFit,
 	publishEvent,
 	logger,
-	fitDecidedLog: HutchLogger.fromJSON<ReadlistFitDecidedLine>(),
-	fitUnsureLog: HutchLogger.fromJSON<ReadlistFitUnsureLine>(),
-	deepseekCallFailedLog: HutchLogger.fromJSON<DeepseekCallFailedLogLine>(),
+	fitDecidedLog: Logger.fromJSON<ReadlistFitDecidedLine>(),
+	fitUnsureLog: Logger.fromJSON<ReadlistFitUnsureLine>(),
+	deepseekCallFailedLog: Logger.fromJSON<DeepseekCallFailedLogLine>(),
 	now: () => new Date(),
 });

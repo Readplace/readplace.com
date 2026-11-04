@@ -4,7 +4,7 @@ import assert from "node:assert";
 import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
 import * as path from "node:path";
-import { HutchCertificate, HutchS3PublicRead } from "@packages/hutch-infra-components/infra";
+import { Certificate, S3PublicRead } from "@packages/infra-components/infra";
 import { CloudFrontInvalidation } from "./cloudfront-invalidation";
 
 export interface StaticDomainEntry {
@@ -74,7 +74,7 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 		assert(args.staticDomains.length > 0, "staticDomains must have at least one entry");
 		assert(path.isAbsolute(args.sourceDir), "sourceDir must be an absolute path");
 
-		const publicBucket = new HutchS3PublicRead(name, {
+		const publicBucket = new S3PublicRead(name, {
 			bucketName: args.bucketName,
 			bucketOpts: { aliases: [{ name: `${name}-bucket`, parent: pulumi.rootStackResource }] },
 		}, { parent: this });
@@ -135,7 +135,7 @@ export class HutchStaticAssets extends pulumi.ComponentResource {
 			let distributionAliases: pulumi.Input<string>[] | undefined;
 
 			if (entry.zoneId && usEast1) {
-				const cert = new HutchCertificate(
+				const cert = new Certificate(
 					`${name}${nameSuffix}`,
 					{
 						primaryDomain: entry.domain,

@@ -1,5 +1,5 @@
 import { SaveAttemptIdSchema } from "@packages/domain/article";
-import { ReselectAfterRemovalEvent } from "@packages/hutch-infra-components";
+import { ReselectAfterRemovalEvent } from "@packages/infra-components";
 import { initSelectionQueueHandler } from "../select-content/select-content-work";
 
 export const initReselectAfterRemovalHandler = initSelectionQueueHandler({

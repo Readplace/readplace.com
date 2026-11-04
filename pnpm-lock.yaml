@@ -53,18 +53,18 @@ importers:
       '@packages/find-available-port':
         specifier: workspace:*
         version: link:../../src/packages/find-available-port
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-storage-client
+        version: link:../../src/packages/logger
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../../src/packages/provider-contracts
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/storage-client
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../../src/packages/supported-clients
@@ -108,9 +108,9 @@ importers:
       '@packages/check-unused-css':
         specifier: workspace:*
         version: link:../../src/packages/check-unused-css
-      '@packages/hutch-infra-components':
+      '@packages/infra-components':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-infra-components
+        version: link:../../src/packages/infra-components
       '@packages/test-fixtures':
         specifier: workspace:*
         version: link:../../src/packages/test-fixtures
@@ -180,9 +180,9 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../../../src/packages/domain
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../../../src/packages/hutch-logger
+        version: link:../../../src/packages/logger
       '@packages/ui-icons':
         specifier: workspace:*
         version: link:../../../src/packages/ui-icons
@@ -235,9 +235,9 @@ importers:
 
   projects/browser-extensions/chrome-extension:
     dependencies:
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../../../src/packages/hutch-logger
+        version: link:../../../src/packages/logger
       '@packages/onboarding-extension-signal':
         specifier: workspace:*
         version: link:../../../src/packages/onboarding-extension-signal
@@ -290,12 +290,12 @@ importers:
 
   projects/browser-extensions/firefox-extension:
     dependencies:
-      '@packages/hutch-infra-components':
+      '@packages/infra-components':
         specifier: workspace:*
-        version: link:../../../src/packages/hutch-infra-components
-      '@packages/hutch-logger':
+        version: link:../../../src/packages/infra-components
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../../../src/packages/hutch-logger
+        version: link:../../../src/packages/logger
       '@packages/onboarding-extension-signal':
         specifier: workspace:*
         version: link:../../../src/packages/onboarding-extension-signal
@@ -417,18 +417,15 @@ importers:
       '@packages/find-available-port':
         specifier: workspace:*
         version: link:../../src/packages/find-available-port
-      '@packages/hutch-infra-components':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-infra-components
-      '@packages/hutch-logger':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-storage-client
       '@packages/inbox-store':
         specifier: workspace:*
         version: link:../../src/packages/inbox-store
+      '@packages/infra-components':
+        specifier: workspace:*
+        version: link:../../src/packages/infra-components
+      '@packages/logger':
+        specifier: workspace:*
+        version: link:../../src/packages/logger
       '@packages/media-contracts':
         specifier: workspace:*
         version: link:../../src/packages/media-contracts
@@ -450,6 +447,9 @@ importers:
       '@packages/save-article':
         specifier: workspace:*
         version: link:../../src/packages/save-article
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/storage-client
       '@packages/subscription-access':
         specifier: workspace:*
         version: link:../../src/packages/subscription-access
@@ -637,18 +637,15 @@ importers:
       '@packages/find-available-port':
         specifier: workspace:*
         version: link:../../src/packages/find-available-port
-      '@packages/hutch-infra-components':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-infra-components
-      '@packages/hutch-logger':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-storage-client
       '@packages/inbox-store':
         specifier: workspace:*
         version: link:../../src/packages/inbox-store
+      '@packages/infra-components':
+        specifier: workspace:*
+        version: link:../../src/packages/infra-components
+      '@packages/logger':
+        specifier: workspace:*
+        version: link:../../src/packages/logger
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../../src/packages/provider-contracts
@@ -658,6 +655,9 @@ importers:
       '@packages/save-article':
         specifier: workspace:*
         version: link:../../src/packages/save-article
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/storage-client
       '@packages/subscription-access':
         specifier: workspace:*
         version: link:../../src/packages/subscription-access
@@ -785,21 +785,21 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../../src/packages/domain
-      '@packages/hutch-infra-components':
+      '@packages/infra-components':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-infra-components
-      '@packages/hutch-logger':
+        version: link:../../src/packages/infra-components
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-storage-client
+        version: link:../../src/packages/logger
       '@packages/media-contracts':
         specifier: workspace:*
         version: link:../../src/packages/media-contracts
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/storage-client
       '@packages/tier-source':
         specifier: workspace:*
         version: link:../../src/packages/tier-source
@@ -846,9 +846,9 @@ importers:
 
   projects/platform:
     dependencies:
-      '@packages/hutch-infra-components':
+      '@packages/infra-components':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-infra-components
+        version: link:../../src/packages/infra-components
     devDependencies:
       '@pulumi/aws':
         specifier: 7.32.0
@@ -904,15 +904,12 @@ importers:
       '@packages/finalize-article':
         specifier: workspace:*
         version: link:../../src/packages/finalize-article
-      '@packages/hutch-infra-components':
+      '@packages/infra-components':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-infra-components
-      '@packages/hutch-logger':
+        version: link:../../src/packages/infra-components
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-storage-client
+        version: link:../../src/packages/logger
       '@packages/onboarding-signals':
         specifier: workspace:*
         version: link:../../src/packages/onboarding-signals
@@ -937,6 +934,9 @@ importers:
       '@packages/site-rules':
         specifier: workspace:*
         version: link:../../src/packages/site-rules
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/storage-client
       '@packages/tier-source':
         specifier: workspace:*
         version: link:../../src/packages/tier-source
@@ -1013,15 +1013,15 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../../src/packages/domain
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../../src/packages/hutch-storage-client
+        version: link:../../src/packages/logger
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/storage-client
       '@packages/viewer-identity':
         specifier: workspace:*
         version: link:../../src/packages/viewer-identity
@@ -1056,9 +1056,9 @@ importers:
       '@packages/e2e-harness':
         specifier: workspace:*
         version: link:../../src/packages/e2e-harness
-      '@packages/hutch-infra-components':
+      '@packages/infra-components':
         specifier: workspace:*
-        version: link:../../src/packages/hutch-infra-components
+        version: link:../../src/packages/infra-components
       '@packages/test-fixtures':
         specifier: workspace:*
         version: link:../../src/packages/test-fixtures
@@ -1246,15 +1246,15 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../hutch-storage-client
+        version: link:../logger
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1283,15 +1283,15 @@ importers:
       '@packages/article-store':
         specifier: workspace:*
         version: link:../article-store
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../hutch-storage-client
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
       '@packages/require-env':
         specifier: workspace:*
         version: link:../require-env
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1311,15 +1311,15 @@ importers:
       '@packages/article-store':
         specifier: workspace:*
         version: link:../article-store
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../hutch-storage-client
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
       '@packages/require-env':
         specifier: workspace:*
         version: link:../require-env
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1582,7 +1582,41 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
-  src/packages/hutch-infra-components:
+  src/packages/inbox-store:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  src/packages/infra-components:
     dependencies:
       '@aws-sdk/client-eventbridge':
         specifier: 3.1057.0
@@ -1593,9 +1627,9 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../hutch-logger
+        version: link:../logger
       '@packages/media-contracts':
         specifier: workspace:*
         version: link:../media-contracts
@@ -1631,64 +1665,11 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
-  src/packages/hutch-logger:
+  src/packages/logger:
     devDependencies:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-
-  src/packages/hutch-storage-client:
-    dependencies:
-      '@aws-sdk/client-dynamodb':
-        specifier: 3.1057.0
-        version: 3.1057.0
-      '@aws-sdk/lib-dynamodb':
-        specifier: 3.1057.0
-        version: 3.1057.0(@aws-sdk/client-dynamodb@3.1057.0)
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
-    devDependencies:
-      concurrently:
-        specifier: 10.0.0
-        version: 10.0.0
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-
-  src/packages/inbox-store:
-    dependencies:
-      '@aws-sdk/client-s3':
-        specifier: 3.1057.0
-        version: 3.1057.0
-      '@packages/domain':
-        specifier: workspace:*
-        version: link:../domain
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../hutch-storage-client
-      '@packages/provider-contracts':
-        specifier: workspace:*
-        version: link:../provider-contracts
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@types/jest':
-        specifier: 30.0.0
-        version: 30.0.0
-      c8:
-        specifier: 11.0.0
-        version: 11.0.0
-      concurrently:
-        specifier: 10.0.0
-        version: 10.0.0
-      jest:
-        specifier: 30.4.2
-        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -1732,12 +1713,12 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../hutch-storage-client
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1816,9 +1797,9 @@ importers:
       '@packages/article-resource-unique-id':
         specifier: workspace:*
         version: link:../article-resource-unique-id
-      '@packages/hutch-infra-components':
+      '@packages/infra-components':
         specifier: workspace:*
-        version: link:../hutch-infra-components
+        version: link:../infra-components
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
@@ -1889,9 +1870,9 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../hutch-logger
+        version: link:../logger
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
@@ -1937,17 +1918,36 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  src/packages/storage-client:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: 3.1057.0
+        version: 3.1057.0(@aws-sdk/client-dynamodb@3.1057.0)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   src/packages/subscription-access:
     dependencies:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../hutch-storage-client
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -2009,18 +2009,18 @@ importers:
       '@packages/extract-links-from-page':
         specifier: workspace:*
         version: link:../extract-links-from-page
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../hutch-storage-client
+        version: link:../logger
       '@packages/media-contracts':
         specifier: workspace:*
         version: link:../media-contracts
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
       '@packages/web-session':
         specifier: workspace:*
         version: link:../web-session
@@ -2165,12 +2165,12 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
-      '@packages/hutch-infra-components':
+      '@packages/infra-components':
         specifier: workspace:*
-        version: link:../hutch-infra-components
-      '@packages/hutch-logger':
+        version: link:../infra-components
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../hutch-logger
+        version: link:../logger
       '@packages/viewer-identity':
         specifier: workspace:*
         version: link:../viewer-identity
@@ -2208,15 +2208,15 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../hutch-logger
-      '@packages/hutch-storage-client':
-        specifier: workspace:*
-        version: link:../hutch-storage-client
+        version: link:../logger
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
+      '@packages/storage-client':
+        specifier: workspace:*
+        version: link:../storage-client
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -2309,9 +2309,9 @@ importers:
       '@packages/extract-links-from-page':
         specifier: workspace:*
         version: link:../extract-links-from-page
-      '@packages/hutch-logger':
+      '@packages/logger':
         specifier: workspace:*
-        version: link:../hutch-logger
+        version: link:../logger
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts
@@ -3467,6 +3467,7 @@ packages:
   '@opentelemetry/propagator-jaeger@1.30.1':
     resolution: {integrity: sha512-Pj/BfnYEKIOImirH76M4hDaBSx6HyZ2CXUqk+Kj02m6BB80c/yo4BdWkn/1gDFfU+YPY+bPR2U0DKBfdxCKwmg==}
     engines: {node: '>=14'}
+    deprecated: Package no longer supported. See https://github.com/open-telemetry/opentelemetry-js/pull/7077
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -3491,12 +3492,14 @@ packages:
   '@opentelemetry/sdk-trace-base@1.30.1':
     resolution: {integrity: sha512-jVPgBbH1gCy2Lb7X0AVQ8XAfgg0pJ4nvl8/IiQA6nxOsPvS+0zMJaFSs2ltXe0J6C8dqjcnpyqINDJmU30+uOg==}
     engines: {node: '>=14'}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@1.30.1':
     resolution: {integrity: sha512-cBjYOINt1JxXdpw1e5MlHmFRc5fgj4GW/86vsKFxJCJ8AL4PdVtYH41gWwl4qd4uQjqEL1oJVrXkSy5cnduAnQ==}
     engines: {node: '>=14'}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -6500,10 +6503,6 @@ packages:
     resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
     engines: {node: '>=8.6'}
 
-  picomatch@4.0.3:
-    resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
-    engines: {node: '>=12'}
-
   picomatch@4.0.4:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
@@ -7120,10 +7119,6 @@ packages:
   through@2.3.8:
     resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
 
-  tinyglobby@0.2.15:
-    resolution: {integrity: sha512-j2Zq4NyQYG5XMST4cbs02Ak8iJUdxRM0XI5QyxXuZOzKOINmWurp3smXu3y5wDcJrptwpSjgXHzIQxR0omXljQ==}
-    engines: {node: '>=12.0.0'}
-
   tinyglobby@0.2.17:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
     engines: {node: '>=12.0.0'}
@@ -7134,10 +7129,6 @@ packages:
   tldts@6.1.86:
     resolution: {integrity: sha512-WMi/OQ2axVTf/ykqCQgXiIct+mSQDFdH2fkwhPwgEwvJ1kSzZRiinb0zF2Xb8u4+OqPChmyI6MEu4EezNJz+FQ==}
     hasBin: true
-
-  tmp@0.2.5:
-    resolution: {integrity: sha512-voyz6MApa1rQGUxT3E+BK7/ROe8itEx7vD8/HEvt4xwXucvQ5G5oeEiHkmHZJuBO21RpOf+YYm9MOivj709jow==}
-    engines: {node: '>=14.14'}
 
   tmp@0.2.6:
     resolution: {integrity: sha512-5sJPdPjfI5Kx+qbrDesxkglRBxW//g7hCsqspEjwkewGvBMGIKMOTKzLt1hFVJzyadba3lDUN20O9qhvbQUSTA==}
@@ -7662,10 +7653,10 @@ snapshots:
       '@aws-sdk/dynamodb-codec': 3.973.15
       '@aws-sdk/middleware-endpoint-discovery': 3.972.15
       '@aws-sdk/types': 3.973.9
-      '@smithy/core': 3.24.5
+      '@smithy/core': 3.33.3
       '@smithy/fetch-http-handler': 5.4.5
       '@smithy/node-http-handler': 4.7.5
-      '@smithy/types': 4.14.2
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/client-eventbridge@3.1057.0':
@@ -7676,10 +7667,10 @@ snapshots:
       '@aws-sdk/credential-provider-node': 3.972.47
       '@aws-sdk/signature-v4-multi-region': 3.996.30
       '@aws-sdk/types': 3.973.9
-      '@smithy/core': 3.24.5
+      '@smithy/core': 3.33.3
       '@smithy/fetch-http-handler': 5.4.5
       '@smithy/node-http-handler': 4.7.5
-      '@smithy/types': 4.14.2
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/client-lambda@3.1057.0':
@@ -7737,10 +7728,10 @@ snapshots:
       '@aws-sdk/credential-provider-node': 3.972.47
       '@aws-sdk/middleware-sdk-sqs': 3.972.26
       '@aws-sdk/types': 3.973.9
-      '@smithy/core': 3.24.5
+      '@smithy/core': 3.33.3
       '@smithy/fetch-http-handler': 5.4.5
       '@smithy/node-http-handler': 4.7.5
-      '@smithy/types': 4.14.2
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/client-ssm@3.1057.0':
@@ -7859,8 +7850,8 @@ snapshots:
   '@aws-sdk/dynamodb-codec@3.973.15':
     dependencies:
       '@aws-sdk/core': 3.974.15
-      '@smithy/core': 3.24.5
-      '@smithy/types': 4.14.2
+      '@smithy/core': 3.33.3
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/endpoint-cache@3.972.5':
@@ -7873,8 +7864,8 @@ snapshots:
       '@aws-sdk/client-dynamodb': 3.1057.0
       '@aws-sdk/core': 3.974.15
       '@aws-sdk/util-dynamodb': 3.996.2(@aws-sdk/client-dynamodb@3.1057.0)
-      '@smithy/core': 3.24.5
-      '@smithy/types': 4.14.2
+      '@smithy/core': 3.33.3
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/middleware-bucket-endpoint@3.972.17':
@@ -7889,8 +7880,8 @@ snapshots:
     dependencies:
       '@aws-sdk/endpoint-cache': 3.972.5
       '@aws-sdk/types': 3.973.9
-      '@smithy/core': 3.24.5
-      '@smithy/types': 4.14.2
+      '@smithy/core': 3.33.3
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/middleware-expect-continue@3.972.14':
@@ -7930,8 +7921,8 @@ snapshots:
   '@aws-sdk/middleware-sdk-sqs@3.972.26':
     dependencies:
       '@aws-sdk/types': 3.973.9
-      '@smithy/core': 3.24.5
-      '@smithy/types': 4.14.2
+      '@smithy/core': 3.33.3
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/middleware-ssec@3.972.11':
@@ -8789,7 +8780,7 @@ snapshots:
       proggy: 4.0.0
       promise-all-reject-late: 1.0.1
       promise-call-limit: 3.0.2
-      semver: 7.7.4
+      semver: 7.8.0
       ssri: 13.0.1
       treeverse: 3.0.0
       walk-up-path: 4.0.0
@@ -8957,7 +8948,7 @@ snapshots:
       '@types/shimmer': 1.2.0
       import-in-the-middle: 1.15.0
       require-in-the-middle: 7.5.2
-      semver: 7.7.4
+      semver: 7.8.0
       shimmer: 1.2.1
     transitivePeerDependencies:
       - supports-color
@@ -9031,7 +9022,7 @@ snapshots:
       '@opentelemetry/propagator-b3': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/propagator-jaeger': 1.30.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
-      semver: 7.7.4
+      semver: 7.8.0
 
   '@opentelemetry/semantic-conventions@1.28.0': {}
 
@@ -9242,17 +9233,17 @@ snapshots:
       '@types/semver': 7.7.1
       '@types/tmp': 0.2.6
       execa: 5.1.1
-      fdir: 6.5.0(picomatch@4.0.3)
+      fdir: 6.5.0(picomatch@4.0.4)
       google-protobuf: 3.21.4
       ini: 2.0.0
       js-yaml: 3.14.2
       minimist: 1.2.8
       normalize-package-data: 6.0.2
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       require-from-string: 2.0.2
-      semver: 7.7.4
+      semver: 7.8.0
       source-map-support: 0.5.21
-      tmp: 0.2.5
+      tmp: 0.2.6
       upath: 1.2.0
     optionalDependencies:
       ts-node: 10.9.2(@types/node@22.19.19)(typescript@6.0.3)
@@ -10709,10 +10700,6 @@ snapshots:
     dependencies:
       walk-up-path: 4.0.0
 
-  fdir@6.5.0(picomatch@4.0.3):
-    optionalDependencies:
-      picomatch: 4.0.3
-
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
@@ -11913,7 +11900,7 @@ snapshots:
       proc-log: 6.1.0
       semver: 7.8.0
       tar: 7.5.9
-      tinyglobby: 0.2.15
+      tinyglobby: 0.2.17
       which: 6.0.1
     transitivePeerDependencies:
       - supports-color
@@ -11948,7 +11935,7 @@ snapshots:
   normalize-package-data@6.0.2:
     dependencies:
       hosted-git-info: 7.0.2
-      semver: 7.7.4
+      semver: 7.8.0
       validate-npm-package-license: 3.0.4
 
   normalize-path@3.0.0: {}
@@ -12368,8 +12355,6 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@2.3.1: {}
-
-  picomatch@4.0.3: {}
 
   picomatch@4.0.4: {}
 
@@ -13068,11 +13053,6 @@ snapshots:
 
   through@2.3.8: {}
 
-  tinyglobby@0.2.15:
-    dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
-
   tinyglobby@0.2.17:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.4)
@@ -13083,8 +13063,6 @@ snapshots:
   tldts@6.1.86:
     dependencies:
       tldts-core: 6.1.86
-
-  tmp@0.2.5: {}
 
   tmp@0.2.6: {}
 

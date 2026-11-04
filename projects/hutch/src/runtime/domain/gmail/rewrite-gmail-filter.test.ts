@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ForwardableSenderSchema, GMAIL_FILTER_QUERY_MAX_LENGTH, GmailAccountEmailSchema } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
-import { HutchLogger } from "@packages/hutch-logger";
+import { Logger } from "@packages/logger";
 import type { GmailFilter, GmailFilters } from "@packages/provider-contracts/gmail-filters";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
 import { initInMemoryGmailFilters } from "@packages/test-fixtures/providers/gmail-filters";
@@ -57,7 +57,7 @@ async function makeHarness(options: {
 		mappings,
 		addresses,
 		now: () => NOW,
-		logger: HutchLogger.from({ info: capture, warn: capture, error: capture, debug: capture }),
+		logger: Logger.from({ info: capture, warn: capture, error: capture, debug: capture }),
 	});
 
 	return { rewrite, gmail, connections, mappings, addresses, logs };

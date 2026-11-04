@@ -1,7 +1,7 @@
 import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 /* c8 ignore start -- composition root, no logic to test */
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/storage-client";
+import { Logger, consoleLogger } from "@packages/logger";
 import { initDynamoDbSavedArticleStore } from "@packages/article-store";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
@@ -32,7 +32,7 @@ const subscriptionProviders = initDynamoDbSubscriptionProviders({
 });
 
 const auth = initDynamoDbAuth({
-	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: HutchLogger.fromJSON<Record<string, unknown>>() }).observeSession,
+	observeSession: initAuthDiagnosticRecorder({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>() }).observeSession,
 	client: dynamoClient,
 	usersTableName: usersTable,
 	sessionsTableName: sessionsTable,
@@ -42,13 +42,13 @@ const articleStore = initDynamoDbSavedArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
 	userArticlesTableName: userArticlesTable,
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 	now: () => new Date(),
 });
 
 const { sendEmail } = initSkipReservedDomain({
 	...initResendEmail(resendApiKey),
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 });
 
 export const handler = initSendTrialFeedbackEmailHandler({
@@ -66,9 +66,9 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 	appOrigin,
 	now: () => new Date(),
-	logger: HutchLogger.from(consoleLogger),
+	logger: Logger.from(consoleLogger),
 	emitLifecycleEmailSent: initEmitLifecycleEmailSent({
-		logger: HutchLogger.fromJSON<LifecycleEmailSentEvent>(),
+		logger: Logger.fromJSON<LifecycleEmailSentEvent>(),
 		now: () => new Date(),
 	}),
 });

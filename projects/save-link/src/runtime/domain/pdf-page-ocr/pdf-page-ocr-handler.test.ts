@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import type { RenderPdfPageToPng } from "@packages/crawl-article";
 import type { DownloadStagedPdf, RunPageOcr } from "./pdf-page-ocr-handler.types";
 import { initPdfPageOcrHandler } from "./pdf-page-ocr-handler";

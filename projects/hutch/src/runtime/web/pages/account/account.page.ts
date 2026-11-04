@@ -2,7 +2,7 @@ import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import type {
 	DestroyUserSessions,
@@ -183,7 +183,7 @@ interface AccountDependencies {
 	resolvePriceId: ResolvePriceId;
 	buildCheckoutSuccessUrl: (sessionIdPlaceholder: string) => string;
 	appOrigin: string;
-	logger: HutchLogger;
+	logger: Logger;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 	recordSubscriptionEvent: RecordAudienceEvent<SubscriptionLogEvent>;

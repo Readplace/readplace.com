@@ -11,7 +11,7 @@ import {
 	toDeepseekMessages,
 } from "@packages/ai-message";
 import { ReaderArticleHashId } from "@packages/domain/article";
-import type { HutchLogger } from "@packages/hutch-logger";
+import type { Logger } from "@packages/logger";
 import {
 	type CountPromptTokens,
 	DEEPSEEK_FLASH_TOKENIZER,
@@ -54,8 +54,8 @@ export function initSelectRelatedArticlesWithinDailyBudget(deps: {
 	budget: RecommendationBudget;
 	countPromptTokens: CountPromptTokens;
 	limitNanodollars: number;
-	logger: HutchLogger;
-	budgetDeniedLog: HutchLogger.Typed<RecommendationBudgetDeniedLine>;
+	logger: Logger;
+	budgetDeniedLog: Logger.Typed<RecommendationBudgetDeniedLine>;
 }): { selectRelatedArticles: SelectRelatedArticles } {
 	const feature = DEEPSEEK_FEATURES[deps.selection];
 	const price = deepseekPeakNanodollarsPerToken(DEEPSEEK_MODEL);

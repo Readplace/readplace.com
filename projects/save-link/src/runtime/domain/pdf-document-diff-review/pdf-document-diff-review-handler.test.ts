@@ -1,4 +1,4 @@
-import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type Logger } from "@packages/logger";
 import { initPdfDocumentDiffReviewHandler } from "./pdf-document-diff-review-handler";
 import type { ReviewDocumentWithLlm } from "./pdf-document-diff-review-handler.types";
 
@@ -13,7 +13,7 @@ function decisionsJson(decisions: Array<Record<string, unknown>>): string {
 	return JSON.stringify({ decisions });
 }
 
-function capturingLogger(): { logger: HutchLogger; messages: string[] } {
+function capturingLogger(): { logger: Logger; messages: string[] } {
 	const messages: string[] = [];
 	const record = (msg: unknown) => { messages.push(String(msg)); };
 	return { logger: { info: record, warn: record, error: record, debug: record }, messages };

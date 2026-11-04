@@ -4,7 +4,7 @@ import { JSDOM } from "jsdom";
 import { UserIdSchema } from "@packages/domain/user";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryEngagementStarter } from "@packages/test-fixtures/providers/onboarding-signals";
 import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";

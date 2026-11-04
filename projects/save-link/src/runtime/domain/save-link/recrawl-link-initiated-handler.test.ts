@@ -1,6 +1,6 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { noopLogger } from "@packages/logger";
 import { markCrawlExhausted, markCrawlNotFound } from "@packages/domain/article-aggregate";
-import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
+import { RecrawlContentExtractedEvent } from "@packages/infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import type {
 	CrawlAndFinalizeArticle,
