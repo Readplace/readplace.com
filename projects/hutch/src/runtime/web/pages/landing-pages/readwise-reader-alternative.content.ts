@@ -16,7 +16,7 @@ function track(path: string, content: string): string {
 }
 
 export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-12",
+	lastModified: "2026-11-04",
 	title: "Readwise Reader Alternative, With the Gaps Listed | Readplace",
 	description:
 		"Readplace next to Readwise Reader, row by row: what it does for less, and the highlights, RSS, video, podcast and listening features it doesn't have.",

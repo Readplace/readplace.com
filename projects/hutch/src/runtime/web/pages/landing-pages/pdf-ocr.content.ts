@@ -15,7 +15,7 @@ import {
 import type { LandingPageContent } from "./landing-pages.types";
 
 export const PDF_OCR_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-01",
+	lastModified: "2026-11-04",
 	title: "Read-It-Later for PDFs, Scans Read by OCR | Readplace",
 	description:
 		"Save PDFs from a link, the browser extension or the iPhone share sheet, and read them as text. Scanned pages are read by OCR from their pixels, and a cleanup pass that changes a number is thrown away.",

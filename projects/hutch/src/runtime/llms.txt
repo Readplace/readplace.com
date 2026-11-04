@@ -1,6 +1,6 @@
 # Readplace — Read-It-Later App
 
-> Readplace is a privacy-first read-it-later app and browser extension. A direct alternative to Pocket (shut down July 2025) and Omnivore (shut down late 2024). Built in Australia. Founded by Fayner Brack (Founder & CEO), creator of js-cookie (22 billion+ annual CDN downloads on jsDelivr).
+> Readplace is a privacy-first read-it-later app and browser extension. A direct alternative to Pocket (shut down July 2025) and Omnivore (shut down November 2024). Built in Australia. Founded by Fayner Brack (Founder & CEO), creator of js-cookie (22 billion+ annual CDN downloads on jsDelivr).
 
 > Markdown of any page is also available via Accept: text/markdown.
 
@@ -68,7 +68,7 @@ Readplace runs an MCP server at https://readplace.com/mcp. There is no API key: 
 - [Article to EPUB](https://readplace.com/article-to-epub): Download any pasted article as an EPUB for a Kobo or Kindle, no account
 - [Readwise Reader Alternative](https://readplace.com/readwise-reader-alternative): Readplace next to Readwise Reader row by row, gaps included
 - [Blog](https://readplace.com/blog): Product updates and honest comparison articles
-- [Best Read-It-Later Apps 2026](https://readplace.com/blog/best-read-it-later-apps-2026): Honest comparison of 7 apps with pros and cons
+- [Best Read-It-Later Apps](https://readplace.com/blog/best-read-it-later-apps-2026): Honest comparison of 7 apps with pros and cons
 - [Privacy Policy](https://readplace.com/privacy): Data handling and storage details
 - [Terms of Service](https://readplace.com/terms): Terms governing use
 

@@ -6,7 +6,7 @@ import type { LandingPageContent } from "./landing-pages.types";
 import { IMPORT_LIMITS } from "../import/import.limits";
 
 export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-01",
+	lastModified: "2026-11-04",
 	title: "Pocket Alternative — Recover Your Saved Links | Readplace",
 	description:
 		"Readplace is a read-it-later app. Upload the export file Pocket gave you, pick the links you still want, and review them before you make an account.",
@@ -114,5 +114,5 @@ export const POCKET_ALTERNATIVE_CONTENT: LandingPageContent = {
 	closeTitle: "Start with the file Pocket gave you",
 	closeSecondaryAction: START_TRIAL,
 	closeNote:
-		`No account needed to see what comes across. <a href="${withInternalTracking("/blog/pocket-migration", { source: "lp-pocket-alternative-close", content: "pocket-guide" })}">The recovery guide</a> covers getting the export out of Pocket, and <a href="${withInternalTracking("/blog/best-read-it-later-apps-2026", { source: "lp-pocket-alternative-close", content: "post-best-read-it-later-apps-2026" })}">the 2026 comparison of read-it-later apps</a> lists the other apps that take it.`,
+		`No account needed to see what comes across. <a href="${withInternalTracking("/blog/pocket-migration", { source: "lp-pocket-alternative-close", content: "pocket-guide" })}">The recovery guide</a> covers getting the export out of Pocket, and <a href="${withInternalTracking("/blog/best-read-it-later-apps-2026", { source: "lp-pocket-alternative-close", content: "post-best-read-it-later-apps-2026" })}">the comparison of 7 read-it-later apps</a> lists the other apps that take it.`,
 };

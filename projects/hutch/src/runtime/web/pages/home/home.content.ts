@@ -215,7 +215,7 @@ export const HOME_CONTENT = {
 			content: "what-not-to-read",
 		},
 		founderClose:
-			"Pocket was acquired and abandoned, Omnivore shut down overnight. Readplace is built in public, one feature at a time, and this page says what works today rather than promising what doesn't exist yet.",
+			"Omnivore shut down in November 2024, and Pocket followed on July 8, 2025. Readplace is built in public, one feature at a time, and this page says what works today rather than promising what doesn't exist yet.",
 	},
 	principle: {
 		title: "My personal promise to you",

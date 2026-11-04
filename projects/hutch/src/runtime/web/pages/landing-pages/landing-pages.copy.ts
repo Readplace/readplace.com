@@ -67,7 +67,7 @@ export const START_TRIAL: LandingPageAction = {
 	href: "/signup",
 };
 
-export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-11-03";
+export const SHARED_LANDING_COPY_LAST_MODIFIED: IsoDay = "2026-11-04";
 
 export function landingPageLastModified(page: Pick<LandingPageContent, "lastModified">): IsoDay {
 	return page.lastModified > SHARED_LANDING_COPY_LAST_MODIFIED
