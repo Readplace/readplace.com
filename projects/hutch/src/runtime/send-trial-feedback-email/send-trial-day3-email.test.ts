@@ -4,6 +4,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { UserContact } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
+import type { ReleaseTrialNudge } from "@packages/provider-contracts/subscription-providers";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
@@ -13,7 +14,6 @@ import { initQueueDigestUnsubscribeToken } from "../domain/email/queue-digest-un
 import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "../observability/lifecycle-email-events";
 import { UNSUBSCRIBE_LABEL } from "../web/queue-digest-email";
 import { EMAIL_POSTAL_ADDRESS } from "../web/email-copy";
-import { buildOwnerReaderPath } from "../web/pages/readlist/owner-reader-link";
 import { RENEWAL_PRICES } from "../web/price-statement";
 import { initSendTrialFeedbackEmailHandler } from "./send-trial-feedback-email-handler";
 
@@ -37,12 +37,13 @@ function hoursAfterSignup(hours: number): Date {
 	return new Date(REGISTERED_AT.getTime() + hours * 60 * 60 * 1000);
 }
 
-function buildSubject(options: { contact?: UserContact | null; sendEmail?: SendEmail; now?: Date; rowsCarryProvenance?: boolean } = {}) {
+function buildSubject(options: { contact?: UserContact | null; sendEmail?: SendEmail; now?: Date; rowsCarryProvenance?: boolean; releaseTrialNudge?: ReleaseTrialNudge } = {}) {
 	const providers = initInMemorySubscriptionProviders({ now: () => FIRED_AT });
 	const email = initInMemoryEmail();
 	const articleStore = initInMemoryArticleStore();
 	const lifecycleEvents: LifecycleEmailSentEvent[] = [];
 	const infoLines: unknown[][] = [];
+	const errorLines: unknown[][] = [];
 	const captureLifecycleEvent = (event: LifecycleEmailSentEvent) => { lifecycleEvents.push(event); };
 	const now = options.now ?? FIRED_AT;
 	const contact = options.contact === undefined ? CONTACT : options.contact;
@@ -58,19 +59,20 @@ function buildSubject(options: { contact?: UserContact | null; sendEmail?: SendE
 		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent: providers.markAutomationSavesHeldEmailSent,
 		claimTrialNudge: providers.claimTrialNudge,
+		releaseTrialNudge: options.releaseTrialNudge ?? providers.releaseTrialNudge,
 		findUserContactByUserId: async () => contact,
 		signUnsubscribeToken: unsubscribeToken.sign,
 		sendEmail: options.sendEmail ?? email.sendEmail,
 		founderAvatarUrl: "https://static.readplace.com/fayner-brack.jpg",
 		appOrigin: APP_ORIGIN,
 		now: () => now,
-		logger: HutchLogger.from({ ...noopLogger, info: (...line: unknown[]) => { infoLines.push(line); } }),
+		logger: HutchLogger.from({ ...noopLogger, info: (...line: unknown[]) => { infoLines.push(line); }, error: (...line: unknown[]) => { errorLines.push(line); } }),
 		emitLifecycleEmailSent: initEmitLifecycleEmailSent({
 			logger: { info: captureLifecycleEvent, error: captureLifecycleEvent, warn: captureLifecycleEvent, debug: captureLifecycleEvent },
 			now: () => now,
 		}),
 	});
-	return { handler, providers, email, articleStore, lifecycleEvents, infoLines };
+	return { handler, providers, email, articleStore, lifecycleEvents, infoLines, errorLines };
 }
 
 type Subject = ReturnType<typeof buildSubject>;
@@ -205,6 +207,26 @@ describe("trial day-3 email", () => {
 		});
 	});
 
+	describe("a trial too short for checkout to keep", () => {
+		it("sends with exactly 48h05m left, the last instant checkout keeps the trial", async () => {
+			const subject = buildSubject({ now: new Date("2026-11-17T23:55:00.000Z") });
+			await seedEligible(subject);
+
+			await deliver(subject);
+
+			assert.equal(subject.email.getSentEmails().length, 1);
+		});
+
+		it("sends nothing one millisecond later, because checkout would charge at once", async () => {
+			const subject = buildSubject({ now: new Date("2026-11-17T23:55:00.001Z") });
+			await seedEligible(subject);
+
+			await deliver(subject);
+
+			await assertSkipped(subject, "trial-end-not-preserved");
+		});
+	});
+
 	describe("once per reader", () => {
 		it("sets the marker and sends no second email for a second message", async () => {
 			const subject = buildSubject();
@@ -237,6 +259,46 @@ describe("trial day-3 email", () => {
 			assert.deepEqual(failed, { batchItemFailures: [{ itemIdentifier: "msg-day3" }] });
 			assert.deepEqual(retried, { batchItemFailures: [] });
 			assert.equal(email.getSentEmails().length, 1);
+		});
+
+		it("releases the claim when the send fails, so a redrive under a new message id sends with the same idempotency key", async () => {
+			const email = initInMemoryEmail();
+			const idempotencyKeys: (string | undefined)[] = [];
+			const subject = buildSubject({
+				sendEmail: async (message) => {
+					idempotencyKeys.push(message.idempotencyKey);
+					if (idempotencyKeys.length === 1) throw new Error("provider down");
+					await email.sendEmail(message);
+				},
+			});
+			await seedEligible(subject);
+
+			const failed = await deliver(subject, "msg-day3");
+			const released = await subject.providers.findByUserId(USER_ID);
+			const redriven = await deliver(subject, "msg-day3-redrive");
+
+			assert.deepEqual(failed, { batchItemFailures: [{ itemIdentifier: "msg-day3" }] });
+			assert.equal(released?.trialDay3EmailSentAt, undefined);
+			assert.equal(released?.trialDay3EmailMessageId, undefined);
+			assert.deepEqual(redriven, { batchItemFailures: [] });
+			assert.equal(email.getSentEmails().length, 1);
+			assert.deepEqual(idempotencyKeys, [`trial-day3-${USER_ID}`, `trial-day3-${USER_ID}`]);
+			assert.equal((await subject.providers.findByUserId(USER_ID))?.trialDay3EmailMessageId, "msg-day3-redrive");
+		});
+
+		it("fails the record with the send error, and logs the release failure, when releasing the claim also fails", async () => {
+			const subject = buildSubject({
+				sendEmail: async () => { throw new Error("provider down"); },
+				releaseTrialNudge: async () => { throw new Error("store down"); },
+			});
+			await seedEligible(subject);
+
+			const failed = await deliver(subject, "msg-day3");
+
+			assert.deepEqual(failed, { batchItemFailures: [{ itemIdentifier: "msg-day3" }] });
+			const logged = JSON.stringify(subject.errorLines.map((line) => line.map((part) => JSON.stringify(part, (_key, value) => value instanceof Error ? value.message : value))));
+			assert.match(logged, /trial_day3 release failed.*store down/);
+			assert.match(logged, /record failed.*provider down/);
 		});
 	});
 
@@ -431,7 +493,7 @@ describe("trial day-3 email", () => {
 			await deliver(subject);
 
 			const articleHref = (id: typeof browserSave.id) =>
-				`${APP_ORIGIN}${buildOwnerReaderPath(id)}&${TRACKING}&utm_content=article`;
+				`${APP_ORIGIN}/queue/${id.value}/view?from=day3-email&${TRACKING}&utm_content=article`;
 			const unsubscribeHref = `${APP_ORIGIN}/email/queue-digest/unsubscribe?t=${encodeURIComponent(unsubscribeToken.sign(USER_ID))}&kind=trial-day3&${TRACKING}&utm_content=unsubscribe`;
 			assert.equal(
 				textOf(subject),

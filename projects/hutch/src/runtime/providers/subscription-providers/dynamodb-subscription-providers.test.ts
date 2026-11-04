@@ -843,6 +843,38 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 
 		it.each([
+			{ kind: "trial_day3", sentAt: "trialDay3EmailSentAt", messageId: "trialDay3EmailMessageId" },
+			{ kind: "trial_day7", sentAt: "trialDay7EmailSentAt", messageId: "trialDay7EmailMessageId" },
+		] as const)("releases $kind with one write conditional on this message holding the claim", async ({ kind, sentAt, messageId }) => {
+			const { subs, commands } = createNudgeClient({});
+
+			await subs.releaseTrialNudge({ userId: USER_ID, kind, messageId: "msg-1" });
+
+			assert.equal(commands.length, 1);
+			const [update] = commands;
+			assert(update, "the release is a single UpdateItem");
+			assert.deepEqual(update.Key, { userId: USER_ID });
+			assert.equal(update.UpdateExpression, `REMOVE ${sentAt}, ${messageId}`);
+			assert.equal(update.ConditionExpression, `${messageId} = :mid`);
+			assert.deepEqual(update.ExpressionAttributeValues, { ":mid": "msg-1" });
+		});
+
+		it("leaves a claim another message holds", async () => {
+			const { subs } = createNudgeClient({ updateError: CONDITION_FAILED });
+
+			await assert.doesNotReject(subs.releaseTrialNudge({ userId: USER_ID, kind: "trial_day3", messageId: "msg-1" }));
+		});
+
+		it("rethrows any other release failure", async () => {
+			const { subs } = createNudgeClient({ updateError: new Error("throttled") });
+
+			await assert.rejects(
+				() => subs.releaseTrialNudge({ userId: USER_ID, kind: "trial_day3", messageId: "msg-1" }),
+				/throttled/,
+			);
+		});
+
+		it.each([
 			"trialDay3EmailSentAt",
 			"trialDay3EmailMessageId",
 			"trialDay7EmailSentAt",

@@ -546,6 +546,45 @@ describe("initAwsTrialScheduler", () => {
 		});
 	});
 
+	describe("deleteTrialNudgeSchedule", () => {
+		it.each([
+			{ kind: "trial_day3", name: `trial-day3-${USER_ID}` },
+			{ kind: "trial_day7", name: `trial-day7-${USER_ID}` },
+		] as const)("issues a DeleteScheduleCommand with name=$name + group", async ({ kind, name }) => {
+			const { client, captured } = buildFakeClient();
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+
+			await scheduler.deleteTrialNudgeSchedule({ userId: USER_ID, kind });
+
+			assert.equal(captured.commands.length, 1);
+			const cmd = captured.commands[0];
+			assert.ok(cmd instanceof DeleteScheduleCommand);
+			assert.equal(cmd.input.Name, name);
+			assert.equal(cmd.input.GroupName, GROUP_NAME);
+		});
+
+		it("swallows ResourceNotFoundException — delete is idempotent", async () => {
+			const notFound = new Error("Schedule not found");
+			notFound.name = "ResourceNotFoundException";
+			const { client } = buildFakeClient({ deleteThrows: notFound });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+
+			await assert.doesNotReject(scheduler.deleteTrialNudgeSchedule({ userId: USER_ID, kind: "trial_day3" }));
+		});
+
+		it("re-throws any other error", async () => {
+			const wrenchInGears = new Error("Internal failure");
+			wrenchInGears.name = "InternalServerException";
+			const { client } = buildFakeClient({ deleteThrows: wrenchInGears });
+			const scheduler = initAwsTrialScheduler({ client, scheduleGroupName: GROUP_NAME });
+
+			await assert.rejects(
+				scheduler.deleteTrialNudgeSchedule({ userId: USER_ID, kind: "trial_day7" }),
+				/Internal failure/,
+			);
+		});
+	});
+
 	describe("deleteTrialReminderSchedule", () => {
 		it("issues a DeleteScheduleCommand with name=trial-reminder-<userId> + group", async () => {
 			const { client, captured } = buildFakeClient();

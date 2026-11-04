@@ -4,7 +4,6 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import { EMAIL_POSTAL_ADDRESS } from "../email-copy";
 import { RENEWAL_PRICES } from "../price-statement";
 import { KEEP_READPLACE_LABEL, UNSUBSCRIBE_LABEL } from "../queue-digest-email";
-import { buildOwnerReaderPath } from "../pages/readlist/owner-reader-link";
 import { TrialDay3Email } from "./trial-day3-email";
 
 const APP_ORIGIN = "https://readplace.com";
@@ -14,7 +13,7 @@ const FIRST_ID = ReaderArticleHashId.from("https://example.com/first");
 const SECOND_ID = ReaderArticleHashId.from("https://example.com/second");
 
 function articleHref(id: typeof FIRST_ID): string {
-	return `${APP_ORIGIN}${buildOwnerReaderPath(id)}&${TRACKING}&utm_content=article`;
+	return `${APP_ORIGIN}/queue/${id.value}/view?from=day3-email&${TRACKING}&utm_content=article`;
 }
 
 const FIRST = { articleId: FIRST_ID, title: "First & best", siteName: "example.com" };

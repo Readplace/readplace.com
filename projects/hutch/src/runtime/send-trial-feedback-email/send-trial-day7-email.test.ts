@@ -60,6 +60,7 @@ function buildSubject(options: { contact?: UserContact; readAtOf?: Record<string
 		markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 		markAutomationSavesHeldEmailSent: providers.markAutomationSavesHeldEmailSent,
 		claimTrialNudge: providers.claimTrialNudge,
+		releaseTrialNudge: providers.releaseTrialNudge,
 		findUserContactByUserId: async () => options.contact ?? CONTACT,
 		signUnsubscribeToken: unsubscribeToken.sign,
 		sendEmail: options.sendEmail ?? email.sendEmail,
@@ -235,6 +236,49 @@ describe("trial day-7 email", () => {
 		assert.deepEqual(failed, { batchItemFailures: [{ itemIdentifier: "msg-day7" }] });
 		assert.deepEqual(retried, { batchItemFailures: [] });
 		assert.equal(email.getSentEmails().length, 1);
+	});
+
+	it("releases the claim when the send fails, so a redrive under a new message id sends", async () => {
+		const email = initInMemoryEmail();
+		let attempts = 0;
+		const subject = buildSubject({
+			sendEmail: async (message) => {
+				attempts += 1;
+				if (attempts === 1) throw new Error("provider down");
+				await email.sendEmail(message);
+			},
+		});
+		await seedTrial(subject);
+		await save(subject, { slug: "one", savedAt: hoursAfterSignup(1) });
+
+		await deliver(subject, "msg-day7");
+		const released = await subject.providers.findByUserId(USER_ID);
+		const redriven = await deliver(subject, "msg-day7-redrive");
+
+		assert.equal(released?.trialDay7EmailSentAt, undefined);
+		assert.deepEqual(redriven, { batchItemFailures: [] });
+		assert.equal(email.getSentEmails().length, 1);
+	});
+
+	it("sends with exactly 48h05m of a shortened trial left", async () => {
+		const subject = buildSubject();
+		await subject.providers.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-11-15T00:05:00.000Z" });
+		await save(subject, { slug: "one", savedAt: hoursAfterSignup(1) });
+
+		await deliver(subject);
+
+		assert.equal(subject.email.getSentEmails().length, 1);
+	});
+
+	it("sends nothing with a millisecond less of a shortened trial left", async () => {
+		const subject = buildSubject();
+		await subject.providers.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-11-15T00:04:59.999Z" });
+		await save(subject, { slug: "one", savedAt: hoursAfterSignup(1) });
+
+		await deliver(subject);
+
+		assert.deepEqual(subject.email.getSentEmails(), []);
+		assert.equal((await subject.providers.findByUserId(USER_ID))?.trialDay7EmailSentAt, undefined);
 	});
 
 	it("carries an unsubscribe token the route accepts", async () => {

@@ -384,6 +384,19 @@ describe("initInMemoryTrialScheduler", () => {
 		});
 	});
 
+	it("deleteTrialNudgeSchedule removes that kind's schedule, idempotently", async () => {
+		const userId = UserIdSchema.parse("d".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+		await scheduler.createTrialNudgeSchedule({ userId, kind: "trial_day3", firesAt: "2026-07-08T00:00:00.000Z" });
+		await scheduler.createTrialNudgeSchedule({ userId, kind: "trial_day7", firesAt: "2026-07-12T00:00:00.000Z" });
+
+		await scheduler.deleteTrialNudgeSchedule({ userId, kind: "trial_day3" });
+		await assert.doesNotReject(scheduler.deleteTrialNudgeSchedule({ userId, kind: "trial_day3" }));
+
+		assert.equal(scheduler.getTrialNudgeSchedule({ userId, kind: "trial_day3" }), undefined);
+		assert.equal(scheduler.getTrialNudgeSchedule({ userId, kind: "trial_day7" }), "2026-07-12T00:00:00.000Z");
+	});
+
 	it("createTrialNudgeSchedule throws when configured to fail", async () => {
 		const userId = UserIdSchema.parse("d".repeat(32));
 		const scheduler = initInMemoryTrialScheduler({ createTrialNudgeFails: true });

@@ -3849,16 +3849,17 @@ Not sent when:
 
 - A card is on file: a card moves the row to active, so the guard logs `not-trialing`
 - The address is still unverified when the schedule fires: it logs `unverified`, and no later attempt follows
-- Each refusal logs `[send-trial-feedback-email] trial_day3 noop` with a `reason` of `not-trialing`, `unverified`, `opted-out`, `not-eligible` or `already-sent` `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:50`
+- Less than 48h05m of the trial remains, after an admin shortened the trial or a late redrive: Checkout would charge at once, so the guard logs `trial-end-not-preserved`
+- Each refusal logs `[send-trial-feedback-email] trial_day3 noop` with a `reason` of `not-trialing`, `trial-end-not-preserved`, `unverified`, `opted-out`, `not-eligible` or `already-sent` `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:50`
 - The trial was opened by reactivation or an admin extension: only a signup arms the schedule `projects/hutch/src/runtime/domain/trial/start-trial.ts:120`, and an extension does not clear the marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:55`
 
 **Timing:** One shot, 3 days after the trial starts: trial day 4 on the `lifecycle_email_sent` event.
 
-**If sending fails:** The marker is claimed before the send. A Resend error fails the SQS record on the queue the trial feedback request uses (section 8). The retry carries the same message id, so it reclaims its own marker and resends with the idempotency key `trial-day3-<userId>`. A different message finds the marker held and logs `already-sent`.
+**If sending fails:** The marker is claimed before the send. A Resend error releases the marker while this message still holds it, then fails the SQS record on the queue the trial feedback request uses (section 8). The retry or a later redrive under a new message id claims afresh and resends with the idempotency key `trial-day3-<userId>`. A different message that finds the marker held logs `already-sent`. A release that fails is logged and leaves the marker held, so a redrive logs `already-sent`. A send Resend accepted but answered with a 5xx is released too, so a redrive past Resend's 24-hour idempotency window sends a second copy.
 
 > **Observations**
 >
-> - Deleting an account does not delete this schedule. A later fire ends `not-trialing` once the row is gone, and the guards have no `deletedAt` check of their own `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts`
+> - Deleting an account deletes this schedule. A fire already in flight ends `not-trialing` once the row is gone, and the guards have no `deletedAt` check of their own `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts`
 > - The list stops at the newest 5 saves; the rest appear as 'and {rest} more in your readlist.' `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day3-email.ts:9`
 
 ### Message
@@ -4078,16 +4079,17 @@ Not sent when:
 
 - A card is on file: a card moves the row to active, so the guard logs `not-trialing`
 - The address is still unverified when the schedule fires: it logs `unverified`, and no later attempt follows
-- Each refusal logs `[send-trial-feedback-email] trial_day7 noop` with a `reason` of `not-trialing`, `unverified`, `opted-out`, `not-eligible` or `already-sent` `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:50`
+- Less than 48h05m of the trial remains, after an admin shortened the trial or a late redrive: Checkout would charge at once, so the guard logs `trial-end-not-preserved`
+- Each refusal logs `[send-trial-feedback-email] trial_day7 noop` with a `reason` of `not-trialing`, `trial-end-not-preserved`, `unverified`, `opted-out`, `not-eligible` or `already-sent` `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts:50`
 - The trial was opened by reactivation or an admin extension: only a signup arms the schedule `projects/hutch/src/runtime/domain/trial/start-trial.ts:120`, and an extension does not clear the marker `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:55`
 
 **Timing:** One shot, 7 days after the trial starts: trial day 8 on the `lifecycle_email_sent` event.
 
-**If sending fails:** The marker is claimed before the send. A Resend error fails the SQS record on the queue the trial feedback request uses (section 8). The retry carries the same message id, so it reclaims its own marker and resends with the idempotency key `trial-day7-<userId>`. A different message finds the marker held and logs `already-sent`.
+**If sending fails:** The marker is claimed before the send. A Resend error releases the marker while this message still holds it, then fails the SQS record on the queue the trial feedback request uses (section 8). The retry or a later redrive under a new message id claims afresh and resends with the idempotency key `trial-day7-<userId>`. A different message that finds the marker held logs `already-sent`. A release that fails is logged and leaves the marker held, so a redrive logs `already-sent`. A send Resend accepted but answered with a 5xx is released too, so a redrive past Resend's 24-hour idempotency window sends a second copy.
 
 > **Observations**
 >
-> - Deleting an account does not delete this schedule. A later fire ends `not-trialing` once the row is gone, and the guards have no `deletedAt` check of their own `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts`
+> - Deleting an account deletes this schedule. A fire already in flight ends `not-trialing` once the row is gone, and the guards have no `deletedAt` check of their own `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-nudge.ts`
 > - Only reads inside the first 7 days count toward the read total `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-day7-email.ts:32`
 
 ### Message

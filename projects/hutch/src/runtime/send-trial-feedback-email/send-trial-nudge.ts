@@ -8,8 +8,10 @@ import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	ClaimTrialNudge,
 	FindSubscriptionByUserId,
+	ReleaseTrialNudge,
 } from "@packages/provider-contracts/subscription-providers";
 import type { TrialNudgeKind } from "@packages/provider-contracts/trial-scheduler";
+import { trialEndToPreserve } from "../domain/stripe/stripe-trial-config";
 import { trialDayOf } from "../domain/trial/trial-day";
 import type { EmitLifecycleEmailSent } from "../observability/lifecycle-email-events";
 import type { TrialNudgeEmail } from "../web/auth/trial-nudge-email";
@@ -28,6 +30,7 @@ export interface TrialNudgeDeps {
 	findUserContactByUserId: FindUserContactByUserId;
 	findArticlesByUser: FindArticlesByUser;
 	claimTrialNudge: ClaimTrialNudge;
+	releaseTrialNudge: ReleaseTrialNudge;
 	signUnsubscribeToken: (userId: UserId) => string;
 	sendEmail: SendEmail;
 	appOrigin: string;
@@ -56,6 +59,7 @@ export async function sendTrialNudge(
 	if (row?.status !== "trialing") return skip("not-trialing");
 	assert(row.trialEndsAt, "a trialing row must carry trialEndsAt");
 	if (Date.parse(row.trialEndsAt) <= now.getTime()) return skip("not-trialing");
+	if (trialEndToPreserve({ row, now }) === undefined) return skip("trial-end-not-preserved");
 
 	const contact = await deps.findUserContactByUserId(userId);
 	if (!contact?.emailVerified) return skip("unverified");
@@ -67,17 +71,24 @@ export async function sendTrialNudge(
 	const claim = await deps.claimTrialNudge({ userId, kind, messageId, now });
 	if (!claim.claimed) return skip("already-sent");
 
-	await deps.sendEmail({
-		to: contact.email,
-		from: TRIAL_NUDGE_FROM,
-		replyTo: TRIAL_NUDGE_REPLY_TO,
-		bcc: copy.bcc,
-		subject: email.subject,
-		html: email.to("text/html"),
-		text: email.to("text/plain"),
-		headers: email.headers,
-		idempotencyKey: `${copy.label}-${userId}`,
-	});
+	try {
+		await deps.sendEmail({
+			to: contact.email,
+			from: TRIAL_NUDGE_FROM,
+			replyTo: TRIAL_NUDGE_REPLY_TO,
+			bcc: copy.bcc,
+			subject: email.subject,
+			html: email.to("text/html"),
+			text: email.to("text/plain"),
+			headers: email.headers,
+			idempotencyKey: `${copy.label}-${userId}`,
+		});
+	} catch (error) {
+		await deps.releaseTrialNudge({ userId, kind, messageId }).catch((releaseError: unknown) => {
+			deps.logger.error(`[send-trial-feedback-email] ${kind} release failed`, { userId, messageId, error: releaseError });
+		});
+		throw error;
+	}
 	deps.emitLifecycleEmailSent({
 		userId,
 		kind: copy.label,

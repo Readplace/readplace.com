@@ -131,6 +131,12 @@ export type ClaimTrialNudge = (input: {
 	now: Date;
 }) => Promise<{ claimed: true } | { claimed: false }>;
 
+export type ReleaseTrialNudge = (input: {
+	userId: UserId;
+	kind: TrialNudgeKind;
+	messageId: string;
+}) => Promise<void>;
+
 export type RecordFounderNote = (input: {
 	userId: UserId;
 	sentAt: string;

@@ -7,6 +7,7 @@ import {
 import {
 	type ClaimPayDigest,
 	type ClaimTrialNudge,
+	type ReleaseTrialNudge,
 	type DeleteSubscription,
 	type MarkAutomationSavesHeldEmailSent,
 	type MarkSubscriptionActive,
@@ -42,6 +43,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	claimPayDigest: ClaimPayDigest;
 	releasePayDigest: ReleasePayDigest;
 	claimTrialNudge: ClaimTrialNudge;
+	releaseTrialNudge: ReleaseTrialNudge;
 	recordFounderNote: RecordFounderNote;
 	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
@@ -263,6 +265,21 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		return { claimed: true };
 	};
 
+	const releaseTrialNudge: ReleaseTrialNudge = async ({ userId, kind, messageId }) => {
+		const marker = TRIAL_NUDGE_MARKERS[kind];
+		try {
+			await table.update({
+				Key: { userId },
+				UpdateExpression: `REMOVE ${marker.sentAt}, ${marker.messageId}`,
+				ConditionExpression: `${marker.messageId} = :mid`,
+				ExpressionAttributeValues: { ":mid": messageId },
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
+	};
+
 	const recordFounderNote: RecordFounderNote = async ({ userId, sentAt }) => {
 		await table.update({
 			Key: { userId },
@@ -318,6 +335,7 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		claimPayDigest,
 		releasePayDigest,
 		claimTrialNudge,
+		releaseTrialNudge,
 		recordFounderNote,
 		setNextCharge,
 		deleteSubscription,

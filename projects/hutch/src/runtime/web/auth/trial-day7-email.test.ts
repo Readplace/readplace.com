@@ -4,7 +4,6 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import { EMAIL_POSTAL_ADDRESS } from "../email-copy";
 import { RENEWAL_PRICES } from "../price-statement";
 import { KEEP_READPLACE_LABEL, UNSUBSCRIBE_LABEL } from "../queue-digest-email";
-import { buildOwnerReaderPath } from "../pages/readlist/owner-reader-link";
 import { TrialDay7Email } from "./trial-day7-email";
 
 const APP_ORIGIN = "https://readplace.com";
@@ -32,7 +31,7 @@ function bodyOf(html: string) {
 	return { document, text: text.replace(/\s+/g, " ").trim() };
 }
 
-const ARTICLE_URL = `${APP_ORIGIN}${buildOwnerReaderPath(FIRST_ID)}&${TRACKING}&utm_content=article`;
+const ARTICLE_URL = `${APP_ORIGIN}/queue/${FIRST_ID.value}/view?from=day7-email&${TRACKING}&utm_content=article`;
 const READLIST_URL = `${APP_ORIGIN}/queue?${TRACKING}&utm_content=readlist`;
 const KEEP_URL = `${APP_ORIGIN}/account/plans?${TRACKING}&utm_content=keep`;
 const UNSUBSCRIBE_URL = `${APP_ORIGIN}/email/queue-digest/unsubscribe?t=${encodeURIComponent(TOKEN)}&kind=trial-day7`;

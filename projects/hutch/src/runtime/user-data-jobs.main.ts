@@ -277,6 +277,7 @@ export const handler = initHandleByDetailType({
 				deleteTrialFeedbackEmailSchedule: trialScheduler.deleteTrialFeedbackEmailSchedule,
 				deleteTrialReminderSchedule: trialScheduler.deleteTrialReminderSchedule,
 				deleteChargeReminderSchedule: trialScheduler.deleteChargeReminderSchedule,
+				deleteTrialNudgeSchedule: trialScheduler.deleteTrialNudgeSchedule,
 				listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 				deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
 				deleteAllInboxLinks: inboxEmailLink.deleteAllLinksByUserId,

@@ -374,6 +374,43 @@ describe("resolveReaderPermalink", () => {
 		});
 	});
 
+	it.each(["day3-email", "day7-email"])("sends a logged-out reader of a %s link to login and back", async (marker) => {
+		const resolve = initReaderPermalink(createDeps());
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: undefined,
+			query: { from: marker },
+		});
+
+		expect(result).toEqual({
+			kind: "redirect",
+			redirect: {
+				statusCode: 303,
+				location: `/login?return=${encodeURIComponent(`/queue/${ARTICLE_ID.value}/view?from=${marker}`)}`,
+			},
+		});
+	});
+
+	it.each(["day3-email", "day7-email"])("strips the %s marker for a logged-in owner", async (marker) => {
+		const owned = savedArticleFor(OWNER_ID);
+		const resolve = initReaderPermalink(createDeps({
+			findArticleById: async (id, userId) =>
+				id.value === ARTICLE_ID.value && userId === OWNER_ID ? owned : null,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: OWNER_ID,
+			query: { from: marker },
+		});
+
+		expect(result).toEqual({
+			kind: "redirect",
+			redirect: { statusCode: 303, location: `/queue/${ARTICLE_ID.value}/view` },
+		});
+	});
+
 	it("strips the MCP marker for a logged-in owner while retaining its readlist", async () => {
 		const owned = savedArticleFor(OWNER_ID);
 		const resolve = initReaderPermalink(createDeps({

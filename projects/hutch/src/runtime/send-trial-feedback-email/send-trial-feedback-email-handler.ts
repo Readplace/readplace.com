@@ -14,6 +14,7 @@ import type { FindArticlesByUser } from "@packages/provider-contracts/article-st
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	ClaimTrialNudge,
+	ReleaseTrialNudge,
 	FindSubscriptionByUserId,
 	MarkAutomationSavesHeldEmailSent,
 	MarkTrialFeedbackEmailSent,
@@ -62,6 +63,7 @@ export interface SendTrialFeedbackEmailDeps {
 	markTrialReminderEmailSent: MarkTrialReminderEmailSent;
 	markAutomationSavesHeldEmailSent: MarkAutomationSavesHeldEmailSent;
 	claimTrialNudge: ClaimTrialNudge;
+	releaseTrialNudge: ReleaseTrialNudge;
 	findUserContactByUserId: FindUserContactByUserId;
 	signUnsubscribeToken: (userId: UserId) => string;
 	sendEmail: SendEmail;

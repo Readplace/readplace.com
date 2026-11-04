@@ -3,6 +3,7 @@ import type { UserId } from "@packages/domain/user";
 import {
 	type ClaimPayDigest,
 	type ClaimTrialNudge,
+	type ReleaseTrialNudge,
 	type DeleteSubscription,
 	type FindSubscriptionBySubscriptionId,
 	type FindSubscriptionByUserId,
@@ -53,6 +54,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	claimPayDigest: ClaimPayDigest;
 	releasePayDigest: ReleasePayDigest;
 	claimTrialNudge: ClaimTrialNudge;
+	releaseTrialNudge: ReleaseTrialNudge;
 	recordFounderNote: RecordFounderNote;
 	setNextCharge: SetSubscriptionNextCharge;
 	deleteSubscription: DeleteSubscription;
@@ -248,6 +250,14 @@ export function initInMemorySubscriptionProviders(opts: {
 		return { claimed: true };
 	};
 
+	const releaseTrialNudge: ReleaseTrialNudge = async ({ userId, kind, messageId }) => {
+		const marker = TRIAL_NUDGE_MARKERS[kind];
+		const existing = rows.get(userId);
+		if (!existing || existing[marker.messageId] !== messageId) return;
+		const { [marker.sentAt]: _sentAt, [marker.messageId]: _messageId, ...rest } = existing;
+		rows.set(userId, rest);
+	};
+
 	const recordFounderNote: RecordFounderNote = async ({ userId, sentAt }) => {
 		const existing = rows.get(userId);
 		assert(existing, `No subscription row for user ${userId}`);
@@ -306,6 +316,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		claimPayDigest,
 		releasePayDigest,
 		claimTrialNudge,
+		releaseTrialNudge,
 		recordFounderNote,
 		setNextCharge,
 		deleteSubscription,

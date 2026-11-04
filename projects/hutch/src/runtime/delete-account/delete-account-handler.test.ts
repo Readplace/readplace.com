@@ -46,6 +46,7 @@ import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/
 import { GmailAccountEmailSchema, ForwardableSenderSchema, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
 import { initInMemoryEmailIdentity } from "@packages/test-fixtures/providers/email-identity";
 import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
+import type { TrialNudgeKind } from "@packages/provider-contracts/trial-scheduler";
 
 const SEED_NOW = new Date("2026-07-05T00:00:00.000Z");
 const COOLDOWN_MS = 1000 * 60 * 60 * 24 * 365;
@@ -88,6 +89,7 @@ function buildSubject() {
 	const trialFeedbackCalls: UserId[] = [];
 	const trialReminderCalls: UserId[] = [];
 	const chargeReminderCalls: UserId[] = [];
+	const trialNudgeCalls: { userId: UserId; kind: TrialNudgeKind }[] = [];
 	const rawEmailDeleteArgs: string[][] = [];
 	const rawEmailPrefixDeleteArgs: string[][] = [];
 	const bodyEmailDeleteArgs: string[][] = [];
@@ -190,6 +192,9 @@ function buildSubject() {
 		},
 		deleteChargeReminderSchedule: async ({ userId }: { userId: UserId }) => {
 			chargeReminderCalls.push(userId);
+		},
+		deleteTrialNudgeSchedule: async (input: { userId: UserId; kind: TrialNudgeKind }) => {
+			trialNudgeCalls.push(input);
 		},
 		listInboxDeletionReferences: inboxEmail.listDeletionReferencesByUserId,
 		deleteAllInboxEmails: inboxEmail.deleteAllEmailsByUserId,
@@ -300,6 +305,7 @@ function buildSubject() {
 		trialFeedbackCalls,
 		trialReminderCalls,
 		chargeReminderCalls,
+		trialNudgeCalls,
 		rawEmailDeleteArgs,
 		rawEmailPrefixDeleteArgs,
 		bodyEmailDeleteArgs,
@@ -782,6 +788,10 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
 		assert.deepEqual(s.trialReminderCalls, [account.userId]);
 		assert.deepEqual(s.chargeReminderCalls, [account.userId]);
+		assert.deepEqual(s.trialNudgeCalls, [
+			{ userId: account.userId, kind: "trial_day3" },
+			{ userId: account.userId, kind: "trial_day7" },
+		]);
 	});
 
 	it("founding-member branch — no subscription row, so no billing calls, but the schedules are still deleted", async () => {
@@ -802,6 +812,10 @@ describe("delete-account handler", () => {
 		assert.deepEqual(s.trialFeedbackCalls, [account.userId]);
 		assert.deepEqual(s.trialReminderCalls, [account.userId]);
 		assert.deepEqual(s.chargeReminderCalls, [account.userId]);
+		assert.deepEqual(s.trialNudgeCalls, [
+			{ userId: account.userId, kind: "trial_day3" },
+			{ userId: account.userId, kind: "trial_day7" },
+		]);
 	});
 
 	it("a wedge before closeUserAccount keeps the lapsed subscription row, so a still-loginable account is not promoted to founding member", async () => {

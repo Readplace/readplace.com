@@ -533,6 +533,40 @@ describe("initInMemorySubscriptionProviders", () => {
 			assert.equal((await subs.findByUserId(userId))?.trialDay7EmailMessageId, "msg-1");
 		});
 
+		it("releaseTrialNudge clears the claim this message holds, so another message can claim", async () => {
+			const subs = initTrialing();
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-1", now: claimedAt });
+
+			await subs.releaseTrialNudge({ userId, kind: "trial_day3", messageId: "msg-1" });
+
+			const released = await subs.findByUserId(userId);
+			assert.equal(released?.trialDay3EmailSentAt, undefined);
+			assert.equal(released?.trialDay3EmailMessageId, undefined);
+			assert.deepEqual(
+				await subs.claimTrialNudge({ userId, kind: "trial_day3", messageId: "msg-2", now: claimedAt }),
+				{ claimed: true },
+			);
+		});
+
+		it("releaseTrialNudge leaves a claim another message holds", async () => {
+			const subs = initTrialing();
+			await subs.upsertTrialing({ userId, trialEndsAt });
+			await subs.claimTrialNudge({ userId, kind: "trial_day7", messageId: "msg-1", now: claimedAt });
+
+			await subs.releaseTrialNudge({ userId, kind: "trial_day7", messageId: "msg-2" });
+
+			assert.equal((await subs.findByUserId(userId))?.trialDay7EmailMessageId, "msg-1");
+		});
+
+		it("releaseTrialNudge is a no-op for a user with no subscription row", async () => {
+			const subs = initTrialing();
+
+			await subs.releaseTrialNudge({ userId, kind: "trial_day3", messageId: "msg-1" });
+
+			assert.equal(await subs.findByUserId(userId), undefined);
+		});
+
 		it("re-claims for the same message, so a redelivery after a failed send retries", async () => {
 			const subs = initTrialing();
 			await subs.upsertTrialing({ userId, trialEndsAt });

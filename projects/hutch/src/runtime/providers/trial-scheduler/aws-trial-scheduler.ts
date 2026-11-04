@@ -13,6 +13,7 @@ import type {
 	CreateTrialNudgeSchedule,
 	CreateTrialReminderSchedule,
 	DeleteChargeReminderSchedule,
+	DeleteTrialNudgeSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
@@ -85,6 +86,7 @@ export function initAwsTrialScheduler(deps: {
 	createTrialNudgeSchedule: CreateTrialNudgeSchedule;
 	createChargeReminderSchedule: CreateChargeReminderSchedule;
 	deleteChargeReminderSchedule: DeleteChargeReminderSchedule;
+	deleteTrialNudgeSchedule: DeleteTrialNudgeSchedule;
 } {
 	const createTrialEndSchedule: CreateTrialEndSchedule = async ({ userId, firesAt }) => {
 		assert(deps.eventBusArn, "eventBusArn is required for createTrialEndSchedule");
@@ -350,6 +352,22 @@ export function initAwsTrialScheduler(deps: {
 		}
 	};
 
+	const deleteTrialNudgeSchedule: DeleteTrialNudgeSchedule = async ({ userId, kind }) => {
+		try {
+			await deps.client.send(
+				new DeleteScheduleCommand({
+					Name: trialNudgeScheduleName({ userId, kind }),
+					GroupName: deps.scheduleGroupName,
+				}),
+			);
+		} catch (err) {
+			if (err instanceof Error && err.name === "ResourceNotFoundException") {
+				return;
+			}
+			throw err;
+		}
+	};
+
 	return {
 		createTrialEndSchedule,
 		deleteTrialEndSchedule,
@@ -362,5 +380,6 @@ export function initAwsTrialScheduler(deps: {
 		createTrialNudgeSchedule,
 		createChargeReminderSchedule,
 		deleteChargeReminderSchedule,
+		deleteTrialNudgeSchedule,
 	};
 }

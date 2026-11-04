@@ -1,7 +1,7 @@
 import type { ReaderArticleHashId } from "@packages/domain/article";
 import { EMAIL_CLICK_MEDIUM } from "@packages/web-analytics";
 import { ACCOUNT_PLANS_URL } from "../pages/account/account.url";
-import { buildOwnerReaderPath } from "../pages/readlist/owner-reader-link";
+import { buildTrialNudgeReaderPath, type TrialNudgeMarker } from "../pages/readlist/owner-reader-link";
 import { listUnsubscribeHeaders, unsubscribeUrlFor } from "../queue-digest-email";
 
 const TRIAL_NUDGE_CAMPAIGN = "trial-keep";
@@ -21,7 +21,7 @@ export interface TrialNudgeEmail {
 }
 
 export function trialNudgeLinks(input: {
-	source: "day3-email" | "day7-email";
+	source: TrialNudgeMarker;
 	unsubscribeKind: "trial-day3" | "trial-day7";
 	appOrigin: string;
 	unsubscribeToken: string;
@@ -42,7 +42,7 @@ export function trialNudgeLinks(input: {
 	return {
 		to: (path: string, content: string): string => tracked(new URL(path, input.appOrigin), content),
 		article: (articleId: ReaderArticleHashId): string =>
-			tracked(new URL(buildOwnerReaderPath(articleId), input.appOrigin), "article"),
+			tracked(new URL(buildTrialNudgeReaderPath(articleId, input.source), input.appOrigin), "article"),
 		keep: (): string => tracked(new URL(ACCOUNT_PLANS_URL, input.appOrigin), "keep"),
 		unsubscribe: (): string => tracked(unsubscribeUrl, "unsubscribe"),
 		headers: listUnsubscribeHeaders(unsubscribeUrl),

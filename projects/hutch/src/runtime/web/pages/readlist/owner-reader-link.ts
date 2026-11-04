@@ -8,7 +8,10 @@ import type { Request } from "express";
 const MARKER_KEY = "from";
 const MARKER_VALUE = "reader-ready-email";
 const MCP_MARKER_VALUE = "mcp";
-const OWNER_LOGIN_MARKERS = new Set([MARKER_VALUE, MCP_MARKER_VALUE]);
+const TRIAL_NUDGE_MARKER_VALUES = ["day3-email", "day7-email"] as const;
+const OWNER_LOGIN_MARKERS = new Set<string>([MARKER_VALUE, MCP_MARKER_VALUE, ...TRIAL_NUDGE_MARKER_VALUES]);
+
+export type TrialNudgeMarker = (typeof TRIAL_NUDGE_MARKER_VALUES)[number];
 
 /** The clean, shareable reader permalink — no email marker. */
 function readerPermalinkPath(articleId: ReaderArticleHashId | string): string {
@@ -25,6 +28,11 @@ export function buildOwnerReaderPath(
 		params.set("queue", context.readlist);
 		params.set("campaign", context.campaignId);
 	}
+	return `${readerPermalinkPath(articleId)}?${params.toString()}`;
+}
+
+export function buildTrialNudgeReaderPath(articleId: ReaderArticleHashId, marker: TrialNudgeMarker): string {
+	const params = new URLSearchParams([[MARKER_KEY, marker]]);
 	return `${readerPermalinkPath(articleId)}?${params.toString()}`;
 }
 

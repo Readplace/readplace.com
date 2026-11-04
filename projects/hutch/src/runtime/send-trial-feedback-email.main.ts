@@ -59,6 +59,7 @@ export const handler = initSendTrialFeedbackEmailHandler({
 	markTrialReminderEmailSent: subscriptionProviders.markTrialReminderEmailSent,
 	markAutomationSavesHeldEmailSent: subscriptionProviders.markAutomationSavesHeldEmailSent,
 	claimTrialNudge: subscriptionProviders.claimTrialNudge,
+	releaseTrialNudge: subscriptionProviders.releaseTrialNudge,
 	findUserContactByUserId: auth.findUserContactByUserId,
 	signUnsubscribeToken: initQueueDigestUnsubscribeToken(requireEnv("ANALYTICS_SALT")).sign,
 	sendEmail,

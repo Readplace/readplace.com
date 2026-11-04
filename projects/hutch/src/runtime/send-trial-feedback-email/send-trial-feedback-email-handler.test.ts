@@ -97,6 +97,7 @@ function buildSubject(overrides: SubjectOverrides = {}) {
 		markAutomationSavesHeldEmailSent:
 			overrides.markAutomationSavesHeldEmailSent ?? providers.markAutomationSavesHeldEmailSent,
 		claimTrialNudge: providers.claimTrialNudge,
+		releaseTrialNudge: providers.releaseTrialNudge,
 		findUserContactByUserId: async () => null,
 		signUnsubscribeToken: () => "signed-token",
 		sendEmail: overrides.sendEmail ?? email.sendEmail,
@@ -458,6 +459,7 @@ describe("send-trial-feedback-email handler", () => {
 			markTrialReminderEmailSent: providers.markTrialReminderEmailSent,
 			markAutomationSavesHeldEmailSent: providers.markAutomationSavesHeldEmailSent,
 			claimTrialNudge: providers.claimTrialNudge,
+			releaseTrialNudge: providers.releaseTrialNudge,
 			findUserContactByUserId: async () => null,
 			signUnsubscribeToken: () => "signed-token",
 			sendEmail: async () => {

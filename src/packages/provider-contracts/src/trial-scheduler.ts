@@ -55,3 +55,8 @@ export type CreateTrialNudgeSchedule = (input: {
 	kind: TrialNudgeKind;
 	firesAt: string;
 }) => Promise<void>;
+
+export type DeleteTrialNudgeSchedule = (input: {
+	userId: UserId;
+	kind: TrialNudgeKind;
+}) => Promise<void>;
