@@ -3,6 +3,7 @@ import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { SAVE_REFUSAL_CODES } from "@packages/web-analytics";
 import { tagSaveRefusal } from "../../shared/save-refusal";
+import { megabytesLabel } from "../../shared/bytes-to-mb";
 
 /**
  * Translates body-parser `entity.too.large` errors on the multipart
@@ -18,7 +19,7 @@ export function initSaveArticlesLimitHandler(deps: {
 	maxBytes: number;
 }): ErrorRequestHandler {
 	const { maxBytes } = deps;
-	const label = `${Math.round((maxBytes / (1024 * 1024)) * 10) / 10} MB`;
+	const label = megabytesLabel(maxBytes);
 	return (err, req, res, next) => {
 		if (
 			typeof err === "object" &&

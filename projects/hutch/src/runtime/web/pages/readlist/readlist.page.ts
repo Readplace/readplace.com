@@ -190,7 +190,7 @@ import { buildQueryString } from "../../api/collection-query";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toArticleSubEntity, toSavedArticleEntity } from "../../api/article-siren";
 import { readlistHref, readlistsAtHrefs } from "../../api/readlist-href";
-import { bytesToMb } from "../../shared/bytes-to-mb";
+import { megabytesLabel } from "../../shared/bytes-to-mb";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
 import { saveQueuedSirenNotice } from "../../api/save-queued-siren";
 import {
@@ -2808,7 +2808,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						return;
 					}
 					if (stat.byteLength > target.media.uploadCeilingBytes) {
-						refuse(`Content upload exceeded ${bytesToMb(target.media.uploadCeilingBytes)} MB`, "content-too-large");
+						refuse(`Content upload exceeded ${megabytesLabel(target.media.uploadCeilingBytes)}`, "content-too-large");
 						return;
 					}
 					const ageSeconds = (deps.now().getTime() - stat.lastModified.getTime()) / 1000;
@@ -2838,7 +2838,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 					const target = resolveTarget(deps.validateNewSaveUrl);
 					if (!target) return;
 					if (size > target.media.uploadCeilingBytes) {
-						refuse(`Content upload exceeded ${bytesToMb(target.media.uploadCeilingBytes)} MB`, "content-too-large");
+						refuse(`Content upload exceeded ${megabytesLabel(target.media.uploadCeilingBytes)}`, "content-too-large");
 						return;
 					}
 					const identity = await deps.resolveSaveIdentity(target.articleUrl);

@@ -15,7 +15,7 @@ import { ACTIVE_TTL_SECONDS, IDLE_TTL_SECONDS } from "../../../providers/oauth/d
 import { AGENT_SCOPES_SUPPORTED } from "../../agent-auth";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { REFRESH_TOKEN_LIFETIME_SECONDS } from "../../oauth/oauth.routes";
-import { bytesToMb } from "../../shared/bytes-to-mb";
+import { megabytesLabel } from "../../shared/bytes-to-mb";
 
 import { DEVELOPERS_STYLES } from "./developers.styles";
 
@@ -35,10 +35,6 @@ const CONTENT_CAPTURE_CLIENTS = ADVERTISED_CLIENTS.flatMap((client) =>
 
 const SECONDS_PER_HOUR = 60 * 60;
 const SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR;
-
-function megabytes(bytes: number): string {
-	return `${bytesToMb(bytes)} MB`;
-}
 
 export function DevelopersPage(): PageBody {
 	return {
@@ -73,10 +69,10 @@ export function DevelopersPage(): PageBody {
 				refreshTokenDays: REFRESH_TOKEN_LIFETIME_SECONDS / SECONDS_PER_DAY,
 				readlistLimit: READLIST_MAX_PER_USER,
 				readlistNameLimit: READLIST_LABEL_MAX_LENGTH,
-				inlineFileLimit: megabytes(MAX_UPLOAD_CONTENT_BYTES),
-				requestLimit: megabytes(MAX_UPLOAD_REQUEST_BYTES),
+				inlineFileLimit: megabytesLabel(MAX_UPLOAD_CONTENT_BYTES),
+				requestLimit: megabytesLabel(MAX_UPLOAD_REQUEST_BYTES),
 				bulkPageCount: MAX_PAGES_PER_BULK_SAVE,
-				bulkPageLimit: megabytes(MAX_BULK_PAGE_CONTENT_BYTES),
+				bulkPageLimit: megabytesLabel(MAX_BULK_PAGE_CONTENT_BYTES),
 				pdfUploadLimit: MAX_PDF_BYTES.label,
 				htmlUploadLimit: MAX_HTML_BYTES.label,
 			}),
