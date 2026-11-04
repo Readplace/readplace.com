@@ -15,11 +15,11 @@ import { initGenerateSummaryHandler } from "../generate-summary/generate-summary
 import { initRunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { initCanonicalContentChangedHandler } from "../save-link/canonical-content-changed-handler";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import { initLinkSummariser, type SummarizeArticle } from "../generate-summary/link-summariser";
 import { stripHtml } from "../generate-summary/strip-html";
 import { sampleSectionsForSummary } from "../generate-summary/sample-sections";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import type { FindArticleContent } from "../save-link/article-content.types";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import type { Handler, SQSBatchResponse, SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";

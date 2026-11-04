@@ -11,7 +11,7 @@ import {
 } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
+import type { RecordGmailDiagnostic } from "./gmail-diagnostic.types";
 import type { GmailHistoryImport, GmailHistoryImportPage } from "./gmail-history-import";
 import { type GmailImportRecordIdentity, type GmailImportRecordTrace, startGmailImportRecordTrace } from "./gmail-import-record-trace";
 

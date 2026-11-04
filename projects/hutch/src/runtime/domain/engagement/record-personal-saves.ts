@@ -12,7 +12,7 @@ import type { RecordEngagementActivity } from "@packages/provider-contracts/enga
 import {
 	type ActivationThresholdReachedEvent,
 	buildActivationThresholdReachedEvent,
-} from "../../observability/funnel-events";
+} from "./funnel-events";
 import { isIntentionalSave } from "./intentional-save";
 
 export function initRecordPersonalSaves(deps: {

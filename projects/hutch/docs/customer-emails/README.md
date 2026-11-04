@@ -9,7 +9,7 @@ Each email's conditions were traced through the code with `path:line` citations,
 ## How every email is delivered
 
 - All of these emails are sent by the `hutch` project through Resend (`projects/hutch/src/runtime/providers/email/resend-email.ts:8`). Resend authenticates on the `send.readplace.com` envelope subdomain; its SPF, MX and DKIM records are managed in Resend, outside Pulumi (`projects/hutch/src/infra/outbound-mail-auth.ts:15`).
-- Every production entry point wraps Resend in a filter that silently drops any message whose To address is at example.com, example.net or example.org, or under a .test, .example, .invalid or .localhost domain. The Bcc copy is dropped with it (`projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`).
+- Every production entry point wraps Resend in a filter that silently drops any message whose To address is at example.com, example.net or example.org, or under a .test, .example, .invalid or .localhost domain. The Bcc copy is dropped with it (`projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`).
 - With `PERSISTENCE=development` the local dev server logs each message instead of sending it (`projects/hutch/src/runtime/providers/dev-providers.ts:544`); with `PERSISTENCE=prod` it uses the production providers and sends through Resend (`projects/hutch/src/runtime/dev-app.ts:15`). Staging runs the same code and sends real email through Resend, with links on `https://readplace-staging.com`.
 - The account emails (email verification, welcome, password reset) and the trial day-3 and day-7 emails come from `Fayner from Readplace <fayner@readplace.com>`; every other email comes from `Readplace <readplace@readplace.com>`, the support address. Replies reach `fayner@readplace.com`, a Google Workspace mailbox: through Reply-To on every email that sets one, which is every email except email verification and password reset, and through the From address on those two.
 - Eleven emails Bcc an internal archive address of the form `readplace+<tag>@readplace.com`. The readlist digest, the trial-ending digest, the Hacker News starter email, the data export email and the Gmail newsletter notice have no Bcc.
@@ -83,7 +83,7 @@ Not sent when:
 - Google and Apple sign-ups never get it: their accounts are created already verified and receive the welcome email instead `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:266`
 - Returning from Stripe checkout creates no account and sends no verification email `projects/hutch/src/runtime/web/auth/auth.page.ts:454`
 - A failure after the account is created but before the send (writing the trial on the trial branch, or creating the session) returns a 500 with the account already in place; retrying the form only signs the visitor in, so that account never gets the email `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
-- In production, a `to` address at example.com, example.net or example.org, or ending in .test, .example, .invalid or .localhost, is dropped with a warning log `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
+- In production, a `to` address at example.com, example.net or example.org, or ending in .test, .example, .invalid or .localhost, is dropped with a warning log `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 - There is no once-only marker and no opt-out: the email is transactional and goes out at most once per account because only the request that creates the account sends it `projects/hutch/src/runtime/web/auth/auth.page.ts:381`
 
 **Timing:** Immediately, during the POST /signup request, with no delay, schedule or queue. The link works once and expires exactly 7 days (168 hours) after it is created, and an account still unverified 7 days after signup is locked for new saves.
@@ -95,7 +95,7 @@ Not sent when:
 - A Gmail address that is a dotted, +tagged or googlemail.com spelling of a mailbox that already has an account passes the lookup but loses the mailbox uniqueness claim, so the visitor sees "already registered" and gets no email `src/packages/domain/src/user/email.ts:68`
 - The email goes to the address with the casing the visitor typed, while the account is stored lowercased and trimmed `projects/hutch/src/runtime/web/auth/auth.page.ts:174`
 - When two signups for the same address race, the one that loses the conditional write takes the existing-account path and gets no email `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:180`
-- The reserved-domain filter checks only the `to` address, and only the exact apex domains and the last label, so an address at mail.example.com is still sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
+- The reserved-domain filter checks only the `to` address, and only the exact apex domains and the last label, so an address at mail.example.com is still sent `projects/hutch/src/runtime/domain/email/reserved-domain.ts:17`
 - If counting users fails, the count is treated as 0, so the signup takes the founding-member (free) branch and the email is still sent `projects/hutch/src/runtime/web/auth/fetch-user-count.ts:14`
 - The user count behind the branch choice is cached for 60 seconds in production `projects/hutch/src/runtime/app.ts:76`
 - Requests on hutch-app.com are redirected with a 301 to readplace.com before the signup route runs `projects/hutch/src/runtime/server.ts:582`
@@ -242,7 +242,7 @@ Not sent when:
 - A banned IP gets a 403 before any signup, verification or sign-in route runs `projects/hutch/src/runtime/web/middleware/ban.ts:28`
 - A Google or Apple sign-in that fails (state mismatch, started more than 5 minutes ago, failed code exchange, unverified provider email) or an Apple cancel creates no account and sends nothing `projects/hutch/src/runtime/web/auth/google-auth.page.ts:165`
 - Once the account-deletion worker has run for a deleted account, its verification link no longer works and sends nothing `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:200`
-- In production, a recipient at example.com, example.net or example.org, or at a .test, .example, .invalid or .localhost domain, has the whole message dropped, bcc copy included, with the log '[email] reserved recipient domain — not sent' `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:33`
+- In production, a recipient at example.com, example.net or example.org, or at a .test, .example, .invalid or .localhost domain, has the whole message dropped, bcc copy included, with the log '[email] reserved recipient domain — not sent' `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:14`
 
 **Timing:** Immediate, during the HTTP request, with nothing scheduled: email+password accounts get it when the verification link is first opened, from seconds up to 7 days (168 hours) after signup. Google and Apple accounts get it during the sign-in callback that creates the account, before the redirect.
 
@@ -257,7 +257,7 @@ Not sent when:
 - Store failure during email+password signup: if starting the trial or creating the session throws after the account row is written, no verification mail goes out and the account can never be welcomed `projects/hutch/src/runtime/web/auth/auth.page.ts:415`
 - Store failure during Google or Apple signup: if starting the trial or creating the session throws after the account row is written, the request fails before the send and a retry signs in as an existing account, so no welcome `projects/hutch/src/runtime/web/auth/google-auth.page.ts:272`
 - Errors after the send (marking the browser session verified, building the page banner) can return a 500 on the verify page even though the welcome already went out `projects/hutch/src/runtime/web/auth/auth.page.ts:611`
-- Reserved-domain matching is exact for example.com, example.net and example.org, so subdomains such as mail.example.com are still sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
+- Reserved-domain matching is exact for example.com, example.net and example.org, so subdomains such as mail.example.com are still sent `projects/hutch/src/runtime/domain/email/reserved-domain.ts:17`
 - Environments: the local dev server with PERSISTENCE=development logs the full message instead of sending it; with PERSISTENCE=prod it uses the production providers and sends real mail through Resend `projects/hutch/src/runtime/dev-app.ts:15`
 - Native apps: the iOS and Android Sign up and Login screens open /oauth/authorize, which sends a signed-out user to /signup or /login, so app signups follow the same web paths `projects/hutch/src/runtime/web/oauth/oauth.routes.ts:253`
 - Production picks the founding member or trial branch from a user count cached for 60 seconds, falling back to 0 (founding member) if counting fails; the welcome is identical either way `projects/hutch/src/runtime/app.ts:76`
@@ -451,7 +451,7 @@ Sent only when:
 - The visitor's IP address has had fewer than 5 requests allowed on this form in the current UTC clock hour (production setting 5/3600) `projects/hutch/Pulumi.prod.yaml:57`
 - The entered value is a valid email address `projects/hutch/src/runtime/web/auth/auth.schema.ts:21`
 - A Readplace account exists whose stored email equals the entered address once lower-cased; password, Google-only, Apple-only and unverified accounts all qualify `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:414`
-- The recipient's domain is not a reserved test domain `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
+- The recipient's domain is not a reserved test domain `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 
 Not sent when:
 
@@ -459,7 +459,7 @@ Not sent when:
 - Invalid address: the form shows an error with status 422 and nothing is sent `projects/hutch/src/runtime/web/auth/forgot-password.page.ts:58`
 - Rate limited: from the 6th request from one IP in the same UTC clock hour, the visitor gets a 429 "Too many requests from your network" response; every allowed request counts, including invalid and unknown addresses `projects/hutch/src/runtime/web/middleware/rate-limit.ts:36`
 - Banned visitor: a request from an IP on the ban list gets a 403 and never reaches the form handler `projects/hutch/src/runtime/web/middleware/ban.ts:28`
-- Reserved recipient domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address): the send is skipped with a logged warning, and the BCC copy is skipped too `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
+- Reserved recipient domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address): the send is skipped with a logged warning, and the BCC copy is skipped too `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 - Account purged: once the delete-account worker has removed the account's users row, the lookup finds nothing and no email is sent `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:208`
 
 **Timing:** Sent immediately, in the same web request, right after the "Check your email" page is returned; there is no queue, schedule or delay. The link expires 3600 s (1 hour) after the token is created, and the per-IP rate-limit window resets at the top of every UTC hour.
@@ -562,7 +562,7 @@ Exact HTML body: [`html/password-reset--default.html`](html/password-reset--defa
 - `projects/hutch/src/runtime/web/auth/password-reset-email.template.html:22` — template: heading, one-hour expiry copy and Reset password button
 - `projects/hutch/src/runtime/providers/password-reset/dynamodb-password-reset.ts:49` — token creation with 1-hour expiry
 - `projects/hutch/src/runtime/providers/prod-providers.ts:524` — composition root: wraps the Resend sender in the reserved-domain guard
-- `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:30` — reserved-domain guard on the recipient
+- `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:11` — reserved-domain guard on the recipient
 - `projects/hutch/src/runtime/providers/email/resend-email.ts:8` — sender: Resend API call and 4xx/5xx error mapping
 
 ## 4. Trial-ending digest
@@ -623,7 +623,7 @@ Not sent when:
 - A redelivered message that already holds the pay marker only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:269`
 - The window is measured from the current trialEndsAt, so after an admin extension it moves with the new end date `projects/hutch/src/runtime/domain/stripe/stripe-trial-config.ts:52`
 - Saves are picked by the same reader as the readlist digest apart from the age floor and the emailed filter: All readlist only, 10-item cap, 50-candidate read budget, consent-seed URL match, and saves with no shared article row dropped `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:357`
-- Recipients at reserved test domains are dropped by a wrapper that reports success, so the pay marker is still set and the trial reminder is then skipped for that account `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
+- Recipients at reserved test domains are dropped by a wrapper that reports success, so the pay marker is still set and the trial reminder is then skipped for that account `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 - queue_digest_sent records kind pay with hours_to_trial_end rounded down `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:319`
 - The deadline and end date are always formatted in UTC, whatever the reader's timezone `projects/hutch/src/runtime/web/queue-digest-email.ts:175`
 - Every deployed stack, staging included, sends it through Resend with that stack's APP_ORIGIN in the links `projects/hutch/src/infra/index.ts:806`
@@ -811,7 +811,7 @@ Sent only when:
 - No trial reminder has gone out in this trial window, so trialReminderEmailSentAt is unset `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:290`
 - This trial's trial-ending digest has not been claimed, so payDigestEmailSentAt is unset `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
 - The account has an email address on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:306`
-- The address is not on a reserved test domain: not example.com, example.net or example.org, and not under a .test, .example, .invalid or .localhost TLD `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
+- The address is not on a reserved test domain: not example.com, example.net or example.org, and not under a .test, .example, .invalid or .localhost TLD `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 
 Not sent when:
 
@@ -823,7 +823,7 @@ Not sent when:
 - The trial-ending digest replaces it. If this trial's trial-ending digest has been claimed, the reminder is skipped. The trial-ending digest goes out 96 to 60 hours before the trial ends, and only to trialists with a verified email, no readlist-digest opt-out and at least one ready save `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:297`
 - A trial that is reactivated or extended by an admin with 48 hours or less left gets no reminder, because the fire time has already passed `projects/hutch/src/runtime/domain/trial/start-trial.ts:110`
 - If creating the schedule fails at signup, the failure is logged and the trial starts anyway. Nothing retries it, so that reader never gets a reminder `projects/hutch/src/runtime/domain/trial/start-trial.ts:80`
-- A reserved test-domain recipient is dropped with a warning and nothing is sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:33`
+- A reserved test-domain recipient is dropped with a warning and nothing is sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:14`
 
 **Timing:** Fires once at the trial end minus exactly 48 hours, in UTC, to the second (milliseconds are dropped). For a standard trial that is 12 days after signup at the signup's UTC time of day, the start of day 13 of 14: a signup at 2026-09-23T07:42:18.604Z is sent at 2026-10-05T07:42:18Z, and a reopened trial fires 48 hours before its restored or admin-chosen end. Delivery through EventBridge, SQS and Lambda normally adds only seconds.
 
@@ -1158,7 +1158,7 @@ Sent only when:
 - The charge instant is still in the future `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:373`
 - Neither the trial pre-expiry reminder ('your Readplace trial ends in 2 days') nor an earlier charge reminder has gone out in this trial window (trialReminderEmailSentAt is unset); the trial-ending digest sets a different marker and does not block it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:380`
 - The user has an email address on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:388`
-- The address is not on a reserved test domain `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
+- The address is not on a reserved test domain `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 
 Not sent when:
 
@@ -1168,7 +1168,7 @@ Not sent when:
 - The reader deletes their account: the deletion job removes the schedule and then the subscription row `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:137`
 - The charge instant has already passed, which happens when a member reactivates less than 5 minutes before the charge `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:373`
 - No email address is on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:389`
-- Recipients on example.com, example.net or example.org, or on a .test, .example, .invalid or .localhost domain, are dropped `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
+- Recipients on example.com, example.net or example.org, or on a .test, .example, .invalid or .localhost domain, are dropped `projects/hutch/src/runtime/domain/email/reserved-domain.ts:17`
 - The schedule could not be created at Checkout return or reactivate: the failure is logged and never retried `projects/hutch/src/runtime/web/auth/auth.page.ts:568`
 - There is no opt-out: the email reads no preference, so unsubscribing from the readlist digest does not stop it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:346`
 
@@ -1188,7 +1188,7 @@ Not sent when:
 - Cancel race: POST /account/cancel only publishes a command, the cancellation Lambda deletes the schedule later and the row turns pending_cancellation later still, so a reminder that fires in that gap goes to a reader who just cancelled `projects/hutch/src/runtime/web/pages/account/account.page.ts:590`
 - Deletion race: the address lookup ignores the soft-delete flag, so a schedule that fires between the reader confirming deletion and the deletion job still sends `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
 - An admin extend-trial on a row with no Stripe link sets any future trial end and clears every email marker; a later trial-preserving Checkout keeps that instant as chargeAt `projects/hutch/src/runtime/web/pages/admin/extend-trial.page.ts:169`
-- Reserved-domain matching lower-cases the address and checks the exact domain or the last label only, so an address at mail.example.com is still sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:18`
+- Reserved-domain matching lower-cases the address and checks the exact domain or the last label only, so an address at mail.example.com is still sent `projects/hutch/src/runtime/domain/email/reserved-domain.ts:15`
 - A command without chargeAt is logged as a warning and skipped; the only producer always sets it `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:351`
 - If the row is deleted between the send and the marker write, the conditional write fails, the record is retried and the retry stops on "no subscription row" `projects/hutch/src/runtime/providers/subscription-providers/dynamodb-subscription-writes.ts:159`
 - The at() expression drops milliseconds, so the schedule can fire up to 999 ms before the computed time `projects/hutch/src/runtime/providers/trial-scheduler/aws-trial-scheduler.ts:24`
@@ -1554,7 +1554,7 @@ Sent only when:
 - The membership status is active when the webhook arrives `projects/hutch/src/runtime/stripe-webhook-receiver/handlers/invoice-payment-failed.ts:75`
 - The membership is still active when the email Lambda runs, seconds later `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:435`
 - The account has an email address on file `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:444`
-- The address is not on a reserved test domain (example.com, example.net, example.org, or a .test, .example, .invalid or .localhost TLD) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
+- The address is not on a reserved test domain (example.com, example.net, example.org, or a .test, .example, .invalid or .localhost TLD) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 
 Not sent when:
 
@@ -1568,7 +1568,7 @@ Not sent when:
 - The subscription row is gone by send time: dropped `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:428`
 - The membership is no longer active by send time, for example Stripe already cancelled it or the member scheduled cancellation: dropped `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:435`
 - No email address on file for the account: dropped `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:444`
-- Recipients on a reserved test domain are dropped with a warning `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
+- Recipients on a reserved test domain are dropped with a warning `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 
 **Timing:** Event-driven with no schedule: the email goes out within seconds of each qualifying invoice.payment_failed webhook, at whatever UTC time Stripe's charge attempt fails (in the capture, webhook at 2026-10-05T10:32:51Z and send 1 second later). Stripe's Smart Retries settings, not Readplace, decide when retries happen and so when later copies go out (the captured invoice's next retry was 3 days later, on 2026-10-08).
 
@@ -1583,7 +1583,7 @@ Not sent when:
 - A webhook Lambda timeout (10 s) after EventBridge already accepted the command returns 5xx; Stripe redelivers and the member gets a second copy `src/packages/infra-components/src/infra/stripe-webhook-receiver.ts:55`
 - The send-time re-check reads the row by user and checks only that it is active, not that it is still on the failing Stripe subscription; a member whose row moved to a new subscription between webhook and send still gets the email `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:435`
 - The recipient lookup reads the users table userId-index with Limit 1; Gmail canonical-claim items carry ownerUserId instead of userId, so they never stand in for the real address `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:84`
-- Reserved-domain matching is exact and case-insensitive on the whole domain or the TLD, so an address like user@mail.example.com is not matched and is sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
+- Reserved-domain matching is exact and case-insensitive on the whole domain or the TLD, so an address like user@mail.example.com is not matched and is sent `projects/hutch/src/runtime/domain/email/reserved-domain.ts:17`
 - Members who kept their trial at checkout have their row written active at checkout `projects/hutch/src/runtime/web/auth/auth.page.ts:527`; their first post-trial charge qualifies only because Stripe labels it subscription_cycle (Stripe behaviour, unverified in code)
 - Legacy trial rows that still carry a customerId are charged at trial end with payment_behavior allow_incomplete `projects/hutch/src/runtime/subscription-start-request/subscription-start-request-handler.ts:61`; a declined first charge can still leave the membership active, but its invoice is subscription_create, so no email goes out (Stripe behaviour, unverified)
 - Members who reactivate a scheduled cancellation on the account page are set back to active and qualify again `projects/hutch/src/runtime/web/pages/account/account.page.ts:665`
@@ -1785,7 +1785,7 @@ Sent only when:
 - No founder note is recorded on the row (`founderNoteSentAt` is unset) `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:154`
 - An email address is on file for the user `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:140`
 - The saved-article count query returns a total; without one the record fails and is retried `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:153`
-- The recipient is not on a reserved test domain (example.com, example.net, example.org, or a .test, .example, .invalid or .localhost address) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
+- The recipient is not on a reserved test domain (example.com, example.net, example.org, or a .test, .example, .invalid or .localhost address) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 
 Not sent when:
 
@@ -1799,7 +1799,7 @@ Not sent when:
 - Deleting the account removes the trial-feedback schedule during the asynchronous deletion scrub `projects/hutch/src/runtime/delete-account/delete-account-handler.ts:135`
 - No subscription row at send time, for example after account deletion, skips the send `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:117`
 - No email address on file skips the send `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:140`
-- A reserved test-domain recipient is dropped with a warning log, and the sent marker is still stamped `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:33`
+- A reserved test-domain recipient is dropped with a warning log, and the sent marker is still stamped `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:14`
 
 **Timing:** The one-shot schedule fires exactly 3 days (259,200,000 ms) after the subscription-events Lambda processes SubscriptionCancelled, as an EventBridge Scheduler at() in UTC to the whole second with no flexible window `projects/hutch/src/runtime/schedule-trial-feedback-email/schedule-trial-feedback-email-handler.ts:19`. For both trial paths that is normally trialEndsAt + 1 hour + 3 days, which for an unextended 14-day trial is signup + 17 days 1 hour (captured: signup 2026-09-18T14:22:08Z, cancellation final 2026-10-02T15:22:09Z, sent 2026-10-05T15:22:10Z).
 
@@ -2138,7 +2138,7 @@ Not sent when:
 
 <details><summary>Edge cases</summary>
 
-- The reserved-domain wrapper drops a `to` at example.com, example.net or example.org, or any .test, .example, .invalid or .localhost domain (subdomains such as foo.example.com still send); it runs after the marker is claimed, so the marker records a claim rather than a delivery `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
+- The reserved-domain wrapper drops a `to` at example.com, example.net or example.org, or any .test, .example, .invalid or .localhost domain (subdomains such as foo.example.com still send); it runs after the marker is claimed, so the marker records a claim rather than a delivery `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 - Gmail forwarding-confirmation mails are intercepted before ingest `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:225`
 - Mail with no <alias>-<token>@domain recipient is acknowledged with nothing written `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:117`
 - A redelivered Gmail email already stored as received is republished as EmailReceived without a new ingest; on the import path this runs before the job check, so a stale job's redelivered message can still trigger extraction `projects/inbox/src/runtime/domain/inbox/ingest-gmail-import-handler.ts:114`
@@ -2368,7 +2368,7 @@ Not sent when:
 - Another message for the same user already holds the slot (for example after a scan tick is redelivered): this one logs '[SendQueueDigest] rate-limited' and sends nothing `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:349`
 - A redelivered message that already holds the claim only finishes stamping saves and never sends a second copy `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:256`
 - If stamping a save fails after the send, the error is logged and that save can be listed again in a later digest `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:442`
-- Recipients at example.com, example.net or example.org, or under .test, .example, .invalid or .localhost, are dropped by a wrapper that reports success, so the handler still claims, stamps the saves and records queue_digest_sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
+- Recipients at example.com, example.net or example.org, or under .test, .example, .invalid or .localhost, are dropped by a wrapper that reports success, so the handler still claims, stamps the saves and records queue_digest_sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 - Every deployed stack, staging included, runs this Lambda and sends through Resend with that stack's APP_ORIGIN in the links; the local dev server has no wiring for this email `projects/hutch/src/infra/index.ts:806`
 - A failed per-user dispatch in the scan is logged and that user waits for the next 6h check; if the scan itself fails, the whole tick is retried after 120s and the cadence check and claim prevent duplicates `projects/hutch/src/runtime/digest-scan/digest-scan-handler.ts:51`
 - An unverified or unsubscribed user whose access has ended still records queue_digest_skipped with tier inactive, because those gates run before the tier gate `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:172`
@@ -2390,7 +2390,7 @@ Not sent when:
 > - Articles marked read from the email record no article_read analytics event, unlike marking one read in the readlist `projects/hutch/src/runtime/web/pages/readlist/readlist.page.ts:2867`; the mark-read page has no analytics dependency `projects/hutch/src/runtime/web/pages/queue-digest-mark-read/queue-digest-mark-read.page.ts:21`.
 > - A Resend 4xx removes the user's last-digest time along with the claim `projects/hutch/src/runtime/providers/reader-ready-state/dynamodb-reader-ready-state.ts:104`, so an address Resend keeps refusing is retried on every 6h check (3 receives each) and every check ends in the DLQ alarm.
 > - Delivery is at most once: after a 5xx or network error the claim is kept and the retry only stamps the saves `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:224`, so if Resend never accepted the message that digest is lost and its saves never appear in a later regular digest; the comment at `projects/hutch/src/runtime/send-user-digest.main.ts:40` says this is deliberate.
-> - Sends dropped for reserved test domains still count in queue_digest_sent analytics `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:37`.
+> - Sends dropped for reserved test domains still count in queue_digest_sent analytics `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:18`.
 > - The template's developer HTML comment ships inside every article card of the real email `projects/hutch/src/runtime/web/queue-digest-email.template.html:28`.
 > - The shared reply line 'If you have any questions, please reply to this email' has no closing period in both the HTML and text parts `projects/hutch/src/runtime/web/email-copy.ts:2`.
 > - The public blog post still describes the older email (only articles opened while still loading, at most every 6 hours, a button per row) `projects/blog-site/src/runtime/web/pages/blog/posts/one-email-for-every-ready-article.md:3`.
@@ -2713,7 +2713,7 @@ Sent only when:
 - The reader still has full write access when the send Lambda runs `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - The account has a login email on file `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:72`
 - This email has never been sent to the account (the once-only marker is unset) `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:82`
-- The login email is not at a reserved test domain `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
+- The login email is not at a reserved test domain `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 
 Not sent when:
 
@@ -2727,7 +2727,7 @@ Not sent when:
 - A message already ingested for the reader (same sender and Message-ID, for example a copy sent to two of their addresses) is skipped; when the copy ingested first came through Gmail, neither copy triggers it `projects/inbox/src/runtime/domain/inbox/receive-email-handler.ts:314`
 - An email whose links are all skipped (unsubscribe, action, LLM non-article, or unsaveable URLs) never triggers it `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:385`
 - Backfill replays (origin 'backfill') never trigger it; no code publishes that origin today `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:50`
-- A login email at example.com, example.net, example.org, or under .test, .example, .invalid or .localhost is dropped, after the marker is already set `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
+- A login email at example.com, example.net, example.org, or under .test, .example, .invalid or .localhost is dropped, after the marker is already set `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 
 **Timing:** Event-driven with no configured delay: the inbox Lambda publishes the command right after it submits the email's first article link, and the send Lambda runs as soon as SQS delivers it, so the email normally arrives within seconds (unverified in production); the LLM link triage can add up to 2 attempts of 60s each, and retries add 240s (extraction) or 60s (send).
 
@@ -2742,7 +2742,7 @@ Not sent when:
 - If access is full at extraction but read-only when the send Lambda runs, the reader gets neither this email nor the Inbox saves paused email for that message `projects/hutch/src/runtime/send-first-inbox-email-notice/send-first-inbox-email-notice-handler.ts:63`
 - If extraction fails 3 times, the inbox-failures DLQ handler only marks extraction failed; the trigger for that email is never published, though a later email can still trigger it `projects/inbox/src/runtime/domain/inbox/extract-email-links-dlq-handler.ts:44`
 - An unreadable raw .eml in S3 fails the extraction record so SQS retries it `projects/inbox/src/runtime/domain/inbox/extract-email-links-handler.ts:211`
-- Reserved-domain matching is exact for example.com, example.net and example.org (case-insensitive) and by TLD for .test, .example, .invalid and .localhost; a subdomain such as mail.example.com is not matched and would be sent `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:20`
+- Reserved-domain matching is exact for example.com, example.net and example.org (case-insensitive) and by TLD for .test, .example, .invalid and .localhost; a subdomain such as mail.example.com is not matched and would be sent `projects/hutch/src/runtime/domain/email/reserved-domain.ts:17`
 - The recipient is the first users row found on the userId-index; whether that email is verified is not checked `projects/hutch/src/runtime/providers/auth/dynamodb-auth.ts:423`
 - Only the deployed send-first-inbox-email-notice Lambda consumes the command; no local or dev composition root wires either side, so local development never sends it `projects/hutch/src/runtime/send-first-inbox-email-notice.main.ts:45`
 
@@ -3034,7 +3034,7 @@ Not sent when:
 - Gmail was disconnected, revoked, reconnected with a new Readplace inbox address, or switched to another Gmail account or mailbox before sending: a pending notice is cancelled `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:93`
 - The sender is no longer approved at send time (rejected, withdrawn, removed, or overridden by its own non-approved record), or the user has no account email: a pending notice is cancelled `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:95`
 - Messages that never count: spam, trash and drafts, mail the user sent (SENT without INBOX), messages deleted before Readplace reads them, and label changes `projects/hutch/src/runtime/providers/gmail-api/gmail-mailbox.ts:126`
-- Reserved recipient domains (exactly example.com, example.net or example.org, or a final label of test, example, invalid or localhost) are logged and not sent, yet every listed notice is still marked sent and the 7-day interval starts `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:32`
+- Reserved recipient domains (exactly example.com, example.net or example.org, or a final label of test, example, invalid or localhost) are logged and not sent, yet every listed notice is still marked sent and the 7-day interval starts `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:13`
 - A delivery still unresolved 23h55m after its first attempt (a batch with a listed notice still pending, or a notice claimed before grouping) is never resent; the record fails into the DLQ for manual review `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:129`, `projects/hutch/src/runtime/domain/gmail/send-gmail-newsletter-notice-handler.ts:156`
 
 **Timing:** An EventBridge Scheduler runs the Gmail check every 6 hours (rate(6 hours), flexible window off). When the reader's last notice email went out at least 7 days ago and they have a readlist besides All, the email goes out seconds to minutes after the check that first sees the arrival or approval, so up to about 6 hours plus processing after the issue lands or the sender is approved. Otherwise the notice is held: within 7 days of the last notice email it goes, grouped with any others, at the first check at least 7 days after that email finished sending (between 7 days and about 7 days 6 hours after it; a batch settled late after failed bookkeeping restarts the 7 days from the settle), and for a reader whose only readlist is All at the first check after they create another readlist. Connecting Gmail does not start a check, no SQS hop is delayed on purpose, and there are no reminders.
@@ -3352,7 +3352,7 @@ Sent only when:
 - The worker reads every saved article across the customer's readlists without error; a customer with no saved articles still gets the email `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:92`
 - Reading the articles, uploading the file and sending all finish inside the 900 s Lambda timeout `projects/hutch/src/infra/index.ts:703`
 - The JSON file uploads to S3 and the download link is signed `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:28`
-- The address is not on a reserved test domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:31`
+- The address is not on a reserved test domain (example.com, example.net, example.org, or any .test, .example, .invalid or .localhost address) `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:12`
 - Resend accepts the message `projects/hutch/src/runtime/providers/email/resend-email.ts:26`
 
 Not sent when:
@@ -3360,7 +3360,7 @@ Not sent when:
 - Not signed in: the click redirects to /login and nothing is queued. This includes a phone browser, opened from the iOS or Android app, that has no Readplace session `projects/hutch/src/runtime/server.ts:527`
 - Banned IP address: the request gets a 403 before the app runs `projects/hutch/src/runtime/web/middleware/ban.ts:29`
 - No email address found for the account: the customer lands back on /export with no error message and nothing is queued `projects/hutch/src/runtime/web/pages/export/export.page.ts:33`
-- Reserved test domain: the send is skipped with the warning "[email] reserved recipient domain — not sent" `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:33`
+- Reserved test domain: the send is skipped with the warning "[email] reserved recipient domain — not sent" `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:14`
 - A failure that repeats on every attempt, such as a saved article with no matching global article row, fails all 12 tries, so the command ends in the dead-letter queue and the customer never gets the email `src/packages/article-store/src/dynamodb-saved-article-store.ts:780`
 - Repeat requests are never held back: there is no once-only marker, rate limit, unsubscribe or opt-out, so every click sends another email `projects/hutch/src/runtime/web/pages/export/export.page.ts:27`
 - Deleting the account does not stop an export that is already queued, because the worker mails the address carried in the command without checking that the account still exists `projects/hutch/src/runtime/export-user-data/export-user-data-handler.ts:120`
@@ -3729,7 +3729,7 @@ Exact HTML body: [`html/user-data-export--no-articles.html`](html/user-data-expo
 - `projects/hutch/src/runtime/web/pages/export/export.page.ts:27` — web handler for POST /export/start: reads the address and publishes ExportUserDataCommand
 - `projects/hutch/src/runtime/user-data-jobs.main.ts:318` — worker composition root: routes ExportUserDataCommand to the export handler
 - `projects/hutch/src/runtime/providers/user-data-export/s3-user-data-export.ts:23` — writes the JSON file to S3 and presigns the 7-day link
-- `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:30` — reserved-domain filter in front of Resend, wired at user-data-jobs.main.ts:176
+- `projects/hutch/src/runtime/providers/email/skip-reserved-domain.ts:11` — reserved-domain filter in front of Resend, wired at user-data-jobs.main.ts:176
 - `projects/hutch/src/infra/index.ts:765` — trigger infra: EventBridge rule to user-data-jobs-q and the user-data-jobs Lambda
 
 ## 14. Hacker News starter email

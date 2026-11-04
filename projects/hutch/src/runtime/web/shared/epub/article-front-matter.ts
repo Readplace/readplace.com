@@ -1,4 +1,4 @@
-import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
+import type { ArticleFrontMatter } from "../../../domain/readlist/book-chapter.types";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
 import { escapeXmlText } from "./epub-xhtml";
 
@@ -7,12 +7,7 @@ const PARAGRAPH_BREAK = "\n\n";
 
 export const COLOPHON_XHTML = "<hr /><p>Read the Web, not the Slop.</p>";
 
-export interface ArticleFrontMatter {
-	title: string;
-	siteName: string;
-	excerpt: string;
-	summary: GeneratedSummary | undefined;
-}
+export type { ArticleFrontMatter } from "../../../domain/readlist/book-chapter.types";
 
 function paragraph(text: string): string {
 	return `<p>${escapeXmlText(text)}</p>`;

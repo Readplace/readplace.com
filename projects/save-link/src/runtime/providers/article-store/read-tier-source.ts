@@ -1,11 +1,11 @@
 import { GetObjectCommand, S3ServiceException } from "@aws-sdk/client-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
-import type { CandidateId } from "@packages/domain/article";
 import type { Logger } from "@packages/logger";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { TierSourceMetadataSchema, candidateManifestKey, type Tier, type TierSource } from "@packages/tier-source";
+import { TierSourceMetadataSchema, candidateManifestKey } from "@packages/tier-source";
+import type { ReadTierSource } from "../../domain/select-content/tier-source-access.types";
 
-export type ReadTierSource = (params: { url: string; tier: Tier; candidateId?: CandidateId }) => Promise<TierSource | undefined>;
+export type { ReadTierSource } from "../../domain/select-content/tier-source-access.types";
 
 export function initReadTierSource(deps: {
 	client: Pick<S3Client, "send">;

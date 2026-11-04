@@ -1,4 +1,4 @@
-import type { RenderRequestRejection, RenderRequestTally } from "./render-page.types";
+import type { RenderRequestRejection, RenderRequestTally } from "../../domain/render-crawl/render-page.types";
 
 export function createRenderRequestCounts(params: { proxiedRequestLimit: number }) {
 	const continuedByResourceType = new Map<string, number>();

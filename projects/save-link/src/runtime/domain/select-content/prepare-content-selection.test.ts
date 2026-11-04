@@ -9,7 +9,7 @@ import { candidateProvenance, type TierSource, type VerifiedTierSource } from "@
 import { labelForIndex } from "./select-content-prompt";
 import { initLogContentSelection, initPrepareContentSelection } from "./prepare-content-selection";
 import { OWN_CAPTURE_FAILED_METRIC } from "./comparison-log";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);
 

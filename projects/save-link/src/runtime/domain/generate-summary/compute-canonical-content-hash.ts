@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { stripHtml } from "../../domain/generate-summary/strip-html";
+import { stripHtml } from "./strip-html";
 
 /**
  * Hash the readable text of canonical HTML. Hashing the stripped text rather

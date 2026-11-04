@@ -1,7 +1,7 @@
 import type { RequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
 import { initKeepOffer } from "./domain/engagement/keep-offer";
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
-import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import { initAuthDiagnosticRecorder } from "./auth-diagnostics/record";
 import { initAuthDiagnosticMiddleware } from "./auth-diagnostics/middleware";

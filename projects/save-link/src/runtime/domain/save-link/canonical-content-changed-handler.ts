@@ -6,7 +6,7 @@ import {
 } from "@packages/domain/article-aggregate";
 import { CanonicalContentChangedEvent } from "@packages/infra-components";
 import { initSqsRecordHandler } from "@packages/infra-components/runtime";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import type { FindArticleContent } from "./article-content.types";
 
 export function initCanonicalContentChangedHandler(deps: {
 	findArticleContent: FindArticleContent;

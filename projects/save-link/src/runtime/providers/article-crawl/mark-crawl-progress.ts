@@ -4,12 +4,9 @@ import {
 } from "@packages/storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
+import type { MarkCrawlProgress } from "../../domain/crawl-article-state/crawl-stage.types";
 
-export type MarkCrawlProgress = (params: {
-	url: string;
-	partCurrent: number;
-	partTotal: number;
-}) => Promise<void>;
+export type { MarkCrawlProgress } from "../../domain/crawl-article-state/crawl-stage.types";
 
 const CrawlProgressRow = z.object({ url: z.string() });
 

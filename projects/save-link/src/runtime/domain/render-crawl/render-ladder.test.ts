@@ -10,7 +10,7 @@ import type {
 	RenderPage,
 	ResidentialEgress,
 	WebUnlockerEgress,
-} from "../../providers/render-page/render-page.types";
+} from "./render-page.types";
 import {
 	type Escalation,
 	type LadderRender,

@@ -17,7 +17,7 @@ import {
 } from "@packages/infra-components";
 import { type FinalizeArticle, UNREADABLE_ARTICLE } from "@packages/finalize-article";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import type { ReadPendingHtml } from "../../providers/article-store/read-pending-html";
+import type { ReadPendingHtml } from "./read-pending-html.types";
 
 const TIER = "tier-0";
 

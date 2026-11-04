@@ -1,6 +1,6 @@
 import { OAuthClientIdSchema } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
-import { ANALYTICS_EVENTS, STREAMS } from "./events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 import { buildActivationThresholdReachedEvent } from "./funnel-events";
 
 const userId = UserIdSchema.parse("reader");

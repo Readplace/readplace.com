@@ -8,7 +8,7 @@ import { type Article, type CanonicalCommit, type TransitionAndPersist, initTran
 import { initSelectContentWork, type SelectContentDependencies } from "./select-content-work";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { labelForIndex } from "./select-content-prompt";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import { markNoReadableArticle } from "./mark-no-readable-article";
 
 const cid = (id: string) => CandidateIdSchema.parse(id);

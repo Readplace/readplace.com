@@ -1,5 +1,5 @@
 import type { GmailAccountEmail } from "./gmail-account-email.schema";
-import type { InboxAddress } from "../inbox/inbox-address.schema";
+import type { InboxAddress } from "../mail-identity/inbox-address.schema";
 import type { UserId } from "../user";
 
 export type GmailRevokedReason = "invalid-grant";

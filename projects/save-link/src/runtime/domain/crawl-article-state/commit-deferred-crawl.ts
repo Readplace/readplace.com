@@ -10,7 +10,7 @@ import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlBlocked, markCrawlFailed } from "@packages/domain/article-aggregate";
 import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { MarkCrawlStage } from "./crawl-stage.types";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { ReadTierSnapshot } from "./read-tier-snapshot";
 import { initEmitTier1FailureOutcome } from "./emit-tier-1-failure-outcome";

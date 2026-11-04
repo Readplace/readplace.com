@@ -3,7 +3,7 @@ import { noopLogger } from "@packages/logger";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import { initRunMeteredLeg, type RunMeteredLeg } from "../metered-leg/run-metered-leg";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
 import type { ContentDecision, SelectMostCompleteContent } from "./select-content";
 import { initJudgeUnderLedger } from "./judge-under-ledger";
 

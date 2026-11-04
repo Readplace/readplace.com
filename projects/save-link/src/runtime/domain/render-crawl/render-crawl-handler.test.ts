@@ -14,7 +14,7 @@ import { initReadabilityParser, readabilityAdditions } from "@packages/article-p
 import type { SQSEvent } from "aws-lambda";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/metered-leg-ledger";
-import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
+import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "./render-page.types";
 import { legInputHash } from "../metered-leg/leg-input-hash";
 import { initRenderCrawlHandler } from "./render-crawl-handler";
 

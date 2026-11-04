@@ -1,6 +1,6 @@
 import type { OAuthClientId } from "@packages/domain/oauth";
 import type { UserId } from "@packages/domain/user";
-import { ANALYTICS_EVENTS, STREAMS } from "./events";
+import { ANALYTICS_EVENTS, STREAMS } from "@packages/web-analytics";
 
 export type ActivationThresholdReachedEvent = {
 	stream: typeof STREAMS.analytics;

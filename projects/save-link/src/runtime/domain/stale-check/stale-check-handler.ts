@@ -22,7 +22,7 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/provider-contracts/events";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PrepareArticleIdentity } from "@packages/save-article";

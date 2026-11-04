@@ -7,7 +7,7 @@ import {
 	SaveLinkCommand,
 	TierContentExtractedEvent,
 } from "@packages/infra-components";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";

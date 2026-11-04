@@ -1,11 +1,9 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import assert from "node:assert";
-import type { SaveAttemptId } from "@packages/domain/article";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-
-export type ReadPendingPdf = (url: string, options: { saveAttemptId: SaveAttemptId }) => Promise<{ bytes: Buffer; capturedAt: string }>;
+import type { ReadPendingPdf } from "../../domain/save-link-raw-pdf/read-pending-pdf.types";
 
 export function initReadPendingPdf(deps: {
 	client: S3Client;

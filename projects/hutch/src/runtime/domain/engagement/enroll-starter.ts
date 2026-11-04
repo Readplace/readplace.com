@@ -25,7 +25,7 @@ import {
 	starterArm,
 	type StarterRollout,
 } from "./starter-policy";
-import { reservedDomainOf } from "../../providers/email/skip-reserved-domain";
+import { reservedDomainOf } from "../email/reserved-domain";
 
 export function initEnrollStarter(deps: {
 	state: EngagementStarterState;

@@ -1,4 +1,4 @@
-import type { EmailDeliveryMode } from "./email-delivery-mode";
+import type { EmailDeliveryMode } from "../mail-identity/email-delivery-mode";
 import type { UserId } from "../user";
 import type { InboxAddress } from "./inbox-address.schema";
 import type { InboxEmailStatus, MessageId } from "./inbox-email.schema";

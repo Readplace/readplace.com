@@ -3,7 +3,7 @@ import type { Logger } from "@packages/logger";
 import { type DispatchCommand, initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { AnonymousLinkSavedEvent } from "@packages/infra-components";
 import type { GenerateSummaryCommand } from "@packages/infra-components";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import type { FindArticleContent } from "./article-content.types";
 
 export function initAnonymousLinkSavedHandler(deps: {
 	dispatchGenerateSummary: DispatchCommand<typeof GenerateSummaryCommand>;

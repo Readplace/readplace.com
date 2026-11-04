@@ -11,7 +11,7 @@ import { initInMemoryMeteredLegLedger } from "@packages/test-fixtures/providers/
 import { initEmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import { initSaveLinkWork } from "../save-link/save-link-work";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "../simple-crawl-unsupported-policy/simple-crawl-unsupported-policy-handler";
-import type { RenderOutcome, RenderPage } from "../../providers/render-page/render-page.types";
+import type { RenderOutcome, RenderPage } from "./render-page.types";
 import { initRenderCrawlHandler } from "./render-crawl-handler";
 
 const TRACKER = "https://links.tracker.example/r/abc?mid=1";

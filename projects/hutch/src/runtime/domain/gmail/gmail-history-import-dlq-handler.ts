@@ -4,7 +4,7 @@ import { type GmailHistoryImportStore, GmailHistoryImportJobIdSchema } from "@pa
 import { GmailHistoryImportFailedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
+import type { RecordGmailDiagnostic } from "./gmail-diagnostic.types";
 import { GmailHistoryImportEnvelope, gmailHistoryImportRecordIdentity } from "./gmail-history-import-handler";
 import { type GmailImportRecordTrace, startGmailImportRecordTrace } from "./gmail-import-record-trace";
 import { initGmailHistoryImportOutcomeRecorder } from "./record-gmail-history-import-outcome-handler";

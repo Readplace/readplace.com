@@ -4,7 +4,7 @@ import assert from "node:assert";
 import { z } from "zod";
 import type { Logger } from "@packages/logger";
 import { type CreateAiMessage, DEEPSEEK_FEATURES, parseModelJson } from "@packages/ai-message";
-import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
+import type { MarkSummaryStage } from "./summary-stage.types";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import type { PaidLegPermit } from "@packages/provider-contracts/metered-leg-ledger";
 import { DEEPSEEK_CONTEXT_TOKENS } from "../select-content/deepseek-limits";

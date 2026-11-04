@@ -8,7 +8,7 @@ import {
 import { GmailHistoryImportCompletedEvent, GmailHistoryImportMessageIngestedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import type { RecordGmailDiagnostic } from "../../observability/gmail-diagnostics";
+import type { RecordGmailDiagnostic } from "./gmail-diagnostic.types";
 import { type GmailImportRecordTrace, startGmailImportRecordTrace } from "./gmail-import-record-trace";
 
 interface OutcomeHandlerDependencies {

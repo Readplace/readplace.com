@@ -19,7 +19,7 @@ import { initS3HnSnapshot } from "./providers/hn-snapshot/s3-hn-snapshot";
 import { initS3StarterRollout } from "./providers/hn-snapshot/s3-starter-rollout";
 import { initFindReadySnapshot } from "./domain/engagement/hn-snapshot";
 import { initEnrollStarter } from "./domain/engagement/enroll-starter";
-import { initSendStarter } from "./domain/engagement/send-starter";
+import { initSendStarterWithDigestEmail } from "./send-starter-with-digest-email";
 import { initEngagementEvents, type EngagementEvent } from "./domain/engagement/engagement-events";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { createDynamoDocumentClient } from "@packages/storage-client";
@@ -206,7 +206,7 @@ const enrollStarter = initEnrollStarter({
 	logger,
 	emit: emitStarterEvent,
 });
-const processStarter = initSendStarter({
+const processStarter = initSendStarterWithDigestEmail({
 	state: starterState,
 	findUserContactByUserId: auth.findUserContactByUserId,
 	findSubscriptionByUserId: subscriptions.findByUserId,

@@ -1,5 +1,5 @@
 import type { Logger } from "@packages/logger";
-import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
+import type { MarkCrawlProgress } from "./crawl-stage.types";
 
 interface PendingProgress {
 	partCurrent: number;

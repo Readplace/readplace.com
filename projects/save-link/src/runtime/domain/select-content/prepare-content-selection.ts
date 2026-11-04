@@ -13,8 +13,8 @@ import type { ContentDecision, SelectMostCompleteContent, SelectionAudit } from 
 import type { JudgeCandidates } from "./judge-under-ledger";
 import { chooseTiedCandidate } from "./resolve-tie";
 import { COMPARISON_COMPLETED } from "./comparison-log";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import { computeCanonicalContentHash } from "../generate-summary/compute-canonical-content-hash";
+import type { FindArticleContent } from "../save-link/article-content.types";
 
 export interface PreparedContentSelection {
 	article: Article;

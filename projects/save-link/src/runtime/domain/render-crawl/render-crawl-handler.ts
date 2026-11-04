@@ -29,8 +29,8 @@ import { ComprehensiveCrawlCommand, RenderCrawlCommand, type LogCrawlOutcome, ty
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
 import { deferJavascriptShells } from "../save-link/javascript-shell";
 import { terminalUnsupportedReason } from "../save-link/terminal-unsupported-reason";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
-import type { ConsumePaidCrawlBudget } from "../../providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
+import type { MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
+import type { ConsumePaidCrawlBudget } from "../comprehensive-crawl/paid-crawl-budget.types";
 import type { PutTierSource } from "@packages/tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
@@ -40,7 +40,7 @@ import {
 	initCommitDeferredCrawl,
 } from "../crawl-article-state/commit-deferred-crawl";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
-import type { BrowserEgress, RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
+import type { BrowserEgress, RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "./render-page.types";
 import {
 	type Escalation,
 	type FetchLegReport,

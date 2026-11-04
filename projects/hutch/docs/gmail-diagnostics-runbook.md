@@ -7,7 +7,7 @@ Readplace writes structured diagnostic lines for two Gmail flows whose failures 
 
 ## Line format
 
-Every diagnostic is one JSON object on one line, written as the single argument of the shared `Logger` (`initRecordGmailDiagnostic` in `projects/hutch/src/runtime/observability/gmail-diagnostics.ts`; the event types live in the same file).
+Every diagnostic is one JSON object on one line, written as the single argument of the shared `Logger` (`initRecordGmailDiagnostic` in `projects/hutch/src/runtime/observability/gmail-diagnostics.ts`; the event types live in `projects/hutch/src/runtime/domain/gmail/gmail-diagnostic.types.ts`).
 
 - `version`: the event schema version, currently `1` (`GMAIL_DIAGNOSTIC_VERSION`). Filter on it when a query spans a change to the event shapes.
 - `timestamp`: ISO time from the recorder's clock when the line was built. `@timestamp` is the CloudWatch event time of the same line.

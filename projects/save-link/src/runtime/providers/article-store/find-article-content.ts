@@ -10,9 +10,9 @@ import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
 import { VerificationFields, isUnverifiedWrapperContent } from "@packages/article-store";
 import { parseS3Uri } from "../../domain/save-link/parse-s3-uri";
+import type { FindArticleContent } from "../../domain/save-link/article-content.types";
 
-export type ArticleContentResult = { content: string; imageUrl?: string };
-export type FindArticleContent = (url: string) => Promise<ArticleContentResult | undefined>;
+export type { FindArticleContent } from "../../domain/save-link/article-content.types";
 
 const ArticleContentRow = z.object({
 	contentLocation: dynamoField(z.string()),

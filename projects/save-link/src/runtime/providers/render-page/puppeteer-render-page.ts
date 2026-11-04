@@ -2,7 +2,7 @@
 import puppeteer, { type Browser, type HTTPRequest, type HTTPResponse, type LaunchOptions, type Page, type Target, TargetType, TimeoutError } from "puppeteer-core";
 import type { ClassifyRenderedDocument } from "./classify-rendered-document";
 import { browserLaunchArgs } from "./browser-launch-args";
-import type { RenderOutcome, RenderPage } from "./render-page.types";
+import type { RenderOutcome, RenderPage } from "../../domain/render-crawl/render-page.types";
 import { type CreateRenderRequestFilter, isMainFrameNavigation } from "./render-request-filter";
 import type { SettleRenderRequest } from "./render-resource-hosts";
 

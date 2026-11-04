@@ -138,4 +138,4 @@ export {
 	type EmailDeliveryFanOut,
 	EMAIL_DELIVERY_FAN_OUT,
 	LEGACY_DELIVERY_MODE,
-} from "./email-delivery-mode";
+} from "../mail-identity/email-delivery-mode";

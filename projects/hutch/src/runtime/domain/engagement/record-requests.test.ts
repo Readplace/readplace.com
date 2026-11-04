@@ -7,7 +7,7 @@ import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/arti
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { initRecordPersonalSaves } from "./record-personal-saves";
 import { initRecordImportRequest } from "./record-import-request";
-import type { ActivationThresholdReachedEvent } from "../../observability/funnel-events";
+import type { ActivationThresholdReachedEvent } from "./funnel-events";
 import { ANALYTICS_EVENTS, STREAMS } from "../../observability/events";
 
 const userId = UserIdSchema.parse("reader");

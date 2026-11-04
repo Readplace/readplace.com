@@ -1,18 +1,12 @@
-import type { CanonicalCommit } from "@packages/domain/article-aggregate";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient, defineDynamoTable, dynamoField } from "@packages/storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId, toCrawlVersionMinuteId } from "@packages/article-resource-unique-id";
 import { type CrawlVersionEntry, StoredCrawlVersionSchema } from "@packages/article-store";
-import { appendCrawlVersion } from "../../domain/select-content/crawl-versions";
+import { appendCrawlVersion, type RecordCrawlVersion } from "../../domain/select-content/crawl-versions";
+
+export type { RecordCrawlVersion } from "../../domain/select-content/crawl-versions";
 
 const CrawlVersionsRow = z.object({ crawlVersions: dynamoField(z.array(StoredCrawlVersionSchema)) });
-
-export type RecordCrawlVersion = (params: {
-	url: string;
-	crawledAt: string;
-	authorUserId?: string;
-	canonicalCommit: CanonicalCommit;
-}) => Promise<void>;
 
 export function initRecordCrawlVersion(deps: { dynamoClient: DynamoDBDocumentClient; tableName: string }): { recordCrawlVersion: RecordCrawlVersion } {
 	const articleTable = defineDynamoTable({ client: deps.dynamoClient, tableName: deps.tableName, schema: CrawlVersionsRow });

@@ -16,8 +16,8 @@ import { GenerateSummaryCommand } from "./index";
 import type { SummarizeArticle, SummarizeResult } from "./link-summariser";
 import type { RunMeteredLeg } from "../metered-leg/run-metered-leg";
 import { GENERATE_SUMMARY_TIMEOUTS } from "./timeouts";
-import type { FindArticleContent } from "../../providers/article-store/find-article-content";
-import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import type { FindArticleContent } from "../save-link/article-content.types";
+import { computeCanonicalContentHash } from "./compute-canonical-content-hash";
 import { GENERATE_SUMMARY_MAX_RECEIVE_COUNT } from "./max-receive-count";
 
 interface GenerateSummaryHandlerDeps {

@@ -23,7 +23,7 @@ import type { ParseHtml } from "@packages/article-parser";
 import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
 import { estimatedReadTimeFromWordCount, type DownloadMedia, type ProcessContent } from "@packages/finalize-article";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import type { ReadPendingPdf } from "../../providers/article-store/read-pending-pdf";
+import type { ReadPendingPdf } from "./read-pending-pdf.types";
 
 const TIER = "tier-0";
 

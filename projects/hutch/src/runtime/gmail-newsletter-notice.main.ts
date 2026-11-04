@@ -8,6 +8,8 @@ import { createDynamoDocumentClient } from "@packages/storage-client";
 import { initDynamoDbGmailConnection, initDynamoDbGmailMapping, initDynamoDbGmailMonitoring } from "@packages/inbox-store";
 import { requireEnv } from "@packages/require-env";
 import { initSendGmailNewsletterNoticeHandler } from "./domain/gmail/send-gmail-newsletter-notice-handler";
+import { GmailNewsletterNoticeEmail } from "./web/auth/gmail-newsletter-notice-email";
+import { GMAIL_PATH } from "./web/pages/integrations/gmail.url";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSkipReservedDomain } from "./providers/email/skip-reserved-domain";
@@ -34,7 +36,8 @@ export const handler = initSendGmailNewsletterNoticeHandler({
 	findEmailByUserId: auth.findEmailByUserId,
 	sendEmail,
 	founderAvatarUrl: `${requireEnv("STATIC_BASE_URL")}/fayner-brack.jpg`,
-	appOrigin: requireEnv("APP_ORIGIN"),
+	gmailPageUrl: new URL(GMAIL_PATH, requireEnv("APP_ORIGIN")).toString(),
+	renderNewsletterNotice: GmailNewsletterNoticeEmail,
 	now,
 	publishEvent,
 	logger,

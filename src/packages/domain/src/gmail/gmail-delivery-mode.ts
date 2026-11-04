@@ -3,7 +3,7 @@ import {
 	type EmailDeliveryMode,
 	EmailDeliveryModeSchema,
 	LEGACY_DELIVERY_MODE,
-} from "../inbox/email-delivery-mode";
+} from "../mail-identity/email-delivery-mode";
 import type { GmailMapping } from "./gmail-mapping.types";
 
 export const GmailDeliveryModeSchema = EmailDeliveryModeSchema;

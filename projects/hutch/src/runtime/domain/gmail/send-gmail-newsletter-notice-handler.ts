@@ -11,13 +11,15 @@ import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { EmailMessage, SendEmail } from "@packages/provider-contracts/email";
 import type { GmailMonitoringStore, GmailNewsletterNotice, GmailNewsletterNoticeBatch } from "@packages/provider-contracts/gmail-monitoring";
 import type { Handler, SQSEvent, SQSBatchResponse } from "aws-lambda";
-import { GMAIL_PATH } from "../../web/pages/integrations/gmail.url";
-import { GmailNewsletterNoticeEmail } from "../../web/auth/gmail-newsletter-notice-email";
 import { GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS } from "./gmail-newsletter-notice-cadence";
 import { selectGmailNewsletterNotices } from "./gmail-newsletter-notice-selection";
 
 const RETRY_WINDOW_MS = 24 * 60 * 60 * 1_000 - 5 * 60 * 1_000;
 const NOTICE_INTERVAL_MS = GMAIL_NEWSLETTER_NOTICE_INTERVAL_DAYS * 24 * 60 * 60 * 1_000;
+
+export type RenderedNotice = { subject: string; to: (mediaType: "text/html" | "text/plain") => string };
+
+export type RenderNewsletterNotice = (input: { founderAvatarUrl: string; newsletters: readonly { newsletterName: string | undefined; senderEmail: string; choiceUrl: string }[]; gmailUrl: string; waiting: number }) => RenderedNotice;
 
 type EligibleNewsletter = { senderEmail: ForwardableSender; newsletterName: string | undefined; pendingSince: number | undefined };
 
@@ -30,7 +32,8 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	findEmailByUserId: FindEmailByUserId;
 	sendEmail: SendEmail;
 	founderAvatarUrl: string;
-	appOrigin: string;
+	gmailPageUrl: string;
+	renderNewsletterNotice: RenderNewsletterNotice;
 	now: () => Date;
 	publishEvent: PublishEvent;
 	logger: Logger;
@@ -38,7 +41,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	const publish = (input: { userId: UserId; senderEmail: ForwardableSender; outcome: "sent" | "suppressed" }) => deps.publishEvent(GmailNewsletterNoticeProcessedEvent, input);
 
 	function gmailUrl(senderEmail: ForwardableSender | undefined): string {
-		const url = new URL(GMAIL_PATH, deps.appOrigin);
+		const url = new URL(deps.gmailPageUrl);
 		if (senderEmail !== undefined) {
 			url.searchParams.set("sender", senderEmail);
 			url.searchParams.set("notification", "1");
@@ -105,7 +108,7 @@ export function initSendGmailNewsletterNoticeHandler(deps: {
 	function noticeMessage(input: { userId: UserId; email: string; eligible: EligibleNewsletter[]; waiting: number }): { senders: ForwardableSender[]; message: EmailMessage } {
 		const ordered = [...input.eligible].sort((a, b) => (a.newsletterName ?? a.senderEmail).localeCompare(b.newsletterName ?? b.senderEmail));
 		const senders = ordered.map((newsletter) => newsletter.senderEmail);
-		const component = GmailNewsletterNoticeEmail({
+		const component = deps.renderNewsletterNotice({
 			founderAvatarUrl: deps.founderAvatarUrl,
 			newsletters: ordered.map((newsletter) => ({ ...newsletter, choiceUrl: gmailUrl(newsletter.senderEmail) })),
 			gmailUrl: gmailUrl(undefined),

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { EmailDeliveryMode } from "./email-delivery-mode";
+import type { EmailDeliveryMode } from "../mail-identity/email-delivery-mode";
 import { type GmailMessageOrigin, gmailMessageOriginKey } from "../gmail/gmail-message-update";
 import type { UserId } from "../user";
 import type { InboxAddress } from "./inbox-address.schema";

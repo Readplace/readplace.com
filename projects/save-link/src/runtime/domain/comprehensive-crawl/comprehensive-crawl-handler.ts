@@ -22,12 +22,11 @@ import {
 } from "@packages/domain/article-aggregate";
 import { crawlFailureReasonForFetchFailure } from "../save-link/crawl-failure-reason-for-fetch-failure";
 import { ComprehensiveCrawlCommand } from "@packages/infra-components";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
-import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
+import type { MarkCrawlProgress, MarkCrawlStage } from "../crawl-article-state/crawl-stage.types";
 import type {
 	ConsumePaidCrawlBudget,
 	RefundPaidCrawlBudget,
-} from "../../providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
+} from "./paid-crawl-budget.types";
 import { initProgressThrottle } from "../crawl-article-state/init-progress-throttle";
 import type { PutTierSource } from "@packages/tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";

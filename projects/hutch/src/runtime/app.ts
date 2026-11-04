@@ -14,7 +14,7 @@ import { unwrappedPreProcessors, withUnwrapPreprocessing } from "./web/unwrap-pr
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { SubscriptionLogEvent } from "./observability/subscription-events";
-import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 import type { AnalyticsEvent } from "@packages/web-analytics";
 import { httpErrorMessageMapping } from "./web/pages/readlist/readlist.error";

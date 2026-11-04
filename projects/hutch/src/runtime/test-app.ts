@@ -46,7 +46,7 @@ import type {
 	SubscriptionLogEvent,
 	SubscriptionLogEventView,
 } from "./observability/subscription-events";
-import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
+import type { ActivationThresholdReachedEvent } from "./domain/engagement/funnel-events";
 import type { LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
 
 export type {

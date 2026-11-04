@@ -6,7 +6,7 @@ import type {
 	RenderPage,
 	ResidentialEgress,
 	WebUnlockerEgress,
-} from "../../providers/render-page/render-page.types";
+} from "./render-page.types";
 import { RENDER_CRAWL_TIMEOUTS } from "./timeouts";
 
 export type RenderedThrough =

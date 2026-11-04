@@ -28,7 +28,7 @@ import {
 	type SaveArticleFromUrlDependencies,
 } from "@packages/save-article";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
-import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { MarkCrawlStage } from "../../domain/crawl-article-state/crawl-stage.types";
 import type { PutTierSource } from "@packages/tier-source";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
