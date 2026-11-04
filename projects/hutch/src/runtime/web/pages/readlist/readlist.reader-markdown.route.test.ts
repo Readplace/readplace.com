@@ -518,6 +518,7 @@ describe("Private upload reader Markdown (GET /queue/:id/view with Accept: text/
 
 		expect(response.status).toBe(200);
 		expect(matter(response.text).content).toContain("PRIVATE-BOOK-BODY");
+		expect(matter(response.text).data.title).toBe("A private book");
 	});
 
 	it("withholds the private body from a reader who holds the link but does not own it", async () => {
@@ -529,5 +530,7 @@ describe("Private upload reader Markdown (GET /queue/:id/view with Accept: text/
 
 		expect(response.status).toBe(200);
 		expect(response.text).not.toContain("PRIVATE-BOOK-BODY");
+		expect(matter(response.text).data.title).toBe("Private upload");
+		expect(response.text).not.toContain("A private book");
 	});
 });

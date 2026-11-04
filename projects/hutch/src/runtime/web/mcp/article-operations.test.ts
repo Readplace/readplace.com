@@ -1,8 +1,15 @@
-import { MinutesSchema, ReaderArticleHashId, storedArticleBody, shownSummary } from "@packages/domain/article";
+import {
+	articleDisplayMetadata,
+	MinutesSchema,
+	ReaderArticleHashId,
+	storedArticleBody,
+	shownSummary,
+	viewerFor,
+} from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import { destinationUrl, siteLabel } from "../test-helpers/article-fixtures";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
-import { authenticatedUserIdFrom } from "@packages/domain/user";
+import { authenticatedUserIdFrom, type UserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesAcrossReadlists,
@@ -468,6 +475,42 @@ describe("initMcpArticleOperations", () => {
 			expect(await ops.getArticle({ userId, id: article.id.value })).toEqual(
 				toMcpArticle(article, []),
 			);
+		});
+
+		function privateUploadFor(params: { reader: UserId; ownerUserId: UserId }): SavedArticle {
+			const article = buildArticle({ url: PRIVATE_URL });
+			return {
+				...article,
+				metadata: articleDisplayMetadata({
+					url: PRIVATE_URL,
+					destinationUrl: article.destinationUrl,
+					title: "PRIVATE-BOOK-TITLE",
+					siteName: "uploads.readplace.invalid",
+					excerpt: "PRIVATE-BOOK-EXCERPT",
+					wordCount: 400,
+					imageUrl: undefined,
+					publishedOn: undefined,
+					viewer: viewerFor(params.reader),
+					ownerUserId: params.ownerUserId,
+				}),
+			};
+		}
+
+		it("returns a private upload's stored title to its owner", async () => {
+			const article = privateUploadFor({ reader: userId, ownerUserId: userId });
+			const ops = buildOps({ findArticleById: async () => article });
+			expect(await ops.getArticle({ userId, id: article.id.value })).toMatchObject({
+				title: "PRIVATE-BOOK-TITLE",
+				excerpt: "PRIVATE-BOOK-EXCERPT",
+			});
+		});
+
+		it("returns the private stub to a reader who holds the link but does not own it", async () => {
+			const article = privateUploadFor({ reader: userId, ownerUserId: otherUserId });
+			const ops = buildOps({ findArticleById: async () => article });
+			const result = await ops.getArticle({ userId, id: article.id.value });
+			expect(result).toMatchObject({ title: "Private upload", siteName: "Readplace", excerpt: "" });
+			expect(JSON.stringify(result)).not.toContain("PRIVATE-BOOK");
 		});
 
 		it("returns null when the id does not resolve to an owned article", async () => {

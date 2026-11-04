@@ -1098,6 +1098,20 @@ const WEBMAIL_ROW = {
 	content: undefined,
 };
 
+const PRIVATE_ITEM_URL = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+const PRIVATE_ITEM_ROW = {
+	url: "uploads.readplace.invalid/0123456789abcdef0123456789abcdef",
+	originalUrl: PRIVATE_ITEM_URL,
+	title: "My private book",
+	siteName: "Private press",
+	excerpt: "The first page of my book",
+	wordCount: 9,
+	content: undefined,
+	ownerUserId: USER,
+};
+
+const PRIVATE_ITEM_STUB = { title: "Private upload", siteName: "Readplace", excerpt: "", wordCount: 0 };
+
 describe("initDynamoDbSavedArticleStore reads by id", () => {
 	it("findArticleById joins the global row with the user row", async () => {
 		const { client } = createFakeClient({
@@ -1215,6 +1229,34 @@ describe("initDynamoDbSavedArticleStore reads by id", () => {
 			excerpt: "",
 			wordCount: 0,
 		});
+	});
+
+	it("findArticleById gives the owner of a private upload its stored title", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem(PRIVATE_ITEM_ROW)], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem({ url: PRIVATE_ITEM_ROW.url }) } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.metadata).toStrictEqual({
+			title: "My private book",
+			siteName: "Private press",
+			excerpt: "The first page of my book",
+			wordCount: 9,
+			imageUrl: "https://example.com/image.jpg",
+		});
+	});
+
+	it("findArticleById shows the private upload stub to a reader who holds a link but does not own it", async () => {
+		const { client } = createFakeClient({
+			QueryCommand: { default: { Items: [articleItem({ ...PRIVATE_ITEM_ROW, ownerUserId: "another-user" })], Count: 1 } },
+			GetCommand: { default: { Item: userArticleItem({ url: PRIVATE_ITEM_ROW.url }) } },
+		});
+
+		const article = await initStore(client).findArticleById(ReaderArticleHashId.fromHash(ROUTE_ID), USER);
+
+		expect(article?.metadata).toStrictEqual(PRIVATE_ITEM_STUB);
 	});
 
 	it("findArticleById carries contentFetchedAt from the global row, so the reader can version its content", async () => {
@@ -1380,7 +1422,7 @@ describe("initDynamoDbSavedArticleStore findArticlesByUser", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId",
 		);
 	});
 
@@ -1783,7 +1825,7 @@ describe("initDynamoDbSavedArticleStore findUnreadSavesForDigest", () => {
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
 		expect(batch?.input.RequestItems?.articles.ProjectionExpression).toBe(
-			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt",
+			"#originalUrl, #displayUrl, #contentSourceUrl, #directContentBeforePin, #contentSourceTier, #canonicalCandidateId, #canonicalOriginalUrl, #revokedCandidateIds, #contentLocation, #purgedAt, #url, #routeId, #title, #siteName, #excerpt, #wordCount, #imageUrl, #publishedOn, #estimatedReadTime, #savedAt, #readerAvailableAt, #contentFetchedAt, #ownerUserId",
 		);
 		expect(
 			page.candidates.map((candidate) => ({
@@ -2313,6 +2355,16 @@ describe("initDynamoDbSavedArticleStore freshness, notification state, content a
 			excerpt: "",
 			wordCount: 0,
 		});
+	});
+
+	it("findArticleByUrl shows the private upload stub, because it reads for no particular reader", async () => {
+		const { client } = createFakeClient({
+			GetCommand: { default: { Item: articleItem(PRIVATE_ITEM_ROW) } },
+		});
+
+		const data = await initStore(client).findArticleByUrl(PRIVATE_ITEM_URL);
+
+		expect(data?.metadata).toStrictEqual(PRIVATE_ITEM_STUB);
 	});
 
 	it("findArticleByUrl surfaces the redirect destination for a merged row", async () => {

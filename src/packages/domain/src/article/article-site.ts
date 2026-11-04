@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { UserId } from "../user";
 import { isNonArticleHost } from "./non-article-host";
+import { PRIVATE_ITEM_STUB_TITLE, type Viewer, mayReadItem } from "./private-item-access";
 
 const SiteLabelSchema = z.string().brand<"SiteLabel">();
 const ArticleDestinationUrlSchema = z.string().brand<"ArticleDestinationUrl">();
@@ -83,6 +85,8 @@ interface StoredDisplayMetadata {
 	wordCount: number;
 	imageUrl: string | undefined;
 	publishedOn: string | undefined;
+	viewer: Viewer;
+	ownerUserId: UserId | undefined;
 }
 
 interface DisplayMetadata {
@@ -121,6 +125,9 @@ function rehostExcerpt(params: {
 export function articleDisplayMetadata(stored: StoredDisplayMetadata): DisplayMetadata {
 	if (isNonArticleHost(stored.url)) {
 		return { ...hostStubMetadata(stored.destinationUrl), wordCount: 0 };
+	}
+	if (!mayReadItem(stored)) {
+		return { ...privateItemStubMetadata(), wordCount: 0 };
 	}
 	return {
 		...displayText(stored),
@@ -163,9 +170,15 @@ export function articleLinkedDisplay(stored: {
 	destinationUrl: ArticleDestinationUrl;
 	title: string;
 	siteName: string;
+	viewer: Viewer;
+	ownerUserId: UserId | undefined;
 }): { title: string; siteName: SiteLabel } {
 	const { title, siteName } = articleDisplayMetadata({ ...stored, excerpt: "", wordCount: 0, imageUrl: undefined, publishedOn: undefined });
 	return { title, siteName };
+}
+
+export function privateItemStubMetadata(): { title: string; siteName: SiteLabel; excerpt: string } {
+	return { title: PRIVATE_ITEM_STUB_TITLE, siteName: SiteLabelSchema.parse("Readplace"), excerpt: "" };
 }
 
 export function hostStubMetadata(destinationUrl: ArticleDestinationUrl): {

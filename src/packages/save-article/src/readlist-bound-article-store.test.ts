@@ -1,4 +1,4 @@
-import { MinutesSchema, ReaderArticleHashId, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, articleDestinationUrl, articleDisplayMetadata, ANONYMOUS_VIEWER } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
@@ -19,7 +19,7 @@ const savedArticle: SavedArticle = {
 	userId: USER,
 	url: URL,
 	destinationUrl: DESTINATION,
-	metadata: articleDisplayMetadata({ url: URL, destinationUrl: DESTINATION, title: "T", siteName: "S", excerpt: "E", wordCount: 1, imageUrl: undefined, publishedOn: undefined }),
+	metadata: articleDisplayMetadata({ url: URL, destinationUrl: DESTINATION, title: "T", siteName: "S", excerpt: "E", wordCount: 1, imageUrl: undefined, publishedOn: undefined, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined }),
 	servedBody: { kind: "legacy" },
 	estimatedReadTime: ONE_MINUTE,
 	status: "unread",

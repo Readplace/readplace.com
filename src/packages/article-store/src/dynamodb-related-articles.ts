@@ -9,6 +9,7 @@ import {
 	isNonArticleHost,
 	isSameArticle,
 	stubMetadataFor,
+	viewerFor,
 } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import {
@@ -292,6 +293,8 @@ export function initDynamoDbRelatedArticles(deps: {
 				destinationUrl: articleDestinationUrl({ url: article.originalUrl, displayUrl: article.displayUrl }),
 				title: article.title,
 				siteName: article.siteName,
+				viewer: viewerFor(params.userId),
+				ownerUserId: article.ownerUserId,
 			});
 			items.push({
 				id: ReaderArticleHashIdSchema.parse(article.routeId),

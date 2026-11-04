@@ -1,3 +1,5 @@
+import { UserIdSchema } from "../user/user.schema";
+import { ANONYMOUS_VIEWER, viewerFor } from "./private-item-access";
 import {
 	articleDestinationHost,
 	articleDestinationUrl,
@@ -6,6 +8,7 @@ import {
 	articleLinkedDisplay,
 	contentSavedFromHostExcerpt,
 	hostStubMetadata,
+	privateItemStubMetadata,
 	imageSavedFromHostExcerpt,
 	isSameArticle,
 	savedFromHostExcerpt,
@@ -47,6 +50,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toStrictEqual({ title: "A real post", siteName: "nodeweekly.com", excerpt: "A real excerpt.", wordCount: 120 });
 	});
@@ -61,6 +66,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toEqual({ title: "A real post", siteName: "nodeweekly.com", excerpt: "A real excerpt.", wordCount: 120 });
 	});
@@ -75,6 +82,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toEqual({
 			title: articleFromHostTitle("memcached.org"),
@@ -96,6 +105,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toEqual({ title: "memcached.org", siteName: "memcached.org", excerpt: savedFromHostExcerpt("memcached.org"), wordCount: 120 });
 	});
@@ -110,6 +121,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toEqual({ title: "Declared Title", siteName: "memcached.org", excerpt: imageSavedFromHostExcerpt("memcached.org"), wordCount: 120 });
 	});
@@ -124,6 +137,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toEqual({ title: "nodeweekly.com", siteName: "Node Weekly", excerpt: "A real excerpt.", wordCount: 120 });
 	});
@@ -138,6 +153,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result.siteName).toBe("memcached.org");
 	});
@@ -152,6 +169,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result.siteName).toBe("www.example.com");
 	});
@@ -166,6 +185,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: "https://nodeweekly.com/cover.png",
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toEqual({
 			title: "A real post",
@@ -186,6 +207,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 120,
 			imageUrl: undefined,
 			publishedOn: "2025-10-08",
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toStrictEqual({
 			title: "A real post",
@@ -207,6 +230,8 @@ describe("articleDisplayMetadata", () => {
 			wordCount: 9,
 			imageUrl: "https://cdn.readplace.test/media/private-avatar.png",
 			publishedOn: "2026-10-01",
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toStrictEqual({ title: "mail.google.com", siteName: "mail.google.com", excerpt: "", wordCount: 0 });
 	});
@@ -219,6 +244,8 @@ describe("articleLinkedDisplay", () => {
 			destinationUrl: destinationOf(SAVED, DESTINATION),
 			title: articleFromHostTitle("nodeweekly.com"),
 			siteName: "nodeweekly.com",
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toEqual({ title: articleFromHostTitle("memcached.org"), siteName: "memcached.org" });
 	});
@@ -230,8 +257,66 @@ describe("articleLinkedDisplay", () => {
 			destinationUrl: destinationOf(url, undefined),
 			title: "Inbox (12) - private.person@example.com",
 			siteName: "Gmail",
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		});
 		expect(result).toEqual({ title: "mail.google.com", siteName: "mail.google.com" });
+	});
+});
+
+describe("a private upload's display metadata", () => {
+	const url = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+	const owner = UserIdSchema.parse("owner-user");
+	const stored = {
+		url,
+		destinationUrl: destinationOf(url, undefined),
+		title: "My private book",
+		siteName: "Private press",
+		excerpt: "The first page of my book",
+		wordCount: 4200,
+		imageUrl: "https://cdn.readplace.test/media/cover.png",
+		publishedOn: "2025-10-08",
+		ownerUserId: owner,
+	};
+
+	it.each([
+		{ name: "a signed-out viewer", viewer: ANONYMOUS_VIEWER },
+		{ name: "another reader", viewer: viewerFor(UserIdSchema.parse("other-reader")) },
+	])("is the private upload stub for $name", ({ viewer }) => {
+		expect(articleDisplayMetadata({ ...stored, viewer })).toStrictEqual({
+			title: "Private upload",
+			siteName: "Readplace",
+			excerpt: "",
+			wordCount: 0,
+		});
+		expect(articleLinkedDisplay({ ...stored, viewer })).toEqual({ title: "Private upload", siteName: "Readplace" });
+	});
+
+	it("is the stub for every reader when the row records no owner", () => {
+		expect(articleDisplayMetadata({ ...stored, ownerUserId: undefined, viewer: viewerFor(owner) }).title).toBe(
+			"Private upload",
+		);
+	});
+
+	it("is the stored metadata for its owner", () => {
+		expect(articleDisplayMetadata({ ...stored, viewer: viewerFor(owner) })).toStrictEqual({
+			title: "My private book",
+			siteName: "Private press",
+			excerpt: "The first page of my book",
+			wordCount: 4200,
+			imageUrl: "https://cdn.readplace.test/media/cover.png",
+			publishedOn: "2025-10-08",
+		});
+		expect(articleLinkedDisplay({ ...stored, viewer: viewerFor(owner) })).toEqual({
+			title: "My private book",
+			siteName: "Private press",
+		});
+	});
+});
+
+describe("privateItemStubMetadata", () => {
+	it("names the item a private upload on Readplace and shows no excerpt", () => {
+		expect(privateItemStubMetadata()).toEqual({ title: "Private upload", siteName: "Readplace", excerpt: "" });
 	});
 });
 

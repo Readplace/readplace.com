@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ANONYMOUS_VIEWER } from "./private-item-access";
 import { articleDestinationUrl, articleDisplayMetadata } from "./article-site";
 import { MinutesSchema } from "./article.schema";
 import type { SavedArticle } from "./article.types";
@@ -23,7 +24,7 @@ function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 		userId: UserIdSchema.parse("user-1"),
 		url,
 		destinationUrl,
-		metadata: articleDisplayMetadata({ url, destinationUrl, title: "t", siteName: "s", excerpt: "e", wordCount: 1, imageUrl: undefined, publishedOn: undefined }),
+		metadata: articleDisplayMetadata({ url, destinationUrl, title: "t", siteName: "s", excerpt: "e", wordCount: 1, imageUrl: undefined, publishedOn: undefined, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined }),
 		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(1),
 		status: "unread",

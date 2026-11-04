@@ -5,6 +5,7 @@ import {
 	batchGetFromTable,
 } from "@packages/hutch-storage-client";
 import type { RelatedCandidate } from "@packages/provider-contracts/related-articles";
+import { UserIdSchema } from "@packages/domain/user";
 import { dynamoField } from "@packages/hutch-storage-client";
 import { z } from "zod";
 
@@ -21,6 +22,7 @@ export const ArticleRelatedRow = z.object({
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	purgedAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
+	ownerUserId: dynamoField(UserIdSchema),
 });
 
 const LooseArticleRelatedRow = z.looseObject({ url: z.string() });

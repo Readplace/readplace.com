@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ANONYMOUS_VIEWER } from "./private-item-access";
 import {
 	ReadlistFilterSchema,
 	discoveryCandidateOf,
@@ -40,6 +41,8 @@ function savedArticle(input: {
 			wordCount: input.wordCount ?? 1000,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		}),
 		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(input.minutes ?? 5),

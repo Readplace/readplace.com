@@ -1,4 +1,4 @@
-import { ReaderArticleHashIdSchema, SaveAttemptIdSchema, SaveableUrlSchema, articleDestinationUrl, articleDisplayMetadata } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, SaveAttemptIdSchema, SaveableUrlSchema, articleDestinationUrl, articleDisplayMetadata, ANONYMOUS_VIEWER } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
 import type { SaveProvenance, SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -18,7 +18,7 @@ const saved: SavedArticle = {
 	userId,
 	url: exampleUrl,
 	destinationUrl: destination,
-	metadata: articleDisplayMetadata({ url: exampleUrl, destinationUrl: destination, title: "Post", siteName: "Example", excerpt: "", wordCount: 0, imageUrl: undefined, publishedOn: undefined }),
+	metadata: articleDisplayMetadata({ url: exampleUrl, destinationUrl: destination, title: "Post", siteName: "Example", excerpt: "", wordCount: 0, imageUrl: undefined, publishedOn: undefined, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined }),
 	servedBody: { kind: "legacy" },
 	estimatedReadTime: MinutesSchema.parse(0),
 	status: "unread",

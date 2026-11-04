@@ -115,6 +115,7 @@ export {
 	articleDisplayMetadata,
 	articleLinkedDisplay,
 	hostStubMetadata,
+	privateItemStubMetadata,
 	articleFromHostTitle,
 	savedFromHostExcerpt,
 	contentSavedFromHostExcerpt,

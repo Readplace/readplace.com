@@ -20,6 +20,8 @@ import {
 	articleDisplayMetadata,
 	discoveryCandidateOf,
 	matchesArticleDiscovery,
+	ANONYMOUS_VIEWER,
+	viewerFor,
 } from "@packages/domain/article";
 import type { FindPersonalLibrary } from "@packages/provider-contracts/engagement-starter";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema, type ReadlistSlug } from "@packages/domain/readlist";
@@ -114,6 +116,7 @@ const ArticleRow = z.object({
 	savedAt: dynamoField(z.string()),
 	readerAvailableAt: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
+	ownerUserId: dynamoField(UserIdSchema),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
@@ -190,6 +193,8 @@ function toSavedArticle(
 			wordCount: article.wordCount,
 			imageUrl: article.imageUrl,
 			publishedOn: article.publishedOn,
+			viewer: viewerFor(userArticle.userId),
+			ownerUserId: article.ownerUserId,
 		}),
 		content: isUnverifiedWrapperContent(article) ? undefined : article.content,
 		servedBody: servedBodyOf(article),
@@ -1428,6 +1433,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 				wordCount: row.wordCount,
 				imageUrl: row.imageUrl,
 				publishedOn: row.publishedOn,
+				viewer: ANONYMOUS_VIEWER,
+				ownerUserId: undefined,
 			}),
 			estimatedReadTime: row.estimatedReadTime,
 			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),

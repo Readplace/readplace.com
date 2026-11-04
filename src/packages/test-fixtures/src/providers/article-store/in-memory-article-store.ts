@@ -14,9 +14,11 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
 	ReaderArticleHashId,
 	articleDestinationUrl,
+	ANONYMOUS_VIEWER,
 	articleDisplayMetadata,
 	discoveryCandidateOf,
 	matchesArticleDiscovery,
+	viewerFor,
 } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -155,6 +157,8 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 			wordCount: article.metadata.wordCount,
 			imageUrl: article.metadata.imageUrl,
 			publishedOn: article.metadata.publishedOn,
+			viewer: viewerFor(userArticle.userId),
+			ownerUserId: article.ownerUserId,
 		}),
 		content: article.content,
 		servedBody: servedBodyOf(article),
@@ -521,6 +525,8 @@ export function initInMemoryArticleStore(): {
 				wordCount: article.metadata.wordCount,
 				imageUrl: article.metadata.imageUrl,
 				publishedOn: article.metadata.publishedOn,
+				viewer: ANONYMOUS_VIEWER,
+				ownerUserId: undefined,
 			}),
 			content: article.content,
 

@@ -3,6 +3,7 @@ import {
 	type SiteLabel,
 	articleDestinationUrl,
 	articleDisplayMetadata,
+	ANONYMOUS_VIEWER,
 } from "@packages/domain/article";
 
 const FIXTURE_URL = "https://fixture.test/article";
@@ -18,6 +19,8 @@ export function siteLabel(name: string): SiteLabel {
 		wordCount: 0,
 		imageUrl: undefined,
 		publishedOn: undefined,
+		viewer: ANONYMOUS_VIEWER,
+		ownerUserId: undefined,
 	}).siteName;
 }
 

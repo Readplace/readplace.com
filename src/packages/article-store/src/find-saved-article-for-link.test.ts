@@ -5,6 +5,7 @@ import {
 	MinutesSchema,
 	ReaderArticleHashId,
 	type SavedArticle,
+	ANONYMOUS_VIEWER,
 } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initFindSavedArticleForLink } from "./find-saved-article-for-link";
@@ -27,6 +28,8 @@ function savedArticleAt(url: string): SavedArticle {
 			wordCount: 1,
 			imageUrl: undefined,
 			publishedOn: undefined,
+			viewer: ANONYMOUS_VIEWER,
+			ownerUserId: undefined,
 		}),
 		servedBody: { kind: "legacy" },
 		estimatedReadTime: MinutesSchema.parse(1),
