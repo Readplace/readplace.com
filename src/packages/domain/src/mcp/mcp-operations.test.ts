@@ -40,8 +40,6 @@ describe("MCP operations", () => {
 			"list_readlist_articles",
 			"get_article",
 			"get_article_content",
-			"get_article_summary",
-			"get_related_articles",
 			"create_readlist",
 			"add_to_readlist",
 			"mark_as_read",

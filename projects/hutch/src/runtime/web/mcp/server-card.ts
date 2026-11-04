@@ -20,7 +20,7 @@ export function buildMcpServerCard(baseUrl: string): object {
 		protocolVersion: MCP_PROTOCOL_VERSION,
 		serverInfo: MCP_SERVER_INFO,
 		description:
-			"Save links to your Readplace readlists, discover and create readlists, file saved articles into them, fetch a saved article's metadata, reader view, and AI summary, and mark one read or unread. Deleting is done in the Readplace app.",
+			"Save links to your Readplace readlists, discover and create readlists, file saved articles into them, fetch a saved article's metadata and reader view, and mark one read or unread. Deleting is done in the Readplace app.",
 		documentationUrl: `${baseUrl}/auth.md`,
 		transport: {
 			type: "streamable-http",

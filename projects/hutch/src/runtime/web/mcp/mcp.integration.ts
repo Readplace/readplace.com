@@ -10,7 +10,11 @@ import {
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
 import { MCP_PROTOCOL_VERSION } from "./protocol";
-import { TOOL_DEFINITIONS } from "./tool-definitions";
+import {
+	GET_ARTICLE_SUMMARY_LEGACY_NAME,
+	GET_RELATED_ARTICLES_LEGACY_NAME,
+	TOOL_DEFINITIONS,
+} from "./tool-definitions";
 
 const CLIENT_ID = "hutch-firefox-extension";
 const REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
@@ -323,8 +327,6 @@ describe("MCP server over the real app", () => {
 			"list_readlist_articles",
 			"get_article",
 			"get_article_content",
-			"get_article_summary",
-			"get_related_articles",
 			"create_readlist",
 			"add_to_readlist",
 			"mark_as_read",
@@ -349,7 +351,7 @@ describe("MCP server over the real app", () => {
 		expect(content.body.result.isError).toBeUndefined();
 		expect(typeof content.body.result.structuredContent.status).toBe("string");
 
-		const summary = await callTool(harness, accessToken, tool("get_article_summary", { id }));
+		const summary = await callTool(harness, accessToken, tool(GET_ARTICLE_SUMMARY_LEGACY_NAME, { id }));
 		expect(summary.body.result.isError).toBeUndefined();
 		expect(typeof summary.body.result.structuredContent.status).toBe("string");
 	});
@@ -366,7 +368,7 @@ describe("MCP server over the real app", () => {
 		const content = await callTool(harness, otherToken, tool("get_article_content", { id }));
 		expect(content.body.result.structuredContent).toEqual({ found: false });
 
-		const summary = await callTool(harness, otherToken, tool("get_article_summary", { id }));
+		const summary = await callTool(harness, otherToken, tool(GET_ARTICLE_SUMMARY_LEGACY_NAME, { id }));
 		expect(summary.body.result.structuredContent).toEqual({ found: false });
 
 		const list = await callTool(harness, otherToken, tool("list_readlist_articles"));
@@ -539,7 +541,7 @@ describe("MCP server over the real app", () => {
 		expect(article.readlists).toEqual([work]);
 		const fetched = await callTool(harness, token, tool("get_article", { id: article.id }));
 		expect(fetched.body.result.structuredContent.article).toEqual(article);
-		const related = await callTool(harness, token, tool("get_related_articles", { id: article.id }));
+		const related = await callTool(harness, token, tool(GET_RELATED_ARTICLES_LEGACY_NAME, { id: article.id }));
 		expect(related.body.result.structuredContent).toEqual({ status: "skipped" });
 		expect(related.body.result.content).toEqual([
 			{ type: "text", text: "No related saves are available for that article." },

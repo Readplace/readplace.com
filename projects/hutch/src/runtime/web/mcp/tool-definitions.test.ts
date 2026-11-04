@@ -13,9 +13,9 @@ import {
 	ArticleIdArgs,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_DELETION_STEPS_TOOL,
-	GET_ARTICLE_SUMMARY_TOOL,
+	GET_ARTICLE_SUMMARY_LEGACY_NAME,
 	GET_ARTICLE_TOOL,
-	GET_RELATED_ARTICLES_TOOL,
+	GET_RELATED_ARTICLES_LEGACY_NAME,
 	LIST_READLIST_ARTICLES_TOOL,
 	ListReadlistArticlesArgs,
 	MARK_AS_READ_TOOL,
@@ -33,8 +33,6 @@ describe("MCP tool definitions", () => {
 			"list_readlist_articles",
 			"get_article",
 			"get_article_content",
-			"get_article_summary",
-			"get_related_articles",
 			"create_readlist",
 			"add_to_readlist",
 			"mark_as_read",
@@ -48,6 +46,16 @@ describe("MCP tool definitions", () => {
 		).toEqual([]);
 		expect(
 			TOOL_DEFINITIONS.filter((tool) => tool.name === DELETE_ARTICLE_LEGACY_NAME),
+		).toEqual([]);
+		expect(
+			TOOL_DEFINITIONS.filter(
+				(tool) => tool.name === GET_ARTICLE_SUMMARY_LEGACY_NAME,
+			),
+		).toEqual([]);
+		expect(
+			TOOL_DEFINITIONS.filter(
+				(tool) => tool.name === GET_RELATED_ARTICLES_LEGACY_NAME,
+			),
 		).toEqual([]);
 	});
 
@@ -72,8 +80,6 @@ describe("MCP tool definitions", () => {
 			LIST_READLIST_ARTICLES_TOOL,
 			GET_ARTICLE_TOOL,
 			GET_ARTICLE_CONTENT_TOOL,
-			GET_ARTICLE_SUMMARY_TOOL,
-			GET_RELATED_ARTICLES_TOOL,
 		]) {
 			expect(tool.annotations).toMatchObject({
 				readOnlyHint: true,
@@ -149,7 +155,6 @@ describe("MCP tool definitions", () => {
 		it.each([
 			["get_article", GET_ARTICLE_TOOL],
 			["get_article_content", GET_ARTICLE_CONTENT_TOOL],
-			["get_article_summary", GET_ARTICLE_SUMMARY_TOOL],
 		])("requires an id in %s's JSON Schema", (_name, tool) => {
 			expect(tool.inputSchema).toMatchObject({
 				required: ["id"],

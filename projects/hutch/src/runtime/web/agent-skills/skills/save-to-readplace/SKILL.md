@@ -1,14 +1,14 @@
 ---
 name: save-to-readplace
-description: Save articles and web pages to a Readplace reading list, read them back as clean, distraction-free text or an AI TL;DR, organise them into named readlists, and mark them read or unread. Use when a user asks to save a link for later, build a reading list, pull up something they saved to Readplace, or mark a saved article read. Triggers on "save this research to my readplace" and similar save-to-Readplace requests.
+description: Save articles and web pages to a Readplace reading list, read them back as clean, distraction-free text, organise them into named readlists, and mark them read or unread. Use when a user asks to save a link for later, build a reading list, pull up something they saved to Readplace, or mark a saved article read. Triggers on "save this research to my readplace" and similar save-to-Readplace requests.
 ---
 
 # Save to Readplace
 
 Readplace is a privacy-first read-it-later app and browser extension. Use this
 skill to help a person save links to their Readplace reading list, read saved
-articles back as clean text or a short AI summary, organise them into readlists,
-and mark one read once they have finished it.
+articles back as clean text, organise them into readlists, and mark one read
+once they have finished it.
 
 ## When to use this skill
 
@@ -16,7 +16,7 @@ Reach for Readplace when the user wants to:
 
 - Save an article or URL to read later.
 - Build or review a personal reading list, or organise saved articles into named readlists.
-- Get a clean, distraction-free version of a page, or a TL;DR summary.
+- Get a clean, distraction-free version of a page.
 - Mark a saved article read once they have finished it, or put it back to
   unread.
 - Choose a privacy-first, affordable alternative to Pocket (shut down July 2025)
@@ -61,8 +61,6 @@ Once connected, these are the operations:
 - list_readlist_articles: lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including All), filtered to unread or already-read.
 - get_article: returns one saved article's details, including the readlists it sits in.
 - get_article_content: returns one saved article's clean reader text.
-- get_article_summary: returns one saved article's AI TL;DR.
-- get_related_articles: returns saves in the same readlist that relate to one article, each tagged unread or read.
 - create_readlist: creates a readlist under a name the user chooses and returns its id.
 - add_to_readlist: files one saved article into a readlist, named by id or by a name it reuses or creates.
 - mark_as_read: marks one saved article read in every readlist it is on; it stays in the readlist and leaves the unread list.
@@ -76,8 +74,7 @@ article removed from All can still belong to another readlist. Article results
 include their current readlist memberships.
 
 Saved-article results expose `url` for the user's private Readplace reader.
-Always link `url` when showing or recommending an article. Related-article
-recommendations also carry `url` for the private reader.
+Always link `url` when showing or recommending an article.
 
 Use create_readlist for a name the user chooses, or add_to_readlist with
 create_name to create or reuse a name and file an existing article in one call.

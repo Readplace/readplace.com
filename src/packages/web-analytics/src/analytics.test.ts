@@ -1424,11 +1424,17 @@ describe("buildMcpToolCalledEvent", () => {
 
 describe("buildMcpSaveIntentEvent", () => {
 	const now = () => new Date("2026-04-21T10:00:00.000Z");
+	const userId = UserIdSchema.parse("00000000000000000000000000000001");
 
-	it("puts an MCP save into the same view_save_intent funnel as every other surface, with no visitor identity because a tool call carries no browser cookie", () => {
+	it("puts an MCP save into the same view_save_intent funnel as every other surface, with no visitor identity because a tool call carries no browser cookie, and records the user who saved it", () => {
 		const event = buildMcpSaveIntentEvent(
 			{ now },
-			{ url: "https://example.com/a", path: "/mcp", outcome: SAVE_OUTCOMES.saved },
+			{
+				url: "https://example.com/a",
+				path: "/mcp",
+				outcome: SAVE_OUTCOMES.saved,
+				userId,
+			},
 		);
 		expect(event).toEqual({
 			stream: "analytics",
@@ -1445,13 +1451,19 @@ describe("buildMcpSaveIntentEvent", () => {
 			visitor_hash: null,
 			visitor_id: null,
 			is_authenticated: 1,
+			user_id: "00000000000000000000000000000001",
 		});
 	});
 
 	it("nulls article_host and content_class when the submitted url does not parse", () => {
 		const event = buildMcpSaveIntentEvent(
 			{ now },
-			{ url: "::not a url::", path: "/mcp", outcome: SAVE_OUTCOMES.error },
+			{
+				url: "::not a url::",
+				path: "/mcp",
+				outcome: SAVE_OUTCOMES.error,
+				userId,
+			},
 		);
 		expect(event).toMatchObject({ article_host: null, content_class: null, outcome: "error" });
 	});

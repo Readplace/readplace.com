@@ -417,6 +417,8 @@ export interface ViewSaveIntentEvent {
 	is_authenticated: 0 | 1;
 }
 
+export type McpSaveIntentEvent = ViewSaveIntentEvent & { user_id: UserId };
+
 export interface ViewEndCtaShownEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.viewEndCtaShown;
@@ -1177,8 +1179,8 @@ export function buildMcpToolCalledEvent(
 
 export function buildMcpSaveIntentEvent(
 	deps: { now: () => Date },
-	params: { url: string; path: string; outcome: SaveOutcome },
-): ViewSaveIntentEvent {
+	params: { url: string; path: string; outcome: SaveOutcome; userId: UserId },
+): McpSaveIntentEvent {
 	const articleHost = articleHostFromSubmitted(params.url);
 	return {
 		stream: STREAMS.analytics,
@@ -1195,6 +1197,7 @@ export function buildMcpSaveIntentEvent(
 		visitor_hash: null,
 		visitor_id: null,
 		is_authenticated: 1,
+		user_id: params.userId,
 	};
 }
 

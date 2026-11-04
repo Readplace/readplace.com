@@ -1,13 +1,13 @@
 ---
 title: "Your AI Assistant Can Read Your Saved Articles and Mark Them Read"
-description: "Connect an AI assistant to Readplace and it can read your saved articles: the cleaned reader text and the AI summary, looked up by id. It can also mark one read or unread, the same write the app makes and just as easy to undo. Deleting is the one thing that stays with you."
+description: "Connect an AI assistant to Readplace and it can read your saved articles: the cleaned reader text, looked up by id. It can also mark one read or unread, the same write the app makes and just as easy to undo. Deleting is the one thing that stays with you."
 excerpt: "A connected assistant can now read a saved article and mark it read, but it still can't delete it."
-tldr: "An assistant connected to Readplace used to do two things: save a page to your readlist and list back what you saved. It can now open a saved article and read it, the cleaned reader text and the AI summary, looked up by the id from your list. It can also mark that article read, or unread again. Marking read shipped as a tool that refused, and I changed my mind: it is an ordinary write you ask for, and one call to `mark_as_unread` puts it back where it was. Deleting is the one tool that still only hands the assistant a note pointing you at the app, and every lookup, read or write, is tied to your account. The per-client setup is the same one page as before, at [readplace.com/mcp](https://readplace.com/mcp)."
+tldr: "An assistant connected to Readplace used to do two things: save a page to your readlist and list back what you saved. It can now open a saved article and read it, the cleaned reader text, looked up by the id from your list. It can also mark that article read, or unread again. Marking read shipped as a tool that refused, and I changed my mind: it is an ordinary write you ask for, and one call to `mark_as_unread` puts it back where it was. Deleting is the one tool that still only hands the assistant a note pointing you at the app, and every lookup, read or write, is tied to your account. The per-client setup is the same one page as before, at [readplace.com/mcp](https://readplace.com/mcp)."
 slug: "ai-assistant-reads-your-saved-articles"
 date: "2026-06-22"
-lastModified: "2026-10-25"
+lastModified: "2026-11-05"
 author: "Fayner Brack"
-keywords: "AI assistant read saved articles, Claude read it later, ChatGPT read saved articles, MCP read article content, get_article_content, mark_as_read, mark_as_unread, mark an article read from your assistant, AI summary of saved article, Readplace MCP, read your reading list with AI, MCP read it later"
+keywords: "AI assistant read saved articles, Claude read it later, ChatGPT read saved articles, MCP read article content, get_article_content, mark_as_read, mark_as_unread, mark an article read from your assistant, Readplace MCP, read your reading list with AI, MCP read it later"
 tags: ["changelog"]
 banner: "Your AI assistant can now read your saved articles and mark them read"
 ---
@@ -22,7 +22,7 @@ Until now a connected assistant had two tools, the [save-and-list pair I wrote a
 
 Listing is not reading. The assistant could tell that you saved a piece on, say, interest rates, but it could not open it. To use the article it had to go back to the live page, meet the same paywall or pop-up you saved the page to avoid, and read whatever the site served the second time.
 
-Three tools close that gap. `get_article` returns one saved article's details: title, site, word count, estimated read time, and the dates you saved and read it. `get_article_content` returns the cleaned reader text, the same quiet copy Readplace built for you, ads and scripts already gone. `get_article_summary` returns the short summary Readplace wrote when the save finished. Each one works off the copy on Readplace's servers, not the open web.
+Two tools close that gap. `get_article` returns one saved article's details: title, site, word count, estimated read time, and the dates you saved and read it. `get_article_content` returns the cleaned reader text, the same quiet copy Readplace built for you, ads and scripts already gone. Each one works off the copy on Readplace's servers, not the open web.
 
 ## Two tools that move an article, one that changes nothing
 

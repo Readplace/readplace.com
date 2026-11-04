@@ -48,7 +48,7 @@ export const MCP_OPERATIONS = [
 		name: "list_readlist_articles",
 		title: "List saved articles",
 		description:
-			"List the pages the user has saved to their Readplace reading list. With no `readlist`, returns every saved page once, combined across every readlist the user owns — a page filed into several readlists appears a single time. Pass a `readlist` id from list_readlists — including All, the built-in readlist that receives every save — to list only that one. Optionally filter to unread or already-read items. Each item includes an `id` you can pass to get_article, get_article_content, or get_article_summary, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list. " +
+			"List the pages the user has saved to their Readplace reading list. With no `readlist`, returns every saved page once, combined across every readlist the user owns — a page filed into several readlists appears a single time. Pass a `readlist` id from list_readlists — including All, the built-in readlist that receives every save — to list only that one. Optionally filter to unread or already-read items. Each item includes an `id` you can pass to get_article or get_article_content, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list. " +
 			ARTICLE_LINK_GUIDANCE,
 		summary:
 			"lists what the user has saved, unique across every readlist by default, or narrowed to one readlist (including All), filtered to unread or already-read.",
@@ -69,23 +69,6 @@ export const MCP_OPERATIONS = [
 		description:
 			"Return the cleaned, readable HTML of one saved article, looked up by id. If the reader view is still being fetched, reports that it is not ready yet rather than failing. Use get_article when the user wants a link to open: its `url` opens the private Readplace reader.",
 		summary: "returns one saved article's clean reader text.",
-		effect: "read",
-	},
-	{
-		name: "get_article_summary",
-		title: "Get a saved article's summary",
-		description:
-			"Return the AI-generated TL;DR for one saved article, looked up by id, or its current status (pending, failed, or skipped) when a summary is not yet available. Use get_article when the user wants a link to open: its `url` opens the private Readplace reader.",
-		summary: "returns one saved article's AI TL;DR.",
-		effect: "read",
-	},
-	{
-		name: "get_related_articles",
-		title: "Get related articles from the user's own readlist",
-		description:
-			"Return other articles in the user's own Readplace readlist that relate to one saved article, looked up by id, each tagged unread or read and carrying a short reason, a private-reader `url`, and an id you can pass to get_article. Link a recommendation to its `url` when the user wants to read it. An unread pick is the natural next read; a read pick is one they finished earlier and may want again. Articles the user has deleted are left out. Reports its status (pending or skipped) when no relations have been worked out.",
-		summary:
-			"returns saves in the same readlist that relate to one article, each tagged unread or read.",
 		effect: "read",
 	},
 	{

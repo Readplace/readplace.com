@@ -126,6 +126,7 @@ export {
 	type ViewCrawlLimitedEvent,
 	type EpubImagesOverBudgetEvent,
 	type ViewSaveIntentEvent,
+	type McpSaveIntentEvent,
 	type ViewEndCtaShownEvent,
 	type FirstArticleAutosavedEvent,
 	type DeviceClass,

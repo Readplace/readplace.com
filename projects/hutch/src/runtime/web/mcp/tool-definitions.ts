@@ -35,6 +35,10 @@ export const LIST_READLIST_ARTICLES_LEGACY_NAME = "list_queue";
 
 export const DELETE_ARTICLE_LEGACY_NAME = "delete_article";
 
+export const GET_ARTICLE_SUMMARY_LEGACY_NAME = "get_article_summary";
+
+export const GET_RELATED_ARTICLES_LEGACY_NAME = "get_related_articles";
+
 export const SaveLinkArgs = z.object({
 	url: z.string().min(1),
 	readlists: z.array(z.string().min(1)).max(READLIST_MAX_PER_USER).optional(),
@@ -195,36 +199,6 @@ export const GET_ARTICLE_CONTENT_TOOL: McpToolDefinition = {
 	},
 };
 
-export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
-	...mcpOperationMetadata("get_article_summary"),
-	inputSchema: {
-		type: "object",
-		properties: { ...ID_PROPERTY },
-		required: ["id"],
-		additionalProperties: false,
-	},
-	annotations: {
-		readOnlyHint: true,
-		destructiveHint: false,
-		openWorldHint: false,
-	},
-};
-
-export const GET_RELATED_ARTICLES_TOOL: McpToolDefinition = {
-	...mcpOperationMetadata("get_related_articles"),
-	inputSchema: {
-		type: "object",
-		properties: { ...ID_PROPERTY },
-		required: ["id"],
-		additionalProperties: false,
-	},
-	annotations: {
-		readOnlyHint: true,
-		destructiveHint: false,
-		openWorldHint: false,
-	},
-};
-
 export const CREATE_READLIST_TOOL: McpToolDefinition = {
 	...mcpOperationMetadata("create_readlist"),
 	inputSchema: {
@@ -328,8 +302,6 @@ export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	LIST_READLIST_ARTICLES_TOOL,
 	GET_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
-	GET_ARTICLE_SUMMARY_TOOL,
-	GET_RELATED_ARTICLES_TOOL,
 	CREATE_READLIST_TOOL,
 	ADD_TO_READLIST_TOOL,
 	MARK_AS_READ_TOOL,

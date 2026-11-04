@@ -32,8 +32,8 @@ import {
 	ADD_TO_READLIST_TOOL,
 	DELETE_ARTICLE_LEGACY_NAME,
 	GET_ARTICLE_CONTENT_TOOL,
-	GET_ARTICLE_SUMMARY_TOOL,
-	GET_RELATED_ARTICLES_TOOL,
+	GET_ARTICLE_SUMMARY_LEGACY_NAME,
+	GET_RELATED_ARTICLES_LEGACY_NAME,
 	GET_ARTICLE_DELETION_STEPS_TOOL,
 	GET_ARTICLE_TOOL,
 	LIST_READLISTS_TOOL,
@@ -481,7 +481,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), get_article_summary (AI TL;DR), and get_related_articles (other saves that relate to it, each tagged unread or read). Each article's url opens its private Readplace reader view. A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: get_article_deletion_steps changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
+				"save_link adds a URL to the user's Readplace reading list; list_readlist_articles lists saved articles, each with an id you pass to get_article (metadata) and get_article_content (reader HTML). Each article's url opens its private Readplace reader view. A user can keep several readlists: list_readlists returns each one's opaque id and name, and readlist arguments take that id exactly as returned — never a name you inferred, never an id from another conversation. list_readlist_articles with no readlist lists every saved article once, combined across all the reader's readlists; pass a readlist id (including All) to list only that one. Pass readlists to save_link to file a new save into several at once. All receives every save, but an article removed from All can still belong to another readlist. add_to_readlist files an article that is already saved using either a readlist id or create_name, which reuses an existing name or creates it. create_readlist makes a new one under a name the user chooses. mark_as_read and mark_as_unread really change the readlist: mark_as_read takes one saved article out of the unread list while it stays saved, and mark_as_unread is its undo, so use them when the user has read the piece or asks you to — but a summary you produced is not the same as the user reading it, so never mark an article read just because you fetched or summarised it. Deleting is the one thing you cannot do: get_article_deletion_steps changes nothing and only returns instructions for the user to remove the article themselves in the Readplace app, because a stray delete costs them something they meant to read.",
 		};
 	}
 
@@ -913,7 +913,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 	): Promise<ToolResult> {
 		const args = ArticleIdArgs.safeParse(rawArgs);
 		if (!args.success) {
-			return toolError("get_article_summary requires an `id` string.");
+			return toolError(`${GET_ARTICLE_SUMMARY_LEGACY_NAME} requires an \`id\` string.`);
 		}
 		try {
 			const result = await deps.getArticleSummary({
@@ -945,7 +945,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			}
 		} catch (error) {
 			return unexpectedFailure(
-				GET_ARTICLE_SUMMARY_TOOL.name,
+				GET_ARTICLE_SUMMARY_LEGACY_NAME,
 				error,
 				"load the article summary",
 			);
@@ -958,7 +958,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 	): Promise<ToolResult> {
 		const args = ArticleIdArgs.safeParse(rawArgs);
 		if (!args.success) {
-			return toolError("get_related_articles requires an `id` string.");
+			return toolError(`${GET_RELATED_ARTICLES_LEGACY_NAME} requires an \`id\` string.`);
 		}
 		try {
 			const result = await deps.getRelatedArticles({
@@ -995,7 +995,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			}
 		} catch (error) {
 			return unexpectedFailure(
-				GET_RELATED_ARTICLES_TOOL.name,
+				GET_RELATED_ARTICLES_LEGACY_NAME,
 				error,
 				"load the related articles",
 			);
@@ -1095,8 +1095,8 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		[LIST_READLIST_ARTICLES_LEGACY_NAME, runListReadlistArticles],
 		[GET_ARTICLE_TOOL.name, runGetArticle],
 		[GET_ARTICLE_CONTENT_TOOL.name, runGetArticleContent],
-		[GET_ARTICLE_SUMMARY_TOOL.name, runGetArticleSummary],
-		[GET_RELATED_ARTICLES_TOOL.name, runGetRelatedArticles],
+		[GET_ARTICLE_SUMMARY_LEGACY_NAME, runGetArticleSummary],
+		[GET_RELATED_ARTICLES_LEGACY_NAME, runGetRelatedArticles],
 		[CREATE_READLIST_TOOL.name, runCreateReadlist],
 		[ADD_TO_READLIST_TOOL.name, runAddToReadlist],
 		[MARK_AS_READ_TOOL.name, runMarkAsRead],

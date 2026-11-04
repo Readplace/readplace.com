@@ -60,6 +60,7 @@ describe("initRecordMcpToolCall", () => {
 			client: "mcp",
 			article_host: "example.com",
 			path: "/mcp",
+			user_id: userId,
 		});
 	});
 

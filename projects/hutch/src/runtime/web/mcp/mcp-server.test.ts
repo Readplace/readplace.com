@@ -12,7 +12,11 @@ import {
 	type McpServerDeps,
 	type McpToolCallRecord,
 } from "./mcp-server";
-import { TOOL_DEFINITIONS } from "./tool-definitions";
+import {
+	GET_ARTICLE_SUMMARY_LEGACY_NAME,
+	GET_RELATED_ARTICLES_LEGACY_NAME,
+	TOOL_DEFINITIONS,
+} from "./tool-definitions";
 import { articleBody } from "@packages/test-fixtures";
 
 const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
@@ -139,9 +143,7 @@ describe("initMcpServer", () => {
 					{ name: "list_readlists", annotations: { readOnlyHint: true } },
 					{ name: "list_readlist_articles", annotations: { readOnlyHint: true } },
 					{ name: "get_article", annotations: { readOnlyHint: true } },
-					{ name: "get_article_content" },
-					{ name: "get_article_summary" },
-					{ name: "get_related_articles", annotations: { readOnlyHint: true } },
+					{ name: "get_article_content", annotations: { readOnlyHint: true } },
 					{ name: "create_readlist", annotations: { readOnlyHint: false } },
 					{ name: "add_to_readlist", annotations: { readOnlyHint: false } },
 					{ name: "mark_as_read", annotations: { readOnlyHint: false } },
@@ -149,6 +151,31 @@ describe("initMcpServer", () => {
 					{ name: "get_article_deletion_steps", annotations: { readOnlyHint: true } },
 				],
 			},
+		});
+	});
+
+	it("stops listing get_article_summary and get_related_articles but still answers a call to either", async () => {
+		const server = initMcpServer(
+			fakeDeps({
+				getArticleSummary: async () => ({ status: "ready", summary: "The gist." }),
+				getRelatedArticles: async () => ({ status: "skipped" }),
+			}),
+		);
+		const listed = await server.handle({ jsonrpc: "2.0", id: 3, method: "tools/list" }, context);
+		for (const unlisted of [GET_ARTICLE_SUMMARY_LEGACY_NAME, GET_RELATED_ARTICLES_LEGACY_NAME]) {
+			expect(listed).toMatchObject({
+				result: {
+					tools: expect.not.arrayContaining([expect.objectContaining({ name: unlisted })]),
+				},
+			});
+		}
+		expect(
+			await call(server, 4, GET_ARTICLE_SUMMARY_LEGACY_NAME, { id: "x".repeat(32) }),
+		).toMatchObject({ result: { content: [{ text: "The gist." }] } });
+		expect(
+			await call(server, 5, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) }),
+		).toMatchObject({
+			result: { content: [{ text: "No related saves are available for that article." }] },
 		});
 	});
 
@@ -799,12 +826,12 @@ describe("initMcpServer", () => {
 		});
 	});
 
-	describe("tools/call get_article_summary", () => {
+	describe("tools/call the unlisted get_article_summary", () => {
 		it("returns the summary when ready", async () => {
 			const server = initMcpServer(
 				fakeDeps({ getArticleSummary: async () => ({ status: "ready", summary: "The gist." }) }),
 			);
-			const response = await call(server, 50, "get_article_summary", { id: "x".repeat(32) });
+			const response = await call(server, 50, GET_ARTICLE_SUMMARY_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: {
 					content: [{ text: "The gist." }],
@@ -817,7 +844,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getArticleSummary: async () => ({ status: "pending" }) }),
 			);
-			const response = await call(server, 51, "get_article_summary", { id: "x".repeat(32) });
+			const response = await call(server, 51, GET_ARTICLE_SUMMARY_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("still being generated") }] },
 			});
@@ -827,7 +854,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getArticleSummary: async () => ({ status: "not_an_article" }) }),
 			);
-			const response = await call(server, 55, "get_article_summary", { id: "x".repeat(32) });
+			const response = await call(server, 55, GET_ARTICLE_SUMMARY_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: {
 					content: [
@@ -844,7 +871,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getArticleSummary: async () => ({ status: "failed", reason: "model error" }) }),
 			);
-			const response = await call(server, 52, "get_article_summary", { id: "x".repeat(32) });
+			const response = await call(server, 52, GET_ARTICLE_SUMMARY_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("model error") }] },
 			});
@@ -854,7 +881,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getArticleSummary: async () => ({ status: "skipped" }) }),
 			);
-			const response = await call(server, 53, "get_article_summary", { id: "x".repeat(32) });
+			const response = await call(server, 53, GET_ARTICLE_SUMMARY_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("No summary was generated") }] },
 			});
@@ -864,7 +891,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getArticleSummary: async () => ({ status: "not_found" }) }),
 			);
-			const response = await call(server, 54, "get_article_summary", { id: "x".repeat(32) });
+			const response = await call(server, 54, GET_ARTICLE_SUMMARY_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("No saved article") }] },
 			});
@@ -872,7 +899,7 @@ describe("initMcpServer", () => {
 
 		it("rejects a missing id", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 55, "get_article_summary", {});
+			const response = await call(server, 55, GET_ARTICLE_SUMMARY_LEGACY_NAME, {});
 			expect(response).toMatchObject({ result: { isError: true } });
 		});
 
@@ -886,7 +913,7 @@ describe("initMcpServer", () => {
 					},
 				}),
 			);
-			const response = await call(server, 56, "get_article_summary", { id: "x".repeat(32) });
+			const response = await call(server, 56, GET_ARTICLE_SUMMARY_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: {
 					isError: true,
@@ -904,7 +931,7 @@ describe("initMcpServer", () => {
 		});
 	});
 
-	describe("tools/call get_related_articles", () => {
+	describe("tools/call the unlisted get_related_articles", () => {
 		it("lists each relation with the reason it was picked and how far the reader got", async () => {
 			const server = initMcpServer(
 				fakeDeps({
@@ -932,7 +959,7 @@ describe("initMcpServer", () => {
 					}),
 				}),
 			);
-			const response = await call(server, 57, "get_related_articles", { id: "x".repeat(32) });
+			const response = await call(server, 57, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: {
 					content: [
@@ -964,7 +991,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getRelatedArticles: async () => ({ status: "ready", articles: [] }) }),
 			);
-			const response = await call(server, 58, "get_related_articles", { id: "x".repeat(32) });
+			const response = await call(server, 58, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("No saves in the readlist") }] },
 			});
@@ -974,7 +1001,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getRelatedArticles: async () => ({ status: "pending" }) }),
 			);
-			const response = await call(server, 59, "get_related_articles", { id: "x".repeat(32) });
+			const response = await call(server, 59, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("No related saves have been worked out") }] },
 			});
@@ -984,7 +1011,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getRelatedArticles: async () => ({ status: "skipped" }) }),
 			);
-			const response = await call(server, 66, "get_related_articles", { id: "x".repeat(32) });
+			const response = await call(server, 66, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: "No related saves are available for that article." }] },
 			});
@@ -994,7 +1021,7 @@ describe("initMcpServer", () => {
 			const server = initMcpServer(
 				fakeDeps({ getRelatedArticles: async () => ({ status: "not_found" }) }),
 			);
-			const response = await call(server, 67, "get_related_articles", { id: "x".repeat(32) });
+			const response = await call(server, 67, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: { content: [{ text: expect.stringContaining("No saved article") }] },
 			});
@@ -1002,7 +1029,7 @@ describe("initMcpServer", () => {
 
 		it("rejects a missing id", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 68, "get_related_articles", {});
+			const response = await call(server, 68, GET_RELATED_ARTICLES_LEGACY_NAME, {});
 			expect(response).toMatchObject({ result: { isError: true } });
 		});
 
@@ -1016,7 +1043,7 @@ describe("initMcpServer", () => {
 					},
 				}),
 			);
-			const response = await call(server, 69, "get_related_articles", { id: "x".repeat(32) });
+			const response = await call(server, 69, GET_RELATED_ARTICLES_LEGACY_NAME, { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				result: {
 					isError: true,
@@ -1243,8 +1270,8 @@ describe("initMcpServer", () => {
 				"list_readlist_articles",
 				"get_article",
 				"get_article_content",
-				"get_article_summary",
-				"get_related_articles",
+				GET_ARTICLE_SUMMARY_LEGACY_NAME,
+				GET_RELATED_ARTICLES_LEGACY_NAME,
 				"mark_as_read",
 				"mark_as_unread",
 				"get_article_deletion_steps",

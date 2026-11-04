@@ -45,6 +45,7 @@ export function initRecordMcpToolCall(deps: {
 				{
 					url: record.submittedUrl,
 					path: MCP_SAVE_INTENT_PATH,
+					userId: record.userId,
 					outcome:
 						record.outcome === MCP_TOOL_OUTCOMES.ok
 							? SAVE_OUTCOMES.saved
