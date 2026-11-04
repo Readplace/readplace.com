@@ -225,6 +225,12 @@ describe("OAuth routes", () => {
 				heading: "Connect the Readplace Android App",
 				body: "Allow the Readplace Android App to access your readlists so you can save, manage, and remove articles from your phone.",
 			},
+			{
+				clientId: "obsidian-plugin",
+				redirectUri: "http://127.0.0.1:3000/oauth/obsidian",
+				heading: "Connect Readplace for Obsidian",
+				body: "Allow Readplace for Obsidian to read your readlists so it can copy the articles you save into your vault as notes. It receives the same access as every Readplace app.",
+			},
 		])("asks to connect $clientId in the words of its client group", async ({ clientId, redirectUri, heading, body }) => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			await harness.auth.createUser({

@@ -69,18 +69,6 @@ function exchangeCode(harness: Harness, params: { code: string; verifier: string
 }
 
 describe("Obsidian sign-in handoff (GET /oauth/obsidian)", () => {
-	it("shows the first-party consent page to a signed-in reader", async () => {
-		const harness = buildHarness();
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.get("/oauth/authorize").query(authorizeFields(generatePKCE().challenge));
-
-		expect(response.status).toBe(200);
-		const title = parse(response.text).querySelector(".oauth-authorize__title");
-		assert(title, "the consent title must render");
-		expect(title.textContent?.trim()).toBe("Connect Readplace for Obsidian");
-	});
-
 	it("sends an approval to the handoff page with the code and state", async () => {
 		const harness = buildHarness();
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -113,6 +101,9 @@ describe("Obsidian sign-in handoff (GET /oauth/obsidian)", () => {
 		expect(copy.getAttribute("data-oauth-text")).toBe(code);
 		expect(copy.hasAttribute("hidden")).toBe(true);
 		expect(copy.closest(".oauth-obsidian__copy-field")?.querySelector("[data-test-code]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-code-warning]")?.textContent).toBe(
+			"Paste this only into Obsidian's Readplace settings. Readplace never asks you to send it to anyone.",
+		);
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe("noindex, nofollow");
 		expect(response.text.split(code).length - 1).toBe(3);
 		expect(response.text).toContain('<script src="/client-dist/oauth-obsidian-handoff.client.js" defer></script>');

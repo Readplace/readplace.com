@@ -116,8 +116,10 @@ describe("GET /install", () => {
 			"The Readplace plugin is not in Obsidian's community directory yet.",
 		);
 		expect(panel.querySelectorAll("a")).toHaveLength(0);
-		expect(doc.querySelector('[data-test-tab="obsidian"]')).toBeNull();
-		expect(doc.querySelector('[data-test-group="notes"]')).toBeNull();
+		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map((el) => el.getAttribute("data-test-tab"));
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "chatgpt", "gemini", "claude"]);
+		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map((el) => el.getAttribute("data-test-group"));
+		expect(groups).toEqual(["browsers", "ai"]);
 	});
 
 	it("should put the Obsidian tab under a Notes Apps group on ?feature=android", async () => {

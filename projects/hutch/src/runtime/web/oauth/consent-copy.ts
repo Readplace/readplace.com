@@ -33,7 +33,7 @@ const COPY_BY_AUDIENCE = {
 	}),
 	notesApp: ({ clientName }) => ({
 		heading: `Connect ${clientName}`,
-		body: `Allow ${clientName} to read your readlists so it can copy the articles you save into your vault as notes. It receives the same access as every Readplace app, and it only reads.`,
+		body: `Allow ${clientName} to read your readlists so it can copy the articles you save into your vault as notes. It receives the same access as every Readplace app.`,
 		notice: undefined,
 	}),
 	selfRegistered: ({ clientName, redirectHost }) => ({
