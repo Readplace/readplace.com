@@ -5,7 +5,7 @@ excerpt: "Readwise Reader costs $119.88 a year and does more, so the question is
 tldr: "Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, or anything beyond reading text. Pick Readplace if you want AI summaries and privacy at a lower price."
 slug: "readplace-vs-readwise-reader"
 date: "2026-04-06"
-lastModified: "2026-11-03"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
 keywords: "readplace vs readwise, read it later app, read it later AI"
 ---
@@ -96,7 +96,7 @@ Both apps handle this well, and it's where they look most alike. Save a page and
 
 ## Privacy
 
-Readplace stores accounts and saved articles on AWS in Sydney, Australia, under the Australian Privacy Act. Readplace sends article text to DeepSeek to clean up the text and write the summary.
+Readplace stores accounts and saved articles on AWS in Sydney, Australia, under the Australian Privacy Act. Readplace sends article text to an AI provider to clean up the text and write the summary.
 
 Readwise is a US-based company. It doesn't publicly document where its servers sit, and US data privacy laws apply to what you save there.
 

@@ -5,8 +5,9 @@ excerpt: "A two-line summary sat over a full article, still describing a thin co
 tldr: "Readplace keeps one TL;DR per link, shared across anyone who saves it. The first save sometimes grabs a thin copy of a page, like a paywall screen or a half-loaded article, and the summary matches that thin copy. Readplace re-reads pages it saved and often lands a cleaner, fuller version. It now rebuilds the summary against that better copy on its own. The refreshed TL;DR replaces the stale one for the next reader who opens that link. You get an accurate summary without asking for a refresh."
 slug: "ai-summary-updates-with-the-article"
 date: "2026-05-31"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
-keywords: "ai summary, article tl;dr, read it later, stale summary, summary refresh, save articles, deepseek summary, readplace"
+keywords: "ai summary, article tl;dr, read it later, stale summary, summary refresh, save articles, readplace"
 ---
 
 A user saved a long news article on a Monday and then emailed me, because the TL;DR on his saved card read like two lines, as if Readplace had only ever seen the headline and one stray paragraph. He opened the card and the full article was sitting right there, every word of it. The summary and the page disagreed, and at first I had no idea why.
@@ -29,7 +30,7 @@ I traced the swap first.
 
 When a re-crawl lands a better copy, the row already records it. A new content grade counts as a change, and so does a real edit to the text. The piece I was missing was a signal that said, this link has a better copy now, go look at the summary again.
 
-So I added one. A separate worker listens for that signal, checks that the clean copy is actually readable, clears the stale TL;DR, and asks for a fresh one. The same DeepSeek step that wrote the first summary runs again, this time against the better copy. If you want the full picture of that step, read [how AI TL;DR actually works in Readplace](/blog/how-ai-tldr-actually-works?utm_source=blog-ai-summary-updates-with-the-article&utm_medium=internal&utm_content=post-how-ai-tldr-actually-works).
+So I added one. A separate worker listens for that signal, checks that the clean copy is actually readable, clears the stale TL;DR, and asks for a fresh one. The same AI step that wrote the first summary runs again, this time against the better copy. If you want the full picture of that step, read [how AI TL;DR actually works in Readplace](/blog/how-ai-tldr-actually-works?utm_source=blog-ai-summary-updates-with-the-article&utm_medium=internal&utm_content=post-how-ai-tldr-actually-works).
 
 Readplace caches one summary per link, shared across anyone who saves it, so the rebuilt TL;DR lands for the next reader who opens that link too.
 

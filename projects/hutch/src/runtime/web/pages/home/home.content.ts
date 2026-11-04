@@ -277,12 +277,12 @@ export const HOME_CONTENT = {
 			{
 				question: "Does Readplace hallucinate text when extracting PDFs?",
 				answer:
-					"No. Tesseract OCR does the recognition deterministically, character by character, on the actual pixels of the page. DeepSeek is only allowed to restore structural markup — paragraphs, headings, lists — and a document-diff then rejects any word it tried to add or remove. The words you read are the words that were on the page.",
+					"No. Tesseract OCR does the recognition deterministically, character by character, on the actual pixels of the page. The AI is only allowed to restore structural markup — paragraphs, headings, lists — and a document-diff then rejects any word it tried to add or remove. The words you read are the words that were on the page.",
 			},
 			{
 				question: "Where does my data live?",
 				answer:
-					"Accounts and saved articles are stored on AWS in Sydney, under the Australian Privacy Act. Article text is sent to DeepSeek to write summaries. No data resale.",
+					"Accounts and saved articles are stored on AWS in Sydney, under the Australian Privacy Act. Article text is sent to an AI provider to write summaries. No data resale.",
 			},
 			{
 				question: "Who runs Readplace?",

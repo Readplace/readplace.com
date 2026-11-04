@@ -2,12 +2,12 @@
 title: "How AI TL;DR Actually Works in Readplace (And Why It's Not Slop)"
 description: "Readplace uses AI to generate short article summaries for triage, not replacement. Here's how it works technically, and why it avoids the usual AI content problems."
 excerpt: "One summary per URL, cached globally, so 10 people saving a link cost a single model call."
-tldr: "Readplace generates a short TL;DR for each saved article using DeepSeek V3. Summaries are cached globally by URL, so one API call serves anyone who saves the same link. The prompt bans corporate jargon and forces plain language. The summary is a triage tool to help you decide when to read, not a replacement for reading. Readplace skips smart highlights, AI commentary, and daily briefings."
+tldr: "Readplace generates a short TL;DR for each saved article using a small, fast AI model. Summaries are cached globally by URL, so one API call serves anyone who saves the same link. The prompt bans corporate jargon and forces plain language. The summary is a triage tool to help you decide when to read, not a replacement for reading. Readplace skips smart highlights, AI commentary, and daily briefings."
 slug: "how-ai-tldr-actually-works"
 date: "2026-05-06"
-lastModified: "2026-10-01"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
-keywords: "ai summary, read it later, article tl;dr, deepseek, ai slop, readplace app"
+keywords: "ai summary, read it later, article tl;dr, ai slop, readplace app"
 ---
 
 If you have read more than a handful of AI-written articles, you know the texture. It reads like it came out of a tube. The "key takeaways" listicle flattens every nuance into 5 bullets nobody asked for, and the LinkedIn post says nothing across 3 paragraphs. The word "slop" stuck because it describes the result better than anything else.
@@ -48,13 +48,13 @@ The rules it enforces are simple: active voice, short sentences, plain connector
 
 ## How It Works Under the Hood
 
-Summaries come from DeepSeek V3, the `deepseek-chat` model. I chose it for this job because it handles concise factual summarisation well and the economics hold up at scale. The cost sits inside the subscription, so you don't pay per summary. You don't [paste the article into ChatGPT](/blog/stop-copy-pasting-articles-into-chatgpt?utm_source=blog-how-ai-tldr-actually-works&utm_medium=internal&utm_content=post-stop-copy-pasting-articles-into-chatgpt) to get one either.
+Summaries come from a small, fast AI model. I chose it for this job because it handles concise factual summarisation well and the economics hold up at scale. The cost sits inside the subscription, so you don't pay per summary. You don't [paste the article into ChatGPT](/blog/stop-copy-pasting-articles-into-chatgpt?utm_source=blog-how-ai-tldr-actually-works&utm_medium=internal&utm_content=post-stop-copy-pasting-articles-into-chatgpt) to get one either.
 
 The design choice that matters most is **one summary per URL, cached globally**.
 
 When you save an article, Readplace checks a cache before it calls anything. If someone saved that exact URL before you, you get their summary back with no model call at all.
 
-On a cache miss, DeepSeek writes the summary once and stores it for whoever saves the link next.
+On a cache miss, the model writes the summary once and stores it for whoever saves the link next.
 
 That single decision does two things at once.
 
@@ -76,13 +76,13 @@ step: 10 | 10 | 1
 
 There is also a minimum-length check. Articles below the threshold skip the summary step, because a piece short enough to scan in one sitting gains nothing from being compressed further.
 
-## Why DeepSeek and Not a Frontier Model?
+## Why a Small Model and Not a Frontier Model?
 
-I tested several models against the same articles, and for short factual summarisation of web pages, DeepSeek V3 landed at the balance of quality and cost I wanted. The honest reason is that the task does not need more than that.
+I tested several models against the same articles, and for short factual summarisation of web pages, a small model landed at the balance of quality and cost I wanted. The honest reason is that the task does not need more than that.
 
 Summaries are capped at 750 characters. You don't need a frontier model to write 3 accurate sentences, and paying for one would mean either metering the feature or raising the price.
 
-Claude runs as a fallback in some code paths, but the default pipeline calls DeepSeek at save time.
+Claude runs as a fallback in some code paths, but the default pipeline calls the small model at save time.
 
 It does the work well and keeps the per-article cost low enough that I can offer it without a meter.
 

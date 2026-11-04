@@ -5,7 +5,7 @@ excerpt: "Omnivore users had 17 days between the ElevenLabs announcement and the
 tldr: "Omnivore shut down 2 weeks after its team joined ElevenLabs. The cause was venture capital that needed an exit. Readplace is self-funded through subscriptions, with no investors. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, a JSON export of every saved article, and source-available code. It runs in Sydney under Australian privacy law."
 slug: "omnivore-alternative"
 date: "2026-05-06"
-lastModified: "2026-11-03"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
@@ -70,7 +70,7 @@ The table shows what exists today. Rows marked Not built are gaps.
 
 **Export, whenever you want.** You can export a JSON list of every saved article even after you cancel. It carries each article's URL, title and reading history, not the article text. The export is a core promise, not a perk, so your saved articles stay reachable no matter what your subscription is doing.
 
-**Australian hosting.** It runs in Sydney, under the Australian Privacy Act, with no third-party tracking scripts, no ads, and no data sales. Readplace sends article text to DeepSeek to clean up the text and write the summary.
+**Australian hosting.** It runs in Sydney, under the Australian Privacy Act, with no third-party tracking scripts, no ads, and no data sales. Readplace sends article text to an AI provider to clean up the text and write the summary.
 
 **No venture capital.** Readplace is self-funded and the revenue comes from subscriptions, which means there is no board counting on an exit and no acquisition for me to go chase at your expense.
 

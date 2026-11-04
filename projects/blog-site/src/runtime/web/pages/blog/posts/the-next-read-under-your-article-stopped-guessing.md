@@ -5,6 +5,7 @@ excerpt: "Under each finished article, the next-read card used to invent 1 conne
 tldr: "Under each article you finish in Readplace sits a small card offering one more save from your own readlist, picked because it relates to what you just read, with unread saves taking the slot first. Those picks used to be wrong often enough to ignore: 1 suggestion in 6 had no real connection, and 73% of the explanations opened with the word \"Both\". I graded 544 of the card's own suggestions across 5 rounds of fixes on a live test account, with every \"wrong\" verdict forced to survive 3 independent skeptics. Wrong picks fell from 18 in 116 to 3 in 98, the explanations read like sentences a person would write, and a save with no genuine relative now gets silence instead of an invention. Reading one article pulls the next one off your pile."
 slug: "the-next-read-under-your-article-stopped-guessing"
 date: "2026-08-12"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
 keywords: "what to read next, reduce reading backlog, related articles suggestion, read it later readlist, next read card, pocket alternative, reading pile, ai reading recommendations accuracy, save articles for later"
 ---
@@ -21,7 +22,7 @@ A card like that lives or dies on trust.
 
 ## A quota it always filled
 
-The picker is a small, fast language model (DeepSeek) reading your saves' titles and summaries. Its old instructions told it that "a merely-plausible pick beats an empty answer". It heard a quota. Given 3 slots, it filled 3 slots, and when a save had no genuine relatives in the readlist it invented some. A knitting tool got paired with an espresso machine shop. Google's Espresso networking post got the same shop, on the strength of the name alone.
+The picker is a small, fast language model reading your saves' titles and summaries. Its old instructions told it that "a merely-plausible pick beats an empty answer". It heard a quota. Given 3 slots, it filled 3 slots, and when a save had no genuine relatives in the readlist it invented some. A knitting tool got paired with an espresso machine shop. Google's Espresso networking post got the same shop, on the strength of the name alone.
 
 The explanations had a tell too. 85 of the first 116 opened with the word "Both", and on 24 of the first 40 saves every single explanation did. A reader scanning the card saw the same sentence shape over and over, wrapped around connections that sometimes did not exist.
 

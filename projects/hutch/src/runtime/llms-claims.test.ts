@@ -32,8 +32,8 @@ describe("llms files", () => {
 		expect(FILES["llms-full.txt"]).toContain(`Up to ${READLIST_MAX_PER_USER} named readlists`);
 	});
 
-	it("llms-full.txt says what newsletters send to DeepSeek in both privacy passages", () => {
-		const sentence = "For newsletters, each issue's subject, sender, link addresses and link text are sent to DeepSeek to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit.";
+	it("llms-full.txt says what newsletters send to an AI provider in both privacy passages", () => {
+		const sentence = "For newsletters, each issue's subject, sender, link addresses and link text are sent to an AI provider to tell articles from ads and menus, and, for a readlist you described, what you wrote and the articles you kept in it or took out of it are sent with them to choose which fit.";
 
 		expect(FILES["llms-full.txt"].split(sentence).length - 1).toBe(2);
 	});

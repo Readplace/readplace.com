@@ -1,23 +1,24 @@
 ---
-title: "What DeepSeek's Vision Model Actually Sees of a Scanned Page"
-description: "DeepSeek shipped a vision model, so I checked whether it could read scanned PDFs better than the Tesseract pipeline Readplace runs today. The answer sat in their own documentation, published as running JavaScript rather than prose, and it also killed the one argument I had been making in favour of the upgrade."
-excerpt: "A JavaScript constructor in DeepSeek's docs shows its vision model sees a Letter page at 76 dpi."
-tldr: "DeepSeek shipped a vision model, and the obvious question was whether it could read scanned PDFs better than the Tesseract pipeline that handles them today. It cannot, for a reason the vendor publishes as running code rather than prose: every image is resized before inference, which puts a US Letter page at 76 dots per inch. Measuring that also killed the one argument I had been making for the upgrade, and pointed at layout data Tesseract had been computing all along and throwing away."
-slug: "what-deepseek-vision-sees-of-a-scanned-page"
+title: "What an AI Vision Model Actually Sees of a Scanned Page"
+description: "An AI vendor shipped a vision model, so I checked whether it could read scanned PDFs better than the Tesseract pipeline Readplace runs today. The answer sat in the vendor's own documentation, published as running JavaScript rather than prose, and it also killed the one argument I had been making in favour of the upgrade."
+excerpt: "A JavaScript constructor in an AI vendor's docs shows its vision model sees a Letter page at 76 dpi."
+tldr: "An AI vendor shipped a vision model, and the obvious question was whether it could read scanned PDFs better than the Tesseract pipeline that handles them today. It cannot, for a reason the vendor publishes as running code rather than prose: every image is resized before inference, which puts a US Letter page at 76 dots per inch. Measuring that also killed the one argument I had been making for the upgrade, and pointed at layout data Tesseract had been computing all along and throwing away."
+slug: "what-an-ai-vision-model-sees-of-a-scanned-page"
 date: "2026-08-22"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
-keywords: "deepseek vision, ocr, tesseract, hocr, scanned pdf, vision model, readplace, image tokens"
+keywords: "ai vision model, ocr, tesseract, hocr, scanned pdf, vision model, readplace, image tokens"
 ---
 
 `new h(14, 3, 384, 4, 8, 147456)`
 
-That constructor sits in a lazily-loaded JavaScript chunk behind DeepSeek's API documentation. It builds the image resize their vision model runs before inference, and it settled a question I had spent an afternoon arguing from the prose on the same page.
+That constructor sits in a lazily-loaded JavaScript chunk behind an AI vendor's API documentation. It builds the image resize its vision model runs before inference, and it settled a question I had spent an afternoon arguing from the prose on the same page.
 
 The question was whether to point a vision model at Readplace's scanned PDFs.
 
 ## What the pipeline does now
 
-A scanned PDF has no text layer, so the pixels are all there is. [Readplace renders each page and runs Tesseract on it](/blog/readplace-now-reads-scans-in-15-languages?utm_source=blog-what-deepseek-vision-sees-of-a-scanned-page&utm_medium=internal&utm_content=post-readplace-now-reads-scans-in-15-languages) inside a Lambda container, then layers 3 DeepSeek text calls on top for error cleanup, cross-page diff review, and semantic HTML.
+A scanned PDF has no text layer, so the pixels are all there is. [Readplace renders each page and runs Tesseract on it](/blog/readplace-now-reads-scans-in-15-languages?utm_source=blog-what-an-ai-vision-model-sees-of-a-scanned-page&utm_medium=internal&utm_content=post-readplace-now-reads-scans-in-15-languages) inside a Lambda container, then layers 3 AI text calls on top for error cleanup, cross-page diff review, and semantic HTML.
 
 Pages render at 300 dots per inch. That number is not decoration. An A/B on the same 31-page scan moved the render from 150 to 300, and word recovery went from 21,335 to 23,719.
 
@@ -27,7 +28,7 @@ So the first thing worth checking about a model that accepts images was how many
 
 ## The number the prose gives you
 
-The [vision guide](/view/api-docs.deepseek.com/guides/vision/?utm_source=blog-what-deepseek-vision-sees-of-a-scanned-page&utm_medium=internal&utm_content=read-api-docs-deepseek-com) says every image is resized so the total pixel count lands near that of an 800 by 800 image, with a ceiling of 384 tokens per image. It also offers a `detail` field whose `original` setting "keeps the original image", which reads like an escape hatch.
+The [vision guide](/view/api-docs.deepseek.com/guides/vision/?utm_source=blog-what-an-ai-vision-model-sees-of-a-scanned-page&utm_medium=internal&utm_content=read-api-docs-deepseek-com) says every image is resized so the total pixel count lands near that of an 800 by 800 image, with a ceiling of 384 tokens per image. It also offers a `detail` field whose `original` setting "keeps the original image", which reads like an escape hatch.
 
 Both statements cannot be doing what they appear to do. I worked the arithmetic from the prose, got roughly 703 by 910 pixels for a Letter page, and called it 83 dots per inch. Close enough to be useful, wrong enough to matter.
 
@@ -35,7 +36,7 @@ Both statements cannot be doing what they appear to do. I worked the arithmetic 
 
 Reading letters at 83 dots per inch was not going to work. But I made a second argument I thought was stronger: layout is a low-frequency signal. Column edges, the gutter between them, a heading set 2 sizes above the body, the ruled line of a table. Coarse features survive downscaling even when glyphs turn to mush.
 
-Readplace's 3rd DeepSeek stage infers document structure from text patterns alone, with no bounding boxes. Handing it a small picture of the page looked like the one honest use for a vision model here.
+Readplace's 3rd AI stage infers document structure from text patterns alone, with no bounding boxes. Handing it a small picture of the page looked like the one honest use for a vision model here.
 
 So I built a two-column Letter page, rendered it at 300, downscaled it to the resize target, and ran the same Tesseract invocation on both.
 
@@ -48,7 +49,7 @@ The signal I had called low-frequency was the first thing to go.
 ```rp-figure
 kind: bars
 title: What a Letter page loses going through the vision resize
-note: Measured on a clean synthetic two-column page rendered at 300 dpi, then downscaled to the size DeepSeek's own resize algorithm produces. Character error rate is scored against known ground truth using the same Tesseract invocation on both images.
+note: Measured on a clean synthetic two-column page rendered at 300 dpi, then downscaled to the size the vendor's own resize algorithm produces. Character error rate is scored against known ground truth using the same Tesseract invocation on both images.
 before: 300 dpi render
 after: After the resize
 row: Effective resolution | 300 | 300 dpi | 76 | 76 dpi
@@ -59,7 +60,7 @@ row: Columns kept apart | 2 | 2 of 2 | 0 | fused
 
 ## The calculator was the documentation
 
-The image token calculator on DeepSeek's page runs in the browser, which means the resize ships to anyone who loads the docs. I pulled the class out of the chunk and ran it.
+The image token calculator on the vendor's page runs in the browser, which means the resize ships to anyone who loads the docs. I pulled the class out of the chunk and ran it.
 
 A Letter page at 300 dots per inch comes back 644 by 826. That is 76 dots per inch, not the 83 I had computed, because the resize quantises to a patch grid instead of scaling by area. It costs 345 tokens rather than the 384 ceiling, and the word `detail` does not appear in the algorithm at all.
 
@@ -87,4 +88,4 @@ I had been pricing a way to buy layout at 76 dots per inch, while the same page 
 
 Nothing about scanned PDFs changed this week. Tesseract still does the reading and the 3 text stages still run on top.
 
-What changed is that the upgrade came off the table for a reason I can point at, and the next thing to try is a flag on a command line rather than a new vendor. Save a scanned PDF to [your readlist](/?utm_source=blog-what-deepseek-vision-sees-of-a-scanned-page&utm_medium=internal&utm_content=home) and it takes the path it took last month. I just know what the alternative would have cost, down to the pixel.
+What changed is that the upgrade came off the table for a reason I can point at, and the next thing to try is a flag on a command line rather than a new vendor. Save a scanned PDF to [your readlist](/?utm_source=blog-what-an-ai-vision-model-sees-of-a-scanned-page&utm_medium=internal&utm_content=home) and it takes the path it took last month. I just know what the alternative would have cost, down to the pixel.

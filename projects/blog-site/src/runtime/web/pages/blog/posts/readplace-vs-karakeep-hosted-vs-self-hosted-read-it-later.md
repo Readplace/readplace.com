@@ -5,7 +5,7 @@ excerpt: "Self-hosting Karakeep, Readeck or wallabag leaves updates, backups and
 tldr: "Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readeck and wallabag are 2 more open-source, self-hosted options, compared with Karakeep in their own table. Readplace is a paid hosted service with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
 date: "2026-05-06"
-lastModified: "2026-11-03"
+lastModified: "2026-11-04"
 author: "Fayner Brack"
 keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative, readeck, wallabag"
 ---
@@ -52,7 +52,7 @@ If you self-host, you have likely been burned before, because a service you reli
 
 - **Source-available.** The full codebase is public. You can read every line of code that touches your data.
 - **Data export.** You can export a JSON list of every saved article at any time, even after you cancel. It carries each article's URL, title, site, excerpt, read status and dates, not the article text.
-- **Australian hosting.** Readplace stores accounts and saved articles on AWS in Sydney under Australian privacy law. Readplace sends article text to DeepSeek to clean up the text and write the summary.
+- **Australian hosting.** Readplace stores accounts and saved articles on AWS in Sydney under Australian privacy law. Readplace sends article text to an AI provider to clean up the text and write the summary.
 - **Clear revenue model.** Paid subscriptions, with no ads, no third-party tracking, and no venture capital.
 
 I can't promise what a hosted service will look like in 5 years. But each of the choices above is checkable today rather than taken on faith, and together they make a hosted service as trustworthy as it can be without putting the database on your own disk.

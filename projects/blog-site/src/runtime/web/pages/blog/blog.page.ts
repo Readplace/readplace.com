@@ -65,6 +65,7 @@ const SLUG_REDIRECTS: Record<string, string> = {
 	"why-i-built-readplace": "why-readplace-exists",
 	"pdf-ocr-pipeline-tesseract-llm-hybrid": "readplace-now-reads-scans-in-15-languages",
 	"readplace-vs-karakeep-hosted-vs-self-hosted-read-it": "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later",
+	"what-deepseek-vision-sees-of-a-scanned-page": "what-an-ai-vision-model-sees-of-a-scanned-page",
 };
 
 const BLOG_POST_PRIORITY: Record<string, string> = {
