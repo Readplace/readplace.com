@@ -526,6 +526,16 @@ describe("initExtractEmailLinksHandler", () => {
 		]);
 	});
 
+	it("submits the ordinary link of an email that also holds a private item identity, and only it", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef",
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.submitted.map((s) => s.url)).toEqual(["https://a.test/x"]);
+	});
+
 	it("stores and crawls the link byte-exact, utm tags included — the crawl input must not be rewritten", async () => {
 		const harness = makeHarness({
 			derivedHtml: "https://link.mail.test/ss/c/token?utm_source=nl",

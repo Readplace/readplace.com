@@ -6,6 +6,7 @@ import type { ResolveWrapperTarget, ResolvedWrapperTarget } from "./resolve-wrap
 const ORIGINAL = "https://publisher.example/article";
 const TRACKER = "https://javascriptweekly.com/link/100000/rss";
 const ARCHIVE = "https://archive.ph/Ab1cD";
+const PRIVATE_ITEM = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
 const WAYBACK = `https://web.archive.org/web/20260000000000*/${ORIGINAL}`;
 
 function harness(options: {
@@ -38,6 +39,18 @@ function resolved({ url, source }: { url: string; source?: string }) {
 }
 
 describe("save identity", () => {
+	it("refuses to save a private item identity without claiming an alias", async () => {
+		const h = harness({ rows: { [PRIVATE_ITEM]: { kind: "article" } } });
+		expect(await h.resolve(PRIVATE_ITEM)).toEqual({ status: "unresolved" });
+		expect(h.claims).toEqual([]);
+	});
+
+	it("refuses to save a public link whose original is a private item identity", async () => {
+		const h = harness({ targets: { [TRACKER]: { url: PRIVATE_ITEM, contentSourceUrl: TRACKER } } });
+		expect(await h.resolve(TRACKER)).toEqual({ status: "unresolved" });
+		expect(h.claims).toEqual([]);
+	});
+
 	const APPLE = "https://apple.news/AbxPgQQdpQSy-ERx2g-kQZA";
 	it.each<Record<string, IdentityRow>>([
 		{},

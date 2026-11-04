@@ -1,6 +1,6 @@
 import { withInternalTracking } from "@packages/web-shell";
 import { type LocalTime, toAbsoluteDate } from "@packages/web-shell/local-time.format";
-import { validateSaveableUrl } from "@packages/domain/article";
+import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
 import type { InboxEmailLinkEntry, InboxLinkSaveState } from "@packages/domain/inbox";
 import {
 	type ReadlistFitReaderVerdict,
@@ -197,7 +197,7 @@ function buildCardActions(input: {
 	const actions: InboxCardSaveAction[] = [];
 	// Crawl state does not gate saving: the queue save runs its own crawl, so a
 	// link whose preview is still pending or failed is still worth saving.
-	const saveable = validateSaveableUrl(link.url).status === "SUCCESS";
+	const saveable = validateSaveableInboxLink(link.url).status === "SUCCESS";
 	if (saveable) {
 		actions.push({
 			key: "save",

@@ -2,11 +2,13 @@ import { isIP, isIPv6 } from "node:net";
 import { toCanonicalArticleUrl } from "@packages/article-resource-unique-id";
 import { z } from "zod";
 import { isPrivateIPv4, isPrivateIPv6, unwrapIpv6 } from "./blocked-address";
+import { isPrivateItemUrl } from "./private-item-access";
 
 export const SaveableUrlErrorCodeSchema = z.enum([
 	"unsupported_scheme",
 	"private_network", /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 	"malformed_url",
+	"private_item",
 ]);
 export type SaveableUrlErrorCode = z.infer<typeof SaveableUrlErrorCodeSchema>;
 
@@ -79,6 +81,7 @@ const SAVEABLE_URL_ERROR_MESSAGES: Record<SaveableUrlErrorCode, string> = {
 	malformed_url: "Please enter a valid URL",
 	unsupported_scheme: "Only http and https URLs can be saved",
 	private_network: "Private-network and loopback addresses can't be saved",
+	private_item: "Private upload links can't be saved",
 };
 
 export function saveableUrlErrorMessage(code: SaveableUrlErrorCode): string {
@@ -120,6 +123,15 @@ export function withNewSavePreparation(validate: ValidateSaveableUrl): ValidateS
 		const result = validate(value);
 		if (result.status === "ERROR") return result;
 		return { status: "SUCCESS", url: prepareNewSaveUrl(result.url) };
+	};
+}
+
+export function withPrivateItemRefusal(validate: ValidateSaveableUrl): ValidateSaveableUrl {
+	return (value) => {
+		const result = validate(value);
+		if (result.status === "ERROR") return result;
+		if (isPrivateItemUrl(result.url)) return errorResult("private_item");
+		return result;
 	};
 }
 

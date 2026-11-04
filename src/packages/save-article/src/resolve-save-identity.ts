@@ -1,5 +1,6 @@
 import { canonicalIdentityOf } from "@packages/article-resource-unique-id";
 import {
+	isPrivateItemUrl,
 	isWrapperUrl,
 	type SaveableUrlResult,
 	type ValidateSaveableUrl,
@@ -36,6 +37,7 @@ export function initResolveSaveIdentity(deps: ResolveSaveIdentityDependencies): 
 	return async (submittedUrl) => {
 		const recovered = await resolveOriginal({ url: submittedUrl, useStoredBinding: true });
 		if (recovered.status === "unresolved") return recovered;
+		if ([submittedUrl, recovered.originalUrl].some(isPrivateItemUrl)) return { status: "unresolved" };
 		if (
 			recovered.status === "own-original" &&
 			(!OWN_ORIGINAL_SAVE_FAMILIES.has(recovered.family) || canonicalIdentityOf(recovered.originalUrl) !== canonicalIdentityOf(submittedUrl))

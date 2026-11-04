@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import { decodeHtmlEntities } from "@packages/crawl-article";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
-import { newSaveAttemptId, validateSaveableUrl } from "@packages/domain/article";
+import { newSaveAttemptId } from "@packages/domain/article";
+import { validateSaveableInboxLink } from "./saveable-inbox-link";
 import { extractUrls } from "@packages/domain/import-session";
 import {
 	capEmailLinks,
@@ -453,7 +454,7 @@ export function initExtractEmailLinksHandler(deps: {
 					});
 					countStored(status);
 					const saveable =
-						canSubmit && fanOut.links && validateSaveableUrl(url).status === "SUCCESS";
+						canSubmit && fanOut.links && validateSaveableInboxLink(url).status === "SUCCESS";
 					if ((routing.kind === "gmail" || customReadlists.size > 0) && saveable && status !== "skipped") {
 						triagedLinks.push({ ordinal, url, anchorText });
 					}

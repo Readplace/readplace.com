@@ -1291,3 +1291,34 @@ describe("POST /queue/save-content capture trigger", () => {
 		expect(staged).toEqual([]);
 	});
 });
+
+describe("POST /queue/save-content for a private item identity", () => {
+	it("refuses with the private_item message and publishes nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
+		const publishedSavePdf: Parameters<PublishSaveLinkRawPdfCommand>[0][] = [];
+		const testApp = useApp({
+			...fixture,
+			events: {
+				...fixture.events,
+				publishSaveLinkRawHtmlCommand: async (params) => { publishedSaveHtml.push(params); },
+				publishSaveLinkRawPdfCommand: async (params) => { publishedSavePdf.push(params); },
+			},
+		});
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-content")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("url", "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef")
+			.field("mediaType", "text/html")
+			.attach("content", VALID_HTML, "content.html");
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.message).toBe("Private upload links can't be saved");
+		expect(fixture.submitLink.submitLinks).toEqual([]);
+		expect(publishedSaveHtml).toEqual([]);
+		expect(publishedSavePdf).toEqual([]);
+	});
+});

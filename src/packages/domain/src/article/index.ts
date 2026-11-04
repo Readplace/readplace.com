@@ -53,6 +53,7 @@ export {
 	type SaveableUrlErrorCode,
 	type SaveableUrlResult,
 	type ValidateSaveableUrl,
+	withPrivateItemRefusal,
 } from "./saveable-url";
 export {
 	SaveProvenanceSchema,

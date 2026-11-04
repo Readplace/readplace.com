@@ -10,7 +10,7 @@ import {
 	isExcludedLink,
 	parseInboxHighlight,
 } from "@packages/domain/inbox";
-import { newSaveAttemptId, validateSaveableUrl } from "@packages/domain/article";
+import { newSaveAttemptId } from "@packages/domain/article";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger } from "@packages/domain/article";
 import {
 	DEFAULT_READLIST_SLUG,
@@ -41,6 +41,7 @@ import type { FileArticleIntoReadlistDetail } from "@packages/hutch-infra-compon
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
+import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
 import { stripUtmParams } from "../../../domain/inbox/strip-utm-params";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -610,7 +611,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						ordinal: parsedOrdinal.data,
 					})
 				: undefined;
-			if (link === undefined || validateSaveableUrl(link.url).status !== "SUCCESS") {
+			if (link === undefined || validateSaveableInboxLink(link.url).status !== "SUCCESS") {
 				res.status(404).type("html").send("");
 				return;
 			}
@@ -731,7 +732,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			if (
 				link === undefined ||
 				isExcludedLink(link) ||
-				validateSaveableUrl(link.url).status !== "SUCCESS"
+				validateSaveableInboxLink(link.url).status !== "SUCCESS"
 			) {
 				return notFound();
 			}

@@ -1225,7 +1225,7 @@ describe("Import routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from(
-				"https://example.com/a http://localhost/secret http://router.home.arpa/",
+				"https://example.com/a http://localhost/secret http://router.home.arpa/ https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef",
 			);
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent.post("/import?utm_source=import-acquire&utm_medium=internal&utm_content=upload-file").set("Content-Type", contentType).send(body);
@@ -1234,19 +1234,21 @@ describe("Import routes", () => {
 			await agent.post(`${sessionPath}/commit`);
 
 			const readlistResponse = await agent.get(
-				"/queue?import_imported=1&import_total=3&import_skipped=2",
+				"/queue?import_imported=1&import_total=4&import_skipped=3",
 			);
 			const doc = new JSDOM(readlistResponse.text).window.document;
 			const skipped = doc.querySelectorAll("[data-test-import-skipped-row]");
-			expect(skipped.length).toBe(2);
+			expect(skipped.length).toBe(3);
 			const urls = Array.from(skipped).map(
 				(row) => row.querySelector("[data-test-import-skipped-url]")?.textContent,
 			);
 			expect(urls).toContain("http://localhost/secret");
 			expect(urls).toContain("http://router.home.arpa/");
+			expect(urls).toContain("https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef");
 			expect(Array.from(skipped, (row) => row.querySelector("[data-test-import-skipped-reason]")?.textContent)).toEqual([
 				"Private or local network link",
 				"Private or local network link",
+				"Private upload link",
 			]);
 
 			const clearCookie = findCookie(readlistResponse.headers, "import_skipped=");

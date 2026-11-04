@@ -480,6 +480,7 @@ describe("Inbox link fit route", () => {
 			seedWith: { links: [{ status: "skipped", skipReason: "list-unsubscribe", title: undefined }] },
 		},
 		{ name: "a link the save pipeline would reject", seedWith: { links: [{ url: "ftp://example.com/file" }] } },
+		{ name: "a private item identity", seedWith: { links: [{ url: "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef" }] } },
 		{ name: "a missing email", seedWith: { withEmail: false } },
 		{ name: "a malformed choice", body: { readlist: "work", verdict: "maybe" } },
 		{ name: "held saves", seedWith: { meta: { ...ROUTED_META, savesHeld: true } } },

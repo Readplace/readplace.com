@@ -378,6 +378,18 @@ describe("Inbox link save route", () => {
 		expect(harness.submittedLinks).toEqual([]);
 	});
 
+	it("returns 404 for a private item identity, publishing nothing", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { url: "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef" });
+
+		const response = await agent.post(savePath);
+
+		expect(response.status).toBe(404);
+		expect(harness.submittedLinks).toEqual([]);
+	});
+
 });
 
 describe("Inbox link save route answering htmx in place", () => {

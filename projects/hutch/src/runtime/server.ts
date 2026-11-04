@@ -256,7 +256,7 @@ import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/readlist/readlist.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
-import { newSaveAttemptId, type ValidateSaveableUrl, withNewSavePreparation } from "@packages/domain/article";
+import { newSaveAttemptId, type ValidateSaveableUrl, withNewSavePreparation, withPrivateItemRefusal } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import { initAdminExtendTrialRoutes } from "./web/pages/admin/extend-trial.page";
 import { initAdminFounderNotesRoutes } from "./web/pages/admin/founder-notes.page";
@@ -681,7 +681,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 	});
 
-	const validateNewSaveUrl = withNewSavePreparation(deps.validateSaveableUrl);
+	const validateNewSaveUrl = withPrivateItemRefusal(withNewSavePreparation(deps.validateSaveableUrl));
 
 	const resolveSaveAccess = initResolveSaveAccess({
 		findUserById: deps.findUserById,

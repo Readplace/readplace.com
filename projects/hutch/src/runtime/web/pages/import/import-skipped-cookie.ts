@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { SaveableUrlErrorCode } from "@packages/domain/article";
+import { type SaveableUrlErrorCode, SaveableUrlErrorCodeSchema } from "@packages/domain/article";
 
 export const IMPORT_SKIPPED_COOKIE_NAME = "import_skipped";
 
@@ -19,7 +19,7 @@ const ImportSkippedFlashSchema = z.object({
 	entries: z.array(
 		z.object({
 			url: z.string(),
-			code: z.enum(["unsupported_scheme", "private_network", "malformed_url"]),
+			code: SaveableUrlErrorCodeSchema,
 		}),
 	),
 	andMore: z.number().int().min(0),

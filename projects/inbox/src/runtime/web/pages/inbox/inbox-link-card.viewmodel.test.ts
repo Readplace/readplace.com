@@ -90,6 +90,17 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.menuActions.map((action) => action.key)).toEqual(["feedback-exclude"]);
 	});
 
+	it("offers no save action for a private item identity", () => {
+		const vm = toInboxLinkCardViewModel({
+			link: link({ url: "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef" }),
+			emailId: EMAIL_ID,
+			pollCount: 1,
+			maxPolls: 300,
+			shown: SHOWN, filter: undefined, fit: [], linkSaveStates: new Map(), savePollContext: { mode: "static" } });
+
+		expect(vm.actions).toEqual([]);
+	});
+
 	it("labels the save action with the destination the card shows, not the tracking link", () => {
 		const vm = toInboxLinkCardViewModel({
 			link: link({

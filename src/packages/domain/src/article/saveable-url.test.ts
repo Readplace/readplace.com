@@ -7,6 +7,7 @@ import {
 	saveableUrlErrorMessage,
 	validateSaveableUrl,
 	withNewSavePreparation,
+	withPrivateItemRefusal,
 	type SaveableUrl,
 	type SaveableUrlErrorCode,
 	type ValidateSaveableUrl,
@@ -303,5 +304,27 @@ describe("withNewSavePreparation", () => {
 
 		expect(justOver.length).toBe(MAX_SAVEABLE_URL_LENGTH + 1);
 		expect(validate(justOver).status).toBe("ERROR");
+	});
+});
+
+describe("withPrivateItemRefusal", () => {
+	const validate = withPrivateItemRefusal(validateSaveableUrl);
+
+	it("refuses a private item identity", () => {
+		expect(validate("https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef")).toEqual({
+			status: "ERROR",
+			error: { code: "private_item", message: "Private upload links can't be saved" },
+		});
+	});
+
+	it("passes an ordinary URL through", () => {
+		expect(validate("https://example.com/article")).toEqual({ status: "SUCCESS", url: "https://example.com/article" });
+	});
+
+	it("answers an opaque identifier with the wrapped validator's refusal instead of throwing", () => {
+		expect(validate("urn:foo:bar")).toEqual({
+			status: "ERROR",
+			error: { code: "unsupported_scheme", message: "Only http and https URLs can be saved" },
+		});
 	});
 });

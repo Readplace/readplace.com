@@ -100,6 +100,10 @@ describe("saveFormRejectionMessage", () => {
 	it("explains why a private or local network link cannot be saved", () => {
 		expect(saveFormRejectionMessage("private_network")).toBe("Private or local network links can't be saved.");
 	});
+
+	it("explains that a private upload link cannot be saved", () => {
+		expect(saveFormRejectionMessage("private_item")).toBe("Private upload links can't be saved.");
+	});
 });
 
 describe("skippedLinkReasonLabel", () => {
@@ -113,6 +117,10 @@ describe("skippedLinkReasonLabel", () => {
 
 	it("labels a private or local network link", () => {
 		expect(skippedLinkReasonLabel("private_network")).toBe("Private or local network link");
+	});
+
+	it("labels a private upload link", () => {
+		expect(skippedLinkReasonLabel("private_item")).toBe("Private upload link");
 	});
 });
 

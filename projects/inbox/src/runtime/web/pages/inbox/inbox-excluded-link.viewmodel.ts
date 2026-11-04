@@ -1,5 +1,5 @@
 import { withInternalTracking } from "@packages/web-shell";
-import { validateSaveableUrl } from "@packages/domain/article";
+import { validateSaveableInboxLink } from "../../../domain/inbox/saveable-inbox-link";
 import type {
 	EmailLinkSkipReason,
 	InboxEmailLinkEntry,
@@ -73,7 +73,7 @@ export function toInboxExcludedLinkViewModel(input: {
 		pollContext: input.pollContext,
 	});
 	const actions: InboxCardSaveAction[] = [];
-	if (validateSaveableUrl(link.url).status === "SUCCESS") {
+	if (validateSaveableInboxLink(link.url).status === "SUCCESS") {
 		actions.push({
 			key: "save",
 			// A skipped row shows its URL byte-exact — no crawl has resolved it —

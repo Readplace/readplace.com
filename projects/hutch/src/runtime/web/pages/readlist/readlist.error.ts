@@ -39,6 +39,10 @@ const SAVEABLE_URL_REJECTION_COPY: Record<
 		fieldMessage: "Private or local network links can't be saved.",
 		skippedLabel: "Private or local network link",
 	},
+	private_item: {
+		fieldMessage: "Private upload links can't be saved.",
+		skippedLabel: "Private upload link",
+	},
 };
 
 export function saveFormRejectionMessage(code: SaveableUrlErrorCode): string {

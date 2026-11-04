@@ -100,6 +100,10 @@ describe("toInboxExcludedLinkViewModel", () => {
 		expect(build({ link: link({ url: "https://localhost/private" }) }).actions).toEqual([]);
 	});
 
+	it("withholds the save action from a private item identity", () => {
+		expect(build({ link: link({ url: "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef" }) }).actions).toEqual([]);
+	});
+
 	it("never polls on a page render, where no recorded save means nobody clicked", () => {
 		const vm = build({ pollContext: { mode: "static" } });
 
