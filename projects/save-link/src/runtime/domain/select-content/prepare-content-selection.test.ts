@@ -59,6 +59,11 @@ function automaticCapture(): VerifiedTierSource {
 	return capture;
 }
 
+function withWordCount(candidate: VerifiedTierSource, wordCount: number): VerifiedTierSource {
+	candidate.metadata.wordCount = wordCount;
+	return candidate;
+}
+
 function archiveLinkCapture(): VerifiedTierSource {
 	const capture = source("tier-0", "archive-link-capture");
 	capture.metadata.originalUrl = ARCHIVE;
@@ -193,7 +198,7 @@ describe("initPrepareContentSelection", () => {
 
 	it.each([
 		{ capture: "tap capture taken on a wrapper host", build: wrapperHostCapture },
-		{ capture: "automatic capture of the article's own host", build: automaticCapture },
+		{ capture: "automatic capture of the article's own host under 100 words", build: () => withWordCount(automaticCapture(), 99) },
 	])("judges a lone $capture instead of serving it as first content", async ({ build }) => {
 		const capture = build();
 		const select = jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
@@ -385,7 +390,7 @@ describe("initPrepareContentSelection", () => {
 	});
 
 	it.each([
-		{ label: "a live-only bot check", sources: () => [source("tier-1", "bot-check", { html: "<p>Verify you are human</p>" })], loaded: article() },
+		{ label: "a live-only bot check", sources: () => [withWordCount(source("tier-1", "bot-check", { html: "<p>Verify you are human</p>" }), 99)], loaded: article() },
 		{ label: "a blank capture", sources: () => [blankCapture(), notFoundLive()], loaded: article() },
 		{ label: "a capture from an earlier attempt", sources: () => [earlierCapture(), notFoundLive()], loaded: article() },
 		{ label: "a capture of a wrapper page", sources: () => [wrapperHostCapture(), notFoundLive()], loaded: article() },
@@ -684,8 +689,16 @@ describe("initPrepareContentSelection", () => {
 
 	it("does not promote blank parsed HTML even if the model names it a winner", async () => {
 		const blank = source("tier-1", "blank", { html: " ", evaluationHtml: "<html>CAPTCHA</html>" });
-		const { prepare } = setup({ listAvailableTierSources: async () => [blank], selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("blank"), reason: "Mistake" }) });
-		expect((await prepare({ url: URL })).outcome).toBe("no-readable");
+		const live = source("tier-1", "live", { html: "<div></div>" });
+		live.metadata.wordCount = 0;
+		const { prepare } = setup({ listAvailableTierSources: async () => [blank, live], selectMostCompleteContent: async () => ({ kind: "winner", candidateId: cid("blank"), reason: "Mistake" }) });
+		expect(await prepare({ url: URL })).toMatchObject({ outcome: "no-readable", selectionRule: "judge" });
+	});
+
+	it("does not promote a lone body of 100 words or more whose parsed HTML is blank", async () => {
+		const blank = source("tier-1", "blank", { html: " ", evaluationHtml: "<html>CAPTCHA</html>" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [blank] });
+		expect(await prepare({ url: URL })).toMatchObject({ outcome: "no-readable", selectionRule: "lone-body", selected: undefined });
 	});
 
 	it("promotes a media-only winner that carries no prose", async () => {
@@ -703,16 +716,13 @@ describe("initPrepareContentSelection", () => {
 	});
 
 	it("rejects an invalid judge response so the selection is retried rather than committed as unreadable", async () => {
-		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live")], selectMostCompleteContent: async () => { throw new Error("judge returned an invalid response: unknown winner candidate"); } });
+		const { prepare } = setup({ listAvailableTierSources: async () => [withWordCount(source("tier-1", "live"), 99)], selectMostCompleteContent: async () => { throw new Error("judge returned an invalid response: unknown winner candidate"); } });
 		await expect(prepare({ url: URL })).rejects.toThrow("judge returned an invalid response");
 	});
 
-	it.each([
-		{ label: "a readable 2xx body", httpStatus: 200, expected: { outcome: "selected", id: "live" } },
-		{ label: "only a 403 body", httpStatus: 403, expected: { outcome: "no-readable", id: undefined } },
-	])("falls back on a judge-provider rejection to $label", async ({ httpStatus, expected }) => {
-		const live = source("tier-1", "live");
-		live.metadata.httpStatus = httpStatus;
+	it("falls back on a judge-provider rejection to a readable 2xx body", async () => {
+		const live = withWordCount(source("tier-1", "live"), 99);
+		live.metadata.httpStatus = 200;
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
 		const prepare = initPrepareContentSelection({
 			readCanonicalContent: async () => undefined, loadArticle: async () => article(), listAvailableTierSources: async () => [live],
@@ -721,8 +731,8 @@ describe("initPrepareContentSelection", () => {
 		const result = await prepare({ url: URL, saveAttemptId: FRESH, candidates: [{ tier: "tier-1", id: cid("live") }] });
 		expect(result.audit?.responseStatus).toBe("rejected");
 		expect(result.selectionRule).toBe("provider-rejected-fallback");
-		expect(result.outcome).toBe(expected.outcome);
-		expect(result.selected?.metadata.id).toBe(expected.id);
+		expect(result.outcome).toBe("selected");
+		expect(result.selected?.metadata.id).toBe("live");
 	});
 
 	it("does not promote an unreadable 2xx body on a judge-provider rejection", async () => {
@@ -737,6 +747,91 @@ describe("initPrepareContentSelection", () => {
 		expect((await prepare({ url: URL, saveAttemptId: FRESH })).outcome).toBe("no-readable");
 	});
 
+	describe("a lone body on an article with no content yet", () => {
+		const judge = () => jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>()
+			.mockResolvedValue({ kind: "none", reason: "Not an article" });
+
+		it("accepts a lone body of 100 words or more without the judge", async () => {
+			const live = source("tier-1", "live");
+			const select = judge();
+			const { prepare } = setup({ listAvailableTierSources: async () => [live], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-1", id: cid("live") }] });
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "lone-body", selected: live, readableIds: new Set(["live"]), audit: undefined, judgedBodies: 0, ownCaptureFailed: false });
+		});
+
+		it("judges a lone body under 100 words", async () => {
+			const select = judge();
+			const { prepare } = setup({ listAvailableTierSources: async () => [withWordCount(source("tier-1", "live"), 99)], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge" });
+		});
+
+		it.each([400, 403, 404, 500])("fails a lone body of 100 words or more that answered HTTP %i without the judge", async (httpStatus) => {
+			const live = withWordCount(source("tier-1", "live"), 500);
+			live.metadata.httpStatus = httpStatus;
+			const select = judge();
+			const { prepare } = setup({ listAvailableTierSources: async () => [live], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL });
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "lone-error-status", selected: undefined, ownCaptureFailed: false, reason: `the only candidate answered HTTP ${httpStatus}`, readableIds: new Set() });
+		});
+
+		it("accepts a lone body of 100 words or more that answered HTTP 200", async () => {
+			const live = source("tier-1", "live");
+			live.metadata.httpStatus = 200;
+			const select = judge();
+			const { prepare } = setup({ listAvailableTierSources: async () => [live], selectMostCompleteContent: select });
+
+			expect(await prepare({ url: URL })).toMatchObject({ outcome: "selected", selectionRule: "lone-body" });
+			expect(select).not.toHaveBeenCalled();
+		});
+
+		it("still judges a lone crawl body once the article holds committed content that is not listed", async () => {
+			const select = judge();
+			const { prepare } = setup({
+				loadArticle: async () => article({ contentSelection: { revision: 2, tier: "tier-1", candidateId: cid("gone") }, freshness: { contentFetchedAt: NOW, canonicalContentHash: "committed" } }),
+				listAvailableTierSources: async () => [source("tier-1", "live")],
+				selectMostCompleteContent: select,
+			});
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-1", id: cid("live") }] });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge" });
+		});
+
+		it("still judges a lone tier-1 body of 100 words or more fetched from a wrapper host", async () => {
+			const tracked = source("tier-1", "tracked");
+			tracked.metadata.sourceUrl = ARCHIVE;
+			const select = judge();
+			const { prepare } = setup({ listAvailableTierSources: async () => [tracked], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL });
+
+			expect(select).toHaveBeenCalledTimes(1);
+			expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge" });
+		});
+
+		it("selects a lone automatic capture of 100 words or more by the lone-body rule, never a capture rule", async () => {
+			const capture = automaticCapture();
+			const select = judge();
+			const { prepare } = setup({ listAvailableTierSources: async () => [capture], selectMostCompleteContent: select });
+
+			const result = await prepare({ url: URL, candidates: [{ tier: "tier-0", id: capture.metadata.id }] });
+
+			expect(select).not.toHaveBeenCalled();
+			expect(result).toMatchObject({ outcome: "selected", selectionRule: "lone-body", selected: capture, ownCaptureFailed: false });
+		});
+	});
+
 	it("requires an existing aggregate before evaluating content", async () => {
 		const { prepare } = setup({ loadArticle: async () => undefined });
 		await expect(prepare({ url: URL })).rejects.toThrow("Article aggregate not found");
@@ -744,6 +839,18 @@ describe("initPrepareContentSelection", () => {
 });
 
 describe("initLogContentSelection", () => {
+	it("reports the lone-body rule with no audit", async () => {
+		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live")] });
+		const info = jest.fn();
+
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare({ url: URL }) });
+
+		const logged = JSON.parse(String(info.mock.calls[0]?.[0]).split("comparison completed ")[1]);
+		expect(logged).toMatchObject({ selectedCandidateId: "live", outcome: "selected", selectionRule: "lone-body", judgedBodies: 0, reason: "the only candidate holds 100 words or more and the article has no content yet" });
+		expect(logged.audit).toBeUndefined();
+		expect(logged.candidates).toMatchObject([{ id: "live", readable: true }]);
+	});
+
 	it("reports the selection rule, the judge's reason and an honest readability for a capture selected over a none verdict", async () => {
 		const capture = source("tier-0", "capture");
 		const { prepare } = setup({ listAvailableTierSources: async () => [capture, notFoundLive()] });

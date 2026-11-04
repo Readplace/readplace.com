@@ -148,7 +148,6 @@ describe("verified direct resource selection", () => {
 		{ name: "a live kind in the extension tier", change: (source) => { source.tier = "tier-0"; }, verified: false },
 		{ name: "a different original identity", change: (source) => { source.metadata.originalUrl = "https://other.example/resource"; }, verified: false },
 		{ name: "an invalid content hash", change: (source) => { source.metadata.contentHash = "invalid"; }, verified: false },
-		{ name: "an HTTP error", change: (source) => { source.metadata.httpStatus = 404; }, verified: true },
 		{ name: "a blank materialized body", change: (source) => { source.evaluationHtml = source.html; source.html = " "; }, verified: true },
 		{ name: "a body without words or media", change: (source) => { source.evaluationHtml = source.html; source.html = "<div></div>"; }, verified: true },
 	];
@@ -161,6 +160,18 @@ describe("verified direct resource selection", () => {
 
 		expect(judge).toHaveBeenCalledTimes(verified ? 1 : 0);
 		expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "judge", selected: undefined });
+		expect(result.readableIds).toEqual(new Set());
+	});
+
+	it("fails a lone resource that answered an HTTP error by its status, off the direct-resource path and without the judge", async () => {
+		const source = resource("image");
+		source.metadata.httpStatus = 404;
+		const { prepare, judge } = setup([source]);
+
+		const result = await prepare([{ id: source.metadata.id, tier: source.tier }]);
+
+		expect(judge).toHaveBeenCalledTimes(0);
+		expect(result).toMatchObject({ outcome: "no-readable", selectionRule: "lone-error-status", selected: undefined });
 		expect(result.readableIds).toEqual(new Set());
 	});
 

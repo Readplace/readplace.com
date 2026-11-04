@@ -135,3 +135,17 @@ it.each([
 		comparisons: [{ selectionRule: "unchanged-content", ownCaptureFailed: false, captureTrigger: "automatic" }],
 	});
 });
+
+it("an automatic capture alone, with 100 words or more and no content, takes the lone-body rule a crawl copy takes, without the judge", async () => {
+	const capture = candidate({ tier: "tier-0", attemptId: RESCUE, captureTrigger: "automatic", wordCount: 100, html: "<article><h1>Article</h1><p>The page the reader's device loaded on its own, long enough to stand alone.</p></article>" });
+	const createChatCompletion = jest.fn<ReturnType<CreateDeepseekChatCompletion>, Parameters<CreateDeepseekChatCompletion>>();
+
+	const selection = await selectContent({ article: failedArticle(), capture, others: [], createChatCompletion });
+
+	expect(createChatCompletion).not.toHaveBeenCalled();
+	expect(selection).toEqual({
+		result: { batchItemFailures: [] },
+		persisted: [{ transition: promoteTier, input: expect.objectContaining({ tier: "tier-0", metadata: expect.objectContaining({ id: capture.metadata.id }) }) }],
+		comparisons: [{ selectionRule: "lone-body", ownCaptureFailed: false, captureTrigger: "automatic" }],
+	});
+});

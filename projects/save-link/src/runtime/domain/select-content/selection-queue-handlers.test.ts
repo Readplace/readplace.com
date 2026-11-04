@@ -13,7 +13,7 @@ import { SELECT_CONTENT_MAX_RECEIVE_COUNT } from "./max-receive-count";
 
 const URL = "https://example.com/article";
 const NOW = new Date("2026-10-05T00:00:00.000Z");
-const source: VerifiedTierSource = { tier: "tier-1", html: "<p>Real article content</p>", metadata: candidateProvenance({ metadata: { title: "Real title", siteName: "Example", excerpt: "Article excerpt", wordCount: 100, estimatedReadTime: 1 }, html: "<p>Real article content</p>", evaluationHtml: "<p>Real article content</p>", attemptId: SaveAttemptIdSchema.parse("save-attempt"), originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: NOW.toISOString() }) };
+const source: VerifiedTierSource = { tier: "tier-1", html: "<p>Real article content</p>", metadata: candidateProvenance({ metadata: { title: "Real title", siteName: "Example", excerpt: "Article excerpt", wordCount: 99, estimatedReadTime: 1 }, html: "<p>Real article content</p>", evaluationHtml: "<p>Real article content</p>", attemptId: SaveAttemptIdSchema.parse("save-attempt"), originalUrl: URL, sourceUrl: URL, kind: "live", fetchedAt: NOW.toISOString() }) };
 const article: Article = { url: URL, metadata: { title: "Old", siteName: "Example", excerpt: "Old excerpt", wordCount: 3 }, freshness: { contentFetchedAt: NOW.toISOString() }, estimatedReadTime: 1, crawl: { kind: "pending", pendingSince: NOW.toISOString() }, summary: { kind: "pending", pendingSince: NOW.toISOString() }, summaryAutoHeal: { attempts: 0 } };
 function event(...details: unknown[]): SQSEvent {
 	return eventOnReceive(1, ...details);
@@ -64,7 +64,7 @@ describe.each([
 		expect(order).toEqual(["upload", "commit", "version"]);
 		expect(persisted[0]?.transition).toBe(transition);
 		expect(persisted[0]?.params.canonicalCommit).toMatchObject({ candidateId: source.metadata.id, contentLocation: "s3://content/immutable.html" });
-		expect(persisted[0]?.params.input).toMatchObject({ metadata: { title: "Real title", excerpt: "Article excerpt", wordCount: 100 }, canonicalContentHash: expect.any(String) });
+		expect(persisted[0]?.params.input).toMatchObject({ metadata: { title: "Real title", excerpt: "Article excerpt", wordCount: 99 }, canonicalContentHash: expect.any(String) });
 		expect(persisted[0]?.params.input).toMatchObject(input);
 	});
 	it("retries malformed queue input without affecting the valid sibling", async () => {

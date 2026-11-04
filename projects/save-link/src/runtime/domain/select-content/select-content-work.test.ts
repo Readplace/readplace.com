@@ -22,6 +22,11 @@ function source(tier: VerifiedTierSource["tier"] = "tier-1"): VerifiedTierSource
 		kind: tier === "tier-0" ? "extension" : tier === "tier-2" ? "wrapper" : "live", fetchedAt: NOW,
 	}), id: cid(tier) } };
 }
+function judgedSource(): VerifiedTierSource {
+	const judged = source();
+	judged.metadata.wordCount = 99;
+	return judged;
+}
 function article(overrides: Partial<Article> = {}): Article {
 	return { url: URL, metadata, freshness: { contentFetchedAt: NOW }, estimatedReadTime: 3,
 		crawl: { kind: "ready" }, summary: { kind: "ready", summary: "Summary" }, summaryAutoHeal: { attempts: 0 }, ...overrides };
@@ -287,7 +292,7 @@ describe("initSelectContentWork", () => {
 	});
 
 	it("promotes this save's readable 200 live body instead of marking the article unreadable when the judge provider rejects the request", async () => {
-		const live = source();
+		const live = judgedSource();
 		live.metadata.httpStatus = 200;
 		const { deps } = setup({ listAvailableTierSources: async () => [live] });
 		const rejectingJudge = initSelectMostCompleteContent({ createChatCompletion: async () => { throw Object.assign(new Error("bad request"), { status: 400 }); }, logger: noopLogger, deepseekCallFailedLog: noopLogger }).selectMostCompleteContent;
@@ -299,7 +304,7 @@ describe("initSelectContentWork", () => {
 
 	it("marks a first save with no readable content as failed under the same observed revision, without writing reader bytes", async () => {
 		const expected = { revision: 2 };
-		const { work, deps, events } = setup({ loadArticle: async () => article({ contentSelection: expected }), selectMostCompleteContent: async () => ({ kind: "none", reason: "CAPTCHA" }) });
+		const { work, deps, events } = setup({ loadArticle: async () => article({ contentSelection: expected }), listAvailableTierSources: async () => [judgedSource()], selectMostCompleteContent: async () => ({ kind: "none", reason: "CAPTCHA" }) });
 		await work(request);
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, { url: URL, input: { reason: { kind: "parse-error", detail: "no readable article candidate: CAPTCHA" } }, selectionExpected: { snapshot: expected } });
 		expect(deps.writeCanonicalContent).not.toHaveBeenCalled();
@@ -325,7 +330,7 @@ describe("initSelectContentWork", () => {
 		{ httpStatus: 419, reason: { kind: "blocked", cause: "edge-block" } },
 		{ httpStatus: 429, reason: { kind: "blocked", cause: "rate-limited" } },
 		{ httpStatus: 404, reason: { kind: "not-found", httpStatus: 404 } },
-		{ httpStatus: 500, reason: { kind: "parse-error", detail: "no readable article candidate: Error page" } },
+		{ httpStatus: 500, reason: { kind: "parse-error", detail: "no readable article candidate: the only candidate answered HTTP 500" } },
 	])("records why this save's live response with HTTP $httpStatus had nothing readable", async ({ httpStatus, reason }) => {
 		const refused = source();
 		refused.metadata.httpStatus = httpStatus;
@@ -341,7 +346,7 @@ describe("initSelectContentWork", () => {
 		{ renderedThrough: "web-unlocker-fetch" as const },
 		{ renderedThrough: "web-unlocker-render" as const },
 	])("records that this save's live page had nothing readable even after rendering it through $renderedThrough", async ({ renderedThrough }) => {
-		const rendered = source();
+		const rendered = judgedSource();
 		rendered.metadata.httpStatus = 200;
 		rendered.metadata.renderedThrough = renderedThrough;
 		const { work, deps } = setup({ listAvailableTierSources: async () => [rendered], selectMostCompleteContent: async () => ({ kind: "none", reason: "App shell" }) });
@@ -350,7 +355,7 @@ describe("initSelectContentWork", () => {
 	});
 
 	it("does not say an earlier attempt's rendered page was rendered for this save", async () => {
-		const earlier = source();
+		const earlier = judgedSource();
 		earlier.metadata.renderedThrough = "direct-egress";
 		const { work, deps } = setup({ listAvailableTierSources: async () => [earlier], selectMostCompleteContent: async () => ({ kind: "none", reason: "App shell" }) });
 		await work(laterRequest);
@@ -362,7 +367,7 @@ describe("initSelectContentWork", () => {
 		earlier.metadata.httpStatus = 403;
 		const { work, deps } = setup({ listAvailableTierSources: async () => [earlier], selectMostCompleteContent: async () => ({ kind: "none", reason: "Error page" }) });
 		await work(laterRequest);
-		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "parse-error", detail: "no readable article candidate: Error page" } } }));
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markNoReadableArticle, expect.objectContaining({ input: { reason: { kind: "parse-error", detail: "no readable article candidate: the only candidate answered HTTP 403" } } }));
 	});
 
 	it.each([
@@ -401,7 +406,7 @@ describe("initSelectContentWork", () => {
 	});
 
 	it("leaves the row for the deferred comprehensive crawl when nothing readable has arrived yet", async () => {
-		const { work, deps, events } = setup({ selectMostCompleteContent: async () => ({ kind: "none", reason: "CAPTCHA" }) });
+		const { work, deps, events } = setup({ listAvailableTierSources: async () => [judgedSource()], selectMostCompleteContent: async () => ({ kind: "none", reason: "CAPTCHA" }) });
 		await work({ ...request, liveAttempt: { outcome: "deferred" } });
 		expect(deps.writeCanonicalContent).not.toHaveBeenCalled();
 		expect(events).toEqual(["completion"]);
@@ -455,7 +460,7 @@ describe("initSelectContentWork", () => {
 	});
 
 	it("does not log a no-readable outcome if its conditional failure transition loses to a newer selection", async () => {
-		const { work, events } = setup({ selectMostCompleteContent: async () => ({ kind: "none", reason: "CAPTCHA" }), transitionAndPersist: async () => { throw new Error("selection changed"); } });
+		const { work, events } = setup({ listAvailableTierSources: async () => [judgedSource()], selectMostCompleteContent: async () => ({ kind: "none", reason: "CAPTCHA" }), transitionAndPersist: async () => { throw new Error("selection changed"); } });
 		await expect(work(request)).rejects.toThrow("selection changed");
 		expect(events).toEqual([]);
 	});
