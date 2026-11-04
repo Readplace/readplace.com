@@ -146,13 +146,13 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 
 			shell.onTabActivated((tabId, url) => {
 				updateIconForTab(tabId, url).catch((err) =>
-					logger.error("Failed to update icon for activated tab", err),
+					logger.error("Failed to update icon for activated tab", { error: err }),
 				);
 			});
 
 			shell.onTabUpdated((tabId, url) => {
 				updateIconForTab(tabId, url).catch((err) =>
-					logger.error("Failed to update icon for updated tab", err),
+					logger.error("Failed to update icon for updated tab", { error: err }),
 				);
 			});
 
@@ -201,7 +201,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 						 * all: the icon simply stays as the tab last left it. */
 						if (tabId != null) await shell.setIcon.showSaved(tabId);
 					})
-					.catch((err) => logger.error("Failed to update icon after save", err));
+					.catch((err) => logger.error("Failed to update icon after save", { error: err }));
 			}
 		},
 

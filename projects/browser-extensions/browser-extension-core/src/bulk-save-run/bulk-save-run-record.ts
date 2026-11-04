@@ -39,7 +39,7 @@ export function initBulkSaveRunRecord(deps: { area: BulkSaveRunArea; logger: Log
 			if (snapshot.length === 0) await deps.area.remove(BULK_SAVE_RUNS_KEY);
 			else await deps.area.set({ [BULK_SAVE_RUNS_KEY]: snapshot });
 		} catch (error) {
-			deps.logger.error("[bulk-save-run] could not write the run record", error);
+			deps.logger.error("[bulk-save-run] could not write the run record", { error: error });
 		}
 	}
 

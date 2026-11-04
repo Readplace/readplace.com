@@ -1,3 +1,4 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/logger";
 import { markCrawlFailed, markCrawlNotFound, markCrawlUnsupported } from "@packages/domain/article-aggregate";
@@ -291,7 +292,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported });
 
-		await expect(saveLinkWork("https://example-spa.test/post", { userId: "user-1", saveAttemptId })).resolves.toEqual({ deferred: "javascript-required" });
+		await expect(saveLinkWork("https://example-spa.test/post", { userId: UserIdSchema.parse("user-1"), saveAttemptId })).resolves.toEqual({ deferred: "javascript-required" });
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: "https://example-spa.test/post",
 			unsupportedReason: "javascript-required",
@@ -328,7 +329,7 @@ describe("initSaveLinkWork", () => {
 			logCrawlOutcome,
 		});
 
-		await expect(saveLinkWork("https://example.com/walled", { saveAttemptId, userId: "u1", recrawl: true })).resolves.toEqual({ deferred: "blocked" });
+		await expect(saveLinkWork("https://example.com/walled", { saveAttemptId, userId: UserIdSchema.parse("u1"), recrawl: true })).resolves.toEqual({ deferred: "blocked" });
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: "https://example.com/walled",
 			unsupportedReason: "blocked",
@@ -449,7 +450,7 @@ describe("initSaveLinkWork", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle: fetchedCrawl, adoptCanonicalIdentity });
 
-		const result = await saveLinkWork("https://site.com/page.html", { userId: "u1", saveAttemptId });
+		const result = await saveLinkWork("https://site.com/page.html", { userId: UserIdSchema.parse("u1"), saveAttemptId });
 
 		expect(result).toEqual({ candidate: { id: expect.any(String), tier: "tier-1" } });
 		expect(adoptCanonicalIdentity).toHaveBeenCalledWith({
@@ -743,7 +744,7 @@ describe("initSaveLinkWork — the page the free crawl reached", () => {
 
 		const { saveLinkWork } = createWork({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported });
 
-		await expect(saveLinkWork(TRACKER, { userId: "user-1", saveAttemptId })).resolves.toEqual({ deferred: "blocked", finalUrl: PUBLISHER });
+		await expect(saveLinkWork(TRACKER, { userId: UserIdSchema.parse("user-1"), saveAttemptId })).resolves.toEqual({ deferred: "blocked", finalUrl: PUBLISHER });
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: TRACKER,
 			unsupportedReason: "blocked",

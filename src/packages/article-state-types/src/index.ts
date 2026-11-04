@@ -21,6 +21,8 @@ export { ARCHIVE_TIER, ContentTierSchema, KNOWN_TIERS } from "./content-tier";
 export type { ContentTier } from "./content-tier";
 export { CrawlFailureReasonSchema } from "./crawl-failure-reason";
 export type { CrawlFailureReason } from "./crawl-failure-reason";
+export { CandidateIdSchema, SaveAttemptIdSchema, UserIdSchema } from "./ids";
+export type { CandidateId, SaveAttemptId, UserId } from "./ids";
 export { parseCrawlFailureReason } from "./parse-crawl-failure-reason";
 export {
 	CrawlUnsupportedReasonSchema,

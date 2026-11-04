@@ -1,3 +1,4 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import {
@@ -31,7 +32,7 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
-		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, userId: "user-1" });
+		await emit({ url: "https://example.com/doc.pdf", unsupportedReason: undefined, saveAttemptId, userId: UserIdSchema.parse("user-1") });
 
 		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
 			url: "https://example.com/doc.pdf",

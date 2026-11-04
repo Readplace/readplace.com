@@ -36,7 +36,7 @@ export function initS3NewsletterCatalog(deps: {
 			if (revalidating !== undefined && error instanceof S3ServiceException && error.$metadata.httpStatusCode === 304) {
 				return { ok: true, document: revalidating.document, etag: revalidating.etag };
 			}
-			deps.logger.error("[newsletter-catalog] could not read the catalog", error);
+			deps.logger.error("[newsletter-catalog] could not read the catalog", { error });
 			return { ok: false, reason: "unavailable" };
 		}
 	};
@@ -59,7 +59,7 @@ export function initS3NewsletterCatalog(deps: {
 			if (error instanceof S3ServiceException && WRITE_CONFLICT_STATUSES.has(error.$metadata.httpStatusCode)) {
 				return { ok: false, reason: "conflict" };
 			}
-			deps.logger.error("[newsletter-catalog] could not write the catalog", error);
+			deps.logger.error("[newsletter-catalog] could not write the catalog", { error });
 			return { ok: false, reason: "unavailable" };
 		}
 	};

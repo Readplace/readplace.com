@@ -32,7 +32,7 @@ import {
 	DEFAULT_READLIST_SLUG,
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
-import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { UserId } from "@packages/domain/user";
 import {
 	type EmailReceivedDetail,
 	EmailReceivedEvent,
@@ -218,7 +218,7 @@ export function initExtractEmailLinksHandler(deps: {
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
-				const userId = UserIdSchema.parse(parsed.data.userId);
+				const userId = parsed.data.userId;
 				const { receivedAtMessageId, origin, recipientAddress, routing } =
 					parsed.data;
 

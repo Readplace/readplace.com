@@ -42,7 +42,6 @@ describe("initRecrawlLinkInitiatedDlqHandler", () => {
 		const handler = initRecrawlLinkInitiatedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		await handler(
@@ -66,7 +65,6 @@ describe("initRecrawlLinkInitiatedDlqHandler", () => {
 		const handler = initRecrawlLinkInitiatedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 		const urlOnlyEvent: SQSEvent = {
 			Records: [{
@@ -100,7 +98,6 @@ describe("initRecrawlLinkInitiatedDlqHandler", () => {
 		const handler = initRecrawlLinkInitiatedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		const invalidEvent: SQSEvent = {
@@ -130,7 +127,6 @@ describe("initRecrawlLinkInitiatedDlqHandler", () => {
 		const handler = initRecrawlLinkInitiatedDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		const result = await handler(
@@ -156,20 +152,16 @@ describe("initRecrawlLinkInitiatedDlqHandler", () => {
 		const handler = initRecrawlLinkInitiatedDlqHandler({
 			transitionAndPersist,
 			logger,
-			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});
 
 		expect(calls).toHaveLength(2);
 		expect(calls[0]).toEqual(["transition"]);
-		expect(calls[1]).toHaveLength(1);
-		expect(JSON.parse(String(calls[1]?.[0]))).toEqual({
-			level: "ERROR",
-			timestamp: "2026-10-15T04:43:01.000Z",
-			message: "[RecrawlLinkInitiatedDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
-			url: "https://example.com/failed",
-		});
+		expect(calls[1]).toEqual([
+			"[RecrawlLinkInitiatedDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
+			{ url: "https://example.com/failed" },
+		]);
 	});
 
 	it("a throwing transition logs only the record-failed line", async () => {
@@ -186,7 +178,6 @@ describe("initRecrawlLinkInitiatedDlqHandler", () => {
 		const handler = initRecrawlLinkInitiatedDlqHandler({
 			transitionAndPersist,
 			logger,
-			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
 
 		const result = await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});

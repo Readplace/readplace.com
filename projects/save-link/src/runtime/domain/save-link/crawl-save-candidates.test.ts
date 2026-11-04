@@ -1,3 +1,4 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { SaveAttemptIdSchema, CandidateIdSchema } from "@packages/domain/article";
 import { initCrawlSaveCandidates } from "./crawl-save-candidates";
 import { ClassifiedCrawlError, initSaveLinkWork } from "./save-link-work";
@@ -87,7 +88,7 @@ describe("archive attempt orchestration", () => {
 	it("keeps the page the live crawl reached on the deferral it emits once the archive capture finishes", async () => {
 		const emit = jest.fn().mockResolvedValue(undefined);
 		const save = initCrawlSaveCandidates({ crawlArchiveCapture: async () => wrapper, saveLinkWork: async () => ({ deferred: "blocked", finalUrl: "https://publisher.example/story" }), emitSimpleCrawlUnsupported: emit });
-		await save({ ...params, userId: "user-1" });
+		await save({ ...params, userId: UserIdSchema.parse("user-1") });
 		expect(emit).toHaveBeenCalledWith({ url, unsupportedReason: "blocked", userId: "user-1", saveAttemptId: params.saveAttemptId, candidates: [wrapper], finalUrl: "https://publisher.example/story" });
 	});
 	it("records an empty live response as a live failure while the extracted archive still reaches selection", async () => {

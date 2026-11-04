@@ -1,12 +1,11 @@
 import assert from "node:assert";
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { z } from "zod";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { type ArticleBody, type ReaderArticleHashId, type ShownSummary, viewerFor } from "@packages/domain/article";
-import { UserIdSchema, type UserId } from "@packages/domain/user";
+import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 import { ReaderReadyEmailSentEvent, SendUserDigestCommand } from "@packages/infra-components";
-import type { PublishEvent } from "@packages/infra-components/runtime";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	DigestCandidate,
 	DigestEmailFilter,
@@ -137,22 +136,13 @@ interface RecipientContext {
 const REGULAR_DIGEST_NOT_CLAIMED_WARNING = "[SendQueueDigest] rate-limited";
 
 export function initSendQueueDigestHandler(deps: SendQueueDigestDeps): Handler<SQSEvent, SQSBatchResponse> {
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
-				const detail = SendUserDigestCommand.detailSchema.parse(envelope.detail);
-				await processQueueDigest({ userId: UserIdSchema.parse(detail.userId), messageId: record.messageId, deps });
-			} catch (error) {
-				deps.logger.error("[SendQueueDigest] record failed", { messageId: record.messageId, error });
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: SendUserDigestCommand,
+		logger: deps.logger,
+		failure: { message: "[SendQueueDigest] record failed" },
+		malformed: { policy: "retry" },
+		handle: (detail, record) => processQueueDigest({ userId: detail.userId, messageId: record.messageId, deps }),
+	});
 }
 
 async function processQueueDigest(params: {

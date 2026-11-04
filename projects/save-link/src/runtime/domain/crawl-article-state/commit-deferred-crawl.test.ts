@@ -1,3 +1,4 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { noopLogger } from "@packages/logger";
 import { markCrawlBlocked, markCrawlFailed } from "@packages/domain/article-aggregate";
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
@@ -62,7 +63,7 @@ describe("initCommitDeferredCrawl", () => {
 		it("stores a tier-1 live candidate and emits TierContentExtractedEvent for a first save", async () => {
 			const { deps, commitFetchedBody } = createCommit();
 
-			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: "user-1" });
+			const outcome = await commitFetchedBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: UserIdSchema.parse("user-1") });
 
 			expect(outcome).toEqual({ via: "deferred-to-event", readable: true, candidate: { id: expect.any(String), tier: "tier-1" } });
 			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
@@ -253,7 +254,7 @@ describe("initCommitDeferredCrawl", () => {
 				originalUrl: "https://example-spa.test/saved",
 				saveAttemptId,
 				candidates: [archived],
-				userId: "user-1",
+				userId: UserIdSchema.parse("user-1"),
 				recrawl: mode === "recrawl" ? true : undefined,
 				refresh: mode === "refresh" ? true : undefined,
 			});
@@ -324,7 +325,7 @@ describe("initCommitDeferredCrawl", () => {
 		it("commits a readable body as a tier-1 live candidate the same way commitFetchedBody does", async () => {
 			const { deps, commitReadableBody } = createCommit();
 
-			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: "user-1" });
+			const outcome = await commitReadableBody(renderedBody, { url, originalUrl: url, saveAttemptId, userId: UserIdSchema.parse("user-1") });
 
 			expect(outcome).toEqual({ via: "deferred-to-event", readable: true, candidate: { id: expect.any(String), tier: "tier-1" } });
 			expect(deps.putTierSource).toHaveBeenCalledWith(expect.objectContaining({
@@ -400,7 +401,7 @@ describe("initCommitDeferredCrawl", () => {
 			const { deps, resolveBudgetExhausted } = createCommit();
 			const archived = { id: CandidateIdSchema.parse("archive-candidate"), tier: "tier-2" as const };
 
-			const outcome = await resolveBudgetExhausted({ url, saveAttemptId, userId: "user-1", candidates: [archived] });
+			const outcome = await resolveBudgetExhausted({ url, saveAttemptId, userId: UserIdSchema.parse("user-1"), candidates: [archived] });
 
 			expect(outcome).toEqual({ via: "deferred-to-event" });
 			expect(deps.transitionAndPersist).not.toHaveBeenCalled();

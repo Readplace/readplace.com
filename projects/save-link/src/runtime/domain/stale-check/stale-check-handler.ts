@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import type { SaveAttemptId } from "@packages/domain/article";
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import {
 	decideSummaryAutoHeal,
 	incrementSummaryAutoHealAttempt,
@@ -217,62 +218,51 @@ export function initStaleCheckHandler(deps: {
 		return "refreshed";
 	}
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
+	return initSqsRecordHandler({
+		definition: StaleCheckRequestedEvent,
+		logger,
+		failure: { message: `${logPrefix} record failed` },
+		malformed: { policy: "retry" },
+		handle: async (detail) => {
+			logger.info(`${logPrefix} processing`, { url: detail.url });
 
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const detail = StaleCheckRequestedEvent.detailSchema.parse(envelope.detail);
+			const action = await checkAndRefresh(detail.url);
 
-				logger.info(`${logPrefix} processing`, { url: detail.url });
-
-				const action = await checkAndRefresh(detail.url);
-
-				if (action === "new") {
-					await publishSaveAnonymousLink({ url: detail.url, saveAttemptId: newSaveAttemptId() });
-					logger.info(`${logPrefix} re-published SaveAnonymousLinkCommand`, {
-						url: detail.url,
-						action,
-					});
-				} else if (action === "tier-1-deferred") {
-					logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, {
-						url: detail.url,
-						action,
-					});
-				} else if (action === "backoff") {
-					logger.info(`${logPrefix} backed off after refresh failure`, { url: detail.url });
-				} else {
-					logger.info(`${logPrefix} no-op`, { url: detail.url, action });
-				}
-
-				/* Summary auto-heal: reprime a summary-failed row once per
-				 * stale-check tick, bounded by the attempt budget + TTL gate.
-				 * Runs after refresh so a successful refresh (which resets
-				 * summary to pending) skips the heal naturally. */
-				const article = await loadArticle(detail.url);
-				if (article !== undefined) {
-					const decision = decideSummaryAutoHeal(article, now());
-					if (decision === "reprime") {
-						await transitionAndPersist(incrementSummaryAutoHealAttempt, {
-							url: detail.url,
-							input: { now: now().toISOString() },
-						});
-						logger.info(`${logPrefix} reprimed summary auto-heal`, {
-							url: detail.url,
-							attempts: article.summaryAutoHeal.attempts + 1,
-						});
-					}
-				}
-			} catch (error) {
-				logger.error(`${logPrefix} record failed`, {
-					messageId: record.messageId,
-					error,
+			if (action === "new") {
+				await publishSaveAnonymousLink({ url: detail.url, saveAttemptId: newSaveAttemptId() });
+				logger.info(`${logPrefix} re-published SaveAnonymousLinkCommand`, {
+					url: detail.url,
+					action,
 				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+			} else if (action === "tier-1-deferred") {
+				logger.info(`${logPrefix} tier-1 deferred to comprehensive Lambda`, {
+					url: detail.url,
+					action,
+				});
+			} else if (action === "backoff") {
+				logger.info(`${logPrefix} backed off after refresh failure`, { url: detail.url });
+			} else {
+				logger.info(`${logPrefix} no-op`, { url: detail.url, action });
 			}
-		}
 
-		return { batchItemFailures };
-	};
+			/* Summary auto-heal: reprime a summary-failed row once per
+			 * stale-check tick, bounded by the attempt budget + TTL gate.
+			 * Runs after refresh so a successful refresh (which resets
+			 * summary to pending) skips the heal naturally. */
+			const article = await loadArticle(detail.url);
+			if (article !== undefined) {
+				const decision = decideSummaryAutoHeal(article, now());
+				if (decision === "reprime") {
+					await transitionAndPersist(incrementSummaryAutoHealAttempt, {
+						url: detail.url,
+						input: { now: now().toISOString() },
+					});
+					logger.info(`${logPrefix} reprimed summary auto-heal`, {
+						url: detail.url,
+						attempts: article.summaryAutoHeal.attempts + 1,
+					});
+				}
+			}
+		},
+	});
 }

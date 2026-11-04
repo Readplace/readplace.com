@@ -89,7 +89,7 @@ function captureErrorWrites(gmail: InMemoryGmailIntegration): string[] {
 	const errorWrites: string[] = [];
 	gmail.bundle.diagnosticsLogger = {
 		...capture,
-		error: (...parts: unknown[]) => {
+		error: (...parts: Parameters<typeof capture.error>) => {
 			errorWrites.push(parts.map(String).join(" "));
 			capture.error(...parts);
 		},

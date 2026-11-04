@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { CandidateIdSchema, SaveAttemptIdSchema } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
 import { RecrawlContentExtractedEvent, RefreshContentExtractedEvent, TierContentExtractedEvent } from "@packages/infra-components";
 import type { TierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { candidateProvenance } from "@packages/tier-source";
@@ -51,7 +52,7 @@ describe("initCommitTierCandidate", () => {
 				trace.push(["afterStore"]);
 			},
 			crawlOutcome,
-			announce: { event: "tier-content-extracted", userId: "user-1", extractedAt: () => "2026-10-01T00:00:05.000Z" },
+			announce: { event: "tier-content-extracted", userId: UserIdSchema.parse("user-1"), extractedAt: () => "2026-10-01T00:00:05.000Z" },
 		});
 
 		const metadata = candidateProvenance({ metadata: METADATA, html: HTML, evaluationHtml: RAW, attemptId: ATTEMPT_ID, originalUrl: URL, sourceUrl: SOURCE_URL, kind: "extension", fetchedAt: FETCHED_AT, captureTrigger: "manual" });

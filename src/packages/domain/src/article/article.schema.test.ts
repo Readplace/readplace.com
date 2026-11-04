@@ -8,6 +8,8 @@ import {
 	ArticleStatusSchema,
 	MinutesSchema,
 	newSaveAttemptId,
+	SaveAttemptIdSchema,
+	CandidateIdSchema,
 } from "./article.schema";
 
 describe("SaveArticleInputSchema", () => {
@@ -114,5 +116,17 @@ describe("newSaveAttemptId", () => {
 
 		expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 		expect(second).not.toBe(first);
+	});
+});
+
+describe("SaveAttemptIdSchema", () => {
+	it("rejects an empty id", () => {
+		expect(SaveAttemptIdSchema.safeParse("").success).toBe(false);
+	});
+});
+
+describe("CandidateIdSchema", () => {
+	it("rejects an empty id", () => {
+		expect(CandidateIdSchema.safeParse("").success).toBe(false);
 	});
 });

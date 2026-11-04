@@ -6,9 +6,10 @@ import {
 	type DeepseekCallFailedLogLine,
 	deepseekCallFailedLogLine,
 	describeAiProviderError,
+	parseModelJson,
 } from "@packages/ai-message";
 import type { Logger } from "@packages/logger";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import {
 	type EmailLinkOrdinal,
 	EmailLinkOrdinalSchema,
@@ -108,22 +109,21 @@ export function initTriageEmailLinks(deps: {
 					},
 				},
 		});
-		const textBlock = response.content.find((block) => block.type === "text");
-		const text = textBlock?.text;
-		if (text === undefined) {
+		const answer = parseModelJson(TriagePayload, response);
+		if (answer.kind === "no-text") {
 			deps.logger.warn("[triage-email-links] no text block in response");
 			return undefined;
 		}
-		const parsed = TriagePayload.safeParse(JSON.parse(text));
-		if (!parsed.success) {
-			deps.logger.warn("[triage-email-links] response failed validation", {
-				issues: parsed.error.issues,
-			});
+		if (answer.kind === "malformed") {
+			deps.logger.warn(
+				"[triage-email-links] response failed validation",
+				answer.error instanceof ZodError ? { issues: answer.error.issues } : { error: answer.error },
+			);
 			return undefined;
 		}
 		const known = new Set<string>(input.links.map((link) => link.ordinal));
 		const categories = new Map<EmailLinkOrdinal, EmailLinkTriageCategory>();
-		for (const verdict of parsed.data.links) {
+		for (const verdict of answer.value.links) {
 			const ordinal = EmailLinkOrdinalSchema.safeParse(verdict.ordinal);
 			if (!ordinal.success || !known.has(ordinal.data)) continue;
 			categories.set(ordinal.data, verdict.category);

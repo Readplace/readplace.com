@@ -606,7 +606,7 @@ export function initPopup(deps: {
 	}
 
 	function showListLoadFailure(error: unknown): void {
-		logger.error("Failed to initialize popup:", error);
+		logger.error("Failed to initialize popup:", { error: error });
 		showView("list-view");
 		setListError(listLoadFailed());
 	}
@@ -739,7 +739,7 @@ export function initPopup(deps: {
 				tabId: target.tabId,
 			});
 		} catch (error) {
-			logger.error("Failed to save the current tab:", error);
+			logger.error("Failed to save the current tab:", { error: error });
 			setSaveFailure(() => void saveTarget(target));
 			return;
 		}
@@ -873,7 +873,7 @@ export function initPopup(deps: {
 			const parsed = schema.safeParse(await browser.runtime.sendMessage(message));
 			return parsed.success ? parsed.data : LOST;
 		} catch (error) {
-			logger.error("Lost the save-all reply:", error);
+			logger.error("Lost the save-all reply:", { error: error });
 			return LOST;
 		}
 	}
@@ -905,7 +905,7 @@ export function initPopup(deps: {
 			paintSaveAllView(buildSaveAllView({ provisionalCount, run: null }));
 			request = { type: "save-all-tabs", runId, windowId: windowIdOf(tabs), tabs: saveable, skipped };
 		} catch (error) {
-			logger.error("Failed to save all tabs:", error);
+			logger.error("Failed to save all tabs:", { error: error });
 			showSaveAllFailure();
 			return;
 		}
@@ -971,12 +971,12 @@ export function initPopup(deps: {
 				error?: { message?: string };
 			}>({ type: "login" });
 			if (!result.ok) {
-				logger.error("Sign-in failed:", result.reason, result.error);
+				logger.error("Sign-in failed", { reason: result.reason, error: result.error });
 				loginError.hidden = false;
 				return;
 			}
 		} catch (err) {
-			logger.error("Sign-in failed:", err);
+			logger.error("Sign-in failed:", { error: err });
 			loginError.hidden = false;
 			return;
 		}
@@ -987,7 +987,7 @@ export function initPopup(deps: {
 
 	elementById("save-all-tabs-button").addEventListener("click", () => {
 		startSaveAll().catch((error) => {
-			logger.error("Failed to save all tabs:", error);
+			logger.error("Failed to save all tabs:", { error: error });
 			showSaveAllFailure();
 		});
 	});
@@ -1046,11 +1046,11 @@ export function initPopup(deps: {
 	}
 
 	renderShortcutHints().catch((error) =>
-		logger.error("Failed to read command shortcuts:", error),
+		logger.error("Failed to read command shortcuts:", { error: error }),
 	);
 
 	revealSaveAllTabs().catch((error) =>
-		logger.error("Failed to read advertised capabilities:", error),
+		logger.error("Failed to read advertised capabilities:", { error: error }),
 	);
 
 	bootstrap().catch(showListLoadFailure);

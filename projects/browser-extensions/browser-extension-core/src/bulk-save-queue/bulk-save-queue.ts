@@ -136,7 +136,7 @@ export function initBulkSaveQueue(deps: {
 		try {
 			await purgeAll();
 		} catch (error) {
-			deps.logger.error("[bulk-save-queue] purge failed", error);
+			deps.logger.error("[bulk-save-queue] purge failed", { error: error });
 		}
 	}
 
@@ -282,7 +282,7 @@ export function initBulkSaveQueue(deps: {
 					url: job.url,
 					tooBigMb: degradedMb.get(job.url) ?? null,
 				})),
-			).catch((error) => deps.logger.error("[bulk-save-queue] reporting a chunk sending failed", error));
+			).catch((error) => deps.logger.error("[bulk-save-queue] reporting a chunk sending failed", { error: error }));
 			try {
 				const bulk = await session.sendChunk(chunk);
 				progressed = true;
@@ -364,7 +364,7 @@ export function initBulkSaveQueue(deps: {
 					return { kind: "pass", report: await runPass() };
 				} catch (error) {
 					if (error instanceof UnauthorizedError) return { kind: "unauthorized" };
-					deps.logger.error("[bulk-save-queue] resume failed", error);
+					deps.logger.error("[bulk-save-queue] resume failed", { error: error });
 					return { kind: "pass", report: emptyReport() };
 				}
 			}).then(clearResuming);

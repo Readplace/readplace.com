@@ -5,6 +5,7 @@ import type { DeepseekModel } from "./deepseek-model";
 import { DEEPSEEK_PRICE_TABLE, deepseekCostUsd, deepseekRate } from "./deepseek-pricing";
 import { DeepseekUsageSchema } from "./deepseek-usage";
 import type { DeepseekUsageLine, LogDeepseekUsage } from "./deepseek-usage-line.types";
+import { adaptSdkLogger, type DeepseekLogger } from "./sdk-logger";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
@@ -12,7 +13,7 @@ export type DeepseekClientOptions = {
 	apiKey: string;
 	timeoutMs: number;
 	maxRetries: number;
-	logger: NonNullable<ClientOptions["logger"]>;
+	logger: DeepseekLogger;
 	logLevel: NonNullable<ClientOptions["logLevel"]>;
 	callTimeoutMs: number | null;
 	fetch: NonNullable<ClientOptions["fetch"]>;
@@ -37,7 +38,7 @@ export function initDeepseekClient(options: DeepseekClientOptions): DeepseekClie
 		baseURL: DEEPSEEK_BASE_URL,
 		timeout: options.timeoutMs,
 		maxRetries: options.maxRetries,
-		logger: options.logger,
+		logger: adaptSdkLogger(options.logger),
 		logLevel: options.logLevel,
 		fetch: options.fetch,
 	});

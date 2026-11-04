@@ -1,8 +1,14 @@
 type LogMethod = (...args: unknown[]) => void;
 
+export type ErrorDetails = { readonly error?: unknown; readonly [field: string]: unknown };
+
+export type LogErrorLine = (message: string, details?: ErrorDetails) => void;
+
+export type LogError = (message: string, error?: Error) => void;
+
 export interface Logger {
 	info: LogMethod;
-	error: LogMethod;
+	error: LogErrorLine;
 	warn: LogMethod;
 	debug: LogMethod;
 }
@@ -31,12 +37,13 @@ export namespace Logger {
 
 export const consoleLogger: Logger = {
 	info: console.info,
-	error: console.error,
+	error: (message, details) =>
+		console.error(details === undefined ? message : formatErrorDetailsLine({ message, details, now: () => new Date() })),
 	warn: console.warn,
 	debug: console.debug,
 };
 
-export const noopLogger: Logger = {
+export const noopLogger: Logger & Logger.Typed<unknown> = {
 	info: () => {},
 	error: () => {},
 	warn: () => {},
@@ -81,16 +88,37 @@ export function formatErrorLogLine(input: {
 	});
 }
 
+function formatErrorDetailsLine(input: { message: string; details: ErrorDetails; now: () => Date }): string {
+	const { error, ...rest } = input.details;
+	return JSON.stringify({
+		...rest,
+		level: "ERROR",
+		timestamp: input.now().toISOString(),
+		message: input.message,
+		...serializeError(error),
+	});
+}
+
 /** Top-level error fields for the envelope. `message` is left to the caller's
- * `message`; the error's own message rides in `.stack`'s first line. */
-function serializeError(error: Error | undefined): Record<string, unknown> {
-	if (!error) return {};
-	const out: Record<string, unknown> = { name: error.name, stack: error.stack };
+ * `message`. */
+function serializeError(error: unknown): Record<string, unknown> {
+	if (error === undefined) return {};
+	if (!(error instanceof Error)) return { thrown: describeThrown(error) };
+	const out: Record<string, unknown> = { name: error.name, errorMessage: error.message, stack: error.stack };
 	if ("code" in error) out.code = error.code;
 	if ("errno" in error) out.errno = error.errno;
 	if ("syscall" in error) out.syscall = error.syscall;
 	if (error.cause !== undefined) out.cause = serializeCause(error.cause);
 	return out;
+}
+
+function describeThrown(error: unknown): string {
+	if (typeof error !== "object" || error === null) return String(error);
+	try {
+		return JSON.stringify(error);
+	} catch {
+		return String(error);
+	}
 }
 
 /** The immediate `.cause` — undici nests the real network error (with its

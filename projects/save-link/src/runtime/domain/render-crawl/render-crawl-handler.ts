@@ -1,11 +1,11 @@
 import assert from "node:assert";
 import { createHash } from "node:crypto";
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { PrepareArticleIdentity, VerifyWrapperSource } from "@packages/save-article";
 import { initCrawlAndFinalizeArticle, type FinalizeArticle } from "@packages/finalize-article";
 import type { Logger } from "@packages/logger";
 import { type CrawlArticle, type CrawlUnsupportedReason, MAX_HTML_BYTES } from "@packages/crawl-article";
-import type { PublishEvent } from "@packages/infra-components/runtime";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import {
 	type TransitionAndPersist,
 	markCrawlAwaitingReader,
@@ -348,13 +348,13 @@ export function initRenderCrawlHandler(deps: {
 		await backOffRefresh(ctx);
 	};
 
-	return async (event, context): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const detail = RenderCrawlCommand.detailSchema.parse(envelope.detail);
+	return (event, context, callback) =>
+		initSqsRecordHandler({
+			definition: RenderCrawlCommand,
+			logger,
+			failure: { message: `${logPrefix} record failed` },
+			malformed: { policy: "retry" },
+			handle: async (detail, record) => {
 				const { url, userId, recrawl, refresh, saveAttemptId, previousBodyHash, unsupportedReason, finalUrl } = detail;
 				const identity = await deps.prepareArticleIdentity(url);
 				assert(identity.status === "resolved", "queued render article original is unresolved");
@@ -436,16 +436,7 @@ export function initRenderCrawlHandler(deps: {
 					},
 					remainingMilliseconds: () => context.getRemainingTimeInMillis(),
 				});
-				await resolveLadder(rendered, ctx, Number(record.attributes.ApproximateReceiveCount));
-			} catch (error) {
-				logger.error(`${logPrefix} record failed`, {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+				await resolveLadder(rendered, ctx, record.receiveCount);
+			},
+		})(event, context, callback);
 }

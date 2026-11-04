@@ -212,7 +212,6 @@ describe("initSubmitLinkCommandHandler", () => {
 			fileArticleIntoReadlist: initFileArticleIntoReadlist(store),
 			publishEvent: async () => {},
 			logger: noopLogger,
-			now: fixedNow,
 		});
 		const terminal: unknown[] = [];
 		const publishEvent: PublishEvent = async (event, detail) => {

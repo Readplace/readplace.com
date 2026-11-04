@@ -94,7 +94,7 @@ export function initSaveAllRuns(deps: {
 				if (!deferred) deps.notify(notificationOf(written));
 			}
 		} catch (error) {
-			logger.error("[save-all-runs] could not reconcile the stored runs", error);
+			logger.error("[save-all-runs] could not reconcile the stored runs", { error: error });
 		}
 	}
 
@@ -165,9 +165,9 @@ export function initSaveAllRuns(deps: {
 				await record.apply({ runId, update: (held) => applyLinkEvents(held, [{ kind: "unauthorized" }]) });
 				return "stopped";
 			}
-			logger.error("[save-all-runs] the run's send failed", error);
+			logger.error("[save-all-runs] the run's send failed", { error: error });
 			const pendingJobs = await queue.pendingJobs().catch((readError: unknown) => {
-				logger.error("[save-all-runs] could not read the pending jobs of a failed send", readError);
+				logger.error("[save-all-runs] could not read the pending jobs of a failed send", { error: readError });
 				return [];
 			});
 			await record.apply({ runId, update: (held) => settleOrphanedLinks(held, pendingJobs) });

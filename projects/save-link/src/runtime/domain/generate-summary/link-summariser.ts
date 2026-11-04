@@ -3,7 +3,7 @@ import { join } from "node:path";
 import assert from "node:assert";
 import { z } from "zod";
 import type { Logger } from "@packages/logger";
-import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
+import { type CreateAiMessage, DEEPSEEK_FEATURES, parseModelJson } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import type { PaidLegPermit } from "@packages/provider-contracts/metered-leg-ledger";
@@ -95,31 +95,26 @@ export function initLinkSummariser(deps: {
 			}],
 		});
 
-		const textBlock = response.content.find(
-			(block) => block.type === "text",
-		);
-		if (textBlock?.type !== "text" || !textBlock.text) {
+		const answer = parseModelJson(SummaryPayload, response);
+		if (answer.kind === "no-text") {
 			deps.logger.info("[summarize] no text block in response", { url: params.url });
 			return { kind: "no-text-block" };
 		}
-
-		let parsed: z.infer<typeof SummaryPayload>;
-		try {
-			parsed = SummaryPayload.parse(JSON.parse(textBlock.text));
-		} catch (error) {
+		if (answer.kind === "malformed") {
 			deps.logger.warn("[summarize] model answer is not the JSON shape asked for", {
 				url: params.url,
-				raw: textBlock.text,
+				raw: answer.text,
 				usage: response.usage,
-				error,
+				error: answer.error,
 			});
 			return { kind: "unusable-answer" };
 		}
+		const parsed = answer.value;
 		const summary = parsed.summary.trim();
 		if (summary === "Summary not available.") {
 			deps.logger.info("[summarize] model returned the refusal sentinel", {
 				url: params.url,
-				raw: textBlock.text,
+				raw: answer.text,
 				usage: response.usage,
 			});
 			return { kind: "declined" };

@@ -106,7 +106,7 @@ const wakeScheduler: WakeScheduler = {
 			wake = undefined;
 			appPromise
 				.then(({ uploadQueue }) => uploadQueue.resume())
-				.catch((err) => logger.error("Failed to resume deferred uploads", err));
+				.catch((err) => logger.error("Failed to resume deferred uploads", { error: err }));
 		}, Math.max(0, timestamp - Date.now()));
 	},
 	async cancel(): Promise<void> {
@@ -125,7 +125,7 @@ const bulkSaveWakeScheduler: WakeScheduler = {
 			bulkSaveWake = undefined;
 			appPromise
 				.then(({ runs }) => runs.resumeAll())
-				.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
+				.catch((err) => logger.error("Failed to resume deferred bulk saves", { error: err }));
 		}, Math.max(0, timestamp - Date.now()));
 	},
 	async cancel(): Promise<void> {
@@ -285,7 +285,7 @@ async function initCore() {
 		onAdvertisedActions: (names) => {
 			syncContextMenus
 				.capabilitiesDiscovered(names)
-				.catch((err) => logger.error("Failed to sync context menus", err));
+				.catch((err) => logger.error("Failed to sync context menus", { error: err }));
 		},
 	});
 
@@ -346,7 +346,7 @@ async function initCore() {
 	core.on("pre-init", () => {
 		syncContextMenus
 			.applyCached()
-			.catch((err) => logger.error("Failed to restore context menus", err));
+			.catch((err) => logger.error("Failed to restore context menus", { error: err }));
 	});
 
 	core.init();
@@ -358,11 +358,11 @@ const appPromise = initCore();
 
 appPromise
 	.then(({ uploadQueue }) => uploadQueue.resume())
-	.catch((err) => logger.error("Failed to resume deferred uploads", err));
+	.catch((err) => logger.error("Failed to resume deferred uploads", { error: err }));
 
 appPromise
 	.then(({ runs }) => runs.resumeAll())
-	.catch((err) => logger.error("Failed to resume deferred bulk saves", err));
+	.catch((err) => logger.error("Failed to resume deferred bulk saves", { error: err }));
 
 function refreshCommandBindings(): void {
 	browser.commands
@@ -372,7 +372,7 @@ function refreshCommandBindings(): void {
 				[COMMAND_BINDINGS_STORAGE_KEY]: commandBindingsFromGetAll(commands),
 			}),
 		)
-		.catch((err) => logger.error("Failed to read command shortcuts", err));
+		.catch((err) => logger.error("Failed to read command shortcuts", { error: err }));
 }
 
 refreshCommandBindings();
@@ -457,7 +457,7 @@ function showBulkSaveNotification(notification: {
 			title: notification.title,
 			message: notification.message,
 		})
-		.catch((err) => logger.error("Failed to show bulk save notification", err));
+		.catch((err) => logger.error("Failed to show bulk save notification", { error: err }));
 }
 
 browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
@@ -486,7 +486,7 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 				sendResponse(answer);
 				await completion;
 			})
-			.catch((err) => logger.error("Failed to rescue the reader's article", err));
+			.catch((err) => logger.error("Failed to rescue the reader's article", { error: err }));
 		return true;
 	}
 
@@ -495,7 +495,7 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 		appPromise
 			.then(({ runs }) => runs.handle(saveAll.data))
 			.catch((err) => {
-				logger.error("Failed to handle a save-all message", err);
+				logger.error("Failed to handle a save-all message", { error: err });
 				return { ok: false, reason: "error" };
 			})
 			.then(sendResponse);

@@ -1,13 +1,8 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
 import type { InboxEmailLinkStore } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
 import { EmailReceivedEvent } from "@packages/infra-components";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 
 /**
  * Turns a dead-lettered extraction into the barrier that says it gave up, so the
@@ -30,33 +25,19 @@ export function initExtractEmailLinksDlqHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { markLinksExtractionFailed, logger } = deps;
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
+	return initSqsRecordHandler({
+		definition: EmailReceivedEvent,
+		logger,
+		failure: { message: "[ExtractEmailLinksDlq] record failed" },
+		malformed: { policy: "retry" },
+		handle: async ({ userId, receivedAtMessageId }, { receiveCount }) => {
+			const outcome = await markLinksExtractionFailed({ userId, receivedAtMessageId });
 
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const received = EmailReceivedEvent.detailSchema.parse(envelope.detail);
-				const userId = UserIdSchema.parse(received.userId);
-				const { receivedAtMessageId } = received;
-				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-
-				const outcome = await markLinksExtractionFailed({ userId, receivedAtMessageId });
-
-				logger.info("[ExtractEmailLinksDlq] extraction gave up", {
-					receivedAtMessageId,
-					receiveCount,
-					outcome,
-				});
-			} catch (error) {
-				logger.error("[ExtractEmailLinksDlq] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+			logger.info("[ExtractEmailLinksDlq] extraction gave up", {
+				receivedAtMessageId,
+				receiveCount,
+				outcome,
+			});
+		},
+	});
 }

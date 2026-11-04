@@ -1,21 +1,17 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
 import {
 	ExportUserDataCommand,
 	type ExportUserDataDetail,
 	UserDataExportedEvent,
 } from "@packages/infra-components";
-import type { PublishEvent } from "@packages/infra-components/runtime";
+import {
+	initSqsRecordHandler,
+	type PublishEvent,
+} from "@packages/infra-components/runtime";
 import type { FindArticlesAcrossReadlists } from "@packages/provider-contracts/article-store";
 import type { ListReadlistDefinitions } from "@packages/provider-contracts/article-store";
 import type { EngagementStarterState } from "@packages/provider-contracts/engagement-starter";
-import { UserIdSchema } from "@packages/domain/user";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
 import {
@@ -43,32 +39,20 @@ export interface ExportUserDataDependencies {
 export function initExportUserDataHandler(
 	deps: ExportUserDataDependencies,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
-				const detail = ExportUserDataCommand.detailSchema.parse(envelope.detail);
-				await processCommand(detail, deps);
-			} catch (error) {
-				deps.logger.error("[ExportUserData] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: ExportUserDataCommand,
+		logger: deps.logger,
+		failure: { message: "[ExportUserData] record failed" },
+		malformed: { policy: "retry" },
+		handle: (detail) => processCommand(detail, deps),
+	});
 }
 
 async function processCommand(
 	detail: ExportUserDataDetail,
 	deps: ExportUserDataDependencies,
 ): Promise<void> {
-	const userId = UserIdSchema.parse(detail.userId);
+	const { userId } = detail;
 	deps.logger.info("[ExportUserData] starting export", { userId: detail.userId });
 
 	const articles: ExportEnvelope["articles"] = [];

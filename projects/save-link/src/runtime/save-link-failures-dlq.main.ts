@@ -70,7 +70,6 @@ export const handler = initDeadLetterRouter({
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveLinkCommand]: initSaveLinkDlqHandler({
 			transitionAndPersist,
 			logger,
-			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.submitLink]: initSubmitLinkDlqHandler({
 			publishEvent,
@@ -81,12 +80,10 @@ export const handler = initDeadLetterRouter({
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveLinkRawHtmlCommand]: initSaveLinkRawHtmlDlqHandler({
 			transitionAndPersist,
 			logger,
-			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveAnonymousLinkCommand]: initSaveAnonymousLinkDlqHandler({
 			transitionAndPersist,
 			logger,
-			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.simpleCrawlUnsupportedPolicy]:
 			initSimpleCrawlUnsupportedPolicyDlqHandler({
@@ -110,12 +107,10 @@ export const handler = initDeadLetterRouter({
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.saveLinkRawPdfCommand]: initSaveLinkRawPdfDlqHandler({
 			transitionAndPersist,
 			logger,
-			now,
 		}),
 		[SAVE_LINK_DLQ_SOURCE_QUEUES.recrawlLinkInitiated]: initRecrawlLinkInitiatedDlqHandler({
 			transitionAndPersist,
 			logger,
-			now,
 		}),
 	},
 });

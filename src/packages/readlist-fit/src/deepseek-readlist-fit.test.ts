@@ -1,4 +1,5 @@
 import type { CreateAiMessage } from "@packages/ai-message";
+import { ZodError } from "zod";
 import { readlistPurposeVersion } from "@packages/domain/readlist";
 import { initDecideReadlistFitWithDeepseek } from "./deepseek-readlist-fit";
 import type { ReadlistFitEngine } from "./readlist-fit-engine";
@@ -66,6 +67,12 @@ describe("initDecideReadlistFitWithDeepseek", () => {
 			{ id: "0002", verdict: "drop", reason: "A sale, which skip excludes." },
 			{ id: "0005", verdict: "keep", reason: "Testing practice, which keep asks for." },
 		]);
+	});
+
+	it("throws when the model answers a shape other than the one asked for", async () => {
+		const { result } = decide({ body: { links: "none" } });
+
+		await expect(result).rejects.toThrow(ZodError);
 	});
 
 	it("throws when the model labels an id that is not in the input", async () => {

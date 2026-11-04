@@ -29,7 +29,7 @@ export function initReaderRescue(deps: {
 			});
 			return "copied";
 		} catch (error) {
-			deps.logger.error(`[reader-rescue] the rescue of ${request.url} failed`, error);
+			deps.logger.error(`[reader-rescue] the rescue of ${request.url} failed`, { error: error });
 			return "nothing-copied";
 		}
 	}

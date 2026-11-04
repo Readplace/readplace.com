@@ -92,7 +92,7 @@ const PORT = Number(requireEnv('E2E_PORT'))
 const origin = `http://127.0.0.1:${PORT}`
 const logger = Logger.from(consoleLogger)
 
-const logError = (message: string, error?: Error) => logger.error(message, error)
+const logError = (message: string, error?: Error) => logger.error(message, { error })
 const logInfo = (message: string) => logger.info(message)
 /** The e2e harness crawls its own fixtures, all served from the loopback server
  * below, so block nothing — otherwise the SSRF guard refuses every loopback

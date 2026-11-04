@@ -1,12 +1,11 @@
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import {
 	GmailForwardingConfirmedEvent,
 	RewriteGmailFilterCommand,
 } from "@packages/infra-components";
-import type { PublishEvent } from "@packages/infra-components/runtime";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { GmailConnectionStore } from "@packages/domain/gmail";
 import { InboxAddressSchema } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 
 export function initGmailForwardingConfirmedHandler(deps: {
@@ -16,43 +15,32 @@ export function initGmailForwardingConfirmedHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { connections, publishEvent, logger } = deps;
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const parsed = GmailForwardingConfirmedEvent.detailSchema.safeParse(envelope.detail);
-				if (!parsed.success) {
-					logger.error("[gmail-forwarding-confirmed] malformed event", {
-						messageId: record.messageId,
-					});
-					batchItemFailures.push({ itemIdentifier: record.messageId });
-					continue;
-				}
-				const userId = UserIdSchema.parse(parsed.data.userId);
-				const forwardingAddress = InboxAddressSchema.parse(parsed.data.forwardingAddress);
-
-				const connection = await connections.findConnectionByUserId(userId);
-				if (connection !== undefined && forwardingAddress === connection.gatewayAddress) {
-					await connections.markForwardingConfirmed({ userId });
-				}
-				await publishEvent(RewriteGmailFilterCommand, {
-					userId,
-					reason: "forwarding-confirmed",
-				});
-				logger.info("[gmail-forwarding-confirmed] address confirmed", {
-					userId,
-				});
-			} catch (error) {
-				logger.error("[gmail-forwarding-confirmed] record failed", {
+	return initSqsRecordHandler({
+		definition: GmailForwardingConfirmedEvent,
+		logger,
+		failure: { message: "[gmail-forwarding-confirmed] record failed" },
+		malformed: {
+			policy: "retry",
+			report: ({ record }) =>
+				logger.error("[gmail-forwarding-confirmed] malformed event", {
 					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
+				}),
+		},
+		handle: async (detail) => {
+			const { userId } = detail;
+			const forwardingAddress = InboxAddressSchema.parse(detail.forwardingAddress);
 
-		return { batchItemFailures };
-	};
+			const connection = await connections.findConnectionByUserId(userId);
+			if (connection !== undefined && forwardingAddress === connection.gatewayAddress) {
+				await connections.markForwardingConfirmed({ userId });
+			}
+			await publishEvent(RewriteGmailFilterCommand, {
+				userId,
+				reason: "forwarding-confirmed",
+			});
+			logger.info("[gmail-forwarding-confirmed] address confirmed", {
+				userId,
+			});
+		},
+	});
 }

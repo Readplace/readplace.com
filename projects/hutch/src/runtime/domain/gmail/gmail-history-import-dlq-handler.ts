@@ -1,7 +1,6 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 import type { z } from "zod";
 import { type GmailHistoryImportStore, GmailHistoryImportJobIdSchema } from "@packages/domain/gmail";
-import { UserIdSchema } from "@packages/domain/user";
 import { GmailHistoryImportFailedEvent } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
@@ -26,7 +25,7 @@ function deadLetteredGeneration(envelope: z.output<typeof GmailHistoryImportEnve
 export function initGmailHistoryImportPageDlqHandler(deps: DlqHandlerDependencies): Handler<SQSEvent, SQSBatchResponse> {
 	async function drainRecord(record: SQSRecord, trace: GmailImportRecordTrace): Promise<void> {
 		const envelope = GmailHistoryImportEnvelope.parse(JSON.parse(record.body));
-		const userId = UserIdSchema.parse(envelope.detail.userId);
+		const { userId } = envelope.detail;
 		const jobId = GmailHistoryImportJobIdSchema.parse(envelope.detail.jobId);
 		trace.identify(gmailHistoryImportRecordIdentity({ envelope, userId, jobId }));
 		const generation = deadLetteredGeneration(envelope);

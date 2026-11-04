@@ -1,3 +1,4 @@
+import type { UserId } from "@packages/article-state-types";
 import type { SaveAttemptId } from "@packages/domain/article";
 import type { SQSClient } from "@aws-sdk/client-sqs";
 import {
@@ -31,7 +32,7 @@ export type DeferredUnsupportedKind = SimpleCrawlUnsupportedDetail["unsupportedR
 export type EmitSimpleCrawlUnsupported = (params: {
 	url: string;
 	unsupportedReason: DeferredUnsupportedKind;
-	userId?: string;
+	userId?: UserId;
 	recrawl?: boolean;
 	refresh?: boolean;
 	previousBodyHash?: string;

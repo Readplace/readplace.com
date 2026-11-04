@@ -1,25 +1,14 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { CrawlEmailLinkPreview } from "@packages/infra-components";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
 import { EmailLinkOrdinalSchema, type InboxEmailLinkStore } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
 
 const FAILURE_REASON = "preview-retries-exhausted";
 
-const DeadLetteredPreview = CrawlEmailLinkPreview.detailSchema.pipe(
-	z.object({
-		userId: UserIdSchema,
-		receivedAtMessageId: z.string(),
-		ordinal: EmailLinkOrdinalSchema,
-		url: z.string(),
-	}),
-);
+const DeadLetteredPreview = CrawlEmailLinkPreview.detailSchema.extend({
+	ordinal: EmailLinkOrdinalSchema,
+});
 
 /**
  * Consumes the `inbox-crawl-email-link-preview` dead-letter queue and turns a
@@ -45,52 +34,39 @@ export function initCrawlEmailLinkPreviewDlqHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { failPendingLink, logger } = deps;
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-			try {
-				const envelope = JSON.parse(record.body);
-				const parsed = DeadLetteredPreview.safeParse(envelope.detail);
-				if (!parsed.success) {
-					logger.error("[crawl-email-link-preview-dlq] unidentifiable command", {
-						messageId: record.messageId,
-						receiveCount,
-					});
-					continue;
-				}
-				const { userId, receivedAtMessageId, ordinal, url } = parsed.data;
-
-				const outcome = await failPendingLink({
-					userId,
+	return initSqsRecordHandler({
+		definition: { detailSchema: DeadLetteredPreview },
+		logger,
+		failure: { message: "[crawl-email-link-preview-dlq] record failed" },
+		malformed: {
+			policy: "acknowledge",
+			report: ({ record }) =>
+				logger.error("[crawl-email-link-preview-dlq] unidentifiable command", {
+					messageId: record.messageId,
+					receiveCount: record.receiveCount,
+				}),
+		},
+		handle: async ({ userId, receivedAtMessageId, ordinal, url }, { receiveCount }) => {
+			const outcome = await failPendingLink({
+				userId,
+				receivedAtMessageId,
+				ordinal,
+				failureReason: FAILURE_REASON,
+			});
+			if (outcome === "already-terminal") {
+				logger.info("[crawl-email-link-preview-dlq] link already terminal", {
 					receivedAtMessageId,
 					ordinal,
-					failureReason: FAILURE_REASON,
-				});
-				if (outcome === "already-terminal") {
-					logger.info("[crawl-email-link-preview-dlq] link already terminal", {
-						receivedAtMessageId,
-						ordinal,
-						receiveCount,
-					});
-					continue;
-				}
-				logger.error("[crawl-email-link-preview-dlq] preview gave up", {
-					receivedAtMessageId,
-					ordinal,
-					url,
 					receiveCount,
 				});
-			} catch (error) {
-				logger.error("[crawl-email-link-preview-dlq] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+				return;
 			}
-		}
-
-		return { batchItemFailures };
-	};
+			logger.error("[crawl-email-link-preview-dlq] preview gave up", {
+				receivedAtMessageId,
+				ordinal,
+				url,
+				receiveCount,
+			});
+		},
+	});
 }

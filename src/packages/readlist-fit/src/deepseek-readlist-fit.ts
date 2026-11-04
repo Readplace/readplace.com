@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
+import { type CreateAiMessage, DEEPSEEK_FEATURES, parseModelJson } from "@packages/ai-message";
 import { z } from "zod";
 import type { ReadlistFitEngine } from "./readlist-fit-engine";
 import { READLIST_FIT_ENGINES } from "./readlist-fit-engine";
@@ -67,10 +67,11 @@ export function initDecideReadlistFitWithDeepseek(deps: {
 				},
 			],
 		});
-		const text = response.content.find((block) => block.type === "text")?.text;
-		assert(text, "readlist-fit response has no text block");
+		const answer = parseModelJson(VerdictPayload, response);
+		if (answer.kind === "malformed") throw answer.error;
+		assert(answer.kind === "parsed", "readlist-fit response has no text block");
 		const labelled = labelsById({
-			verdicts: VerdictPayload.parse(JSON.parse(text)).links,
+			verdicts: answer.value.links,
 			known: new Set(input.candidates.map((candidate) => candidate.id)),
 		});
 		const decisions: ReadlistFitDecision[] = input.candidates.map((candidate) => {

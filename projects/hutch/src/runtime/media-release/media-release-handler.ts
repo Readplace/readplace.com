@@ -1,29 +1,21 @@
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { UserIdSchema } from "@packages/domain/user";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { LinkDequeuedEvent } from "@packages/infra-components";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import { z } from "zod";
 import type { ReleasePrivateItem } from "./private-item-release-steps";
 
 export function initMediaReleaseHandler(deps: {
 	releasePrivateItem: ReleasePrivateItem;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
-				const detail = LinkDequeuedEvent.detailSchema.parse(envelope.detail);
-				const outcome = await deps.releasePrivateItem({ url: detail.url, userId: UserIdSchema.parse(detail.userId) });
-				deps.logger.info("[media-release] dequeue handled", { messageId: record.messageId, outcome });
-			} catch (error) {
-				deps.logger.error("[media-release] record failed", { messageId: record.messageId, error });
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: LinkDequeuedEvent,
+		logger: deps.logger,
+		failure: { message: "[media-release] record failed" },
+		malformed: { policy: "retry" },
+		handle: async (detail, { messageId }) => {
+			const outcome = await deps.releasePrivateItem({ url: detail.url, userId: detail.userId });
+			deps.logger.info("[media-release] dequeue handled", { messageId, outcome });
+		},
+	});
 }

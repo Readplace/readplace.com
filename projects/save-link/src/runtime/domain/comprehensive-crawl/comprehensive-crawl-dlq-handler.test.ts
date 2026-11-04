@@ -115,13 +115,7 @@ describe("initComprehensiveCrawlDlqHandler", () => {
 
 		expect(calls).toHaveLength(2);
 		expect(calls[0]).toEqual(["transition"]);
-		expect(calls[1]).toHaveLength(1);
-		expect(JSON.parse(String(calls[1]?.[0]))).toEqual({
-			level: "ERROR",
-			timestamp: "2026-10-15T04:43:01.000Z",
-			message: "[ComprehensiveCrawlDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
-			url: "https://example.com/failed",
-		});
+		expect(calls[1]).toEqual(["[ComprehensiveCrawlDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted", { url: "https://example.com/failed" }]);
 	});
 
 	it("a throwing transition logs only the record-failed line", async () => {
@@ -186,7 +180,7 @@ describe("initComprehensiveCrawlDlqHandler with stored candidates", () => {
 			},
 		}]);
 		expect(transitionAndPersist.mock.calls).toEqual([]);
-		expect(logged.map((args) => JSON.parse(String(args[0])).message)).toEqual([
+		expect(logged.map((args) => args[0])).toEqual([
 			"[ComprehensiveCrawlDlq] dead-lettered after 1 receives (messageId msg-1); selecting over stored candidates",
 		]);
 	});

@@ -47,5 +47,4 @@ export const handler = initFileArticleIntoReadlistCommandHandler({
 	}),
 	publishEvent,
 	logger,
-	now,
 });

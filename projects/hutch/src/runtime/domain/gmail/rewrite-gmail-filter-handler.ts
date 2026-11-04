@@ -9,7 +9,6 @@ import {
 } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { Logger } from "@packages/logger";
-import { UserIdSchema } from "@packages/domain/user";
 import type { RewriteGmailFilter } from "./rewrite-gmail-filter";
 
 export function initRewriteGmailFilterHandler(deps: {
@@ -34,7 +33,7 @@ export function initRewriteGmailFilterHandler(deps: {
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
-				const userId = UserIdSchema.parse(parsed.data.userId);
+				const { userId } = parsed.data;
 
 				const result = await rewriteGmailFilter({ userId });
 				if (result.ok) {

@@ -10,6 +10,12 @@ export {
 	initSqsCommandDispatcher,
 	type DispatchCommand,
 } from "./sqs-command-dispatcher";
+export {
+	initSqsRecordHandler,
+	type RecordContext,
+	type RecordFailureReport,
+	type MalformedRecordPolicy,
+} from "./sqs-record-handler";
 
 export { initHandleByDetailType } from "./handle-by-detail-type";
 

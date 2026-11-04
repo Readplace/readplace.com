@@ -42,7 +42,7 @@ function loadStoredShortcuts(): void {
 			armed.save = resolved.save;
 			armed.saveAll = resolved.saveAll;
 		})
-		.catch((err) => logger.error("Failed to read command shortcuts", err));
+		.catch((err) => logger.error("Failed to read command shortcuts", { error: err }));
 }
 
 loadStoredShortcuts();

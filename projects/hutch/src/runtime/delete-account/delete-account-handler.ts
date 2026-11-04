@@ -1,12 +1,7 @@
 import assert from "node:assert";
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
-import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
+import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 import { DeleteAccountCommand } from "@packages/infra-components";
 import type {
@@ -223,24 +218,11 @@ async function processCommand(
 export function initDeleteAccountHandler(
 	deps: DeleteAccountHandlerDependencies,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
-				const detail = DeleteAccountCommand.detailSchema.parse(envelope.detail);
-				const userId = UserIdSchema.parse(detail.userId);
-				await processCommand(userId, deps);
-			} catch (error) {
-				deps.logger.error("[delete-account] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: DeleteAccountCommand,
+		logger: deps.logger,
+		failure: { message: "[delete-account] record failed" },
+		malformed: { policy: "retry" },
+		handle: (detail) => processCommand(detail.userId, deps),
+	});
 }

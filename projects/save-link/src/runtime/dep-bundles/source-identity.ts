@@ -31,7 +31,7 @@ export function initSourceIdentityDepBundle(deps: {
 		fetchRedirectHop: initFetchRedirectHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress }),
 		fetchTrackerHop: initFetchTrackerHop({ fetch: globalThis.fetch, isBlocked: isBlockedIpAddress, pageTarget: fallbackLinkTarget }),
 		resolveChallengedTracker: deps.resolveChallengedTracker,
-		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch: deps.crawlFetch, logError: deps.logger.error.bind(deps.logger) }),
+		resolveAppleNewsStoryUrl: initResolveAppleNewsStoryUrl({ crawlFetch: deps.crawlFetch, logError: (message, error) => deps.logger.error(message, { error }) }),
 		headers: DEFAULT_CRAWL_HEADERS,
 		...WRAPPER_RESOLVE_BUDGETS,
 		logger: deps.logger,

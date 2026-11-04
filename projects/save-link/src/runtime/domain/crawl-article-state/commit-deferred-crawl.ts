@@ -3,7 +3,7 @@ import type { CandidateReference } from "../select-content/list-available-tier-s
 import { type CandidateAnnouncement, initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
 import { initPublishArchiveComparison } from "../crawl-leg/publish-archive-comparison";
 import type { PutTierSource, TierSourceMetadata } from "@packages/tier-source";
-import { blockedCauseForStatus } from "@packages/article-state-types";
+import { blockedCauseForStatus, type UserId } from "@packages/article-state-types";
 import type { Logger } from "@packages/logger";
 import type { ThumbnailCascade } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/infra-components/runtime";
@@ -43,7 +43,7 @@ export type DeferredCrawlContext = {
 	candidates?: CandidateReference[];
 	refresh?: boolean;
 	recrawl?: boolean;
-	userId?: string;
+	userId?: UserId;
 	previousBodyHash?: string;
 };
 
@@ -105,7 +105,7 @@ export function initCommitDeferredCrawl(deps: {
 		url: string;
 		refresh?: boolean;
 		recrawl?: boolean;
-		userId?: string;
+		userId?: UserId;
 		saveAttemptId: SaveAttemptId;
 		candidates?: CandidateReference[];
 	}): Promise<CrawlTermination> => {

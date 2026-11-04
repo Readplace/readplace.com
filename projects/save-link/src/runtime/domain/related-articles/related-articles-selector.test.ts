@@ -526,6 +526,17 @@ describe("initSelectRelatedArticles", () => {
 		});
 	});
 
+	it("throws an answer that is not the JSON shape asked for so the worker retries", async () => {
+		const { selectRelatedArticles } = selectorReturning("not json");
+
+		await expect(selectRelatedArticles({
+			target,
+			attempt: ATTEMPT,
+			unreadCandidates: candidates(3),
+			readCandidates: [],
+		})).rejects.toThrow(SyntaxError);
+	});
+
 	it("reports an answer that carried no text block at all", async () => {
 		const createMessage: CreateAiMessage = async () => ({
 			content: [],

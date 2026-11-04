@@ -1,12 +1,11 @@
 import type {
 	Handler,
-	SQSBatchItemFailure,
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
 import assert from "node:assert";
-import { z } from "zod";
-import { type UserId, UserIdSchema } from "@packages/domain/user";
+import type { UserId } from "@packages/domain/user";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { SendTrialFeedbackEmailCommand, type SendTrialFeedbackEmailDetail } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
 import type { FindEmailByUserId, FindUserContactByUserId } from "@packages/provider-contracts/auth";
@@ -97,37 +96,21 @@ const KIND_HANDLERS = {
 export function initSendTrialFeedbackEmailHandler(
 	deps: SendTrialFeedbackEmailDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = z
-					.object({ detail: z.unknown() })
-					.parse(JSON.parse(record.body));
-				const detail = SendTrialFeedbackEmailCommand.detailSchema.parse(
-					envelope.detail,
-				);
-				const userId = UserIdSchema.parse(detail.userId);
-				await KIND_HANDLERS[detail.kind ?? "feedback"](
-					{ userId, messageId: record.messageId, detail },
-					deps,
-				);
-			} catch (error) {
-				deps.logger.error("[send-trial-feedback-email] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: SendTrialFeedbackEmailCommand,
+		logger: deps.logger,
+		failure: { message: "[send-trial-feedback-email] record failed" },
+		malformed: { policy: "retry" },
+		handle: (detail, record) =>
+			KIND_HANDLERS[detail.kind ?? "feedback"](
+				{ userId: detail.userId, messageId: record.messageId, detail },
+				deps,
+			),
+	});
 }
 
 async function processCommand(
-	userId: ReturnType<typeof UserIdSchema.parse>,
+	userId: UserId,
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
 	const row = await deps.findSubscriptionByUserId(userId);
@@ -219,7 +202,7 @@ function trackedUrl(input: { appOrigin: string; path: string; content: string })
 }
 
 async function processAutomationSavesHeld(
-	userId: ReturnType<typeof UserIdSchema.parse>,
+	userId: UserId,
 	arrival: { receivedAtMessageId: string | undefined; inboxAddress: string | undefined },
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
@@ -295,7 +278,7 @@ async function processAutomationSavesHeld(
 }
 
 async function processReminder(
-	userId: ReturnType<typeof UserIdSchema.parse>,
+	userId: UserId,
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
 	const row = await deps.findSubscriptionByUserId(userId);
@@ -385,7 +368,7 @@ async function processReminder(
 }
 
 async function processChargeReminder(
-	userId: ReturnType<typeof UserIdSchema.parse>,
+	userId: UserId,
 	chargeAt: string | undefined,
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
@@ -470,7 +453,7 @@ async function processChargeReminder(
 }
 
 async function processPaymentFailed(
-	userId: ReturnType<typeof UserIdSchema.parse>,
+	userId: UserId,
 	deps: SendTrialFeedbackEmailDeps,
 ): Promise<void> {
 	const row = await deps.findSubscriptionByUserId(userId);

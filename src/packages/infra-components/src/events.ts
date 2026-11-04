@@ -1,4 +1,4 @@
-import { CrawlFailureReasonSchema } from "@packages/article-state-types";
+import { CandidateIdSchema, CrawlFailureReasonSchema, SaveAttemptIdSchema, UserIdSchema } from "@packages/article-state-types";
 import { MediaFailureReasonSchema, MediaKindNameSchema, PrivateItemUrlSchema, UploadIdSchema } from "@packages/media-contracts";
 import { z } from "zod";
 
@@ -28,15 +28,14 @@ function defineCommand<T extends z.ZodTypeAny>(definition: {
 	return Object.freeze(definition);
 }
 
-const SaveAttemptId = z.string().min(1).brand<"SaveAttemptId">();
-const CandidateReferences = z.array(z.object({ id: z.string().min(1).brand<"CandidateId">(), tier: z.enum(["tier-0", "tier-1", "tier-2"]) }));
+const CandidateReferences = z.array(z.object({ id: CandidateIdSchema, tier: z.enum(["tier-0", "tier-1", "tier-2"]) }));
 const LiveAttempt = z.object({ outcome: z.enum(["body", "no-body", "deferred"]), failureReason: CrawlFailureReasonSchema.optional() });
 const ObservedFetchTarget = z.url({ protocol: /^https?$/ });
 const DeferredCrawlFields = z.object({
 	url: z.string(),
-	saveAttemptId: SaveAttemptId,
+	saveAttemptId: SaveAttemptIdSchema,
 	candidates: CandidateReferences.optional(),
-	userId: z.string().optional(),
+	userId: UserIdSchema.optional(),
 	recrawl: z.boolean().optional(),
 	refresh: z.boolean().optional(),
 	previousBodyHash: z.string().optional(),
@@ -51,9 +50,9 @@ export const SaveLinkCommand = defineEvent({
 	detailType: "SaveLinkCommand",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		sourceOriginalUrl: z.string().optional(),
-		userId: z.string(),
+		userId: UserIdSchema,
 		captureUrl: z.string().optional(),
 	}),
 });
@@ -65,10 +64,10 @@ export const SaveLinkRawHtmlCommand = defineEvent({
 	detailType: "SaveLinkRawHtmlCommand",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		sourceOriginalUrl: z.string(),
 		sourceUrl: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 		title: z.string().optional(),
 		captureTrigger: z.enum(["automatic", "manual"]),
 	}),
@@ -87,10 +86,10 @@ export const SaveLinkRawPdfCommand = defineEvent({
 	detailType: "SaveLinkRawPdfCommand",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		sourceOriginalUrl: z.string(),
 		sourceUrl: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 		title: z.string().optional(),
 	}),
 });
@@ -102,7 +101,7 @@ export const SaveAnonymousLinkCommand = defineEvent({
 	detailType: "SaveAnonymousLinkCommand",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		sourceOriginalUrl: z.string().optional(),
 		captureUrl: z.string().optional(),
 	}),
@@ -124,21 +123,20 @@ export const SubmitLinkCommand = defineEvent({
 	detailType: "SubmitLinkCommand",
 	detailSchema: z.union([
 		/** 1. Structural on purpose — this package stays dependency-light, so the
-		 *     consumer re-parses the payload with the domain's `SaveProvenanceSchema`
-		 *     exactly as it re-parses `userId` with `UserIdSchema`.
+		 *     consumer re-parses the payload with the domain's `SaveProvenanceSchema`.
 		 *  2. Strict so a pre-provenance `{url, userId}` still in flight at deploy
 		 *     fails loudly here instead of being read as an anonymous submission. */
 		z.object({
 			url: z.string(),
-			saveAttemptId: SaveAttemptId,
-			userId: z.string(),
+			saveAttemptId: SaveAttemptIdSchema,
+			userId: UserIdSchema,
 			provenance: z.looseObject({ kind: z.string() }), /* 1 */
 			readlist: z.string(),
 			saveTrigger: z.enum(["automatic", "manual"]),
 			rawHtml: z.string().optional(),
 			emailOutput: z.object({ receivedAtMessageId: z.string(), outputKey: z.string() }).optional(),
 		}),
-		z.strictObject({ url: z.string(), saveAttemptId: SaveAttemptId, rawHtml: z.string().optional() }), /* 2 */
+		z.strictObject({ url: z.string(), saveAttemptId: SaveAttemptIdSchema, rawHtml: z.string().optional() }), /* 2 */
 	]),
 });
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
@@ -158,7 +156,7 @@ export const ResolveArticleOnViewCommand = defineEvent({
 	detailType: "ResolveArticleOnViewCommand",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		axes: z.enum(["crawl-and-summary", "summary"]),
 		surface: ResolveOnViewSurfaceSchema,
 	}),
@@ -179,7 +177,7 @@ export const FileArticleIntoReadlistCommand = defineEvent({
 	source: "hutch.api",
 	detailType: "FileArticleIntoReadlistCommand",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		url: z.string(),
 		readlist: z.string(),
 		provenance: z.looseObject({ kind: z.string() }),
@@ -205,7 +203,7 @@ export const ArticleFiledIntoReadlistEvent = defineEvent({
 	name: "article-filed-into-readlist",
 	source: "hutch.save-link",
 	detailType: "ArticleFiledIntoReadlist",
-	detailSchema: z.object({ userId: z.string(), readlist: z.string(), url: z.string(), source: ReadlistFitSourceSchema }),
+	detailSchema: z.object({ userId: UserIdSchema, readlist: z.string(), url: z.string(), source: ReadlistFitSourceSchema }),
 });
 export type ArticleFiledIntoReadlistDetail = z.infer<typeof ArticleFiledIntoReadlistEvent.detailSchema>;
 
@@ -230,9 +228,9 @@ export const SimpleCrawlUnsupportedEvent = defineEvent({
 	detailType: "SimpleCrawlUnsupported",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		candidates: CandidateReferences.optional(),
-		userId: z.string().optional(),
+		userId: UserIdSchema.optional(),
 		recrawl: z.boolean().optional(),
 		refresh: z.boolean().optional(),
 		previousBodyHash: z.string().optional(),
@@ -303,7 +301,7 @@ export const LinkSavedEvent = defineEvent({
 	detailType: "LinkSaved",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 	}),
 });
 export type LinkSavedDetail = z.infer<typeof LinkSavedEvent.detailSchema>;
@@ -328,7 +326,7 @@ export const LinkQueuedEvent = defineEvent({
 	detailType: "LinkQueued",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 	}),
 });
 export type LinkQueuedDetail = z.infer<typeof LinkQueuedEvent.detailSchema>;
@@ -350,7 +348,7 @@ export const QueueEntryCreatedEvent = defineEvent({
 	detailType: "QueueEntryCreated",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 	}),
 });
 export type QueueEntryCreatedDetail = z.infer<
@@ -363,7 +361,7 @@ export const RelatedArticlesComputedEvent = defineEvent({
 	detailType: "RelatedArticlesComputed",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 		outcome: z.enum(["ready", "skipped"]),
 		relatedCount: z.number(),
 		inputTokens: z.number(),
@@ -386,7 +384,7 @@ export const ComputeRelatedPastReadsCommand = defineEvent({
 	detailType: "ComputeRelatedPastReads",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 		readlist: z.string().optional(),
 	}),
 });
@@ -400,7 +398,7 @@ export const ComputeRelatedPassesCommand = defineEvent({
 	detailType: "ComputeRelatedPasses",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 	}),
 });
 
@@ -410,7 +408,7 @@ export const RelatedPastReadsComputedEvent = defineEvent({
 	detailType: "RelatedPastReadsComputed",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 		outcome: z.enum(["ready", "unchanged"]),
 		relatedCount: z.number(),
 		inputTokens: z.number(),
@@ -433,7 +431,7 @@ export const LinkQueueFailedEvent = defineEvent({
 	detailType: "LinkQueueFailed",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 		reason: z.string(),
 		receiveCount: z.number(),
 	}),
@@ -459,7 +457,7 @@ export const LinkDequeuedEvent = defineEvent({
 	detailType: "LinkDequeued",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 	}),
 });
 export type LinkDequeuedDetail = z.infer<typeof LinkDequeuedEvent.detailSchema>;
@@ -508,10 +506,10 @@ export const TierContentExtractedEvent = defineEvent({
 	detailType: "TierContentExtracted",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		liveAttempt: LiveAttempt.optional(),
 		candidates: CandidateReferences,
-		userId: z.string().optional(),
+		userId: UserIdSchema.optional(),
 		/* Extraction instant, stamped once by the emitter. The selector uses it as
 		 * the crawl-version minute-id, so an SQS redelivery (e.g. a persist failure
 		 * after the version was already recorded) re-copies to the same key and
@@ -593,7 +591,7 @@ export const RecrawlLinkInitiatedEvent = defineEvent({
 	detailType: "RecrawlLinkInitiated",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 	}),
 });
 export type RecrawlLinkInitiatedDetail = z.infer<
@@ -614,7 +612,7 @@ export const RemoveMyContentCommand = defineEvent({
 	detailType: "RemoveMyContentCommand",
 	detailSchema: z.object({
 		url: z.string(),
-		userId: z.string(),
+		userId: UserIdSchema,
 		versionMinuteId: z.string(),
 	}),
 });
@@ -644,7 +642,7 @@ export const RecrawlContentExtractedEvent = defineEvent({
 	detailType: "RecrawlContentExtracted",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		liveAttempt: LiveAttempt.optional(),
 		candidates: CandidateReferences,
 		/* See TierContentExtractedEvent.extractedAt — the same stable minute-id
@@ -663,7 +661,7 @@ export const RefreshContentExtractedEvent = defineEvent({
 	detailType: "RefreshContentExtracted",
 	detailSchema: z.object({
 		url: z.string(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		candidates: CandidateReferences,
 		etag: z.string().optional(),
 		lastModified: z.string().optional(),
@@ -711,7 +709,7 @@ export const RefreshArticleContentCommand = defineEvent({
 		url: z.string(),
 		sourceUrl: z.url(),
 		sourceOriginalUrl: z.url(),
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		metadata: z.object({
 			title: z.string(),
 			siteName: z.string(),
@@ -742,7 +740,7 @@ export const ExportUserDataCommand = defineEvent({
 	source: "hutch.api",
 	detailType: "ExportUserDataCommand",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		email: z.string(),
 		requestedAt: z.string(),
 	}),
@@ -754,7 +752,7 @@ export const DeleteAccountCommand = defineEvent({
 	source: "hutch.api",
 	detailType: "DeleteAccountCommand",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 	}),
 });
 export type DeleteAccountDetail = z.infer<typeof DeleteAccountCommand.detailSchema>;
@@ -764,7 +762,7 @@ export const UserDataExportedEvent = defineEvent({
 	source: "hutch.export-user-data",
 	detailType: "UserDataExported",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		articleCount: z.number(),
 		s3Key: z.string(),
 		exportedAt: z.string(),
@@ -799,7 +797,7 @@ export const SubscriptionCancelledEvent = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "SubscriptionCancelled",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		subscriptionId: z.string().optional(),
 		reason: z.enum([
 			"stripe_webhook",
@@ -835,7 +833,7 @@ export const CancelSubscriptionCommand = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "CancelSubscriptionCommand",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		reason: z
 			.enum(["trial_expired_no_card", "trial_expired_charge_failed"])
 			.optional(),
@@ -858,7 +856,7 @@ export const SubscriptionCancellationScheduledEvent = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "SubscriptionCancellationScheduled",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		subscriptionId: z.string().optional(),
 		cancellationEffectiveAt: z.string(),
 	}),
@@ -878,7 +876,7 @@ export const SubscriptionReactivatedEvent = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "SubscriptionReactivated",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		subscriptionId: z.string().optional(),
 	}),
 });
@@ -899,7 +897,7 @@ export const SubscriptionStartRequestCommand = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "SubscriptionStartRequestCommand",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 	}),
 });
 export type SubscriptionStartRequestDetail = z.infer<
@@ -915,7 +913,7 @@ export const SubscriptionChargeSucceededEvent = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "SubscriptionChargeSucceeded",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		subscriptionId: z.string(),
 		customerId: z.string(),
 		plan: z.enum(["monthly", "yearly", "triennial"]).optional(),
@@ -938,7 +936,7 @@ export const SubscriptionChargeFailedEvent = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "SubscriptionChargeFailed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		reason: z.enum(["no_card_on_file", "stripe_error"]),
 	}),
 });
@@ -957,7 +955,7 @@ export const SendTrialFeedbackEmailCommand = defineEvent({
 	source: "hutch.subscriptions",
 	detailType: "SendTrialFeedbackEmailCommand",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		kind: z
 			.enum([
 				"feedback",
@@ -983,7 +981,7 @@ export const SendFirstInboxEmailNoticeCommand = defineEvent({
 	source: "hutch.inbox",
 	detailType: "SendFirstInboxEmailNoticeCommand",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		inboxAddress: z.string(),
 	}),
@@ -1030,7 +1028,7 @@ export type ReaderViewLoadingSucceededDetail = z.infer<
  * SQS. The `send-user-digest` Lambda consumes it. Carries only `userId`. */
 export const SendUserDigestCommand = defineCommand({
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 	}),
 });
 export type SendUserDigestDetail = z.infer<
@@ -1046,7 +1044,7 @@ export const ReaderReadyEmailSentEvent = defineEvent({
 	source: "hutch.reader-ready",
 	detailType: "ReaderReadyEmailSent",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		urls: z.array(z.string()),
 		sentAt: z.string(),
 	}),
@@ -1064,7 +1062,7 @@ export const EmailReceivedEvent = defineEvent({
 	source: "hutch.inbox",
 	detailType: "EmailReceived",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		recipientAddress: z.string(),
 		routing: z.discriminatedUnion("kind", [
@@ -1093,7 +1091,7 @@ export const CrawlEmailLinkPreview = defineEvent({
 	source: "hutch.inbox",
 	detailType: "CrawlEmailLinkPreview",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		ordinal: z.string(),
 		url: z.string(),
@@ -1106,7 +1104,7 @@ export const EmailLinksTriagedEvent = defineEvent({
 	source: "hutch.inbox",
 	detailType: "EmailLinksTriaged",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),
 		senderEmail: z.string(),
@@ -1121,8 +1119,8 @@ export const SaveEmailIssueCommand = defineEvent({
 	source: "hutch.inbox",
 	detailType: "SaveEmailIssueCommand",
 	detailSchema: z.object({
-		userId: z.string(),
-		saveAttemptId: SaveAttemptId,
+		userId: UserIdSchema,
+		saveAttemptId: SaveAttemptIdSchema,
 		receivedAtMessageId: z.string(),
 		subject: z.string(),
 		senderEmail: z.string(),
@@ -1138,7 +1136,7 @@ export const EmailLinksFilteredEvent = defineEvent({
 	source: "hutch.save-link",
 	detailType: "EmailLinksFiltered",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),
 		readlistLabel: z.string(),
@@ -1165,7 +1163,7 @@ export const EmailLinksFilterFailedEvent = defineEvent({
 	source: "hutch.save-link",
 	detailType: "EmailLinksFilterFailed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		readlist: z.string(),
 		reason: z.string(),
@@ -1181,7 +1179,7 @@ export const ConfirmGmailForwardingCommand = defineEvent({
 	source: "hutch.inbox",
 	detailType: "ConfirmGmailForwarding",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		forwardingAddress: z.string(),
 		verifyUrl: z.string(),
 	}),
@@ -1195,7 +1193,7 @@ export const GmailForwardingConfirmedEvent = defineEvent({
 	source: "hutch.inbox",
 	detailType: "GmailForwardingConfirmed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		forwardingAddress: z.string(),
 	}),
 });
@@ -1208,7 +1206,7 @@ export const GmailForwardingConfirmFailedEvent = defineEvent({
 	source: "hutch.inbox",
 	detailType: "GmailForwardingConfirmFailed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		forwardingAddress: z.string(),
 		reason: z.enum(["token-rejected", "not-confirmed", "invalid-url"]),
 	}),
@@ -1222,7 +1220,7 @@ export const RewriteGmailFilterCommand = defineEvent({
 	source: "hutch.app",
 	detailType: "RewriteGmailFilter",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		reason: z.enum(["forwarding-confirmed", "sender-added", "sender-removed", "retry-requested", "reconnected", "readlist-deleted"]),
 	}),
 });
@@ -1233,7 +1231,7 @@ export const GmailFilterRewrittenEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailFilterRewritten",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		filterId: z.string().optional(),
 		senderCount: z.number(),
 	}),
@@ -1245,7 +1243,7 @@ export const GmailFilterRewriteFailedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailFilterRewriteFailed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		reason: z.enum([
 			"not-connected",
 			"not-confirmed",
@@ -1263,7 +1261,7 @@ export const DisconnectGmailCommand = defineEvent({
 	name: "disconnect-gmail",
 	source: "hutch.app",
 	detailType: "DisconnectGmail",
-	detailSchema: z.object({ userId: z.string() }),
+	detailSchema: z.object({ userId: UserIdSchema }),
 });
 export type DisconnectGmailDetail = z.infer<typeof DisconnectGmailCommand.detailSchema>;
 
@@ -1272,7 +1270,7 @@ export const GmailDisconnectedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailDisconnected",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		filterRemoved: z.boolean(),
 		grantRevoked: z.boolean(),
 	}),
@@ -1283,14 +1281,14 @@ export const StartGmailSenderDiscoveryCommand = defineEvent({
 	name: "start-gmail-sender-discovery",
 	source: "hutch.app",
 	detailType: "StartGmailSenderDiscovery",
-	detailSchema: z.object({ userId: z.string() }),
+	detailSchema: z.object({ userId: UserIdSchema }),
 });
 
 export const DiscoverGmailSendersPageCommand = defineEvent({
 	name: "discover-gmail-senders-page",
 	source: "hutch.app",
 	detailType: "DiscoverGmailSendersPage",
-	detailSchema: z.object({ userId: z.string(), generation: z.string(), page: z.number().int().nonnegative() }),
+	detailSchema: z.object({ userId: UserIdSchema, generation: z.string(), page: z.number().int().nonnegative() }),
 });
 
 export const GmailSenderDiscoveryProgressedEvent = defineEvent({
@@ -1298,7 +1296,7 @@ export const GmailSenderDiscoveryProgressedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailSenderDiscoveryProgressed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(),
 	}),
 });
@@ -1326,7 +1324,7 @@ export const StartGmailHistoryImportCommand = defineEvent({
 	name: "start-gmail-history-import",
 	source: "hutch.app",
 	detailType: "StartGmailHistoryImport",
-	detailSchema: z.object({ userId: z.string(), jobId: z.string(), generation: z.string() }),
+	detailSchema: z.object({ userId: UserIdSchema, jobId: z.string(), generation: z.string() }),
 });
 export type StartGmailHistoryImportDetail = z.infer<typeof StartGmailHistoryImportCommand.detailSchema>;
 
@@ -1335,7 +1333,7 @@ export const ProcessGmailHistoryImportPageCommand = defineEvent({
 	source: "hutch.app",
 	detailType: "ProcessGmailHistoryImportPage",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		jobId: z.string(),
 		generation: z.string(),
 		page: z.number().int().nonnegative(),
@@ -1348,7 +1346,7 @@ export const GmailHistoryImportPageProcessedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailHistoryImportPageProcessed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		jobId: z.string(),
 		nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(),
 	}),
@@ -1360,7 +1358,7 @@ export const GmailHistoryImportMessageFetchedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailHistoryImportMessageFetched",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		jobId: z.string(),
 		generation: z.string(),
 		gmailMessageId: z.string(),
@@ -1379,7 +1377,7 @@ export const GmailHistoryImportMessageIngestedEvent = defineEvent({
 	source: "hutch.inbox",
 	detailType: "GmailHistoryImportMessageIngested",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		jobId: z.string(),
 		generation: z.string(),
 		gmailMessageId: z.string(),
@@ -1401,7 +1399,7 @@ export const GmailHistoryImportCompletedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailHistoryImportCompleted",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		jobId: z.string(),
 		counts: z.object({
 			listed: z.number().int().nonnegative(),
@@ -1421,7 +1419,7 @@ export const GmailHistoryImportFailedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailHistoryImportFailed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		jobId: z.string(),
 		reason: z.enum(["gmail-rejected", "permission-revoked", "dead-lettered"]),
 	}),
@@ -1438,7 +1436,7 @@ export const EmailOutputsSelectedEvent = defineEvent({
 	source: "hutch.inbox",
 	detailType: "EmailOutputsSelected",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		outputCount: z.number().int().nonnegative(),
 	}),
@@ -1450,7 +1448,7 @@ export const EmailOutputSavedToAllEvent = defineEvent({
 	source: "hutch.save-link",
 	detailType: "EmailOutputSavedToAll",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		outputKey: z.string(),
 	}),
@@ -1462,7 +1460,7 @@ export const MarkGmailEmailImportedCommand = defineEvent({
 	source: "hutch.inbox",
 	detailType: "MarkGmailEmailImported",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		origin: GmailMessageOriginDetail,
 	}),
@@ -1474,7 +1472,7 @@ export const GmailEmailMarkedImportedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailEmailMarkedImported",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		originKind: z.enum(["history", "forwarded"]),
 		outcome: z.enum(["marked", "already-marked"]),
@@ -1487,7 +1485,7 @@ export const GmailEmailUpdateDeferredEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailEmailUpdateDeferred",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		originKind: z.enum(["history", "forwarded"]),
 		reason: z.enum(["permission-required", "account-unavailable"]),
@@ -1500,7 +1498,7 @@ export const GmailEmailUpdateFailedEvent = defineEvent({
 	source: "hutch.app",
 	detailType: "GmailEmailUpdateFailed",
 	detailSchema: z.object({
-		userId: z.string(),
+		userId: UserIdSchema,
 		receivedAtMessageId: z.string(),
 		originKind: z.enum(["history", "forwarded"]),
 		reason: z.enum(["original-not-found", "ambiguous-original", "gmail-rejected", "dead-lettered"]),
@@ -1512,11 +1510,11 @@ export const GmailModifyPermissionGrantedEvent = defineEvent({
 	name: "gmail-modify-permission-granted",
 	source: "hutch.app",
 	detailType: "GmailModifyPermissionGranted",
-	detailSchema: z.object({ userId: z.string(), accountEmail: z.string() }),
+	detailSchema: z.object({ userId: UserIdSchema, accountEmail: z.string() }),
 });
 export type GmailModifyPermissionGrantedDetail = z.infer<typeof GmailModifyPermissionGrantedEvent.detailSchema>;
 
-const GmailMarkBackfillRefSchema = z.object({ userId: z.string(), accountEmail: z.string(), senderEmail: z.string() });
+const GmailMarkBackfillRefSchema = z.object({ userId: UserIdSchema, accountEmail: z.string(), senderEmail: z.string() });
 
 export const StartGmailMarkBackfillCommand = defineEvent({
 	name: "start-gmail-mark-backfill",
@@ -1585,19 +1583,19 @@ export const GmailNewsletterAccountsCheckedEvent = defineEvent({
 });
 export const MonitorGmailNewslettersCommand = defineEvent({
 	name: "monitor-gmail-newsletters", source: "hutch.app", detailType: "MonitorGmailNewsletters",
-	detailSchema: z.object({ userId: z.string(), continuation: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional() }),
+	detailSchema: z.object({ userId: UserIdSchema, continuation: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional() }),
 });
 export const GmailNewsletterMonitoringProgressedEvent = defineEvent({
 	name: "gmail-newsletter-monitoring-progressed", source: "hutch.app", detailType: "GmailNewsletterMonitoringProgressed",
-	detailSchema: z.object({ userId: z.string(), nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(), notices: z.array(z.string()) }),
+	detailSchema: z.object({ userId: UserIdSchema, nextPage: z.object({ generation: z.string(), page: z.number().int().nonnegative() }).optional(), notices: z.array(z.string()) }),
 });
 export const SendGmailNewsletterNoticeCommand = defineEvent({
 	name: "send-gmail-newsletter-notice", source: "hutch.app", detailType: "SendGmailNewsletterNotice",
-	detailSchema: z.object({ userId: z.string() }),
+	detailSchema: z.object({ userId: UserIdSchema }),
 });
 export const GmailNewsletterNoticeProcessedEvent = defineEvent({
 	name: "gmail-newsletter-notice-processed", source: "hutch.app", detailType: "GmailNewsletterNoticeProcessed",
-	detailSchema: z.object({ userId: z.string(), senderEmail: z.string(), outcome: z.enum(["sent", "suppressed"]) }),
+	detailSchema: z.object({ userId: UserIdSchema, senderEmail: z.string(), outcome: z.enum(["sent", "suppressed"]) }),
 });
 
 export const MediaUploadCommittedEvent = defineEvent({
@@ -1606,8 +1604,8 @@ export const MediaUploadCommittedEvent = defineEvent({
 		uploadId: UploadIdSchema,
 		kind: MediaKindNameSchema,
 		url: PrivateItemUrlSchema,
-		userId: z.string().min(1),
-		saveAttemptId: SaveAttemptId,
+		userId: UserIdSchema.min(1),
+		saveAttemptId: SaveAttemptIdSchema,
 		etag: z.string().min(1),
 		attempt: z.number().int().positive(),
 	}),
@@ -1620,7 +1618,7 @@ export const MediaProcessingFailedEvent = defineEvent({
 		uploadId: UploadIdSchema,
 		kind: MediaKindNameSchema,
 		url: PrivateItemUrlSchema,
-		saveAttemptId: SaveAttemptId,
+		saveAttemptId: SaveAttemptIdSchema,
 		attempt: z.number().int().positive(),
 		reason: MediaFailureReasonSchema,
 		notice: z.string().min(1),

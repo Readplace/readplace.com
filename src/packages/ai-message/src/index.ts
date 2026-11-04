@@ -33,3 +33,4 @@ export type {
 	DeepseekCallSite,
 } from "./deepseek-call-failed-log-line";
 export { deepseekCallFailedLogLine, describeAiProviderError } from "./deepseek-call-failed-log-line";
+export { parseModelJson, type ModelJsonAnswer } from "./parse-model-json";

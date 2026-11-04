@@ -6,7 +6,6 @@ import type {
 	SQSBatchResponse,
 	SQSEvent,
 } from "aws-lambda";
-import { UserIdSchema } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import type { PublishEvent } from "@packages/infra-components/runtime";
@@ -82,7 +81,7 @@ export function initComputeRelatedPastReadsHandler(
 				const entry = ComputeRelatedPastReadsCommand.detailSchema.parse(
 					envelope.detail,
 				);
-				const userId = UserIdSchema.parse(entry.userId);
+				const { userId } = entry;
 				const trigger = TRIGGER_BY_DETAIL_TYPE[envelope["detail-type"]];
 				assert(trigger, `[ComputeRelatedPastReads] unexpected detail-type ${envelope["detail-type"]}`);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);

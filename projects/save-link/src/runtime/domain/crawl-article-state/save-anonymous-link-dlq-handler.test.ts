@@ -42,7 +42,6 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 		const handler = initSaveAnonymousLinkDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		await handler(
@@ -67,7 +66,6 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 		const handler = initSaveAnonymousLinkDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		const invalidEvent: SQSEvent = {
@@ -97,7 +95,6 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 		const handler = initSaveAnonymousLinkDlqHandler({
 			transitionAndPersist,
 			logger: noopLogger,
-			now: () => new Date(),
 		});
 
 		const result = await handler(
@@ -112,7 +109,7 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 	it("marks the original's crawl exhausted when a dead-lettered command carried an archive capture", async () => {
 		const CAPTURE = "https://web.archive.org/web/20081203185222/https://example.com/article";
 		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const handler = initSaveAnonymousLinkDlqHandler({ transitionAndPersist, logger: noopLogger, now: () => new Date() });
+		const handler = initSaveAnonymousLinkDlqHandler({ transitionAndPersist, logger: noopLogger });
 
 		const result = await handler(createSqsEvent({ url: "https://example.com/article", captureUrl: CAPTURE }), buildLambdaContext(), () => {});
 
@@ -140,20 +137,13 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 		const handler = initSaveAnonymousLinkDlqHandler({
 			transitionAndPersist,
 			logger,
-			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});
 
 		expect(calls).toHaveLength(2);
 		expect(calls[0]).toEqual(["transition"]);
-		expect(calls[1]).toHaveLength(1);
-		expect(JSON.parse(String(calls[1]?.[0]))).toEqual({
-			level: "ERROR",
-			timestamp: "2026-10-15T04:43:01.000Z",
-			message: "[SaveAnonymousLinkDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted",
-			url: "https://example.com/failed",
-		});
+		expect(calls[1]).toEqual(["[SaveAnonymousLinkDlq] dead-lettered after 4 receives (messageId msg-1); marking crawl exhausted", { url: "https://example.com/failed" }]);
 	});
 
 	it("a throwing transition logs only the record-failed line", async () => {
@@ -170,7 +160,6 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 		const handler = initSaveAnonymousLinkDlqHandler({
 			transitionAndPersist,
 			logger,
-			now: () => new Date("2026-10-15T04:43:01.000Z"),
 		});
 
 		const result = await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), buildLambdaContext(), () => {});

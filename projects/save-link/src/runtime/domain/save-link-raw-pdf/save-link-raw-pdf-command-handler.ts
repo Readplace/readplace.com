@@ -1,15 +1,14 @@
 import type { PutTierSource } from "@packages/tier-source";
 import { initCommitTierCandidate } from "../crawl-leg/commit-tier-candidate";
-import { UserIdSchema } from "@packages/domain/user";
 import { initResolveSubmittedSource } from "../select-content/resolve-submitted-source";
 import type { VerifyWrapperSource } from "@packages/save-article";
 import assert from "node:assert";
 import { createHash } from "node:crypto";
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { formatErrorLogLine, type Logger } from "@packages/logger";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { Logger } from "@packages/logger";
 import type { ExtractPdf } from "@packages/crawl-article";
 import { MAX_PDF_BYTES, parsePdfFromBuffer } from "@packages/crawl-article";
-import type { PublishEvent } from "@packages/infra-components/runtime";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import {
 	markCrawlFailed,
 	markCrawlUnsupported,
@@ -64,134 +63,124 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 
 	const resolveSubmittedSource = initResolveSubmittedSource(deps);
 	const commitTierCandidate = initCommitTierCandidate(deps);
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
+	return initSqsRecordHandler({
+		definition: SaveLinkRawPdfCommand,
+		logger,
+		failure: { message: `${logPrefix} record failed` },
+		malformed: { policy: "retry" },
+		handle: async (detail) => {
+			const { saveAttemptId } = detail;
+			const originalUrl = await resolveSubmittedSource(detail);
 
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const detail = SaveLinkRawPdfCommand.detailSchema.parse(envelope.detail);
-				const { saveAttemptId } = detail;
-				const originalUrl = await resolveSubmittedSource(detail);
+			const { bytes, capturedAt } = await readPendingPdf(detail.url, { saveAttemptId });
+			const bodyHash = createHash("sha256").update(bytes).digest("hex");
+			const crawlResult = await parsePdfFromBuffer({
+				buffer: bytes,
+				bodyHash,
+				/* The buffer came from the user's browser, not from a server fetch —
+				 * there is no Response object and therefore no ETag/Last-Modified
+				 * headers to forward. */
+				response: undefined,
+				url: detail.url,
+				maxPdfBytes: MAX_PDF_BYTES.bytes,
+				extractPdf,
+				logError: (message, error) => logger.error(message, { url: detail.url, error }),
+			});
 
-				const { bytes, capturedAt } = await readPendingPdf(detail.url, { saveAttemptId });
-				const bodyHash = createHash("sha256").update(bytes).digest("hex");
-				const crawlResult = await parsePdfFromBuffer({
-					buffer: bytes,
-					bodyHash,
-					/* The buffer came from the user's browser, not from a server fetch —
-					 * there is no Response object and therefore no ETag/Last-Modified
-					 * headers to forward. */
-					response: undefined,
+			if (crawlResult.status === "unsupported") {
+				logParseError({ url: detail.url, reason: `pdf-unsupported: ${crawlResult.reason}` });
+				await transitionAndPersist(markCrawlUnsupported, {
 					url: detail.url,
-					maxPdfBytes: MAX_PDF_BYTES.bytes,
-					extractPdf,
-					logError: (msg, err) => logger.error(formatErrorLogLine({ message: msg, error: err, now })),
-				});
-
-				if (crawlResult.status === "unsupported") {
-					logParseError({ url: detail.url, reason: `pdf-unsupported: ${crawlResult.reason}` });
-					await transitionAndPersist(markCrawlUnsupported, {
-						url: detail.url,
-						input: {
-							reason: { kind: "non-html-content", contentType: crawlResult.reason },
-						},
-					});
-					const snapshot = await readTierSnapshot({ url: detail.url });
-					logCrawlOutcome({
-						url: detail.url,
-						thisTier: TIER,
-						thisTierStatus: "failed",
-						otherTierStatus: snapshot.tier1Status,
-						pickedTier: snapshot.pickedTier,
-					});
-					logger.info(`${logPrefix} unsupported — terminal`, { url: detail.url });
-					continue;
-				}
-
-				/* The PDF buffer path only yields "fetched" or "unsupported"; the
-				 * "failed"/"not-modified" statuses the result type also admits are
-				 * unreachable here. Assert the invariant to drop an untestable branch
-				 * before reading the parsed content. */
-				assert(
-					crawlResult.status === "fetched",
-					`${logPrefix} unexpected crawl status ${crawlResult.status}`,
-				);
-
-				const parseResult = parseHtml({
-					url: originalUrl,
-					documentUrl: detail.sourceUrl,
-					html: crawlResult.html,
-					thumbnailUrl: null,
-				});
-				if (!parseResult.ok) {
-					logParseError({ url: detail.url, reason: parseResult.reason });
-					const snapshot = await readTierSnapshot({ url: detail.url });
-					logCrawlOutcome({
-						url: detail.url,
-						thisTier: TIER,
-						thisTierStatus: "failed",
-						otherTierStatus: snapshot.tier1Status,
-						pickedTier: snapshot.pickedTier,
-					});
-					await transitionAndPersist(markCrawlFailed, {
-						url: detail.url,
-						input: {
-							reason: { kind: "parse-error", detail: parseResult.reason },
-						},
-					});
-					throw new Error(
-						`${logPrefix} parse failed for ${detail.url}: ${parseResult.reason}`,
-					);
-				}
-
-				const articleResourceUniqueId = ArticleResourceUniqueId.parse(detail.url);
-				const media = await downloadMedia({
-					writeContext: { url: detail.url, attemptId: saveAttemptId, authorUserId: UserIdSchema.parse(detail.userId) },
-					html: parseResult.article.content,
-					referer: detail.url,
-					articleResourceUniqueId,
-				});
-				const processedHtml = await processContent({
-					html: parseResult.article.content,
-					media,
-				});
-
-				await commitTierCandidate({
-					url: detail.url,
-					attemptId: saveAttemptId,
-					originalUrl,
-					sourceUrl: detail.sourceUrl,
-					fetchedAt: capturedAt,
-					leg: { tier: TIER, kind: "extension", captureTrigger: undefined },
-					metadata: {
-						title: parseResult.article.title,
-						siteName: parseResult.article.siteName,
-						excerpt: parseResult.article.excerpt,
-						wordCount: parseResult.article.wordCount,
-						estimatedReadTime: estimatedReadTimeFromWordCount(parseResult.article.wordCount),
-						imageUrl: parseResult.article.imageUrl,
-						authorUserId: detail.userId,
+					input: {
+						reason: { kind: "non-html-content", contentType: crawlResult.reason },
 					},
-					html: processedHtml,
-					evaluation: { hashed: processedHtml, stored: undefined },
-					crawlOutcome: { report: "success", readSnapshot: () => readTierSnapshot({ url: detail.url }), logCrawlOutcome },
-					announce: { event: "tier-content-extracted", userId: detail.userId, extractedAt: () => now().toISOString() },
 				});
-
-				logger.info(`${logPrefix} tier-0 source written`, {
+				const snapshot = await readTierSnapshot({ url: detail.url });
+				logCrawlOutcome({
 					url: detail.url,
-					capturedTitle: detail.title,
+					thisTier: TIER,
+					thisTierStatus: "failed",
+					otherTierStatus: snapshot.tier1Status,
+					pickedTier: snapshot.pickedTier,
 				});
-			} catch (error) {
-				logger.error(`${logPrefix} record failed`, {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+				logger.info(`${logPrefix} unsupported — terminal`, { url: detail.url });
+				return;
 			}
-		}
 
-		return { batchItemFailures };
-	};
+			/* The PDF buffer path only yields "fetched" or "unsupported"; the
+			 * "failed"/"not-modified" statuses the result type also admits are
+			 * unreachable here. Assert the invariant to drop an untestable branch
+			 * before reading the parsed content. */
+			assert(
+				crawlResult.status === "fetched",
+				`${logPrefix} unexpected crawl status ${crawlResult.status}`,
+			);
+
+			const parseResult = parseHtml({
+				url: originalUrl,
+				documentUrl: detail.sourceUrl,
+				html: crawlResult.html,
+				thumbnailUrl: null,
+			});
+			if (!parseResult.ok) {
+				logParseError({ url: detail.url, reason: parseResult.reason });
+				const snapshot = await readTierSnapshot({ url: detail.url });
+				logCrawlOutcome({
+					url: detail.url,
+					thisTier: TIER,
+					thisTierStatus: "failed",
+					otherTierStatus: snapshot.tier1Status,
+					pickedTier: snapshot.pickedTier,
+				});
+				await transitionAndPersist(markCrawlFailed, {
+					url: detail.url,
+					input: {
+						reason: { kind: "parse-error", detail: parseResult.reason },
+					},
+				});
+				throw new Error(
+					`${logPrefix} parse failed for ${detail.url}: ${parseResult.reason}`,
+				);
+			}
+
+			const articleResourceUniqueId = ArticleResourceUniqueId.parse(detail.url);
+			const media = await downloadMedia({
+				writeContext: { url: detail.url, attemptId: saveAttemptId, authorUserId: detail.userId },
+				html: parseResult.article.content,
+				referer: detail.url,
+				articleResourceUniqueId,
+			});
+			const processedHtml = await processContent({
+				html: parseResult.article.content,
+				media,
+			});
+
+			await commitTierCandidate({
+				url: detail.url,
+				attemptId: saveAttemptId,
+				originalUrl,
+				sourceUrl: detail.sourceUrl,
+				fetchedAt: capturedAt,
+				leg: { tier: TIER, kind: "extension", captureTrigger: undefined },
+				metadata: {
+					title: parseResult.article.title,
+					siteName: parseResult.article.siteName,
+					excerpt: parseResult.article.excerpt,
+					wordCount: parseResult.article.wordCount,
+					estimatedReadTime: estimatedReadTimeFromWordCount(parseResult.article.wordCount),
+					imageUrl: parseResult.article.imageUrl,
+					authorUserId: detail.userId,
+				},
+				html: processedHtml,
+				evaluation: { hashed: processedHtml, stored: undefined },
+				crawlOutcome: { report: "success", readSnapshot: () => readTierSnapshot({ url: detail.url }), logCrawlOutcome },
+				announce: { event: "tier-content-extracted", userId: detail.userId, extractedAt: () => now().toISOString() },
+			});
+
+			logger.info(`${logPrefix} tier-0 source written`, {
+				url: detail.url,
+				capturedTitle: detail.title,
+			});
+		},
+	});
 }

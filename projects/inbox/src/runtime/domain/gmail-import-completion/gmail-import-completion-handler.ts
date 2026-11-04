@@ -1,5 +1,4 @@
 import { EmailOutputKeySchema, type EmailImportCompletionStore } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
 import { EmailOutputSavedToAllEvent, EmailOutputsSelectedEvent } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
@@ -20,7 +19,7 @@ export function initGmailImportCompletionHandler(deps: {
 				const detailType = envelope["detail-type"];
 				if (detailType === EmailOutputSavedToAllEvent.detailType) {
 					const detail = EmailOutputSavedToAllEvent.detailSchema.parse(envelope.detail);
-					const userId = UserIdSchema.parse(detail.userId);
+					const userId = detail.userId;
 					await acknowledgeOutput({
 						userId,
 						receivedAtMessageId: detail.receivedAtMessageId,
@@ -31,7 +30,7 @@ export function initGmailImportCompletionHandler(deps: {
 					continue;
 				}
 				const detail = EmailOutputsSelectedEvent.detailSchema.parse(envelope.detail);
-				const outcome = await evaluate({ userId: UserIdSchema.parse(detail.userId), receivedAtMessageId: detail.receivedAtMessageId });
+				const outcome = await evaluate({ userId: detail.userId, receivedAtMessageId: detail.receivedAtMessageId });
 				logger.info("[gmail-import-completion] outputs selected", { outcome, outputCount: detail.outputCount });
 			} catch (error) {
 				logger.error("[gmail-import-completion] record failed", { messageId: record.messageId, error });

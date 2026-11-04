@@ -1,11 +1,5 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { SubscriptionCancelledEvent } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
 import type {
@@ -30,47 +24,33 @@ export function initScheduleTrialFeedbackEmailHandler(deps: {
 	now: () => Date;
 	logger: Logger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = z
-					.object({ detail: z.unknown() })
-					.parse(JSON.parse(record.body));
-				const detail = SubscriptionCancelledEvent.detailSchema.parse(
-					envelope.detail,
-				);
-				if (!TRIAL_END_CANCEL_REASONS.has(detail.reason)) {
-					deps.logger.info(
-						"[schedule-trial-feedback-email] non-trial cancel — noop",
-						{ userId: detail.userId, reason: detail.reason },
-					);
-					continue;
-				}
-				const userId = UserIdSchema.parse(detail.userId);
-				const firesAt = new Date(
-					deps.now().getTime() + TRIAL_FEEDBACK_EMAIL_DELAY_MS,
-				).toISOString();
-				/* SubscriptionCancelledEvent is at-least-once and has two publishers,
-				 * so this handler must tolerate a re-delivery. The schedule name is
-				 * deterministic but CreateSchedule rejects an existing name, so the
-				 * stale one is removed first (a no-op when there is none). */
-				await deps.deleteTrialFeedbackEmailSchedule({ userId });
-				await deps.createTrialFeedbackEmailSchedule({ userId, firesAt });
+	return initSqsRecordHandler({
+		definition: SubscriptionCancelledEvent,
+		logger: deps.logger,
+		failure: { message: "[schedule-trial-feedback-email] record failed" },
+		malformed: { policy: "retry" },
+		handle: async (detail) => {
+			if (!TRIAL_END_CANCEL_REASONS.has(detail.reason)) {
 				deps.logger.info(
-					"[schedule-trial-feedback-email] schedule created",
-					{ userId, firesAt },
+					"[schedule-trial-feedback-email] non-trial cancel — noop",
+					{ userId: detail.userId, reason: detail.reason },
 				);
-			} catch (error) {
-				deps.logger.error("[schedule-trial-feedback-email] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+				return;
 			}
-		}
-
-		return { batchItemFailures };
-	};
+			const { userId } = detail;
+			const firesAt = new Date(
+				deps.now().getTime() + TRIAL_FEEDBACK_EMAIL_DELAY_MS,
+			).toISOString();
+			/* SubscriptionCancelledEvent is at-least-once and has two publishers,
+			 * so this handler must tolerate a re-delivery. The schedule name is
+			 * deterministic but CreateSchedule rejects an existing name, so the
+			 * stale one is removed first (a no-op when there is none). */
+			await deps.deleteTrialFeedbackEmailSchedule({ userId });
+			await deps.createTrialFeedbackEmailSchedule({ userId, firesAt });
+			deps.logger.info(
+				"[schedule-trial-feedback-email] schedule created",
+				{ userId, firesAt },
+			);
+		},
+	});
 }

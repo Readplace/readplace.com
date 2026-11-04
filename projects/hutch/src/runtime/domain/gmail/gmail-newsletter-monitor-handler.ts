@@ -44,12 +44,12 @@ export function initGmailNewsletterMonitorHandler(deps: {
 					if (detail.nextAccountsPageToken !== undefined) await deps.dispatchCheck({ accountsPageToken: detail.nextAccountsPageToken });
 				} else if (envelope["detail-type"] === MonitorGmailNewslettersCommand.detailType) {
 					const detail = MonitorGmailNewslettersCommand.detailSchema.parse(envelope.detail);
-					const userId = UserIdSchema.parse(detail.userId);
+					const { userId } = detail;
 					const result = detail.continuation === undefined ? await deps.monitor.start(userId) : await deps.monitor.page({ userId, ...detail.continuation });
 					await deps.publishEvent(GmailNewsletterMonitoringProgressedEvent, { userId, nextPage: result.nextPage, notices: result.notices });
 				} else {
 					const detail = GmailNewsletterMonitoringProgressedEvent.detailSchema.parse(envelope.detail);
-					const userId = UserIdSchema.parse(detail.userId);
+					const { userId } = detail;
 					if (detail.notices.length > 0) await deps.dispatchNotice({ userId });
 					if (detail.nextPage !== undefined) await deps.dispatchMonitor({ userId, continuation: detail.nextPage });
 				}

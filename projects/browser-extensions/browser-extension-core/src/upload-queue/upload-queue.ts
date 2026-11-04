@@ -199,7 +199,7 @@ export function initUploadQueue(deps: {
 		try {
 			await walk();
 		} catch (error) {
-			deps.logger.error("[upload-queue] resume failed", error);
+			deps.logger.error("[upload-queue] resume failed", { error: error });
 		}
 	}
 
@@ -231,7 +231,7 @@ export function initUploadQueue(deps: {
 			};
 			await deps.jobs.write([...jobs.filter((entry) => entry.url !== target.url), job]);
 		} catch (error) {
-			deps.logger.error(`[upload-queue] failed to record a deferred upload for ${target.url}`, error);
+			deps.logger.error(`[upload-queue] failed to record a deferred upload for ${target.url}`, { error: error });
 		}
 	}
 
@@ -259,7 +259,7 @@ export function initUploadQueue(deps: {
 				blob: new Blob([captured.content.bytes], { type: captured.content.mediaType }),
 			});
 		} catch (error) {
-			deps.logger.error(`[upload-queue] failed to record a captured upload for ${captured.url}`, error);
+			deps.logger.error(`[upload-queue] failed to record a captured upload for ${captured.url}`, { error: error });
 		}
 	}
 
@@ -267,7 +267,7 @@ export function initUploadQueue(deps: {
 		try {
 			await purgeAll();
 		} catch (error) {
-			deps.logger.error("[upload-queue] purge failed", error);
+			deps.logger.error("[upload-queue] purge failed", { error: error });
 		}
 	}
 

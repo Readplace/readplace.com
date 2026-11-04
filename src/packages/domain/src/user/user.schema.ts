@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { UserIdSchema } from "@packages/article-state-types";
+import type { z } from "zod";
 
-export const UserIdSchema = z.string().brand<"UserId">();
-export type UserId = z.infer<typeof UserIdSchema>;
+export { UserIdSchema, type UserId } from "@packages/article-state-types";
 
 /** The id of the principal a request is *running as* — the user who presented a
  * validated session cookie or OAuth bearer token. It carries both brands, so it

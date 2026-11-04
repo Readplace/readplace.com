@@ -1,5 +1,6 @@
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { SummaryGeneratedEvent } from "./index";
 
 export function initSummaryGeneratedHandler(deps: {
@@ -7,28 +8,17 @@ export function initSummaryGeneratedHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const { logger } = deps;
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const detail = SummaryGeneratedEvent.detailSchema.parse(envelope.detail);
-
-				logger.info("[GlobalSummaryGenerated]", {
-					url: detail.url,
-					inputTokens: detail.inputTokens,
-					outputTokens: detail.outputTokens,
-				});
-			} catch (error) {
-				logger.error("[GlobalSummaryGenerated] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: SummaryGeneratedEvent,
+		logger,
+		failure: { message: "[GlobalSummaryGenerated] record failed" },
+		malformed: { policy: "retry" },
+		handle: async (detail) => {
+			logger.info("[GlobalSummaryGenerated]", {
+				url: detail.url,
+				inputTokens: detail.inputTokens,
+				outputTokens: detail.outputTokens,
+			});
+		},
+	});
 }

@@ -1,13 +1,7 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { UserIdSchema } from "@packages/domain/user";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
-import type { PublishEvent } from "@packages/infra-components/runtime";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type {
 	FindRelatedArticles,
 	FindRelatedTargetArticle,
@@ -61,88 +55,85 @@ export function initComputeRelatedArticlesHandler(
 		logger,
 	});
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-			try {
-				const envelope = JSON.parse(record.body);
-				const entry = ComputeRelatedPassesCommand.detailSchema.parse(envelope.detail);
-				const userId = UserIdSchema.parse(entry.userId);
-
-				const existing = await findRelatedArticles({ userId, url: entry.url });
-				if (existing.status !== "pending") {
-					logger.info("[ComputeRelatedArticles] cache hit", {
-						url: entry.url,
-						status: existing.status,
-					});
-					continue;
-				}
-
-				const save = { userId, url: entry.url, receiveCount, messageId: record.messageId, trigger: TRIGGER };
-
-				const lookup = await findRelatedTargetArticle(entry.url);
-				if (lookup.state === "purged") {
-					await skipNextRead({ save, reason: "the article was purged before its related links were computed" });
-					continue;
-				}
-				if (lookup.state === "not-an-article") {
-					await skipNextRead({ save, reason: "not an article host" });
-					continue;
-				}
-				if (lookup.state === "absent") {
-					throw new MetadataNotReadyError({ url: entry.url, crawlStatus: undefined });
-				}
-				const target = lookup.article;
-				if (target.crawlStatus === "pending") {
-					if (receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
-						throw new MetadataNotReadyError({ url: entry.url, crawlStatus: "pending" });
-					}
-					await skipNextRead({ save, reason: "crawl still pending after the wait", details: { crawlStatus: "pending" } });
-					continue;
-				}
-				const { crawlStatus } = target;
-				if (target.hasStubMetadata) {
-					if (crawlStatus === "failed" && receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
-						throw new MetadataNotReadyError({ url: entry.url, crawlStatus });
-					}
-					await skipNextRead({ save, reason: "crawl produced no metadata to compare", details: { crawlStatus } });
-					continue;
-				}
-
-				await computeNextRead({ save, target });
-			} catch (error) {
+	return initSqsRecordHandler({
+		definition: ComputeRelatedPassesCommand,
+		logger,
+		failure: {
+			report: ({ record, error }) => {
 				if (error instanceof MetadataNotReadyError) {
 					logger.info(
 						"[ComputeRelatedArticles] waiting for crawl metadata; redelivery scheduled",
 						{
 							url: error.url,
 							messageId: record.messageId,
-							receiveCount,
+							receiveCount: record.receiveCount,
 							crawlStatus: error.crawlStatus,
 						},
 					);
-				} else {
-					logger.error("[ComputeRelatedArticles] record failed", {
-						messageId: record.messageId,
-						error,
-					});
-					const failure = describeAiProviderError(error);
-					if (failure.kind !== "unknown") {
-						deepseekCallFailedLog.error(deepseekCallFailedLogLine({
-							feature: "compute-related-articles",
-							failure,
-							receiveCount,
-							messageId: record.messageId,
-							ids: {},
-						}));
-					}
+					return;
 				}
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
+				logger.error("[ComputeRelatedArticles] record failed", {
+					messageId: record.messageId,
+					error,
+				});
+				const failure = describeAiProviderError(error);
+				if (failure.kind !== "unknown") {
+					deepseekCallFailedLog.error(deepseekCallFailedLogLine({
+						feature: "compute-related-articles",
+						failure,
+						receiveCount: record.receiveCount,
+						messageId: record.messageId,
+						ids: {},
+					}));
+				}
+			},
+		},
+		malformed: { policy: "retry" },
+		handle: async (entry, record) => {
+			const { userId } = entry;
+			const { receiveCount } = record;
 
-		return { batchItemFailures };
-	};
+			const existing = await findRelatedArticles({ userId, url: entry.url });
+			if (existing.status !== "pending") {
+				logger.info("[ComputeRelatedArticles] cache hit", {
+					url: entry.url,
+					status: existing.status,
+				});
+				return;
+			}
+
+			const save = { userId, url: entry.url, receiveCount, messageId: record.messageId, trigger: TRIGGER };
+
+			const lookup = await findRelatedTargetArticle(entry.url);
+			if (lookup.state === "purged") {
+				await skipNextRead({ save, reason: "the article was purged before its related links were computed" });
+				return;
+			}
+			if (lookup.state === "not-an-article") {
+				await skipNextRead({ save, reason: "not an article host" });
+				return;
+			}
+			if (lookup.state === "absent") {
+				throw new MetadataNotReadyError({ url: entry.url, crawlStatus: undefined });
+			}
+			const target = lookup.article;
+			if (target.crawlStatus === "pending") {
+				if (receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
+					throw new MetadataNotReadyError({ url: entry.url, crawlStatus: "pending" });
+				}
+				await skipNextRead({ save, reason: "crawl still pending after the wait", details: { crawlStatus: "pending" } });
+				return;
+			}
+			const { crawlStatus } = target;
+			if (target.hasStubMetadata) {
+				if (crawlStatus === "failed" && receiveCount < COMPUTE_RELATED_ARTICLES_MAX_RECEIVE_COUNT) {
+					throw new MetadataNotReadyError({ url: entry.url, crawlStatus });
+				}
+				await skipNextRead({ save, reason: "crawl produced no metadata to compare", details: { crawlStatus } });
+				return;
+			}
+
+			await computeNextRead({ save, target });
+		},
+	});
 }

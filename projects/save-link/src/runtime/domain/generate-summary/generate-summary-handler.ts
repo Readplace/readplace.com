@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
-import { formatErrorLogLine, type Logger } from "@packages/logger";
+import type { Logger } from "@packages/logger";
 import { type DeepseekCallFailedLogLine, describeAiProviderError, deepseekCallFailedLogLine } from "@packages/ai-message";
 import {
 	isCanonicalCandidateRevoked,
@@ -234,12 +234,10 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 							input: { reason: { kind: "exhausted-retries" as const, receiveCount }, receiveCount },
 						});
 					} catch (markError) {
-						logger.error(formatErrorLogLine({
-							message: `[GenerateSummary] exhausted-mark record failed on receive ${receiveCount} (messageId ${record.messageId})`,
-							url,
-							error: markError instanceof Error ? markError : new Error(String(markError)),
-							now,
-						}));
+						logger.error(
+							`[GenerateSummary] exhausted-mark record failed on receive ${receiveCount} (messageId ${record.messageId})`,
+							{ url, error: markError },
+						);
 					}
 				}
 				batchItemFailures.push({ itemIdentifier: record.messageId });

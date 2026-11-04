@@ -526,14 +526,10 @@ describe("initGenerateSummaryHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		const markLines = error.mock.calls.filter(([line]) => typeof line === "string" && line.startsWith("{"));
-		expect(markLines).toHaveLength(1);
-		expect(JSON.parse(markLines[0][0])).toMatchObject({
-			message: "[GenerateSummary] exhausted-mark record failed on receive 3 (messageId msg-1)",
-			url: URL,
-			name: "Error",
-			stack: expect.stringContaining("DynamoDB unavailable"),
-		});
+		expect(error).toHaveBeenCalledWith(
+			"[GenerateSummary] exhausted-mark record failed on receive 3 (messageId msg-1)",
+			{ url: URL, error: thrown },
+		);
 	});
 
 	it("reports batchItemFailures when the summariser returns no-text-block so SQS redelivers and eventually DLQs", async () => {

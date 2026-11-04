@@ -3,7 +3,6 @@ import { z } from "zod";
 import { DiscoverGmailSendersPageCommand, GmailSenderDiscoveryProgressedEvent, StartGmailSenderDiscoveryCommand } from "@packages/infra-components";
 import type { PublishEvent } from "@packages/infra-components/runtime";
 import type { GmailDiscoveryStore } from "@packages/domain/gmail";
-import { UserIdSchema } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
 import { type DiscoverGmailSenders, GMAIL_DISCOVERY_PAUSED_MESSAGE, type GmailDiscoveryPage } from "./discover-gmail-senders";
 
@@ -24,7 +23,7 @@ export function initGmailDiscoveryHandler(deps: {
 		for (const record of event.Records) {
 			try {
 				const envelope = DiscoveryEnvelope.parse(JSON.parse(record.body));
-				const userId = UserIdSchema.parse(envelope.detail.userId);
+				const { userId } = envelope.detail;
 				if (envelope.kind === "progress") {
 					const next = envelope.detail.nextPage;
 					if (next !== undefined) await deps.dispatchPage({ userId, ...next });
@@ -53,7 +52,7 @@ export function initGmailDiscoveryDlqHandler(deps: {
 		for (const record of event.Records) {
 			try {
 				const envelope = DiscoveryEnvelope.parse(JSON.parse(record.body));
-				const userId = UserIdSchema.parse(envelope.detail.userId);
+				const { userId } = envelope.detail;
 				const current = await deps.discovery.findDiscoveryByUserId(userId);
 				if (current?.state !== "running") continue;
 				const expected = envelope.kind === "page"

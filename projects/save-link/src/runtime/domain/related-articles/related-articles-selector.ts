@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type CreateAiMessage, DEEPSEEK_FEATURES } from "@packages/ai-message";
+import { type CreateAiMessage, DEEPSEEK_FEATURES, parseModelJson } from "@packages/ai-message";
 import type { ArticleDestinationUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { Logger } from "@packages/logger";
@@ -255,13 +255,13 @@ export function initSelectRelatedArticles(deps: {
 		);
 
 		const durationMs = deps.nowMs() - startedAt;
-		const textBlock = response.content.find((block) => block.type === "text");
-		if (textBlock?.type !== "text" || !textBlock.text) {
+		const answer = parseModelJson(RelatedPayload, response);
+		if (answer.kind === "no-text") {
 			deps.logger.info("[related-articles] no text block in response");
 			return { kind: "no-text-block" };
 		}
-
-		const parsed = RelatedPayload.parse(JSON.parse(textBlock.text));
+		if (answer.kind === "malformed") throw answer.error;
+		const parsed = answer.value;
 		return {
 			kind: "ready",
 			samples: [{ inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens, cacheHitInputTokens: response.usage.cache_hit_input_tokens, cacheMissInputTokens: response.usage.cache_miss_input_tokens, durationMs }],

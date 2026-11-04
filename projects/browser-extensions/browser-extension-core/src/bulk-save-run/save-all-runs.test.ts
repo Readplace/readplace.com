@@ -485,7 +485,7 @@ describe("initSaveAllRuns drive", () => {
 		expect(states(storedRuns(world)[0])).toEqual(["failed"]);
 		expect(context.errors).toContainEqual([
 			"[save-all-runs] could not read the pending jobs of a failed send",
-			new Error("indexeddb gone"),
+			{ error: new Error("indexeddb gone") },
 		]);
 	});
 

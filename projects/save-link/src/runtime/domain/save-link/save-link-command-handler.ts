@@ -1,7 +1,7 @@
 import assert from "node:assert";
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { Logger } from "@packages/logger";
-import type { PublishEvent } from "@packages/infra-components/runtime";
+import { initSqsRecordHandler, type PublishEvent } from "@packages/infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
 	SaveLinkCommand,
@@ -74,72 +74,65 @@ export function initSaveLinkCommandHandler(deps: {
 
 	const crawlSaveCandidates = initCrawlSaveCandidates({ crawlArchiveCapture, saveLinkWork, emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported });
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
+	return initSqsRecordHandler({
+		definition: SaveLinkCommand,
+		logger,
+		failure: { report: ({ record, error }) => logRecordFailure({ logger, logPrefix, record, error }) },
+		malformed: { policy: "retry" },
+		handle: async (detail) => {
+			const { saveAttemptId } = detail;
+			const identity = await deps.prepareArticleIdentity(detail.url);
+			assert(identity.status === "resolved", "queued article original is unresolved");
+			const captureUrl = detail.captureUrl ?? identity.contentSourceUrl;
 
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const detail = SaveLinkCommand.detailSchema.parse(envelope.detail);
-				const { saveAttemptId } = detail;
-				const identity = await deps.prepareArticleIdentity(detail.url);
-				assert(identity.status === "resolved", "queued article original is unresolved");
-				const captureUrl = detail.captureUrl ?? identity.contentSourceUrl;
-
-				if (captureUrl !== undefined) {
-					const result = await crawlSaveCandidates({
-						url: detail.url,
-						captureUrl,
-						saveAttemptId,
-						sourceOriginalUrl: detail.sourceOriginalUrl ?? identity.sourceOriginalUrl,
-						userId: detail.userId,
-					});
-					if ("deferredTo" in result) {
-						logger.info("[SaveLinkCommand] tier-1 deferred to comprehensive Lambda", { url: detail.url, carriedCandidates: result.carriedCandidates });
-						continue;
-					}
-					await publishEvent(TierContentExtractedEvent, {
-						url: detail.url,
-						saveAttemptId,
-						...result,
-						userId: detail.userId,
-						extractedAt: deps.now().toISOString(),
-					});
-					continue;
+			if (captureUrl !== undefined) {
+				const result = await crawlSaveCandidates({
+					url: detail.url,
+					captureUrl,
+					saveAttemptId,
+					sourceOriginalUrl: detail.sourceOriginalUrl ?? identity.sourceOriginalUrl,
+					userId: detail.userId,
+				});
+				if ("deferredTo" in result) {
+					logger.info("[SaveLinkCommand] tier-1 deferred to comprehensive Lambda", { url: detail.url, carriedCandidates: result.carriedCandidates });
+					return;
 				}
-
-				const result = await saveLinkWork(detail.url, { userId: detail.userId, saveAttemptId });
-				if (typeof result === "object" && "deferred" in result) {
-					logger.info("[SaveLinkCommand] tier-1 deferred to comprehensive Lambda", {
-						url: detail.url,
-						unsupportedReason: result.deferred,
-					});
-					continue;
-				}
-				if (result === "tier-1-terminal") {
-					logger.info("[SaveLinkCommand] tier-1 terminal — origin no longer serves the page", {
-						url: detail.url,
-					});
-					continue;
-				}
-
 				await publishEvent(TierContentExtractedEvent, {
 					url: detail.url,
 					saveAttemptId,
-					candidates: [result.candidate],
+					...result,
 					userId: detail.userId,
 					extractedAt: deps.now().toISOString(),
 				});
-				logger.info("[SaveLinkCommand] emitted TierContentExtractedEvent", {
-					url: detail.url,
-					tier: "tier-1",
-				});
-			} catch (error) {
-				logRecordFailure({ logger, logPrefix, record, error });
-				batchItemFailures.push({ itemIdentifier: record.messageId });
+				return;
 			}
-		}
 
-		return { batchItemFailures };
-	};
+			const result = await saveLinkWork(detail.url, { userId: detail.userId, saveAttemptId });
+			if (typeof result === "object" && "deferred" in result) {
+				logger.info("[SaveLinkCommand] tier-1 deferred to comprehensive Lambda", {
+					url: detail.url,
+					unsupportedReason: result.deferred,
+				});
+				return;
+			}
+			if (result === "tier-1-terminal") {
+				logger.info("[SaveLinkCommand] tier-1 terminal — origin no longer serves the page", {
+					url: detail.url,
+				});
+				return;
+			}
+
+			await publishEvent(TierContentExtractedEvent, {
+				url: detail.url,
+				saveAttemptId,
+				candidates: [result.candidate],
+				userId: detail.userId,
+				extractedAt: deps.now().toISOString(),
+			});
+			logger.info("[SaveLinkCommand] emitted TierContentExtractedEvent", {
+				url: detail.url,
+				tier: "tier-1",
+			});
+		},
+	});
 }

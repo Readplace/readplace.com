@@ -1,3 +1,4 @@
+import type { UserId } from "@packages/article-state-types";
 import type { SaveTrigger } from "../../article/article.schema";
 import type { SaveProvenance } from "../../article/save-provenance";
 import { stubMetadataFor } from "../../article/stub-metadata";
@@ -7,7 +8,7 @@ import type { AggregateField } from "../storage.types";
 
 export interface SubmitLinkInput {
 	url: string;
-	submitter?: { userId: string; provenance: SaveProvenance; saveTrigger: SaveTrigger };
+	submitter?: { userId: UserId; provenance: SaveProvenance; saveTrigger: SaveTrigger };
 	rawHtml?: string;
 	now: string;
 }

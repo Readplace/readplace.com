@@ -1,7 +1,6 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { z } from "zod";
 import { GmailAccountEmailSchema, type GmailMessageUpdateStore, GmailMessageOriginSchema } from "@packages/domain/gmail";
-import { UserIdSchema } from "@packages/domain/user";
 import {
 	GMAIL_EMAIL_UPDATE_FAILED_EVENT,
 	GmailEmailMarkedImportedEvent,
@@ -21,7 +20,7 @@ export const GmailMessageUpdateEnvelope = z.union([
 		.object({ "detail-type": z.literal(MarkGmailEmailImportedCommand.detailType), detail: MarkGmailEmailImportedCommand.detailSchema })
 		.transform(({ detail }) => ({
 			kind: "mark" as const,
-			userId: UserIdSchema.parse(detail.userId),
+			userId: detail.userId,
 			receivedAtMessageId: detail.receivedAtMessageId,
 			origin: GmailMessageOriginSchema.parse(detail.origin),
 		})),
@@ -29,7 +28,7 @@ export const GmailMessageUpdateEnvelope = z.union([
 		.object({ "detail-type": z.literal(GmailModifyPermissionGrantedEvent.detailType), detail: GmailModifyPermissionGrantedEvent.detailSchema })
 		.transform(({ detail }) => ({
 			kind: "resume" as const,
-			userId: UserIdSchema.parse(detail.userId),
+			userId: detail.userId,
 			accountEmail: GmailAccountEmailSchema.parse(detail.accountEmail),
 		})),
 ]);

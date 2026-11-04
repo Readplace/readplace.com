@@ -1,3 +1,4 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { noopLogger } from "@packages/logger";
 import type { CrawlArticle } from "@packages/crawl-article";
@@ -88,7 +89,7 @@ describe("a tracker link whose publisher blocked the free crawl", () => {
 			publishEvent,
 			logPrefix: "[composition]",
 		});
-		await saveLinkWork(TRACKER, { userId: "user-1", saveAttemptId });
+		await saveLinkWork(TRACKER, { userId: UserIdSchema.parse("user-1"), saveAttemptId });
 
 		const policy = initSimpleCrawlUnsupportedPolicyHandler({ publishEvent, logger: noopLogger });
 		await policy(sqsEventFrom(takeOne(published, SimpleCrawlUnsupportedEvent.detailType)), buildLambdaContext(), () => {});

@@ -1,11 +1,6 @@
-import type {
-	Handler,
-	SQSBatchItemFailure,
-	SQSBatchResponse,
-	SQSEvent,
-} from "aws-lambda";
-import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import type { Handler, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { z } from "zod";
+import { initSqsRecordHandler } from "@packages/infra-components/runtime";
 import { SubscriptionStartRequestCommand } from "@packages/infra-components";
 import type { Logger } from "@packages/logger";
 import {
@@ -21,6 +16,10 @@ import type {
 	PublishSubscriptionChargeSucceeded,
 } from "@packages/provider-contracts/events";
 
+type SubscriptionStartRequestDetail = z.infer<
+	typeof SubscriptionStartRequestCommand.detailSchema
+>;
+
 interface HandlerDeps {
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
@@ -33,10 +32,8 @@ interface HandlerDeps {
 export function initSubscriptionStartRequestHandler(
 	deps: HandlerDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	async function processRecord(body: string): Promise<void> {
-		const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(body));
-		const detail = SubscriptionStartRequestCommand.detailSchema.parse(envelope.detail);
-		const userId = UserIdSchema.parse(detail.userId);
+	async function processRecord(detail: SubscriptionStartRequestDetail): Promise<void> {
+		const { userId } = detail;
 		const row = await deps.findSubscriptionByUserId(userId);
 
 		if (row?.status !== "trialing") {
@@ -75,21 +72,11 @@ export function initSubscriptionStartRequestHandler(
 		}
 	}
 
-	return async (event) => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				await processRecord(record.body);
-			} catch (error) {
-				deps.logger.error("[start-request] record failed", {
-					messageId: record.messageId,
-					error,
-				});
-				batchItemFailures.push({ itemIdentifier: record.messageId });
-			}
-		}
-
-		return { batchItemFailures };
-	};
+	return initSqsRecordHandler({
+		definition: SubscriptionStartRequestCommand,
+		logger: deps.logger,
+		failure: { message: "[start-request] record failed" },
+		malformed: { policy: "retry" },
+		handle: processRecord,
+	});
 }

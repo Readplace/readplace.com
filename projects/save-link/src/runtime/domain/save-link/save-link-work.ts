@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import type { CandidateId, SaveAttemptId } from "@packages/domain/article";
-import type { CrawlFailureReason, CrawlUnsupportedReason } from "@packages/article-state-types";
+import type { CrawlFailureReason, CrawlUnsupportedReason, UserId } from "@packages/article-state-types";
 import type { Logger } from "@packages/logger";
 import {
 	markCrawlFailed,
@@ -37,7 +37,7 @@ export function deferredUnsupportedKind(reason: CrawlUnsupportedReason | undefin
 }
 
 export type SaveLinkWorkOptions = {
-	userId?: string;
+	userId?: UserId;
 	recrawl?: boolean;
 	saveAttemptId: SaveAttemptId;
 	deferUnsupported?: boolean;
