@@ -1054,7 +1054,7 @@ describe("candidates sharing a content hash", () => {
 		const result = await prepare({ url: URL, candidates: [{ id: cid("capture"), tier: "tier-0" }, { id: cid("live"), tier: "tier-1" }] });
 
 		expect(select.mock.calls.map(([params]) => params.candidates.map((candidate) => candidate.id))).toEqual([["live"]]);
-		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge", ownCaptureFailed: false });
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge", ownCaptureFailed: false, judgedBodies: 1 });
 		expect(result.selected?.metadata.id).toBe("capture");
 	});
 
@@ -1092,5 +1092,128 @@ describe("candidates sharing a content hash", () => {
 		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-0", "capture")] });
 
 		expect(logged(await prepare({ url: URL }))).toMatchObject({ selectionRule: "first-capture", judgedBodies: 0 });
+	});
+});
+
+describe("candidates whose prose is identical", () => {
+	const judgeFake = () => jest.fn<ReturnType<Dependencies["selectMostCompleteContent"]>, Parameters<Dependencies["selectMostCompleteContent"]>>();
+	const judgedIds = (select: ReturnType<typeof judgeFake>) => select.mock.calls.map(([params]) => params.candidates.map((candidate) => candidate.id));
+	const tracker = (id: string, html = "<div><p>Complete article</p></div>") => source("tier-2", id, { html });
+
+	it("sends the judge one body for a live copy and a tracker copy of the same prose in different markup", async () => {
+		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("live"), reason: "The article" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live"), tracker("wrapper")], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL });
+
+		expect(judgedIds(select)).toEqual([["live"]]);
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge", judgedBodies: 1 });
+		expect(result.selected?.metadata.id).toBe("live");
+		expect(result.readableIds).toEqual(new Set(["live", "wrapper"]));
+	});
+
+	it("keeps the judge's rejection of a live copy and a tracker copy of the same prose", async () => {
+		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live"), tracker("wrapper")] });
+
+		const result = await prepare({ url: URL });
+
+		expect(result).toMatchObject({ selected: undefined, outcome: "no-readable", selectionRule: "judge", judgedBodies: 1 });
+		expect(result.readableIds.size).toBe(0);
+	});
+
+	it("selects the fresh live copy over a canonical with other prose and other media when the judge ties them", async () => {
+		const canonical = source("tier-1", "canonical", { html: '<p>The first edition</p><img src="https://cdn.example/old.jpg">' });
+		canonical.metadata.attemptId = SaveAttemptIdSchema.parse("earlier");
+		const select = judgeFake().mockResolvedValue({ kind: "tie", candidateIds: [cid("canonical"), cid("live")], reason: "Equal" });
+		const { prepare } = setup({
+			loadArticle: async () => article({ contentSelection: { revision: 2, tier: "tier-1", candidateId: cid("canonical") }, freshness: { contentFetchedAt: NOW, canonicalContentHash: computeCanonicalContentHash(canonical.html) } }),
+			listAvailableTierSources: async () => [
+				canonical,
+				source("tier-1", "live", { html: '<p>The second edition</p><img src="https://cdn.example/new.jpg">' }),
+				tracker("wrapper", '<div><p>The second edition</p><img src="https://archive.ph/new.jpg"></div>'),
+			],
+			selectMostCompleteContent: select,
+		});
+
+		const result = await prepare({ url: URL, candidates: [{ id: cid("live"), tier: "tier-1" }, { id: cid("wrapper"), tier: "tier-2" }] });
+
+		expect(judgedIds(select)).toEqual([["canonical", "live"]]);
+		expect(result.readableIds).toEqual(new Set(["canonical", "live", "wrapper"]));
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge", judgedBodies: 2 });
+		expect(result.selected?.metadata.id).toBe("live");
+	});
+
+	it("selects the reader's capture over a none verdict judged on a tracker copy listed before it", async () => {
+		const select = judgeFake().mockResolvedValue({ kind: "none", reason: "No readable article" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [tracker("wrapper"), source("tier-0", "capture")], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ id: cid("wrapper"), tier: "tier-2" }, { id: cid("capture"), tier: "tier-0" }] });
+
+		expect(judgedIds(select)).toEqual([["wrapper"]]);
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "own-capture-over-verdict", ownCaptureFailed: false });
+		expect(result.selected?.metadata.id).toBe("capture");
+	});
+
+	it("expands a tie on two judged bodies to the three candidates behind them", async () => {
+		const select = judgeFake().mockResolvedValue({ kind: "tie", candidateIds: [cid("live"), cid("other")], reason: "Equal" });
+		const { prepare } = setup({
+			listAvailableTierSources: async () => [tracker("wrapper"), source("tier-1", "live"), source("tier-1", "other", { html: "<p>A different article body</p>" })],
+			selectMostCompleteContent: select,
+		});
+
+		const result = await prepare({ url: URL });
+
+		expect(judgedIds(select)).toEqual([["live", "other"]]);
+		expect(result.readableIds).toEqual(new Set(["wrapper", "live", "other"]));
+		expect(result).toMatchObject({ selectionRule: "judge", judgedBodies: 2 });
+	});
+
+	it("judges a blank capture and a media-only body apart although neither holds prose", async () => {
+		const mediaOnly = source("tier-1", "photo-essay", { html: '<figure><img src="https://cdn.example/a.jpg"></figure>' });
+		mediaOnly.metadata.wordCount = 0;
+		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("photo-essay"), reason: "The photo essay is the article" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [blankCapture(), mediaOnly], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL });
+
+		expect(judgedIds(select)).toEqual([["blank", "photo-essay"]]);
+		expect(result).toMatchObject({ selectionRule: "judge", judgedBodies: 2 });
+		expect(result.selected?.metadata.id).toBe("photo-essay");
+	});
+
+	it("sends one body for byte-identical copies that hold no prose", async () => {
+		const blankTwin = blankCapture();
+		blankTwin.metadata.id = cid("blank-twin");
+		const select = judgeFake().mockResolvedValue({ kind: "none", reason: "No readable article" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [blankCapture(), blankTwin], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL });
+
+		expect(judgedIds(select)).toEqual([["blank"]]);
+		expect(result).toMatchObject({ outcome: "no-readable", judgedBodies: 1 });
+	});
+
+	it("sends one body for a blank live copy, the reader's capture of the same bytes and a tracker copy of the capture's prose", async () => {
+		const page = "<html><body><p>Complete article</p></body></html>";
+		const blankLive = source("tier-1", "live", { html: "", evaluationHtml: page });
+		blankLive.metadata.wordCount = 0;
+		const select = judgeFake().mockResolvedValue({ kind: "winner", candidateId: cid("live"), reason: "The page is the article" });
+		const { prepare } = setup({ listAvailableTierSources: async () => [tracker("wrapper"), source("tier-0", "capture", { evaluationHtml: page }), blankLive], selectMostCompleteContent: select });
+
+		const result = await prepare({ url: URL, candidates: [{ id: cid("wrapper"), tier: "tier-2" }, { id: cid("capture"), tier: "tier-0" }, { id: cid("live"), tier: "tier-1" }] });
+
+		expect(judgedIds(select)).toEqual([["live"]]);
+		expect(result.readableIds).toEqual(new Set(["wrapper", "capture", "live"]));
+		expect(result).toMatchObject({ outcome: "selected", selectionRule: "judge", ownCaptureFailed: false, judgedBodies: 1 });
+		expect(result.selected?.metadata.id).toBe("capture");
+	});
+
+	it("logs one judged body for a prose-identical pair", async () => {
+		const { prepare } = setup({ listAvailableTierSources: async () => [source("tier-1", "live"), tracker("wrapper")] });
+		const info = jest.fn();
+
+		initLogContentSelection({ logger: { ...noopLogger, info } })({ saveAttemptId: FRESH, selection: await prepare({ url: URL }) });
+
+		expect(JSON.parse(String(info.mock.calls[0]?.[0]).split("comparison completed ")[1])).toMatchObject({ selectionRule: "judge", judgedBodies: 1 });
 	});
 });

@@ -16,11 +16,13 @@ const NOW = "2026-10-09T00:00:00.000Z";
 const ATTEMPT = SaveAttemptIdSchema.parse("reader-save");
 const EARLIER_ATTEMPT = SaveAttemptIdSchema.parse("earlier-save");
 
-function candidate(params: { tier: "tier-0" | "tier-1"; html: string; evaluationHtml: string; wordCount: number; httpStatus?: number; attemptId?: SaveAttemptId }): VerifiedTierSource {
+const KIND_BY_TIER = { "tier-0": "extension", "tier-1": "live", "tier-2": "wrapper" } as const;
+
+function candidate(params: { tier: "tier-0" | "tier-1" | "tier-2"; html: string; evaluationHtml: string; wordCount: number; httpStatus?: number; attemptId?: SaveAttemptId; sourceUrl?: string }): VerifiedTierSource {
 	const metadata = candidateProvenance({
 		metadata: { title: "Article", siteName: "example.com", excerpt: "Excerpt", wordCount: params.wordCount, estimatedReadTime: 1 },
-		html: params.html, evaluationHtml: params.evaluationHtml, attemptId: params.attemptId ?? ATTEMPT, originalUrl: URL, sourceUrl: URL,
-		kind: params.tier === "tier-0" ? "extension" : "live", fetchedAt: NOW,
+		html: params.html, evaluationHtml: params.evaluationHtml, attemptId: params.attemptId ?? ATTEMPT, originalUrl: URL, sourceUrl: params.sourceUrl ?? URL,
+		kind: KIND_BY_TIER[params.tier], fetchedAt: NOW,
 	});
 	return { tier: params.tier, html: params.html, evaluationHtml: params.evaluationHtml, metadata: { ...metadata, httpStatus: params.httpStatus } };
 }
@@ -74,6 +76,7 @@ type Page = { wordCount: number; html: string; evaluationHtml: string };
 const COMPANIONS = [
 	{ companions: "alone", judged: false, live: (_page: Page) => [] },
 	{ companions: "with this save's live copy of the same page", judged: true, live: (page: Page) => [candidate({ tier: "tier-1", httpStatus: 200, ...page })] },
+	{ companions: "with this save's tracker copy of the same prose", judged: true, live: (page: Page) => [candidate({ tier: "tier-2", httpStatus: 200, sourceUrl: "https://archive.ph/abc12", wordCount: page.wordCount, html: `<div class="tracker">${page.html}</div>`, evaluationHtml: `<html><body><header>Archived</header><div class="tracker">${page.html}</div></body></html>` })] },
 	{ companions: "with this save's 404 page", judged: true, live: () => [candidate({ tier: "tier-1", wordCount: 3, httpStatus: 404, html: "<p>Page not found</p>", evaluationHtml: "<html><body><p>Page not found</p></body></html>" })] },
 	{ companions: "with this save's 403 bot check", judged: true, live: () => [candidate({ tier: "tier-1", wordCount: 4, httpStatus: 403, html: "<p>Verify you are human</p>", evaluationHtml: "<html><body><p>Verify you are human</p></body></html>" })] },
 ];
@@ -97,11 +100,11 @@ it.each(ROWS)("a capture from $producer, $companions, on $state, when the judge 
 	const transitionAndPersist: TransitionAndPersist = async (transition, params) => { persisted.push({ transition, input: params.input }); };
 	const handler = initSelectMostCompleteContentHandler({
 		listAvailableTierSources: async () => sources,
-		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + new Set(fresh.map((source) => source.metadata.contentHash)).size }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
+		selectMostCompleteContent: initSelectMostCompleteContent({ logger: noopLogger, deepseekCallFailedLog: noopLogger, createChatCompletion: createChatCompletion(Array.from({ length: judgedBesideFresh + new Set(fresh.map((source) => computeCanonicalContentHash(source.html))).size }, (_candidate, index) => labelForIndex(index))) }).selectMostCompleteContent,
 		writeCanonicalContent: async ({ source }) => ({ contentLocation: "s3://content/immutable.html", candidateId: source.metadata.id, tier: source.tier }),
 		recordCrawlVersion: async () => {},
 		readCanonicalContent: async () => canonicalContent, loadArticle: async () => article, transitionAndPersist,
-		resolveOriginalUrl: async () => URL, verifyWrapperSource: async () => undefined,
+		resolveOriginalUrl: async () => URL, verifyWrapperSource: async ({ sourceUrl }) => ({ originalUrl: URL, sourceUrl }),
 		now: () => new Date(NOW), logger: noopLogger, deepseekCallFailedLog: noopLogger,
 	});
 

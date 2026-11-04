@@ -62,7 +62,7 @@ function directResourcesOf(params: { sources: readonly VerifiedTierSource[]; sav
 
 function representativeOf(members: readonly VerifiedTierSource[]): VerifiedTierSource {
 	const [first] = members;
-	assert(first, "a content-hash group holds at least one candidate");
+	assert(first, "a judged-body group holds at least one candidate");
 	return members.find((source) => source.tier === "tier-1" && !isWrapperUrl(source.metadata.sourceUrl)) ?? first;
 }
 
@@ -75,11 +75,36 @@ function expandVerdict(params: { decision: ContentDecision; withReadableMembers:
 	return tiedWith.length > 0 ? { kind: "tie", candidateIds: [winner, ...tiedWith], reason: decision.reason } : { kind: "winner", candidateId: winner, reason: decision.reason };
 }
 
-async function judgeCandidates(params: { sources: readonly VerifiedTierSource[]; originalUrl: string; selectMostCompleteContent: SelectMostCompleteContent }) {
-	if (params.sources.length === 0) return { kind: "none", reason: "no verified candidates", readability: [], judgedBodies: 0 } as const;
+function judgedBodyKeysOf(params: { source: VerifiedTierSource; proseHashOf: (html: string) => string }): string[] {
+	const bytesKey = `bytes:${params.source.metadata.contentHash}`;
+	const proseHash = params.proseHashOf(params.source.html);
+	return proseHash === EMPTY_TEXT_HASH ? [bytesKey] : [bytesKey, `prose:${proseHash}`];
+}
+
+function groupByJudgedBody(params: { sources: readonly VerifiedTierSource[]; proseHashOf: (html: string) => string }): VerifiedTierSource[][] {
+	const parentOf = new Map<string, string>();
+	const rootOf = (key: string): string => {
+		const parent = parentOf.get(key) ?? key;
+		return parent === key ? key : rootOf(parent);
+	};
+	const keysOf = (source: VerifiedTierSource) => params.sources.length > 1 ? judgedBodyKeysOf({ source, proseHashOf: params.proseHashOf }) : [`bytes:${source.metadata.contentHash}`];
+	for (const source of params.sources) {
+		const [bytesRoot, ...otherRoots] = keysOf(source).map(rootOf);
+		assert(bytesRoot, "a judged body always has a bytes key");
+		for (const root of otherRoots) parentOf.set(root, bytesRoot);
+	}
 	const groups = new Map<string, VerifiedTierSource[]>();
-	for (const source of params.sources) groups.set(source.metadata.contentHash, [...(groups.get(source.metadata.contentHash) ?? []), source]);
-	const membersByRepresentative = new Map([...groups.values()].map((members) => [representativeOf(members).metadata.id, members]));
+	for (const source of params.sources) {
+		const root = rootOf(`bytes:${source.metadata.contentHash}`);
+		groups.set(root, [...(groups.get(root) ?? []), source]);
+	}
+	return [...groups.values()];
+}
+
+async function judgeCandidates(params: { sources: readonly VerifiedTierSource[]; originalUrl: string; selectMostCompleteContent: SelectMostCompleteContent; proseHashOf: (html: string) => string }) {
+	if (params.sources.length === 0) return { kind: "none", reason: "no verified candidates", readability: [], judgedBodies: 0 } as const;
+	const groups = groupByJudgedBody({ sources: params.sources, proseHashOf: params.proseHashOf });
+	const membersByRepresentative = new Map(groups.map((members) => [representativeOf(members).metadata.id, members]));
 	const membersOf = (candidateId: CandidateId): VerifiedTierSource[] => {
 		const members = membersByRepresentative.get(candidateId);
 		assert(members, `the judge named a candidate that was not sent: ${candidateId}`);
@@ -87,7 +112,7 @@ async function judgeCandidates(params: { sources: readonly VerifiedTierSource[];
 	};
 	const judged = await params.selectMostCompleteContent({
 		url: params.originalUrl,
-		candidates: [...groups.values()].map(representativeOf).map((source) => ({ id: source.metadata.id, tier: source.tier, title: source.metadata.title, wordCount: source.metadata.wordCount, html: source.evaluationHtml ?? source.html, httpStatus: source.metadata.httpStatus })),
+		candidates: groups.map(representativeOf).map((source) => ({ id: source.metadata.id, tier: source.tier, title: source.metadata.title, wordCount: source.metadata.wordCount, html: source.evaluationHtml ?? source.html, httpStatus: source.metadata.httpStatus })),
 	});
 	const withReadableMembers = (candidateId: CandidateId) => {
 		const readable = membersOf(candidateId).filter(candidateIsReadable).map((member) => member.metadata.id);
@@ -97,7 +122,7 @@ async function judgeCandidates(params: { sources: readonly VerifiedTierSource[];
 		...expandVerdict({ decision: judged, withReadableMembers }),
 		readability: judged.readability.flatMap((assessment) => membersOf(assessment.candidateId).map((member) => ({ candidateId: member.metadata.id, readable: assessment.readable }))),
 		audit: judged.audit,
-		judgedBodies: groups.size,
+		judgedBodies: groups.length,
 	};
 }
 
@@ -110,6 +135,14 @@ export function initPrepareContentSelection(deps: {
 	verifyWrapperSource: VerifyWrapperSource;
 }): (params: { url: string; saveAttemptId: SaveAttemptId; candidates?: readonly CandidateReference[] }) => Promise<PreparedContentSelection> {
 	return async ({ url, saveAttemptId, candidates }) => {
+		const proseHashes = new Map<string, string>();
+		const proseHashOf = (html: string): string => {
+			const known = proseHashes.get(html);
+			if (known !== undefined) return known;
+			const proseHash = computeCanonicalContentHash(html);
+			proseHashes.set(html, proseHash);
+			return proseHash;
+		};
 		const article = await deps.loadArticle(url);
 		assert(article, `Article aggregate not found for url: ${url}`);
 		const expected = article.contentSelection;
@@ -126,7 +159,7 @@ export function initPrepareContentSelection(deps: {
 			let sourceMetadata = source.metadata;
 			if (sourceMetadata.id !== undefined && expected?.revokedCandidateIds?.includes(sourceMetadata.id)) continue;
 			if (sourceMetadata.id === undefined && legacyDirectTier === source.tier &&
-				computeCanonicalContentHash(source.html) === article.freshness.canonicalContentHash &&
+				proseHashOf(source.html) === article.freshness.canonicalContentHash &&
 				(sourceMetadata.sourceUrl === undefined || !isWrapperUrl(sourceMetadata.sourceUrl))) {
 				sourceMetadata = candidateProvenance({ metadata: sourceMetadata, html: source.html, evaluationHtml: source.evaluationHtml ?? source.html, attemptId: "legacy-direct-canonical", originalUrl, sourceUrl: originalUrl, kind: KIND_BY_TIER[source.tier], fetchedAt: article.freshness.contentFetchedAt });
 				legacyCanonicalId = sourceMetadata.id;
@@ -149,7 +182,7 @@ export function initPrepareContentSelection(deps: {
 		let legacyCanonicalWithheld = false;
 		if (!unverifiedLegacySource && legacyCanonicalId === undefined && legacyDirectTier !== undefined) {
 			const persisted = await deps.readCanonicalContent(url);
-			if (persisted !== undefined && computeCanonicalContentHash(persisted.content) === article.freshness.canonicalContentHash) {
+			if (persisted !== undefined && proseHashOf(persisted.content) === article.freshness.canonicalContentHash) {
 				legacyCanonicalWithheld = legacyDirectTier === "tier-0" && legacyDirectSource === undefined;
 				if (!legacyCanonicalWithheld) {
 					const metadata = candidateProvenance({ metadata: { ...article.metadata, estimatedReadTime: article.estimatedReadTime, authorUserId: legacyDirectSource?.metadata.authorUserId }, html: persisted.content, evaluationHtml: persisted.content, attemptId: "legacy-direct-canonical", originalUrl, sourceUrl: originalUrl, kind: KIND_BY_TIER[legacyDirectTier], fetchedAt: article.freshness.contentFetchedAt });
@@ -164,14 +197,14 @@ export function initPrepareContentSelection(deps: {
 		const firstCapture = firstCaptureOf({ isFirstContent, sources });
 		const directResources = directResourcesOf({ sources, saveAttemptId });
 		const proseUnchanged = previous !== undefined && sources.length > 1 &&
-			sources.every((source) => computeCanonicalContentHash(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
+			sources.every((source) => proseHashOf(source.html) === article.freshness.canonicalContentHash && candidateIsReadable(source));
 		const decision = firstCapture !== undefined
 			? { kind: "winner", candidateId: firstCapture.metadata.id, reason: "the reader's capture is the article's first content", readability: [{ candidateId: firstCapture.metadata.id, readable: true }], judgedBodies: 0 } as const
 			: directResources.length > 0
 			? { kind: "tie", candidateIds: directResources.map((source) => source.metadata.id), reason: "verified direct resource fetched in this save attempt", readability: directResources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
 			: proseUnchanged
 			? { kind: "tie", candidateIds: sources.map((source) => source.metadata.id), reason: "prose unchanged from the canonical", readability: sources.map((source) => ({ candidateId: source.metadata.id, readable: true })), judgedBodies: 0 } as const
-			: await judgeCandidates({ sources, originalUrl, selectMostCompleteContent: deps.selectMostCompleteContent });
+			: await judgeCandidates({ sources, originalUrl, selectMostCompleteContent: deps.selectMostCompleteContent, proseHashOf });
 		const audit = "audit" in decision ? decision.audit : undefined;
 		const chooseAmong = (tied: readonly VerifiedTierSource[]) => chooseTiedCandidate({
 			sources: tied,
