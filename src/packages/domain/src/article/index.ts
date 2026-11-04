@@ -71,6 +71,15 @@ export {
 export { isBlockedIpAddress } from "./blocked-address";
 export { isNonArticleHost } from "./non-article-host";
 export {
+	ANONYMOUS_VIEWER,
+	isPrivateItemUrl,
+	isPubliclyWithheld,
+	mayReadItem,
+	PRIVATE_ITEM_STUB_TITLE,
+	type Viewer,
+	viewerFor,
+} from "./private-item-access";
+export {
 	storedArticleBody,
 	type ArticleBody,
 	type StoredArticleBody,

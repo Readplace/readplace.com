@@ -1337,6 +1337,9 @@ importers:
       '@packages/escape-regexp':
         specifier: workspace:*
         version: link:../escape-regexp
+      '@packages/media-contracts':
+        specifier: workspace:*
+        version: link:../media-contracts
       '@packages/supported-clients':
         specifier: workspace:*
         version: link:../supported-clients
