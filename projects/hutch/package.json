@@ -65,6 +65,7 @@
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
     "@packages/inbox-store": "workspace:*",
+    "@packages/media-contracts": "workspace:*",
     "@packages/onboarding-extension-signal": "workspace:*",
     "@packages/onboarding-signals": "workspace:*",
     "@packages/provider-contracts": "workspace:*",

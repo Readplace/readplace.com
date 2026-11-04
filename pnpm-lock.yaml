@@ -426,6 +426,9 @@ importers:
       '@packages/inbox-store':
         specifier: workspace:*
         version: link:../../src/packages/inbox-store
+      '@packages/media-contracts':
+        specifier: workspace:*
+        version: link:../../src/packages/media-contracts
       '@packages/onboarding-extension-signal':
         specifier: workspace:*
         version: link:../../src/packages/onboarding-extension-signal

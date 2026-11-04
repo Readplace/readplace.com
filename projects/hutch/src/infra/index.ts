@@ -45,7 +45,9 @@ import {
 	SubscriptionChargeFailedEvent,
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
+	LinkDequeuedEvent,
 } from "@packages/hutch-infra-components";
+import { PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { ANALYTICS_EVENTS, ANALYTICS_LOG_GROUP, ERRORS_LOG_GROUP, ERRORS_LOG_GROUP_RETENTION_DAYS, GMAIL_CONNECTIONS_COUNT_EVENT, LAMBDA_NAMES, METRICS, READLIST_CAP_APPROACHED_EVENT, STREAMS } from "../runtime/observability/events";
@@ -93,6 +95,7 @@ const staticDomains = config.requireObject<string[]>("staticDomains");
 assert(staticDomains.length > 0, "staticDomains must have at least one entry");
 const staticBucketName = config.require("staticBucketName");
 const contentBucketName = config.require("contentBucketName");
+const mediaBucketName = config.require("mediaBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const userExportBucketName = config.require("userExportBucketName");
@@ -1302,6 +1305,64 @@ const sendTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
 );
 
 eventBus.subscribe(SendTrialFeedbackEmailCommand, sendTrialFeedbackEmailWithSQS);
+
+const mediaReleaseDynamodb = new HutchDynamoDBAccess("media-release-dynamodb", {
+	tables: [
+		{ arn: storage.articlesTable.arn, includeIndexes: false },
+		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:DeleteItem"],
+});
+
+const mediaReleaseS3Policy = {
+	name: "media-release-s3-delete",
+	policy: JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [
+			{
+				Effect: "Allow",
+				Action: ["s3:DeleteObject"],
+				Resource: [`arn:aws:s3:::${contentBucketName}/*`, `arn:aws:s3:::${mediaBucketName}/pending/*`],
+			},
+			{
+				Effect: "Allow",
+				Action: ["s3:ListBucket"],
+				Resource: [`arn:aws:s3:::${contentBucketName}`],
+			},
+		],
+	}),
+};
+
+const mediaReleaseQueue = new HutchSQS("media-release", {
+	visibilityTimeoutSeconds: 2 * 60,
+});
+
+const mediaReleaseLambda = new HutchLambda("media-release", {
+	entryPoint: "./src/runtime/media-release.main.ts",
+	outputDir: ".lib/media-release",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		MEDIA_BUCKET_NAME: mediaBucketName,
+	},
+	policies: [...mediaReleaseDynamodb.policies, mediaReleaseS3Policy],
+});
+
+const mediaReleaseWithSQS = new HutchSQSBackedLambda("media-release", {
+	lambda: mediaReleaseLambda,
+	queue: mediaReleaseQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(LinkDequeuedEvent, mediaReleaseWithSQS, {
+	name: "hutch-media-release",
+	detail: { url: [{ prefix: `https://${PRIVATE_ITEM_HOST}/` }] },
+});
 
 // --- Send First Inbox Email Notice ---
 
