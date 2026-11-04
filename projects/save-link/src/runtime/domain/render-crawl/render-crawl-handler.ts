@@ -22,7 +22,7 @@ import {
 	initCommitDeferredCrawl,
 } from "../crawl-article-state/commit-deferred-crawl";
 import type { AdoptCanonicalIdentity } from "../save-link/adopt-canonical-identity";
-import type { RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
+import type { BrowserEgress, RenderOutcome, RenderPage, ResidentialEgress, WebUnlockerEgress } from "../../providers/render-page/render-page.types";
 import {
 	type Escalation,
 	type FetchLegReport,
@@ -33,7 +33,12 @@ import {
 	type RenderLegReport,
 	runRenderLadder,
 } from "./render-ladder";
-import type { ReportProxiedRenderAttempt } from "./report-proxied-render-attempt";
+import type { ProxiedRenderLeg, ReportProxiedRenderAttempt } from "./report-proxied-render-attempt";
+
+const PROXIED_RENDER_LEG: Record<Exclude<BrowserEgress["kind"], "direct">, ProxiedRenderLeg> = {
+	residential: "residential-per-gb",
+	"web-unlocker": "web-unlocker-render",
+};
 
 function withoutResourceHosts({ resourceHosts: _resourceHosts, ...outcome }: RenderOutcome) {
 	return outcome;
@@ -207,9 +212,9 @@ export function initRenderCrawlHandler(deps: {
 		const { url } = ctx;
 		const { renderedThrough } = render;
 		logger.info(`${logPrefix} rendered`, { url, renderedThrough, httpStatus: render.httpStatus, requests: render.requests });
-		const proxiedRender = renderedThrough === "direct-egress" ? undefined : render;
+		const proxiedLeg = renderedThrough === "direct-egress" ? undefined : renderedThrough;
 		if (Buffer.byteLength(render.html) > MAX_HTML_BYTES.bytes) {
-			if (proxiedRender !== undefined) deps.reportProxiedRenderAttempt({ outcome: proxiedRender, readability: "unknown", saveAttemptId: ctx.saveAttemptId });
+			if (proxiedLeg !== undefined) deps.reportProxiedRenderAttempt({ outcome: render, readability: "unknown", saveAttemptId: ctx.saveAttemptId, renderedThrough: proxiedLeg });
 			await settleTooLarge(render, ctx);
 			await backOffRefresh(ctx);
 			return { kind: "settled" };
@@ -222,9 +227,9 @@ export function initRenderCrawlHandler(deps: {
 			renderedThrough,
 		};
 		const committed = escalation === "available" ? await commitReadableBody(body, ctx) : await commitFetchedBody(body, ctx);
-		if (proxiedRender !== undefined) {
+		if (proxiedLeg !== undefined) {
 			const readability = committed.via === "deferred-to-event" && committed.readable ? "readable" : "unreadable";
-			deps.reportProxiedRenderAttempt({ outcome: proxiedRender, readability, saveAttemptId: ctx.saveAttemptId });
+			deps.reportProxiedRenderAttempt({ outcome: render, readability, saveAttemptId: ctx.saveAttemptId, renderedThrough: proxiedLeg });
 		}
 		if (committed.via !== "unreadable") return { kind: "settled" };
 		const detail = `no readable article after render (${renderedThrough}): ${committed.reason}`;
@@ -332,7 +337,7 @@ export function initRenderCrawlHandler(deps: {
 					renderPage: async (params) => {
 						const outcome = await deps.renderPage(params);
 						if (params.egress.kind !== "direct" && outcome.kind !== "rendered") {
-							deps.reportProxiedRenderAttempt({ outcome, readability: "unreadable", saveAttemptId });
+							deps.reportProxiedRenderAttempt({ outcome, readability: "unreadable", saveAttemptId, renderedThrough: PROXIED_RENDER_LEG[params.egress.kind] });
 						}
 						return outcome;
 					},

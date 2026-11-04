@@ -1,7 +1,7 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import type { RenderOutcome } from "../../providers/render-page/render-page.types";
-import { initReportProxiedRenderAttempt, type RenderRequestDiagnostics } from "./report-proxied-render-attempt";
+import { initReportProxiedRenderAttempt, type ProxiedRenderLeg, type RenderRequestDiagnostics } from "./report-proxied-render-attempt";
 
 const saveAttemptId = SaveAttemptIdSchema.parse("attempt-1");
 
@@ -38,13 +38,14 @@ function reporterLogging(diagnostics: RenderRequestDiagnostics) {
 }
 
 describe("initReportProxiedRenderAttempt", () => {
-	const summary = [
+	const summary = (renderedThrough: ProxiedRenderLeg) => [
 		"[RenderCrawlCommand] render attempt summary",
 		{
 			stream: "render-attempt-summary",
 			attemptId: "render-attempt-7",
 			saveAttemptId: "attempt-1",
 			policy: "same-site-scripts",
+			renderedThrough,
 			proxiedRequestLimit: 12,
 			outcome: "failed",
 			readability: "unreadable",
@@ -60,29 +61,29 @@ describe("initReportProxiedRenderAttempt", () => {
 		},
 	];
 
-	it("logs one host row per bucket, then the attempt summary, under one render-attempt id", () => {
+	it.each<ProxiedRenderLeg>(["residential-per-gb", "web-unlocker-render"])("logs one host row per bucket, then the attempt summary, under one render-attempt id, all naming the %s leg", (renderedThrough) => {
 		const { info, report } = reporterLogging("hosts");
 
-		report({ outcome: proxiedFailure, readability: "unreadable", saveAttemptId });
+		report({ outcome: proxiedFailure, readability: "unreadable", saveAttemptId, renderedThrough });
 
 		expect(info.mock.calls).toEqual([
 			[
 				"[RenderCrawlCommand] render resource hosts",
-				{ stream: "render-resource-hosts", attemptId: "render-attempt-7", policy: "same-site-scripts", documentSite: "example-news.test", requestHost: "www.example-news.test", resourceType: "document", navigation: true, route: "proxy", requests: 1, response2xx: 1, responseOther: 0, failed: 0 },
+				{ stream: "render-resource-hosts", attemptId: "render-attempt-7", policy: "same-site-scripts", renderedThrough, documentSite: "example-news.test", requestHost: "www.example-news.test", resourceType: "document", navigation: true, route: "proxy", requests: 1, response2xx: 1, responseOther: 0, failed: 0 },
 			],
 			[
 				"[RenderCrawlCommand] render resource hosts",
-				{ stream: "render-resource-hosts", attemptId: "render-attempt-7", policy: "same-site-scripts", documentSite: "example-news.test", requestHost: "cdn.analytics-vendor.test", resourceType: "script", navigation: false, route: "aborted-site", requests: 5, response2xx: 0, responseOther: 0, failed: 0 },
+				{ stream: "render-resource-hosts", attemptId: "render-attempt-7", policy: "same-site-scripts", renderedThrough, documentSite: "example-news.test", requestHost: "cdn.analytics-vendor.test", resourceType: "script", navigation: false, route: "aborted-site", requests: 5, response2xx: 0, responseOther: 0, failed: 0 },
 			],
-			summary,
+			summary(renderedThrough),
 		]);
 	});
 
 	it("logs only the attempt summary when host diagnostics are off", () => {
 		const { info, report } = reporterLogging("off");
 
-		report({ outcome: proxiedFailure, readability: "unreadable", saveAttemptId });
+		report({ outcome: proxiedFailure, readability: "unreadable", saveAttemptId, renderedThrough: "web-unlocker-render" });
 
-		expect(info.mock.calls).toEqual([summary]);
+		expect(info.mock.calls).toEqual([summary("web-unlocker-render")]);
 	});
 });

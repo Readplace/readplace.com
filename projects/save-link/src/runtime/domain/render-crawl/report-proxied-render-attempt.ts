@@ -1,8 +1,11 @@
 import type { SaveAttemptId } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { RenderOutcome } from "../../providers/render-page/render-page.types";
+import type { RenderedThrough } from "./render-ladder";
 
 export type RenderRequestDiagnostics = "off" | "hosts";
+
+export type ProxiedRenderLeg = Exclude<RenderedThrough, "direct-egress">;
 
 export type RenderReadability = "readable" | "unreadable" | "unknown";
 
@@ -10,6 +13,7 @@ export type ReportProxiedRenderAttempt = (attempt: {
 	outcome: RenderOutcome;
 	readability: RenderReadability;
 	saveAttemptId: SaveAttemptId;
+	renderedThrough: ProxiedRenderLeg;
 }) => void;
 
 export function initReportProxiedRenderAttempt(deps: {
@@ -17,7 +21,7 @@ export function initReportProxiedRenderAttempt(deps: {
 	diagnostics: RenderRequestDiagnostics;
 	newRenderAttemptId: () => string;
 }): ReportProxiedRenderAttempt {
-	return ({ outcome, readability, saveAttemptId }) => {
+	return ({ outcome, readability, saveAttemptId, renderedThrough }) => {
 		const attemptId = deps.newRenderAttemptId();
 		const { requests, resourceHosts } = outcome;
 		if (deps.diagnostics === "hosts") {
@@ -26,6 +30,7 @@ export function initReportProxiedRenderAttempt(deps: {
 					stream: "render-resource-hosts",
 					attemptId,
 					policy: requests.policy,
+					renderedThrough,
 					...bucket,
 				});
 			}
@@ -35,6 +40,7 @@ export function initReportProxiedRenderAttempt(deps: {
 			attemptId,
 			saveAttemptId,
 			policy: requests.policy,
+			renderedThrough,
 			proxiedRequestLimit: requests.proxiedRequestLimit,
 			outcome: outcome.kind,
 			readability,

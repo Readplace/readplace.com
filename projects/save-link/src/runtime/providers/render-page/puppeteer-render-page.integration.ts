@@ -138,7 +138,7 @@ function articleDisplay(outcome: RenderOutcome): string | undefined {
 
 const packagedChromeAvailable = process.platform === "linux";
 
-describe("puppeteer render page through a residential proxy", { skip: packagedChromeAvailable ? false : "the packaged @sparticuz/chromium binary runs on Linux only" }, () => {
+describe("puppeteer render page through a Web Unlocker proxy", { skip: packagedChromeAvailable ? false : "the packaged @sparticuz/chromium binary runs on Linux only" }, () => {
 	const proxied: string[] = [];
 	const articleServer = createServer();
 	const crossSiteServer = createServer(crossSiteOriginHandler);

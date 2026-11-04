@@ -978,7 +978,7 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL });
 
-			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[{ outcome: { ...proxied, renderedThrough: "residential-per-gb" }, readability: "readable", saveAttemptId: "attempt-1" }]]);
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[{ outcome: { ...proxied, renderedThrough: "residential-per-gb" }, readability: "readable", saveAttemptId: "attempt-1", renderedThrough: "residential-per-gb" }]]);
 		});
 
 		it("reports a proxied render finalize cannot read as unreadable", async () => {
@@ -986,7 +986,10 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL });
 
-			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "unreadable" }));
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([
+				[{ outcome: { ...rendered(), renderedThrough: "residential-per-gb" }, readability: "unreadable", saveAttemptId: "attempt-1", renderedThrough: "residential-per-gb" }],
+				[{ outcome: { ...rendered(), renderedThrough: "web-unlocker-render" }, readability: "unreadable", saveAttemptId: "attempt-1", renderedThrough: "web-unlocker-render" }],
+			]);
 		});
 
 		it("reports an unreadable proxied render as unreadable even when wrapper candidates carry the save on", async () => {
@@ -994,15 +997,19 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL, candidates: wrapperRefs });
 
-			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "unreadable" }));
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([
+				[{ outcome: { ...rendered(), renderedThrough: "residential-per-gb" }, readability: "unreadable", saveAttemptId: "attempt-1", renderedThrough: "residential-per-gb" }],
+				[{ outcome: { ...rendered(), renderedThrough: "web-unlocker-render" }, readability: "unreadable", saveAttemptId: "attempt-1", renderedThrough: "web-unlocker-render" }],
+			]);
 		});
 
 		it("reports an oversized proxied render as unknown, since no readability check ran", async () => {
-			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: blocked(403), residential: rendered({ html: "a".repeat(MAX_HTML_BYTES.bytes + 1) }) }) });
+			const oversized = rendered({ html: "a".repeat(MAX_HTML_BYTES.bytes + 1) });
+			const { reportProxiedRenderAttempt, handler } = reportFor({ renderPage: renderPageAnswering({ direct: blocked(403), residential: oversized }) });
 
 			await run(handler, { url: URL });
 
-			expect(reportProxiedRenderAttempt).toHaveBeenCalledWith(expect.objectContaining({ readability: "unknown" }));
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[{ outcome: { ...oversized, renderedThrough: "residential-per-gb" }, readability: "unknown", saveAttemptId: "attempt-1", renderedThrough: "residential-per-gb" }]]);
 		});
 
 		it("reports each failed proxied render with that leg's outcome", async () => {
@@ -1013,8 +1020,8 @@ describe("initRenderCrawlHandler", () => {
 			await run(handler, { url: URL });
 
 			expect(reportProxiedRenderAttempt.mock.calls).toEqual([
-				[{ outcome: residential, readability: "unreadable", saveAttemptId: "attempt-1" }],
-				[{ outcome: webUnlocker, readability: "unreadable", saveAttemptId: "attempt-1" }],
+				[{ outcome: residential, readability: "unreadable", saveAttemptId: "attempt-1", renderedThrough: "residential-per-gb" }],
+				[{ outcome: webUnlocker, readability: "unreadable", saveAttemptId: "attempt-1", renderedThrough: "web-unlocker-render" }],
 			]);
 		});
 
@@ -1026,7 +1033,7 @@ describe("initRenderCrawlHandler", () => {
 
 			await run(handler, { url: URL, unsupportedReason: "blocked" });
 
-			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[expect.objectContaining({ readability: "readable" })]]);
+			expect(reportProxiedRenderAttempt.mock.calls).toEqual([[expect.objectContaining({ readability: "readable", renderedThrough: "residential-per-gb" })]]);
 		});
 
 		it.each<{ label: string; overrides: Partial<HandlerDeps> }>([
