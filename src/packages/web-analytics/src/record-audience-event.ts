@@ -1,6 +1,6 @@
 import type { Request } from "express";
 import type { Logger } from "@packages/logger";
-import { isBotRequest } from "./analytics";
+import { isBotRequest } from "./user-agent";
 
 export type RecordAudienceEvent<T> = (req: Request, event: T) => void;
 

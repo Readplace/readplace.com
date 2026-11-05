@@ -1,6 +1,6 @@
 import type { Response } from "express";
 import { z } from "zod";
-import { baseCookieOptions } from "@packages/web-analytics";
+import { defineCookie } from "@packages/web-analytics";
 
 export const PENDING_SAVE_COOKIE_NAME = "hutch_psid";
 
@@ -15,33 +15,32 @@ const PENDING_SAVE_COOKIE_MAX_AGE_MS = 60 * 60 * 1000;
 
 const PendingSaveIdSchema = z.string().uuid();
 
+const pendingSaveCookie = defineCookie({
+	name: PENDING_SAVE_COOKIE_NAME,
+	maxAgeMs: PENDING_SAVE_COOKIE_MAX_AGE_MS,
+	sameSite: "lax",
+	httpOnly: true,
+	schema: PendingSaveIdSchema,
+});
+
 export function setPendingSaveId(deps: { res: Response; secure: boolean }, id: string): void {
-	deps.res.cookie(PENDING_SAVE_COOKIE_NAME, id, {
-		...baseCookieOptions(deps.secure),
-		maxAge: PENDING_SAVE_COOKIE_MAX_AGE_MS,
-	});
+	pendingSaveCookie.set({ res: deps.res, value: id, secure: deps.secure });
 }
 
 /** A cookie that fails validation is treated as absent so a tampered value
  * never reaches the conversion event. */
 export function readPendingSaveId(req: { cookies?: Record<string, unknown> }): string | undefined {
-	const raw = req.cookies?.[PENDING_SAVE_COOKIE_NAME];
-	if (typeof raw !== "string") return undefined;
-	const parsed = PendingSaveIdSchema.safeParse(raw);
-	return parsed.success ? parsed.data : undefined;
+	return pendingSaveCookie.read(req);
 }
 
 /** Reads the pending-save id and clears the cookie in the same step so a held
  * save is consumed exactly once. Without clearing, a second signup on the same
  * browser within the cookie's TTL would inherit the first save's id and
  * double-attribute one pending save to two accounts. The clear is
- * unconditional (matching the logout/oauth-state cookie clears) and uses path
- * "/" to match the cookie `setPendingSaveId` writes via `baseCookieOptions`. */
+ * unconditional (matching the logout/oauth-state cookie clears). */
 export function consumePendingSaveId(deps: {
 	req: { cookies?: Record<string, unknown> };
 	res: { clearCookie: (name: string, options: { path: string }) => void };
 }): string | undefined {
-	const id = readPendingSaveId(deps.req);
-	deps.res.clearCookie(PENDING_SAVE_COOKIE_NAME, { path: "/" });
-	return id;
+	return pendingSaveCookie.consume(deps);
 }

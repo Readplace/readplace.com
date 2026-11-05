@@ -27,9 +27,8 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { oauthClientIdFrom } from "./oauth-client-id";
-import { baseCookieOptions } from "@packages/web-analytics";
-import { SESSION_COOKIE_NAME } from "@packages/web-session";
-import { persistentSessionCookieOptions } from "./session-cookie-options";
+import { defineCookie } from "@packages/web-analytics";
+import { sessionCookie } from "../session-cookie";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "@packages/web-analytics";
@@ -58,6 +57,7 @@ const StatePayloadSchema = z.object({
 
 const STATE_COOKIE = "hutch_gstate";
 const STATE_TTL_MS = 5 * 60 * 1000;
+const googleStateCookie = defineCookie({ name: STATE_COOKIE, maxAgeMs: STATE_TTL_MS, sameSite: "lax", httpOnly: true, schema: z.string() });
 
 interface GoogleAuthDependencies {
 	googleClientId: string;
@@ -88,9 +88,8 @@ interface GoogleAuthDependencies {
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 	const router = express.Router();
-	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 	const signIn = (res: Response, sessionId: string): void => {
-		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
 		res.set("Clear-Site-Data", '"storage"');
 		setLastAuthProvider({ res, secure: deps.secureCookies }, "google");
 	};
@@ -117,10 +116,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const statePayload = JSON.stringify({ nonce, returnUrl, createdAt });
 		const signedState = signState({ payload: statePayload, secret: deps.googleClientSecret });
 
-		res.cookie(STATE_COOKIE, signedState, {
-			...baseCookieOptions(deps.secureCookies),
-			maxAge: STATE_TTL_MS,
-		});
+		googleStateCookie.set({ res, value: signedState, secure: deps.secureCookies });
 
 		const params = new URLSearchParams({
 			client_id: deps.googleClientId,

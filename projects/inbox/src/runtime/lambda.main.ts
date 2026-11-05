@@ -8,7 +8,7 @@ import serverless from "serverless-http";
 import { S3Client } from "@aws-sdk/client-s3";
 import { Logger, consoleLogger, formatErrorLogLine } from "@packages/logger";
 import { createDynamoDocumentClient } from "@packages/storage-client";
-import { initGetSessionUserId, initResolveLogin, initObserveSession } from "@packages/web-session";
+import { initResolveWebsiteLogin } from "@packages/web-session";
 import {
 	initDynamoDbInboxAddress,
 	initDynamoDbInboxEmail,
@@ -42,11 +42,14 @@ const s3Client = new S3Client({});
 
 const sessionsTableName = requireEnv("DYNAMODB_SESSIONS_TABLE");
 
-const getSessionUserId = initGetSessionUserId({
-	client, sessionsTableName,
-	observeSession: initObserveSession({ salt: requireEnv("ANALYTICS_SALT"), now: () => new Date(), logger: Logger.fromJSON<Record<string, unknown>>(), context: () => ({ client: "web", surface: "website" }) }),
+const resolveLogin = initResolveWebsiteLogin({
+	client,
+	sessionsTableName,
+	salt: requireEnv("ANALYTICS_SALT"),
+	now: () => new Date(),
+	logger,
+	journalLogger: Logger.fromJSON<Record<string, unknown>>(),
 });
-const resolveLogin = initResolveLogin({ getSessionUserId, logger });
 
 const userStanding = initDynamoDbUserStanding({
 	client,

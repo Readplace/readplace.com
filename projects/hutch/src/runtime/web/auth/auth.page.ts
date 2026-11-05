@@ -60,7 +60,7 @@ import { oauthClientIdFrom } from "./oauth-client-id";
 import { suppressClickCount } from "@packages/web-analytics";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { readLastAuthProvider } from "../last-auth-provider";
-import { persistentSessionCookieOptions } from "./session-cookie-options";
+import { sessionCookie } from "../session-cookie";
 import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
@@ -150,7 +150,6 @@ interface AuthDependencies {
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
 	const router = express.Router();
-	const sessionCookieOptions = persistentSessionCookieOptions(deps.secureCookies);
 
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
@@ -267,7 +266,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		res.cookie(SESSION_COOKIE_NAME, signIn.sessionId, sessionCookieOptions);
+		sessionCookie.set({ res, value: signIn.sessionId, secure: deps.secureCookies });
 		res.set("Clear-Site-Data", '"storage"');
 		res.redirect(303, parseReturnUrl(req.query));
 	});
@@ -333,7 +332,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				]);
 				return;
 			}
-			res.cookie(SESSION_COOKIE_NAME, signIn.sessionId, sessionCookieOptions);
+			sessionCookie.set({ res, value: signIn.sessionId, secure: deps.secureCookies });
 			res.set("Clear-Site-Data", '"storage"');
 			logSignupAttempt(SIGNUP_OUTCOMES.signedIn);
 			res.redirect(303, parseReturnUrl(req.query));
@@ -394,7 +393,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			}
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+			sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
 			res.set("Clear-Site-Data", '"storage"');
 			await sendVerificationEmail(created.userId, email);
 			logSignupAttempt(SIGNUP_OUTCOMES.created);
@@ -442,7 +441,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		});
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
 		res.set("Clear-Site-Data", '"storage"');
 		await sendVerificationEmail(created.userId, email);
 		logSignupAttempt(SIGNUP_OUTCOMES.created);
@@ -676,7 +675,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			assert(presentedSessionId, "a resolved req.userId must come from a session cookie");
 			const outcome = await deps.renewSession({ sessionId: presentedSessionId, oauthGrantId: binding });
 			if (outcome === "renewed") {
-				res.cookie(SESSION_COOKIE_NAME, presentedSessionId, sessionCookieOptions);
+				sessionCookie.set({ res, value: presentedSessionId, secure: deps.secureCookies });
 				res.status(204).end();
 				return;
 			}
@@ -686,7 +685,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			emailVerified: validated.emailVerified,
 			oauthGrantId: binding,
 		});
-		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		sessionCookie.set({ res, value: sessionId, secure: deps.secureCookies });
 		res.status(204).end();
 	});
 

@@ -7,6 +7,12 @@ import {
 } from "@packages/test-fixtures";
 import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { CLICK_COOKIE_NAME, VISITOR_COOKIE_NAME } from "@packages/web-analytics";
+import {
+	ALIVE_COOKIE_NAME,
+	SAVE_COOKIE_NAME,
+	SAVE_COOKIE_VALUE,
+} from "@packages/onboarding-extension-signal";
+import { SIREN_MEDIA_TYPE } from "./api/siren";
 
 const HTTPS_APP_ORIGIN = "https://readplace.com";
 
@@ -54,6 +60,23 @@ describe("Cookie Secure attribute", () => {
 			expect(cookie).toContain("; SameSite=Lax");
 			expect(cookie).toContain("; Path=/");
 		});
+
+		it("sets the extension liveness cookies with Secure, HttpOnly and SameSite=Lax on a Siren request", async () => {
+			const harness = useApp(createDefaultTestAppFixture(HTTPS_APP_ORIGIN));
+			const response = await request(harness.server)
+				.get("/")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Cookie", `${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`)
+				.redirects(0);
+
+			for (const name of [ALIVE_COOKIE_NAME, SAVE_COOKIE_NAME]) {
+				const cookie = findCookie(response.headers, name);
+				expect(cookie).toContain("; Secure");
+				expect(cookie).toContain("; HttpOnly");
+				expect(cookie).toContain("; SameSite=Lax");
+				expect(cookie).toContain("; Path=/");
+			}
+		});
 	});
 
 	describe("local plain-http dev origin", () => {
@@ -79,6 +102,22 @@ describe("Cookie Secure attribute", () => {
 			expect(cookie).not.toContain("; Secure");
 			expect(cookie).toContain("; HttpOnly");
 			expect(cookie).toContain("; SameSite=Lax");
+		});
+
+		it("still sets the extension liveness cookies on a Siren request, without Secure", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.get("/")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Cookie", `${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`)
+				.redirects(0);
+
+			for (const name of [ALIVE_COOKIE_NAME, SAVE_COOKIE_NAME]) {
+				const cookie = findCookie(response.headers, name);
+				expect(cookie).not.toContain("; Secure");
+				expect(cookie).toContain("; HttpOnly");
+				expect(cookie).toContain("; SameSite=Lax");
+			}
 		});
 	});
 });

@@ -855,7 +855,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use(resolveVerificationStatus);
 
-	const markExtensionInstalled = initMarkExtensionInstalled();
+	const markExtensionInstalled = initMarkExtensionInstalled({ secureCookies });
 	app.use(markExtensionInstalled);
 
 	const requireWriteAccess = initRequireWriteAccess({
