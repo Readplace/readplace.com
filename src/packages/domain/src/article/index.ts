@@ -157,3 +157,4 @@ export {
 	type ReadTimeBucketId,
 	type SavedWindowId,
 } from "./article-discovery";
+export { resolutionOnViewCoolDownCutoff } from "./resolution-on-view-cool-down";

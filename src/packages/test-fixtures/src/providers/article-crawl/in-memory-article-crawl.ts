@@ -28,10 +28,18 @@ export function initInMemoryArticleCrawl(): {
 	isMeteredLegsDeferred: (url: string) => boolean;
 	crawlStateOf: (url: string) => ArticleCrawl | undefined;
 	resumeMeteredLegs: (url: string) => void;
+	stampResolutionOnViewClaim: (params: { url: string; claimedAt: string }) => void;
 } {
 	const states = new Map<string, ArticleCrawl>();
 	const meteredLegsDeferred = new Set<string>();
 	const outcomeRevisions = new Map<string, number>();
+	const resolutionOnViewClaims = new Map<string, string>();
+
+	const withClaimStamp = (key: string, crawl: ArticleCrawl | undefined): ArticleCrawl | undefined => {
+		const claimedAt = resolutionOnViewClaims.get(key);
+		if (crawl === undefined || claimedAt === undefined) return crawl;
+		return { ...crawl, resolutionOnViewClaimedAt: claimedAt };
+	};
 
 	function bumpOutcomeRevision(key: string): number {
 		const next = (outcomeRevisions.get(key) ?? 0) + 1;
@@ -41,7 +49,7 @@ export function initInMemoryArticleCrawl(): {
 
 	const findArticleCrawlStatus: FindArticleCrawlStatus = async (url) => {
 		const id = ArticleResourceUniqueId.parse(url);
-		return states.get(id.value);
+		return withClaimStamp(id.value, states.get(id.value));
 	};
 
 	const markCrawlPending: MarkCrawlPending = async ({ url, meteredLegs }) => {
@@ -116,14 +124,21 @@ export function initInMemoryArticleCrawl(): {
 	const isMeteredLegsDeferred = (url: string): boolean =>
 		meteredLegsDeferred.has(ArticleResourceUniqueId.parse(url).value);
 
-	const crawlStateOf = (url: string): ArticleCrawl | undefined =>
-		states.get(ArticleResourceUniqueId.parse(url).value);
+	const crawlStateOf = (url: string): ArticleCrawl | undefined => {
+		const key = ArticleResourceUniqueId.parse(url).value;
+		return withClaimStamp(key, states.get(key));
+	};
 
 	const resumeMeteredLegs = (url: string): void => {
 		meteredLegsDeferred.delete(ArticleResourceUniqueId.parse(url).value);
 	};
 
+	const stampResolutionOnViewClaim = ({ url, claimedAt }: { url: string; claimedAt: string }): void => {
+		resolutionOnViewClaims.set(ArticleResourceUniqueId.parse(url).value, claimedAt);
+	};
+
 	return {
+		stampResolutionOnViewClaim,
 		isMeteredLegsDeferred,
 		crawlStateOf,
 		resumeMeteredLegs,

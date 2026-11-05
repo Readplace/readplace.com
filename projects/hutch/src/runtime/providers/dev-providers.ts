@@ -471,11 +471,12 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		await finaliseSummaryFromContent({ url: params.url, html });
 	};
 	const requestResolutionOnView = initRequestResolutionOnView({
-		claimResolutionOnView: initInMemoryClaimResolutionOnView({ crawl: crawlStore, summary: summaryStore, findItemOwner: articleStore.findItemOwner }),
+		claimResolutionOnView: initInMemoryClaimResolutionOnView({ crawl: crawlStore, summary: summaryStore, findItemOwner: articleStore.findItemOwner, now: () => new Date() }),
 		publishResolveArticleOnView,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		logger,
+		now: () => new Date(),
 	});
 	const { findRelatedArticles, readSettledNextRead, forgetRow: forgetNextReadRow } = initInMemoryRelatedArticles({
 		findArticleByUrl: articleStore.findArticleByUrl,

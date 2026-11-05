@@ -1,4 +1,4 @@
-import { newSaveAttemptId, type ShownSummary, type Viewer } from "@packages/domain/article";
+import { newSaveAttemptId, resolutionOnViewCoolDownCutoff, type ShownSummary, type Viewer } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ArticleCrawl, FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
 import type { ClaimResolutionOnView, ResolutionAxes } from "@packages/provider-contracts/article-resolution-on-view";
@@ -18,7 +18,21 @@ export type RequestResolutionOnView = (params: {
 	articles: readonly { url: string; crawl: ArticleCrawl | undefined; summary: ShownSummary | undefined }[];
 }) => Promise<ReadonlyMap<string, ResolvedOnView>>;
 
-function axesOf(need: ResolutionOnViewNeed): ResolutionAxes[] {
+type ResolutionOnViewDecision = ResolutionOnViewNeed | "cooling-down";
+
+const COOLS_DOWN: ReadonlySet<ResolutionOnViewNeed> = new Set(["crawl-and-summary", "summary"]);
+
+function coolDownNeed(params: {
+	need: ResolutionOnViewNeed;
+	crawl: ArticleCrawl | undefined;
+	coolDownCutoff: string;
+}): ResolutionOnViewDecision {
+	const claimedAt = params.crawl?.resolutionOnViewClaimedAt;
+	if (claimedAt === undefined || claimedAt < params.coolDownCutoff || !COOLS_DOWN.has(params.need)) return params.need;
+	return "cooling-down";
+}
+
+function axesOf(need: ResolutionOnViewDecision): ResolutionAxes[] {
 	return need === "crawl-and-summary" || need === "summary" ? [need] : [];
 }
 
@@ -28,6 +42,7 @@ export function initRequestResolutionOnView(deps: {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	findGeneratedSummary: FindGeneratedSummary;
 	logger: HutchLogger;
+	now: () => Date;
 }): RequestResolutionOnView {
 	const publish = async (params: { url: string; axes: ResolutionAxes; surface: ResolveOnViewSurface }) => {
 		try {
@@ -38,7 +53,11 @@ export function initRequestResolutionOnView(deps: {
 	};
 
 	return async ({ surface, viewer, viewerCanCapture, articles }) => {
-		const needs = articles.map((article) => ({ url: article.url, need: needsResolutionOnView({ ...article, viewerCanCapture }) }));
+		const coolDownCutoff = resolutionOnViewCoolDownCutoff(deps.now());
+		const needs = articles.map((article) => ({
+			url: article.url,
+			need: coolDownNeed({ need: needsResolutionOnView({ ...article, viewerCanCapture }), crawl: article.crawl, coolDownCutoff }),
+		}));
 		const eligible = needs.flatMap(({ url, need }) => axesOf(need).map((axes) => ({ url, axes })));
 		const outcomes = await Promise.all(
 			eligible.map(async ({ url, axes }) => {
@@ -58,6 +77,7 @@ export function initRequestResolutionOnView(deps: {
 			seen: articles.length,
 			eligible: eligible.length,
 			deviceFirst: needs.filter(({ need }) => need === "device-first").length,
+			coolingDown: needs.filter(({ need }) => need === "cooling-down").length,
 			claimed,
 			lostRace: outcomes.length - claimed,
 		});

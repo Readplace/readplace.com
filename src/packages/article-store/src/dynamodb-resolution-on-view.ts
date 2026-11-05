@@ -4,7 +4,7 @@ import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 } from "@packages/hutch-storage-client";
-import { shownSummary } from "@packages/domain/article";
+import { resolutionOnViewCoolDownCutoff, shownSummary } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	ClaimResolutionOnView,
@@ -18,15 +18,16 @@ const ResolutionOnViewRow = ArticleCrawlRow.extend(ArticleSummaryRow.shape);
 const CLAIM_BY_AXES: Record<ResolutionAxes, { UpdateExpression: string; ConditionExpression: string; values: Record<string, string> }> = {
 	"crawl-and-summary": {
 		UpdateExpression:
-			"SET crawlStatus = :pending, crawlPendingSince = :now, summaryStatus = :pending, summaryPendingSince = :now REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince",
-		ConditionExpression: "crawlStatus IN (:failed, :unsupported)",
+			"SET crawlStatus = :pending, crawlPendingSince = :now, summaryStatus = :pending, summaryPendingSince = :now, resolutionOnViewClaimedAt = :now REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince",
+		ConditionExpression:
+			"crawlStatus IN (:failed, :unsupported) AND (attribute_not_exists(resolutionOnViewClaimedAt) OR resolutionOnViewClaimedAt < :coolDownCutoff)",
 		values: { ":failed": "failed", ":unsupported": "unsupported" },
 	},
 	summary: {
 		UpdateExpression:
-			"SET summaryStatus = :pending, summaryPendingSince = :now REMOVE summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince",
+			"SET summaryStatus = :pending, summaryPendingSince = :now, resolutionOnViewClaimedAt = :now REMOVE summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince",
 		ConditionExpression:
-			"crawlStatus = :ready AND (summaryStatus = :failed OR (summaryStatus = :skipped AND summarySkippedReason IN (:awaitingReader, :aiUnavailable)))",
+			"crawlStatus = :ready AND (summaryStatus = :failed OR (summaryStatus = :skipped AND summarySkippedReason IN (:awaitingReader, :aiUnavailable))) AND (attribute_not_exists(resolutionOnViewClaimedAt) OR resolutionOnViewClaimedAt < :coolDownCutoff)",
 		values: {
 			":ready": "ready",
 			":failed": "failed",
@@ -51,6 +52,7 @@ export function initDynamoDbClaimResolutionOnView(deps: {
 	return async ({ url, axes, viewer }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const claim = CLAIM_BY_AXES[axes];
+		const now = deps.now();
 		try {
 			const { Attributes: row } = await table.update({
 				Key: { url: articleResourceUniqueId.value },
@@ -58,7 +60,8 @@ export function initDynamoDbClaimResolutionOnView(deps: {
 				ConditionExpression: claim.ConditionExpression,
 				ExpressionAttributeValues: {
 					":pending": "pending",
-					":now": deps.now().toISOString(),
+					":now": now.toISOString(),
+					":coolDownCutoff": resolutionOnViewCoolDownCutoff(now),
 					...claim.values,
 				},
 				ReturnValues: "ALL_NEW",

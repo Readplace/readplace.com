@@ -91,6 +91,19 @@ describe("the queue list resolves a parked article a reader sees", () => {
 		expect(commandsFor(url)).toHaveLength(1);
 	});
 
+	it("publishes nothing and keeps the card terminal when the reader returns within the cool-down of a claim that failed again", async () => {
+		const url = "https://example.com/failed-again";
+		const { agent, fail, commandsFor } = await readerWithSaves([url]);
+		await fail(url, EDGE_BLOCK);
+		await agent.get("/queue");
+		await fail(url, EDGE_BLOCK);
+
+		const second = await agent.get("/queue");
+
+		expect(cardFor(second.text, url).getAttribute("data-card-status")).toBe("terminal");
+		expect(commandsFor(url)).toHaveLength(1);
+	});
+
 	it("resolves a row once a later page shows it", async () => {
 		const urls = Array.from({ length: 21 }, (_, index) => `https://example.com/p-${index}`);
 		const { agent, park, commandsFor } = await readerWithSaves(urls);
@@ -174,6 +187,19 @@ describe("the Siren queue list resolves a parked article a client sees", () => {
 		expect(sirenEntityFor(claimed.body, url).properties).not.toEqual(
 			expect.objectContaining({ contentVersion: sirenEntityFor(unclaimed.body, url).properties.contentVersion }),
 		);
+	});
+
+	it("claims a failed row once and publishes nothing for the client's next poll within the cool-down", async () => {
+		const url = "https://example.com/siren-failed-again";
+		const { fail, commandsFor, sirenAs } = await readerWithSaves([url]);
+		const parseError = JSON.stringify({ kind: "parse-error", detail: "no readable article candidate" });
+		await fail(url, parseError);
+		await sirenAs("hutch-firefox-extension");
+		await fail(url, parseError);
+
+		await sirenAs("hutch-firefox-extension");
+
+		expect(commandsFor(url)).toHaveLength(1);
 	});
 });
 

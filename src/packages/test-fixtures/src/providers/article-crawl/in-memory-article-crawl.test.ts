@@ -3,6 +3,29 @@ import { initInMemoryArticleCrawl } from "./in-memory-article-crawl";
 const URL = "https://example.com/article";
 
 describe("initInMemoryArticleCrawl", () => {
+	it("finds no crawl for a url that was never crawled", async () => {
+		const crawl = initInMemoryArticleCrawl();
+
+		expect(await crawl.findArticleCrawlStatus(URL)).toBeUndefined();
+	});
+
+	describe("stampResolutionOnViewClaim", () => {
+		it("keeps a resolution-on-view claim stamp across a failed settle", async () => {
+			const crawl = initInMemoryArticleCrawl();
+			await crawl.markCrawlFailed({ url: URL, reason: "parse-error" });
+			crawl.stampResolutionOnViewClaim({ url: URL, claimedAt: "2026-11-05T11:00:00.000Z" });
+			await crawl.forceMarkCrawlPending({ url: URL });
+			await crawl.markCrawlFailed({ url: URL, reason: "parse-error" });
+
+			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
+				status: "failed",
+				reason: "parse-error",
+				outcomeRevision: 2,
+				resolutionOnViewClaimedAt: "2026-11-05T11:00:00.000Z",
+			});
+		});
+	});
+
 	describe("markCrawlStage", () => {
 		it("records the stage on a previously-pending row", async () => {
 			const crawl = initInMemoryArticleCrawl();

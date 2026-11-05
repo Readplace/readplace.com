@@ -297,7 +297,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		parseArticle,
 	});
 	const summary = createFakeSummaryProvider({ findItemOwner: articleStoreMemory.findItemOwner });
-	const claimResolutionOnView = initInMemoryClaimResolutionOnView({ crawl: articleCrawl, summary, findItemOwner: articleStoreMemory.findItemOwner });
+	const claimResolutionOnView = initInMemoryClaimResolutionOnView({ crawl: articleCrawl, summary, findItemOwner: articleStoreMemory.findItemOwner, now: () => new Date() });
 	const resolveArticleOnView = initInMemoryResolveArticleOnView({ logger: noopLogger });
 	const newsletterCatalog = initInMemoryNewsletterCatalog(undefined);
 	const email = initInMemoryEmail();

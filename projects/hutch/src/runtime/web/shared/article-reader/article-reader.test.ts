@@ -2540,15 +2540,21 @@ describe("the reader's gave-up poll", () => {
 		expect(resolution.calls).toEqual([]);
 	});
 
-	it("refuses a resolution that leaves the gave-up row out", async () => {
+	it("renders the loaded failed row when the resolution leaves the gave-up row out", async () => {
 		const resolution = claimPending(async () => new Map());
 
-		await expect(
-			gaveUpPoll({
-				crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 2 },
-				capture: { kind: "device-gave-up", since: 2, trigger: "automatic" },
-				requestResolutionOnView: resolution.requestResolutionOnView,
-			}),
-		).rejects.toThrow("a device-first row is eligible for a viewer that cannot capture");
+		const doc = await gaveUpPoll({
+			crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 2 },
+			capture: { kind: "device-gave-up", since: 2, trigger: "automatic" },
+			requestResolutionOnView: resolution.requestResolutionOnView,
+		});
+
+		expect(resolution.calls).toHaveLength(1);
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect({ status: slot.getAttribute("data-reader-status"), poll: slot.getAttribute("hx-get") }).toEqual({
+			status: "blocked",
+			poll: null,
+		});
 	});
 });

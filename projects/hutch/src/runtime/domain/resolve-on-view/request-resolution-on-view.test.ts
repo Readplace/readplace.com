@@ -8,11 +8,15 @@ import { initRequestResolutionOnView, overlayResolution } from "./request-resolu
 
 const AWAITING = JSON.stringify({ kind: "awaiting-reader", deferredLeg: "comprehensive" });
 const EDGE_BLOCK = JSON.stringify({ kind: "blocked", cause: "edge-block" });
+const PARSE_ERROR = JSON.stringify({ kind: "parse-error" });
+const NOW = new Date("2026-11-05T12:00:00.000Z");
+const NOW_ISO = NOW.toISOString();
+const ONE_HOUR_AGO = "2026-11-05T11:00:00.000Z";
 
 function setup(overrides: { publishFails?: boolean } = {}) {
 	const crawl = initInMemoryArticleCrawl();
 	const summary = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
-	const claimResolutionOnView = initInMemoryClaimResolutionOnView({ crawl, summary, findItemOwner: async () => undefined });
+	const claimResolutionOnView = initInMemoryClaimResolutionOnView({ crawl, summary, findItemOwner: async () => undefined, now: () => NOW });
 	const publisher = initInMemoryResolveArticleOnView({ logger: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() } });
 	const logger: HutchLogger = { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() };
 	const publishError = new Error("eventbridge down");
@@ -26,6 +30,7 @@ function setup(overrides: { publishFails?: boolean } = {}) {
 		findArticleCrawlStatus: crawl.findArticleCrawlStatus,
 		findGeneratedSummary: summary.findGeneratedSummary,
 		logger,
+		now: () => NOW,
 	});
 	const rowOf = async (url: string) => ({
 		url,
@@ -49,7 +54,7 @@ describe("initRequestResolutionOnView", () => {
 			articles: [await t.rowOf(url)],
 		});
 
-		expect(resolved.get(url)?.crawl).toEqual({ status: "pending" });
+		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", resolutionOnViewClaimedAt: NOW_ISO });
 		expect(resolved.get(url)?.summary).toEqual({ status: "pending" });
 		expect(t.publisher.publishedResolveArticleOnView).toEqual([
 			{ url, axes: "crawl-and-summary", surface: "readlist-html", saveAttemptId: expect.any(String) },
@@ -70,7 +75,7 @@ describe("initRequestResolutionOnView", () => {
 			articles: [await t.rowOf(url)],
 		});
 
-		expect(resolved.get(url)).toEqual({ crawl: { status: "ready" }, summary: { status: "pending" } });
+		expect(resolved.get(url)).toEqual({ crawl: { status: "ready", resolutionOnViewClaimedAt: NOW_ISO }, summary: { status: "pending" } });
 		expect(t.publisher.publishedResolveArticleOnView).toEqual([
 			{ url, axes: "summary", surface: "reader", saveAttemptId: expect.any(String) },
 		]);
@@ -99,6 +104,7 @@ describe("initRequestResolutionOnView", () => {
 			seen: 2,
 			eligible: 0,
 			deviceFirst: 1,
+			coolingDown: 0,
 			claimed: 0,
 			lostRace: 0,
 		});
@@ -119,7 +125,7 @@ describe("initRequestResolutionOnView", () => {
 			articles: [staleRow],
 		});
 
-		expect(resolved.get(url)).toEqual({ crawl: { status: "pending" }, summary: { status: "pending" } });
+		expect(resolved.get(url)).toEqual({ crawl: { status: "pending", resolutionOnViewClaimedAt: NOW_ISO }, summary: { status: "pending" } });
 		expect(t.publisher.publishedResolveArticleOnView).toHaveLength(1);
 		expect(t.logger.info).toHaveBeenLastCalledWith("[ResolveOnView] requested", {
 			surface: "readlist-html",
@@ -127,6 +133,7 @@ describe("initRequestResolutionOnView", () => {
 			seen: 1,
 			eligible: 1,
 			deviceFirst: 0,
+			coolingDown: 0,
 			claimed: 0,
 			lostRace: 1,
 		});
@@ -144,7 +151,7 @@ describe("initRequestResolutionOnView", () => {
 			articles: [await t.rowOf(url)],
 		});
 
-		expect(resolved.get(url)?.crawl).toEqual({ status: "pending" });
+		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", resolutionOnViewClaimedAt: NOW_ISO });
 		expect(t.logger.error).toHaveBeenCalledWith("[ResolveOnView] publish failed", {
 			url,
 			axes: "crawl-and-summary",
@@ -157,7 +164,144 @@ describe("initRequestResolutionOnView", () => {
 			seen: 1,
 			eligible: 1,
 			deviceFirst: 0,
+			coolingDown: 0,
 			claimed: 1,
+			lostRace: 0,
+		});
+	});
+
+	it("skips a row claimed within the cool-down, publishing nothing and counting it as cooling down", async () => {
+		const t = setup();
+		const url = "https://example.com/failed-again";
+		await t.crawl.markCrawlFailed({ url, reason: PARSE_ERROR });
+		t.crawl.stampResolutionOnViewClaim({ url, claimedAt: ONE_HOUR_AGO });
+		const forceMarkCrawlPending = jest.spyOn(t.crawl, "forceMarkCrawlPending");
+
+		const resolved = await t.requestResolutionOnView({
+			surface: "readlist-siren",
+			viewer: ANONYMOUS_VIEWER,
+			viewerCanCapture: true,
+			articles: [await t.rowOf(url)],
+		});
+
+		expect(forceMarkCrawlPending).not.toHaveBeenCalled();
+		expect(resolved.size).toBe(0);
+		expect(t.publisher.publishedResolveArticleOnView).toEqual([]);
+		expect(t.logger.info).toHaveBeenCalledWith("[ResolveOnView] requested", {
+			surface: "readlist-siren",
+			viewerCanCapture: true,
+			seen: 1,
+			eligible: 0,
+			deviceFirst: 0,
+			coolingDown: 1,
+			claimed: 0,
+			lostRace: 0,
+		});
+	});
+
+	it("claims a row whose last claim is older than the cool-down", async () => {
+		const t = setup();
+		const url = "https://example.com/cooled";
+		await t.crawl.markCrawlFailed({ url, reason: PARSE_ERROR });
+		t.crawl.stampResolutionOnViewClaim({ url, claimedAt: "2026-11-04T11:59:59.999Z" });
+
+		const resolved = await t.requestResolutionOnView({
+			surface: "readlist-siren",
+			viewer: ANONYMOUS_VIEWER,
+			viewerCanCapture: true,
+			articles: [await t.rowOf(url)],
+		});
+
+		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", resolutionOnViewClaimedAt: NOW_ISO });
+		expect(t.publisher.publishedResolveArticleOnView).toEqual([
+			{ url, axes: "crawl-and-summary", surface: "readlist-siren", saveAttemptId: expect.any(String) },
+		]);
+		expect(t.logger.info).toHaveBeenCalledWith("[ResolveOnView] requested", {
+			surface: "readlist-siren",
+			viewerCanCapture: true,
+			seen: 1,
+			eligible: 1,
+			deviceFirst: 0,
+			coolingDown: 0,
+			claimed: 1,
+			lostRace: 0,
+		});
+	});
+
+	it("cools the summary axis of a ready row claimed within the cool-down", async () => {
+		const t = setup();
+		const url = "https://example.com/summary-cooling";
+		await t.crawl.markCrawlReady({ url });
+		await t.summary.markSummaryFailed({ url, reason: "boom" });
+		t.crawl.stampResolutionOnViewClaim({ url, claimedAt: ONE_HOUR_AGO });
+
+		const resolved = await t.requestResolutionOnView({
+			surface: "reader",
+			viewer: ANONYMOUS_VIEWER,
+			viewerCanCapture: true,
+			articles: [await t.rowOf(url)],
+		});
+
+		expect(resolved.size).toBe(0);
+		expect(t.publisher.publishedResolveArticleOnView).toEqual([]);
+		expect(t.logger.info).toHaveBeenCalledWith("[ResolveOnView] requested", {
+			surface: "reader",
+			viewerCanCapture: true,
+			seen: 1,
+			eligible: 0,
+			deviceFirst: 0,
+			coolingDown: 1,
+			claimed: 0,
+			lostRace: 0,
+		});
+	});
+
+	it("leaves a device-first row to the device even within the cool-down", async () => {
+		const t = setup();
+		const url = "https://example.com/blocked-cooling";
+		await t.crawl.markCrawlFailed({ url, reason: EDGE_BLOCK });
+		t.crawl.stampResolutionOnViewClaim({ url, claimedAt: ONE_HOUR_AGO });
+
+		const resolved = await t.requestResolutionOnView({
+			surface: "readlist-siren",
+			viewer: ANONYMOUS_VIEWER,
+			viewerCanCapture: true,
+			articles: [await t.rowOf(url)],
+		});
+
+		expect(resolved.size).toBe(0);
+		expect(t.logger.info).toHaveBeenCalledWith("[ResolveOnView] requested", {
+			surface: "readlist-siren",
+			viewerCanCapture: true,
+			seen: 1,
+			eligible: 0,
+			deviceFirst: 1,
+			coolingDown: 0,
+			claimed: 0,
+			lostRace: 0,
+		});
+	});
+
+	it("claims nothing for a legacy row with no crawl record", async () => {
+		const t = setup();
+		const url = "https://example.com/legacy";
+
+		const resolved = await t.requestResolutionOnView({
+			surface: "readlist-html",
+			viewer: ANONYMOUS_VIEWER,
+			viewerCanCapture: false,
+			articles: [{ url, crawl: undefined, summary: undefined }],
+		});
+
+		expect(resolved.size).toBe(0);
+		expect(t.logger.info).toHaveBeenCalledWith("[ResolveOnView] requested", {
+			surface: "readlist-html",
+			viewerCanCapture: false,
+			seen: 1,
+			eligible: 0,
+			deviceFirst: 0,
+			coolingDown: 0,
+			claimed: 0,
 			lostRace: 0,
 		});
 	});

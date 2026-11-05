@@ -305,6 +305,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		logger,
+		now: () => new Date(),
 	});
 	const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 	const { publishRemoveMyContent } = initEventBridgeRemoveMyContent({ publishEvent });

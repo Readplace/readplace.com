@@ -495,9 +495,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			viewerCanCapture: false,
 			articles: [{ url, ...loaded }],
 		});
-		const claimed = resolved.get(url);
-		assert(claimed, "a device-first row is eligible for a viewer that cannot capture");
-		return claimed;
+		return resolved.get(url) ?? loaded;
 	}
 
 	async function handleReaderPoll(params: HandlePollParams): Promise<Component> {

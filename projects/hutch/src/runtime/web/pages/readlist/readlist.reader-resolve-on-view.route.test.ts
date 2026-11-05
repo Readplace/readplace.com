@@ -117,4 +117,22 @@ describe("opening the reader resolves the article it shows", () => {
 		expect(readerRegions(response.text).slot).toBe("pending");
 		expect(commands()).toEqual([expect.objectContaining({ url, axes: "crawl-and-summary", surface: "reader-capture-gave-up" })]);
 	});
+
+	it("claims nothing when the device's gave-up poll arrives within the cool-down of an earlier claim", async () => {
+		const url = "https://example.com/device-gave-up-again";
+		const { fixture, agent, articleId, settle, commands } = await readerWithSave(url);
+		const gaveUpPoll = async () => {
+			const blocked = await fixture.articleCrawl.findArticleCrawlStatus(url);
+			assert(blocked?.status === "failed", "the row must be failed before the device gives up");
+			return agent.get(`/queue/${articleId}/reader?poll=2&captureSince=${blocked.outcomeRevision}&captureGaveUp=1&captureTrigger=manual`);
+		};
+		await settle("failed", EDGE_BLOCK);
+		await gaveUpPoll();
+		await settle("failed", EDGE_BLOCK);
+
+		const response = await gaveUpPoll();
+
+		expect(commands()).toHaveLength(1);
+		expect(readerRegions(response.text)).toEqual({ slot: "capture-missing", notice: "capture-missing" });
+	});
 });

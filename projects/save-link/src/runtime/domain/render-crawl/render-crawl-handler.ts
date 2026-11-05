@@ -395,7 +395,7 @@ export function initRenderCrawlHandler(deps: {
 						claimId: record.messageId,
 						expiresAt: new Date(deps.now().getTime() + RENDER_CRAWL_TIMEOUTS.sqsVisibilitySeconds * 1000).toISOString(),
 					});
-					if (claim.kind !== "granted" || leg === "render-web-unlocker-fetch" || budgetConsumed) return claim;
+					if (claim.kind !== "granted" || budgetConsumed) return claim;
 					const budget = await deps.consumeRenderCrawlBudget({ messageId: record.messageId });
 					if (!budget.allowed) {
 						await deps.releaseMeteredLeg({ url, permit: claim.permit });

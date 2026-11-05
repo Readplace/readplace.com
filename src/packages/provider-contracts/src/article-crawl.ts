@@ -5,11 +5,12 @@ export interface CrawlParts {
 	total: number;
 }
 
-export type ArticleCrawl =
+export type ArticleCrawl = (
 	| { status: "pending"; stage?: CrawlStage; parts?: CrawlParts }
 	| { status: "ready" }
 	| { status: "failed"; reason: string; outcomeRevision: number }
-	| { status: "unsupported"; reason: string };
+	| { status: "unsupported"; reason: string }
+) & { resolutionOnViewClaimedAt?: string };
 
 export type FindArticleCrawlStatus = (
 	url: string,

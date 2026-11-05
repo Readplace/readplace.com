@@ -94,6 +94,24 @@ describe("initDynamoDbArticleCrawl", () => {
 			expect(map.get("https://example.com/present")).toEqual({ status: "ready" });
 		});
 
+		it("carries the resolution-on-view claim stamp through the batch read", async () => {
+			const captured: Captured = { commands: [] };
+			const client = batchClient(
+				[{ url: "example.com/a", crawlStatus: "failed", crawlFailureReason: "parse-error", crawlOutcomeRevision: 2, resolutionOnViewClaimedAt: "2026-11-05T11:00:00.000Z" }],
+				captured,
+			);
+			const { findArticleCrawlStatuses } = initDynamoDbArticleCrawl({ client, tableName: TABLE, now });
+
+			const map = await findArticleCrawlStatuses(["https://example.com/a"]);
+
+			expect(map.get("https://example.com/a")).toEqual({
+				status: "failed",
+				reason: "parse-error",
+				outcomeRevision: 2,
+				resolutionOnViewClaimedAt: "2026-11-05T11:00:00.000Z",
+			});
+		});
+
 		it("degrades only the poisoned row (unknown status enum), mapping its siblings", async () => {
 			const captured: Captured = { commands: [] };
 			const client = batchClient(
@@ -318,6 +336,29 @@ describe("initDynamoDbArticleCrawl", () => {
 			const result = await findArticleCrawlStatus(URL);
 
 			expect(result).toEqual({ status: "failed", reason: "connect timeout", outcomeRevision: 7 });
+		});
+
+		it("carries the resolution-on-view claim stamp of a failed row", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "failed",
+					crawlFailureReason: "connect timeout",
+					crawlOutcomeRevision: 3,
+					resolutionOnViewClaimedAt: "2026-11-05T11:00:00.000Z",
+				}),
+				tableName: TABLE,
+				now,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({
+				status: "failed",
+				reason: "connect timeout",
+				outcomeRevision: 3,
+				resolutionOnViewClaimedAt: "2026-11-05T11:00:00.000Z",
+			});
 		});
 
 		it("returns unsupported with reason when crawlStatus=unsupported", async () => {

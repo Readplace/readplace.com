@@ -256,6 +256,7 @@ function flattenFixtureToAppDependencies(
 			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 			findGeneratedSummary: fixture.summary.findGeneratedSummary,
 			logger: noopLogger,
+			now: () => new Date(),
 		}),
 		publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 		publishRemoveMyContent: fixture.events.publishRemoveMyContent,

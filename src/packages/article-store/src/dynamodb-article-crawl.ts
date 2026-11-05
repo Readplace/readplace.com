@@ -38,13 +38,12 @@ export const ArticleCrawlRow = z.object({
 	crawlPartCurrent: dynamoField(z.number()),
 	crawlPartTotal: dynamoField(z.number()),
 	crawlOutcomeRevision: dynamoField(z.number()),
+	resolutionOnViewClaimedAt: dynamoField(z.string()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
 
-export function rowToArticleCrawl(
-	row: ArticleCrawlRowShape | undefined,
-): ArticleCrawl | undefined {
+function crawlOf(row: ArticleCrawlRowShape | undefined): ArticleCrawl | undefined {
 	if (!row) return undefined;
 	if (row.crawlStatus === "failed") {
 		assert(
@@ -81,6 +80,13 @@ export function rowToArticleCrawl(
 	// body. Either way, the reader-slot dispatcher's content check resolves to
 	// ready (content present) or unavailable (no content anywhere).
 	return undefined;
+}
+
+export function rowToArticleCrawl(row: ArticleCrawlRowShape | undefined): ArticleCrawl | undefined {
+	const crawl = crawlOf(row);
+	const claimedAt = row?.resolutionOnViewClaimedAt;
+	if (crawl === undefined || claimedAt === undefined) return crawl;
+	return { ...crawl, resolutionOnViewClaimedAt: claimedAt };
 }
 
 // Loose schema for the batch read: batchGetFromTable runs `schema.parse` on

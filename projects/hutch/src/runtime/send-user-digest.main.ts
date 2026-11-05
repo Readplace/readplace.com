@@ -133,6 +133,7 @@ const requestResolutionOnView = initRequestResolutionOnView({
 	findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 	findGeneratedSummary: summaryStore.findGeneratedSummary,
 	logger,
+	now: () => new Date(),
 });
 
 const s3 = new S3Client({});

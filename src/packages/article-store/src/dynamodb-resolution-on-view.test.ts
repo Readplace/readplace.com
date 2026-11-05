@@ -10,7 +10,7 @@ import { initDynamoDbClaimResolutionOnView } from "./dynamodb-resolution-on-view
 
 type SendFn = DynamoDBDocumentClient["send"];
 
-const FROZEN_NOW = new Date("2026-11-04T00:00:00.000Z");
+const FROZEN_NOW = new Date("2026-11-05T12:00:00.000Z");
 const now = () => FROZEN_NOW;
 const TABLE = "test-table";
 const URL = "https://example.com/article";
@@ -58,21 +58,29 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 			url: ArticleResourceUniqueId.parse(URL).value,
 			crawlStatus: "pending",
 			summaryStatus: "pending",
+			resolutionOnViewClaimedAt: FROZEN_NOW.toISOString(),
 		});
 		const claim = initDynamoDbClaimResolutionOnView({ client, tableName: TABLE, now });
 
 		const result = await claim({ url: URL, axes: "crawl-and-summary", viewer: ANONYMOUS_VIEWER });
 
-		expect(result).toEqual({ kind: "claimed", crawl: { status: "pending" }, summary: { status: "pending" } });
+		expect(result).toEqual({
+			kind: "claimed",
+			crawl: { status: "pending", resolutionOnViewClaimedAt: FROZEN_NOW.toISOString() },
+			summary: { status: "pending" },
+		});
 		const { input } = sent();
 		expect(input.Key).toEqual({ url: ArticleResourceUniqueId.parse(URL).value });
 		expect(input.UpdateExpression).toContain("SET crawlStatus = :pending, crawlPendingSince = :now, summaryStatus = :pending, summaryPendingSince = :now");
 		expect(input.UpdateExpression).toContain("REMOVE crawlFailureReason, crawlUnsupportedReason, crawlStartedAt, summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince");
+		expect(input.UpdateExpression).toContain("resolutionOnViewClaimedAt = :now");
 		expect(input.ConditionExpression).toContain("crawlStatus IN (:failed, :unsupported)");
+		expect(input.ConditionExpression).toContain("attribute_not_exists(resolutionOnViewClaimedAt) OR resolutionOnViewClaimedAt < :coolDownCutoff");
 		expect(input.ReturnValues).toBe("ALL_NEW");
 		expect(input.ExpressionAttributeValues).toEqual({
 			":pending": "pending",
 			":now": FROZEN_NOW.toISOString(),
+			":coolDownCutoff": "2026-11-04T12:00:00.000Z",
 			":failed": "failed",
 			":unsupported": "unsupported",
 		});
@@ -83,22 +91,30 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 			url: ArticleResourceUniqueId.parse(URL).value,
 			crawlStatus: "ready",
 			summaryStatus: "pending",
+			resolutionOnViewClaimedAt: FROZEN_NOW.toISOString(),
 		});
 		const claim = initDynamoDbClaimResolutionOnView({ client, tableName: TABLE, now });
 
 		const result = await claim({ url: URL, axes: "summary", viewer: ANONYMOUS_VIEWER });
 
-		expect(result).toEqual({ kind: "claimed", crawl: { status: "ready" }, summary: { status: "pending" } });
+		expect(result).toEqual({
+			kind: "claimed",
+			crawl: { status: "ready", resolutionOnViewClaimedAt: FROZEN_NOW.toISOString() },
+			summary: { status: "pending" },
+		});
 		const { input } = sent();
 		expect(input.UpdateExpression).toContain("SET summaryStatus = :pending, summaryPendingSince = :now");
 		expect(input.UpdateExpression).toContain("REMOVE summaryFailureReason, summarySkippedReason, meteredLegsDeferredSince");
+		expect(input.UpdateExpression).toContain("resolutionOnViewClaimedAt = :now");
 		expect(input.ConditionExpression).toContain(
 			"crawlStatus = :ready AND (summaryStatus = :failed OR (summaryStatus = :skipped AND summarySkippedReason IN (:awaitingReader, :aiUnavailable)))",
 		);
+		expect(input.ConditionExpression).toContain("attribute_not_exists(resolutionOnViewClaimedAt) OR resolutionOnViewClaimedAt < :coolDownCutoff");
 		expect(input.ReturnValues).toBe("ALL_NEW");
 		expect(input.ExpressionAttributeValues).toEqual({
 			":pending": "pending",
 			":now": FROZEN_NOW.toISOString(),
+			":coolDownCutoff": "2026-11-04T12:00:00.000Z",
 			":ready": "ready",
 			":failed": "failed",
 			":skipped": "skipped",
