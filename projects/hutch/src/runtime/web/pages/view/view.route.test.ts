@@ -1836,7 +1836,7 @@ describe("View routes", () => {
 				},
 				articleCrawl: {
 					...fixture.articleCrawl,
-					findArticleCrawlStatus: async () => ({ status: "pending" as const }),
+					findArticleCrawlStatus: async () => ({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" as const }),
 				},
 				shared: { ...fixture.shared, now: () => fixedNow },
 			});
@@ -2044,7 +2044,7 @@ describe("View routes", () => {
 
 		it("emits no banner or CTA fragment while the reader view is still loading", async () => {
 			const { fixture, harness } = pollHarness({
-				crawl: async () => ({ status: "pending" }),
+				crawl: async () => ({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }),
 				summary: async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: { status: "pending" } }),
 			});
 			await seedRow(fixture);
@@ -2066,7 +2066,7 @@ describe("View routes", () => {
 
 		it("carries the page's utm onto the SSR reader-slot poll URL", async () => {
 			const { harness } = pollHarness({
-				crawl: async () => ({ status: "pending" }),
+				crawl: async () => ({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }),
 			});
 
 			const response = await request(harness.server).get(
@@ -2085,7 +2085,7 @@ describe("View routes", () => {
 		it("reveals the report link once the reader poll swaps a pending slot for the article body", async () => {
 			let crawlStatus: "pending" | "ready" = "pending";
 			const { fixture, harness } = pollHarness({
-				crawl: async () => ({ status: crawlStatus }),
+				crawl: async () => (crawlStatus === "pending" ? { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } : { status: "ready" }),
 			});
 			await seedRow(fixture);
 			const page = new JSDOM(
@@ -2860,7 +2860,7 @@ describe("Keep this one block on the public reader", () => {
 		const harness = useApp({
 			...fixture,
 			articleStore: { ...fixture.articleStore, readArticleContent: async () => ({ kind: "missing" }) },
-			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus: async () => ({ status: "pending" }) },
+			articleCrawl: { ...fixture.articleCrawl, findArticleCrawlStatus: async () => ({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }) },
 		});
 
 		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`).set(BROWSER_REQUEST_HEADERS);

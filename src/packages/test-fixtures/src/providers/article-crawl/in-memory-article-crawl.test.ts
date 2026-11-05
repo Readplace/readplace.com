@@ -1,17 +1,18 @@
 import { initInMemoryArticleCrawl } from "./in-memory-article-crawl";
 
 const URL = "https://example.com/article";
+const SAVED_AT = new Date("2026-11-05T12:00:00.000Z");
 
 describe("initInMemoryArticleCrawl", () => {
 	it("finds no crawl for a url that was never crawled", async () => {
-		const crawl = initInMemoryArticleCrawl();
+		const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 
 		expect(await crawl.findArticleCrawlStatus(URL)).toBeUndefined();
 	});
 
 	describe("stampResolutionOnViewClaim", () => {
 		it("keeps a resolution-on-view claim stamp across a failed settle", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlFailed({ url: URL, reason: "parse-error" });
 			crawl.stampResolutionOnViewClaim({ url: URL, claimedAt: "2026-11-05T11:00:00.000Z" });
 			await crawl.forceMarkCrawlPending({ url: URL });
@@ -28,28 +29,30 @@ describe("initInMemoryArticleCrawl", () => {
 
 	describe("markCrawlStage", () => {
 		it("records the stage on a previously-pending row", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
 			await crawl.markCrawlStage({ url: URL, stage: "crawl-fetched" });
 
 			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
 				status: "pending",
+				startedAt: SAVED_AT.toISOString(),
 				stage: "crawl-fetched",
 			});
 		});
 
 		it("creates a pending+stage row when none existed", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlStage({ url: URL, stage: "crawl-fetching" });
 
 			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
 				status: "pending",
+				startedAt: SAVED_AT.toISOString(),
 				stage: "crawl-fetching",
 			});
 		});
 
 		it("does not regress a row that has already gone ready", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlReady({ url: URL });
 			await crawl.markCrawlStage({ url: URL, stage: "crawl-content-uploaded" });
 
@@ -57,7 +60,7 @@ describe("initInMemoryArticleCrawl", () => {
 		});
 
 		it("does not regress a row that has already failed", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlFailed({ url: URL, reason: "blocked" });
 			await crawl.markCrawlStage({ url: URL, stage: "crawl-fetching" });
 
@@ -69,7 +72,7 @@ describe("initInMemoryArticleCrawl", () => {
 		});
 
 		it("does not regress a row that has already been marked unsupported", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlUnsupported({
 				url: URL,
 				reason: "non-html content type: application/pdf",
@@ -83,13 +86,14 @@ describe("initInMemoryArticleCrawl", () => {
 		});
 
 		it("preserves the recorded stage when markCrawlPending is re-called (legacy-stub healing path)", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
 			await crawl.markCrawlStage({ url: URL, stage: "crawl-parsed" });
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
 
 			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
 				status: "pending",
+				startedAt: SAVED_AT.toISOString(),
 				stage: "crawl-parsed",
 			});
 		});
@@ -97,7 +101,7 @@ describe("initInMemoryArticleCrawl", () => {
 
 	describe("markCrawlUnsupported", () => {
 		it("flips a pending row to unsupported with the supplied reason", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
 			await crawl.markCrawlUnsupported({
 				url: URL,
@@ -111,7 +115,7 @@ describe("initInMemoryArticleCrawl", () => {
 		});
 
 		it("does not regress a row that has already gone ready", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlReady({ url: URL });
 			await crawl.markCrawlUnsupported({ url: URL, reason: "anything" });
 
@@ -121,7 +125,7 @@ describe("initInMemoryArticleCrawl", () => {
 
 	describe("outcomeRevision", () => {
 		it("moves on every terminal write and survives a return to pending, so a failure after a retry reads as a new outcome", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlUnsupported({ url: URL, reason: "non-html" });
 			await crawl.forceMarkCrawlPending({ url: URL });
 			await crawl.markCrawlFailed({ url: URL, reason: "first" });
@@ -136,7 +140,7 @@ describe("initInMemoryArticleCrawl", () => {
 		});
 
 		it("counts a ready write, and does not move when a failure is refused on a ready row", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlReady({ url: URL });
 			await crawl.markCrawlFailed({ url: URL, reason: "ignored" });
 			await crawl.forceMarkCrawlPending({ url: URL });
@@ -152,22 +156,23 @@ describe("initInMemoryArticleCrawl", () => {
 
 	describe("forceMarkCrawlPending", () => {
 		it("overrides an unsupported row so an operator recrawl re-runs the worker", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlUnsupported({ url: URL, reason: "non-html" });
 			await crawl.forceMarkCrawlPending({ url: URL });
 
 			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({
 				status: "pending",
+				startedAt: SAVED_AT.toISOString(),
 			});
 		});
 	});
 
 	describe("meteredLegs", () => {
 		it("parks a new row as pending with the metered legs deferred", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await expect(crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" })).resolves.toEqual({ kind: "marked" });
 
-			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "pending" });
+			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "pending", startedAt: SAVED_AT.toISOString() });
 			expect(crawl.isMeteredLegsDeferred(URL)).toBe(true);
 		});
 
@@ -175,16 +180,16 @@ describe("initInMemoryArticleCrawl", () => {
 			{ label: "failed", mark: (crawl: ReturnType<typeof initInMemoryArticleCrawl>) => crawl.markCrawlFailed({ url: URL, reason: "blocked" }) },
 			{ label: "unsupported", mark: (crawl: ReturnType<typeof initInMemoryArticleCrawl>) => crawl.markCrawlUnsupported({ url: URL, reason: "non-html" }) },
 		])("re-parks a $label row as pending with the metered legs deferred", async ({ mark }) => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await mark(crawl);
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" });
 
-			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "pending" });
+			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "pending", startedAt: SAVED_AT.toISOString() });
 			expect(crawl.isMeteredLegsDeferred(URL)).toBe(true);
 		});
 
 		it("leaves a pending row a manual save started unparked", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
 			await crawl.markCrawlStage({ url: URL, stage: "crawl-fetched" });
 			await expect(crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" })).resolves.toEqual({
@@ -193,12 +198,12 @@ describe("initInMemoryArticleCrawl", () => {
 				carriedMarker: false,
 			});
 
-			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "pending", stage: "crawl-fetched" });
+			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "pending", startedAt: SAVED_AT.toISOString(), stage: "crawl-fetched" });
 			expect(crawl.isMeteredLegsDeferred(URL)).toBe(false);
 		});
 
 		it("leaves a ready row ready and unparked", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlReady({ url: URL });
 			await expect(crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" })).resolves.toEqual({
 				kind: "refused",
@@ -211,17 +216,17 @@ describe("initInMemoryArticleCrawl", () => {
 		});
 
 		it("lets a manual co-save run the metered legs of a parked row", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" });
 			await crawl.markCrawlFailed({ url: URL, reason: "blocked" });
 			await expect(crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "run" })).resolves.toEqual({ kind: "marked" });
 
-			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "pending" });
+			expect(await crawl.findArticleCrawlStatus(URL)).toEqual({ status: "pending", startedAt: SAVED_AT.toISOString() });
 			expect(crawl.isMeteredLegsDeferred(URL)).toBe(false);
 		});
 
 		it("clears the parked marker of a ready row on a run save and keeps it ready", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" });
 			await crawl.markCrawlReady({ url: URL });
 			await expect(crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "run" })).resolves.toEqual({
@@ -235,7 +240,7 @@ describe("initInMemoryArticleCrawl", () => {
 		});
 
 		it("lets an operator recrawl run the metered legs of a parked row", async () => {
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => SAVED_AT });
 			await crawl.markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" });
 			await crawl.forceMarkCrawlPending({ url: URL });
 

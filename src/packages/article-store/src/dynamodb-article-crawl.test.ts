@@ -161,7 +161,7 @@ describe("initDynamoDbArticleCrawl", () => {
 
 			expect(map.has("not a url")).toBe(true);
 			expect(map.get("not a url")).toBeUndefined();
-			expect(map.get("https://example.com/valid")).toEqual({ status: "pending" });
+			expect(map.get("https://example.com/valid")).toEqual({ status: "pending", startedAt: "1970-01-01T00:00:00.000Z" });
 			expect(requestFor(captured).Keys).toEqual([{ url: "example.com/valid" }]);
 		});
 
@@ -206,7 +206,7 @@ describe("initDynamoDbArticleCrawl", () => {
 			expect(result).toBeUndefined();
 		});
 
-		it("returns pending when crawlStatus=pending", async () => {
+		it("returns pending started at the epoch when the row predates the pending timestamps", async () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL, crawlStatus: "pending" }),
 				tableName: TABLE,
@@ -215,7 +215,40 @@ describe("initDynamoDbArticleCrawl", () => {
 
 			const result = await findArticleCrawlStatus(URL);
 
-			expect(result).toEqual({ status: "pending" });
+			expect(result).toEqual({ status: "pending", startedAt: "1970-01-01T00:00:00.000Z" });
+		});
+
+		it("anchors a pending crawl on crawlStartedAt so a re-save does not restart the estimate", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "pending",
+					crawlStartedAt: "2026-11-05T10:00:00.000Z",
+					crawlPendingSince: "2026-11-05T10:00:30.000Z",
+				}),
+				tableName: TABLE,
+				now,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" });
+		});
+
+		it("anchors a pending crawl on crawlPendingSince when a forced recrawl removed crawlStartedAt", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "pending",
+					crawlPendingSince: "2026-11-05T10:00:30.000Z",
+				}),
+				tableName: TABLE,
+				now,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({ status: "pending", startedAt: "2026-11-05T10:00:30.000Z" });
 		});
 
 		it("returns pending with stage when crawlStage is recorded", async () => {
@@ -231,7 +264,7 @@ describe("initDynamoDbArticleCrawl", () => {
 
 			const result = await findArticleCrawlStatus(URL);
 
-			expect(result).toEqual({ status: "pending", stage: "crawl-parsed" });
+			expect(result).toEqual({ status: "pending", startedAt: "1970-01-01T00:00:00.000Z", stage: "crawl-parsed" });
 		});
 
 		it("returns pending with parts when crawlPartCurrent and crawlPartTotal are recorded", async () => {
@@ -251,6 +284,7 @@ describe("initDynamoDbArticleCrawl", () => {
 
 			expect(result).toEqual({
 				status: "pending",
+				startedAt: "1970-01-01T00:00:00.000Z",
 				stage: "comprehensive-extracting",
 				parts: { current: 17, total: 150 },
 			});
@@ -272,6 +306,7 @@ describe("initDynamoDbArticleCrawl", () => {
 
 			expect(result).toEqual({
 				status: "pending",
+				startedAt: "1970-01-01T00:00:00.000Z",
 				stage: "comprehensive-extracting",
 			});
 		});

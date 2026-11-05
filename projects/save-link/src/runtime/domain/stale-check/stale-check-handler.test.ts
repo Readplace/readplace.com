@@ -150,8 +150,8 @@ describe("initStaleCheckHandler", () => {
 	});
 
 	it.each<ArticleCrawl>([
-		{ status: "pending" },
-		{ status: "pending", stage: "comprehensive-fetching" },
+		{ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
+		{ status: "pending", startedAt: "2026-11-05T10:00:00.000Z", stage: "comprehensive-fetching" },
 	])("leaves a pending row that was never fetched to its first save, before reading its identity: %j", async (crawl) => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: undefined,
@@ -186,7 +186,7 @@ describe("initStaleCheckHandler", () => {
 
 	it("still refreshes a pending row that was fetched before once its contentFetchedAt is past the TTL", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({ etag: undefined, lastModified: undefined, contentFetchedAt: "2026-04-01T00:00:00.000Z" });
-		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({ status: "pending" });
+		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" });
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
 			status: "fetched",
 			article: {

@@ -103,7 +103,7 @@ describe("computeArticleContentVersion", () => {
 	});
 
 	it("changes when the crawl status changes, and treats an absent crawl distinctly", () => {
-		const pending = computeArticleContentVersion(baseInput({ crawl: { status: "pending" } }));
+		const pending = computeArticleContentVersion(baseInput({ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } }));
 		const ready = computeArticleContentVersion(baseInput({ crawl: { status: "ready" } }));
 		const absent = computeArticleContentVersion(baseInput({ crawl: undefined }));
 		assert.notEqual(pending, ready);

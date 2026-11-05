@@ -188,7 +188,7 @@ describe("createDefaultTestAppFixture", () => {
 		const ownerUserId = UserIdSchema.parse("owner-user");
 
 		expect(await fixture.articleStore.savePrivateItem({ url, ownerUserId, media: { kind: "book", fileName: "dune.epub" }, savedAt: new Date("2026-11-05T10:00:00.000Z") })).toBe("saved");
-		expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toEqual({ status: "pending" });
+		expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toEqual({ status: "pending", startedAt: expect.any(String) });
 
 		expect(await fixture.articleStore.recordPrivateItemFailure({ url, notice: "This book could not be opened." })).toBe("recorded");
 		expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toEqual(
@@ -205,7 +205,7 @@ describe("createDefaultTestAppFixture", () => {
 		await fixture.articleCrawl.markCrawlStage({ url, stage: "crawl-fetching" });
 
 		expect(await fixture.articleStore.savePrivateItem(save)).toBe("already-saved");
-		expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toEqual({ status: "pending", stage: "crawl-fetching" });
+		expect(await fixture.articleCrawl.findArticleCrawlStatus(url)).toEqual({ status: "pending", startedAt: expect.any(String), stage: "crawl-fetching" });
 
 		expect(await fixture.articleStore.recordPrivateItemFailure({ url: "https://uploads.readplace.invalid/ffffffffffffffffffffffffffffffff", notice: "gone" })).toBe("not-found");
 		expect(await fixture.articleCrawl.findArticleCrawlStatus("https://uploads.readplace.invalid/ffffffffffffffffffffffffffffffff")).toBeUndefined();
@@ -267,7 +267,7 @@ describe("createFakeApplyParseResult", () => {
 
 	it("writes parsed metadata + content and marks crawl ready when parseArticle succeeds", async () => {
 		const articleStore = initInMemoryArticleStore();
-		const articleCrawl = initInMemoryArticleCrawl();
+		const articleCrawl = initInMemoryArticleCrawl({ now: () => new Date() });
 		const parseArticle: ParseArticle = async () => ({
 			ok: true,
 			article: {
@@ -292,7 +292,7 @@ describe("createFakeApplyParseResult", () => {
 
 	it("marks crawl failed when parseArticle returns ok:false", async () => {
 		const articleStore = initInMemoryArticleStore();
-		const articleCrawl = initInMemoryArticleCrawl();
+		const articleCrawl = initInMemoryArticleCrawl({ now: () => new Date() });
 		const parseArticle: ParseArticle = async () => ({ ok: false, reason: "no-content" });
 
 		const apply = createFakeApplyParseResult({ articleStore, articleCrawl, parseArticle });
@@ -307,7 +307,7 @@ describe("createFakeApplyParseResult", () => {
 
 	it("propagates an imageUrl from the parsed article when present", async () => {
 		const articleStore = initInMemoryArticleStore();
-		const articleCrawl = initInMemoryArticleCrawl();
+		const articleCrawl = initInMemoryArticleCrawl({ now: () => new Date() });
 		const parseArticle: ParseArticle = async () => ({
 			ok: true,
 			article: {
@@ -333,7 +333,7 @@ describe("createFakeApplyParseResult", () => {
 
 	it("writes the parsed article's publish date onto the global row", async () => {
 		const articleStore = initInMemoryArticleStore();
-		const articleCrawl = initInMemoryArticleCrawl();
+		const articleCrawl = initInMemoryArticleCrawl({ now: () => new Date() });
 		const parseArticle: ParseArticle = async () => ({
 			ok: true,
 			article: {

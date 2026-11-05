@@ -13,6 +13,7 @@ function parse(regions: { slot: string; notice: string }) {
 const URL = destinationUrl("https://example.com/article");
 const APP_ORIGIN = "https://readplace.com";
 const ARTICLE_ID = "0123456789abcdef0123456789abcdef";
+const NOW = new Date("2026-11-05T10:00:00.000Z");
 const CAPTURE_POLL_URLS = {
 	manual: "/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=manual",
 	automatic: "/queue/abc/reader?poll=1&captureNotice=1&captureTrigger=automatic",
@@ -22,6 +23,15 @@ function readerProgressTrack(doc: Document): Element {
 	const track = doc.querySelector('[data-test-progress-bar="reader"] [role="progressbar"]');
 	assert(track, "the reader progress track must be rendered");
 	return track;
+}
+
+function crawlEstimateState(doc: Document) {
+	const estimate = doc.querySelector("[data-test-reader-slot] [data-test-crawl-estimate]");
+	assert(estimate, "the reader must render its crawl estimate");
+	return {
+		kind: ["quiet", "counting", "almost-there", "hidden"].find((state) => estimate.classList.contains(`crawl-estimate--${state}`)),
+		remaining: estimate.getAttribute("data-remaining-seconds"),
+	};
 }
 
 function noticeCaptureControl(doc: Document): Element {
@@ -45,6 +55,7 @@ describe("renderReaderSlot", () => {
 			articleId: ARTICLE_ID,
 			appOrigin: APP_ORIGIN,
 			noticeOob: false,
+			now: NOW,
 		});
 
 		expect([slot.startsWith("<div"), notice.startsWith("<section")]).toEqual([true, true]);
@@ -54,12 +65,13 @@ describe("renderReaderSlot", () => {
 	it("routes status=pending with a poll URL to the pending component", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: URL,
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -74,23 +86,60 @@ describe("renderReaderSlot", () => {
 	it("reports the recorded crawl stage on the reader's own axis", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "pending", stage: "crawl-parsed" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z", stage: "crawl-parsed" },
 				url: URL,
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
 		expect(readerProgressTrack(doc).getAttribute("aria-valuenow")).toBe("49");
 	});
 
+	it.each([
+		{ secondsSinceStart: 2, stage: "crawl-fetching", expected: { kind: "quiet", remaining: "148" } },
+		{ secondsSinceStart: 40, stage: "crawl-fetching", expected: { kind: "counting", remaining: "120" } },
+		{ secondsSinceStart: 40, stage: "crawl-content-uploaded", expected: { kind: "counting", remaining: "16" } },
+		{ secondsSinceStart: 200, stage: "crawl-fetching", expected: { kind: "almost-there", remaining: "0" } },
+	] as const)("estimates the seconds left $secondsSinceStart s into a crawl at $stage", ({ secondsSinceStart, stage, expected }) => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z", stage },
+				url: URL,
+				articleId: ARTICLE_ID,
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+				now: new Date(NOW.getTime() + secondsSinceStart * 1000),
+			}),
+		);
+
+		expect(crawlEstimateState(doc)).toEqual(expected);
+	});
+
+	it("shows no estimate while the crawl row has not been written yet", () => {
+		const doc = parse(
+			renderReaderSlot({
+				url: URL,
+				articleId: ARTICLE_ID,
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
+				noticeOob: false,
+				now: NOW,
+			}),
+		);
+
+		expect(crawlEstimateState(doc)).toEqual({ kind: "hidden", remaining: "0" });
+	});
+
 	it("floors the OCR part interpolation in the label", () => {
 		const doc = parse(
 			renderReaderSlot({
 				crawl: {
-					status: "pending",
+					status: "pending", startedAt: "2026-11-05T10:00:00.000Z",
 					stage: "comprehensive-extracting",
 					parts: { current: 3, total: 10 },
 				},
@@ -99,6 +148,7 @@ describe("renderReaderSlot", () => {
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -110,12 +160,13 @@ describe("renderReaderSlot", () => {
 	it("renders the PDF accuracy-over-slop loading hint when the pending URL is a .pdf", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: destinationUrl("https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf"),
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -128,12 +179,13 @@ describe("renderReaderSlot", () => {
 	it("omits the loading hint when the pending URL is an HTML article", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: destinationUrl("https://example.com/articles/some-post"),
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -145,12 +197,13 @@ describe("renderReaderSlot", () => {
 	it("omits the loading hint when the URL is invalid (URL parse throws)", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: destinationUrl("not-a-valid-url"),
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -162,11 +215,12 @@ describe("renderReaderSlot", () => {
 	it("routes status=pending WITHOUT a poll URL to the 'slow' reframe (poll cap exhausted)", () => {
 		const doc = parse(
 			renderReaderSlot({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: URL,
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -188,6 +242,7 @@ describe("renderReaderSlot", () => {
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -218,6 +273,7 @@ describe("renderReaderSlot", () => {
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 				extensionInstallUrl: "/install?client=chrome",
 				capturePollUrls: CAPTURE_POLL_URLS,
 			}),
@@ -246,6 +302,7 @@ describe("renderReaderSlot", () => {
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 				extensionInstallUrl: "/install?client=chrome",
 			}),
 		);
@@ -269,6 +326,7 @@ describe("renderReaderSlot", () => {
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -291,6 +349,7 @@ describe("renderReaderSlot", () => {
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -310,6 +369,7 @@ describe("renderReaderSlot", () => {
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -321,7 +381,7 @@ describe("renderReaderSlot", () => {
 	});
 
 	it("renders the 'slow' reframe when crawl status is missing and there is no poll URL left", () => {
-		const doc = parse(renderReaderSlot({ url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }));
+		const doc = parse(renderReaderSlot({ url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -336,6 +396,7 @@ describe("renderReaderSlot", () => {
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -353,6 +414,7 @@ describe("renderReaderSlot", () => {
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -370,6 +432,7 @@ describe("renderReaderSlot", () => {
 				articleId: ARTICLE_ID,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -391,6 +454,7 @@ describe("renderReaderSlot", () => {
 				capturePollUrls: CAPTURE_POLL_URLS,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -420,6 +484,7 @@ describe("renderReaderSlot", () => {
 				},
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -464,6 +529,7 @@ describe("renderReaderSlot", () => {
 				capturePollUrls: CAPTURE_POLL_URLS,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -489,6 +555,7 @@ describe("renderReaderSlot", () => {
 				capture: { kind: "copying", pollUrl: "/queue/abc/reader?poll=3&captureSince=1", gaveUpUrl: "/g" },
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -507,6 +574,7 @@ describe("renderReaderSlot", () => {
 				capturePollUrls: CAPTURE_POLL_URLS,
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -520,7 +588,7 @@ describe("renderReaderSlot", () => {
 		}).toEqual({ offered: true, pollUrl: CAPTURE_POLL_URLS.manual });
 	});
 
-	it.each<{ state: string; input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob">; status: string }>([
+	it.each<{ state: string; input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob" | "now">; status: string }>([
 		{
 			state: "a deleted page",
 			input: { crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) } },
@@ -543,11 +611,11 @@ describe("renderReaderSlot", () => {
 		},
 		{
 			state: "a crawl past the poll cap",
-			input: { crawl: { status: "pending" } },
+			input: { crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } },
 			status: "slow",
 		},
 	])("renders the capture control withheld on $state, which no device can rescue", ({ input, status }) => {
-		const doc = parse(renderReaderSlot({ ...input, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }));
+		const doc = parse(renderReaderSlot({ ...input, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -566,6 +634,7 @@ describe("renderReaderSlot", () => {
 				capture: { kind: "copying", pollUrl: "/queue/abc/reader?poll=2&captureSince=1", gaveUpUrl: "/g" },
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -591,6 +660,7 @@ describe("renderReaderSlot", () => {
 				capture: { kind: "missing" },
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -616,6 +686,7 @@ describe("renderReaderSlot", () => {
 				readerPollUrl: "/queue/abc/reader?poll=1",
 				appOrigin: APP_ORIGIN,
 				noticeOob: false,
+				now: NOW,
 			}),
 		);
 
@@ -630,7 +701,7 @@ describe("renderReaderSlot", () => {
 
 	it.each<{
 		state: string;
-		input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob">;
+		input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob" | "now">;
 		slot: { status: string; stateClass: string };
 		notice: { status: string; stateClass: string };
 	}>([
@@ -648,7 +719,7 @@ describe("renderReaderSlot", () => {
 		},
 		{
 			state: "pending",
-			input: { crawl: { status: "pending" }, readerPollUrl: "/p" },
+			input: { crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, readerPollUrl: "/p" },
 			slot: { status: "pending", stateClass: "article-body__reader-slot--pending" },
 			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
 		},
@@ -660,7 +731,7 @@ describe("renderReaderSlot", () => {
 		},
 		{
 			state: "pending past the poll cap",
-			input: { crawl: { status: "pending" } },
+			input: { crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } },
 			slot: { status: "slow", stateClass: "article-body__reader-slot--notice" },
 			notice: { status: "slow", stateClass: "article-body__reader-notice--visible" },
 		},
@@ -701,7 +772,7 @@ describe("renderReaderSlot", () => {
 			notice: { status: "not-an-article", stateClass: "article-body__reader-notice--visible" },
 		},
 	])("pairs the $state slot with the notice region it needs", ({ input, slot, notice }) => {
-		const doc = parse(renderReaderSlot({ ...input, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }));
+		const doc = parse(renderReaderSlot({ ...input, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }));
 
 		const slotElement = doc.querySelector("[data-test-reader-slot]");
 		assert(slotElement, "reader slot must be rendered");
@@ -721,17 +792,17 @@ describe("renderReaderSlot", () => {
 	});
 
 	it.each([
-		{ state: "pending", crawl: { status: "pending" as const }, readerPollUrl: "/p" },
+		{ state: "pending", crawl: { status: "pending" as const, startedAt: "2026-11-05T10:00:00.000Z" }, readerPollUrl: "/p" },
 		{ state: "failed", crawl: { status: "failed" as const, reason: "x", outcomeRevision: 1 }, readerPollUrl: undefined },
 	])("marks the $state slot and its notice out of band independently", ({ crawl, readerPollUrl }) => {
 		const swaps = [
-			{ oob: false, noticeOob: false },
-			{ oob: true, noticeOob: false },
+			{ oob: false, noticeOob: false, now: NOW },
+			{ oob: true, noticeOob: false, now: NOW },
 			{ oob: false, noticeOob: true },
 			{ oob: true, noticeOob: true },
 		].map(({ oob, noticeOob }) => {
 			const doc = parse(
-				renderReaderSlot({ crawl, readerPollUrl, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, oob, noticeOob }),
+				renderReaderSlot({ crawl, readerPollUrl, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, oob, noticeOob, now: NOW }),
 			);
 			const slotElement = doc.querySelector("[data-test-reader-slot]");
 			assert(slotElement, "reader slot must be rendered");
@@ -753,10 +824,10 @@ describe("renderReaderSlot", () => {
 			input: Parameters<typeof renderReaderSlot>[0];
 			expected: string;
 		}> = [
-			{ input: { crawl: { status: "ready" }, content: articleBody("<p>x</p>"), url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "ready" },
-			{ input: { crawl: { status: "pending" }, url: URL, articleId: ARTICLE_ID, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false }, expected: "pending" },
-			{ input: { crawl: { status: "failed", outcomeRevision: 1, reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "failed" },
-			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false }, expected: "unsupported" },
+			{ input: { crawl: { status: "ready" }, content: articleBody("<p>x</p>"), url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "ready" },
+			{ input: { crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, url: URL, articleId: ARTICLE_ID, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "pending" },
+			{ input: { crawl: { status: "failed", outcomeRevision: 1, reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "failed" },
+			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "unsupported" },
 		];
 
 		for (const { input, expected } of variants) {

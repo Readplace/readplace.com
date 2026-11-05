@@ -27,9 +27,9 @@ const STATE_CASES: (ReaderViewCase & { state: string })[] = [
 	{ reader: "ready, with h2 and h3 sections", crawl: { status: "ready" }, content: HEADED_CONTENT, notice: undefined, state: "listed" },
 	{ reader: "ready, with no h2 or h3", crawl: { status: "ready" }, content: articleBody("<p>One</p><h4>Minor</h4>"), notice: undefined, state: "empty" },
 	{ reader: "a legacy row with no crawl record", crawl: undefined, content: HEADED_CONTENT, notice: undefined, state: "listed" },
-	{ reader: "pending", crawl: { status: "pending" }, content: undefined, notice: undefined, state: "hidden" },
+	{ reader: "pending", crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, content: undefined, notice: undefined, state: "hidden" },
 	{ reader: "ready before its content landed", crawl: { status: "ready" }, content: undefined, notice: undefined, state: "hidden" },
-	{ reader: "pending again over published content", crawl: { status: "pending" }, content: HEADED_CONTENT, notice: undefined, state: "hidden" },
+	{ reader: "pending again over published content", crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, content: HEADED_CONTENT, notice: undefined, state: "hidden" },
 	{
 		reader: "failed",
 		crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "exhausted-retries", receiveCount: 3 }) },
@@ -57,7 +57,7 @@ const STATE_CASES: (ReaderViewCase & { state: string })[] = [
 const VISIBILITY_CASES: (ReaderViewCase & { visible: boolean })[] = [
 	{ reader: "ready", crawl: { status: "ready" }, content: articleBody("<p>One</p>"), notice: undefined, visible: true },
 	{ reader: "a legacy row", crawl: undefined, content: articleBody("<p>One</p>"), notice: undefined, visible: true },
-	{ reader: "pending with published content", crawl: { status: "pending" }, content: articleBody("<p>One</p>"), notice: undefined, visible: false },
+	{ reader: "pending with published content", crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, content: articleBody("<p>One</p>"), notice: undefined, visible: false },
 	{ reader: "under a notice", crawl: { status: "ready" }, content: articleBody("<p>One</p>"), notice: "not-an-article", visible: false },
 ];
 
@@ -99,7 +99,7 @@ describe("renderTableOfContents", () => {
 	});
 
 	it("renders no card inside a hidden wrapper", () => {
-		const wrapper = wrapperOf(render({ crawl: { status: "pending" }, content: undefined }));
+		const wrapper = wrapperOf(render({ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, content: undefined }));
 
 		expect(wrapper.children).toHaveLength(0);
 	});

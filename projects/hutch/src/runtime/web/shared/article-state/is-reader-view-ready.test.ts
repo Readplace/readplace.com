@@ -10,7 +10,7 @@ describe("isReaderViewReady", () => {
 	});
 
 	it("is not ready while the crawl is pending, even with published content", () => {
-		expect(isReaderViewReady({ crawl: { status: "pending" }, content: "<p>Body copy</p>" })).toBe(
+		expect(isReaderViewReady({ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, content: "<p>Body copy</p>" })).toBe(
 			false,
 		);
 	});

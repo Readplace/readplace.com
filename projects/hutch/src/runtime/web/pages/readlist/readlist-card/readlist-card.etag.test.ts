@@ -64,7 +64,7 @@ describe("computeReadlistCardEtag", () => {
 
 	it("changes when crawlStatus changes", () => {
 		const article = makeArticle();
-		const a = computeReadlistCardEtag({ article, crawl: { status: "pending" }, summary: undefined, readerProvenance: undefined });
+		const a = computeReadlistCardEtag({ article, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, summary: undefined, readerProvenance: undefined });
 		const b = computeReadlistCardEtag({ article, crawl: { status: "ready" }, summary: undefined, readerProvenance: undefined });
 		expect(a).not.toBe(b);
 	});
@@ -79,13 +79,13 @@ describe("computeReadlistCardEtag", () => {
 	it("changes when wordCount changes", () => {
 		const a = computeReadlistCardEtag({
 			article: makeArticle({ metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 0 } }),
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			summary: { status: "pending" },
 			readerProvenance: undefined,
 		});
 		const b = computeReadlistCardEtag({
 			article: makeArticle({ metadata: { title: "T", siteName: siteLabel("s.com"), excerpt: "e", wordCount: 750 } }),
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			summary: { status: "pending" },
 			readerProvenance: undefined,
 		});

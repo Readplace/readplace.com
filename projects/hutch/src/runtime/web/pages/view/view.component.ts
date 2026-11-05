@@ -1,3 +1,4 @@
+import { CRAWL_ESTIMATE_SCRIPT } from "../../shared/crawl-estimate/crawl-estimate.component";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
@@ -210,6 +211,7 @@ export interface ViewPageInput {
 	readerNotice?: ReaderFailedVariant;
 	backLink: { topHref: string; label: string } | undefined;
 	endCta: ViewEndCta | undefined;
+	now: Date;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -227,6 +229,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		},
 	});
 	const innerContent = renderArticleBody({
+		now: input.now,
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
 		readTime: displayableReadTime(input),
@@ -327,6 +330,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			navHide: NAV_HIDE_DISABLED,
 			page:
 				SHARE_DIALOG_SCRIPT +
+				CRAWL_ESTIMATE_SCRIPT +
 				SAVE_TIP_SCRIPT +
 				TABLE_OF_CONTENTS_SCRIPT +
 				READER_TOP_SCRIPT,

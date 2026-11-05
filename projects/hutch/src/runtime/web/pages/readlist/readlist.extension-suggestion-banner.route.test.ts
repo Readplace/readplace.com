@@ -60,7 +60,7 @@ describe("GET /queue — extension suggestion banner", () => {
 	 * instead of silently re-coupling the listing to article parse state. */
 	it("never triggers the banner on the listing, even when the most recent save is pending", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
-			status: "pending",
+			status: "pending", startedAt: "2026-11-05T10:00:00.000Z",
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
@@ -97,7 +97,7 @@ describe("GET /queue — extension suggestion banner", () => {
 describe("GET /queue/:id/view — extension suggestion banner", () => {
 	it("sets data-show='false' while the owned article's crawl is still pending", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
-			status: "pending",
+			status: "pending", startedAt: "2026-11-05T10:00:00.000Z",
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",
@@ -365,7 +365,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 
 	it("emits no banner OOB while the owner reader poll is still loading", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
-			status: "pending",
+			status: "pending", startedAt: "2026-11-05T10:00:00.000Z",
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async ({ url, viewer }) => shownSummary({ url, viewer, ownerUserId: undefined, summary: {
 			status: "pending",

@@ -78,7 +78,7 @@ const AGGREGATE_FIELDS = ArticleAggregateRow.keyof().options;
  * 1. Legacy rows saved before `pendingSince` existed default to epoch 0 so the
  *    canary's age-gate immediately surfaces them once they cross MIN_AGE_MS.
  */
-const LEGACY_PENDING_SINCE = new Date(0).toISOString();
+export const LEGACY_PENDING_SINCE = new Date(0).toISOString();
 
 /**
  * 1. Legacy rows wrote a plain string (free-form, set by save-link-work and

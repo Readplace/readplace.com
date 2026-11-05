@@ -6,7 +6,7 @@ export interface CrawlParts {
 }
 
 export type ArticleCrawl = (
-	| { status: "pending"; stage?: CrawlStage; parts?: CrawlParts }
+	| { status: "pending"; startedAt: string; stage?: CrawlStage; parts?: CrawlParts }
 	| { status: "ready" }
 	| { status: "failed"; reason: string; outcomeRevision: number }
 	| { status: "unsupported"; reason: string }

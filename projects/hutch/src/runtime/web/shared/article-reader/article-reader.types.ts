@@ -51,6 +51,7 @@ export interface ArticleReaderDeps {
 	 * here too — not just on the initial SSR render.
 	 */
 	appOrigin: string;
+	now: () => Date;
 	/**
 	 * Used by the poll handlers to read the latest metadata on every tick so
 	 * the header (title, siteName, readTime) and document <title> can settle

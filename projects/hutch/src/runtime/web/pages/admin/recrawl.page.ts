@@ -40,6 +40,7 @@ const RECRAWL_REFUSED_TEMPLATE = readFileSync(join(__dirname, "recrawl-refused.t
 
 export interface AdminRecrawlDependencies {
 	appOrigin: string;
+	now: () => Date;
 	findArticleByUrl: FindArticleByUrl;
 	findItemOwner: FindItemOwner;
 	resolveCanonicalIdentity: (url: string) => Promise<string>;
@@ -231,6 +232,7 @@ async function renderRecrawlPage(
 
 	const html = Base(AdminRecrawlPage({
 		articleUrl,
+		now: deps.now(),
 		destinationUrl: existing.destinationUrl,
 		appOrigin: deps.appOrigin,
 		metadata: existing.metadata,
@@ -376,6 +378,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,
+		now: deps.now,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
 		summaryOpen: false,
 		requestResolutionOnView: undefined,

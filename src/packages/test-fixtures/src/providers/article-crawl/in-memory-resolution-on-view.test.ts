@@ -11,7 +11,7 @@ const HOUR_MS = 60 * 60 * 1000;
 
 function setup(owner = OWNER) {
 	const clock = { now: new Date(NOW) };
-	const crawl = initInMemoryArticleCrawl();
+	const crawl = initInMemoryArticleCrawl({ now: () => new Date(NOW) });
 	const summary = initInMemoryGeneratedSummary({ findItemOwner: async () => owner });
 	const claim = initInMemoryClaimResolutionOnView({ crawl, summary, findItemOwner: async () => owner, now: () => clock.now });
 	const advance = (ms: number) => {
@@ -33,7 +33,7 @@ describe("initInMemoryClaimResolutionOnView", () => {
 
 			const result = await claim({ url: URL, axes: "crawl-and-summary", viewer: viewerFor(OWNER) });
 
-			expect(result).toEqual({ kind: "claimed", crawl: { status: "pending", resolutionOnViewClaimedAt: NOW }, summary: { status: "pending" } });
+			expect(result).toEqual({ kind: "claimed", crawl: { status: "pending", startedAt: NOW, resolutionOnViewClaimedAt: NOW }, summary: { status: "pending" } });
 			expect(crawl.isMeteredLegsDeferred(URL)).toBe(false);
 		});
 
@@ -101,7 +101,7 @@ describe("initInMemoryClaimResolutionOnView", () => {
 
 		it("hands a non-owner a skipped summary for a private item it claimed", async () => {
 			const privateUrl = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
-			const crawl = initInMemoryArticleCrawl();
+			const crawl = initInMemoryArticleCrawl({ now: () => new Date(NOW) });
 			const summary = initInMemoryGeneratedSummary({ findItemOwner: async () => OWNER });
 			const claim = initInMemoryClaimResolutionOnView({ crawl, summary, findItemOwner: async () => OWNER, now: () => new Date(NOW) });
 			await crawl.markCrawlReady({ url: privateUrl });

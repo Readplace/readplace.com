@@ -1,0 +1,14 @@
+.crawl-estimate {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-meta);
+}
+
+.crawl-estimate--counting,
+.crawl-estimate--almost-there {
+  display: inline;
+}
+
+.crawl-estimate--quiet,
+.crawl-estimate--hidden {
+  display: none;
+}

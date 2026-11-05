@@ -17,7 +17,7 @@ export type {
 	InMemoryMarkCrawlUnsupported,
 };
 
-export function initInMemoryArticleCrawl(): {
+export function initInMemoryArticleCrawl(deps: { now: () => Date }): {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
@@ -41,6 +41,9 @@ export function initInMemoryArticleCrawl(): {
 		return { ...crawl, resolutionOnViewClaimedAt: claimedAt };
 	};
 
+	const startedAtOf = (current: ArticleCrawl | undefined): string =>
+		current?.status === "pending" ? current.startedAt : deps.now().toISOString();
+
 	function bumpOutcomeRevision(key: string): number {
 		const next = (outcomeRevisions.get(key) ?? 0) + 1;
 		outcomeRevisions.set(key, next);
@@ -60,7 +63,7 @@ export function initInMemoryArticleCrawl(): {
 				return { kind: "refused", crawlStatus: current.status, carriedMarker: meteredLegsDeferred.has(id.value) };
 			}
 			meteredLegsDeferred.add(id.value);
-			states.set(id.value, { status: "pending" });
+			states.set(id.value, { status: "pending", startedAt: startedAtOf(current) });
 			return { kind: "marked" };
 		}
 		const carriedMarker = meteredLegsDeferred.has(id.value);
@@ -70,11 +73,12 @@ export function initInMemoryArticleCrawl(): {
 		// progress indicator does not reset.
 		const existingStage =
 			current?.status === "pending" ? current.stage : undefined;
+		const startedAt = startedAtOf(current);
 		states.set(
 			id.value,
 			existingStage
-				? { status: "pending", stage: existingStage }
-				: { status: "pending" },
+				? { status: "pending", startedAt, stage: existingStage }
+				: { status: "pending", startedAt },
 		);
 		return { kind: "marked" };
 	};
@@ -82,7 +86,7 @@ export function initInMemoryArticleCrawl(): {
 	const forceMarkCrawlPending: ForceMarkCrawlPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		meteredLegsDeferred.delete(id.value);
-		states.set(id.value, { status: "pending" });
+		states.set(id.value, { status: "pending", startedAt: deps.now().toISOString() });
 	};
 
 	const markCrawlReady: InMemoryMarkCrawlReady = async ({ url }) => {
@@ -118,7 +122,7 @@ export function initInMemoryArticleCrawl(): {
 			current?.status === "unsupported"
 		)
 			return;
-		states.set(id.value, { status: "pending", stage });
+		states.set(id.value, { status: "pending", startedAt: startedAtOf(current), stage });
 	};
 
 	const isMeteredLegsDeferred = (url: string): boolean =>

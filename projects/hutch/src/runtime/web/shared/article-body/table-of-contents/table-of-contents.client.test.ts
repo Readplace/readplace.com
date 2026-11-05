@@ -23,7 +23,7 @@ function readerHtml(html: string): string {
 }
 
 const PENDING_READER_HTML = renderTableOfContents({
-	crawl: { status: "pending" },
+	crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 	content: undefined,
 	notice: undefined,
 	appOrigin: APP_ORIGIN,

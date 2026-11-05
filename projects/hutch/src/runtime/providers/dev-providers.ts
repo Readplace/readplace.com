@@ -385,7 +385,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 				clientId: "dev.readplace.apple-login",
 				stateSigningSecret: "dev-apple-state-signing-secret",
 			};
-	const crawlStore = initInMemoryArticleCrawl();
+	const crawlStore = initInMemoryArticleCrawl({ now: () => new Date() });
 	const summaryStore = initInMemoryGeneratedSummary({ findItemOwner: articleStore.findItemOwner });
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);

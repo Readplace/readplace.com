@@ -77,7 +77,7 @@ describe("initSaveEmailIssue", () => {
 	});
 
 	it("marks a still-pending issue's crawl unmeasured on a repeat save too", async () => {
-		const h = harness({ status: "pending" });
+		const h = harness({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" });
 		await h.save([]);
 		h.calls.length = 0;
 		h.crawlPendingMarks.length = 0;

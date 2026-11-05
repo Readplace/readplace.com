@@ -14,7 +14,7 @@ const NOW_ISO = NOW.toISOString();
 const ONE_HOUR_AGO = "2026-11-05T11:00:00.000Z";
 
 function setup(overrides: { publishFails?: boolean } = {}) {
-	const crawl = initInMemoryArticleCrawl();
+	const crawl = initInMemoryArticleCrawl({ now: () => NOW });
 	const summary = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 	const claimResolutionOnView = initInMemoryClaimResolutionOnView({ crawl, summary, findItemOwner: async () => undefined, now: () => NOW });
 	const publisher = initInMemoryResolveArticleOnView({ logger: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() } });
@@ -54,7 +54,7 @@ describe("initRequestResolutionOnView", () => {
 			articles: [await t.rowOf(url)],
 		});
 
-		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", resolutionOnViewClaimedAt: NOW_ISO });
+		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", startedAt: NOW_ISO, resolutionOnViewClaimedAt: NOW_ISO });
 		expect(resolved.get(url)?.summary).toEqual({ status: "pending" });
 		expect(t.publisher.publishedResolveArticleOnView).toEqual([
 			{ url, axes: "crawl-and-summary", surface: "readlist-html", saveAttemptId: expect.any(String) },
@@ -125,7 +125,7 @@ describe("initRequestResolutionOnView", () => {
 			articles: [staleRow],
 		});
 
-		expect(resolved.get(url)).toEqual({ crawl: { status: "pending", resolutionOnViewClaimedAt: NOW_ISO }, summary: { status: "pending" } });
+		expect(resolved.get(url)).toEqual({ crawl: { status: "pending", startedAt: NOW_ISO, resolutionOnViewClaimedAt: NOW_ISO }, summary: { status: "pending" } });
 		expect(t.publisher.publishedResolveArticleOnView).toHaveLength(1);
 		expect(t.logger.info).toHaveBeenLastCalledWith("[ResolveOnView] requested", {
 			surface: "readlist-html",
@@ -151,7 +151,7 @@ describe("initRequestResolutionOnView", () => {
 			articles: [await t.rowOf(url)],
 		});
 
-		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", resolutionOnViewClaimedAt: NOW_ISO });
+		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", startedAt: NOW_ISO, resolutionOnViewClaimedAt: NOW_ISO });
 		expect(t.logger.error).toHaveBeenCalledWith("[ResolveOnView] publish failed", {
 			url,
 			axes: "crawl-and-summary",
@@ -212,7 +212,7 @@ describe("initRequestResolutionOnView", () => {
 			articles: [await t.rowOf(url)],
 		});
 
-		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", resolutionOnViewClaimedAt: NOW_ISO });
+		expect(resolved.get(url)?.crawl).toEqual({ status: "pending", startedAt: NOW_ISO, resolutionOnViewClaimedAt: NOW_ISO });
 		expect(t.publisher.publishedResolveArticleOnView).toEqual([
 			{ url, axes: "crawl-and-summary", surface: "readlist-siren", saveAttemptId: expect.any(String) },
 		]);
@@ -309,7 +309,7 @@ describe("initRequestResolutionOnView", () => {
 
 describe("overlayResolution", () => {
 	it("replaces the resolved urls' crawl and summary and keeps every other url as loaded", () => {
-		const pending: ArticleCrawl = { status: "pending" };
+		const pending: ArticleCrawl = { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" };
 		const ready: ArticleCrawl = { status: "ready" };
 		const failedSummary = shownSummary({ url: "https://b.example/", summary: { status: "failed", reason: "boom" }, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined });
 		const crawlByUrl = new Map<string, ArticleCrawl | undefined>([

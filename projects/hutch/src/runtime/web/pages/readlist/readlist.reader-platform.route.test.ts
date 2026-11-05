@@ -454,7 +454,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 	});
 
 	it("posts captureAvailable when the control arrives in a later swap, and only once", async () => {
-		let crawl: ArticleCrawl = { status: "pending" };
+		let crawl: ArticleCrawl = { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" };
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,
@@ -707,7 +707,7 @@ describe("Readlist reader chromeless switch (GET /queue/:id/view?platform=ios)",
 	});
 
 	it("carries the ?shell=app marker onto the chromeless reader's poll URL so its poll chain stays on the app surface", async () => {
-		const findArticleCrawlStatus = async () => ({ status: "pending" as const });
+		const findArticleCrawlStatus = async () => ({ status: "pending" as const, startedAt: "2026-11-05T10:00:00.000Z" });
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp({
 			...fixture,

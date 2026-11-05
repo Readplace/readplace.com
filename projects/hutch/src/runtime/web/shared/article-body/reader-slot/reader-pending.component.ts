@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { CrawlRemainingEstimate } from "@packages/domain/article";
 import { render } from "@packages/web-shell";
+import { renderCrawlEstimate } from "../../crawl-estimate/crawl-estimate.component";
 import { renderHiddenProgressBar, renderProgressBar } from "../progress-bar.component";
 
 const TEMPLATE = readFileSync(
@@ -21,6 +23,7 @@ export type ReaderPendingInput =
 			 * by the slot dispatcher routing to `renderReaderFailed({ variant: "slow" })`. */
 			pollUrl: string;
 			pct: number;
+			estimate: CrawlRemainingEstimate | undefined;
 			descriptions: readonly string[];
 			oob?: boolean;
 		}
@@ -33,11 +36,13 @@ export function renderReaderPending(input: ReaderPendingInput): string {
 					title: READER_PENDING_TITLE,
 					descriptions: input.descriptions,
 					progressHtml: renderProgressBar({ axis: "reader", pct: input.pct, labelledBy: TITLE_ID }),
+					estimateHtml: renderCrawlEstimate(input.estimate),
 				}
 			: {
 					title: READER_CAPTURING_TITLE,
 					descriptions: [],
 					progressHtml: renderHiddenProgressBar({ axis: "reader" }),
+					estimateHtml: renderCrawlEstimate(undefined),
 				};
 	return render(TEMPLATE, {
 		pollUrl: input.pollUrl,

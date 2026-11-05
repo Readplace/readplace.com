@@ -17,6 +17,7 @@ import type {
 	CrawlPendingMark,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
+import { LEGACY_PENDING_SINCE } from "./dynamodb-article-store";
 
 export const ArticleCrawlRow = z.object({
 	url: z.string(),
@@ -39,6 +40,8 @@ export const ArticleCrawlRow = z.object({
 	crawlPartTotal: dynamoField(z.number()),
 	crawlOutcomeRevision: dynamoField(z.number()),
 	resolutionOnViewClaimedAt: dynamoField(z.string()),
+	crawlStartedAt: dynamoField(z.string()),
+	crawlPendingSince: dynamoField(z.string()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
@@ -68,7 +71,10 @@ function crawlOf(row: ArticleCrawlRowShape | undefined): ArticleCrawl | undefine
 			row.crawlPartCurrent !== undefined && row.crawlPartTotal !== undefined
 				? { current: row.crawlPartCurrent, total: row.crawlPartTotal }
 				: undefined;
-		const pending: ArticleCrawl = { status: "pending" };
+		const pending: ArticleCrawl = {
+			status: "pending",
+			startedAt: row.crawlStartedAt ?? row.crawlPendingSince ?? LEGACY_PENDING_SINCE,
+		};
 		if (row.crawlStage) pending.stage = row.crawlStage;
 		if (parts) pending.parts = parts;
 		return pending;

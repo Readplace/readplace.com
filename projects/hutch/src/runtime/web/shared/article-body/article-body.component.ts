@@ -46,6 +46,7 @@ export interface ArticleBodyInput {
 	summaryToggleUrl?: string;
 	topActionsHtml: string;
 	bottomActionsHtml: string;
+	now: Date;
 	extensionInstallUrl?: string;
 	appOrigin: string;
 	/** Where the owner's save came from. Per-user, so only the owner reader
@@ -108,6 +109,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		notice: input.readerNotice,
 		appOrigin: input.appOrigin,
 		noticeOob: false,
+		now: input.now,
 	});
 
 	const summarySlotHtml = renderSummarySlot({

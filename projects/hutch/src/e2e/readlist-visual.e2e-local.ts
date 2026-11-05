@@ -135,6 +135,7 @@ const VOLATILE_CHROME = [
 	".newer-version-banner",
 	"[data-test-extension-suggestion-banner]",
 	"[data-test-changelog-banner]",
+	".crawl-estimate",
 ];
 
 function trialTile(unit: "days" | "hours" | "minutes"): string {

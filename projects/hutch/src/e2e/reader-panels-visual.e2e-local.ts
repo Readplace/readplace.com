@@ -42,7 +42,7 @@ const SUMMARY_DESCRIPTION = `${SUMMARY_SLOT} [data-test-summary-pending-text]`;
 const DISCLOSURE = `${SUMMARY_SLOT} [data-test-tldr]`;
 const DISCLOSURE_PREVIEW = `${SUMMARY_SLOT} .tldr-disclosure__preview`;
 const DISCLOSURE_TEXT = `${SUMMARY_SLOT} .tldr-disclosure__text`;
-const VOLATILE_CHROME = [".offline-banner", ".newer-version-banner"];
+const VOLATILE_CHROME = [".offline-banner", ".newer-version-banner", ".article-body__reader-estimate"];
 
 const PANEL_WIDTH = 746;
 const TRACK_WIDTH = 712;

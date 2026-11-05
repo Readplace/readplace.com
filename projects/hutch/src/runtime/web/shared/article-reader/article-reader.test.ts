@@ -98,6 +98,7 @@ function initFakeDeps(initial: {
 		crawlVersions: initial.crawlVersions ?? [],
 	};
 	const deps: ArticleReaderDeps = {
+		now: () => new Date("2026-11-05T10:00:00.000Z"),
 		findArticleCrawlStatus: async () => state.crawl,
 		findGeneratedSummary: async ({ url, viewer }) => {
 			reads.push({ port: "findGeneratedSummary", viewer });
@@ -153,7 +154,7 @@ describe("initArticleReader", () => {
 	describe("resolveReaderState", () => {
 		it("returns content, crawl, summary and poll URLs when crawl and summary are pending", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "pending" },
 				content: undefined,
 			});
@@ -165,7 +166,7 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(result.crawl).toEqual({ status: "pending" });
+			expect(result.crawl).toEqual({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" });
 			expect(result.summary).toEqual({ status: "pending" });
 			expect(result.content).toBeUndefined();
 			expect(result.readerPollUrl).toBe("/test/reader?poll=1");
@@ -267,7 +268,7 @@ describe("initArticleReader", () => {
 
 		it("leaves crawlVersions empty before the first crawl records a contentFetchedAt", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "pending" },
 			});
 			const reader = initArticleReader(deps);
@@ -451,7 +452,7 @@ describe("initArticleReader", () => {
 
 		it("flags neither readerViewFailed nor readerContentUnavailable while the crawl and summary are still pending", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "pending" },
 			});
 			const reader = initArticleReader(deps);
@@ -488,7 +489,7 @@ describe("initArticleReader", () => {
 	describe("handleSummaryPoll", () => {
 		it("emits a polling slot with the next poll URL when summary is pending", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "pending" },
 			});
 			const reader = initArticleReader(deps);
@@ -516,7 +517,7 @@ describe("initArticleReader", () => {
 
 		it("stops polling at MAX_POLLS", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "pending" },
 			});
 			const reader = initArticleReader(deps);
@@ -738,7 +739,7 @@ describe("initArticleReader", () => {
 	describe("handleReaderPoll", () => {
 		it("emits the reader slot with the next poll URL when crawl is pending", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -766,7 +767,7 @@ describe("initArticleReader", () => {
 
 		it("stops polling at MAX_POLLS and swaps to the 'Your link is saved' slow reframe", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			});
 			const reader = initArticleReader(deps);
 
@@ -797,7 +798,7 @@ describe("initArticleReader", () => {
 
 		it("carries the reader panel's own progress in the slot it swaps, driven by the recorded crawl stage", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending", stage: "crawl-content-uploaded" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z", stage: "crawl-content-uploaded" },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -964,7 +965,7 @@ describe("initArticleReader", () => {
 
 		it("includes the article header as an hx-swap-oob fragment carrying the latest title so the H1 settles in place once the crawl writes it over the hostname stub", async () => {
 			const { state, deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 			});
 			state.article = {
@@ -1005,7 +1006,7 @@ describe("initArticleReader", () => {
 
 		it("includes a <title> hx-swap-oob fragment formatted via deps.formatDocumentTitle so the browser tab updates without any client-side JS", async () => {
 			const { state, deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 			});
 			state.article = {
@@ -1043,7 +1044,7 @@ describe("initArticleReader", () => {
 
 		it("points the header's Original link at the redirect destination for a merged article", async () => {
 			const { state, deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 			});
 			state.article = {
@@ -1138,7 +1139,7 @@ describe("initArticleReader", () => {
 
 		it("keeps the header's Original link on the saved URL when no redirect was ever resolved", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 			});
 			const reader = initArticleReader(deps);
@@ -1168,7 +1169,7 @@ describe("initArticleReader", () => {
 
 		it("sends the failed-slot CTA to the redirect destination for a merged article", async () => {
 			const { state, deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 			});
 			state.article = {
@@ -1201,7 +1202,7 @@ describe("initArticleReader", () => {
 
 		it("omits the title, meta and <title> OOB fragments when the row has gone missing — falling back to swapping only the slot so the existing header text stays put", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 				article: null,
 			});
@@ -1381,7 +1382,7 @@ describe("initArticleReader", () => {
 
 		it("handleReaderPoll emits a deferred OOB summary slot (hidden, still polling) while the crawl is pending", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "pending" },
 				content: undefined,
 			});
@@ -1415,7 +1416,7 @@ describe("initArticleReader", () => {
 
 		it("handleSummaryPoll emits an OOB reader slot with hx-get when crawl has gone pending while summary is settling", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending", stage: "crawl-fetching" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z", stage: "crawl-fetching" },
 				summary: { status: "ready", summary: "TL;DR" },
 				content: undefined,
 			});
@@ -1723,10 +1724,10 @@ describe("initArticleReader", () => {
 		});
 
 		it.each([
-			{ crawl: { status: "pending" } as const, capture: { kind: "started", noticeRevision: 1, trigger: "manual" } as const, next: "/test/reader?poll=3&captureSince=1&captureTrigger=manual" },
-			{ crawl: { status: "pending" } as const, capture: { kind: "started", noticeRevision: 1, trigger: "automatic" } as const, next: "/test/reader?poll=3&captureSince=1&captureTrigger=automatic" },
+			{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } as const, capture: { kind: "started", noticeRevision: 1, trigger: "manual" } as const, next: "/test/reader?poll=3&captureSince=1&captureTrigger=manual" },
+			{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } as const, capture: { kind: "started", noticeRevision: 1, trigger: "automatic" } as const, next: "/test/reader?poll=3&captureSince=1&captureTrigger=automatic" },
 			{ crawl: undefined, capture: { kind: "watching", since: 4, trigger: "manual" } as const, next: "/test/reader?poll=3&captureSince=4&captureTrigger=manual" },
-			{ crawl: { status: "pending" } as const, capture: { kind: "device-gave-up", since: 4, trigger: "automatic" } as const, next: "/test/reader?poll=3&captureSince=4&captureGaveUp=1&captureTrigger=automatic" },
+			{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } as const, capture: { kind: "device-gave-up", since: 4, trigger: "automatic" } as const, next: "/test/reader?poll=3&captureSince=4&captureGaveUp=1&captureTrigger=automatic" },
 		])("carries a $capture.trigger $capture.kind watch over a row with no outcome yet onto the next poll", async ({ crawl, capture, next }) => {
 			const doc = await capturePoll({ crawl, capture, pollCount: 2 });
 
@@ -1754,7 +1755,7 @@ describe("initArticleReader", () => {
 
 		it("mints one capture kick-off URL per trigger from the rendered failure's revision, and none for a row that has not failed", async () => {
 			const failed = initFakeDeps({ crawl: { status: "failed", reason: BLOCKED, outcomeRevision: 5 }, content: undefined });
-			const pending = initFakeDeps({ crawl: { status: "pending" }, content: undefined });
+			const pending = initFakeDeps({ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, content: undefined });
 
 			const states = await Promise.all(
 				[failed, pending].map(({ deps }) =>
@@ -1951,7 +1952,7 @@ describe("initArticleReader", () => {
 
 		it("carries the card beside the reader slot on a summary poll while the reader is still polling", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending", stage: "crawl-fetching" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z", stage: "crawl-fetching" },
 				summary: { status: "ready", summary: "TL;DR" },
 				content: undefined,
 			});
@@ -2113,7 +2114,7 @@ describe("initArticleReader", () => {
 
 		it("omits the fragment on a summary poll while the reader chain is still polling on a pending crawl", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "failed", reason: "model timeout" },
 			});
 			const reader = initArticleReader(deps);
@@ -2138,7 +2139,7 @@ describe("initArticleReader", () => {
 
 		it("omits the fragment while the reader view is still loading (crawl and summary pending)", async () => {
 			const { deps } = initFakeDeps({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: { status: "pending" },
 			});
 			const reader = initArticleReader(deps);
@@ -2428,13 +2429,13 @@ describe("resolveReaderStateFrom", () => {
 		const state = await initArticleReader(deps).resolveReaderStateFrom(
 			{ viewer: ANONYMOUS_VIEWER, article: makeSnapshot(), pollUrlBuilder: makePollUrlBuilder() },
 			{
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				summary: shownSummary({ url: makeSnapshot().url, viewer: ANONYMOUS_VIEWER, ownerUserId: undefined, summary: { status: "pending" } }),
 			},
 		);
 
 		expect({ crawl: state.crawl, summary: state.summary, readerPollUrl: state.readerPollUrl, summaryPollUrl: state.summaryPollUrl }).toEqual({
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			summary: { status: "pending" },
 			readerPollUrl: "/test/reader?poll=1",
 			summaryPollUrl: "/test/summary?poll=1",
@@ -2446,7 +2447,7 @@ describe("resolveReaderStateFrom", () => {
 
 		const state = await initArticleReader(deps).resolveReaderStateFrom(
 			{ viewer: ANONYMOUS_VIEWER, article: { ...makeSnapshot(), url: "https://mail.google.com/mail/u/0/" }, pollUrlBuilder: makePollUrlBuilder() },
-			{ crawl: { status: "pending" }, summary: undefined },
+			{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, summary: undefined },
 		);
 
 		expect(state.notice).toBe("not-an-article");
@@ -2471,7 +2472,7 @@ describe("the reader's gave-up poll", () => {
 		new Map(
 			call.articles.map(({ url }) => [
 				url,
-				{ crawl: { status: "pending" } as const, summary: shownSummary({ url, viewer: call.viewer, ownerUserId: undefined, summary: { status: "pending" } }) },
+				{ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } as const, summary: shownSummary({ url, viewer: call.viewer, ownerUserId: undefined, summary: { status: "pending" } }) },
 			]),
 		);
 
@@ -2526,7 +2527,7 @@ describe("the reader's gave-up poll", () => {
 	it.each([
 		{ when: "the device is still copying", crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 2 } as const, capture: { kind: "watching", since: 2, trigger: "manual" } as const },
 		{ when: "a newer outcome than the one the device gave up on landed", crawl: { status: "failed", reason: EDGE_BLOCK, outcomeRevision: 3 } as const, capture: { kind: "device-gave-up", since: 2, trigger: "manual" } as const },
-		{ when: "the row is already pending", crawl: { status: "pending" } as const, capture: { kind: "device-gave-up", since: 2, trigger: "manual" } as const },
+		{ when: "the row is already pending", crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } as const, capture: { kind: "device-gave-up", since: 2, trigger: "manual" } as const },
 		{
 			when: "the row has no block evidence",
 			crawl: { status: "failed", reason: JSON.stringify({ kind: "capture-unreadable", detail: "none" }), outcomeRevision: 2 } as const,

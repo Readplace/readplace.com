@@ -56,7 +56,7 @@ describe("Saving a newsletter click-tracker", () => {
 		expect(fixture.wrapperTarget.calls).toEqual([TRACKER]);
 		expect(await fixture.articleStore.findArticleByUrl(TRACKER)).toBeNull();
 		expect(await fixture.articleStore.findArticleByUrl(PUBLISHER)).not.toBeNull();
-		expect(await fixture.articleCrawl.findArticleCrawlStatus(PUBLISHER)).toEqual({ status: "pending" });
+		expect(await fixture.articleCrawl.findArticleCrawlStatus(PUBLISHER)).toEqual({ status: "pending", startedAt: expect.any(String) });
 		expect(linkSaves).toEqual([expect.objectContaining({ url: PUBLISHER, userId: expect.any(String) })]);
 		expect(linkQueued).toEqual([{ url: TRACKER, userId: expect.any(String) }]);
 		expect(fixture.submitLink.submitLinks).toEqual([]);

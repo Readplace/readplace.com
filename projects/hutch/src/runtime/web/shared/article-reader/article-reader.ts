@@ -81,6 +81,7 @@ interface PollResponseBodyInput {
 	appOrigin: string;
 	readerNotice: ReaderFailedVariant | undefined;
 	title: string | undefined;
+	now: Date;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
@@ -97,6 +98,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		oob: input.primary !== "reader",
 		noticeOob: true,
 		appOrigin: input.appOrigin,
+		now: input.now,
 	});
 	const summarySlot = renderSummarySlot({
 		crawl: input.crawl,
@@ -371,6 +373,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		return HtmlPage(
 			renderPollResponseBody({
 				primary,
+				now: deps.now(),
 				url: destinationUrl,
 				articleId: undefined,
 				crawl: undefined,
@@ -448,6 +451,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "summary",
+			now: deps.now(),
 			url: destinationUrl,
 			articleId: params.articleId,
 			crawl,
@@ -514,6 +518,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "reader",
+			now: deps.now(),
 			url: destinationUrl,
 			articleId: params.articleId,
 			crawl,

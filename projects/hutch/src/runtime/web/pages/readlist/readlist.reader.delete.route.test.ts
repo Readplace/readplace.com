@@ -112,7 +112,7 @@ describe("Deleting an article from the owner reader", () => {
 	describe("the reader's menu", () => {
 		it.each([
 			["ready", { status: "ready" }],
-			["pending", { status: "pending" }],
+			["pending", { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }],
 			["failed", { status: "failed", outcomeRevision: 1, reason: "blocked" }],
 		] satisfies [string, ArticleCrawl][])("offers Delete while the article is %s", async (_label, crawl) => {
 			const harness = useApp(withCrawl(createDefaultTestAppFixture(TEST_APP_ORIGIN), crawl));
@@ -138,7 +138,7 @@ describe("Deleting an article from the owner reader", () => {
 		});
 
 		it("renders the confirmation once, directly under <main> and outside every polled region", async () => {
-			const harness = useApp(withCrawl(createDefaultTestAppFixture(TEST_APP_ORIGIN), { status: "pending" }));
+			const harness = useApp(withCrawl(createDefaultTestAppFixture(TEST_APP_ORIGIN), { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const articleId = await saveArticle(agent);
 

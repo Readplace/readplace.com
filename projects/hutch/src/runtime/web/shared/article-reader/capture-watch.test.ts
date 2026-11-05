@@ -97,7 +97,7 @@ describe("resolving a capture watch against the stored crawl", () => {
 		expect(
 			resolveCaptureWatch({
 				watch: { kind: "started", noticeRevision: 1, trigger },
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				pollCount: 1,
 			}),
 		).toEqual({ kind: "carry", watch: { kind: "watching", since: 1, trigger } });

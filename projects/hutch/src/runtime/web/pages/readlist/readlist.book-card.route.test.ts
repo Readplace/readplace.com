@@ -56,7 +56,7 @@ describe("a book card on the readlist", () => {
 
 		expect(card.querySelector("[data-test-article-kind]")?.getAttribute("data-test-article-kind")).toBe("book");
 		expect(card.querySelector("[data-test-article-kind]")?.textContent?.trim()).toBe("Book");
-		expect(card.querySelector("[data-test-processing]")?.textContent?.trim()).toBe("Preparing your book…");
+		expect(card.querySelector("[data-test-processing-label]")?.textContent?.trim()).toBe("Preparing your book…");
 	});
 
 	it("labels a committed book with its chapters and its read time in hours and minutes", async () => {

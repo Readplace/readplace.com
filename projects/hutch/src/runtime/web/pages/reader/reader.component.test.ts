@@ -203,7 +203,7 @@ describe("ReaderPage", () => {
 
 	it("names the rail Article details when past reads has a card to show and the article has no version", () => {
 		const rail = renderRail({
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			crawlVersions: [],
 			readerPathForReadlist: READER_PATH_FOR_READLIST,
 			previouslyRead: READY_PAST_READS,
@@ -216,7 +216,7 @@ describe("ReaderPage", () => {
 
 	it("leaves the rail an unnamed div while it has no card to show: no version, the reader view pending, and past reads still pending", () => {
 		const rail = renderRail({
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			crawlVersions: [],
 			readerPathForReadlist: READER_PATH_FOR_READLIST,
 			previouslyRead: { status: "pending" },
@@ -291,7 +291,7 @@ describe("ReaderPage", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
 				content: undefined,
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				appOrigin: DEFAULT_APP_ORIGIN,
 				backLink: TEST_BACK_LINK,
 				renderActions: WebReader,

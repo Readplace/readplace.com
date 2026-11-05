@@ -105,7 +105,7 @@ describe("needsResolutionOnView", () => {
 	});
 
 	it.each([
-		{ name: "pending", crawl: { status: "pending" as const } },
+		{ name: "pending", crawl: { status: "pending" as const, startedAt: "2026-11-05T10:00:00.000Z" } },
 		{ name: "absent", crawl: undefined },
 	])("asks nothing for a $name crawl", ({ crawl }) => {
 		expect(

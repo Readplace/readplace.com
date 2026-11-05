@@ -109,7 +109,7 @@ describe("renderSummarySlot", () => {
 	it("defers the summary (empty, still polling) while the crawl is pending and content is absent", () => {
 		const doc = parse(
 			renderSummarySlot({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 				summary: { status: "pending" },
 				summaryPollUrl: "/queue/abc/summary?poll=1",
@@ -149,7 +149,7 @@ describe("renderSummarySlot", () => {
 	it("defers the summary when content is present but the crawl is back to pending (admin recrawl)", () => {
 		const doc = parse(
 			renderSummarySlot({
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: "<p>x</p>",
 				summary: { status: "pending" },
 				summaryPollUrl: "/queue/abc/summary?poll=1",
@@ -229,7 +229,7 @@ describe("renderSummarySlot", () => {
 		(reason) => {
 			const doc = parse(
 				renderSummarySlot({
-					crawl: { status: "pending" },
+					crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 					content: "<p>x</p>",
 					summary: { status: "skipped", reason },
 				}),
@@ -248,7 +248,7 @@ describe("renderSummarySlot", () => {
 
 	it("HTML-escapes the deferred poll URL, matching the Handlebars-rendered pending slot", () => {
 		const html = renderSummarySlot({
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			content: undefined,
 			summary: { status: "pending" },
 			summaryPollUrl: "/view/summary?url=x&poll=1",

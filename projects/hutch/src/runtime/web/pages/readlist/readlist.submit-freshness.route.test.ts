@@ -41,6 +41,7 @@ describe("Readlist save through submit freshness", () => {
 		expect(staleChecks).toEqual([]);
 		expect(await fixture.articleCrawl.findArticleCrawlStatus(articleUrl)).toEqual({
 			status: "pending",
+			startedAt: expect.any(String),
 		});
 
 		await fixture.articleCrawl.markCrawlReady({ url: articleUrl });

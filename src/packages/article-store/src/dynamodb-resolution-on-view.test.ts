@@ -57,6 +57,7 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 		const { client, sent } = capturingClient({
 			url: ArticleResourceUniqueId.parse(URL).value,
 			crawlStatus: "pending",
+			crawlPendingSince: FROZEN_NOW.toISOString(),
 			summaryStatus: "pending",
 			resolutionOnViewClaimedAt: FROZEN_NOW.toISOString(),
 		});
@@ -66,7 +67,7 @@ describe("initDynamoDbClaimResolutionOnView", () => {
 
 		expect(result).toEqual({
 			kind: "claimed",
-			crawl: { status: "pending", resolutionOnViewClaimedAt: FROZEN_NOW.toISOString() },
+			crawl: { status: "pending", startedAt: FROZEN_NOW.toISOString(), resolutionOnViewClaimedAt: FROZEN_NOW.toISOString() },
 			summary: { status: "pending" },
 		});
 		const { input } = sent();

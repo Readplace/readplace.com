@@ -431,7 +431,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	it("is false on the first tick of a normal pending row (polling continues)", () => {
 		const vm = toReadlistArticleViewModel({
 			...baseParams,
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			pollCount: 1,
 		});
 		expect(vm.isStalePending).toBe(false);
@@ -441,7 +441,7 @@ describe("toReadlistArticleViewModel — isStalePending", () => {
 	it("is true once the pending row has exhausted the poll cap (cardPollUrl drops)", () => {
 		const vm = toReadlistArticleViewModel({
 			...baseParams,
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			pollCount: 4,
 		});
 		expect(vm.isStalePending).toBe(true);

@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type ArticleDestinationUrl,
+	type CrawlRemainingEstimate,
 	DEFAULT_CRAWL_STAGE,
 	crawlProgressPct,
+	estimateCrawlRemaining,
 	crawlStagePct,
 	type ArticleBody,
 	isPrivateItemUrl,
@@ -45,6 +47,7 @@ export interface ReaderSlotInput {
 	 * target across crawl state transitions. */
 	oob?: boolean;
 	noticeOob: boolean;
+	now: Date;
 }
 
 const EMPTY_NOTICE_TEMPLATE = readFileSync(
@@ -125,13 +128,18 @@ function pendingDescriptions(url: string): readonly string[] {
 	return hint === undefined ? [READER_PENDING_DESCRIPTION] : [READER_PENDING_DESCRIPTION, hint];
 }
 
-function pollOrSlow(input: ReaderSlotInput, oob: boolean, pct: number): ReaderRegions {
+function pollOrSlow(
+	input: ReaderSlotInput,
+	oob: boolean,
+	progress: { pct: number; estimate: CrawlRemainingEstimate | undefined },
+): ReaderRegions {
 	return input.readerPollUrl
 		? withEmptyNotice(
 				renderReaderPending({
 					kind: "crawl",
 					pollUrl: input.readerPollUrl,
-					pct,
+					pct: progress.pct,
+					estimate: progress.estimate,
 					descriptions: pendingDescriptions(input.url),
 					oob,
 				}),
@@ -169,7 +177,7 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 	}
 	if (input.crawl === undefined) {
 		if (input.content) return ready(input, input.content, oob);
-		return pollOrSlow(input, oob, crawlStagePct(DEFAULT_CRAWL_STAGE));
+		return pollOrSlow(input, oob, { pct: crawlStagePct(DEFAULT_CRAWL_STAGE), estimate: undefined });
 	}
 
 	switch (input.crawl.status) {
@@ -178,16 +186,17 @@ export function renderReaderSlot(input: ReaderSlotInput): ReaderRegions {
 			 * inconsistency picked up by stuck-articles-canary; render pending
 			 * so the slot retries instead of erroring. */
 			if (input.content) return ready(input, input.content, oob);
-			return pollOrSlow(input, oob, crawlStagePct("crawl-content-uploaded"));
-		case "pending":
-			return pollOrSlow(
-				input,
-				oob,
-				crawlProgressPct({
-					stage: input.crawl.stage ?? DEFAULT_CRAWL_STAGE,
-					parts: input.crawl.parts,
-				}),
-			);
+			return pollOrSlow(input, oob, { pct: crawlStagePct("crawl-content-uploaded"), estimate: undefined });
+		case "pending": {
+			const pct = crawlProgressPct({
+				stage: input.crawl.stage ?? DEFAULT_CRAWL_STAGE,
+				parts: input.crawl.parts,
+			});
+			return pollOrSlow(input, oob, {
+				pct,
+				estimate: estimateCrawlRemaining({ startedAt: input.crawl.startedAt, now: input.now, pct }),
+			});
+		}
 		case "failed":
 			return noticeOrCapture(
 				input,

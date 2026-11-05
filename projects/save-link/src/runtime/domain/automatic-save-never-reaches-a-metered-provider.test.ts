@@ -87,7 +87,7 @@ function initPipeline(tier1: CrawlAndFinalizeResult) {
 	const userStore = initInMemoryArticleStore();
 	const aggregates = initInMemoryArticleAggregateStore();
 	aggregates.seed(pendingArticle());
-	const crawl = initInMemoryArticleCrawl();
+	const crawl = initInMemoryArticleCrawl({ now: () => new Date() });
 	const ledger = initInMemoryMeteredLegLedger({ isMeteredLegsDeferred: crawl.isMeteredLegsDeferred, now: () => NOW });
 	const runMeteredLeg = initRunMeteredLeg({ ...ledger, logger: noopLogger, now: () => NOW });
 	const metered: Record<"judge" | "summary" | MeteredLeg, number> = {

@@ -35,6 +35,7 @@ function realCard(overrides?: Partial<ReadlistArticleViewModel>): string {
 		kindLabel: undefined,
 		processingLabel: "Processing",
 		hasOrigin: true,
+		crawlEstimate: undefined,
 		...overrides,
 	};
 	return renderReadlistCard(toReadlistCardDisplayModel(vm, { isFirst: false, deviceClass: "desktop" }));

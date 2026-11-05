@@ -20,6 +20,12 @@ export {
 	type SummaryStage,
 } from "./progress-mapping";
 export {
+	CRAWL_SETTLED_P99_SECONDS,
+	CRAWL_ESTIMATE_QUIET_SECONDS,
+	estimateCrawlRemaining,
+	type CrawlRemainingEstimate,
+} from "./crawl-remaining-estimate";
+export {
 	SaveArticleInputSchema,
 	MAX_PAGES_PER_BULK_SAVE,
 	BulkSavePageSchema,

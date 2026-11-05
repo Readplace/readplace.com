@@ -53,6 +53,7 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	kindLabel: undefined,
 	processingLabel: "Processing",
 	hasOrigin: true,
+	crawlEstimate: undefined,
 };
 
 const PLAIN_ARTICLE: ReadlistArticleViewModel = {
@@ -73,6 +74,7 @@ const PLAIN_ARTICLE: ReadlistArticleViewModel = {
 	kindLabel: undefined,
 	processingLabel: "Processing",
 	hasOrigin: true,
+	crawlEstimate: undefined,
 };
 
 function baseViewModel(overrides: Partial<ReadlistViewModel> = {}): ReadlistViewModel {

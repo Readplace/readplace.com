@@ -16,6 +16,7 @@ import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { articleBody } from "@packages/test-fixtures";
 
 const baseInput: ViewPageInput = {
+	now: new Date("2026-11-05T10:00:00.000Z"),
 	articleUrl: "https://example.com/post",
 	destinationUrl: destinationUrl("https://example.com/post"),
 	appOrigin: "http://localhost:3000",
@@ -565,7 +566,7 @@ describe("ViewPage", () => {
 	});
 
 	it("keeps the rail an unnamed div holding only the hidden table of contents while the reader view is pending", () => {
-		const doc = render({ ...baseInput, crawl: { status: "pending" } });
+		const doc = render({ ...baseInput, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } });
 
 		const rail = doc.querySelector("main.view > .reading-layout > [data-test-reader-rail]");
 		assert(rail, "every view renders its rail, so a poll always has a target for the table of contents");

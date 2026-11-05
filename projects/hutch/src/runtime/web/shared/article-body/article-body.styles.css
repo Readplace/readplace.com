@@ -503,3 +503,13 @@
   width: 60%;
   max-width: 400px;
 }
+
+.article-body__reader-estimate {
+  margin: 8px 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+
+.article-body__reader-estimate:has(.crawl-estimate--quiet, .crawl-estimate--hidden) {
+  margin: 0;
+}

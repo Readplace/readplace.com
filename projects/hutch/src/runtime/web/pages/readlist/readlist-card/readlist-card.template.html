@@ -15,7 +15,7 @@
   <p class="readlist-article__suggestion{{suggestionHiddenClass}}" data-test-suggestion-label>{{suggestionLabel}}</p>
   <div class="readlist-article__foot">
     {{#if kind}}<span class="readlist-article__kind" data-test-article-kind="{{kind.name}}">{{icon kind.icon}}<span>{{kind.label}}</span></span>{{/if}}
-    <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>{{processingLabel}}</span></p>
+    <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span data-test-processing-label>{{processingLabel}}</span>{{{crawlEstimateHtml}}}</p>
     <div class="readlist-article__meta{{metaHiddenClass}}">
       {{#if hasOrigin}}<a class="readlist-article__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" title="{{siteName}}" data-test-article-url data-reader-field="site">{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></a>{{else}}<span class="readlist-article__site{{urlEmptyClass}}" title="{{siteName}}" data-reader-field="site" data-test-article-site-text>{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></span>{{/if}}
       <span class="readlist-article__saved">{{icon "clock"}}<time class="readlist-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}" data-reader-field="saved">{{saved.label}}</time></span>

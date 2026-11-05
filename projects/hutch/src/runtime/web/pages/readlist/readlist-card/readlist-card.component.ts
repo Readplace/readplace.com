@@ -8,6 +8,7 @@ import {
 	provenanceTitle,
 } from "../../../shared/article-body/article-header/provenance-label";
 import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
+import { renderCrawlEstimate } from "../../../shared/crawl-estimate/crawl-estimate.component";
 import { renderDeleteMenuItems } from "./delete-confirm.component";
 import { renderMoveMenuItems } from "./move-dialog.component";
 
@@ -35,6 +36,7 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	isFirst: boolean;
 	cardStatus: "pending" | "terminal";
 	processingHiddenClass: string;
+	crawlEstimateHtml: string;
 	metaHiddenClass: string;
 	urlEmptyClass: string;
 	readTimeLabel: string;
@@ -136,6 +138,7 @@ export function toReadlistCardDisplayModel(
 		isFirst: options.isFirst,
 		cardStatus: isProcessing ? "pending" : "terminal",
 		processingHiddenClass: isProcessing ? "" : " readlist-article__processing--hidden",
+		crawlEstimateHtml: renderCrawlEstimate(article.crawlEstimate),
 		metaHiddenClass: isProcessing ? " readlist-article__meta--hidden" : "",
 		urlEmptyClass: article.siteName ? "" : " readlist-article__site--empty",
 		readTimeLabel,

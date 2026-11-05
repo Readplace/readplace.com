@@ -8,7 +8,7 @@ describe("decideTerminalAction", () => {
 
 	it("treats pending crawl as refresh-eligible", () => {
 		assert.equal(
-			decideTerminalAction({ status: "pending" }),
+			decideTerminalAction({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }),
 			"refresh-eligible",
 		);
 	});

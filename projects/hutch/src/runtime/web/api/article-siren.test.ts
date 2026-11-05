@@ -381,7 +381,7 @@ describe("toArticleSubEntity", () => {
 		const cases: Array<[string, ArticleCrawl | undefined]> = [
 			["no crawl row loaded", undefined],
 			["crawl ready", { status: "ready" }],
-			["crawl pending", { status: "pending" }],
+			["crawl pending", { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }],
 			[
 				"failed on our own parser, which a second fetch would not fix",
 				{ status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "Readability null" }) },

@@ -1,5 +1,9 @@
 import {
+	type CrawlRemainingEstimate,
+	DEFAULT_CRAWL_STAGE,
+	crawlProgressPct,
 	displayableReadTime,
+	estimateCrawlRemaining,
 	isNonArticleHost,
 	isPrivateItemUrl,
 	type DisplayableReadTime,
@@ -123,6 +127,7 @@ export interface ReadlistArticleViewModel {
 	kind: CardKind | undefined;
 	kindLabel: string | undefined;
 	processingLabel: string;
+	crawlEstimate: CrawlRemainingEstimate | undefined;
 	hasOrigin: boolean;
 }
 
@@ -275,6 +280,20 @@ function toArticleMove(input: {
 	};
 }
 
+function cardCrawlEstimate(params: {
+	crawl: ArticleCrawl | undefined;
+	now: Date;
+	isPolling: boolean;
+}): CrawlRemainingEstimate | undefined {
+	const { crawl } = params;
+	if (!params.isPolling || crawl?.status !== "pending") return undefined;
+	return estimateCrawlRemaining({
+		startedAt: crawl.startedAt,
+		now: params.now,
+		pct: crawlProgressPct({ stage: crawl.stage ?? DEFAULT_CRAWL_STAGE, parts: crawl.parts }),
+	});
+}
+
 function versionedReaderHref(input: {
 	articleId: string;
 	returnQuery: string;
@@ -353,6 +372,7 @@ export function toReadlistArticleViewModel(params: {
 		kind: cardKind?.kind,
 		kindLabel: cardKind?.kindLabel,
 		processingLabel: cardKind === undefined ? "Processing" : `Preparing your ${cardKind.kind.noun}…`,
+		crawlEstimate: cardCrawlEstimate({ crawl, now, isPolling: cardPollUrl !== undefined }),
 		hasOrigin: !isPrivateItemUrl(article.url),
 	};
 }

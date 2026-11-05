@@ -334,6 +334,20 @@ const BUNDLES = [
   {
     entry: path.join(
       PROJECT_ROOT,
+      "src/runtime/web/shared/crawl-estimate/crawl-estimate.client.ts",
+    ),
+    outfile: path.join(OUT_DIR, "crawl-estimate.client.js"),
+    globalName: "CrawlEstimate",
+    footer: [
+      "CrawlEstimate.initCrawlEstimate({",
+      "  document: window.document,",
+      "  everySecond: function (cb) { window.setInterval(cb, 1000); }",
+      "});",
+    ].join("\n"),
+  },
+  {
+    entry: path.join(
+      PROJECT_ROOT,
       "src/runtime/web/shared/reader-open/reader-open.client.ts",
     ),
     outfile: path.join(OUT_DIR, "reader-open.client.js"),

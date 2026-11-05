@@ -80,6 +80,7 @@ export interface AdminRecrawlPageInput {
 	recrawlFormAction?: string;
 	cspNonce: CspNonce;
 	crawlVersions?: ArticleVersion[];
+	now: Date;
 }
 
 /**
@@ -98,6 +99,7 @@ export interface AdminRecrawlPageInput {
 export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 	const actions = RegularReader({ actionBtns: { readlistPicker: undefined } });
 	const innerContent = renderArticleBody({
+		now: input.now,
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
 		readTime: displayableReadTime(input),

@@ -1122,7 +1122,7 @@ describe("Readlist routes", () => {
 				},
 				articleCrawl: {
 					...fixture.articleCrawl,
-					findArticleCrawlStatus: async () => ({ status: "pending" as const }),
+					findArticleCrawlStatus: async () => ({ status: "pending", startedAt: "2026-11-05T10:00:00.000Z" as const }),
 				},
 				articleStore: {
 					...fixture.articleStore,

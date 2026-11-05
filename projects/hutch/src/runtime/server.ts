@@ -1763,6 +1763,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		adminEmails: deps.adminEmails,
 		serviceToken: deps.recrawlServiceToken,
 		buildBannerState,
+		now: deps.now,
 	});
 	app.use("/admin/recrawl", adminRecrawlRouter);
 

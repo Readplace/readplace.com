@@ -18,6 +18,7 @@ describe("renderReaderPending", () => {
 		const doc = parse(
 			renderReaderPending({
 				kind: "crawl",
+				estimate: undefined,
 				pollUrl: "/queue/abc/reader?poll=1",
 				pct: 49,
 				descriptions: ["Cleaning up this article."],
@@ -54,6 +55,7 @@ describe("renderReaderPending", () => {
 		const doc = parse(
 			renderReaderPending({
 				kind: "crawl",
+				estimate: undefined,
 				pollUrl: "/queue/abc/reader?poll=1",
 				pct: 8,
 				descriptions: ["First line.", "Second line."],
@@ -92,6 +94,7 @@ describe("renderReaderPending", () => {
 		const doc = parse(
 			renderReaderPending({
 				kind: "crawl",
+				estimate: undefined,
 				pollUrl: "/queue/abc/reader?poll=1",
 				pct: 8,
 				descriptions: [],

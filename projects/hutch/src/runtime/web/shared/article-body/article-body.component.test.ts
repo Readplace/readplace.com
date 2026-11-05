@@ -18,6 +18,7 @@ const baseInput = {
 	bottomActionsHtml: "",
 	saved: undefined,
 	publishedOn: undefined,
+	now: new Date("2026-11-05T10:00:00.000Z"),
 };
 
 function parse(html: string) {
@@ -179,7 +180,7 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: undefined,
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			summary: { status: "pending" },
 			summaryPollUrl: "/queue/abc/summary?poll=1",
 			readerPollUrl: "/queue/abc/reader?poll=1",
@@ -255,7 +256,7 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: undefined,
-			crawl: { status: "pending" },
+			crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 			readerPollUrl: "/queue/abc/reader?poll=1",
 		});
 		const doc = parse(html);
@@ -409,7 +410,7 @@ describe("renderArticleRail", () => {
 	const pastReads = "<section data-test-reader-topic-reads>past reads</section>";
 	const pendingReader: Pick<ArticleRailInput, "title" | "crawl" | "content" | "readerNotice" | "appOrigin"> = {
 		title: "Field notes",
-		crawl: { status: "pending" },
+		crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 		content: undefined,
 		readerNotice: undefined,
 		appOrigin: "https://readplace.com",

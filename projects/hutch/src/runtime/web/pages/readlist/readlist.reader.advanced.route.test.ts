@@ -213,7 +213,7 @@ describe("Readlist routes", () => {
 		it("GET /queue/:id/reader returns the reader-pending fragment with next-poll URL when crawl is pending", async () => {
 			const articleHtml = `<html><body><article><p>Pending body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
+			const findArticleCrawlStatus = async () => ({ status: "pending" as const, startedAt: "2026-11-05T10:00:00.000Z" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -279,7 +279,7 @@ describe("Readlist routes", () => {
 		it("GET /queue/:id/reader stops polling at the cap", async () => {
 			const articleHtml = `<html><body><article><p>Pending body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
-			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
+			const findArticleCrawlStatus = async () => ({ status: "pending" as const, startedAt: "2026-11-05T10:00:00.000Z" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, siteRules: [], readabilityAdditions, logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -372,7 +372,7 @@ describe("Readlist routes", () => {
 			//
 			// Pinning `now` to a fixed
 			// instant gives a deterministic body across the two requests.
-			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
+			const findArticleCrawlStatus = async () => ({ status: "pending" as const, startedAt: "2026-11-05T10:00:00.000Z" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const fixedNow = new Date("2026-04-25T12:00:00.000Z");
 			const harness = useApp({
@@ -422,7 +422,7 @@ describe("Readlist routes", () => {
 		});
 
 		it("GET /queue/:id/reader keeps the poll-swapped header and CTA on the adopted redirect destination", async () => {
-			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
+			const findArticleCrawlStatus = async () => ({ status: "pending" as const, startedAt: "2026-11-05T10:00:00.000Z" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,

@@ -31,6 +31,7 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		kindLabel: undefined,
 		processingLabel: "Processing",
 		hasOrigin: true,
+		crawlEstimate: undefined,
 		...overrides,
 	};
 }

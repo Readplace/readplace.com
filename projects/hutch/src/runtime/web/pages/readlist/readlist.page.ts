@@ -1002,6 +1002,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,
 		appOrigin: deps.appOrigin,
+		now: deps.now,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		summaryOpen: false,
 		requestResolutionOnView: deps.requestResolutionOnView,

@@ -36,6 +36,7 @@ import {
 } from "../readlist/mark-status-confirm.component";
 import type { ArticleHistoryRemoval } from "../../shared/article-body/article-history/article-history.component";
 import type { ArticleVersion, CapturePollUrls } from "../../shared/article-reader/article-reader.types";
+import { CRAWL_ESTIMATE_SCRIPT } from "../../shared/crawl-estimate/crawl-estimate.component";
 import { CAPTURE_FAILED_RELAY_SCRIPT } from "../../shared/article-body/reader-slot/reader-slot.component";
 import { SUMMARY_TOGGLE_SCRIPT } from "../../shared/article-body/summary-slot/summary-slot.component";
 import {
@@ -257,6 +258,7 @@ export function ReaderPage(
 					}),
 	});
 	const innerContent = renderArticleBody({
+		now: options.now,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
 		readTime: displayableReadTime(article),
@@ -369,6 +371,7 @@ export function ReaderPage(
 				SHARE_DIALOG_SCRIPT +
 				SUMMARY_TOGGLE_SCRIPT +
 				CAPTURE_FAILED_RELAY_SCRIPT +
+				CRAWL_ESTIMATE_SCRIPT +
 				READLIST_PICKER_SCRIPT +
 				READLIST_CLIENT_SCRIPT +
 				(options.exitConfirmScopes === undefined ? "" : READER_EXIT_CONFIRM_SCRIPT) +

@@ -360,7 +360,7 @@ describe("articleMarkdown", () => {
 			},
 			{
 				label: "a pending crawl with older content still stored",
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: articleBody("<p>Older body.</p>"),
 				summary: undefined,
 				frontmatter: {
@@ -371,7 +371,7 @@ describe("articleMarkdown", () => {
 			},
 			{
 				label: "a pending crawl and no content",
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 				summary: undefined,
 				frontmatter: {
@@ -382,7 +382,7 @@ describe("articleMarkdown", () => {
 			},
 			{
 				label: "a pending crawl while a ready summary is already stored",
-				crawl: { status: "pending" },
+				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				content: undefined,
 				summary: { status: "ready", summary: "Older point." },
 				frontmatter: {
@@ -483,7 +483,7 @@ describe("articleMarkdown", () => {
 					readlist: DEFAULT_READLIST_SLUG,
 					readlists: [DEFAULT_READLIST],
 					appOrigin: APP_ORIGIN,
-					crawl: { status: "pending" },
+					crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 					content: undefined,
 					summary: undefined,
 				}),

@@ -55,7 +55,7 @@ describe("Saving an archive capture", () => {
 		expect(await fixture.articleStore.findArticleByUrl(WAYBACK)).toBeNull();
 		expect(await fixture.articleStore.findArticleByUrl(ORIGINAL)).not.toBeNull();
 		expect(await fixture.articleStore.findContentSourceUrl(ORIGINAL)).toBe(WAYBACK);
-		expect(await fixture.articleCrawl.findArticleCrawlStatus(ORIGINAL)).toEqual({ status: "pending" });
+		expect(await fixture.articleCrawl.findArticleCrawlStatus(ORIGINAL)).toEqual({ status: "pending", startedAt: expect.any(String) });
 		expect(linkSaves).toEqual([
 			{ url: ORIGINAL, userId: expect.any(String), captureUrl: WAYBACK, sourceOriginalUrl: ORIGINAL, saveAttemptId: expect.any(String) },
 		]);
@@ -100,7 +100,7 @@ describe("Saving an archive capture", () => {
 
 		await agent.post("/queue/save").type("form").send({ url: WAYBACK });
 
-		expect(await fixture.articleCrawl.findArticleCrawlStatus(ORIGINAL)).toEqual({ status: "pending" });
+		expect(await fixture.articleCrawl.findArticleCrawlStatus(ORIGINAL)).toEqual({ status: "pending", startedAt: expect.any(String) });
 		expect(await fixture.articleStore.findContentSourceUrl(ORIGINAL)).toBe(WAYBACK);
 		expect(staleChecks).toEqual([]);
 	});
@@ -158,7 +158,7 @@ it("keys an unreachable archive short link on its own link from the web save bar
 	const response = await agent.post("/queue/save").type("form").send({ url: short });
 	expect([response.status, response.headers.location]).toEqual([303, "/queue#latest-saved"]);
 	expect(linkSaves).toEqual([{ url: short, userId: expect.any(String), saveAttemptId: expect.any(String) }]);
-	expect(await fixture.articleCrawl.findArticleCrawlStatus(short)).toEqual({ status: "pending" });
+	expect(await fixture.articleCrawl.findArticleCrawlStatus(short)).toEqual({ status: "pending", startedAt: expect.any(String) });
 	expect(fixture.submitLink.submitLinks).toEqual([]);
 });
 it("retains and retries a proven short capture on a repeated foreground save", async () => {

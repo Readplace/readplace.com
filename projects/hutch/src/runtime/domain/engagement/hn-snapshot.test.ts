@@ -32,7 +32,7 @@ function subject(input: Partial<Parameters<typeof initHnSnapshot>[0]> = {}) {
 		},
 	});
 	const articles = initInMemoryArticleStore();
-	const crawl = initInMemoryArticleCrawl();
+	const crawl = initInMemoryArticleCrawl({ now: () => clock.now });
 	const summaries = initInMemoryGeneratedSummary({ findItemOwner: async () => undefined });
 	const items = new Map<number, unknown>();
 	const published: string[] = [];
@@ -119,6 +119,7 @@ describe("shared HN preparation", () => {
 		expect(stub?.url).toBe("https://publisher.com/30");
 		expect(await app.crawl.findArticleCrawlStatus("https://publisher.com/30")).toEqual({
 			status: "pending",
+			startedAt: NOW.toISOString(),
 		});
 		expect(await app.summaries.findGeneratedSummary({ url: "https://publisher.com/30", viewer: ANONYMOUS_VIEWER })).toEqual({
 			status: "pending",

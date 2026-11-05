@@ -4,7 +4,7 @@ import { isCardTerminal } from "./is-card-terminal";
 
 describe("isCardTerminal", () => {
 	it("is non-terminal while the crawl is pending", () => {
-		const crawl: ArticleCrawl = { status: "pending" };
+		const crawl: ArticleCrawl = { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" };
 		const summary: GeneratedSummary = { status: "pending" };
 		expect(isCardTerminal(crawl, summary)).toBe(false);
 	});
