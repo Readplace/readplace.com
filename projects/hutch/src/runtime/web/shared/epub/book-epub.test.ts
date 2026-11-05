@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { strFromU8, unzipSync } from "fflate";
 import { DOMParser } from "linkedom";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import { ReaderArticleHashId } from "@packages/domain/article";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
+import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
+import { initReadArticleImageByIdentity } from "../../../providers/read-article-image-by-identity";
 import { type BookChapter, initBuildBookEpub } from "./book-epub";
 import { articleBody } from "@packages/test-fixtures";
 
@@ -65,6 +68,34 @@ describe("initBuildBookEpub", () => {
 		expect(opf).toContain("<dc:title>Waiting in your readlist — Oct 12, 2026</dc:title>");
 		expect(opf).toContain('<dc:identifier id="pub-id">urn:readplace:queue-digest:send-1</dc:identifier>');
 		expect(opf).toContain('<meta property="dcterms:modified">2026-10-12T08:30:00Z</meta>');
+	});
+
+	it("embeds a private book's image and a public article's image through the digest's by-identity reader", async () => {
+		const privateUrl = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const privateFile = `${"ab".repeat(32)}.png`;
+		const publicFile = "abcdef0123456789.jpg";
+		const shared: ReadArticleImage = async ({ filename }) => (filename === publicFile ? new Uint8Array([1]) : undefined);
+		const privateImages: ReadArticleImage = async ({ filename }) => (filename === privateFile ? new Uint8Array([2]) : undefined);
+		const build = initBuildBookEpub({
+			readArticleImage: initReadArticleImageByIdentity({ shared, private: privateImages }),
+			maxImageBytes: 1_000,
+		});
+
+		const files = unzipSync(
+			await build({
+				title: "Book",
+				identifier: "book",
+				modifiedAt: MODIFIED_AT,
+				chapters: [
+					chapter({ articleUrl: FIRST_URL, contentHtml: articleBody(`<p><img src="${imageSrc({ articleUrl: FIRST_URL, filename: publicFile })}" /></p>`) }),
+					chapter({ articleUrl: privateUrl, contentHtml: articleBody(`<p><img src="/queue/${ReaderArticleHashId.from(privateUrl).value}/media/${privateFile}" /></p>`) }),
+				],
+			}),
+		);
+
+		expect(files[`OEBPS/images/01/${publicFile}`]).toEqual(new Uint8Array([1]));
+		expect(files[`OEBPS/images/02/${privateFile}`]).toEqual(new Uint8Array([2]));
+		expect(imgSrcsOf(strFromU8(files["OEBPS/chapter-02.xhtml"]))).toEqual([`images/02/${privateFile}`]);
 	});
 
 	it("keeps two articles' same-named images apart, each chapter pointing at its own", async () => {

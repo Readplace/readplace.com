@@ -94,6 +94,8 @@ import { initDynamoDbImportSession } from "./import-session/dynamodb-import-sess
 import { initDynamoDbMediaUploadSessions } from "./media-upload-session/dynamodb-media-upload-sessions";
 import { initS3MediaPending } from "./media-pending/s3-media-pending";
 import { initS3PresignMediaImage } from "./media-image/s3-presign-media-image";
+import { initS3ReadMediaImage } from "./media-image/s3-read-media-image";
+import { initReadArticleImageByIdentity } from "./read-article-image-by-identity";
 import { initEventBridgeMediaUploadCommitted } from "./events/eventbridge-media-upload-committed";
 import { initDynamoDbPrivateItem } from "@packages/article-store";
 import { mintUploadId } from "@packages/media-contracts";
@@ -244,9 +246,15 @@ export function initProdProviders(input: { appOrigin: string }) {
 		findItemOwner,
 		logError,
 	});
-	const readArticleImage = initS3ReadArticleImage({
-		send: (cmd) => s3Client.send(cmd),
-		bucketName: contentBucketName,
+	const readArticleImage = initReadArticleImageByIdentity({
+		shared: initS3ReadArticleImage({
+			send: (cmd) => s3Client.send(cmd),
+			bucketName: contentBucketName,
+		}),
+		private: initS3ReadMediaImage({
+			send: (cmd) => s3Client.send(cmd),
+			bucketName: requireEnv("MEDIA_BUCKET_NAME"),
+		}),
 	});
 	const oauthClients = initDynamoDbOAuthClients({ client, tableName: oauthTable, now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });

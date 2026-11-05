@@ -30,6 +30,7 @@ import type {
 	WrapperTargetBundle,
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
+import { initReadArticleImageByIdentity } from "./providers/read-article-image-by-identity";
 import { createApp } from "./server";
 import { initFetchFirefoxDownloadUrl, type FetchFirefoxDownloadUrl } from "./web/pages/install";
 import { batchFromSingular } from "./batch-from-singular";
@@ -247,7 +248,10 @@ function flattenFixtureToAppDependencies(
 		markRelatedDismissed: fixture.articleStore.markRelatedDismissed,
 		readArticleContent: fixture.articleStore.readArticleContent,
 		findItemOwner: fixture.articleStore.findItemOwner,
-		readArticleImage: fixture.articleStore.readArticleImage,
+		readArticleImage: initReadArticleImageByIdentity({
+			shared: fixture.articleStore.readArticleImage,
+			private: fixture.articleStore.readArticleImage,
+		}),
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		findArticleCrawlStatuses: batchFromSingular(fixture.articleCrawl.findArticleCrawlStatus),
 		markCrawlPending: fixture.articleCrawl.markCrawlPending,

@@ -951,11 +951,25 @@ const sendUserDigestLambda = new HutchLambda("send-user-digest", {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		ANALYTICS_SALT: analyticsSalt,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		MEDIA_BUCKET_NAME: mediaBucketName,
 	},
 	policies: [
 		...sendUserDigestDynamodb.policies,
 		...HutchS3ReadWrite.readPoliciesForBucket("send-user-digest-content", contentBucketName),
 		...sendUserDigestSubscriptionsDynamodb.policies,
+		{
+			name: "send-user-digest-media-images-read",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Action: ["s3:GetObject"],
+						Resource: `arn:aws:s3:::${mediaBucketName}/images/*`,
+					},
+				],
+			}),
+		},
 	],
 });
 

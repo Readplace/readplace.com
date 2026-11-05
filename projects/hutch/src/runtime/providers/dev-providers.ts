@@ -40,6 +40,7 @@ import {
 	initInMemoryEngagementStarter,
 	initInMemoryOnboardingSignals,
 } from "@packages/test-fixtures/providers/onboarding-signals";
+import { initReadArticleImageByIdentity } from "./read-article-image-by-identity";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
@@ -592,6 +593,10 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 	return {
 		...auth,
 		...articleStore,
+		readArticleImage: initReadArticleImageByIdentity({
+			shared: articleStore.readArticleImage,
+			private: articleStore.readArticleImage,
+		}),
 		readArticleContent: initReadArticleContent({
 			storageProviderQueryOrder: [articleStore.readContent],
 			findItemOwner: articleStore.findItemOwner,

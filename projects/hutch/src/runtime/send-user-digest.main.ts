@@ -42,6 +42,8 @@ import { initEventBridgeResolveArticleOnView } from "./providers/events/eventbri
 import { initBuildQueueDigestBook } from "./web/queue-digest-book";
 import { initBuildBookEpub } from "./web/shared/epub/book-epub";
 import { requireEnv } from "@packages/require-env";
+import { initS3ReadMediaImage } from "./providers/media-image/s3-read-media-image";
+import { initReadArticleImageByIdentity } from "./providers/read-article-image-by-identity";
 
 /** Dedupe cooldown for the per-user digest slot. Set below the 6h flush cadence
  * so it guards a redriven/concurrent flush of the same tick.
@@ -154,7 +156,10 @@ const readArticleContent = initReadArticleContentOrThrow({
 });
 const buildQueueDigestBook = initBuildQueueDigestBook({
 	buildBookEpub: initBuildBookEpub({
-		readArticleImage: initS3ReadArticleImage({ send: (command) => s3.send(command), bucketName: contentBucketName }),
+		readArticleImage: initReadArticleImageByIdentity({
+			shared: initS3ReadArticleImage({ send: (command) => s3.send(command), bucketName: contentBucketName }),
+			private: initS3ReadMediaImage({ send: (command) => s3.send(command), bucketName: requireEnv("MEDIA_BUCKET_NAME") }),
+		}),
 		maxImageBytes: MAX_DIGEST_BOOK_IMAGE_BYTES,
 	}),
 });

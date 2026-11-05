@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { DOMParser } from "linkedom";
 import { strFromU8, unzipSync } from "fflate";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { SaveAttemptIdSchema } from "@packages/domain/article";
+import { ReaderArticleHashId, SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { mediaFilename } from "@packages/finalize-article";
 import type { ReadArticleImage } from "@packages/provider-contracts/article-store";
@@ -46,6 +46,29 @@ describe("initBuildArticleEpub", () => {
 		expect(strFromU8(files["OEBPS/content.xhtml"])).toContain(`<img src="images/${filename}" alt="Photo" />`);
 		expect(strFromU8(files["OEBPS/content.opf"])).toContain(`href="images/${filename}" media-type="image/png"`);
 		expect(logError).not.toHaveBeenCalled();
+	});
+
+	it("embeds a private item's image from its own media route", async () => {
+		const articleUrl = "https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef";
+		const filename = `${"ab".repeat(32)}.png`;
+		const build = initBuildArticleEpub({
+			readArticleImage: readerFor({ [filename]: new Uint8Array([1, 2, 3]) }),
+			logError: jest.fn(),
+			now: NOW,
+		});
+
+		const { bytes } = await build({
+			articleUrl,
+			title: "Book",
+			siteName: "Book",
+			excerpt: "",
+			summary: undefined,
+			contentHtml: articleBody(`<p><img src="/queue/${ReaderArticleHashId.from(articleUrl).value}/media/${filename}" alt="Plate"></p>`),
+		});
+
+		const files = unzipSync(bytes);
+		expect(files[`OEBPS/images/${filename}`]).toEqual(new Uint8Array([1, 2, 3]));
+		expect(strFromU8(files["OEBPS/content.xhtml"])).toContain(`<img src="images/${filename}" alt="Plate" />`);
 	});
 
 	it("embeds an available hosted image", async () => {
