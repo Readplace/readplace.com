@@ -131,6 +131,13 @@ describe("sanitizeArticleHtml", () => {
 		expect(sanitizeArticleHtml(responsiveImage)).toBe(responsiveImage);
 	});
 
+	it("keeps a root-relative image source, which a private book serves its images from", () => {
+		const bookImage =
+			'<img src="/queue/a1b2c3/media/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08.png" alt="Map" loading="lazy" />';
+
+		expect(sanitizeArticleHtml(bookImage)).toBe(bookImage);
+	});
+
 	it("unwraps a picture element so its image still renders", () => {
 		const picture =
 			'<picture><source srcset="https://cdn.example.com/a.webp" /><img src="https://cdn.example.com/a.jpg" alt="A" /></picture>';
