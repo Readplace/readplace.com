@@ -1,3 +1,4 @@
+import { type ReaderSectionRequest, requestedReaderSection } from "../../shared/article-body/reader-slot/section-pages";
 import assert from "node:assert";
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
@@ -150,10 +151,14 @@ async function captureAlreadyOffered(
 	return { offered: crawl?.status !== "failed" };
 }
 
-function pollUrlBuilderFor(articleUrl: string, utmParams: [string, string][]): PollUrlBuilder {
-	const utmSuffix = utmParams
+function pollUrlBuilderFor(
+	articleUrl: string,
+	utmParams: [string, string][],
+	section: ReaderSectionRequest,
+): PollUrlBuilder {
+	const utmSuffix = `${utmParams
 		.map(([key, value]) => `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-		.join("");
+		.join("")}${section === undefined ? "" : `&section=${section}`}`;
 	return {
 		summary: (n) => `/view/summary?url=${encodeURIComponent(articleUrl)}&poll=${n}${utmSuffix}`,
 		reader: (n) => `/view/reader?url=${encodeURIComponent(articleUrl)}&poll=${n}${utmSuffix}`,
@@ -490,7 +495,7 @@ function handleViewArticle(
 			: (articleSnapshot?.destinationUrl ?? existing?.destinationUrl ?? fallbackDestination);
 
 		const utmParams = collectUtmParams(req.query);
-		const pollUrlBuilder = pollUrlBuilderFor(articleUrl, utmParams);
+		const pollUrlBuilder = pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section));
 		const state = await reader.resolveReaderState({
 			viewer: viewerFor(req.userId),
 			article: { url: articleUrl, metadata, estimatedReadTime },
@@ -575,6 +580,7 @@ function handleViewArticle(
 			Base(
 				ViewPage({
 					articleUrl,
+					readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl) },
 					destinationUrl,
 					appOrigin: deps.appOrigin,
 					metadata,
@@ -622,7 +628,8 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			viewer: viewerFor(req.userId),
 			articleId: undefined,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
+			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section)),
+			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl) },
 			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: readerPublicInstallUrl(req),
 			summaryToggleUrl: undefined,
@@ -657,7 +664,8 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			viewer: viewerFor(req.userId),
 			articleId: undefined,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams),
+			pollUrlBuilder: pollUrlBuilderFor(articleUrl, utmParams, requestedReaderSection(req.query.section)),
+			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: viewPathFor(articleUrl) },
 			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: readerPublicInstallUrl(req),
 			summaryToggleUrl: undefined,

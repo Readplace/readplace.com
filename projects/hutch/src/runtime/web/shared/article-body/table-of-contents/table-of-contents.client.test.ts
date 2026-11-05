@@ -4,6 +4,10 @@ import { renderReaderReady } from "../reader-slot/reader-ready.component";
 import { initTableOfContents } from "./table-of-contents.client";
 import { renderTableOfContents } from "./table-of-contents.component";
 import { articleBody } from "@packages/test-fixtures";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
+
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_URL = "https://example.com/post";
 
 const APP_ORIGIN = "https://readplace.com";
 const SCROLL_PADDING_TOP = "52px";
@@ -12,6 +16,8 @@ const HEADED_CONTENT = "<h2>Alpha</h2><p>One</p><h3>Beta</h3><p>Two</p><h2>Gamma
 function readerHtml(html: string): string {
 	const content = articleBody(html);
 	const tableOfContents = renderTableOfContents({
+		readerSection: TEST_READER_SECTION,
+		url: TEST_READER_URL,
 		crawl: { status: "ready" },
 		content,
 		notice: undefined,
@@ -19,10 +25,12 @@ function readerHtml(html: string): string {
 		title: undefined,
 		oob: false,
 	});
-	return `${tableOfContents}${renderReaderReady({ content, appOrigin: APP_ORIGIN })}`;
+	return `${tableOfContents}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content, appOrigin: APP_ORIGIN })}`;
 }
 
 const PENDING_READER_HTML = renderTableOfContents({
+	readerSection: TEST_READER_SECTION,
+	url: TEST_READER_URL,
 	crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 	content: undefined,
 	notice: undefined,
@@ -231,5 +239,24 @@ describe("initTableOfContents", () => {
 		expect(() =>
 			initTableOfContents({ document: doc, window: createFakeWindow().win, addSettleListener: createSettle().addSettleListener }),
 		).toThrow("the reader content holds the heading that #section-beta links to");
+	});
+});
+
+describe("initTableOfContents on a paged body", () => {
+	const chapter = (n: number) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(Math.ceil(READER_SECTION_PAGE_THRESHOLD_BYTES / 10))}</p>`;
+
+	it("leaves a row on another page out of the scroll tracking, even once the page is scrolled to its end", () => {
+		const doc = makeDocument(readerHtml([1, 2].map(chapter).join("")));
+		placeHeadings(doc, { "section-chapter-1": 300 });
+		const fake = createFakeWindow();
+		initTableOfContents({ document: doc, window: fake.win, addSettleListener: createSettle().addSettleListener });
+		expect(currentRows(doc)).toEqual([{ href: "#section-chapter-1", marked: true }]);
+
+		fake.scrollTo(PAGE_HEIGHT - VIEWPORT_HEIGHT);
+		placeHeadings(doc, { "section-chapter-1": -1900 });
+		fake.scroll();
+		fake.paintFrame();
+
+		expect(currentRows(doc)).toEqual([{ href: "#section-chapter-1", marked: true }]);
 	});
 });

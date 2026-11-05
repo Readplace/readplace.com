@@ -19,6 +19,8 @@ import type {
 	ReaderViewFailedOob,
 } from "./article-reader.types";
 
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+
 const ARTICLE_URL = "https://example.com/post";
 
 function makeSnapshot(): ArticleSnapshot {
@@ -495,6 +497,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -523,6 +526,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -552,6 +556,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -582,6 +587,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -614,6 +620,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -643,6 +650,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -682,6 +690,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				readerSection: TEST_READER_SECTION,
 			};
 		}
 
@@ -745,6 +754,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -772,6 +782,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -804,6 +815,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -834,6 +846,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -862,6 +875,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -890,6 +904,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -918,6 +933,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -944,6 +960,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -980,6 +997,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1021,6 +1039,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1054,6 +1073,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1085,6 +1105,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1116,6 +1137,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1145,6 +1167,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1179,6 +1202,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1209,6 +1233,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1253,6 +1278,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1287,6 +1313,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1319,6 +1346,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1358,6 +1386,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1389,6 +1418,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1423,6 +1453,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1454,6 +1485,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1485,6 +1517,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1527,6 +1560,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1565,6 +1599,7 @@ describe("initArticleReader", () => {
 		}): Promise<Document> {
 			const { deps } = initFakeDeps({ crawl: params.crawl, content: undefined });
 			const component = await initArticleReader(deps).handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: "0123456789abcdef0123456789abcdef",
@@ -1782,6 +1817,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1826,6 +1862,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -1868,6 +1905,7 @@ describe("initArticleReader", () => {
 				saved: undefined,
 				readerViewFailedOob: () => "",
 				renderDownloadsOob: undefined,
+				readerSection: TEST_READER_SECTION,
 			};
 		}
 
@@ -2031,6 +2069,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -2062,6 +2101,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -2095,6 +2135,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -2120,6 +2161,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleSummaryPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -2145,6 +2187,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -2171,6 +2214,7 @@ describe("initArticleReader", () => {
 			const reader = initArticleReader(deps);
 
 			const component = await reader.handleReaderPoll({
+				readerSection: TEST_READER_SECTION,
 				viewer: ANONYMOUS_VIEWER,
 				articleUrl: ARTICLE_URL,
 				articleId: undefined,
@@ -2246,6 +2290,7 @@ describe("initArticleReader", () => {
 			const doc = parse(
 				toHtml(
 					await reader.handleReaderPoll({
+						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
 						articleId: undefined,
@@ -2292,6 +2337,7 @@ describe("initArticleReader", () => {
 			const doc = parse(
 				toHtml(
 					await reader.handleReaderPoll({
+						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
 						articleId: undefined,
@@ -2323,6 +2369,7 @@ describe("initArticleReader", () => {
 			const doc = parse(
 				toHtml(
 					await reader.handleSummaryPoll({
+						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
 						articleId: undefined,
@@ -2355,6 +2402,7 @@ describe("initArticleReader", () => {
 			const doc = parse(
 				toHtml(
 					await reader.handleReaderPoll({
+						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
 						articleId: undefined,
@@ -2394,6 +2442,7 @@ describe("initArticleReader", () => {
 			const doc = parse(
 				toHtml(
 					await reader.handleReaderPoll({
+						readerSection: TEST_READER_SECTION,
 						viewer: ANONYMOUS_VIEWER,
 						articleUrl: GATED_URL,
 						articleId: undefined,
@@ -2483,6 +2532,7 @@ describe("the reader's gave-up poll", () => {
 	}): Promise<Document> {
 		const { deps } = initFakeDeps({ crawl: params.crawl, content: undefined, requestResolutionOnView: params.requestResolutionOnView });
 		const component = await initArticleReader(deps).handleReaderPoll({
+			readerSection: TEST_READER_SECTION,
 			viewer: ANONYMOUS_VIEWER,
 			articleUrl: ARTICLE_URL,
 			articleId: "0123456789abcdef0123456789abcdef",

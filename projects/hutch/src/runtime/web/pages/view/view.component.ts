@@ -1,3 +1,4 @@
+import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { CRAWL_ESTIMATE_SCRIPT } from "../../shared/crawl-estimate/crawl-estimate.component";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -191,6 +192,7 @@ export function renderViewDownloadsOob(params: { articleUrl: string; guide: Epub
 }
 
 export interface ViewPageInput {
+	readerSection: ReaderSectionInput;
 	/** Identity: drives the /view share path, the save action, and SEO. */
 	articleUrl: string;
 	destinationUrl: ArticleDestinationUrl;
@@ -229,6 +231,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		},
 	});
 	const innerContent = renderArticleBody({
+		readerSection: input.readerSection,
 		now: input.now,
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
@@ -263,6 +266,8 @@ export function ViewPage(input: ViewPageInput): PageBody {
 			}),
 	});
 	const railHtml = renderArticleRail({
+		url: input.destinationUrl,
+		readerSection: input.readerSection,
 		title: input.metadata.title,
 		crawl: input.crawl,
 		content: input.content,

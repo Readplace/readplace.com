@@ -1,3 +1,4 @@
+import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAV_HIDE_DISABLED, readerScripts } from "../../shared/reader-nav-script";
@@ -135,6 +136,7 @@ export function ReaderPage(
 	options: {
 		appOrigin: string;
 		content: ArticleBody | undefined;
+		readerSection: ReaderSectionInput;
 		summary?: GeneratedSummary;
 		summaryPollUrl?: string;
 		crawl?: ArticleCrawl;
@@ -237,6 +239,8 @@ export function ReaderPage(
 			}),
 	});
 	const railHtml = renderArticleRail({
+		url: article.destinationUrl,
+		readerSection: options.readerSection,
 		title: article.metadata.title,
 		crawl: options.crawl,
 		content: options.content,
@@ -258,6 +262,7 @@ export function ReaderPage(
 					}),
 	});
 	const innerContent = renderArticleBody({
+		readerSection: options.readerSection,
 		now: options.now,
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,

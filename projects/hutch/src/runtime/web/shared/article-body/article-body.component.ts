@@ -17,6 +17,7 @@ import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
 import { renderSummarySlot } from "./summary-slot/summary-slot.component";
 import { renderTableOfContents } from "./table-of-contents/table-of-contents.component";
+import type { ReaderSectionInput } from "./reader-slot/section-pages";
 
 const ARTICLE_BODY_TEMPLATE = readFileSync(
 	join(__dirname, "article-body.template.html"),
@@ -59,10 +60,13 @@ export interface ArticleBodyInput {
 	issueLinksHtml?: string;
 	previouslyReadHtml?: string;
 	reportHref?: string;
+	readerSection: ReaderSectionInput;
 }
 
 export interface ArticleRailInput {
 	title: string;
+	url: ArticleDestinationUrl;
+	readerSection: ReaderSectionInput;
 	crawl: ArticleCrawl | undefined;
 	content: ArticleBody | undefined;
 	readerNotice: ReaderFailedVariant | undefined;
@@ -86,6 +90,8 @@ export function renderArticleRail(input: ArticleRailInput): string {
 			notice: input.readerNotice,
 			appOrigin: input.appOrigin,
 			title: input.title,
+			url: input.url,
+			readerSection: input.readerSection,
 			oob: false,
 		}),
 		articleHistoryHtml: renderArticleHistory({
@@ -110,6 +116,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		appOrigin: input.appOrigin,
 		noticeOob: false,
 		now: input.now,
+		readerSection: input.readerSection,
 	});
 
 	const summarySlotHtml = renderSummarySlot({

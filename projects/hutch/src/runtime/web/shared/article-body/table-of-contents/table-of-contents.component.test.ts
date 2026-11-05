@@ -10,6 +10,10 @@ import {
 } from "./table-of-contents.component";
 import { articleBody } from "@packages/test-fixtures";
 import type { ArticleBody } from "@packages/domain/article";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../reader-slot/section-pages";
+
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_URL = "https://example.com/post";
 
 const APP_ORIGIN = "https://readplace.com";
 const HEADED_CONTENT = articleBody(
@@ -79,6 +83,8 @@ function render(input: {
 	title?: string;
 }): string {
 	return renderTableOfContents({
+		readerSection: TEST_READER_SECTION,
+		url: TEST_READER_URL,
 		crawl: input.crawl,
 		content: input.content,
 		notice: input.notice,
@@ -156,7 +162,7 @@ describe("renderTableOfContents", () => {
 
 	it("links every row to a heading the reader slot renders from the same content", () => {
 		const doc = parse(
-			`${render({ crawl: { status: "ready" }, content: HEADED_CONTENT })}${renderReaderReady({ content: HEADED_CONTENT, appOrigin: APP_ORIGIN })}`,
+			`${render({ crawl: { status: "ready" }, content: HEADED_CONTENT })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: HEADED_CONTENT, appOrigin: APP_ORIGIN })}`,
 		);
 
 		const slot = doc.querySelector("[data-test-reader-content]");
@@ -209,7 +215,7 @@ describe("renderTableOfContents", () => {
 	it("leaves the leading title heading out of the card while the reader body keeps it and its anchor", () => {
 		const content = articleBody("<h2>Field notes</h2><p>One</p><h2>Method <a href=\"#method\">¶</a></h2><p>Two</p>");
 		const doc = parse(
-			`${render({ crawl: { status: "ready" }, content, title: "Field notes" })}${renderReaderReady({ content, appOrigin: APP_ORIGIN })}`,
+			`${render({ crawl: { status: "ready" }, content, title: "Field notes" })}${renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content, appOrigin: APP_ORIGIN })}`,
 		);
 
 		const slot = doc.querySelector("[data-test-reader-content]");
@@ -239,5 +245,89 @@ describe("renderTableOfContents", () => {
 describe("isTableOfContentsVisible", () => {
 	it.each(VISIBILITY_CASES)("is $visible when the reader view is $reader", ({ crawl, content, notice, visible }) => {
 		expect(isTableOfContentsVisible({ crawl, content, notice })).toBe(visible);
+	});
+});
+
+describe("renderTableOfContents for a paged body", () => {
+	const chapter = (n: number) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(Math.ceil(READER_SECTION_PAGE_THRESHOLD_BYTES / 10))}</p>`;
+	const longBody = articleBody([1, 2, 3].map(chapter).join(""));
+
+	function renderPaged(requested: number | undefined): Element {
+		return wrapperOf(
+			renderTableOfContents({
+				readerSection: { requested, readerPath: "/queue/a/view" },
+				url: TEST_READER_URL,
+				crawl: { status: "ready" },
+				content: longBody,
+				notice: undefined,
+				appOrigin: APP_ORIGIN,
+				title: undefined,
+				oob: false,
+			}),
+		);
+	}
+
+	function rowsOf(wrapper: Element) {
+		return Array.from(wrapper.querySelectorAll("[data-test-toc-section]"), (row) => ({
+			anchor: row.getAttribute("data-test-toc-section"),
+			page: row.getAttribute("data-test-toc-page"),
+			href: row.getAttribute("href"),
+		}));
+	}
+
+	it("lists every page's sections on page 2 of 3, each row naming the page that holds it", () => {
+		const rows = rowsOf(renderPaged(2));
+
+		expect(rows.map(({ anchor, page }) => ({ anchor, page }))).toEqual([
+			{ anchor: "section-chapter-1", page: "1" },
+			{ anchor: "section-chapter-2", page: "2" },
+			{ anchor: "section-chapter-3", page: "3" },
+		]);
+	});
+
+	it("links a row on another page to that page's section of the reader, tracked as a section-pager click", () => {
+		const row = renderPaged(2).querySelector('[data-test-toc-section="section-chapter-3"]');
+		assert(row, "page 2 must list the page-3 row");
+		const href = new URL(String(row.getAttribute("href")), APP_ORIGIN);
+
+		expect({
+			pathname: href.pathname,
+			section: href.searchParams.get("section"),
+			utmSource: href.searchParams.get("utm_source"),
+			utmContent: href.searchParams.get("utm_content"),
+			hash: href.hash,
+		}).toEqual({
+			pathname: "/queue/a/view",
+			section: "3",
+			utmSource: "reader",
+			utmContent: "section-pager",
+			hash: "#section-chapter-3",
+		});
+	});
+
+	it("links a row on the current page to its anchor alone", () => {
+		const row = renderPaged(2).querySelector('[data-test-toc-section="section-chapter-2"]');
+		assert(row, "page 2 must list its own row");
+
+		expect(row.getAttribute("href")).toBe("#section-chapter-2");
+	});
+
+	it("boosts the card's links into the main swap the pager uses", () => {
+		const nav = renderPaged(2).querySelector("nav");
+		assert(nav, "a listed card must render its nav");
+
+		expect({
+			boost: nav.getAttribute("hx-boost"),
+			target: nav.getAttribute("hx-target"),
+			select: nav.getAttribute("hx-select"),
+			swap: nav.getAttribute("hx-swap"),
+		}).toEqual({ boost: "true", target: "main", select: "main", swap: "outerHTML show:none" });
+	});
+
+	it("links every row of a body under the threshold to its anchor on page 1", () => {
+		const rows = rowsOf(wrapperOf(render({ crawl: { status: "ready" }, content: HEADED_CONTENT })));
+
+		expect(rows.length).toBeGreaterThan(0);
+		expect(rows.every(({ href, page }) => String(href).startsWith("#") && page === "1")).toBe(true);
 	});
 });

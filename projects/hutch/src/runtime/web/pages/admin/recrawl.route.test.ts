@@ -7,6 +7,7 @@ import { mintPrivateItemUrl, UploadIdSchema } from "@packages/media-contracts";
 import type { UserId } from "@packages/domain/user";
 import type { ParseArticle, ParseArticleResult } from "@packages/article-parser";
 import { useTestServer, type TestAppHarness } from "../../../test-app";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -1228,5 +1229,32 @@ describe("Admin recrawl of a private item", () => {
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("[data-test-recrawl-refused]")).not.toBeNull();
 		expect(harness.recrawlPublishedCalls).toEqual([]);
+	});
+});
+
+describe("Admin recrawl of a long body", () => {
+	it("pages the body with the section pager", async () => {
+		const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		await harness.articleStore.saveArticleGlobally({
+			url: ARTICLE_URL,
+			metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			savedAt: new Date(),
+		});
+		await harness.articleStore.writeContent({
+			url: ARTICLE_URL,
+			content: [1, 2]
+				.map((n) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(Math.ceil(READER_SECTION_PAGE_THRESHOLD_BYTES / 10))}</p>`)
+				.join(""),
+		});
+		await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+		const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+		const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+
+		expect(response.status).toBe(200);
+		const pager = new JSDOM(response.text).window.document.querySelector("[data-test-section-pager]");
+		expect(pager?.getAttribute("data-section-total")).toBe("2");
 	});
 });

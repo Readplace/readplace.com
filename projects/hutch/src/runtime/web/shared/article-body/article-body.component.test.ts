@@ -7,6 +7,9 @@ import { type ArticleRailInput, renderArticleBody, renderArticleRail } from "./a
 import { articleBody } from "@packages/test-fixtures";
 import { initFinalizeArticle } from "@packages/finalize-article";
 
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_URL = destinationUrl("https://example.com/post");
+
 const baseInput = {
 	title: "Hello World",
 	siteName: siteLabel("example.com"),
@@ -19,6 +22,7 @@ const baseInput = {
 	saved: undefined,
 	publishedOn: undefined,
 	now: new Date("2026-11-05T10:00:00.000Z"),
+	readerSection: TEST_READER_SECTION,
 };
 
 function parse(html: string) {
@@ -408,7 +412,9 @@ describe("renderArticleBody", () => {
 describe("renderArticleRail", () => {
 	const versions = [versionAt("2026-07-10T09:14Z"), versionAt("2026-06-28T22:01Z")];
 	const pastReads = "<section data-test-reader-topic-reads>past reads</section>";
-	const pendingReader: Pick<ArticleRailInput, "title" | "crawl" | "content" | "readerNotice" | "appOrigin"> = {
+	const pendingReader: Pick<ArticleRailInput, "title" | "crawl" | "content" | "readerNotice" | "appOrigin" | "url" | "readerSection"> = {
+		url: TEST_READER_URL,
+		readerSection: TEST_READER_SECTION,
 		title: "Field notes",
 		crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 		content: undefined,
@@ -465,6 +471,8 @@ describe("renderArticleRail", () => {
 
 	it("lists the ready article's sections in the table of contents above Article history", () => {
 		const html = renderArticleRail({
+			readerSection: TEST_READER_SECTION,
+			url: TEST_READER_URL,
 			title: "Field notes",
 			crawl: { status: "ready" },
 			content: articleBody("<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>"),
@@ -485,6 +493,8 @@ describe("renderArticleRail", () => {
 
 	it("leaves the article's own title out of the table of contents when it opens the body", () => {
 		const html = renderArticleRail({
+			readerSection: TEST_READER_SECTION,
+			url: TEST_READER_URL,
 			title: "Field notes",
 			crawl: { status: "ready" },
 			content: articleBody("<h2>Field notes</h2><p>One</p><h2>Method</h2><p>Two</p>"),
@@ -498,6 +508,8 @@ describe("renderArticleRail", () => {
 
 	it("shows the empty table of contents for a ready article with no h2 or h3", () => {
 		const html = renderArticleRail({
+			readerSection: TEST_READER_SECTION,
+			url: TEST_READER_URL,
 			title: "Field notes",
 			crawl: { status: "ready" },
 			content: articleBody("<p>One paragraph</p><h4>A minor heading</h4>"),

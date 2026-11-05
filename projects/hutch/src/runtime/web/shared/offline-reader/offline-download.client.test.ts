@@ -23,6 +23,8 @@ import {
 } from "./offline-download.client";
 import { articleBody } from "@packages/test-fixtures";
 
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+
 const ORIGIN = "https://readplace.com";
 const CACHE_NAME = "readplace-offline-v1";
 const TRACKED_LISTING = "/queue?utm_source=queue-listing&utm_medium=internal&utm_content=download-offline";
@@ -103,7 +105,7 @@ function finishedArticle(html: string): string {
 	const content = articleBody(html);
 	return (
 		renderSummarySlot({ crawl: { status: "ready" }, content, summary: { status: "ready", summary: "Key points." } }) +
-		renderReaderSlot({ crawl: { status: "ready" }, content, url: ARTICLE_URL, articleId: "0123456789abcdef0123456789abcdef", appOrigin: ORIGIN, noticeOob: false, now: new Date(NOW) }).slot
+		renderReaderSlot({ readerSection: TEST_READER_SECTION, crawl: { status: "ready" }, content, url: ARTICLE_URL, articleId: "0123456789abcdef0123456789abcdef", appOrigin: ORIGIN, noticeOob: false, now: new Date(NOW) }).slot
 	);
 }
 
@@ -516,14 +518,14 @@ describe("initOfflineDownload", () => {
 		];
 		const stillReading =
 			renderSummarySlot({ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, summary: undefined, summaryPollUrl: "/queue/u3/summary?poll=1" }) +
-			renderReaderSlot({ crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, url: ARTICLE_URL, articleId: "0123456789abcdef0123456789abcdef", readerPollUrl: "/queue/u3/reader?poll=1", appOrigin: ORIGIN, noticeOob: false, now: new Date(NOW) }).slot;
+			renderReaderSlot({ readerSection: TEST_READER_SECTION, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, url: ARTICLE_URL, articleId: "0123456789abcdef0123456789abcdef", readerPollUrl: "/queue/u3/reader?poll=1", appOrigin: ORIGIN, noticeOob: false, now: new Date(NOW) }).slot;
 		const stillSummarising =
 			renderSummarySlot({
 				crawl: { status: "ready" },
 				content: "<p>Read</p>",
 				summary: { status: "pending" },
 				summaryPollUrl: "/queue/s4/summary?poll=1",
-			}) + renderReaderSlot({ crawl: { status: "ready" }, content: articleBody("<p>Read</p>"), url: ARTICLE_URL, articleId: "0123456789abcdef0123456789abcdef", appOrigin: ORIGIN, noticeOob: false, now: new Date(NOW) }).slot;
+			}) + renderReaderSlot({ readerSection: TEST_READER_SECTION, crawl: { status: "ready" }, content: articleBody("<p>Read</p>"), url: ARTICLE_URL, articleId: "0123456789abcdef0123456789abcdef", appOrigin: ORIGIN, noticeOob: false, now: new Date(NOW) }).slot;
 		const page = startDownload({
 			routes: {
 				[`${ORIGIN}${TRACKED_LISTING}`]: { body: listingPage({ cards }) },

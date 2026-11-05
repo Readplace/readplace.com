@@ -1,3 +1,4 @@
+import type { ReaderSectionInput } from "../../shared/article-body/reader-slot/section-pages";
 import type { ContentTier } from "@packages/article-state-types";
 import type {
 	ArticleDestinationUrl,
@@ -66,6 +67,7 @@ export function formatRecrawlDocumentTitle(articleTitle: string): string {
 
 export interface AdminRecrawlPageInput {
 	articleUrl: string;
+	readerSection: ReaderSectionInput;
 	destinationUrl: ArticleDestinationUrl;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: Minutes;
@@ -99,6 +101,7 @@ export interface AdminRecrawlPageInput {
 export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 	const actions = RegularReader({ actionBtns: { readlistPicker: undefined } });
 	const innerContent = renderArticleBody({
+		readerSection: input.readerSection,
 		now: input.now,
 		title: input.metadata.title,
 		siteName: input.metadata.siteName,
@@ -119,6 +122,8 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		bottomActionsHtml: actions.bottom.to("text/html").body,
 	});
 	const railHtml = renderArticleRail({
+		url: input.destinationUrl,
+		readerSection: input.readerSection,
 		title: input.metadata.title,
 		crawl: input.crawl,
 		content: input.content,

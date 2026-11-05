@@ -66,6 +66,16 @@ const RULE_CLASSES = ["ocr-page-break"];
 
 export const ARTICLE_SECTION_ID_PREFIX = "section-";
 
+const CHAPTER_SECTION_ID_PATTERN = new RegExp(`^${ARTICLE_SECTION_ID_PREFIX}ch-[1-9][0-9]*$`);
+
+export function chapterSectionId(chapter: number): string {
+	return `${ARTICLE_SECTION_ID_PREFIX}ch-${chapter}`;
+}
+
+export function isChapterSectionId(id: string): boolean {
+	return CHAPTER_SECTION_ID_PATTERN.test(id);
+}
+
 export const READER_CELL_LABEL_ATTRIBUTE = "data-label";
 export const READER_HEADER_ROW_ATTRIBUTE = "data-reader-header";
 export const READER_TABLE_FITS_ATTRIBUTE = "data-reader-fits";

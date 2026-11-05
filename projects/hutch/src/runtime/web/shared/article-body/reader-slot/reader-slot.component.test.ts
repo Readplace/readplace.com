@@ -4,6 +4,8 @@ import { destinationUrl } from "../../../test-helpers/article-fixtures";
 import { type ReaderSlotInput, renderReaderSlot } from "./reader-slot.component";
 import { articleBody } from "@packages/test-fixtures";
 
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+
 function parse(regions: { slot: string; notice: string }) {
 	return new JSDOM(
 		`<!doctype html><html><body>${regions.slot}${regions.notice}</body></html>`,
@@ -49,6 +51,7 @@ function pendingDescriptions(doc: Document): (string | null)[] {
 describe("renderReaderSlot", () => {
 	it("returns only the two region fragments (no outer page)", () => {
 		const { slot, notice } = renderReaderSlot({
+			readerSection: TEST_READER_SECTION,
 			crawl: { status: "ready" },
 			content: articleBody("<p>Body</p>"),
 			url: URL,
@@ -65,6 +68,7 @@ describe("renderReaderSlot", () => {
 	it("routes status=pending with a poll URL to the pending component", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -86,6 +90,7 @@ describe("renderReaderSlot", () => {
 	it("reports the recorded crawl stage on the reader's own axis", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z", stage: "crawl-parsed" },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -107,6 +112,7 @@ describe("renderReaderSlot", () => {
 	] as const)("estimates the seconds left $secondsSinceStart s into a crawl at $stage", ({ secondsSinceStart, stage, expected }) => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z", stage },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -123,6 +129,7 @@ describe("renderReaderSlot", () => {
 	it("shows no estimate while the crawl row has not been written yet", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				url: URL,
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
@@ -138,6 +145,7 @@ describe("renderReaderSlot", () => {
 	it("floors the OCR part interpolation in the label", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: {
 					status: "pending", startedAt: "2026-11-05T10:00:00.000Z",
 					stage: "comprehensive-extracting",
@@ -160,6 +168,7 @@ describe("renderReaderSlot", () => {
 	it("renders the PDF accuracy-over-slop loading hint when the pending URL is a .pdf", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: destinationUrl("https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf"),
 				articleId: ARTICLE_ID,
@@ -179,6 +188,7 @@ describe("renderReaderSlot", () => {
 	it("omits the loading hint when the pending URL is an HTML article", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: destinationUrl("https://example.com/articles/some-post"),
 				articleId: ARTICLE_ID,
@@ -197,6 +207,7 @@ describe("renderReaderSlot", () => {
 	it("omits the loading hint when the URL is invalid (URL parse throws)", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: destinationUrl("not-a-valid-url"),
 				articleId: ARTICLE_ID,
@@ -215,6 +226,7 @@ describe("renderReaderSlot", () => {
 	it("routes status=pending WITHOUT a poll URL to the 'slow' reframe (poll cap exhausted)", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -237,6 +249,7 @@ describe("renderReaderSlot", () => {
 	it("routes status=failed to the failed variant", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "failed", outcomeRevision: 1, reason: "exceeded SQS maxReceiveCount" },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -268,6 +281,7 @@ describe("renderReaderSlot", () => {
 	])("asks the owner of a failed private item %s to upload it again, offering no capture", (reason, text) => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "failed", outcomeRevision: 1, reason },
 				url: destinationUrl("https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef"),
 				articleId: ARTICLE_ID,
@@ -293,6 +307,7 @@ describe("renderReaderSlot", () => {
 	it("tells a reader of a deleted page that it is gone, and pitches no capture that could not bring it back", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: {
 					status: "failed",
 					outcomeRevision: 1,
@@ -318,6 +333,7 @@ describe("renderReaderSlot", () => {
 	it("routes status=unsupported to the unsupported variant with the reassuring title", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: {
 					status: "unsupported",
 					reason: "non-html content type: application/pdf",
@@ -343,6 +359,7 @@ describe("renderReaderSlot", () => {
 	it("routes status=ready with content to the ready component", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "ready" },
 				content: articleBody("<p>Body copy</p>"),
 				url: URL,
@@ -364,6 +381,7 @@ describe("renderReaderSlot", () => {
 	it("renders pending when crawl status is missing, no content, and a poll URL exists (read-after-write race)", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				url: URL,
 				articleId: ARTICLE_ID,
 				readerPollUrl: "/queue/abc/reader?poll=1",
@@ -381,7 +399,7 @@ describe("renderReaderSlot", () => {
 	});
 
 	it("renders the 'slow' reframe when crawl status is missing and there is no poll URL left", () => {
-		const doc = parse(renderReaderSlot({ url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }));
+		const doc = parse(renderReaderSlot({ readerSection: TEST_READER_SECTION, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -391,6 +409,7 @@ describe("renderReaderSlot", () => {
 	it("treats a legacy row (no crawl status) with content as ready", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				content: articleBody("<p>Legacy body</p>"),
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -408,6 +427,7 @@ describe("renderReaderSlot", () => {
 	it("renders pending when crawl is ready but content is missing and a poll URL exists (worker-bug catch-all)", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "ready" },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -427,6 +447,7 @@ describe("renderReaderSlot", () => {
 	it("renders the 'slow' reframe when crawl is ready but content is missing and the poll cap has exhausted", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "ready" },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -444,6 +465,7 @@ describe("renderReaderSlot", () => {
 	it("stamps the tapped kick-off URL on the blocked notice's capture control and the automatic one on the notice, even though a failed crawl has no live poll URL", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: {
 					status: "failed",
 					outcomeRevision: 1,
@@ -470,6 +492,7 @@ describe("renderReaderSlot", () => {
 	it("swaps the blocked notice for the capturing pending state while an on-device capture is in flight", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: {
 					status: "failed",
 					outcomeRevision: 1,
@@ -518,6 +541,7 @@ describe("renderReaderSlot", () => {
 	it("says the copy never arrived, in place of the blocked notice, when a capture produced nothing", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: {
 					status: "failed",
 					outcomeRevision: 1,
@@ -547,6 +571,7 @@ describe("renderReaderSlot", () => {
 	it("renders the healed article once the capture lands, so the poll fragment stops carrying hx-get", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "ready" },
 				content: articleBody("<p>Captured body</p>"),
 				url: URL,
@@ -568,6 +593,7 @@ describe("renderReaderSlot", () => {
 	it("offers the capture on a crawl that failed to parse, stamped with the kick-off URL", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -591,27 +617,27 @@ describe("renderReaderSlot", () => {
 	it.each<{ state: string; input: Omit<ReaderSlotInput, "url" | "articleId" | "appOrigin" | "noticeOob" | "now">; status: string }>([
 		{
 			state: "a deleted page",
-			input: { crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) } },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "not-found", httpStatus: 404 }) } },
 			status: "not-found",
 		},
 		{
 			state: "an unreachable origin",
-			input: { crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "origin-unreachable", httpStatus: 522 }) } },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "origin-unreachable", httpStatus: 522 }) } },
 			status: "origin-down",
 		},
 		{
 			state: "an unsupported page",
-			input: { crawl: { status: "unsupported", reason: "non-html content type: application/pdf" } },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "unsupported", reason: "non-html content type: application/pdf" } },
 			status: "unsupported",
 		},
 		{
 			state: "a link that is not an article",
-			input: { notice: "not-an-article", crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
+			input: { readerSection: TEST_READER_SECTION, notice: "not-an-article", crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
 			status: "not-an-article",
 		},
 		{
 			state: "a crawl past the poll cap",
-			input: { crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } },
 			status: "slow",
 		},
 	])("renders the capture control withheld on $state, which no device can rescue", ({ input, status }) => {
@@ -628,6 +654,7 @@ describe("renderReaderSlot", () => {
 	it("swaps a failed notice for the capturing pending state while an on-device capture is in flight", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -654,6 +681,7 @@ describe("renderReaderSlot", () => {
 	it("offers the capture again on the copy-never-arrived notice", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "parse-error", detail: "no readable article candidate: judge answered none" }) },
 				url: URL,
 				articleId: ARTICLE_ID,
@@ -678,6 +706,7 @@ describe("renderReaderSlot", () => {
 	it("renders the notice in place of stored content, so a ready crawl on a gated host still shows it", () => {
 		const doc = parse(
 			renderReaderSlot({
+				readerSection: TEST_READER_SECTION,
 				notice: "not-an-article",
 				crawl: { status: "ready" },
 				content: articleBody("<p>Inbox (42) — someone@example.com</p>"),
@@ -707,49 +736,50 @@ describe("renderReaderSlot", () => {
 	}>([
 		{
 			state: "ready",
-			input: { crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
 			slot: { status: "ready", stateClass: "article-body__reader-slot--ready" },
 			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
 		},
 		{
 			state: "legacy row with content",
-			input: { content: articleBody("<p>x</p>") },
+			input: { readerSection: TEST_READER_SECTION, content: articleBody("<p>x</p>") },
 			slot: { status: "ready", stateClass: "article-body__reader-slot--ready" },
 			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
 		},
 		{
 			state: "pending",
-			input: { crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, readerPollUrl: "/p" },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, readerPollUrl: "/p" },
 			slot: { status: "pending", stateClass: "article-body__reader-slot--pending" },
 			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
 		},
 		{
 			state: "ready without content, still polling",
-			input: { crawl: { status: "ready" }, readerPollUrl: "/p" },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "ready" }, readerPollUrl: "/p" },
 			slot: { status: "pending", stateClass: "article-body__reader-slot--pending" },
 			notice: { status: "none", stateClass: "article-body__reader-notice--hidden" },
 		},
 		{
 			state: "pending past the poll cap",
-			input: { crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" } },
 			slot: { status: "slow", stateClass: "article-body__reader-slot--notice" },
 			notice: { status: "slow", stateClass: "article-body__reader-notice--visible" },
 		},
 		{
 			state: "failed",
-			input: { crawl: { status: "failed", outcomeRevision: 1, reason: "x" } },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "failed", outcomeRevision: 1, reason: "x" } },
 			slot: { status: "failed", stateClass: "article-body__reader-slot--notice" },
 			notice: { status: "failed", stateClass: "article-body__reader-notice--visible" },
 		},
 		{
 			state: "unsupported",
-			input: { crawl: { status: "unsupported", reason: "x" } },
+			input: { readerSection: TEST_READER_SECTION, crawl: { status: "unsupported", reason: "x" } },
 			slot: { status: "unsupported", stateClass: "article-body__reader-slot--notice" },
 			notice: { status: "unsupported", stateClass: "article-body__reader-notice--visible" },
 		},
 		{
 			state: "capturing on the device",
 			input: {
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
 				capture: { kind: "copying", pollUrl: "/p", gaveUpUrl: "/g" },
 			},
@@ -759,6 +789,7 @@ describe("renderReaderSlot", () => {
 		{
 			state: "a capture that never arrived",
 			input: {
+				readerSection: TEST_READER_SECTION,
 				crawl: { status: "failed", outcomeRevision: 1, reason: JSON.stringify({ kind: "blocked", cause: "edge-block" }) },
 				capture: { kind: "missing" },
 			},
@@ -767,7 +798,7 @@ describe("renderReaderSlot", () => {
 		},
 		{
 			state: "a notice override on a ready crawl",
-			input: { notice: "not-an-article", crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
+			input: { readerSection: TEST_READER_SECTION, notice: "not-an-article", crawl: { status: "ready" }, content: articleBody("<p>x</p>") },
 			slot: { status: "not-an-article", stateClass: "article-body__reader-slot--notice" },
 			notice: { status: "not-an-article", stateClass: "article-body__reader-notice--visible" },
 		},
@@ -802,7 +833,7 @@ describe("renderReaderSlot", () => {
 			{ oob: true, noticeOob: true },
 		].map(({ oob, noticeOob }) => {
 			const doc = parse(
-				renderReaderSlot({ crawl, readerPollUrl, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, oob, noticeOob, now: NOW }),
+				renderReaderSlot({ readerSection: TEST_READER_SECTION, crawl, readerPollUrl, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, oob, noticeOob, now: NOW }),
 			);
 			const slotElement = doc.querySelector("[data-test-reader-slot]");
 			assert(slotElement, "reader slot must be rendered");
@@ -824,10 +855,10 @@ describe("renderReaderSlot", () => {
 			input: Parameters<typeof renderReaderSlot>[0];
 			expected: string;
 		}> = [
-			{ input: { crawl: { status: "ready" }, content: articleBody("<p>x</p>"), url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "ready" },
-			{ input: { crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, url: URL, articleId: ARTICLE_ID, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "pending" },
-			{ input: { crawl: { status: "failed", outcomeRevision: 1, reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "failed" },
-			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "unsupported" },
+			{ input: { readerSection: TEST_READER_SECTION, crawl: { status: "ready" }, content: articleBody("<p>x</p>"), url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "ready" },
+			{ input: { readerSection: TEST_READER_SECTION, crawl: { status: "pending", startedAt: "2026-11-05T10:00:00.000Z" }, url: URL, articleId: ARTICLE_ID, readerPollUrl: "/p", appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "pending" },
+			{ input: { readerSection: TEST_READER_SECTION, crawl: { status: "failed", outcomeRevision: 1, reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "failed" },
+			{ input: { readerSection: TEST_READER_SECTION, crawl: { status: "unsupported", reason: "x" }, url: URL, articleId: ARTICLE_ID, appOrigin: APP_ORIGIN, noticeOob: false, now: NOW }, expected: "unsupported" },
 		];
 
 		for (const { input, expected } of variants) {

@@ -12,7 +12,7 @@ interface TableOfContentsDeps {
 	addSettleListener: (listener: () => void) => void;
 }
 
-const LINK_SELECTOR = "#table-of-contents .table-of-contents__link";
+const LINK_SELECTOR = '#table-of-contents .table-of-contents__link[href^="#"]';
 const CURRENT_CLASS = "table-of-contents__link--current";
 
 function assert(condition: unknown, message: string): asserts condition {

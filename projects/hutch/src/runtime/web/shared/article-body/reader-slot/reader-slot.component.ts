@@ -21,6 +21,7 @@ import {
 } from "./reader-failed.component";
 import { READER_PENDING_DESCRIPTION, renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady } from "./reader-ready.component";
+import type { ReaderSectionInput } from "./section-pages";
 import type { CapturePollUrls } from "../../article-reader/article-reader.types";
 
 export const CAPTURE_FAILED_RELAY_SCRIPT = `<script src="/client-dist/capture-failed-relay.client.js" defer></script>`;
@@ -48,6 +49,7 @@ export interface ReaderSlotInput {
 	oob?: boolean;
 	noticeOob: boolean;
 	now: Date;
+	readerSection: ReaderSectionInput;
 }
 
 const EMPTY_NOTICE_TEMPLATE = readFileSync(
@@ -158,7 +160,13 @@ function pollOrSlow(
 
 function ready(input: ReaderSlotInput, content: ArticleBody, oob: boolean): ReaderRegions {
 	return withEmptyNotice(
-		renderReaderReady({ content, oob, appOrigin: input.appOrigin }),
+		renderReaderReady({
+			content,
+			oob,
+			appOrigin: input.appOrigin,
+			url: input.url,
+			readerSection: input.readerSection,
+		}),
 		input.noticeOob,
 	);
 }

@@ -1,0 +1,5 @@
+<nav class="article-body__section-pager" aria-label="Pages" data-test-section-pager data-section-current="{{current}}" data-section-total="{{total}}">
+  {{#if previousHref}}<a class="article-body__section-pager-link" href="{{previousHref}}" rel="prev" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top" data-test-section-previous>Previous page</a>{{/if}}
+  <span class="article-body__section-pager-position">Page {{current}} of {{total}}</span>
+  {{#if nextHref}}<a class="article-body__section-pager-link article-body__section-pager-link--next" href="{{nextHref}}" rel="next" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none scroll:html:top" data-test-section-next>Next page</a>{{/if}}
+</nav>

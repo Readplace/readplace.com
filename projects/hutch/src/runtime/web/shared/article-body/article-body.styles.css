@@ -513,3 +513,27 @@
 .article-body__reader-estimate:has(.crawl-estimate--quiet, .crawl-estimate--hidden) {
   margin: 0;
 }
+
+.article-body__section-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.article-body__section-pager-position {
+  color: var(--muted-foreground);
+}
+
+.article-body__section-pager-link {
+  color: var(--primary-text);
+}
+
+.article-body__section-pager-link--next {
+  margin-left: auto;
+}

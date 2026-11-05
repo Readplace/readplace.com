@@ -1,4 +1,4 @@
-import { sanitizeArticleHtml } from "./sanitize-article-html";
+import { chapterSectionId, isChapterSectionId, sanitizeArticleHtml } from "./sanitize-article-html";
 
 describe("sanitizeArticleHtml", () => {
 	it("keeps the prose, headings, lists and figures an article body is made of", () => {
@@ -177,5 +177,20 @@ describe("sanitizeArticleHtml", () => {
 		const elsewhere = '<h4 id="section-footnotes">Footnotes</h4><p id="section-body">Body copy.</p>';
 
 		expect(sanitizeArticleHtml(elsewhere)).toBe("<h4>Footnotes</h4><p>Body copy.</p>");
+	});
+});
+
+describe("chapterSectionId", () => {
+	it("names a book chapter's heading id from its 1-based position", () => {
+		expect(chapterSectionId(3)).toBe("section-ch-3");
+	});
+
+	it("is recognised as a chapter id by isChapterSectionId, and a slugged heading id is not", () => {
+		expect([chapterSectionId(12), "section-ch-0", "section-ch-3-2", "section-chapter-one"].map(isChapterSectionId)).toEqual([
+			true,
+			false,
+			false,
+			false,
+		]);
 	});
 });

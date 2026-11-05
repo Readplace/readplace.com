@@ -3,11 +3,14 @@ import { articleBody } from "@packages/test-fixtures";
 import { prepareReaderContent } from "../reader-slot/reader-content";
 import { buildArticleOutline, type OutlineEntry } from "./article-outline";
 
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_URL = "https://example.com/post";
+
 const APP_ORIGIN = "https://readplace.com";
 const TITLE = "Field notes";
 
 function outlineOf(input: { content: string; title: string | undefined }): readonly OutlineEntry[] {
-	const { html } = prepareReaderContent({ content: articleBody(input.content), appOrigin: APP_ORIGIN });
+	const { html } = prepareReaderContent({ section: TEST_READER_SECTION, url: TEST_READER_URL, content: articleBody(input.content), appOrigin: APP_ORIGIN });
 	return buildArticleOutline({ html, title: input.title });
 }
 
@@ -16,7 +19,7 @@ function labels(entries: readonly OutlineEntry[]): unknown[] {
 }
 
 function bodyIds(content: string): string[] {
-	const { html } = prepareReaderContent({ content: articleBody(content), appOrigin: APP_ORIGIN });
+	const { html } = prepareReaderContent({ section: TEST_READER_SECTION, url: TEST_READER_URL, content: articleBody(content), appOrigin: APP_ORIGIN });
 	const doc = new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
 	return Array.from(doc.querySelectorAll("h2[id], h3[id]"), (heading) => heading.id);
 }

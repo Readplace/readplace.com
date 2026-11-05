@@ -24,6 +24,7 @@ import { calculateReadTime, shownSummary } from "@packages/domain/article";
 import { MAX_POLLS } from "@packages/web-shell";
 import type { ViewOpenedEvent } from "@packages/web-analytics";
 import { SAVE_SURFACE_QUERY, SAVE_SURFACES } from "../../../observability/events";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
 const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 const READPLACE_IOS = "Readplace/94 CFNetwork/3860.700.1 Darwin/25.6.0";
@@ -2868,5 +2869,58 @@ describe("Keep this one block on the public reader", () => {
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("[data-test-reader-slot]")?.getAttribute("hx-get")).toContain(`/view/reader?url=${ENCODED}`);
 		expect(doc.querySelectorAll("[data-test-view-end-cta]").length).toBe(0);
+	});
+});
+
+describe("Public reader sections (GET /view/<url>?section=N)", () => {
+	const LONG_BODY = [1, 2, 3]
+		.map((n) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(Math.ceil(READER_SECTION_PAGE_THRESHOLD_BYTES / 10))}</p>`)
+		.join("");
+
+	async function longPublicArticle() {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({ ...fixture, events: { ...fixture.events, publishSaveAnonymousLink: async () => {} } });
+		await fixture.articleStore.saveArticleGlobally({
+			url: ARTICLE_URL,
+			metadata: { title: "Hello World", siteName: "example.com", excerpt: "", wordCount: 500 },
+			estimatedReadTime: calculateReadTime(500),
+			savedAt: new Date("2026-05-03T13:00:00.000Z"),
+		});
+		await fixture.articleStore.writeContent({ url: ARTICLE_URL, content: LONG_BODY });
+		await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+		return harness;
+	}
+
+	function pagedReader(html: string) {
+		const doc = new JSDOM(`<body>${html}</body>`).window.document;
+		return {
+			headings: Array.from(doc.querySelectorAll("[data-test-reader-content] h2"), (heading) => heading.textContent),
+			current: doc.querySelector("[data-test-section-pager]")?.getAttribute("data-section-current"),
+			nextHref: doc.querySelector("[data-test-section-next]")?.getAttribute("href"),
+		};
+	}
+
+	it("shows chapter 2 and the pager on the view page", async () => {
+		const harness = await longPublicArticle();
+
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}?section=2`);
+
+		expect(response.status).toBe(200);
+		expect(pagedReader(response.text)).toMatchObject({ headings: ["Chapter 2"], current: "2" });
+	});
+
+	it("shows chapter 2 in the reader poll, its next link on the item's view path", async () => {
+		const harness = await longPublicArticle();
+
+		const response = await request(harness.server)
+			.get(`/view/reader?url=${ENCODED}&poll=1&section=2`)
+			.set(BROWSER_REQUEST_HEADERS);
+
+		expect(response.status).toBe(200);
+		const reader = pagedReader(response.text);
+		expect(reader).toMatchObject({ headings: ["Chapter 2"], current: "2" });
+		const next = new URL(String(reader.nextHref), TEST_APP_ORIGIN);
+		expect(next.pathname).toBe(`/view/${CANONICAL_PATH}`);
+		expect(next.searchParams.get("section")).toBe("3");
 	});
 });

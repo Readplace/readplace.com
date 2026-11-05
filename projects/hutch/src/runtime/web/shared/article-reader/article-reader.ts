@@ -27,6 +27,7 @@ import {
 } from "../article-body/article-header/article-header.component";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import { type ReaderSlotCapture, renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
+import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
 import { renderTableOfContents } from "../article-body/table-of-contents/table-of-contents.component";
 import { toAbsoluteDate, toAbsoluteTime, type LocalTime } from "@packages/web-shell/local-time.format";
@@ -82,6 +83,7 @@ interface PollResponseBodyInput {
 	readerNotice: ReaderFailedVariant | undefined;
 	title: string | undefined;
 	now: Date;
+	readerSection: ReaderSectionInput;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
@@ -99,6 +101,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		noticeOob: true,
 		appOrigin: input.appOrigin,
 		now: input.now,
+		readerSection: input.readerSection,
 	});
 	const summarySlot = renderSummarySlot({
 		crawl: input.crawl,
@@ -115,6 +118,8 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		notice: input.readerNotice,
 		appOrigin: input.appOrigin,
 		title: input.title,
+		url: input.url,
+		readerSection: input.readerSection,
 		oob: true,
 	});
 	if (input.primary === "reader") {
@@ -367,12 +372,14 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	function gatedPollResponse(
 		primary: "reader" | "summary",
 		articleUrl: string,
+		readerSection: ReaderSectionInput,
 	): Component {
 		const destinationUrl = articleDestinationUrl({ url: articleUrl, displayUrl: undefined });
 		const stub = hostStubMetadata(destinationUrl);
 		return HtmlPage(
 			renderPollResponseBody({
 				primary,
+				readerSection,
 				now: deps.now(),
 				url: destinationUrl,
 				articleId: undefined,
@@ -438,7 +445,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 
 	async function handleSummaryPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
-		if (isNonArticleHost(articleUrl)) return gatedPollResponse("summary", articleUrl);
+		if (isNonArticleHost(articleUrl)) return gatedPollResponse("summary", articleUrl, params.readerSection);
 		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
@@ -451,6 +458,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "summary",
+			readerSection: params.readerSection,
 			now: deps.now(),
 			url: destinationUrl,
 			articleId: params.articleId,
@@ -504,7 +512,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 
 	async function handleReaderPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
-		if (isNonArticleHost(articleUrl)) return gatedPollResponse("reader", articleUrl);
+		if (isNonArticleHost(articleUrl)) return gatedPollResponse("reader", articleUrl, params.readerSection);
 		const [loadedCrawl, loadedSummary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary({ url: articleUrl, viewer: params.viewer }),
@@ -518,6 +526,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		});
 		return HtmlPage(renderPollResponseBody({
 			primary: "reader",
+			readerSection: params.readerSection,
 			now: deps.now(),
 			url: destinationUrl,
 			articleId: params.articleId,
@@ -559,7 +568,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			if (isPrivateItemUrl(params.articleUrl)) {
 				const ownerUserId = await deps.findItemOwner(params.articleUrl);
 				if (!mayReadItem({ url: params.articleUrl, viewer: params.viewer, ownerUserId })) {
-					return gatedPollResponse(primary, params.articleUrl);
+					return gatedPollResponse(primary, params.articleUrl, params.readerSection);
 				}
 			}
 			return handle(params);

@@ -5,7 +5,11 @@ import {
 	viewPathFor,
 } from "../../../pages/view/view-path";
 import { renderReaderReady } from "./reader-ready.component";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "./section-pages";
 import { articleBody } from "@packages/test-fixtures";
+
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+const TEST_READER_URL = "https://example.com/post";
 
 const APP_ORIGIN = "https://readplace.com";
 const VIEW_PREFIX = "/view/";
@@ -43,7 +47,7 @@ function readerContent(doc: Document): Element {
 
 describe("renderReaderReady", () => {
 	it("renders the article content as document text a reader or extractor can read", () => {
-		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: articleBody("<p>Body copy</p>") }));
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>Body copy</p>") }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -53,7 +57,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("carries the article content on a styled div, not a frame the page has to measure", () => {
-		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }));
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }));
 
 		const content = readerContent(doc);
 		expect(content.tagName).toBe("DIV");
@@ -63,6 +67,8 @@ describe("renderReaderReady", () => {
 	it("strips event-handler attributes from captured markup, which the page origin would otherwise execute", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				content: articleBody('<p>safe</p><img src="https://cdn.example.com/x.jpg" onerror="alert(1)">'),
 				appOrigin: "https://readplace.com",
 			}),
@@ -77,6 +83,8 @@ describe("renderReaderReady", () => {
 	it("strips a captured stylesheet so article CSS cannot repaint the page around it", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				content: articleBody("<style>body { position: fixed; }</style><p>safe</p>"),
 				appOrigin: "https://readplace.com",
 			}),
@@ -88,6 +96,8 @@ describe("renderReaderReady", () => {
 	it("retargets a same-host link to the reader's own tab", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				content: articleBody('<a href="https://readplace.com/queue" target="_blank">Readlist</a>'),
 				appOrigin: "https://readplace.com",
 			}),
@@ -101,6 +111,8 @@ describe("renderReaderReady", () => {
 	it("leaves an external link's own target alone", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				content: articleBody('<a href="https://example.com/post" target="_blank">Post</a>'),
 				appOrigin: "https://readplace.com",
 			}),
@@ -117,7 +129,7 @@ describe("renderReaderReady", () => {
 			'<p><a href="#lispm">#</a>\n<A HREF="ftp://ftp.cs.cmu.edu/user/ai/lang/lisp/code/impdep/explorer/0.html" NAME="lispm">\nLisp Machines</A></p>';
 
 		const doc = parse(
-			renderReaderReady({ content: articleBody(captured), appOrigin: APP_ORIGIN }),
+			renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: articleBody(captured), appOrigin: APP_ORIGIN }),
 		);
 
 		expect(articleUrlsAnAnchorWalkWouldMint(doc, articleUrl)).toEqual([
@@ -129,6 +141,8 @@ describe("renderReaderReady", () => {
 	it("gives each section heading the id its table-of-contents row links to", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				content: articleBody("<h2>Why it matters</h2><p>One</p><h3>How to start</h3><p>Two</p>"),
 				appOrigin: APP_ORIGIN,
 			}),
@@ -141,6 +155,8 @@ describe("renderReaderReady", () => {
 	it("replaces a publisher id on a heading with the minted id, so captured markup cannot claim a swap target", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				content: articleBody('<h2 id="article-body-reader-slot">Overview</h2><p>Body copy</p>'),
 				appOrigin: APP_ORIGIN,
 			}),
@@ -155,6 +171,8 @@ describe("renderReaderReady", () => {
 	it("never decodes an entity-encoded href into a live javascript: link while it mints the section ids", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				content: articleBody('<h2>Overview</h2><p><a href="&amp;amp;#106;avascript:alert(1)">Click</a></p>'),
 				appOrigin: APP_ORIGIN,
 			}),
@@ -167,7 +185,7 @@ describe("renderReaderReady", () => {
 
 	it("flags the slot with hx-swap-oob when oob is true so HTMX swaps replace the live slot", () => {
 		const doc = parse(
-			renderReaderReady({ content: articleBody("<p>x</p>"), oob: true, appOrigin: "https://readplace.com" }),
+			renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, content: articleBody("<p>x</p>"), oob: true, appOrigin: "https://readplace.com" }),
 		);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
@@ -176,7 +194,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("omits hx-swap-oob when oob is absent (initial SSR render)", () => {
-		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }));
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: "https://readplace.com", content: articleBody("<p>x</p>") }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -186,6 +204,8 @@ describe("renderReaderReady", () => {
 	it("labels each body cell with its column heading, hides the header row the labels carry, and marks a table that fits the grid", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				appOrigin: "https://readplace.com",
 				content: articleBody(
 					"<table><thead><tr><th>stage</th><th>owner</th></tr></thead><tbody><tr><td>extract</td><td>parser</td></tr></tbody></table>",
@@ -205,6 +225,8 @@ describe("renderReaderReady", () => {
 	it("keeps a title row visible and out of the labels, joining the headings below it outer row first", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				appOrigin: "https://readplace.com",
 				content: articleBody(
 					'<table><thead><tr><th colspan="3">Bundle sizes</th></tr><tr><th rowspan="2">name</th><th colspan="2">size</th></tr><tr><th>w</th><th>h</th></tr></thead><tbody><tr><td>n</td><td>1</td><td>2</td></tr></tbody></table>',
@@ -228,6 +250,8 @@ describe("renderReaderReady", () => {
 	it("labels a row header in the body with the heading over its column", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				appOrigin: "https://readplace.com",
 				content: articleBody(
 					"<table><thead><tr><th>Model</th><th>ain</th></tr></thead><tbody><tr><th>whisper</th><td>1.2</td></tr></tbody></table>",
@@ -241,6 +265,8 @@ describe("renderReaderReady", () => {
 	it("carries a heading's quotes and markup into its label as text, never as an element", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				appOrigin: "https://readplace.com",
 				content: articleBody(
 					"<table><thead><tr><th>a \"b\" &lt;i&gt;</th><th>x</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>",
@@ -256,6 +282,8 @@ describe("renderReaderReady", () => {
 	it("drops reader attributes the captured markup already carried", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				appOrigin: "https://readplace.com",
 				content: articleBody(
 					`<table data-reader-fits="" data-reader-flow=""><tbody><tr data-reader-header=""><td data-label="fake">${"x".repeat(100)}</td><td>y</td></tr></tbody></table>`,
@@ -271,11 +299,43 @@ describe("renderReaderReady", () => {
 	it("marks a one-column table to read as the text it holds", () => {
 		const doc = parse(
 			renderReaderReady({
+				readerSection: TEST_READER_SECTION,
+				url: TEST_READER_URL,
 				appOrigin: "https://readplace.com",
 				content: articleBody("<table><tbody><tr><td>a</td></tr><tr><td>b</td></tr></tbody></table>"),
 			}),
 		);
 
 		expect(readerContent(doc).querySelector("table")?.hasAttribute("data-reader-flow")).toBe(true);
+	});
+});
+
+describe("renderReaderReady paged body", () => {
+	const chapter = (n: number) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(Math.ceil(READER_SECTION_PAGE_THRESHOLD_BYTES / 10))}</p>`;
+	const longBody = articleBody([1, 2, 3].map(chapter).join(""));
+
+	it("renders a pager whose next link boosts like the next-read link", () => {
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: longBody }));
+
+		const pager = doc.querySelector("[data-test-section-pager]");
+		assert(pager, "a paged body must render the pager");
+		expect(pager.getAttribute("data-section-current")).toBe("1");
+		expect(pager.getAttribute("data-section-total")).toBe("3");
+		const next = pager.querySelector("[data-test-section-next]");
+		assert(next, "page 1 must link to page 2");
+		expect(next.getAttribute("href")).toContain("section=2");
+		expect({
+			boost: next.getAttribute("hx-boost"),
+			target: next.getAttribute("hx-target"),
+			select: next.getAttribute("hx-select"),
+			swap: next.getAttribute("hx-swap"),
+		}).toEqual({ boost: "true", target: "main", select: "main", swap: "outerHTML show:none scroll:html:top" });
+		expect(pager.querySelector("[data-test-section-previous]")).toBeNull();
+	});
+
+	it("renders no pager for a body under the threshold", () => {
+		const doc = parse(renderReaderReady({ readerSection: TEST_READER_SECTION, url: TEST_READER_URL, appOrigin: APP_ORIGIN, content: articleBody(chapter(1).slice(0, 200)) }));
+
+		expect(doc.querySelector("[data-test-section-pager]")).toBeNull();
 	});
 });

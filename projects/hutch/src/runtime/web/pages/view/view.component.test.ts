@@ -15,7 +15,10 @@ import {
 import { PRICE_STATEMENT, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { articleBody } from "@packages/test-fixtures";
 
+const TEST_READER_SECTION = { requested: undefined, readerPath: "/queue/a/view" };
+
 const baseInput: ViewPageInput = {
+	readerSection: TEST_READER_SECTION,
 	now: new Date("2026-11-05T10:00:00.000Z"),
 	articleUrl: "https://example.com/post",
 	destinationUrl: destinationUrl("https://example.com/post"),

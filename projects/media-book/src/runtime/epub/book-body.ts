@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { chapterSectionId } from "@packages/domain/article";
 import { parseHTML } from "linkedom";
 import type { EpubChapter } from "./epub-chapters";
 import { resolveZipPath } from "./xml-elements";
@@ -9,7 +10,7 @@ const EXCERPT_LENGTH = 200;
 export type BookBody = { html: string; sectionCount: number; wordCount: number; excerpt: string };
 
 function sectionId(index: number): string {
-	return `section-ch-${index + 1}`;
+	return chapterSectionId(index + 1);
 }
 
 function isExternal(href: string): boolean {

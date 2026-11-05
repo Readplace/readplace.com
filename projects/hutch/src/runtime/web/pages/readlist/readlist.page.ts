@@ -1,3 +1,7 @@
+import {
+	type ReaderSectionInput,
+	requestedReaderSection,
+} from "../../shared/article-body/reader-slot/section-pages";
 import type { RecordEngagementActivity } from "@packages/provider-contracts/engagement-starter";
 import assert from "node:assert";
 import {
@@ -1017,13 +1021,25 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 
 	function pollUrlBuilderFor(req: Request, articleId: string): PollUrlBuilder {
-		const surface = joinedSurfaceQuery(nativeSurfaceQuery(req));
+		const readlist = requestReadlistContext(req).state.readlist;
+		const section = requestedReaderSection(req.query.section);
+		const surface = `${joinedSurfaceQuery(nativeSurfaceQuery(req))}${
+			readlist === DEFAULT_READLIST_SLUG ? "" : `&queue=${encodeURIComponent(readlist)}`
+		}${section === undefined ? "" : `&section=${section}`}`;
 		return {
 			summary: (n) => `${READLIST_PATH}/${articleId}/summary?poll=${n}${surface}`,
 			reader: (n, capture) =>
 				`${READLIST_PATH}/${articleId}/reader?poll=${n}${captureWatchQuery(capture)}${surface}`,
 		};
 	}
+
+	const ownerReaderSection = (req: Request, articleId: string): ReaderSectionInput => {
+		const readlist = requestReadlistContext(req).state.readlist;
+		return {
+			requested: requestedReaderSection(req.query.section),
+			readerPath: readerPathForReadlist(req)(articleId, readlist === DEFAULT_READLIST_SLUG ? undefined : readlist),
+		};
+	};
 
 	const ownerReaderViewFailedOob = (req: Request): ReaderViewFailedOob =>
 		isAppPlatform(req)
@@ -1403,6 +1419,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			const appearance = (await deps.findUserById(ownedArticle.userId))?.appearance ?? "system";
 			const readerBody = ReaderPage(ownedArticle, {
 				appOrigin: deps.appOrigin,
+				readerSection: ownerReaderSection(req, ownedArticle.id.value),
 				content: state.content,
 				summary: state.summary,
 				summaryPollUrl: state.summaryPollUrl,
@@ -1483,6 +1500,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			FreshForComponent(
 				Base(withOfflineReading(ReaderPage(ownedArticle, {
 					appOrigin: deps.appOrigin,
+					readerSection: ownerReaderSection(req, ownedArticle.id.value),
 					content: state.content,
 					summary: state.summary,
 					summaryPollUrl: state.summaryPollUrl,
@@ -2996,6 +3014,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
+			readerSection: ownerReaderSection(req, article.id.value),
 			capture: parseCaptureWatch(req.query),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,
@@ -3030,6 +3049,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			articleId: article.id.value,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(req, article.id.value),
+			readerSection: ownerReaderSection(req, article.id.value),
 			capture: parseCaptureWatch(req.query),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: `${READLIST_PATH}/${article.id.value}/summary-toggle`,

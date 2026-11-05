@@ -12,6 +12,7 @@ import {
 import { loginAgent, useTestServer } from "../../../test-app";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
 import { createAccessToken, saveAccessTokenForUser } from "../../test-helpers/oauth-token";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
 const useApp = useTestServer();
 
@@ -485,6 +486,33 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 			readplace_summary_status: "pending",
 		});
 		expect(document.content).toBe("");
+	});
+
+	it("serves every chapter of a body over the reader's paging threshold", async () => {
+		const { harness } = buildHarness();
+		const url = "https://example.com/long-post";
+		const id = ReaderArticleHashId.from(url).value;
+		await harness.articleStore.saveArticle({
+			userId: UserIdSchema.parse("test-user-123"),
+			url,
+			metadata: { title: "Long Post", siteName: "example.com", excerpt: "Parsed blurb.", wordCount: 3 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: new Date("2026-09-30T01:02:03.000Z"),
+		});
+		await harness.articleStore.writeContent({
+			url,
+			content: [1, 2]
+				.map((n) => `<h2>Chapter ${n}</h2><p>${"word ".repeat(Math.ceil(READER_SECTION_PAGE_THRESHOLD_BYTES / 10))}</p>`)
+				.join(""),
+		});
+		await harness.articleCrawl.markCrawlReady({ url });
+		const token = await createAccessToken(harness);
+
+		const response = await markdownGet(harness, { path: `/queue/${id}/view`, token });
+
+		expect(response.status).toBe(200);
+		expect(response.text.match(/^## Chapter \d$/gm)).toEqual(["## Chapter 1", "## Chapter 2"]);
 	});
 });
 

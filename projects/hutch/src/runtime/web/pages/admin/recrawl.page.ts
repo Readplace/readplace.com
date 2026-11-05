@@ -1,3 +1,4 @@
+import { type ReaderSectionRequest, requestedReaderSection } from "../../shared/article-body/reader-slot/section-pages";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { NextFunction, Request, Response, Router } from "express";
@@ -59,12 +60,13 @@ export interface AdminRecrawlDependencies {
 	buildBannerState: BuildBannerState;
 }
 
-function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
+function pollUrlBuilderFor(articleUrl: string, section: ReaderSectionRequest): PollUrlBuilder {
+	const sectionSuffix = section === undefined ? "" : `&section=${section}`;
 	return {
 		summary: (n) =>
-			`/admin/recrawl/summary?url=${encodeURIComponent(articleUrl)}&poll=${n}`,
+			`/admin/recrawl/summary?url=${encodeURIComponent(articleUrl)}&poll=${n}${sectionSuffix}`,
 		reader: (n) =>
-			`/admin/recrawl/reader?url=${encodeURIComponent(articleUrl)}&poll=${n}`,
+			`/admin/recrawl/reader?url=${encodeURIComponent(articleUrl)}&poll=${n}${sectionSuffix}`,
 	};
 }
 
@@ -221,7 +223,7 @@ async function renderRecrawlPage(
 			metadata: existing.metadata,
 			estimatedReadTime: existing.estimatedReadTime,
 		},
-		pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+		pollUrlBuilder: pollUrlBuilderFor(articleUrl, requestedReaderSection(req.query.section)),
 	});
 
 	// `?started=1` is set by the POST-Redirect-GET landing after the recrawl
@@ -232,6 +234,7 @@ async function renderRecrawlPage(
 
 	const html = Base(AdminRecrawlPage({
 		articleUrl,
+		readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl) },
 		now: deps.now(),
 		destinationUrl: existing.destinationUrl,
 		appOrigin: deps.appOrigin,
@@ -315,7 +318,8 @@ function handleSummaryPoll(
 			viewer: ANONYMOUS_VIEWER,
 			articleId: undefined,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			pollUrlBuilder: pollUrlBuilderFor(articleUrl, requestedReaderSection(req.query.section)),
+			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl) },
 			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,
@@ -346,7 +350,8 @@ function handleReaderPoll(
 			viewer: ANONYMOUS_VIEWER,
 			articleId: undefined,
 			pollCount,
-			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			pollUrlBuilder: pollUrlBuilderFor(articleUrl, requestedReaderSection(req.query.section)),
+			readerSection: { requested: requestedReaderSection(req.query.section), readerPath: recrawlPathFor(articleUrl) },
 			capture: NO_CAPTURE_WATCH,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			summaryToggleUrl: undefined,

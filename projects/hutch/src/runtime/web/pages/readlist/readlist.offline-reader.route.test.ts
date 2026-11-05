@@ -14,7 +14,8 @@ import type { TestAppFixture } from "@packages/test-fixtures";
 import { initReadabilityParser, readabilityAdditions } from "@packages/article-parser";
 import { loginAgent, useTestServer } from "../../../test-app";
 import { ARTICLE_VERSION_HEADER } from "../../shared/offline-reader/offline-cache";
-import { shownSummary } from "@packages/domain/article";
+import { MinutesSchema, ReaderArticleHashId, shownSummary } from "@packages/domain/article";
+import { READER_SECTION_PAGE_THRESHOLD_BYTES } from "../../shared/article-body/reader-slot/section-pages";
 
 const useApp = useTestServer();
 
@@ -332,5 +333,37 @@ describe("a card tap on a listing whose htmx never loaded (GET /queue served fro
 		expect(document.querySelector("main [data-test-article-title]")).toBe(card);
 		expect(cardOpenScriptNonce(html)).toBe(pageNonce(html));
 		listing.window.close();
+	});
+});
+
+describe("a body just under the section-paging threshold (GET /queue/:id/view)", () => {
+	it("keeps every chapter on the one page the offline reader worker caches", async () => {
+		const chapterCount = 4;
+		const words = Math.floor(READER_SECTION_PAGE_THRESHOLD_BYTES / chapterCount / 5) - 100;
+		const body = Array.from(
+			{ length: chapterCount },
+			(_, index) => `<h2>Chapter ${index + 1}</h2><p>${"word ".repeat(words)}</p>`,
+		).join("");
+		assert(Buffer.byteLength(body) < READER_SECTION_PAGE_THRESHOLD_BYTES, "the fixture must sit under the threshold");
+		const harness = useApp(buildFixture(() => FIXED_NOW));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the logged-in user must exist");
+		const url = "https://example.com/offline-under-threshold";
+		await harness.articleStore.saveArticle({
+			userId: user.userId,
+			url,
+			metadata: { title: "Under", siteName: "example.com", excerpt: "", wordCount: 3 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			provenance: { kind: "web" },
+			savedAt: FIXED_NOW,
+		});
+		await harness.articleStore.writeContent({ url, content: body });
+		await harness.articleCrawl.markCrawlReady({ url });
+
+		const doc = wholeDocument((await agent.get(`/queue/${ReaderArticleHashId.from(url).value}/view`)).text);
+
+		expect(doc.querySelectorAll("[data-test-reader-content] h2")).toHaveLength(chapterCount);
+		expect(doc.querySelector("[data-test-section-pager]")).toBeNull();
 	});
 });

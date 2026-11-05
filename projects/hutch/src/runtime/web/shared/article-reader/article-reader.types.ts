@@ -1,3 +1,4 @@
+import type { ReaderSectionInput } from "../article-body/reader-slot/section-pages";
 import type {
 	ArticleMetadata,
 	Minutes,
@@ -134,6 +135,7 @@ export interface ResolveReaderStateParams {
  */
 export interface HandlePollParams {
 	articleUrl: string;
+	readerSection: ReaderSectionInput;
 	viewer: Viewer;
 	articleId: string | undefined;
 	pollCount: number;

@@ -70,6 +70,8 @@ export {
 } from "./save-provenance";
 export {
 	ARTICLE_SECTION_ID_PREFIX,
+	chapterSectionId,
+	isChapterSectionId,
 	READER_CELL_LABEL_ATTRIBUTE,
 	READER_HEADER_ROW_ATTRIBUTE,
 	READER_TABLE_FITS_ATTRIBUTE,
