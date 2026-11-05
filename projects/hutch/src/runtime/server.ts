@@ -149,7 +149,7 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { FindIdentityRow, PinContentSource, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
+import type { FindIdentityRow, PinContentSource, SavePrivateItem, ReadArticleContent, ReadArticleImage } from "@packages/provider-contracts/article-store";
 import type { RefreshIdentifiedArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -252,6 +252,19 @@ import {
 } from "./web/shared/article-body/reader-actions/reader-actions.component";
 import { READLIST_PATH } from "./web/pages/readlist/readlist.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
+import { initUploadRouter, UPLOAD_OUTCOME_HTML } from "./web/pages/upload/upload.page";
+import { initCommitReceivedUpload } from "./web/pages/upload/commit-received-upload";
+import { redirectAnonymousToUploadSignup } from "./web/pages/upload/redirect-anonymous-to-upload-signup";
+import { MEDIA_KINDS, type UploadId } from "@packages/media-contracts";
+import type {
+	CreateMediaUploadSession,
+	FindMediaUploadSession,
+	HeadMediaPendingOriginal,
+	MarkMediaUploadCommitted,
+	MintMediaPendingPost,
+	PublishMediaUploadCommitted,
+	ReadMediaPendingPrefix,
+} from "@packages/domain";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { InboxAddressStore, InboxEmailLinkStore, InboxSavedLinkStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
@@ -552,6 +565,15 @@ interface AppDependencies {
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
+	savePrivateItem: SavePrivateItem;
+	createMediaUploadSession: CreateMediaUploadSession;
+	findMediaUploadSession: FindMediaUploadSession;
+	markMediaUploadCommitted: MarkMediaUploadCommitted;
+	mintMediaPendingPost: MintMediaPendingPost;
+	headMediaPendingOriginal: HeadMediaPendingOriginal;
+	readMediaPendingPrefix: ReadMediaPendingPrefix;
+	publishMediaUploadCommitted: PublishMediaUploadCommitted;
+	mintUploadId: () => UploadId;
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
 	listInboxAddresses: InboxAddressStore["listAddressesByUserId"];
 	setInboxAddressReadlist: InboxAddressStore["setAddressReadlist"];
@@ -1658,6 +1680,29 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * (the sole content-creating route), where `redirectAnonymousToSignup` and the
 	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
 	app.use("/import", importRouter);
+
+	app.use(
+		"/upload",
+		initUploadRouter({
+			stageGates: [redirectAnonymousToUploadSignup, requireNotLocked, requireWriteAccess],
+			settleReceivedUpload: initCommitReceivedUpload({
+				savePrivateItem: deps.savePrivateItem,
+				publishMediaUploadCommitted: deps.publishMediaUploadCommitted,
+				markMediaUploadCommitted: deps.markMediaUploadCommitted,
+				now: deps.now,
+			}),
+			createMediaUploadSession: deps.createMediaUploadSession,
+			findMediaUploadSession: deps.findMediaUploadSession,
+			mintMediaPendingPost: deps.mintMediaPendingPost,
+			headMediaPendingOriginal: deps.headMediaPendingOriginal,
+			readMediaPendingPrefix: deps.readMediaPendingPrefix,
+			mintUploadId: deps.mintUploadId,
+			MEDIA_KINDS,
+			pickOutcomeWriters: () => UPLOAD_OUTCOME_HTML,
+			buildBannerState,
+			appOrigin,
+		}),
+	);
 
 	const saveRouter = initSaveRoutes({ buildBannerState, recordAnalyticsEvent, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID, ownHost });
 	app.use("/save", saveRouter);

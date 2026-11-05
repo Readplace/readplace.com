@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { UploadIdSchema } from "@packages/media-contracts";
-import { initInMemoryMediaUploadSessions } from "./in-memory-media-upload-session";
+import {
+	initInMemoryMediaPending,
+	initInMemoryMediaUploadCommitted,
+	initInMemoryMediaUploadSessions,
+} from "./in-memory-media-upload-session";
+import { mintPrivateItemUrl } from "@packages/media-contracts";
 
 const owner = UserIdSchema.parse("00000000000000000000000000000001");
 const otherUser = UserIdSchema.parse("00000000000000000000000000000002");
@@ -88,5 +93,52 @@ describe("initInMemoryMediaUploadSessions", () => {
 		const sessions = initInMemoryMediaUploadSessions();
 
 		assert.equal(await sessions.failMediaUpload({ uploadId: unknownUploadId }), "not-committed");
+	});
+});
+
+describe("initInMemoryMediaPending", () => {
+	it("mints a post whose key is the upload's pending original", async () => {
+		const pending = initInMemoryMediaPending({ uploadBaseUrl: "https://s3.test/bucket" });
+
+		const post = await pending.mintMediaPendingPost({
+			uploadId,
+			contentType: "application/epub+zip",
+			uploadCeilingBytes: 10,
+			successActionRedirect: "https://app.test/upload/x",
+		});
+
+		assert.equal(post.url, "https://s3.test/bucket");
+		assert.equal(post.fields.key, `pending/${uploadId}/original`);
+	});
+
+	it("answers no head before the original arrives, then its size and a prefix", async () => {
+		const pending = initInMemoryMediaPending({ uploadBaseUrl: "https://s3.test/bucket" });
+		assert.equal(await pending.headMediaPendingOriginal({ uploadId }), undefined);
+
+		pending.receivePendingOriginal({ uploadId, bytes: new Uint8Array([1, 2, 3, 4]) });
+		const head = await pending.headMediaPendingOriginal({ uploadId });
+		assert(head, "the original has arrived");
+
+		assert.equal(head.size, 4);
+		assert.deepEqual([...(await pending.readMediaPendingPrefix({ uploadId, etag: head.etag, bytes: 2 }))], [1, 2]);
+	});
+});
+
+describe("initInMemoryMediaUploadCommitted", () => {
+	it("records each published event", async () => {
+		const committed = initInMemoryMediaUploadCommitted();
+		const detail = {
+			uploadId,
+			kind: "book" as const,
+			url: mintPrivateItemUrl(uploadId),
+			userId: owner,
+			saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
+			etag: '"e"',
+			attempt: 1,
+		};
+
+		await committed.publishMediaUploadCommitted(detail);
+
+		assert.deepEqual(committed.publishedMediaUploadCommitted, [detail]);
 	});
 });

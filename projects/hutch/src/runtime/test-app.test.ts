@@ -96,6 +96,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			botDefense: fixture.botDefense,
 			conversions: fixture.conversions,
 			foundingAllocation: fixture.foundingAllocation,
+			mediaUpload: fixture.mediaUpload,
 		});
 
 		expect(typeof result.app).toBe("function");

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -24,6 +24,12 @@ import { initInMemoryOnboardingSignals } from "./providers/onboarding-signals/in
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
 import { initInMemoryPendingUpload } from "./providers/pending-upload/in-memory-pending-upload";
+import {
+	initInMemoryMediaPending,
+	initInMemoryMediaUploadCommitted,
+	initInMemoryMediaUploadSessions,
+} from "./providers/media-upload-session/in-memory-media-upload-session";
+import { mintUploadId } from "@packages/media-contracts";
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
 import { initInMemoryHostedCheckout } from "./providers/hosted-checkout/in-memory-hosted-checkout";
 import { initInMemorySubscriptionBilling } from "./providers/subscription-billing/in-memory-subscription-billing";
@@ -588,6 +594,12 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			runLogsInsightsQuery: initInMemoryLogsInsights().runLogsInsightsQuery,
 			readExcludedIdentities: async () => ({ excludedVisitorIds: [], excludedUserIds: [] }),
 			now: () => new Date(),
+		},
+		mediaUpload: {
+			...initInMemoryMediaUploadSessions(),
+			...initInMemoryMediaPending({ uploadBaseUrl: `${appOrigin}/e2e/s3-media` }),
+			...initInMemoryMediaUploadCommitted(),
+			mintUploadId: () => mintUploadId(randomBytes),
 		},
 		importSession: {
 			importSessionStore: initInMemoryImportSession({ now: () => new Date() }),

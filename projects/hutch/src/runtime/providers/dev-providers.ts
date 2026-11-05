@@ -120,6 +120,12 @@ import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pendin
 import { initInMemoryPendingUpload } from "@packages/test-fixtures/providers/pending-upload";
 import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
+import {
+	initInMemoryMediaPending,
+	initInMemoryMediaUploadCommitted,
+	initInMemoryMediaUploadSessions,
+} from "@packages/test-fixtures/providers/media-upload-session";
+import { mintUploadId } from "@packages/media-contracts";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initInMemoryInboxEmailLink, initInMemoryInboxSavedLink } from "@packages/test-fixtures/providers/inbox-email";
 import { initInMemoryGmailConnection } from "@packages/test-fixtures/providers/gmail-connection";
@@ -591,6 +597,11 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 			logError,
 		}),
 		importSessionStore,
+		savePrivateItem: articleStore.savePrivateItem,
+		...initInMemoryMediaUploadSessions(),
+		...initInMemoryMediaPending({ uploadBaseUrl: `${input.appOrigin}/e2e/s3-media` }),
+		publishMediaUploadCommitted: initInMemoryMediaUploadCommitted().publishMediaUploadCommitted,
+		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,
 		provisionInboxAddress: async (userId: UserId) => {
 			await inboxAddressStore.createAddress({

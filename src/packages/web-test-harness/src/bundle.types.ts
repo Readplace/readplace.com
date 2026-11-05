@@ -59,6 +59,17 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type {
+	CreateMediaUploadSession,
+	FailMediaUpload,
+	FindMediaUploadSession,
+	HeadMediaPendingOriginal,
+	MarkMediaUploadCommitted,
+	MediaUploadSession,
+	MintMediaPendingPost,
+	PublishMediaUploadCommitted,
+	ReadMediaPendingPrefix,
+} from "@packages/domain";
+import type {
 	InboxAddressStore,
 	InboxEmailLinkStore,
 	InboxEmailStore,
@@ -714,6 +725,20 @@ export interface SharedBundle {
 	now: () => Date;
 }
 
+export interface MediaUploadBundle {
+	createMediaUploadSession: CreateMediaUploadSession;
+	findMediaUploadSession: FindMediaUploadSession;
+	markMediaUploadCommitted: MarkMediaUploadCommitted;
+	failMediaUpload: FailMediaUpload;
+	mintMediaPendingPost: MintMediaPendingPost;
+	headMediaPendingOriginal: HeadMediaPendingOriginal;
+	readMediaPendingPrefix: ReadMediaPendingPrefix;
+	receivePendingOriginal: (params: { uploadId: MediaUploadSession["uploadId"]; bytes: Uint8Array }) => void;
+	publishMediaUploadCommitted: PublishMediaUploadCommitted;
+	publishedMediaUploadCommitted: Parameters<PublishMediaUploadCommitted>[0][];
+	mintUploadId: () => MediaUploadSession["uploadId"];
+}
+
 export interface ImportSessionBundle {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
@@ -792,6 +817,7 @@ export interface TestAppFixture {
 	canaryReports: { saveCanaryReport: SaveCanaryReport; findCanaryReport: FindCanaryReport };
 	adminDashboards: AdminDashboardsBundle;
 	importSession: ImportSessionBundle;
+	mediaUpload: MediaUploadBundle;
 	inboxAddress: InboxAddressBundle;
 	inboxEmail: InboxEmailBundle;
 	shared: SharedBundle;

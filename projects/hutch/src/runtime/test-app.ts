@@ -18,6 +18,7 @@ import type {
 	PendingHtmlBundle,
 	PendingPdfBundle,
 	PendingUploadBundle,
+	MediaUploadBundle,
 	PendingSignupBundle,
 	RunningServer,
 	HostedCheckoutBundle,
@@ -122,6 +123,7 @@ export interface TestAppResult {
 	pendingHtml: PendingHtmlBundle;
 	pendingPdf: PendingPdfBundle;
 	pendingUpload: PendingUploadBundle;
+	mediaUpload: MediaUploadBundle;
 	oauthModel: OAuthModel;
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
@@ -330,6 +332,8 @@ function flattenFixtureToAppDependencies(
 		adminEmails: fixture.admin.adminEmails,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
+		savePrivateItem: fixture.articleStore.savePrivateItem,
+		...fixture.mediaUpload,
 		extractLinksFromPageUrl: fixture.importSession.extractLinksFromPageUrl,
 		provisionInboxAddress: (userId: UserId) =>
 			fixture.inboxAddress.inboxAddressStore
@@ -457,6 +461,7 @@ export function createTestApp(
 		pendingHtml: fixture.pendingHtml,
 		pendingPdf: fixture.pendingPdf,
 		pendingUpload: fixture.pendingUpload,
+		mediaUpload: fixture.mediaUpload,
 		oauthModel: fixture.oauth.oauthModel,
 		email: fixture.email,
 		emailVerification: fixture.emailVerification,

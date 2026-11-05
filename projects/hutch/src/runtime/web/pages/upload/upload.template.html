@@ -1,0 +1,36 @@
+<main class="upload" data-test-upload-page>
+  <div class="upload__layout">
+    <h1 class="upload__title">Upload a book</h1>
+    {{#if errorAlertHtml}}<div data-test-upload-error="{{errorCode}}">{{{errorAlertHtml}}}</div>{{/if}}
+    {{#if start}}
+    <form class="upload__panel" method="post" action="/upload" data-test-upload-start>
+      <div class="form-field">
+        <label class="form-field__label" for="upload-content-type">File type</label>
+        <div class="form-input form-input--within form-input--select">
+          <select class="form-input__control" id="upload-content-type" name="contentType">
+            {{#each start.contentTypes}}<option value="{{this}}">{{this}}</option>{{/each}}
+          </select>
+          <span class="form-input__chevron">{{icon "chevron-down"}}</span>
+        </div>
+      </div>
+      <p class="upload__description">EPUB, DRM-free, {{start.ceilingLabel}}; MOBI and AZW3 are not supported; images are not shown yet.</p>
+      <button class="btn btn--primary upload__submit" type="submit">Choose a file</button>
+    </form>
+    {{/if}}
+    {{#if staged}}
+    <form class="upload__panel" method="post" enctype="multipart/form-data" action="{{staged.url}}" data-test-upload-s3-form>
+      {{#each staged.fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
+      <p class="upload__description">Up to {{staged.ceilingLabel}}.</p>
+      <input class="upload__file-input" type="file" name="file" accept="{{staged.accept}}" required data-test-upload-file>
+      <button class="btn btn--primary upload__submit" type="submit">Upload</button>
+    </form>
+    {{/if}}
+    {{#if continueUploadId}}
+    <form class="upload__panel" method="post" action="/upload/{{continueUploadId}}/received" data-test-upload-continue>
+      <p class="upload__description">Your file is uploaded.</p>
+      <button class="btn btn--primary upload__submit" type="submit">Continue</button>
+    </form>
+    {{/if}}
+    {{#if failedAlertHtml}}<div data-test-upload-failed>{{{failedAlertHtml}}}</div>{{/if}}
+  </div>
+</main>

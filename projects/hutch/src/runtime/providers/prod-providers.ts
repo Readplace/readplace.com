@@ -91,6 +91,11 @@ import { initS3PendingUpload } from "./pending-upload/s3-pending-upload";
 import { createPresignerClient } from "./pending-upload/mint-upload-url";
 import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initDynamoDbImportSession } from "./import-session/dynamodb-import-session";
+import { initDynamoDbMediaUploadSessions } from "./media-upload-session/dynamodb-media-upload-sessions";
+import { initS3MediaPending } from "./media-pending/s3-media-pending";
+import { initEventBridgeMediaUploadCommitted } from "./events/eventbridge-media-upload-committed";
+import { initDynamoDbPrivateItem } from "@packages/article-store";
+import { mintUploadId } from "@packages/media-contracts";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
 import { initGmailAccountEmail } from "./gmail-api/gmail-account";
 import { initExchangeGmailCode } from "./gmail-oauth/gmail-token";
@@ -401,6 +406,19 @@ export function initProdProviders(input: { appOrigin: string }) {
 		schedulerRoleArn: trialSchedulerRoleArn,
 		eventBusArn,
 	});
+	const { savePrivateItem } = initDynamoDbPrivateItem({
+		client,
+		tableName: articlesTable,
+		userArticlesTableName: userArticlesTable,
+	});
+	const { createMediaUploadSession, findMediaUploadSession, markMediaUploadCommitted } =
+		initDynamoDbMediaUploadSessions({ client, tableName: tables.mediaUploadSessions, now: () => new Date() });
+	const { mintMediaPendingPost, headMediaPendingOriginal, readMediaPendingPrefix } = initS3MediaPending({
+		presignerClient: createPresignerClient(),
+		client: new S3Client({}),
+		bucketName: requireEnv("MEDIA_BUCKET_NAME"),
+	});
+	const { publishMediaUploadCommitted } = initEventBridgeMediaUploadCommitted({ publishEvent });
 	const importSessionStore = initDynamoDbImportSession({
 		client,
 		tableName: importSessionsTable,
@@ -542,6 +560,15 @@ export function initProdProviders(input: { appOrigin: string }) {
 		findItemOwner,
 		readArticleImage,
 		importSessionStore,
+		savePrivateItem,
+		createMediaUploadSession,
+		findMediaUploadSession,
+		markMediaUploadCommitted,
+		mintMediaPendingPost,
+		headMediaPendingOriginal,
+		readMediaPendingPrefix,
+		publishMediaUploadCommitted,
+		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,
 		provisionInboxAddress: async (userId: UserId) => {
 			await inboxAddressStore.createAddress({

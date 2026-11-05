@@ -5,4 +5,8 @@ export type {
 	FindMediaUploadSession,
 	MarkMediaUploadCommitted,
 	FailMediaUpload,
+	MintMediaPendingPost,
+	HeadMediaPendingOriginal,
+	ReadMediaPendingPrefix,
+	PublishMediaUploadCommitted,
 } from "./media-upload-session.types";

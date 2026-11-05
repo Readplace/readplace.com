@@ -535,6 +535,11 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 						Action: ["s3:PutObject", "s3:GetObject"],
 						Resource: `arn:aws:s3:::${mediaBucketName}/pending/*`,
 					},
+					{
+						Effect: "Allow",
+						Action: ["s3:ListBucket"],
+						Resource: `arn:aws:s3:::${mediaBucketName}`,
+					},
 				],
 			}),
 		},
