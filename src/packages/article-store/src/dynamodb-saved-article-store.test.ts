@@ -270,9 +270,9 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		await initStore(client).markArticleViewed({ userId: USER, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toContain("SET viewedAt = :at");
+		expect(update?.input.UpdateExpression).toBe("SET viewedAt = :viewedAt");
 		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
-		expect(update?.input.ExpressionAttributeValues?.[":at"]).toBe("2026-05-30T10:00:00.000Z");
+		expect(update?.input.ExpressionAttributeValues?.[":viewedAt"]).toBe("2026-05-30T10:00:00.000Z");
 	});
 
 	it("markSummaryToggled with state=open overwrites lastSummaryOpenedAt (last-write-wins) on a still-saved row", async () => {
@@ -280,9 +280,9 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		await initStore(client).markSummaryToggled({ userId: USER, url: URL, state: "open", at: new Date("2026-05-30T10:00:00.000Z") });
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toBe("SET lastSummaryOpenedAt = :at");
+		expect(update?.input.UpdateExpression).toBe("SET lastSummaryOpenedAt = :lastSummaryOpenedAt");
 		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
-		expect(update?.input.ExpressionAttributeValues?.[":at"]).toBe("2026-05-30T10:00:00.000Z");
+		expect(update?.input.ExpressionAttributeValues?.[":lastSummaryOpenedAt"]).toBe("2026-05-30T10:00:00.000Z");
 	});
 
 	it("markSummaryToggled with state=closed overwrites lastSummaryClosedAt", async () => {
@@ -290,7 +290,7 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 		await initStore(client).markSummaryToggled({ userId: USER, url: URL, state: "closed", at: new Date("2026-05-30T10:01:00.000Z") });
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
-		expect(update?.input.UpdateExpression).toBe("SET lastSummaryClosedAt = :at");
+		expect(update?.input.UpdateExpression).toBe("SET lastSummaryClosedAt = :lastSummaryClosedAt");
 	});
 
 	it("markRelatedDismissed records the suggestion that was waved away, so a later render can tell a snooze from a permanent dismissal", async () => {
@@ -300,12 +300,12 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toBe(
-			"SET relatedDismissedAt = :at, relatedDismissedSuggestionId = :suggestionId",
+			"SET relatedDismissedAt = :relatedDismissedAt, relatedDismissedSuggestionId = :relatedDismissedSuggestionId",
 		);
 		expect(update?.input.ConditionExpression).toBe("attribute_exists(savedAt)");
 		expect(update?.input.ExpressionAttributeValues).toEqual({
-			":at": "2026-05-30T10:02:00.000Z",
-			":suggestionId": suggestionId.value,
+			":relatedDismissedAt": "2026-05-30T10:02:00.000Z",
+			":relatedDismissedSuggestionId": suggestionId.value,
 		});
 	});
 
@@ -315,10 +315,10 @@ describe("initDynamoDbSavedArticleStore reader-ready columns", () => {
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toBe(
-			"SET relatedDismissedAt = :at REMOVE relatedDismissedSuggestionId",
+			"SET relatedDismissedAt = :relatedDismissedAt REMOVE relatedDismissedSuggestionId",
 		);
 		expect(update?.input.ExpressionAttributeValues).toEqual({
-			":at": "2026-05-30T10:02:00.000Z",
+			":relatedDismissedAt": "2026-05-30T10:02:00.000Z",
 		});
 	});
 
@@ -2894,7 +2894,7 @@ describe("initDynamoDbSavedArticleStore readlist-scoped writes", () => {
 
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.Key).toEqual({ userId: WORK_PARTITION, url: RESOURCE_ID });
-		expect(update?.input.UpdateExpression).toBe("SET viewedAt = :at");
+		expect(update?.input.UpdateExpression).toBe("SET viewedAt = :viewedAt");
 	});
 });
 

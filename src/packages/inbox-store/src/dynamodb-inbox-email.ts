@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -72,16 +72,12 @@ export function initDynamoDbInboxEmail(deps: {
 				...(bodyS3Key === undefined ? {} : { bodyS3Key }),
 				...(linkCounts === undefined ? {} : { linkCounts }),
 			};
-			try {
-				await table.put({
-					Item,
-					ConditionExpression: "attribute_not_exists(receivedAtMessageId)",
-				});
-				return "stored";
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return "duplicate";
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.put({
+				Item,
+				ConditionExpression: "attribute_not_exists(receivedAtMessageId)",
+			}));
+			if (outcome.kind === "condition-failed") return "duplicate";
+			return "stored";
 		},
 		listEmailsByUserId: async ({ userId, cursor, pageSize }) => {
 			assert(Number.isInteger(pageSize), "pageSize must be an integer");

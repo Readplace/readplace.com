@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
@@ -54,46 +54,38 @@ export function initDynamoDbEmailIdentity(deps: {
 		find,
 		claim: async ({ now, ...input }) => {
 			const claim: EmailIdentityClaim = { ...input, claimedAt: now.toISOString() };
-			try {
-				await table.put({
-					Item: {
-						identityKey: claim.key,
-						userId: claim.userId,
-						receivedAtMessageId: claim.receivedAtMessageId,
-						attempt: claim.attempt,
-						attemptKey: ingestionAttemptKey(claim.attempt),
-						claimedAt: claim.claimedAt,
-					},
-					ConditionExpression: "attribute_not_exists(identityKey)",
-				});
-				return { status: "claimed", claim };
-			} catch (error) {
-				if (!(error instanceof ConditionalCheckFailedException)) throw error;
-			}
+			const outcome = await writeIfCondition(() => table.put({
+				Item: {
+					identityKey: claim.key,
+					userId: claim.userId,
+					receivedAtMessageId: claim.receivedAtMessageId,
+					attempt: claim.attempt,
+					attemptKey: ingestionAttemptKey(claim.attempt),
+					claimedAt: claim.claimedAt,
+				},
+				ConditionExpression: "attribute_not_exists(identityKey)",
+			}));
+			if (outcome.kind === "written") return { status: "claimed", claim };
 			const existing = await find(input.key);
 			assert(existing, "a failed identity claim must leave the winning claim in place");
 			const sameAttempt = ingestionAttemptKey(existing.attempt) === ingestionAttemptKey(input.attempt);
 			return { status: sameAttempt ? "same-attempt" : "claimed-elsewhere", claim: existing };
 		},
 		takeOver: async ({ previous, attempt, now }) => {
-			try {
-				await table.update({
-					Key: { identityKey: previous.key },
-					UpdateExpression: "SET #attempt = :attempt, attemptKey = :attemptKey, claimedAt = :now",
-					ConditionExpression: "attemptKey = :previousAttemptKey",
-					ExpressionAttributeNames: { "#attempt": "attempt" },
-					ExpressionAttributeValues: {
-						":attempt": attempt,
-						":attemptKey": ingestionAttemptKey(attempt),
-						":now": now.toISOString(),
-						":previousAttemptKey": ingestionAttemptKey(previous.attempt),
-					},
-				});
-				return true;
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return false;
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.update({
+				Key: { identityKey: previous.key },
+				UpdateExpression: "SET #attempt = :attempt, attemptKey = :attemptKey, claimedAt = :now",
+				ConditionExpression: "attemptKey = :previousAttemptKey",
+				ExpressionAttributeNames: { "#attempt": "attempt" },
+				ExpressionAttributeValues: {
+					":attempt": attempt,
+					":attemptKey": ingestionAttemptKey(attempt),
+					":now": now.toISOString(),
+					":previousAttemptKey": ingestionAttemptKey(previous.attempt),
+				},
+			}));
+			if (outcome.kind === "condition-failed") return false;
+			return true;
 		},
 		deleteAllByUserId: async (userId) => {
 			await forEachQueryPage(

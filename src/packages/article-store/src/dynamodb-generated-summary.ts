@@ -1,11 +1,10 @@
-import assert from "node:assert";
 import { SummaryStatusSchema } from "@packages/article-state-types";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
 import { summaryMatchesCanonical } from "@packages/domain/article-aggregate";
@@ -19,6 +18,7 @@ import type {
 	FindGeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
+import { SummaryStageColumn, decodeSummaryColumns } from "./status-columns";
 
 export const ArticleSummaryRow = z.object({
 	url: z.string(),
@@ -32,9 +32,7 @@ export const ArticleSummaryRow = z.object({
 	// Plain string on read for forward-compat with future codes; UI mapper
 	// surfaces a fallback message for any value not in SummarySkipReasonSchema.
 	summarySkippedReason: dynamoField(z.string()),
-	summaryStage: dynamoField(
-		z.enum(["summary-started", "summary-generating"]),
-	),
+	summaryStage: dynamoField(SummaryStageColumn),
 	ownerUserId: dynamoField(UserIdSchema),
 });
 
@@ -59,27 +57,22 @@ export function rowToGeneratedSummary(
 	if (isUnverifiedWrapperContent(row)) return undefined;
 	if ((row.summaryStatus === "ready" || (row.summaryStatus === undefined && row.summary !== undefined)) &&
 		!summaryMatchesCanonical({ candidateId: row.canonicalCandidateId, summarySourceContentHash: row.summarySourceContentHash, canonicalContentHash: row.canonicalContentHash })) return undefined;
-	if (row.summaryStatus === "failed") {
-		assert(row.summaryFailureReason, "summaryStatus=failed row must carry a summaryFailureReason");
-		return { status: "failed", reason: row.summaryFailureReason };
+	const columns = decodeSummaryColumns(row);
+	if (columns.summaryStatus === "failed") {
+		return { status: "failed", reason: columns.summaryFailureReason };
 	}
-	if (row.summaryStatus === "skipped") {
+	if (columns.summaryStatus === "skipped") {
 		return row.summarySkippedReason
 			? { status: "skipped", reason: row.summarySkippedReason }
 			: { status: "skipped" };
 	}
-	if (row.summaryStatus === "pending") {
+	if (columns.summaryStatus === "pending") {
 		return row.summaryStage
 			? { status: "pending", stage: row.summaryStage }
 			: { status: "pending" };
 	}
-	if (row.summaryStatus === "ready") {
-		// Status and text must move together. A row with status=ready and no
-		// summary text means a writer dropped the text without resetting the
-		// status (or vice versa) — fail loud here so the inconsistency surfaces
-		// instead of degrading silently to a forever-polling reader UI.
-		assert(row.summary, "summaryStatus=ready row must carry a summary");
-		return readyFromRow(row.summary, row.summaryExcerpt);
+	if (columns.summaryStatus === "ready") {
+		return readyFromRow(columns.summary, row.summaryExcerpt);
 	}
 	// Legacy row (summaryStatus absent). A backfilled `summary` column means the
 	// row pre-dates the state machine but carried a pre-computed summary — expose
@@ -167,8 +160,8 @@ export function initDynamoDbGeneratedSummary(deps: {
 
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		try {
-			await table.update({
+		await writeIfCondition(() =>
+			table.update({
 				Key: { url: articleResourceUniqueId.value },
 				UpdateExpression:
 					"SET summaryStatus = :pending, summaryPendingSince = if_not_exists(summaryPendingSince, :pendingSince)",
@@ -179,10 +172,8 @@ export function initDynamoDbGeneratedSummary(deps: {
 					":pendingSince": deps.now().toISOString(),
 					":ready": "ready",
 				},
-			});
-		} catch (err) {
-			if (!(err instanceof ConditionalCheckFailedException)) throw err;
-		}
+			}),
+		);
 	};
 
 	return { findGeneratedSummary, findGeneratedSummaries, markSummaryPending };

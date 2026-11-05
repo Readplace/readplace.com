@@ -1,11 +1,12 @@
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
+	assembleRowUpdate,
 	assertItem,
 	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
 	forEachQueryPage,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
 import { VerificationFields, isUnverifiedWrapperContent } from "./verified-content";
@@ -304,27 +305,23 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const endMs = nowMs + count - 1;
 		const ascendingFrom = (end: number): Date[] =>
 			Array.from({ length: count }, (_, i) => new Date(end - count + 1 + i));
-		try {
-			await claimWallClockSpan(userId, { nowMs, endMs });
-			return ascendingFrom(endMs);
-		} catch (error) {
-			if (!(error instanceof ConditionalCheckFailedException)) throw error;
-		}
-		try {
-			const { Attributes } = await saveCursors.update({
+		const claimed = await writeIfCondition(() => claimWallClockSpan(userId, { nowMs, endMs }));
+		if (claimed.kind === "written") return ascendingFrom(endMs);
+		const advanced = await writeIfCondition(() =>
+			saveCursors.update({
 				Key: { userId, url: saveCursorUrl(userId) },
 				UpdateExpression: "ADD savedAtCursorMs :count",
 				ConditionExpression: "attribute_exists(savedAtCursorMs)",
 				ExpressionAttributeValues: { ":count": count },
 				ReturnValues: "UPDATED_NEW",
-			});
-			assertItem(Attributes, "cursor advance must return the advanced cursor");
-			return ascendingFrom(Attributes.savedAtCursorMs);
-		} catch (error) {
-			if (!(error instanceof ConditionalCheckFailedException)) throw error;
+			}),
+		);
+		if (advanced.kind === "condition-failed") {
 			await claimWallClockSpan(userId, { nowMs, endMs });
 			return ascendingFrom(endMs);
 		}
+		assertItem(advanced.result.Attributes, "cursor advance must return the advanced cursor");
+		return ascendingFrom(advanced.result.Attributes.savedAtCursorMs);
 	};
 
 	const allocateSavedAt: AllocateSavedAt = async ({ userId }) => {
@@ -365,8 +362,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const routeId = ReaderArticleHashId.from(params.url);
 
-		try {
-			await articles.update({
+		const outcome = await writeIfCondition(() =>
+			articles.update({
 				Key: { url: articleResourceUniqueId.value },
 				UpdateExpression: `SET routeId = :routeId, originalUrl = :originalUrl, title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, imageUrl = :imageUrl, publishedOn = :publishedOn, estimatedReadTime = :estimatedReadTime, savedAt = :savedAt ADD contentSelectionRevision :one REMOVE ${[...CONTENT_BEARING_COLUMNS.filter((column) => column !== "imageUrl" && column !== "publishedOn"), "purgedAt", "crawlStatus", "summaryStatus", "summarySkippedReason", "readerAvailableAt"].join(", ")}`,
 				ExpressionAttributeValues: {
@@ -384,20 +381,16 @@ export function initDynamoDbSavedArticleStore(deps: {
 				},
 				ConditionExpression: "attribute_not_exists(#url) OR attribute_exists(purgedAt)",
 				ExpressionAttributeNames: { "#url": "url" },
-			});
-			return { created: true };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return { created: false };
-			}
-			throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "condition-failed") return { created: false };
+		return { created: true };
 	};
 
 	const bumpArticleSavedAt: BumpArticleSavedAt = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		try {
-			await articles.update({
+		await writeIfCondition(() =>
+			articles.update({
 				Key: { url: articleResourceUniqueId.value },
 				UpdateExpression: "SET savedAt = :savedAt",
 				ConditionExpression: "attribute_exists(#url)",
@@ -405,11 +398,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 				ExpressionAttributeValues: {
 					":savedAt": params.savedAt.toISOString(),
 				},
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+			}),
+		);
 	};
 
 	const initSaveWrite = (userRowCondition: string) => async (
@@ -435,8 +425,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 			createdUserArticle: boolean;
 			wroteUserArticle: boolean;
 		}> => {
-			try {
-				const priorUserArticle = await userArticles.update({
+			const outcome = await writeIfCondition(() =>
+				userArticles.update({
 					Key: { userId: partition, url: articleResourceUniqueId.value },
 					UpdateExpression: `SET savedAt = :savedAt, provenance = :provenance, #status = if_not_exists(#status, :unread)${
 						params.suggestionAttribution === undefined
@@ -454,14 +444,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 							: { ":attribution": params.suggestionAttribution }),
 					},
 					ReturnValues: "ALL_OLD",
-				});
-				return { createdUserArticle: priorUserArticle.Attributes === undefined, wroteUserArticle: true };
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) {
-					return { createdUserArticle: false, wroteUserArticle: false };
-				}
-				throw error;
-			}
+				}),
+			);
+			if (outcome.kind === "condition-failed") return { createdUserArticle: false, wroteUserArticle: false };
+			return { createdUserArticle: outcome.result.Attributes === undefined, wroteUserArticle: true };
 		};
 
 		const [, { createdUserArticle, wroteUserArticle }] = await Promise.all([
@@ -959,15 +945,13 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return false;
 
-		try {
-			await userArticles.delete({
+		const outcome = await writeIfCondition(() =>
+			userArticles.delete({
 				Key: { userId: partition, url: article.url },
 				ConditionExpression: "attribute_exists(savedAt)",
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return false;
-			throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "condition-failed") return false;
 		return true;
 	};
 
@@ -1091,20 +1075,18 @@ export function initDynamoDbSavedArticleStore(deps: {
 						ExpressionAttributeValues: { ":status": status },
 					};
 
-		try {
-			const { Attributes } = await userArticles.update({
+		const outcome = await writeIfCondition(() =>
+			userArticles.update({
 				Key: { userId: partition, url: article.url },
 				ConditionExpression: "attribute_exists(savedAt)",
 				ExpressionAttributeNames: { "#status": "status" },
 				ReturnValues: "ALL_NEW",
 				...expression,
-			});
-			assertItem(Attributes, "ReturnValues ALL_NEW must return the updated user-article row");
-			return toSavedArticle(article, { ...Attributes, userId });
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return null;
-			throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "condition-failed") return null;
+		assertItem(outcome.result.Attributes, "ReturnValues ALL_NEW must return the updated user-article row");
+		return toSavedArticle(article, { ...outcome.result.Attributes, userId });
 	};
 
 	const updateArticleStatus: UpdateArticleStatus = (routeId, userId, status) =>
@@ -1152,22 +1134,20 @@ export function initDynamoDbSavedArticleStore(deps: {
 	async function stampUserArticleIfStillSaved(stamp: {
 		partition: string;
 		url: string;
-		updateExpression: string;
-		at: Date;
-		values?: Record<string, string>;
+		set: Partial<z.input<typeof UserArticleRow>>;
+		remove: readonly (keyof z.input<typeof UserArticleRow> & string)[];
 	}): Promise<void> {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(stamp.url);
-		try {
-			await userArticles.update({
-				Key: { userId: stamp.partition, url: articleResourceUniqueId.value },
-				UpdateExpression: stamp.updateExpression,
-				ConditionExpression: "attribute_exists(savedAt)",
-				ExpressionAttributeValues: { ":at": stamp.at.toISOString(), ...stamp.values },
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+		const update = assembleRowUpdate({
+			schema: UserArticleRow,
+			set: stamp.set,
+			remove: stamp.remove,
+			handWrittenSet: { clauses: [], values: {} },
+			condition: { kind: "row-exists", attribute: "savedAt" },
+		});
+		await writeIfCondition(() =>
+			userArticles.update({ Key: { userId: stamp.partition, url: articleResourceUniqueId.value }, ...update }),
+		);
 	}
 
 	const findArticleCrawlVersions: FindArticleCrawlVersions = async (url) => {
@@ -1185,21 +1165,25 @@ export function initDynamoDbSavedArticleStore(deps: {
 	};
 
 	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
-		await stampUserArticleIfStillSaved({ partition: userId, url, at, updateExpression: "SET viewedAt = :at" });
+		await stampUserArticleIfStillSaved({ partition: userId, url, set: { viewedAt: at.toISOString() }, remove: [] });
 	};
 
 	const markReadlistArticleViewed: MarkReadlistArticleViewed = async ({ userId, readlist, url, at }) => {
 		await stampUserArticleIfStillSaved({
 			partition: readlistPartitionValue({ userId, readlist }),
 			url,
-			at,
-			updateExpression: "SET viewedAt = :at",
+			set: { viewedAt: at.toISOString() },
+			remove: [],
 		});
 	};
 
 	const markSummaryToggled: MarkSummaryToggled = async ({ userId, url, state, at }) => {
-		const attribute = state === "open" ? "lastSummaryOpenedAt" : "lastSummaryClosedAt";
-		await stampUserArticleIfStillSaved({ partition: userId, url, at, updateExpression: `SET ${attribute} = :at` });
+		await stampUserArticleIfStillSaved({
+			partition: userId,
+			url,
+			set: state === "open" ? { lastSummaryOpenedAt: at.toISOString() } : { lastSummaryClosedAt: at.toISOString() },
+			remove: [],
+		});
 	};
 
 	const markRelatedDismissed: MarkRelatedDismissed = async ({
@@ -1208,17 +1192,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 		at,
 		suggestionId,
 	}) => {
-		const expression = suggestionId
-			? {
-					updateExpression:
-						"SET relatedDismissedAt = :at, relatedDismissedSuggestionId = :suggestionId",
-					values: { ":suggestionId": suggestionId.value },
-				}
-			: {
-					updateExpression:
-						"SET relatedDismissedAt = :at REMOVE relatedDismissedSuggestionId",
-				};
-		await stampUserArticleIfStillSaved({ partition: userId, url, at, ...expression });
+		await stampUserArticleIfStillSaved({
+			partition: userId,
+			url,
+			set: suggestionId
+				? { relatedDismissedAt: at.toISOString(), relatedDismissedSuggestionId: suggestionId.value }
+				: { relatedDismissedAt: at.toISOString() },
+			remove: suggestionId ? [] : ["relatedDismissedSuggestionId"],
+		});
 	};
 
 	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
@@ -1312,8 +1293,8 @@ export function initDynamoDbSavedArticleStore(deps: {
 			articleResourceUniqueId.value,
 		);
 		if (!source) return { assigned: false };
-		try {
-			await userArticles.put({
+		const outcome = await writeIfCondition(() =>
+			userArticles.put({
 				Item: {
 					userId: partitionFor({ userId, readlist }),
 					url: articleResourceUniqueId.value,
@@ -1327,12 +1308,10 @@ export function initDynamoDbSavedArticleStore(deps: {
 				},
 				ConditionExpression: "attribute_not_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
-			});
-			return { assigned: true };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return { assigned: false };
-			throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "condition-failed") return { assigned: false };
+		return { assigned: true };
 	};
 
 	const copyRowInto = async (
@@ -1342,16 +1321,14 @@ export function initDynamoDbSavedArticleStore(deps: {
 		const attributes = Object.fromEntries(
 			Object.entries(row).filter(([, value]) => value !== undefined),
 		);
-		try {
-			await userArticles.put({
+		const outcome = await writeIfCondition(() =>
+			userArticles.put({
 				Item: { ...attributes, userId: partition },
 				ConditionExpression: "attribute_not_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return false;
-			throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "condition-failed") return false;
 		return true;
 	};
 
@@ -1374,17 +1351,20 @@ export function initDynamoDbSavedArticleStore(deps: {
 
 	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		try {
-			await userArticles.update({
-				Key: { userId, url: articleResourceUniqueId.value },
-				UpdateExpression: "SET emailSentAt = :at",
-				ConditionExpression: "attribute_exists(savedAt) AND attribute_not_exists(emailSentAt)",
-				ExpressionAttributeValues: { ":at": at.toISOString() },
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+		const update = assembleRowUpdate({
+			schema: UserArticleRow,
+			set: { emailSentAt: at.toISOString() },
+			remove: [],
+			handWrittenSet: { clauses: [], values: {} },
+			condition: {
+				kind: "expression",
+				expression: "attribute_exists(savedAt) AND attribute_not_exists(emailSentAt)",
+				values: {},
+			},
+		});
+		await writeIfCondition(() =>
+			userArticles.update({ Key: { userId, url: articleResourceUniqueId.value }, ...update }),
+		);
 	};
 
 	const findArticleUrlById: FindArticleUrlById = async (id) => {

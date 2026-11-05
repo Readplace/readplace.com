@@ -157,7 +157,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		});
 
 		await expect(findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).rejects.toThrow(
-			"summaryStatus=ready row must carry a summary",
+			"\"summary\"",
 		);
 	});
 
@@ -245,7 +245,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		});
 
 		await expect(findGeneratedSummary({ url: "https://example.com/article", viewer: ANONYMOUS_VIEWER })).rejects.toThrow(
-			"summaryStatus=failed row must carry a summaryFailureReason",
+			"summaryFailureReason",
 		);
 	});
 

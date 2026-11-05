@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
+	transactIfConditions,
+	writeIfCondition,
 	TransactWriteCommand,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
@@ -160,22 +160,6 @@ function messageUnchanged(existing: GmailHistoryImportMessage | undefined): {
 	};
 }
 
-async function conditionalWrite(write: () => Promise<unknown>): Promise<boolean> {
-	try {
-		await write();
-		return true;
-	} catch (error) {
-		if (error instanceof ConditionalCheckFailedException) return false;
-		if (
-			error instanceof TransactionCanceledException &&
-			error.CancellationReasons?.some((reason) => reason.Code === "ConditionalCheckFailed")
-		) {
-			return false;
-		}
-		throw error;
-	}
-}
-
 export function initDynamoDbGmailHistoryImport(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -201,13 +185,10 @@ export function initDynamoDbGmailHistoryImport(deps: {
 	const updateJob = async (
 		input: Omit<Parameters<typeof jobs.update>[0], "ReturnValues">,
 	): Promise<GmailHistoryImportJob | undefined> => {
-		let updated: GmailHistoryImportJob | undefined;
-		const written = await conditionalWrite(async () => {
-			const { Attributes } = await jobs.update({ ...input, ReturnValues: "ALL_NEW" });
-			assert(Attributes, "an ALL_NEW job update must return the job");
-			updated = toJob(Attributes);
-		});
-		return written ? updated : undefined;
+		const outcome = await writeIfCondition(() => jobs.update({ ...input, ReturnValues: "ALL_NEW" }));
+		if (outcome.kind === "condition-failed") return undefined;
+		assert(outcome.result.Attributes, "an ALL_NEW job update must return the job");
+		return toJob(outcome.result.Attributes);
 	};
 
 	const listJobsByUserId: GmailHistoryImportStore["listJobsByUserId"] = async (userId) => {
@@ -271,7 +252,7 @@ export function initDynamoDbGmailHistoryImport(deps: {
 			}
 		},
 		claimPage: async ({ userId, jobId, generation, page, now }) =>
-			conditionalWrite(() =>
+			(await writeIfCondition(() =>
 				jobs.update({
 					Key: jobKey({ userId, jobId }),
 					UpdateExpression: "SET #state = :running, claimUntil = :until, updatedAt = :now",
@@ -288,7 +269,7 @@ export function initDynamoDbGmailHistoryImport(deps: {
 						":now": now.toISOString(),
 					},
 				}),
-			),
+			)).kind === "written",
 		recordFetched: async ({ userId, jobId, generation, gmailMessageId, rawS3Key, now }) => {
 			for (;;) {
 				const job = await findJob({ userId, jobId });
@@ -301,7 +282,7 @@ export function initDynamoDbGmailHistoryImport(deps: {
 					Key: jobKey(job),
 					ConditionExpression: "generation = :generation AND #state = :running",
 				};
-				const recorded = await conditionalWrite(() =>
+				const recorded = (await transactIfConditions(() =>
 					transact([
 						{
 							Put: {
@@ -335,12 +316,12 @@ export function initDynamoDbGmailHistoryImport(deps: {
 									},
 								},
 					]),
-				);
+				)).kind === "written";
 				if (recorded) return "recorded";
 			}
 		},
 		savePage: async ({ previous, pageToken, now }) =>
-			conditionalWrite(() =>
+			(await writeIfCondition(() =>
 				jobs.update({
 					Key: jobKey(previous),
 					...(pageToken === undefined
@@ -370,9 +351,9 @@ export function initDynamoDbGmailHistoryImport(deps: {
 					ConditionExpression: "generation = :generation AND #page = :page AND #state = :running",
 					ExpressionAttributeNames: { "#page": "page", "#state": "state" },
 				}),
-			),
+			)).kind === "written",
 		recordOutcome: async ({ userId, jobId, generation, gmailMessageId, outcome, now }) => {
-			const recorded = await conditionalWrite(() =>
+			const recorded = (await transactIfConditions(() =>
 				transact([
 					{
 						Update: {
@@ -403,7 +384,7 @@ export function initDynamoDbGmailHistoryImport(deps: {
 						},
 					},
 				]),
-			);
+			)).kind === "written";
 			if (recorded) return "recorded";
 			const [message, job] = await Promise.all([
 				findMessage({ userId, jobId, gmailMessageId }),

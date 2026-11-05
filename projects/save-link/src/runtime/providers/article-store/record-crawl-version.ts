@@ -1,4 +1,4 @@
-import { ConditionalCheckFailedException, type DynamoDBDocumentClient, defineDynamoTable, dynamoField } from "@packages/storage-client";
+import { type DynamoDBDocumentClient, defineDynamoTable, dynamoField, writeIfCondition } from "@packages/storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId, toCrawlVersionMinuteId } from "@packages/article-resource-unique-id";
 import { type CrawlVersionEntry, StoredCrawlVersionSchema } from "@packages/article-store";
@@ -21,18 +21,17 @@ export function initRecordCrawlVersion(deps: { dynamoClient: DynamoDBDocumentCli
 		};
 		const { changed, next } = appendCrawlVersion(existing, entry);
 		if (!changed) return;
-		try {
-			await articleTable.update({
+		const outcome = await writeIfCondition(() =>
+			articleTable.update({
 				Key: { url: id.value },
 				UpdateExpression: "SET crawlVersions = :next",
 				ConditionExpression: "canonicalCandidateId = :candidate AND contentSelectionRevision = :revision AND (attribute_not_exists(crawlVersions) OR crawlVersions = :old)",
 				ExpressionAttributeValues: { ":next": next, ":old": existing, ":candidate": params.canonicalCommit.candidateId, ":revision": (params.canonicalCommit.expected?.revision ?? 0) + 1 },
 				ReturnValuesOnConditionCheckFailure: "ALL_OLD",
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException && error.Item?.purgedAt !== undefined) return;
-			throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "written" || outcome.oldItem?.purgedAt !== undefined) return;
+		throw outcome.error;
 	};
 	return { recordCrawlVersion };
 }

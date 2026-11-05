@@ -1,8 +1,8 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	writeIfCondition,
 } from "@packages/storage-client";
 import {
 	type ClaimPayDigest,
@@ -172,8 +172,8 @@ export function initDynamoDbSubscriptionWrites(deps: {
 		userId,
 		sentAt,
 	}) => {
-		try {
-			await table.update({
+		const outcome = await writeIfCondition(() =>
+			table.update({
 				Key: { userId },
 				UpdateExpression: "SET automationSavesHeldEmailSentAt = :sentAt, updatedAt = :now",
 				ConditionExpression:
@@ -182,17 +182,14 @@ export function initDynamoDbSubscriptionWrites(deps: {
 					":sentAt": sentAt,
 					":now": deps.now().toISOString(),
 				},
-			});
-			return "claimed";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "already-sent";
-			throw error;
-		}
+			}),
+		);
+		return outcome.kind === "written" ? "claimed" : "already-sent";
 	};
 
 	const claimPayDigest: ClaimPayDigest = async ({ userId, trialEndsAt, messageId, now, urls }) => {
-		try {
-			await table.update({
+		const outcome = await writeIfCondition(() =>
+			table.update({
 				Key: { userId },
 				UpdateExpression:
 					"SET payDigestEmailSentAt = :now, payDigestMessageId = :mid, payDigestUrls = :urls, updatedAt = :now",
@@ -206,11 +203,9 @@ export function initDynamoDbSubscriptionWrites(deps: {
 					":trialing": "trialing",
 					":trialEndsAt": trialEndsAt,
 				},
-			});
-			return { claimed: true, redelivery: false };
-		} catch (error) {
-			if (!(error instanceof ConditionalCheckFailedException)) throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "written") return { claimed: true, redelivery: false };
 
 		const held = await table.get({ userId }, { consistentRead: true });
 		if (held?.payDigestMessageId !== messageId) return { claimed: false };
@@ -225,8 +220,8 @@ export function initDynamoDbSubscriptionWrites(deps: {
 	};
 
 	const releasePayDigest: ReleasePayDigest = async ({ userId, claimedAt, messageId }) => {
-		try {
-			await table.update({
+		await writeIfCondition(() =>
+			table.update({
 				Key: { userId },
 				UpdateExpression: "REMOVE payDigestEmailSentAt, payDigestMessageId, payDigestUrls",
 				ConditionExpression: "payDigestEmailSentAt = :claimedAt AND payDigestMessageId = :mid",
@@ -234,17 +229,14 @@ export function initDynamoDbSubscriptionWrites(deps: {
 					":claimedAt": claimedAt.toISOString(),
 					":mid": messageId,
 				},
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+			}),
+		);
 	};
 
 	const claimTrialNudge: ClaimTrialNudge = async ({ userId, kind, messageId, now }) => {
 		const marker = TRIAL_NUDGE_MARKERS[kind];
-		try {
-			await table.update({
+		const outcome = await writeIfCondition(() =>
+			table.update({
 				Key: { userId },
 				UpdateExpression: `SET ${marker.sentAt} = :now, ${marker.messageId} = :mid, updatedAt = :now`,
 				ConditionExpression: `attribute_exists(userId) AND #status = :trialing AND attribute_not_exists(${marker.sentAt})`,
@@ -254,11 +246,9 @@ export function initDynamoDbSubscriptionWrites(deps: {
 					":mid": messageId,
 					":trialing": "trialing",
 				},
-			});
-			return { claimed: true };
-		} catch (error) {
-			if (!(error instanceof ConditionalCheckFailedException)) throw error;
-		}
+			}),
+		);
+		if (outcome.kind === "written") return { claimed: true };
 
 		const held = await table.get({ userId }, { consistentRead: true });
 		if (held?.[marker.messageId] !== messageId) return { claimed: false };
@@ -267,17 +257,14 @@ export function initDynamoDbSubscriptionWrites(deps: {
 
 	const releaseTrialNudge: ReleaseTrialNudge = async ({ userId, kind, messageId }) => {
 		const marker = TRIAL_NUDGE_MARKERS[kind];
-		try {
-			await table.update({
+		await writeIfCondition(() =>
+			table.update({
 				Key: { userId },
 				UpdateExpression: `REMOVE ${marker.sentAt}, ${marker.messageId}`,
 				ConditionExpression: `${marker.messageId} = :mid`,
 				ExpressionAttributeValues: { ":mid": messageId },
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+			}),
+		);
 	};
 
 	const recordFounderNote: RecordFounderNote = async ({ userId, sentAt }) => {

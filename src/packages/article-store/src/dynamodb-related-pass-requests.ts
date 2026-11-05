@@ -1,6 +1,6 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -53,19 +53,15 @@ export function initDynamoDbRelatedPassRequests(deps: {
 	};
 
 	const markRelatedPassesRequested: MarkRelatedPassesRequested = async (params) => {
-		try {
-			await userArticles.update({
-				Key: { userId: params.userId, url: ArticleResourceUniqueId.parse(params.url).value },
-				UpdateExpression:
-					"SET relatedPassesRequestedAt = if_not_exists(relatedPassesRequestedAt, :at)",
-				ConditionExpression: "attribute_exists(savedAt)",
-				ExpressionAttributeValues: { ":at": deps.now().toISOString() },
-			});
-			return "marked";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "row-absent";
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => userArticles.update({
+			Key: { userId: params.userId, url: ArticleResourceUniqueId.parse(params.url).value },
+			UpdateExpression:
+				"SET relatedPassesRequestedAt = if_not_exists(relatedPassesRequestedAt, :at)",
+			ConditionExpression: "attribute_exists(savedAt)",
+			ExpressionAttributeValues: { ":at": deps.now().toISOString() },
+		}));
+		if (outcome.kind === "condition-failed") return "row-absent";
+		return "marked";
 	};
 
 	return { readRelatedPassRequestState, markRelatedPassesRequested };

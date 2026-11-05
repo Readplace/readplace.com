@@ -1,8 +1,8 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { resolutionOnViewCoolDownCutoff, shownSummary } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
@@ -53,8 +53,8 @@ export function initDynamoDbClaimResolutionOnView(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const claim = CLAIM_BY_AXES[axes];
 		const now = deps.now();
-		try {
-			const { Attributes: row } = await table.update({
+		const outcome = await writeIfCondition(() =>
+			table.update({
 				Key: { url: articleResourceUniqueId.value },
 				UpdateExpression: claim.UpdateExpression,
 				ConditionExpression: claim.ConditionExpression,
@@ -65,18 +65,17 @@ export function initDynamoDbClaimResolutionOnView(deps: {
 					...claim.values,
 				},
 				ReturnValues: "ALL_NEW",
-			});
-			assert(row, "a claimed resolution-on-view row must come back with ReturnValues ALL_NEW");
-			const crawl = rowToArticleCrawl(row);
-			assert(crawl, "a claimed resolution-on-view row must carry a crawlStatus");
-			return {
-				kind: "claimed",
-				crawl,
-				summary: shownSummary({ url, summary: rowToGeneratedSummary(row), viewer, ownerUserId: row.ownerUserId }),
-			};
-		} catch (err) {
-			if (err instanceof ConditionalCheckFailedException) return { kind: "not-eligible" };
-			throw err;
-		}
+			}),
+		);
+		if (outcome.kind === "condition-failed") return { kind: "not-eligible" };
+		const row = outcome.result.Attributes;
+		assert(row, "a claimed resolution-on-view row must come back with ReturnValues ALL_NEW");
+		const crawl = rowToArticleCrawl(row);
+		assert(crawl, "a claimed resolution-on-view row must carry a crawlStatus");
+		return {
+			kind: "claimed",
+			crawl,
+			summary: shownSummary({ url, summary: rowToGeneratedSummary(row), viewer, ownerUserId: row.ownerUserId }),
+		};
 	};
 }

@@ -3,12 +3,12 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
-	TransactionCanceledException,
 	TransactWriteCommand,
 	defineDynamoTable,
 	dynamoField,
+	transactIfConditions,
+	writeIfCondition,
 } from "@packages/storage-client";
 import type {
 	RecordPrivateItemFailure,
@@ -18,13 +18,6 @@ import type {
 import { z } from "zod";
 
 const ItemOwnerRow = z.object({ ownerUserId: dynamoField(UserIdSchema) });
-
-function lostCondition(error: unknown): boolean {
-	return (
-		error instanceof TransactionCanceledException &&
-		error.CancellationReasons?.some((reason) => reason.Code === "ConditionalCheckFailed") === true
-	);
-}
 
 export function initDynamoDbPrivateItem(deps: {
 	client: DynamoDBDocumentClient;
@@ -41,8 +34,8 @@ export function initDynamoDbPrivateItem(deps: {
 		const key = ArticleResourceUniqueId.parse(params.url).value;
 		const routeId = ReaderArticleHashId.from(params.url).value;
 		const savedAt = params.savedAt.toISOString();
-		try {
-			await deps.client.send(
+		const outcome = await transactIfConditions(() =>
+			deps.client.send(
 				new TransactWriteCommand({
 					TransactItems: [
 						{
@@ -84,14 +77,12 @@ export function initDynamoDbPrivateItem(deps: {
 						},
 					],
 				}),
-			);
-			return "saved";
-		} catch (error) {
-			if (!lostCondition(error)) throw error;
-			const existing = await articles.get({ url: key }, { projection: ["ownerUserId"], consistentRead: true });
-			assert(existing?.ownerUserId === params.ownerUserId, "a private item identity is saved by its uploader only");
-			return "already-saved";
-		}
+			),
+		);
+		if (outcome.kind === "written") return "saved";
+		const existing = await articles.get({ url: key }, { projection: ["ownerUserId"], consistentRead: true });
+		assert(existing?.ownerUserId === params.ownerUserId, "a private item identity is saved by its uploader only");
+		return "already-saved";
 	};
 
 	const updateOwnedRow = async (update: {
@@ -100,18 +91,15 @@ export function initDynamoDbPrivateItem(deps: {
 		condition: string;
 		values: Record<string, unknown>;
 	}): Promise<"recorded" | "not-found"> => {
-		try {
-			await articles.update({
+		const outcome = await writeIfCondition(() =>
+			articles.update({
 				Key: { url: ArticleResourceUniqueId.parse(update.url).value },
 				UpdateExpression: update.updateExpression,
 				ConditionExpression: update.condition,
 				ExpressionAttributeValues: update.values,
-			});
-			return "recorded";
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return "not-found";
-			throw error;
-		}
+			}),
+		);
+		return outcome.kind === "written" ? "recorded" : "not-found";
 	};
 
 	const recordPrivateItemFailure: RecordPrivateItemFailure = (params) =>

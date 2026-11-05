@@ -1,9 +1,9 @@
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	TransactWriteCommand,
 	TransactionCanceledException,
 	defineDynamoTable,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
 import {
@@ -134,20 +134,15 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 			nowMs,
 			windowSeconds: deps.rule.windowSeconds,
 		});
-		try {
-			await table.update({
+		await writeIfCondition(() =>
+			table.update({
 				Key: { pk: `${deps.scope}#global#${windowStartSeconds}` },
 				UpdateExpression: "ADD #count :negOne",
 				ConditionExpression: "attribute_exists(#count) AND #count > :zero",
 				ExpressionAttributeNames: { "#count": "count" },
 				ExpressionAttributeValues: { ":negOne": -1, ":zero": 0 },
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return;
-			}
-			throw error;
-		}
+			}),
+		);
 	};
 
 	return { consumePaidCrawlBudget, refundPaidCrawlBudget };

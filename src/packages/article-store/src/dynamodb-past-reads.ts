@@ -16,7 +16,7 @@ import {
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 	defineDynamoTable,
@@ -80,13 +80,9 @@ function unique(slugs: readonly ReadlistSlug[]): ReadlistSlug[] {
 }
 
 async function outcomeOf(write: Promise<unknown>): Promise<MarkRelatedArticlesOutcome> {
-	try {
-		await write;
-		return "stored";
-	} catch (error) {
-		if (error instanceof ConditionalCheckFailedException) return "superseded";
-		throw error;
-	}
+	const outcome = await writeIfCondition(() => write);
+	if (outcome.kind === "condition-failed") return "superseded";
+	return "stored";
 }
 
 function notYetComputed(budgetBlockedUntil: string | undefined): PastReads {
@@ -292,8 +288,8 @@ export function initDynamoDbPastReads(deps: {
 	const markPastReadsReady: MarkPastReadsReady = (params) =>
 		outcomeOf(userArticles.update(readyUpdate(params)));
 
-	/* c8 ignore next -- V8 block-coverage phantom on the arrow whose awaited write rejects, see bcoe/c8#319 */
 	const markPastReadsBudgetBlocked: MarkPastReadsBudgetBlocked = (params) =>
+		/* c8 ignore next -- V8 block-coverage phantom on the arrow whose awaited write rejects, see bcoe/c8#319 */
 		outcomeOf(userArticles.update(budgetBlockedUpdate(params)));
 
 	const findPastReads: FindPastReads = async (params) => {

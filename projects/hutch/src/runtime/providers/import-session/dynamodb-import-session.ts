@@ -1,4 +1,3 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import { randomBytes } from "node:crypto";
 import {
 	type DynamoDBDocumentClient,
@@ -137,4 +136,3 @@ export function initDynamoDbImportSession(deps: {
 		},
 	};
 }
-/* c8 ignore stop */

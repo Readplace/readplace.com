@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	forEachQueryPage,
@@ -46,19 +46,15 @@ export function initDynamoDbGmailHeldMail(deps: {
 
 	return {
 		holdMail: async (entry) => {
-			try {
-				await table.put({
-					Item: {
-						...entry,
-						senderReceivedAt: `${entry.senderEmail}#${entry.receivedAtMessageId}`,
-					},
-					ConditionExpression: "attribute_not_exists(receivedAtMessageId)",
-				});
-				return "stored";
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return "duplicate";
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.put({
+				Item: {
+					...entry,
+					senderReceivedAt: `${entry.senderEmail}#${entry.receivedAtMessageId}`,
+				},
+				ConditionExpression: "attribute_not_exists(receivedAtMessageId)",
+			}));
+			if (outcome.kind === "condition-failed") return "duplicate";
+			return "stored";
 		},
 		listHeldMailBySender: async ({ userId, senderEmail, limit }) => {
 			assert(Number.isInteger(limit), "limit must be an integer");

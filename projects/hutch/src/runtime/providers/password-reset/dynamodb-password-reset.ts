@@ -1,9 +1,9 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
 import { normalizeEmail } from "@packages/domain/user";
@@ -60,27 +60,26 @@ export function initDynamoDbPasswordReset(deps: {
 	};
 
 	const verifyPasswordResetToken: VerifyPasswordResetToken = async (token) => {
-		try {
-			const { Attributes } = await table.delete({
+		const outcome = await writeIfCondition(() =>
+			table.delete({
 				Key: { token },
 				ConditionExpression: "attribute_exists(#tk)",
 				ExpressionAttributeNames: { "#tk": "token" },
 				ReturnValues: "ALL_OLD",
-			});
-
-			assert(Attributes, "a conditional delete with ReturnValues ALL_OLD always returns the prior item");
-
-			if (Attributes.expiresAt < Math.floor(Date.now() / 1000)) {
-				return { ok: false, reason: "invalid-token" };
-			}
-
-			return { ok: true, email: Attributes.email };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return { ok: false, reason: "invalid-token" };
-			}
-			throw error;
+			}),
+		);
+		if (outcome.kind === "condition-failed") {
+			return { ok: false, reason: "invalid-token" };
 		}
+		const { Attributes } = outcome.result;
+
+		assert(Attributes, "a conditional delete with ReturnValues ALL_OLD always returns the prior item");
+
+		if (Attributes.expiresAt < Math.floor(Date.now() / 1000)) {
+			return { ok: false, reason: "invalid-token" };
+		}
+
+		return { ok: true, email: Attributes.email };
 	};
 
 	const deleteTokensByEmail: DeletePasswordResetTokensByEmail = async (email) => {

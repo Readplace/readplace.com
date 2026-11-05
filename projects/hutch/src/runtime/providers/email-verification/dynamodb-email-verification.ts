@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
@@ -59,33 +59,32 @@ export function initDynamoDbEmailVerification(deps: {
 	};
 
 	const verifyEmailToken: VerifyEmailToken = async (token) => {
-		try {
-			const { Attributes } = await table.delete({
+		const outcome = await writeIfCondition(() =>
+			table.delete({
 				Key: { token },
 				ConditionExpression: "attribute_exists(#tk)",
 				ExpressionAttributeNames: { "#tk": "token" },
 				ReturnValues: "ALL_OLD",
-			});
-
-			if (!Attributes) {
-				return { ok: false, reason: "invalid-token" };
-			}
-
-			if (Attributes.expiresAt < Math.floor(Date.now() / 1000)) {
-				return { ok: false, reason: "invalid-token" };
-			}
-
-			return {
-				ok: true,
-				userId: Attributes.userId,
-				email: Attributes.email,
-			};
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return { ok: false, reason: "invalid-token" };
-			}
-			throw error;
+			}),
+		);
+		if (outcome.kind === "condition-failed") {
+			return { ok: false, reason: "invalid-token" };
 		}
+		const { Attributes } = outcome.result;
+
+		if (!Attributes) {
+			return { ok: false, reason: "invalid-token" };
+		}
+
+		if (Attributes.expiresAt < Math.floor(Date.now() / 1000)) {
+			return { ok: false, reason: "invalid-token" };
+		}
+
+		return {
+			ok: true,
+			userId: Attributes.userId,
+			email: Attributes.email,
+		};
 	};
 
 	const deleteTokensByUserId: DeleteVerificationTokensByUserId = async (userId) => {

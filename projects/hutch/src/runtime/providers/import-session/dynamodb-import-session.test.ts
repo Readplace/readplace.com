@@ -203,4 +203,110 @@ describe("initDynamoDbImportSession", () => {
 			assert.deepEqual(del?.input.ExpressionAttributeValues, { ":uid": OWNER });
 		});
 	});
+
+	describe("findImportSession", () => {
+		it("maps an accessible stored row to the session", async () => {
+			const { client } = createFakeClient(storedRow());
+
+			const session = await initStore(client).findImportSession({ id: SESSION_ID, userId: undefined });
+
+			assert.equal(session?.id, SESSION_ID);
+			assert.equal(session?.totalFound, 2);
+		});
+
+		it("finds nothing when no row is stored", async () => {
+			const { client } = createFakeClient(null);
+
+			assert.equal(await initStore(client).findImportSession({ id: SESSION_ID, userId: undefined }), undefined);
+		});
+
+		it("finds nothing once the row has expired", async () => {
+			const { client } = createFakeClient({ ...storedRow(), expiresAt: 0 });
+
+			assert.equal(await initStore(client).findImportSession({ id: SESSION_ID, userId: undefined }), undefined);
+		});
+	});
+
+	describe("loadImportSessionPage", () => {
+		it("returns the urls of the requested page", async () => {
+			const { client } = createFakeClient(storedRow());
+
+			const result = await initStore(client).loadImportSessionPage({
+				id: SESSION_ID,
+				userId: undefined,
+				page: 2,
+				pageSize: 1,
+			});
+
+			assert.deepEqual(result?.pageUrls, ["https://example.com/b"]);
+		});
+
+		it("returns nothing when the caller cannot reach the row", async () => {
+			const { client } = createFakeClient(null);
+
+			const result = await initStore(client).loadImportSessionPage({
+				id: SESSION_ID,
+				userId: undefined,
+				page: 1,
+				pageSize: 1,
+			});
+
+			assert.equal(result, undefined);
+		});
+	});
+
+	describe("loadAllImportSessionUrls", () => {
+		it("returns every stored url", async () => {
+			const { client } = createFakeClient(storedRow());
+
+			const urls = await initStore(client).loadAllImportSessionUrls({ id: SESSION_ID, userId: undefined });
+
+			assert.deepEqual(urls, ["https://example.com/a", "https://example.com/b"]);
+		});
+	});
+
+	describe("toggleImportSelection selection state", () => {
+		it("issues no write when unchecking a url while every url is already deselected", async () => {
+			const { client, commands } = createFakeClient({ ...storedRow(), allSelected: false });
+
+			await initStore(client).toggleImportSelection({ id: SESSION_ID, userId: undefined, index: 0, checked: false });
+
+			assert.equal(
+				commands.some((c) => c.name === "UpdateCommand"),
+				false,
+			);
+		});
+
+		it("re-selects a checked url out of an all-deselected session", async () => {
+			const { client, commands } = createFakeClient({ ...storedRow(), allSelected: false });
+
+			await initStore(client).toggleImportSelection({ id: SESSION_ID, userId: undefined, index: 0, checked: true });
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			assert.deepEqual(update?.input.ExpressionAttributeValues?.[":d"], [1]);
+		});
+
+		it("treats a row stored without allSelected as all selected", async () => {
+			const { allSelected: _allSelected, ...legacyRow } = storedRow();
+			const { client, commands } = createFakeClient(legacyRow);
+
+			await initStore(client).toggleImportSelection({ id: SESSION_ID, userId: undefined, index: 1, checked: false });
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			assert.deepEqual(update?.input.ExpressionAttributeValues?.[":d"], [1]);
+		});
+	});
+
+	describe("toggleAllImportSelection access", () => {
+		it("issues no write when the caller cannot reach the row", async () => {
+			const { client, commands } = createFakeClient(null);
+
+			await initStore(client).toggleAllImportSelection({ id: SESSION_ID, userId: undefined, checked: true });
+
+			assert.equal(
+				commands.some((c) => c.name === "UpdateCommand"),
+				false,
+			);
+		});
+	});
 });

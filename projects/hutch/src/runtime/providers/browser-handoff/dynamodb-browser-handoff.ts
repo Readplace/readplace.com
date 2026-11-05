@@ -1,9 +1,9 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	writeIfCondition,
 } from "@packages/storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
@@ -48,32 +48,31 @@ export function initDynamoDbBrowserHandoff(deps: {
 	};
 
 	const redeemBrowserHandoffCode: RedeemBrowserHandoffCode = async (code) => {
-		try {
-			const { Attributes } = await table.delete({
+		const outcome = await writeIfCondition(() =>
+			table.delete({
 				Key: { code },
 				ConditionExpression: "attribute_exists(#code)",
 				ExpressionAttributeNames: { "#code": "code" },
 				ReturnValues: "ALL_OLD",
-			});
-
-			assert(Attributes, "a conditional delete with ReturnValues ALL_OLD always returns the prior item");
-
-			if (Attributes.expiresAt < nowSeconds()) {
-				return { ok: false, reason: "invalid-code" };
-			}
-
-			return {
-				ok: true,
-				userId: Attributes.userId,
-				emailVerified: Attributes.emailVerified,
-				oauthClientId: Attributes.oauthClientId,
-			};
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return { ok: false, reason: "invalid-code" };
-			}
-			throw error;
+			}),
+		);
+		if (outcome.kind === "condition-failed") {
+			return { ok: false, reason: "invalid-code" };
 		}
+		const { Attributes } = outcome.result;
+
+		assert(Attributes, "a conditional delete with ReturnValues ALL_OLD always returns the prior item");
+
+		if (Attributes.expiresAt < nowSeconds()) {
+			return { ok: false, reason: "invalid-code" };
+		}
+
+		return {
+			ok: true,
+			userId: Attributes.userId,
+			emailVerified: Attributes.emailVerified,
+			oauthClientId: Attributes.oauthClientId,
+		};
 	};
 
 	return { mintBrowserHandoffCode, redeemBrowserHandoffCode };

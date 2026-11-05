@@ -1,6 +1,6 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 } from "@packages/storage-client";
@@ -70,31 +70,26 @@ export function initTombstoneArticle(deps: {
 	const tombstoneArticle: TombstoneArticle = async (params) => {
 		const id = ArticleResourceUniqueId.parse(params.url);
 		const hostname = new URL(params.url).hostname;
-		try {
-			await articleTable.update({
-				Key: { url: id.value },
-				UpdateExpression:
-					"SET purgedAt = if_not_exists(purgedAt, :now), " /* 2 */ +
-					"crawlStatus = :ready, summaryStatus = :skipped, summarySkippedReason = :skippedReason, " /* 1 */ +
-					"title = :hostname, siteName = :hostname, excerpt = :empty, wordCount = :zero, estimatedReadTime = :zero" +
-					` REMOVE ${CONTENT_BEARING_COLUMNS.join(", ")} ADD contentSelectionRevision :one`,
-				ConditionExpression: "attribute_exists(#url)",
-				ExpressionAttributeNames: { "#url": "url" },
-				ExpressionAttributeValues: {
-					":now": params.at.toISOString(),
-					":one": 1,
-					":ready": "ready",
-					":skipped": "skipped",
-					":skippedReason": "content-purged",
-					":hostname": hostname,
-					":empty": "",
-					":zero": 0,
-				},
-			});
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+		await writeIfCondition(() => articleTable.update({
+			Key: { url: id.value },
+			UpdateExpression:
+				"SET purgedAt = if_not_exists(purgedAt, :now), " /* 2 */ +
+				"crawlStatus = :ready, summaryStatus = :skipped, summarySkippedReason = :skippedReason, " /* 1 */ +
+				"title = :hostname, siteName = :hostname, excerpt = :empty, wordCount = :zero, estimatedReadTime = :zero" +
+				` REMOVE ${CONTENT_BEARING_COLUMNS.join(", ")} ADD contentSelectionRevision :one`,
+			ConditionExpression: "attribute_exists(#url)",
+			ExpressionAttributeNames: { "#url": "url" },
+			ExpressionAttributeValues: {
+				":now": params.at.toISOString(),
+				":one": 1,
+				":ready": "ready",
+				":skipped": "skipped",
+				":skippedReason": "content-purged",
+				":hostname": hostname,
+				":empty": "",
+				":zero": 0,
+			},
+		}));
 	};
 
 	return { tombstoneArticle };

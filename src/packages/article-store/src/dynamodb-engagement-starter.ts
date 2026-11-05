@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
 import { z } from "zod";
 import {
-	ConditionalCheckFailedException,
-	TransactionCanceledException,
+	writeIfCondition,
+	transactIfConditions,
 	TransactWriteCommand,
 	batchGetFromTable,
 	defineDynamoTable,
@@ -49,18 +49,14 @@ export function initDynamoDbEngagementActivity(deps: {
 		for (;;) {
 			const state = await findEngagement(userId);
 			const next = transform(state);
-			try {
-				await onboarding.update({
-					Key: { userId },
-					UpdateExpression: "SET engagement = :state",
-					ConditionExpression:
-						"attribute_not_exists(engagement) OR engagement.activityRevision = :revision",
-					ExpressionAttributeValues: { ":state": next, ":revision": state.activityRevision },
-				});
-				return next;
-			} catch (error) {
-				if (!(error instanceof ConditionalCheckFailedException)) throw error;
-			}
+			const outcome = await writeIfCondition(() => onboarding.update({
+				Key: { userId },
+				UpdateExpression: "SET engagement = :state",
+				ConditionExpression:
+					"attribute_not_exists(engagement) OR engagement.activityRevision = :revision",
+				ExpressionAttributeValues: { ":state": next, ":revision": state.activityRevision },
+			}));
+			if (outcome.kind === "written") return next;
 		}
 	};
 	const observeEngagement: EngagementStarterState["observeEngagement"] = ({ userId, startedAt }) =>
@@ -136,46 +132,36 @@ export function initDynamoDbEngagementStarter(deps: {
 				activityRevision: _activityRevision,
 				...outcome
 			} = engagement;
-			try {
-				await deps.client.send(
-					new TransactWriteCommand({
-						TransactItems: [
-							{
-								Update: {
-									TableName: deps.onboardingTableName,
-									Key: { userId },
-									UpdateExpression: "REMOVE engagement, starterCampaignId",
-									ConditionExpression: "engagement.activityRevision = :revision",
-									ExpressionAttributeValues: { ":revision": engagement.activityRevision },
+			const campaignId = engagement.assignment.campaignId;
+			const writeOutcome = await transactIfConditions(() => deps.client.send(
+				new TransactWriteCommand({
+					TransactItems: [
+						{
+							Update: {
+								TableName: deps.onboardingTableName,
+								Key: { userId },
+								UpdateExpression: "REMOVE engagement, starterCampaignId",
+								ConditionExpression: "engagement.activityRevision = :revision",
+								ExpressionAttributeValues: { ":revision": engagement.activityRevision },
+							},
+						},
+						{
+							Update: {
+								TableName: deps.onboardingTableName,
+								Key: { userId: anonymousId },
+								UpdateExpression: "SET engagement = :engagement, starterCampaignId = :campaign",
+								ConditionExpression: "attribute_not_exists(userId)",
+								ExpressionAttributeValues: {
+									":engagement": { ...outcome, activityRevision: 0 },
+									":campaign": campaignId,
 								},
 							},
-							{
-								Update: {
-									TableName: deps.onboardingTableName,
-									Key: { userId: anonymousId },
-									UpdateExpression: "SET engagement = :engagement, starterCampaignId = :campaign",
-									ConditionExpression: "attribute_not_exists(userId)",
-									ExpressionAttributeValues: {
-										":engagement": { ...outcome, activityRevision: 0 },
-										":campaign": engagement.assignment.campaignId,
-									},
-								},
-							},
-							...(pack === undefined ? [] : [anonymousStarterOutcome({ anonymousId, pack })]),
-						],
-					}),
-				);
-				return;
-			} catch (error) {
-				if (
-					!(
-						error instanceof TransactionCanceledException &&
-						error.CancellationReasons?.some((reason) => reason.Code === "ConditionalCheckFailed")
-					)
-				) {
-					throw error;
-				}
-			}
+						},
+						...(pack === undefined ? [] : [anonymousStarterOutcome({ anonymousId, pack })]),
+					],
+				}),
+			));
+			if (writeOutcome.kind === "written") return;
 		}
 	};
 	const anonymousStarterOutcome = (input: { anonymousId: string; pack: StarterPack }) => {
@@ -196,52 +182,43 @@ export function initDynamoDbEngagementStarter(deps: {
 		assignment,
 		pack,
 	}) => {
-		try {
-			await deps.client.send(
-				new TransactWriteCommand({
-					TransactItems: [
-						{
-							Update: {
-								TableName: deps.onboardingTableName,
-								Key: { userId },
-								UpdateExpression:
-									"SET engagement.assignment = :assignment, engagement.activityRevision = :next, starterCampaignId = :campaign",
-								ConditionExpression:
-									"engagement.activityRevision = :revision AND attribute_not_exists(engagement.assignment)",
-								ExpressionAttributeValues: {
-									":assignment": assignment,
-									":revision": revision,
-									":next": revision + 1,
-									":campaign": assignment.campaignId,
-								},
+		const outcome = await transactIfConditions(() => deps.client.send(
+			new TransactWriteCommand({
+				TransactItems: [
+					{
+						Update: {
+							TableName: deps.onboardingTableName,
+							Key: { userId },
+							UpdateExpression:
+								"SET engagement.assignment = :assignment, engagement.activityRevision = :next, starterCampaignId = :campaign",
+							ConditionExpression:
+								"engagement.activityRevision = :revision AND attribute_not_exists(engagement.assignment)",
+							ExpressionAttributeValues: {
+								":assignment": assignment,
+								":revision": revision,
+								":next": revision + 1,
+								":campaign": assignment.campaignId,
 							},
 						},
-						...(assignment.arm === "comparison"
-							? []
-							: [
-									{
-										Update: {
-											TableName: deps.notificationsTableName,
-											Key: { userId },
-											UpdateExpression: "SET starterPack = :pack",
-											ConditionExpression: "attribute_not_exists(starterPack)",
-											ExpressionAttributeValues: { ":pack": pack },
-										},
+					},
+					...(assignment.arm === "comparison"
+						? []
+						: [
+								{
+									Update: {
+										TableName: deps.notificationsTableName,
+										Key: { userId },
+										UpdateExpression: "SET starterPack = :pack",
+										ConditionExpression: "attribute_not_exists(starterPack)",
+										ExpressionAttributeValues: { ":pack": pack },
 									},
-								]),
-					],
-				}),
-			);
-			return "assigned";
-		} catch (error) {
-			if (
-				error instanceof TransactionCanceledException &&
-				error.CancellationReasons?.some((reason) => reason.Code === "ConditionalCheckFailed")
-			) {
-				return "conflict";
-			}
-			throw error;
-		}
+								},
+							]),
+				],
+			}),
+		));
+		if (outcome.kind === "condition-failed") return "conflict";
+		return "assigned";
 	};
 	const saveStarterPack: SaveStarterPack = async ({
 		userId,
@@ -264,88 +241,79 @@ export function initDynamoDbEngagementStarter(deps: {
 			insertionOutcome: "inserted",
 			lastInsertionAttemptAt: at.toISOString(),
 		};
-		try {
-			await deps.client.send(
-				new TransactWriteCommand({
-					TransactItems: [
-						{
-							ConditionCheck: {
-								TableName: deps.onboardingTableName,
-								Key: { userId },
-								ConditionExpression:
-									"engagement.activityRevision = :revision AND engagement.assignment.arm = :arm AND engagement.assignment.campaignId = :campaign",
-								ExpressionAttributeValues: {
-									":revision": activityRevision,
-									":arm": "treatment",
-									":campaign": pack.campaignId,
-								},
+		const outcome = await transactIfConditions(() => deps.client.send(
+			new TransactWriteCommand({
+				TransactItems: [
+					{
+						ConditionCheck: {
+							TableName: deps.onboardingTableName,
+							Key: { userId },
+							ConditionExpression:
+								"engagement.activityRevision = :revision AND engagement.assignment.arm = :arm AND engagement.assignment.campaignId = :campaign",
+							ExpressionAttributeValues: {
+								":revision": activityRevision,
+								":arm": "treatment",
+								":campaign": pack.campaignId,
 							},
 						},
-						{
-							Update: {
-								TableName: deps.notificationsTableName,
-								Key: { userId },
-								UpdateExpression: "SET starterPack = :pack",
-								ConditionExpression:
-									"starterPack.campaignId = :campaign AND starterPack.selectedAt = :selectedAt AND attribute_not_exists(starterPack.insertedAt) AND starterPack.emailStatus = :pending",
-								ExpressionAttributeValues: {
-									":pack": inserted,
-									":campaign": pack.campaignId,
-									":selectedAt": pack.selectedAt,
-									":pending": "pending",
-								},
+					},
+					{
+						Update: {
+							TableName: deps.notificationsTableName,
+							Key: { userId },
+							UpdateExpression: "SET starterPack = :pack",
+							ConditionExpression:
+								"starterPack.campaignId = :campaign AND starterPack.selectedAt = :selectedAt AND attribute_not_exists(starterPack.insertedAt) AND starterPack.emailStatus = :pending",
+							ExpressionAttributeValues: {
+								":pack": inserted,
+								":campaign": pack.campaignId,
+								":selectedAt": pack.selectedAt,
+								":pending": "pending",
 							},
 						},
-						{
+					},
+					{
+						Put: {
+							TableName: deps.userArticlesTableName,
+							Item: {
+								userId,
+								url: readlistDefinitionKey(pack.readlist),
+								queueSlug: pack.readlist,
+								queueLabel: pack.readlistLabel,
+								createdAt: at.toISOString(),
+								starterCampaignId: pack.campaignId,
+							},
+							ConditionExpression: "attribute_not_exists(#url)",
+							ExpressionAttributeNames: { "#url": "url" },
+						},
+					},
+					...pack.picks.flatMap((pick, index) =>
+						[DEFAULT_READLIST_SLUG, pack.readlist].map((readlist) => ({
 							Put: {
 								TableName: deps.userArticlesTableName,
 								Item: {
-									userId,
-									url: readlistDefinitionKey(pack.readlist),
-									queueSlug: pack.readlist,
-									queueLabel: pack.readlistLabel,
-									createdAt: at.toISOString(),
-									starterCampaignId: pack.campaignId,
+									userId: partitionFor({ userId, readlist }),
+									url: ArticleResourceUniqueId.parse(pick.url).value,
+									status: "unread",
+									savedAt: savedAt[index]?.toISOString(),
+									provenance: { kind: "hn-suggestion", ...pick, campaignId: pack.campaignId },
+									suggestionAttribution: {
+										campaignId: pack.campaignId,
+										hnItemId: pick.hnItemId,
+										rank: pick.rank,
+										snapshotAt: pick.snapshotAt,
+									},
 								},
 								ConditionExpression: "attribute_not_exists(#url)",
 								ExpressionAttributeNames: { "#url": "url" },
 							},
-						},
-						...pack.picks.flatMap((pick, index) =>
-							[DEFAULT_READLIST_SLUG, pack.readlist].map((readlist) => ({
-								Put: {
-									TableName: deps.userArticlesTableName,
-									Item: {
-										userId: partitionFor({ userId, readlist }),
-										url: ArticleResourceUniqueId.parse(pick.url).value,
-										status: "unread",
-										savedAt: savedAt[index]?.toISOString(),
-										provenance: { kind: "hn-suggestion", ...pick, campaignId: pack.campaignId },
-										suggestionAttribution: {
-											campaignId: pack.campaignId,
-											hnItemId: pick.hnItemId,
-											rank: pick.rank,
-											snapshotAt: pick.snapshotAt,
-										},
-									},
-									ConditionExpression: "attribute_not_exists(#url)",
-									ExpressionAttributeNames: { "#url": "url" },
-								},
-							})),
-						),
-					],
-				}),
-			);
-			return "inserted";
-		} catch (error) {
-			if (
-				error instanceof TransactionCanceledException &&
-				error.CancellationReasons?.some((reason) => reason.Code === "ConditionalCheckFailed")
-			) {
-				return "conflict";
-			}
-			throw error;
-		}
+						})),
+					),
+				],
+			}),
+		));
+		if (outcome.kind === "condition-failed") return "conflict";
+		return "inserted";
 	};
 	const updateEmailStatus = async (input: {
 		userId: UserId;
@@ -363,18 +331,14 @@ export function initDynamoDbEngagementStarter(deps: {
 			...(input.reason === undefined ? {} : { reason: input.reason }),
 			...(input.at === undefined ? {} : { sentAt: input.at.toISOString() }),
 		};
-		try {
-			await notices.update({
-				Key: { userId: input.userId },
-				UpdateExpression: "SET starterPack = :pack",
-				ConditionExpression: "starterPack.emailStatus = :prior",
-				ExpressionAttributeValues: { ":pack": next, ":prior": prior },
-			});
-			return true;
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return false;
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => notices.update({
+			Key: { userId: input.userId },
+			UpdateExpression: "SET starterPack = :pack",
+			ConditionExpression: "starterPack.emailStatus = :prior",
+			ExpressionAttributeValues: { ":pack": next, ":prior": prior },
+		}));
+		if (outcome.kind === "condition-failed") return false;
+		return true;
 	};
 	const claimStarterEmail: EngagementStarterState["claimStarterEmail"] = async ({
 		userId,
@@ -395,27 +359,23 @@ export function initDynamoDbEngagementStarter(deps: {
 			itemCount,
 			articleUrls,
 		};
-		try {
-			await notices.update({
-				Key: { userId },
-				UpdateExpression:
-					"SET starterPack = :pack, lastReaderReadyEmailAt = :at, lastReaderReadyEmailMessageId = :id, lastReaderReadyEmailUrls = :urls",
-				ConditionExpression:
-					"starterPack.emailStatus = :pending AND (attribute_not_exists(lastReaderReadyEmailAt) OR lastReaderReadyEmailAt <= :cutoff)",
-				ExpressionAttributeValues: {
-					":pack": claimed,
-					":at": at.toISOString(),
-					":id": message.idempotencyKey,
-					":urls": pack.picks.map((pick) => pick.url),
-					":pending": "pending",
-					":cutoff": new Date(at.getTime() - minGapMs).toISOString(),
-				},
-			});
-			return claimed;
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) return undefined;
-			throw error;
-		}
+		const outcome = await writeIfCondition(() => notices.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET starterPack = :pack, lastReaderReadyEmailAt = :at, lastReaderReadyEmailMessageId = :id, lastReaderReadyEmailUrls = :urls",
+			ConditionExpression:
+				"starterPack.emailStatus = :pending AND (attribute_not_exists(lastReaderReadyEmailAt) OR lastReaderReadyEmailAt <= :cutoff)",
+			ExpressionAttributeValues: {
+				":pack": claimed,
+				":at": at.toISOString(),
+				":id": message.idempotencyKey,
+				":urls": pack.picks.map((pick) => pick.url),
+				":pending": "pending",
+				":cutoff": new Date(at.getTime() - minGapMs).toISOString(),
+			},
+		}));
+		if (outcome.kind === "condition-failed") return undefined;
+		return claimed;
 	};
 	return {
 		listStarterObservations: async (campaignId) => {
@@ -460,42 +420,33 @@ export function initDynamoDbEngagementStarter(deps: {
 		saveStarterPack,
 		claimStarterEmail,
 		recordStarterInsertionFailure: async ({ userId, selectedAt, at, outcome }) => {
-			try {
-				await notices.update({
-					Key: { userId },
-					UpdateExpression:
-						"SET starterPack.insertionOutcome = :outcome, starterPack.lastInsertionAttemptAt = :at",
-					ConditionExpression:
-						"starterPack.selectedAt = :selectedAt AND attribute_not_exists(starterPack.insertedAt)",
-					ExpressionAttributeValues: {
-						":selectedAt": selectedAt,
-						":outcome": outcome,
-						":at": at.toISOString(),
-					},
-				});
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return;
-				throw error;
-			}
+			await writeIfCondition(() => notices.update({
+				Key: { userId },
+				UpdateExpression:
+					"SET starterPack.insertionOutcome = :outcome, starterPack.lastInsertionAttemptAt = :at",
+				ConditionExpression:
+					"starterPack.selectedAt = :selectedAt AND attribute_not_exists(starterPack.insertedAt)",
+				ExpressionAttributeValues: {
+					":selectedAt": selectedAt,
+					":outcome": outcome,
+					":at": at.toISOString(),
+				},
+			}));
 		},
 		replaceStarterSelection: async ({ userId, selectedAt, pack }) => {
-			try {
-				await notices.update({
-					Key: { userId },
-					UpdateExpression: "SET starterPack = :pack",
-					ConditionExpression:
-						"starterPack.selectedAt = :selectedAt AND attribute_not_exists(starterPack.insertedAt) AND starterPack.emailStatus = :pending",
-					ExpressionAttributeValues: {
-						":pack": pack,
-						":selectedAt": selectedAt,
-						":pending": "pending",
-					},
-				});
-				return "replaced";
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return "conflict";
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => notices.update({
+				Key: { userId },
+				UpdateExpression: "SET starterPack = :pack",
+				ConditionExpression:
+					"starterPack.selectedAt = :selectedAt AND attribute_not_exists(starterPack.insertedAt) AND starterPack.emailStatus = :pending",
+				ExpressionAttributeValues: {
+					":pack": pack,
+					":selectedAt": selectedAt,
+					":pending": "pending",
+				},
+			}));
+			if (outcome.kind === "condition-failed") return "conflict";
+			return "replaced";
 		},
 		suppressStarterEmail: ({ userId, reason }) =>
 			updateEmailStatus({ userId, reason, status: "suppressed" }),

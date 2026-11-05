@@ -14,3 +14,10 @@ export {
 	TransactionCanceledException,
 } from "@aws-sdk/client-dynamodb";
 export { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+export {
+	writeIfCondition,
+	transactIfConditions,
+	type ConditionalWriteOutcome,
+	type TransactionOutcome,
+} from "./conditional-write";
+export { assembleRowUpdate } from "./row-update";

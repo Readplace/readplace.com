@@ -12,7 +12,7 @@ import {
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -174,17 +174,12 @@ export function initDynamoDbInboxEmailLink(deps: {
 			};
 			if (link.skipReason !== undefined) Item.skipReason = link.skipReason;
 			if (link.anchorText !== undefined) Item.anchorText = link.anchorText;
-			try {
-				await table.put({
-					Item,
-					ConditionExpression: "attribute_not_exists(ordinal)",
-				});
-				return "stored";
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException)
-					return "duplicate";
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.put({
+				Item,
+				ConditionExpression: "attribute_not_exists(ordinal)",
+			}));
+			if (outcome.kind === "condition-failed") return "duplicate";
+			return "stored";
 		},
 		setLinkOutcome: async ({
 			userId,
@@ -261,28 +256,23 @@ export function initDynamoDbInboxEmailLink(deps: {
 			ordinal,
 			failureReason,
 		}) => {
-			try {
-				await table.update({
-					Key: {
-						userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-						ordinal,
-					},
-					ConditionExpression:
-						"attribute_exists(ordinal) AND #status = :pending",
-					UpdateExpression: FAILED_UPDATE_EXPRESSION,
-					ExpressionAttributeNames: FAILED_UPDATE_NAMES,
-					ExpressionAttributeValues: {
-						":status": "failed",
-						":failureReason": failureReason,
-						":pending": "pending",
-					},
-				});
-				return "failed";
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException)
-					return "already-terminal";
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.update({
+				Key: {
+					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+					ordinal,
+				},
+				ConditionExpression:
+					"attribute_exists(ordinal) AND #status = :pending",
+				UpdateExpression: FAILED_UPDATE_EXPRESSION,
+				ExpressionAttributeNames: FAILED_UPDATE_NAMES,
+				ExpressionAttributeValues: {
+					":status": "failed",
+					":failureReason": failureReason,
+					":pending": "pending",
+				},
+			}));
+			if (outcome.kind === "condition-failed") return "already-terminal";
+			return "failed";
 		},
 		putLinksMeta: async ({ userId, receivedAtMessageId, meta }) => {
 			const sets = [
@@ -320,24 +310,19 @@ export function initDynamoDbInboxEmailLink(deps: {
 			});
 		},
 		markLinksExtractionFailed: async ({ userId, receivedAtMessageId }) => {
-			try {
-				await table.put({
-					Item: {
-						userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-						ordinal: META_SORT_KEY,
-						userId,
-						receivedAtMessageId,
-						truncated: false,
-						extractionFailed: true,
-					},
-					ConditionExpression: "attribute_not_exists(ordinal)",
-				});
-				return "stored";
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException)
-					return "superseded";
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.put({
+				Item: {
+					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+					ordinal: META_SORT_KEY,
+					userId,
+					receivedAtMessageId,
+					truncated: false,
+					extractionFailed: true,
+				},
+				ConditionExpression: "attribute_not_exists(ordinal)",
+			}));
+			if (outcome.kind === "condition-failed") return "superseded";
+			return "stored";
 		},
 		putReadlistOutcome: async ({ userId, receivedAtMessageId, outcome }) => {
 			const { purposeVersion, engine, model, ...decided } = outcome;
@@ -346,25 +331,20 @@ export function initDynamoDbInboxEmailLink(deps: {
 				readlistOutcome.purposeVersion = purposeVersion;
 			if (engine !== undefined) readlistOutcome.engine = engine;
 			if (model !== undefined) readlistOutcome.model = model;
-			try {
-				await table.put({
-					Item: {
-						userLinkGroup: groupKey({ userId, receivedAtMessageId }),
-						ordinal: `${READLIST_OUTCOME_PREFIX}${outcome.readlist}`,
-						userId,
-						receivedAtMessageId,
-						readlistOutcome,
-					},
-					ConditionExpression:
-						"attribute_not_exists(ordinal) OR readlistOutcome.decision = :failed",
-					ExpressionAttributeValues: { ":failed": "failed" },
-				});
-				return "stored";
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException)
-					return "duplicate";
-				throw error;
-			}
+			const writeOutcome = await writeIfCondition(() => table.put({
+				Item: {
+					userLinkGroup: groupKey({ userId, receivedAtMessageId }),
+					ordinal: `${READLIST_OUTCOME_PREFIX}${outcome.readlist}`,
+					userId,
+					receivedAtMessageId,
+					readlistOutcome,
+				},
+				ConditionExpression:
+					"attribute_not_exists(ordinal) OR readlistOutcome.decision = :failed",
+				ExpressionAttributeValues: { ":failed": "failed" },
+			}));
+			if (writeOutcome.kind === "condition-failed") return "duplicate";
+			return "stored";
 		},
 		listLinksByEmail: async ({ userId, receivedAtMessageId }) => {
 			const { items } = await table.query({

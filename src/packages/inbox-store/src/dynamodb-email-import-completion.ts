@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -85,30 +85,22 @@ export function initDynamoDbEmailImportCompletion(deps: {
 			});
 		},
 		selectOutputs: async ({ userId, receivedAtMessageId, selection }) => {
-			try {
-				await table.update({
-					Key: { userId, receivedAtMessageId },
-					ConditionExpression: `${ROW_EXISTS} AND attribute_not_exists(outputSelection)`,
-					UpdateExpression: "SET outputSelection = :selection",
-					ExpressionAttributeValues: { ":selection": selection },
-				});
-				return selection;
-			} catch (error) {
-				if (error instanceof ConditionalCheckFailedException) return findSelection({ userId, receivedAtMessageId });
-				throw error;
-			}
+			const outcome = await writeIfCondition(() => table.update({
+				Key: { userId, receivedAtMessageId },
+				ConditionExpression: `${ROW_EXISTS} AND attribute_not_exists(outputSelection)`,
+				UpdateExpression: "SET outputSelection = :selection",
+				ExpressionAttributeValues: { ":selection": selection },
+			}));
+			if (outcome.kind === "condition-failed") return findSelection({ userId, receivedAtMessageId });
+			return selection;
 		},
 		acknowledgeOutput: async ({ userId, receivedAtMessageId, output }) => {
-			try {
-				await table.update({
-					Key: { userId, receivedAtMessageId },
-					ConditionExpression: ROW_EXISTS,
-					UpdateExpression: "ADD savedOutputs :output",
-					ExpressionAttributeValues: { ":output": new Set([output]) },
-				});
-			} catch (error) {
-				if (!(error instanceof ConditionalCheckFailedException)) throw error;
-			}
+			await writeIfCondition(() => table.update({
+				Key: { userId, receivedAtMessageId },
+				ConditionExpression: ROW_EXISTS,
+				UpdateExpression: "ADD savedOutputs :output",
+				ExpressionAttributeValues: { ":output": new Set([output]) },
+			}));
 		},
 		findCompletion: async ({ userId, receivedAtMessageId }) => {
 			const row = await table.get({ userId, receivedAtMessageId }, { consistentRead: true });

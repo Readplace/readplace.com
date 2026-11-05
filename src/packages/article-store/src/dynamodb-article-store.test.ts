@@ -608,11 +608,11 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.UpdateExpression).toContain("siteName = :siteName");
 			expect(command.input.UpdateExpression).toContain("excerpt = :excerpt");
 			expect(command.input.UpdateExpression).toContain("wordCount = :wordCount");
-			expect(command.input.UpdateExpression).toContain("estimatedReadTime = :ert");
-			expect(command.input.UpdateExpression).toContain("contentFetchedAt = :cfa");
+			expect(command.input.UpdateExpression).toContain("estimatedReadTime = :estimatedReadTime");
+			expect(command.input.UpdateExpression).toContain("contentFetchedAt = :contentFetchedAt");
 			expect(command.input.UpdateExpression).toContain("etag = :etag");
-			expect(command.input.UpdateExpression).toContain("lastModified = :lm");
-			expect(command.input.UpdateExpression).toContain("imageUrl = :img");
+			expect(command.input.UpdateExpression).toContain("lastModified = :lastModified");
+			expect(command.input.UpdateExpression).toContain("imageUrl = :imageUrl");
 			expect(command.input.UpdateExpression).toContain("publishedOn = :publishedOn");
 			expect(command.input.ExpressionAttributeValues?.[":publishedOn"]).toBe("2025-10-08");
 			expect(command.input.UpdateExpression).toContain(
@@ -657,8 +657,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			});
 
 			const command = capturedCommand(received);
-			expect(command.input.UpdateExpression).toContain("bodyHash = :bh");
-			expect(command.input.ExpressionAttributeValues?.[":bh"]).toBe("c".repeat(64));
+			expect(command.input.UpdateExpression).toContain("bodyHash = :bodyHash");
+			expect(command.input.ExpressionAttributeValues?.[":bodyHash"]).toBe("c".repeat(64));
 		});
 
 		it("writes bodyHash = null on the freshness axis when the article carries no bodyHash (legacy row refresh)", async () => {
@@ -678,7 +678,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			});
 
 			const command = capturedCommand(received);
-			expect(command.input.ExpressionAttributeValues?.[":bh"]).toBeNull();
+			expect(command.input.ExpressionAttributeValues?.[":bodyHash"]).toBeNull();
 		});
 
 		it("stamps summaryPendingSince when the summary axis is pending", async () => {
@@ -1043,9 +1043,9 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
-				"canonicalContentHash = :cch",
+				"canonicalContentHash = :canonicalContentHash",
 			);
-			expect(command.input.ExpressionAttributeValues?.[":cch"]).toBe(
+			expect(command.input.ExpressionAttributeValues?.[":canonicalContentHash"]).toBe(
 				"a".repeat(64),
 			);
 		});
@@ -1069,7 +1069,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			});
 
 			const command = capturedCommand(received);
-			expect(command.input.ExpressionAttributeValues?.[":cch"]).toBeNull();
+			expect(command.input.ExpressionAttributeValues?.[":canonicalContentHash"]).toBeNull();
 		});
 
 		it("writes summarySourceContentHash on a ready summary so the summariser can short-circuit on hash equality", async () => {
@@ -1153,8 +1153,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			const command = capturedCommand(received);
 			expect(command.input.ExpressionAttributeValues?.[":etag"]).toBeNull();
-			expect(command.input.ExpressionAttributeValues?.[":lm"]).toBeNull();
-			expect(command.input.ExpressionAttributeValues?.[":img"]).toBeNull();
+			expect(command.input.ExpressionAttributeValues?.[":lastModified"]).toBeNull();
+			expect(command.input.ExpressionAttributeValues?.[":imageUrl"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":publishedOn"]).toBeNull();
 		});
 	});
@@ -1313,10 +1313,10 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).not.toContain("title = :title");
 			expect(command.input.UpdateExpression).not.toContain(
-				"contentFetchedAt = :cfa",
+				"contentFetchedAt = :contentFetchedAt",
 			);
 			expect(command.input.UpdateExpression).not.toContain("etag = :etag");
-			expect(command.input.UpdateExpression).not.toContain("imageUrl = :img");
+			expect(command.input.UpdateExpression).not.toContain("imageUrl = :imageUrl");
 		});
 	});
 
@@ -1706,7 +1706,7 @@ describe("atomic canonical selection", () => {
 		const { store } = initDynamoDbArticleStore({ client, tableName: TABLE });
 		await store.save({ article: buildArticle(), writes: ["metadata"] });
 		const command = capturedCommand(received).input;
-		expect(command.UpdateExpression).toBe("SET title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, estimatedReadTime = :ert, imageUrl = :img, publishedOn = :publishedOn");
+		expect(command.UpdateExpression).toBe("SET title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, estimatedReadTime = :estimatedReadTime, imageUrl = :imageUrl, publishedOn = :publishedOn");
 	});
 
 });

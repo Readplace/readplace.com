@@ -1,5 +1,5 @@
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -83,16 +83,6 @@ function addedCounts(counts: GmailMarkBackfillCounts): {
 	};
 }
 
-async function conditionalWrite(write: () => Promise<unknown>): Promise<boolean> {
-	try {
-		await write();
-		return true;
-	} catch (error) {
-		if (!(error instanceof ConditionalCheckFailedException)) throw error;
-		return false;
-	}
-}
-
 export function initDynamoDbGmailMarkBackfill(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -104,7 +94,7 @@ export function initDynamoDbGmailMarkBackfill(deps: {
 		return row === undefined ? undefined : toJob(row);
 	};
 
-	const pageWrite = (input: GmailMarkBackfillRef & {
+	const pageWrite = async (input: GmailMarkBackfillRef & {
 		generation: number;
 		page: number;
 		counts: GmailMarkBackfillCounts;
@@ -114,7 +104,7 @@ export function initDynamoDbGmailMarkBackfill(deps: {
 		now: Date;
 	}) => {
 		const added = addedCounts(input.counts);
-		return conditionalWrite(() =>
+		return (await writeIfCondition(() =>
 			table.update({
 				Key: backfillKey(input),
 				UpdateExpression: `SET ${input.set}, ${added.expression}, updatedAt = :now REMOVE claimUntil`,
@@ -129,7 +119,7 @@ export function initDynamoDbGmailMarkBackfill(deps: {
 					":running": "running",
 				},
 			}),
-		);
+		)).kind === "written";
 	};
 
 	return {
@@ -138,14 +128,14 @@ export function initDynamoDbGmailMarkBackfill(deps: {
 			const existing = await findBackfill(ref);
 			const job = planGmailMarkBackfillStart({ existing, ref, optionEnabledAt, now });
 			if (job === undefined) return { started: false };
-			const written = await conditionalWrite(() =>
+			const written = (await writeIfCondition(() =>
 				table.put({
 					Item: definedOnly({ ...job, ...backfillKey(job) }),
 					...(existing === undefined
 						? { ConditionExpression: "attribute_not_exists(recordKey)" }
 						: { ConditionExpression: "generation = :seen", ExpressionAttributeValues: { ":seen": existing.generation } }),
 				}),
-			);
+			)).kind === "written";
 			return written ? { started: true, job } : { started: false };
 		},
 		findBackfill,
@@ -165,7 +155,7 @@ export function initDynamoDbGmailMarkBackfill(deps: {
 			return found;
 		},
 		claimPage: async ({ generation, page, now, ...ref }) =>
-			conditionalWrite(() =>
+			(await writeIfCondition(() =>
 				table.update({
 					Key: backfillKey(ref),
 					UpdateExpression: "SET #state = :running, claimUntil = :until, updatedAt = :now",
@@ -182,13 +172,13 @@ export function initDynamoDbGmailMarkBackfill(deps: {
 						":now": now.toISOString(),
 					},
 				}),
-			),
+			)).kind === "written",
 		savePage: async ({ cursor, ...input }) =>
 			pageWrite({ ...input, set: "#page = :next, #cursor = :cursor", names: { "#cursor": "cursor" }, values: { ":next": input.page + 1, ":cursor": cursor } }),
 		complete: async (input) =>
 			pageWrite({ ...input, set: "#state = :complete, finishedAt = :now", names: {}, values: { ":complete": "complete" } }),
 		failBackfill: async ({ generation, reason, now, ...ref }) => {
-			const written = await conditionalWrite(() =>
+			const written = (await writeIfCondition(() =>
 				table.update({
 					Key: backfillKey(ref),
 					UpdateExpression: "SET #state = :failed, failureReason = :reason, finishedAt = :now, updatedAt = :now REMOVE claimUntil",
@@ -204,11 +194,11 @@ export function initDynamoDbGmailMarkBackfill(deps: {
 						...(generation === undefined ? {} : { ":generation": generation }),
 					},
 				}),
-			);
+			)).kind === "written";
 			return written ? "failed" : "unchanged";
 		},
 		cancelBackfill: async ({ generation, reason, now, ...ref }) => {
-			const written = await conditionalWrite(() =>
+			const written = (await writeIfCondition(() =>
 				table.update({
 					Key: backfillKey(ref),
 					UpdateExpression: "SET #state = :cancelled, cancelReason = :reason, finishedAt = :now, updatedAt = :now REMOVE claimUntil",
@@ -224,7 +214,7 @@ export function initDynamoDbGmailMarkBackfill(deps: {
 						...(generation === undefined ? {} : { ":generation": generation }),
 					},
 				}),
-			);
+			)).kind === "written";
 			return written ? "cancelled" : "unchanged";
 		},
 	};

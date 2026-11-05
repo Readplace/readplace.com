@@ -214,7 +214,7 @@ describe("initDynamoDbGmailDiscovery", () => {
 		const finalCheckpoint = commands[1].input.TransactItems?.[0];
 		assert(finalCheckpoint?.Put);
 		assert.equal(finalCheckpoint.Put.Item.recordKey, "STATE");
-		const cancelled = harness(() => { throw new ConditionalCheckFailedException({ $metadata: {}, message: "deleted" }); });
+		const cancelled = harness(() => { throw new TransactionCanceledException({ $metadata: {}, message: "deleted", CancellationReasons: [{ Code: "ConditionalCheckFailed" }] }); });
 		assert.equal(await cancelled.store.savePage(page), false);
 		assert.equal(cancelled.commands.length, 1);
 	});

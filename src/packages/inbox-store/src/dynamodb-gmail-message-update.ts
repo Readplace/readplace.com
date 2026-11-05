@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
 	dynamoField,
@@ -54,16 +54,6 @@ function toUpdate(row: z.infer<typeof UpdateRow>): GmailMessageUpdate {
 	return { ...base, status: "pending" };
 }
 
-async function unlessConditionFails(write: () => Promise<unknown>): Promise<"written" | "condition-failed"> {
-	try {
-		await write();
-		return "written";
-	} catch (error) {
-		if (!(error instanceof ConditionalCheckFailedException)) throw error;
-		return "condition-failed";
-	}
-}
-
 export function initDynamoDbGmailMessageUpdate(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -77,7 +67,7 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 
 	return {
 		recordPending: async ({ userId, receivedAtMessageId, origin, now }) => {
-			await unlessConditionFails(() =>
+			await writeIfCondition(() =>
 				table.put({
 					Item: {
 						...updateKey({ userId, origin }),
@@ -95,7 +85,7 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 		},
 		find,
 		markCompleted: async ({ userId, origin, now }) => {
-			await unlessConditionFails(() =>
+			await writeIfCondition(() =>
 				table.update({
 					Key: updateKey({ userId, origin }),
 					UpdateExpression: "SET #status = :completed, completedAt = :now REMOVE failedAt, failureReason",
@@ -106,7 +96,7 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 			);
 		},
 		markFailed: async ({ userId, origin, reason, now }) => {
-			const written = await unlessConditionFails(() =>
+			const written = (await writeIfCondition(() =>
 				table.update({
 					Key: updateKey({ userId, origin }),
 					UpdateExpression: "SET #status = :failed, failedAt = :now, failureReason = :reason",
@@ -114,7 +104,7 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 					ExpressionAttributeNames: { "#status": "status" },
 					ExpressionAttributeValues: { ":failed": "failed", ":now": now.toISOString(), ":reason": reason, ":pending": "pending" },
 				}),
-			);
+			)).kind;
 			return written === "written" ? "failed" : "unchanged";
 		},
 		listPendingByAccount: async ({ userId, accountEmail }) => {
@@ -135,14 +125,14 @@ export function initDynamoDbGmailMessageUpdate(deps: {
 			return pending;
 		},
 		discardPending: async ({ userId, origin }) => {
-			const written = await unlessConditionFails(() =>
+			const written = (await writeIfCondition(() =>
 				table.delete({
 					Key: updateKey({ userId, origin }),
 					ConditionExpression: "#status = :pending",
 					ExpressionAttributeNames: { "#status": "status" },
 					ExpressionAttributeValues: { ":pending": "pending" },
 				}),
-			);
+			)).kind;
 			return written === "written" ? "discarded" : "unchanged";
 		},
 	};

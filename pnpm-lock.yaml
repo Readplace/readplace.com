@@ -1259,6 +1259,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../test-fixtures
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0

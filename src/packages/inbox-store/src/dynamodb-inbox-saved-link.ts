@@ -1,5 +1,5 @@
 import {
-	ConditionalCheckFailedException,
+	writeIfCondition,
 	type DynamoDBDocumentClient,
 	batchGetFromTable,
 	defineDynamoTable,
@@ -72,18 +72,13 @@ export function initDynamoDbInboxSavedLink(deps: {
 			await table.put(put);
 			return;
 		}
-		try {
-			await table.put({
-				...put,
-				ConditionExpression: "attribute_not_exists(linkKey) OR #state <> :saved",
-				ExpressionAttributeNames: { "#state": "state" },
-				ExpressionAttributeValues: { ":saved": "saved" },
-			});
-		} catch (error) {
-			// The link is already recorded as saved, which outranks the failure.
-			if (error instanceof ConditionalCheckFailedException) return;
-			throw error;
-		}
+		// The link is already recorded as saved, which outranks the failure.
+		await writeIfCondition(() => table.put({
+			...put,
+			ConditionExpression: "attribute_not_exists(linkKey) OR #state <> :saved",
+			ExpressionAttributeNames: { "#state": "state" },
+			ExpressionAttributeValues: { ":saved": "saved" },
+		}));
 	};
 
 	return {
