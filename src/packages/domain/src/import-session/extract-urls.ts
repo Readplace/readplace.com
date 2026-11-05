@@ -5,6 +5,7 @@ const URL_REGEX = /\bhttps?:\/\/(?:[^\s<>"'()[\]{}|\\^`]|\([^\s<>"'()[\]{}|\\^`]
 const TRAILING_PUNCTUATION = /[.,;:!?>'"\]]+$/;
 const CSV_URL_HEADER = /^(?:[^,\r\n]*,)*url(?:,|\r?\n|$)/i;
 const FIRST_COMMA_ONWARD = /,.*$/;
+const BOOKMARK_ICON_URI = /\bICON_URI="[^"]*"/gi;
 
 function decodeBuffer(buffer: Buffer): string {
 	const utf8 = buffer.toString("utf8");
@@ -15,7 +16,7 @@ function decodeBuffer(buffer: Buffer): string {
 }
 
 export function extractUrls(buffer: Buffer): ImportLinksResult {
-	const text = decodeBuffer(buffer);
+	const text = decodeBuffer(buffer).replace(BOOKMARK_ICON_URI, "");
 	const matches = text.match(URL_REGEX);
 	if (!matches) return { urls: [], truncated: false, totalFound: 0 };
 

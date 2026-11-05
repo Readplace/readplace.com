@@ -88,6 +88,23 @@ describe("extractUrls", () => {
 		]);
 	});
 
+	it("leaves out the favicon URL a Firefox bookmarks export records for each bookmark", () => {
+		const html = [
+			"<!DOCTYPE NETSCAPE-Bookmark-file-1>",
+			"<DL><p>",
+			'<DT><A HREF="https://github.com/" ADD_DATE="1700000001" ICON_URI="https://github.githubassets.com/favicons/favicon.svg" ICON="data:image/png;base64,iVBORw0KGgo=">GitHub</A>',
+			'<DT><A HREF="https://www.wikipedia.org/" ADD_DATE="1700000002" ICON_URI="https://www.wikipedia.org/static/favicon/wikipedia.ico">Wikipedia</A>',
+			"</DL><p>",
+		].join("\n");
+
+		const result = extractUrls(Buffer.from(html));
+
+		expect(result.urls).toEqual([
+			"https://github.com/",
+			"https://www.wikipedia.org/",
+		]);
+	});
+
 	it("extracts both the feed and site URLs from an OPML subscription list", () => {
 		const opml =
 			'<opml version="2.0"><body>' +
