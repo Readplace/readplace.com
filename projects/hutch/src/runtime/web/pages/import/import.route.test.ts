@@ -108,6 +108,18 @@ describe("Import routes", () => {
 				"Paste a page link or upload a bookmarks file. Readplace finds the links and lets you review them before saving. No account needed until you save.",
 			);
 		});
+
+		it("links a guest reading a book to the EPUB upload", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/import");
+			const doc = new JSDOM(response.text).window.document;
+			const link = doc.querySelector("[data-test-import-upload-link]");
+			assert(link, "the import page must link to the EPUB upload");
+			expect(link.textContent).toBe("Upload a DRM-free EPUB");
+			expect(link.getAttribute("href")).toBe(
+				"/upload?utm_source=import-acquire&utm_medium=internal&utm_content=upload",
+			);
+		});
 	});
 
 	describe("GET /import (authenticated)", () => {

@@ -29,6 +29,7 @@ import {
 	type SubscribePlansSource,
 	renderSubscribePlansPopover,
 } from "../../shared/subscribe-plans/subscribe-plans.component";
+import { UPLOAD_ENTRY_HREFS } from "../upload/upload-entry-ctas";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
 import { renderMoveDialogs } from "./readlist-card/move-dialog.component";
@@ -509,6 +510,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			{ source: "queue-sort", content: "sort", term: nextOrder },
 		),
 		sortLabel: sort.label,
+		uploadUrl: UPLOAD_ENTRY_HREFS.queueHeader,
 		sortIconName: sort.iconName,
 		offlineDownload: offlineDownloadControl({ filters, isEmpty: vm.isEmpty }),
 		saveSkeletonHtml: renderReadlistSaveSkeleton(

@@ -255,7 +255,7 @@ import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import { initUploadRouter, UPLOAD_OUTCOME_HTML } from "./web/pages/upload/upload.page";
 import { initCommitReceivedUpload } from "./web/pages/upload/commit-received-upload";
 import { redirectAnonymousToUploadSignup } from "./web/pages/upload/redirect-anonymous-to-upload-signup";
-import { MEDIA_KINDS, type UploadId } from "@packages/media-contracts";
+import { BOOK, MEDIA_KINDS, type UploadId } from "@packages/media-contracts";
 import type {
 	CreateMediaUploadSession,
 	FindMediaUploadSession,
@@ -342,6 +342,7 @@ import { PrivacyPage } from "./web/pages/privacy";
 import { SupportPage } from "./web/pages/support";
 import { TermsPage } from "./web/pages/terms";
 import { HelpAddLinksPage } from "./web/pages/help";
+import { UPLOAD_ENTRY_HREFS } from "./web/pages/upload/upload-entry-ctas";
 import { isAppShell, nativeSurfaceOf } from "./web/onboarding/native-client";
 import { APP_BACK_LINK } from "./web/shared/native-app-links";
 import { initResolveMcpSaveProvenance } from "./web/shared/save-provenance";
@@ -1263,6 +1264,9 @@ export function createApp(dependencies: AppDependencies): Express {
 			HelpAddLinksPage({
 				staticBaseUrl,
 				backLink,
+				upload: isAppShell(req)
+					? undefined
+					: { href: UPLOAD_ENTRY_HREFS.helpAddLinks, ceilingLabel: BOOK.ceilingLabel },
 				platform: nativeSurfaceOf(req),
 				cspNonce: requireCspNonce(req),
 			}),

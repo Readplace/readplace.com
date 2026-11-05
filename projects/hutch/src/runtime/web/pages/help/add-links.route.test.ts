@@ -272,4 +272,42 @@ describe("GET /help/add-links", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
+
+	it("offers a book upload to a browser visitor, tracked to /upload", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-upload-lead]")?.textContent).toBe(
+			"Upload a DRM-free EPUB of up to 200 MB. MOBI and AZW3 are not supported, and images are not shown yet.",
+		);
+		const href = doc.querySelector("[data-test-help-upload-link]")?.getAttribute("href");
+		assert(href, "the upload section must link somewhere");
+		const url = new URL(href, TEST_APP_ORIGIN);
+		expect(url.pathname).toBe("/upload");
+		expect(url.searchParams.get("utm_source")).toBe("help-add-links");
+	});
+
+	it("shows the book upload when a platform is named without the app shell", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get("/help/add-links?platform=android");
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-upload]")).not.toBeNull();
+	});
+
+	it.each([
+		"/help/add-links?shell=app",
+		"/help/add-links?shell=app&platform=ios",
+		"/help/add-links?shell=app&platform=android",
+	])("leaves the book upload out of the app sheet at %s", async (path) => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(server).get(path);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-help-upload]")).toBeNull();
+	});
 });

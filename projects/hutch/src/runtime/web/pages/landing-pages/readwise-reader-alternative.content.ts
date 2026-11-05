@@ -16,7 +16,7 @@ function track(path: string, content: string): string {
 }
 
 export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
-	lastModified: "2026-11-04",
+	lastModified: "2026-11-05",
 	title: "Readwise Reader Alternative, With the Gaps Listed | Readplace",
 	description:
 		"Readplace next to Readwise Reader, row by row: what it does for less, and the highlights, RSS, video, podcast and listening features it doesn't have.",
@@ -91,7 +91,7 @@ export const READWISE_READER_ALTERNATIVE_CONTENT: LandingPageContent = {
 					readplace: "Link, extension or iPhone share sheet, scans read by OCR",
 					competitor: "Upload, up to 500 MB",
 				},
-				{ feature: "EPUB", readplace: "Download any article as an EPUB", competitor: "Upload EPUB books" },
+				{ feature: "EPUB", readplace: "Download any article as an EPUB, or upload your own, DRM-free, up to 200 MB", competitor: "Upload EPUB books" },
 				{
 					feature: "Newsletters",
 					readplace: "One address per newsletter, article links saved",

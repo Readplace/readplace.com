@@ -14,7 +14,7 @@ function track(path: string, content: string): string {
 }
 
 export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
-	lastModified: "2026-10-01",
+	lastModified: "2026-11-05",
 	title: "Webpage to EPUB: Turn Any Article Into an E-Book File | Readplace",
 	description:
 		"Paste a link and download the article as an EPUB, with its images and an AI summary on the first page. Copy it to a Kobo or email it to a Kindle. No account needed.",
@@ -65,13 +65,14 @@ export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 		"The EPUB opens with the article's title, the site it came from and its excerpt. If the AI TL;DR has been written by the time you press the button, it follows as its own section, ahead of the body.",
 		`Images are written into the file rather than linked, so they show on a device with no network. They share a size budget, and an image past it is left out, which keeps the file small enough to email. <a href="${track("/blog/read-your-saved-articles-on-a-kindle-or-kobo", "post-kindle-or-kobo")}">How the file is built</a>.`,
 		`A PDF link works too. Readplace reads the PDF into text first, so the EPUB reflows on a small screen. <a href="${track("/pdf-reflow", "pdf-reflow")}">Reading a PDF on a phone</a> has its own page.`,
+		`An EPUB can also go the other way. <a href="${track("/upload", "upload")}">Upload a DRM-free EPUB</a>, up to 200 MB, and it opens in the same reader, with its chapters in the table of contents. Uploading needs an account; the download doesn't.`,
 	],
 	comparisons: [],
 	limitsTitle: "What this does not do",
 	limits: [
 		"One article per file. There is no digest that bundles a readlist into one book.",
 		"No automatic delivery. The file goes to the device by USB or by email, and nothing syncs back.",
-		"Readplace makes EPUBs but doesn't read them in. Uploading an EPUB book isn't supported.",
+		"An uploaded book has to be a DRM-free EPUB, up to 200 MB. MOBI and AZW3 aren't supported.",
 		"A download in the first seconds after the text appears can come without the TL;DR, because the summary is written after the article is read.",
 		"A page the crawler can't reach, such as one behind a login, has no reader text, so it has no EPUB either.",
 	],
@@ -79,7 +80,7 @@ export const ARTICLE_TO_EPUB_CONTENT: LandingPageContent = {
 		{
 			question: "Do I need an account?",
 			answer:
-				"No. The Download EPUB button is on the public reader page, so any link you paste downloads without signing up.",
+				"Not to download. The Download EPUB button is on the public reader page, so any link you paste downloads without signing up. Uploading a book of your own does need one.",
 		},
 		{
 			question: "Does it work with a Kindle?",

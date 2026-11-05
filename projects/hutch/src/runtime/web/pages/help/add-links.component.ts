@@ -55,6 +55,7 @@ export function HelpAddLinksPage(params: {
 	 * bare public shape by default. Mirrors the account page, the other chromeless
 	 * surface the same sheet hosts, so both read "Back to readlist". */
 	backLink?: { href: string; label: string };
+	upload?: { href: string; ceilingLabel: string };
 }): Component {
 	const platform = params.platform ?? PLATFORM_WITHOUT_MARKER;
 	const copy = PIN_COPY[platform];
@@ -63,6 +64,7 @@ export function HelpAddLinksPage(params: {
 			cspNonce: params.cspNonce,
 			baseStyles: BASE_CSS_VARIABLES,
 			backLink: params.backLink,
+			upload: params.upload,
 			// The chromeless sheet ignores the safe area, so the app variant hard-codes
 			// the bottom pad that clears the home indicator (see the stylesheet).
 			mainClass: params.backLink ? "help help--app" : "help",

@@ -729,6 +729,18 @@ describe("ReadlistPage", () => {
 		expect(next.getAttribute("rel")).toBe("next");
 	});
 
+	it("links the listing header to /upload, tracked as the queue's own click", () => {
+		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false });
+
+		const link = doc.querySelector("[data-test-upload-link]");
+		assert(link, "the listing header must link to /upload");
+		expect(link.textContent).toBe("Upload a book");
+		const url = new URL(link.getAttribute("href") ?? "", "https://readplace.test");
+		expect(url.pathname).toBe("/upload");
+		expect(url.searchParams.get("utm_source")).toBe("queue-listing");
+		expect(url.searchParams.get("utm_content")).toBe("upload");
+	});
+
 	it("offers the unread download beside the sort control", () => {
 		const doc = pageDoc({ articles: [PLAIN_ARTICLE], isEmpty: false });
 

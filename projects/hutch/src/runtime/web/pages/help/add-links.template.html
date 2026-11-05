@@ -131,6 +131,39 @@
         text-wrap: balance;
       }
 
+      .help__upload {
+        margin: 1.5rem 0 0;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .help__upload-title {
+        font-family: var(--font-sans);
+        margin: 0 0 0.5rem;
+        font-size: var(--text-md);
+        font-weight: 600;
+        color: var(--foreground);
+        text-wrap: balance;
+      }
+
+      .help__upload-lead {
+        margin: 0 0 0.75rem;
+        color: var(--muted-foreground);
+        font-size: var(--text-md);
+        text-wrap: pretty;
+      }
+
+      .help__upload-link {
+        font-size: var(--text-md);
+        font-weight: 500;
+        color: var(--primary-text);
+      }
+
+      .help__upload-link:focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+      }
+
       .help__pin-lead {
         margin: 0 0 1.25rem;
         color: var(--muted-foreground);
@@ -191,6 +224,13 @@
       </section>
 
       <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>
+      {{#if upload}}
+      <section class="help__upload" data-test-help-upload>
+        <h2 class="help__upload-title" data-test-help-upload-title>Add a book</h2>
+        <p class="help__upload-lead" data-test-help-upload-lead>Upload a DRM-free EPUB of up to {{upload.ceilingLabel}}. MOBI and AZW3 are not supported, and images are not shown yet.</p>
+        <a class="help__upload-link" href="{{upload.href}}" data-test-help-upload-link>Upload a book</a>
+      </section>
+      {{/if}}
     </main>
   </body>
 </html>

@@ -348,6 +348,7 @@
   text-wrap: pretty;
 }
 
+.import__intro a,
 .import__source-text a {
   color: var(--primary-text);
   text-decoration: underline;

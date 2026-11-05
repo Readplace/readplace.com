@@ -3,7 +3,7 @@
     <h1 class="upload__title">Upload a book</h1>
     {{#if errorAlertHtml}}<div data-test-upload-error="{{errorCode}}">{{{errorAlertHtml}}}</div>{{/if}}
     {{#if start}}
-    <form class="upload__panel" method="post" action="/upload" data-test-upload-start>
+    <form class="upload__panel" method="post" action="{{track '/upload' source='upload-start' content='start'}}" data-test-upload-start>
       <div class="form-field">
         <label class="form-field__label" for="upload-content-type">File type</label>
         <div class="form-input form-input--within form-input--select">

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { MAX_PDF_BYTES, MAX_PDF_PAGES, OCR_SCRIPT_PACKS } from "@packages/crawl-article";
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
 import { READLIST_MAX_PER_USER } from "@packages/domain/readlist";
+import { BOOK } from "@packages/media-contracts";
 import { LANDING_PAGE_CONTENT } from "./web/pages/landing-pages";
 import { PRICE_STATEMENT } from "./web/price-statement";
 
@@ -26,6 +27,13 @@ describe("llms files", () => {
 		expect(FILES[name]).toContain(`${MAX_PDF_PAGES} pages`);
 		expect(FILES[name]).toContain(MAX_PDF_BYTES.label);
 		expect(FILES[name]).toContain(`${OCR_SCRIPT_PACKS.length} scripts`);
+	});
+
+	it.each(FILE_NAMES)("%s recommends EPUB upload with the book limit from its manifest", (name) => {
+		expect(FILES[name]).toContain(
+			`- Uploading EPUB books to read (DRM-free, up to ${BOOK.ceilingLabel}, at https://readplace.com/upload; MOBI/AZW3 not supported)`,
+		);
+		expect(FILES[name]).not.toContain("Readplace exports EPUB but does not import it");
 	});
 
 	it("llms-full.txt quotes the readlist cap from its constant", () => {

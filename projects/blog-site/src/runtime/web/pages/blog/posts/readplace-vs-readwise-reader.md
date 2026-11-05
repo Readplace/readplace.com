@@ -2,10 +2,10 @@
 title: "Readplace vs Readwise Reader: Which Read-It-Later App Is Right for You?"
 description: "A fair look at two read-it-later apps with AI. Where Readwise wins, where Readplace wins, and how to pick the right one for you."
 excerpt: "Readwise Reader costs $119.88 a year and does more, so the question is which extras get used."
-tldr: "Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, or anything beyond reading text. Pick Readplace if you want AI summaries and privacy at a lower price."
+tldr: "Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, a newsletter inbox, PDF and EPUB uploads, YouTube transcripts, podcasts, and listening. Readplace is simpler, with AI TL;DR summaries, OCR for scanned PDFs, an address per newsletter, EPUB download and upload, Australian hosting, and source-available code. Pick Readwise if you need highlighting that syncs into a note-taking tool, or anything beyond reading text. Pick Readplace if you want AI summaries and privacy at a lower price."
 slug: "readplace-vs-readwise-reader"
 date: "2026-04-06"
-lastModified: "2026-11-04"
+lastModified: "2026-11-05"
 author: "Fayner Brack"
 keywords: "readplace vs readwise, read it later app, read it later AI"
 ---
@@ -28,7 +28,7 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 | **RSS reader** | No | Yes, built in |
 | **Newsletter inbox** | A forwarding address per newsletter, article links saved. A Gmail sender can save the whole issue | Dedicated email address |
 | **PDFs** | Link, extension or iPhone share sheet, scans read by OCR | Upload, up to 500 MB |
-| **EPUB** | Download any article as an EPUB | Upload EPUB books |
+| **EPUB** | Download any article as an EPUB, or upload your own, DRM-free, up to 200 MB | Upload EPUB books |
 | **Video** | No | YouTube with a highlightable transcript |
 | **Podcasts** | No | Episodes from Spotify, Overcast and Apple Podcasts |
 | **Listening** | No | Yes, AI voices |
@@ -37,6 +37,8 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 | **Privacy** | Hosted in Sydney, AU. Australian Privacy Act | US-based |
 | **Source code** | source-available | Proprietary |
 | **Maturity** | Newer, leaner | More mature, more features |
+
+*Updated 2026-11-05: the EPUB row. Readplace accepts an uploaded EPUB, DRM-free, up to 200 MB.*
 
 For the short version, [the Readwise Reader alternative page](/readwise-reader-alternative?utm_source=blog-readplace-vs-readwise-reader&utm_medium=internal&utm_content=readwise-reader-alternative) lists the gaps. This post keeps the reasoning behind each row.
 
