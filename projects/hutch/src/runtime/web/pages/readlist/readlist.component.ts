@@ -61,6 +61,7 @@ import {
 	buildReadlistFiltersUrl,
 	buildReadlistUrl,
 	readlistDeletePath,
+	readlistPreferencesPath,
 	readlistReturnQuery,
 } from "./readlist.url";
 import type { ReadlistViewModel, SubscriptionBannerState } from "./readlist.viewmodel";
@@ -132,6 +133,7 @@ interface EmptyAction {
 	action: string;
 	fields: EmptyActionField[];
 	label: string;
+	beta: boolean;
 }
 
 interface EmptyFilterName {
@@ -153,7 +155,7 @@ const PLAIN_COPY: Pick<EmptyState, "filterNames" | "tail"> = { filterNames: [], 
 
 const LINK_PARSE_ORIGIN = "https://internal.invalid";
 
-function navigateAction(input: { key: string; href: string; label: string }): EmptyAction {
+function navigateAction(input: { key: string; href: string; label: string; beta?: boolean }): EmptyAction {
 	const url = new URL(input.href, LINK_PARSE_ORIGIN);
 	return {
 		key: input.key,
@@ -161,6 +163,7 @@ function navigateAction(input: { key: string; href: string; label: string }): Em
 		action: url.pathname,
 		fields: Array.from(url.searchParams, ([name, value]) => ({ name, value })),
 		label: input.label,
+		beta: input.beta === true,
 	};
 }
 
@@ -199,7 +202,7 @@ const NOTHING_READ: EmptyCopy = {
 
 const CUSTOM_READLIST_EMPTY: EmptyCopy = {
 	title: "No articles in this readlist yet",
-	text: `Choose an article from ${DEFAULT_READLIST.label} and add it here to start organising this readlist.`,
+	text: `Choose an article from ${DEFAULT_READLIST.label} and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.`,
 };
 
 const NO_MATCHES_TITLE = "No matching articles";
@@ -235,6 +238,7 @@ function noMatches(input: { tab: TabId; discovery: ReadlistDiscovery; clearDisco
 		action: input.clearDiscoveryUrl,
 		fields: [],
 		label: scope.label,
+		beta: false,
 	};
 	if (scopeKey === "search") {
 		return {
@@ -280,12 +284,24 @@ function emptyState(input: {
 	isDefaultReadlist: boolean;
 	unreadUrl: string;
 	clearDiscoveryUrl: string;
+	preferencesUrl: string;
 	client: DeviceClient;
 }): EmptyState {
 	if (!input.readlistHoldsArticles) {
 		return input.isDefaultReadlist
 			? nothingSaved(input.client)
-			: { ...CUSTOM_READLIST_EMPTY, ...PLAIN_COPY, actions: [] };
+			: {
+					...CUSTOM_READLIST_EMPTY,
+					...PLAIN_COPY,
+					actions: [
+						navigateAction({
+							key: "preferences",
+							href: input.preferencesUrl,
+							label: "Set readlist preferences",
+							beta: true,
+						}),
+					],
+				};
 	}
 	if (input.tabHoldsRows && input.discovery !== undefined) {
 		return noMatches({ tab: input.tab, discovery: input.discovery, clearDiscoveryUrl: input.clearDiscoveryUrl });
@@ -426,6 +442,10 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			),
 			{ source: "queue-empty", content: "clear-discovery" },
 		),
+		preferencesUrl: withInternalTracking(readlistPreferencesPath(filters.readlist), {
+			source: "queue-empty",
+			content: "preferences",
+		}),
 		client: installClientOf(options.onboarding.context),
 	});
 

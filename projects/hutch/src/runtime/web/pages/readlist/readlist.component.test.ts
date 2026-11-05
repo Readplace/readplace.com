@@ -426,16 +426,33 @@ describe("ReadlistPage", () => {
 		expect(emptyActionKeys(doc)).toEqual([]);
 	});
 
-	it("tells a reader with an empty custom readlist to add an article from All, with no action", () => {
+	it("tells a reader with an empty custom readlist to add an article from All, and offers its preferences as Beta", () => {
 		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, readlist: WORK.slug } }, { readlistHoldsArticles: false });
 
 		expect(doc.querySelector(".readlist-empty__title")?.textContent).toBe(
 			"No articles in this readlist yet",
 		);
 		expect(doc.querySelector(".readlist-empty__text")?.textContent).toBe(
-			"Choose an article from All and add it here to start organising this readlist.",
+			"Choose an article from All and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.",
 		);
-		expect(emptyActionKeys(doc)).toEqual([]);
+		expect(emptyActionKeys(doc)).toEqual(["preferences"]);
+		const action = doc.querySelector('[data-test-empty-action="preferences"]');
+		assert(action, "the readlist preferences CTA must be offered");
+		expect(action.querySelector("[data-test-empty-action-beta]")?.textContent).toBe("Beta");
+		const submission = emptyActionSubmission(action);
+		expect([
+			submission.method,
+			submission.url.pathname,
+			submission.url.searchParams.get("utm_source"),
+			submission.url.searchParams.get("utm_content"),
+		]).toEqual(["GET", "/queue/queues/work/preferences", "queue-empty", "preferences"]);
+	});
+
+	it("marks no other empty-state action as Beta", () => {
+		const doc = pageDoc({ filters: { ...DEFAULT_FILTERS, tab: "done" } }, { readlistHoldsArticles: true });
+
+		expect(emptyActionKeys(doc)).toEqual(["view-unread"]);
+		expect(doc.querySelector("[data-test-empty-action-beta]")).toBeNull();
 	});
 
 	it("offers no action to a reader who is caught up on To Read", () => {

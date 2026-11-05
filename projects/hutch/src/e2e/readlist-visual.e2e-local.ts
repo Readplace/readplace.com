@@ -2690,7 +2690,7 @@ test.describe("Readlist page on a phone", () => {
 		await openCustomReadlist(page, { email, openRail: openReadlistSwitcher });
 		await expect(page.locator(ADD_LINK)).toBeHidden();
 		await expect(page.locator(EMPTY_TEXT)).toHaveText(
-			"Choose an article from All and add it here to start organising this readlist.",
+			"Choose an article from All and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.",
 		);
 
 		await captureCheckpoint(page, PAGE_CUSTOM_READLIST_PHONE);

@@ -352,7 +352,7 @@ describe("empty states", () => {
 		expect(emptyActionKeys(empty)).toEqual(["view-unread"]);
 	});
 
-	it("tells a reader with a new custom readlist to add an article from All, with no action", async () => {
+	it("tells a reader with a new custom readlist to add an article from All, and links to its preferences", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const slug = await createReadlist(agent, "New Readlist");
@@ -367,9 +367,14 @@ describe("empty states", () => {
 		const text = empty.querySelector(".readlist-empty__text");
 		assert(text, "the empty state text must be rendered");
 		expect(text.textContent).toBe(
-			"Choose an article from All and add it here to start organising this readlist.",
+			"Choose an article from All and add it here to start organising this readlist. Set its preferences so links from the emails and newsletters you choose come here automatically when you import them in bulk.",
 		);
-		expect(emptyActionKeys(empty)).toEqual([]);
+		expect(emptyActionKeys(empty)).toEqual(["preferences"]);
+		const form = empty.querySelector('[data-test-empty-action="preferences"]')?.closest("form");
+		assert(form, "the preferences CTA must submit a form");
+		const preferences = await agent.get(form.getAttribute("action") ?? "");
+		expect(preferences.status).toBe(200);
+		expect(parse(preferences.text).querySelector("[data-test-readlist-preferences]")).not.toBeNull();
 	});
 });
 

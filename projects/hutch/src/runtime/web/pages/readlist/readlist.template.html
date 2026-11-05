@@ -38,7 +38,7 @@
                     {{#each fields}}
                     <input type="hidden" name="{{name}}" value="{{value}}">
                     {{/each}}
-                    <button class="btn btn--neutral" type="submit" data-test-empty-action="{{key}}">{{label}}</button>
+                    <button class="btn btn--neutral" type="submit" data-test-empty-action="{{key}}">{{label}}{{#if beta}} <span class="chip chip--badge chip--accent" data-test-empty-action-beta>Beta</span>{{/if}}</button>
                   </form>
                   {{/each}}
                 </div>
