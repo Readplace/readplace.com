@@ -7,6 +7,7 @@ import type {
 	SettleMeteredLeg,
 } from "@packages/provider-contracts/metered-leg-ledger";
 import { legInputHash } from "./leg-input-hash";
+import { logMeteredLeg, type MeteredLegAction } from "./metered-leg-line";
 
 type MeteredLegRunResult = { kind: "succeeded"; outcome: string } | { kind: "unsucceeded" };
 
@@ -26,8 +27,6 @@ export type RunMeteredLeg = (p: {
 	run: (permit: PaidLegPermit) => Promise<MeteredLegRunResult>;
 }) => Promise<RunMeteredLegOutcome>;
 
-type MeteredLegAction = "claimed" | "settled" | "released" | "deferred" | "skipped-settled" | "skipped-in-flight";
-
 export function initRunMeteredLeg(deps: {
 	claimMeteredLeg: ClaimMeteredLeg;
 	settleMeteredLeg: SettleMeteredLeg;
@@ -36,7 +35,7 @@ export function initRunMeteredLeg(deps: {
 	now: () => Date;
 }): RunMeteredLeg {
 	return async ({ url, leg, inputs, claimId, claimTtlMs, run }) => {
-		const log = (action: MeteredLegAction) => deps.logger.info("[metered-leg]", { url, leg, action });
+		const log = (action: MeteredLegAction) => logMeteredLeg(deps.logger, { url, leg, action });
 		const claim = await deps.claimMeteredLeg({
 			url,
 			leg,

@@ -23,6 +23,7 @@ import type {
 } from "@packages/provider-contracts/metered-leg-ledger";
 import { z } from "zod";
 import { legInputHash } from "../metered-leg/leg-input-hash";
+import { logMeteredLeg, REFUSED_CLAIM_ACTION } from "../metered-leg/metered-leg-line";
 import { RENDER_CRAWL_TIMEOUTS } from "./timeouts";
 import { ComprehensiveCrawlCommand, RenderCrawlCommand, type LogCrawlOutcome, type LogParseError } from "@packages/hutch-infra-components";
 import { initCrawlArchiveCapture } from "../save-link/crawl-archive-capture";
@@ -395,13 +396,19 @@ export function initRenderCrawlHandler(deps: {
 						claimId: record.messageId,
 						expiresAt: new Date(deps.now().getTime() + RENDER_CRAWL_TIMEOUTS.sqsVisibilitySeconds * 1000).toISOString(),
 					});
-					if (claim.kind !== "granted" || budgetConsumed) return claim;
-					const budget = await deps.consumeRenderCrawlBudget({ messageId: record.messageId });
-					if (!budget.allowed) {
-						await deps.releaseMeteredLeg({ url, permit: claim.permit });
-						return { kind: "budget-exhausted" };
+					if (claim.kind !== "granted") {
+						logMeteredLeg(logger, { url, leg, action: REFUSED_CLAIM_ACTION[claim.kind] });
+						return claim;
 					}
-					budgetConsumed = true;
+					if (!budgetConsumed) {
+						const budget = await deps.consumeRenderCrawlBudget({ messageId: record.messageId });
+						if (!budget.allowed) {
+							await deps.releaseMeteredLeg({ url, permit: claim.permit });
+							return { kind: "budget-exhausted" };
+						}
+						budgetConsumed = true;
+					}
+					logMeteredLeg(logger, { url, leg, action: "claimed" });
 					return claim;
 				};
 				const rendered = await runRenderLadder({
@@ -419,9 +426,14 @@ export function initRenderCrawlHandler(deps: {
 					commitRender: (render, escalation) => commitRender(render, escalation, ctx),
 					fetchThroughWebUnlocker: (permit) => fetchThroughWebUnlocker(ctx, { fetchUrl, resumedAt }, permit),
 					claimLeg,
-					settleLeg: ({ permit, candidate }) =>
-						deps.settleMeteredLeg({ url, permit, outcome: JSON.stringify(candidate), settledAt: deps.now().toISOString() }),
-					releaseLeg: (permit) => deps.releaseMeteredLeg({ url, permit }),
+					settleLeg: async ({ permit, candidate }) => {
+						await deps.settleMeteredLeg({ url, permit, outcome: JSON.stringify(candidate), settledAt: deps.now().toISOString() });
+						logMeteredLeg(logger, { url, leg: permit.leg, action: "settled" });
+					},
+					releaseLeg: async (permit) => {
+						await deps.releaseMeteredLeg({ url, permit });
+						logMeteredLeg(logger, { url, leg: permit.leg, action: "released" });
+					},
 					remainingMilliseconds: () => context.getRemainingTimeInMillis(),
 				});
 				await resolveLadder(rendered, ctx, Number(record.attributes.ApproximateReceiveCount));

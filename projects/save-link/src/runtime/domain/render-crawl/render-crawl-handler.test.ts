@@ -1573,6 +1573,71 @@ describe("initRenderCrawlHandler", () => {
 			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, { url: URL, input: { reason: { kind: "blocked", cause: "spend-capped" } } });
 		});
 
+		const meteredLegLines = (info: jest.Mock) => info.mock.calls.filter(([message]) => message === "[metered-leg]").map(([, line]) => line);
+
+		it("logs the residential leg's claim and settle", async () => {
+			const info = jest.fn();
+			const handler = createHandler({
+				logger: { ...noopLogger, info },
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: rendered() }),
+			});
+
+			await run(handler, { url: URL });
+
+			expect(meteredLegLines(info)).toEqual([
+				{ url: URL, leg: "render-residential-per-gb", action: "claimed" },
+				{ url: URL, leg: "render-residential-per-gb", action: "settled" },
+			]);
+		});
+
+		it("logs a released leg before the leg that settled", async () => {
+			const info = jest.fn();
+			const handler = createHandler({
+				logger: { ...noopLogger, info },
+				proxiedCrawlArticle: proxiedCrawlFetching(200),
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT"), residential: blocked(403) }),
+			});
+
+			await run(handler, { url: URL });
+
+			expect(meteredLegLines(info)).toEqual([
+				{ url: URL, leg: "render-residential-per-gb", action: "claimed" },
+				{ url: URL, leg: "render-residential-per-gb", action: "released" },
+				{ url: URL, leg: "render-web-unlocker-fetch", action: "claimed" },
+				{ url: URL, leg: "render-web-unlocker-fetch", action: "settled" },
+			]);
+		});
+
+		it.each([
+			{ kind: "deferred", claim: { kind: "deferred" as const }, action: "deferred" },
+			{ kind: "settled", claim: { kind: "settled" as const, outcome: JSON.stringify({ id: "recorded-candidate", tier: "tier-1" }) }, action: "skipped-settled" },
+			{ kind: "in-flight", claim: { kind: "in-flight" as const }, action: "skipped-in-flight" },
+		])("logs a $kind claim as $action without running the leg", async ({ claim, action }) => {
+			const info = jest.fn();
+			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
+			const handler = createHandler({ logger: { ...noopLogger, info }, claimMeteredLeg: async () => claim, renderPage });
+
+			await run(handler, { url: URL });
+
+			expect(renderPage).toHaveBeenCalledTimes(1);
+			expect(meteredLegLines(info)).toEqual([{ url: URL, leg: "render-residential-per-gb", action }]);
+		});
+
+		it("logs no paid-leg line for a leg the budget refuses", async () => {
+			const info = jest.fn();
+			const warn = jest.fn();
+			const handler = createHandler({
+				logger: { ...noopLogger, info, warn },
+				consumeRenderCrawlBudget: async () => ({ allowed: false }),
+				renderPage: renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") }),
+			});
+
+			await run(handler, { url: URL });
+
+			expect(meteredLegLines(info)).toEqual([]);
+			expect(warn).toHaveBeenCalledWith("[RenderCrawlCommand] render-crawl budget exhausted — failing crawl gracefully", expect.objectContaining({ url: URL, gate: "residential-per-gb" }));
+		});
+
 		it("parks the crawl awaiting a reader, before any residential render or budget, when the free legs saw no block evidence", async () => {
 			const renderPage = renderPageAnswering({ direct: failed("net::ERR_TIMED_OUT") });
 			const consumeRenderCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
