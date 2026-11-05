@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { ANONYMOUS_VIEWER, MinutesSchema } from "@packages/domain/article";
+import { mintPrivateItemUrl, UploadIdSchema } from "@packages/media-contracts";
 import type { UserId } from "@packages/domain/user";
 import type { ParseArticle, ParseArticleResult } from "@packages/article-parser";
 import { useTestServer, type TestAppHarness } from "../../../test-app";
@@ -1177,5 +1178,55 @@ describe("Admin recrawl routes", () => {
 			expect(harness.wrapperTarget.calls).toEqual([]);
 			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE }]);
 		});
+	});
+});
+
+describe("Admin recrawl of a private item", () => {
+	const PRIVATE_URL = mintPrivateItemUrl(UploadIdSchema.parse("0123456789abcdef0123456789abcdef"));
+	const PRIVATE_ENCODED = encodeURIComponent(PRIVATE_URL);
+
+	async function seededAdmin() {
+		const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+		await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+		await harness.articleStore.saveArticleGlobally({
+			url: PRIVATE_URL,
+			metadata: { title: "A Book", siteName: "uploads.readplace.invalid", excerpt: "", wordCount: 100 },
+			estimatedReadTime: MinutesSchema.parse(1),
+			savedAt: new Date(),
+		});
+		await harness.articleCrawl.markCrawlReady({ url: PRIVATE_URL });
+		const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+		return { harness, agent };
+	}
+
+	it.each([
+		["POST with the URL in the path", `/admin/recrawl/${PRIVATE_ENCODED}`],
+		["POST with the URL in ?url=", `/admin/recrawl?url=${PRIVATE_ENCODED}`],
+	])("refuses a %s and publishes no recrawl", async (_label, path) => {
+		const { harness, agent } = await seededAdmin();
+
+		const response = await agent.post(path);
+
+		expect(response.status).toBe(409);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-recrawl-refused]")).not.toBeNull();
+		expect(harness.recrawlPublishedCalls).toEqual([]);
+		expect(harness.publishedQueueEntryCreated).toEqual([]);
+	});
+
+	it.each([
+		["the landing page's ?url=", `/admin/recrawl?url=${PRIVATE_ENCODED}`],
+		["the path form", `/admin/recrawl/${PRIVATE_ENCODED}`],
+		["the reader poll", `/admin/recrawl/reader?url=${PRIVATE_ENCODED}&poll=1`],
+		["the summary poll", `/admin/recrawl/summary?url=${PRIVATE_ENCODED}&poll=1`],
+	])("refuses to render a private item through %s", async (_label, path) => {
+		const { harness, agent } = await seededAdmin();
+
+		const response = await agent.get(path);
+
+		expect(response.status).toBe(409);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("[data-test-recrawl-refused]")).not.toBeNull();
+		expect(harness.recrawlPublishedCalls).toEqual([]);
 	});
 });

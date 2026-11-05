@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { NextFunction, Request, Response, Router } from "express";
-import { requireCspNonce } from "@packages/web-shell";
+import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import express from "express";
 import { z } from "zod";
 import type {
@@ -23,15 +25,18 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import { NO_READER_VIEW_FAILED_OOB } from "../../shared/article-reader/reader-view-failed-oob";
 import { initResolveStoredArticle, type ResolveStoredArticle } from "../../shared/resolve-stored-article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ANONYMOUS_VIEWER, newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
+import { ANONYMOUS_VIEWER, isPrivateItemUrl, newSaveAttemptId, wrapperFamilyOf } from "@packages/domain/article";
 import { cleanWrapperTarget, type ResolveWrapperTarget } from "@packages/save-article";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
 import { AdminRecrawlPage, formatRecrawlDocumentTitle, recrawlPathFor } from "./recrawl.component";
 import { initRefuseAdminAccess } from "./admin-forbidden.page";
 import { initRequireAdmin } from "./require-admin.middleware";
+import { ADMIN_INDEX_STYLES } from "./admin-index.styles";
 
 const RecrawlUrlSchema = z.url();
+
+const RECRAWL_REFUSED_TEMPLATE = readFileSync(join(__dirname, "recrawl-refused.template.html"), "utf-8");
 
 export interface AdminRecrawlDependencies {
 	appOrigin: string;
@@ -118,6 +123,39 @@ function requestedUrlFrom(req: Request<{ splat?: string[] }>): string | undefine
 	return /^https?:\/\//i.test(restoredScheme)
 		? restoredScheme
 		: `https://${restoredScheme}`;
+}
+
+function refusePrivateItemRecrawl(deps: AdminRecrawlDependencies) {
+	return async (
+		req: Request<{ splat?: string[] }>,
+		res: Response,
+		next: NextFunction,
+	): Promise<void> => {
+		const parsed = RecrawlUrlSchema.safeParse(requestedUrlFrom(req));
+		if (!parsed.success || !isPrivateItemUrl(parsed.data)) {
+			next();
+			return;
+		}
+		sendComponent(
+			req,
+			res,
+			Base(
+				{
+					seo: {
+						title: "Recrawl refused | Readplace",
+						description: "A private upload has no origin to recrawl.",
+						canonicalUrl: "/admin/recrawl",
+						robots: "noindex, nofollow",
+					},
+					styles: ADMIN_INDEX_STYLES,
+					bodyClass: "page-admin-recrawl-refused",
+					content: { html: RECRAWL_REFUSED_TEMPLATE },
+					statusCode: 409,
+				},
+				await deps.buildBannerState(req),
+			),
+		);
+	};
 }
 
 async function resolveArticleUrl(
@@ -351,18 +389,22 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 	router.use(noStore);
 	router.use(requireAdmin);
 
-	router.get("/", handleLanding(deps, reader, resolveStoredArticle));
-	router.get("/summary", handleSummaryPoll(reader, resolveStoredArticle));
-	router.get("/reader", handleReaderPoll(reader, resolveStoredArticle));
+	const refusePrivateItem = refusePrivateItemRecrawl(deps);
+
+	router.get("/", refusePrivateItem, handleLanding(deps, reader, resolveStoredArticle));
+	router.get("/summary", refusePrivateItem, handleSummaryPoll(reader, resolveStoredArticle));
+	router.get("/reader", refusePrivateItem, handleReaderPoll(reader, resolveStoredArticle));
 	// The `?url=` trigger is registered first so the lossless carrier is matched
 	// before the path wildcard ever sees the request.
-	router.post("/", handleTriggerRecrawl(deps, resolveStoredArticle));
+	router.post("/", refusePrivateItem, handleTriggerRecrawl(deps, resolveStoredArticle));
 	router.post<string, { splat?: string[] }>(
 		"/*splat",
+		refusePrivateItem,
 		handleTriggerRecrawl(deps, resolveStoredArticle),
 	);
 	router.get<string, { splat?: string[] }>(
 		"/*splat",
+		refusePrivateItem,
 		handleShowRecrawlPage(deps, reader, resolveStoredArticle),
 	);
 
