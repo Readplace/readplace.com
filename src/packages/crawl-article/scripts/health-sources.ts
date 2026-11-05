@@ -172,6 +172,12 @@ export const HEALTH_SOURCES: readonly (HealthSource | SaveHealthSource)[] = [
 		expectsThumbnail: false,
 	},
 	{
+		label: "X (Article cover tweet)",
+		url: "https://x.com/pmarca/status/2114751107293749731",
+		expectedContent: "One thing I love about Amjad",
+		expectsThumbnail: true,
+	},
+	{
 		label: "Static HTML (hex.ooo)",
 		url: "https://hex.ooo/library/last_question.html",
 		expectedContent: "he had had to carry the ice and glassware",

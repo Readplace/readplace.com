@@ -132,6 +132,12 @@ export const DEFAULT_CRAWL_HEADERS = {
 	"accept-language": "en-US,en;q=0.9",
 } as const;
 
+export const HONEST_BOT_HEADERS = {
+	"user-agent":
+		"Mozilla/5.0 (compatible; ReadplaceBot/1.0; +https://readplace.com/bot)",
+	accept: "*/*",
+} as const;
+
 /**
  * Ordered list of personas the fetcher iterates through on a block-class
  * response/error. Each persona is a coherent header set that together looks
@@ -173,11 +179,7 @@ export const CRAWL_PERSONAS = [
 	},
 	{
 		name: "honest-bot",
-		headers: {
-			"user-agent":
-				"Mozilla/5.0 (compatible; ReadplaceBot/1.0; +https://readplace.com/bot)",
-			accept: "*/*",
-		},
+		headers: HONEST_BOT_HEADERS,
 	},
 ] as const;
 
