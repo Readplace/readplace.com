@@ -15,7 +15,10 @@ function subject() {
 			return { created: true };
 		},
 		pinContentSource: record("pinContentSource"),
-		markCrawlPending: record("markCrawlPending"),
+		markCrawlPending: async (input) => {
+			calls.push(["markCrawlPending", input]);
+			return { kind: "marked" };
+		},
 		markSummaryPending: record("markSummaryPending"),
 		publishSaveAnonymousLink: record("publishSaveAnonymousLink"),
 		now: () => NOW,

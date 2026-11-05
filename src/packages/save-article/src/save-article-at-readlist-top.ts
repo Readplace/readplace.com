@@ -1,8 +1,9 @@
+import type { MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
 import type { AllocateSavedAt } from "@packages/provider-contracts/article-store";
 import type { ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
 import type { SaveAttemptId, SaveProvenance, SaveTrigger, SaveableUrl, SavedArticle } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import type { SaveArticleFromUrl } from "./save-article-from-url";
+import type { SaveArticleFromUrl, SaveCrawlPending } from "./save-article-from-url";
 
 export interface SaveArticleAtReadlistTopDependencies {
 	allocateSavedAt: AllocateSavedAt;
@@ -22,6 +23,8 @@ export type SaveArticleAtReadlistTop = (params: {
 	createdUserArticle: boolean;
 	wroteUserArticle: boolean;
 	resurfacedFromRead: boolean;
+	meteredLegs: MeteredLegsMode;
+	crawlPending: SaveCrawlPending;
 }>;
 
 export function initSaveArticleAtReadlistTop(

@@ -1,6 +1,6 @@
 import { calculateReadTime, isNonArticleHost, stubMetadataFor, isArchiveHost } from "@packages/domain/article";
 import type { ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
-import type { MarkCrawlPending, MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
+import type { CrawlPendingMark, MarkCrawlPending, MeteredLegsMode } from "@packages/provider-contracts/article-crawl";
 import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
 import type { PinContentSource, SaveArticle, UpdateArticleStatus, WrapperSourceBinding } from "@packages/provider-contracts/article-store";
 import type {
@@ -23,6 +23,10 @@ export interface SaveArticleFromUrlDependencies {
 	publishLinkQueued: PublishLinkQueued;
 	publishQueueEntryCreated: PublishQueueEntryCreated;
 }
+
+export type SaveCrawlPending = CrawlPendingMark | { kind: "not-attempted" };
+
+const notAttempted: SaveCrawlPending = { kind: "not-attempted" };
 
 type SaveOutcome = {
 	saved: SavedArticle;
@@ -60,6 +64,8 @@ export type SaveArticleFromUrl = (params: {
 	createdUserArticle: boolean;
 	wroteUserArticle: boolean;
 	resurfacedFromRead: boolean;
+	meteredLegs: MeteredLegsMode;
+	crawlPending: SaveCrawlPending;
 }>;
 
 async function saveByFreshness(
@@ -74,7 +80,7 @@ async function saveByFreshness(
 		resurfacesEarlierSaves: boolean;
 		meteredLegs: MeteredLegsMode;
 	},
-): Promise<SaveOutcome> {
+): Promise<SaveOutcome & { crawlPending: SaveCrawlPending }> {
 	const { userId, url, source, saveAttemptId, freshness, written, resurfacesEarlierSaves, meteredLegs } = params;
 
 	if (source !== undefined && isArchiveHost(source.contentSourceUrl)) {
@@ -83,9 +89,9 @@ async function saveByFreshness(
 
 	if (freshness.action === "new") {
 		if (isNonArticleHost(url)) {
-			return markUnreadIfRead(deps.updateArticleStatus, written);
+			return { ...(await markUnreadIfRead(deps.updateArticleStatus, written)), crawlPending: notAttempted };
 		}
-		await deps.markCrawlPending({ url, measured: resurfacesEarlierSaves, meteredLegs });
+		const crawlPending = await deps.markCrawlPending({ url, measured: resurfacesEarlierSaves, meteredLegs });
 		await deps.markSummaryPending({ url });
 		const [outcome] = await Promise.all([
 			markUnreadIfRead(deps.updateArticleStatus, written),
@@ -95,7 +101,7 @@ async function saveByFreshness(
 			}),
 			deps.publishLinkSaved({ url, userId, saveAttemptId, captureUrl: source?.contentSourceUrl, sourceOriginalUrl: source?.sourceOriginalUrl }),
 		]);
-		return outcome;
+		return { ...outcome, crawlPending };
 	}
 
 	if (source === undefined && freshness.action === "refreshed" && freshness.article.article.content) {
@@ -107,7 +113,7 @@ async function saveByFreshness(
 		await deps.publishLinkSaved({ url, userId, captureUrl: source.contentSourceUrl, sourceOriginalUrl: source.sourceOriginalUrl, saveAttemptId });
 	}
 
-	return markUnreadIfRead(deps.updateArticleStatus, written);
+	return { ...(await markUnreadIfRead(deps.updateArticleStatus, written)), crawlPending: notAttempted };
 }
 
 export function initSaveArticleFromUrl(
@@ -132,6 +138,8 @@ export function initSaveArticleFromUrl(
 			savedAt: params.savedAt,
 		});
 		const resurfacesEarlierSaves = written.createdUserArticle && params.saveTrigger === "manual";
+		const meteredLegs: MeteredLegsMode =
+			params.saveTrigger === "automatic" && (source === undefined || !isArchiveHost(source.contentSourceUrl)) ? "deferred" : "run";
 		const result = await saveByFreshness(deps, {
 			userId: params.userId,
 			url,
@@ -140,7 +148,7 @@ export function initSaveArticleFromUrl(
 			freshness: params.freshness,
 			written,
 			resurfacesEarlierSaves,
-			meteredLegs: params.saveTrigger === "automatic" && (source === undefined || !isArchiveHost(source.contentSourceUrl)) ? "deferred" : "run",
+			meteredLegs,
 		});
 		// The row is committed, so the save is accepted on every freshness branch —
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,
@@ -149,6 +157,6 @@ export function initSaveArticleFromUrl(
 		if (resurfacesEarlierSaves) {
 			await deps.publishQueueEntryCreated({ url, userId: params.userId });
 		}
-		return { ...result, canonicalUrl: url };
+		return { ...result, canonicalUrl: url, meteredLegs };
 	};
 }

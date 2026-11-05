@@ -25,7 +25,11 @@ export type FindArticleCrawlStatuses = (
 
 export type MeteredLegsMode = "deferred" | "run";
 
-export type MarkCrawlPending = (params: { url: string; measured: boolean; meteredLegs: MeteredLegsMode }) => Promise<void>;
+export type CrawlPendingMark =
+	| { kind: "marked" }
+	| { kind: "refused"; crawlStatus: "pending" | "ready"; carriedMarker: boolean };
+
+export type MarkCrawlPending = (params: { url: string; measured: boolean; meteredLegs: MeteredLegsMode }) => Promise<CrawlPendingMark>;
 
 /**
  * Unconditionally moves a row to crawlStatus=pending, even if it is already

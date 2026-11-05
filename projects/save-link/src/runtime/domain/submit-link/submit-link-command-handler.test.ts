@@ -143,7 +143,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		fileArticleIntoReadlist: jest.fn().mockResolvedValue({ createdUserArticle: true, wroteUserArticle: true, resurfacedFromRead: false }),
 		recordInboxArticleQueued: jest.fn().mockResolvedValue(undefined),
 		updateArticleStatus: jest.fn().mockResolvedValue(true),
-		markCrawlPending: jest.fn().mockResolvedValue(undefined),
+		markCrawlPending: jest.fn().mockResolvedValue({ kind: "marked" }),
 		markSummaryPending: jest.fn().mockResolvedValue(undefined),
 		publishUpdateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		refreshArticleIfStale: refreshAs("new"),
@@ -1033,6 +1033,48 @@ describe("initSubmitLinkCommandHandler — an Amazon title link from an email", 
 		expect(publishEvent.mock.calls.map((call) => [call[0].detailType, call[1].url])).toEqual([
 			["LinkQueued", BARE],
 			["TierContentExtracted", BARE],
+		]);
+	});
+});
+
+describe("initSubmitLinkCommandHandler — the per-save log line", () => {
+	const trackerUrl = "https://substack.com/redirect/abc-123?j=xyz";
+
+	it.each([
+		{
+			identity: "its own url",
+			refreshArticleIfStale: refreshAs("new"),
+			contentSource: false,
+		},
+		{
+			identity: "a newsletter tracker as its content source",
+			refreshArticleIfStale: refreshAs("new", (url): ResolvedSaveIdentity => ({ status: "resolved", url, originalUrl: url, contentSourceUrl: trackerUrl, sourceOriginalUrl: url })),
+			contentSource: true,
+		},
+	])("logs the trigger, freshness, deferral mode and refused stamp of an automatic save keyed on $identity", async ({ refreshArticleIfStale, contentSource }) => {
+		const saves: unknown[] = [];
+		const handler = createHandler({
+			refreshArticleIfStale,
+			markCrawlPending: jest.fn().mockResolvedValue({ kind: "refused", crawlStatus: "pending", carriedMarker: false }),
+			logger: {
+				...noopLogger,
+				info: (message, context) => {
+					if (message === "[SubmitLinkCommand] saved") saves.push(context);
+				},
+			},
+		});
+
+		await run(handler, createSqsEvent([{ url: exampleUrl, userId, provenance: { kind: "email", senderEmail: "news@example.com" }, saveTrigger: "automatic" }]));
+
+		expect(saves).toEqual([
+			{
+				url: exampleUrl,
+				saveTrigger: "automatic",
+				freshness: "new",
+				meteredLegs: "deferred",
+				contentSource,
+				crawlPending: { kind: "refused", crawlStatus: "pending", carriedMarker: false },
+			},
 		]);
 	});
 });

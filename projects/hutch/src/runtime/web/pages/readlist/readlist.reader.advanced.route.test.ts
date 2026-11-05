@@ -475,7 +475,7 @@ describe("Readlist routes", () => {
 					findArticleCrawlStatus: async () => undefined,
 					markCrawlPending: async (params) => {
 						markCrawlPendingCalls += 1;
-						await fixture.articleCrawl.markCrawlPending(params);
+						return fixture.articleCrawl.markCrawlPending(params);
 					},
 					forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
 					markCrawlReady: fixture.articleCrawl.markCrawlReady,

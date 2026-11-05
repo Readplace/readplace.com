@@ -202,13 +202,21 @@ export function initSubmitLinkCommandHandler(deps: {
 					});
 					continue;
 				}
-				const { saved } = await saveArticleAtReadlistTop({
+				const { saved, canonicalUrl, meteredLegs, crawlPending } = await saveArticleAtReadlistTop({
 					userId,
 					url,
 					freshness,
 					provenance,
 					saveTrigger: detail.saveTrigger,
 					saveAttemptId,
+				});
+				logger.info(`${logPrefix} saved`, {
+					url: canonicalUrl,
+					saveTrigger: detail.saveTrigger,
+					freshness: freshness.action,
+					meteredLegs,
+					contentSource: freshness.identity.contentSourceUrl !== undefined,
+					crawlPending,
 				});
 				if ("emailOutput" in detail && detail.emailOutput !== undefined) {
 					await publishEvent(EmailOutputSavedToAllEvent, { userId, ...detail.emailOutput });

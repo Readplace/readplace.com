@@ -6,6 +6,7 @@ import {
 import { initDynamoDbArticleCrawl } from "./dynamodb-article-crawl";
 
 type SendFn = DynamoDBDocumentClient["send"];
+type RefusedItem = ConstructorParameters<typeof ConditionalCheckFailedException>[0]["Item"];
 
 function createFakeClient(
 	impl: (input: unknown) => unknown,
@@ -376,7 +377,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
+			await expect(markCrawlPending({ url: URL, measured: false, meteredLegs: "run" })).resolves.toEqual({ kind: "marked" });
 
 			const command = received as {
 				input: {
@@ -444,7 +445,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" });
+			await expect(markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" })).resolves.toEqual({ kind: "marked" });
 
 			const command = received as {
 				input: {
@@ -487,11 +488,30 @@ describe("initDynamoDbArticleCrawl", () => {
 			);
 		});
 
-		it("swallows ConditionalCheckFailedException on a deferred save so a pending or ready row is left alone", async () => {
-			const client = createFakeClient(() => {
+		it.each<{ row: string; item: RefusedItem; mark: unknown }>([
+			{
+				row: "a pending row with the marker",
+				item: { crawlStatus: { S: "pending" }, meteredLegsDeferredSince: { S: FROZEN_NOW.toISOString() } },
+				mark: { kind: "refused", crawlStatus: "pending", carriedMarker: true },
+			},
+			{
+				row: "a pending row without the marker",
+				item: { crawlStatus: { S: "pending" } },
+				mark: { kind: "refused", crawlStatus: "pending", carriedMarker: false },
+			},
+			{
+				row: "a ready row without the marker",
+				item: { crawlStatus: { S: "ready" } },
+				mark: { kind: "refused", crawlStatus: "ready", carriedMarker: false },
+			},
+		])("leaves $row alone on a deferred save and reports the refusal from the row it read", async ({ item, mark }) => {
+			const calls: unknown[] = [];
+			const client = createFakeClient((input) => {
+				calls.push(input);
 				throw new ConditionalCheckFailedException({
 					$metadata: {},
 					message: "condition failed",
+					Item: item,
 				});
 			});
 			const { markCrawlPending } = initDynamoDbArticleCrawl({
@@ -500,7 +520,9 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await expect(markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" })).resolves.toBeUndefined();
+			await expect(markCrawlPending({ url: URL, measured: false, meteredLegs: "deferred" })).resolves.toEqual(mark);
+			expect(calls).toHaveLength(1);
+			expect(calls[0]).toMatchObject({ input: { ReturnValuesOnConditionCheckFailure: "ALL_OLD" } });
 		});
 
 		it("keeps a ready row ready on a run save and clears its parked marker with an unconditional REMOVE", async () => {
@@ -511,6 +533,7 @@ describe("initDynamoDbArticleCrawl", () => {
 					throw new ConditionalCheckFailedException({
 						$metadata: {},
 						message: "condition failed",
+						Item: { crawlStatus: { S: "ready" }, meteredLegsDeferredSince: { S: FROZEN_NOW.toISOString() } },
 					});
 				}
 				return {};
@@ -521,9 +544,14 @@ describe("initDynamoDbArticleCrawl", () => {
 				now,
 			});
 
-			await markCrawlPending({ url: URL, measured: false, meteredLegs: "run" });
+			await expect(markCrawlPending({ url: URL, measured: false, meteredLegs: "run" })).resolves.toEqual({
+				kind: "refused",
+				crawlStatus: "ready",
+				carriedMarker: true,
+			});
 
 			expect(calls).toHaveLength(2);
+			expect(calls[0]).toMatchObject({ input: { ReturnValuesOnConditionCheckFailure: "ALL_OLD" } });
 			expect(calls[1]).toMatchObject({
 				input: {
 					TableName: TABLE,

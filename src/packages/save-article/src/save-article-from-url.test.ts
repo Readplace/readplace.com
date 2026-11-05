@@ -75,6 +75,7 @@ function makeTracker(savedOverride?: SavedArticle): CallTracker {
 		markCrawlPending: async (params) => {
 			calls.markCrawlPending += 1;
 			crawlPendingMarks.push(params);
+			return { kind: "marked" };
 		},
 		markSummaryPending: async () => {
 			calls.markSummaryPending += 1;
@@ -177,6 +178,7 @@ describe("saveArticleFromUrl", () => {
 			},
 			markCrawlPending: async ({ url }) => {
 				keyedOn.push(`markCrawlPending:${url}`);
+				return { kind: "marked" };
 			},
 			publishLinkSaved: async ({ url }) => {
 				keyedOn.push(`publishLinkSaved:${url}`);
@@ -502,6 +504,7 @@ describe("saveArticleFromUrl", () => {
 				},
 				markCrawlPending: async ({ url }) => {
 					order.push(`markCrawlPending:${url}`);
+					return { kind: "marked" };
 				},
 			};
 
@@ -613,5 +616,36 @@ describe("saveArticleFromUrl", () => {
 		await initSaveArticleFromUrl(tracker.deps)({ userId, url: exampleUrl, provenance, saveTrigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
 
 		expect(tracker.calls.pinContentSource).toBe(0);
+	});
+
+	it("reports the metered-legs mode and the crawl-pending mark of a 'new' save", async () => {
+		const tracker = makeTracker();
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			markCrawlPending: async () => ({ kind: "refused", crawlStatus: "pending", carriedMarker: false }),
+		};
+
+		const result = await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: "automatic", savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: ownIdentity } });
+
+		expect(result.meteredLegs).toBe("deferred");
+		expect(result.crawlPending).toEqual({ kind: "refused", crawlStatus: "pending", carriedMarker: false });
+	});
+
+	it.each([
+		{ branch: "a 'skip' verdict", url: exampleUrl, freshness: { action: "skip" as const, identity: ownIdentity } },
+		{
+			branch: "a re-crawl of the content source",
+			url: exampleUrl,
+			freshness: { action: "skip" as const, identity: { ...ownIdentity, contentSourceUrl: "https://substack.com/redirect/abc-123?j=xyz", sourceOriginalUrl: exampleUrl } },
+		},
+		{ branch: "a host that can never hold an article", url: gmailUrl, freshness: { action: "new" as const, identity: { status: "resolved" as const, url: gmailUrl, originalUrl: gmailUrl } } },
+	])("reports the crawl-pending stamp as not attempted on $branch", async ({ url, freshness }) => {
+		const tracker = makeTracker();
+
+		const result = await initSaveArticleFromUrl(tracker.deps)({ userId, url, provenance, saveTrigger: "automatic", savedAt: operationSavedAt, saveAttemptId, freshness });
+
+		expect(tracker.calls.markCrawlPending).toBe(0);
+		expect(result.meteredLegs).toBe("deferred");
+		expect(result.crawlPending).toEqual({ kind: "not-attempted" });
 	});
 });

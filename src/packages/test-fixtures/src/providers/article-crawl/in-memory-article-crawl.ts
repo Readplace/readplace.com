@@ -48,13 +48,16 @@ export function initInMemoryArticleCrawl(): {
 		const id = ArticleResourceUniqueId.parse(url);
 		const current = states.get(id.value);
 		if (meteredLegs === "deferred") {
-			if (current?.status === "pending" || current?.status === "ready") return;
+			if (current?.status === "pending" || current?.status === "ready") {
+				return { kind: "refused", crawlStatus: current.status, carriedMarker: meteredLegsDeferred.has(id.value) };
+			}
 			meteredLegsDeferred.add(id.value);
 			states.set(id.value, { status: "pending" });
-			return;
+			return { kind: "marked" };
 		}
+		const carriedMarker = meteredLegsDeferred.has(id.value);
 		meteredLegsDeferred.delete(id.value);
-		if (current?.status === "ready") return;
+		if (current?.status === "ready") return { kind: "refused", crawlStatus: "ready", carriedMarker };
 		// Preserve any previously recorded stage when re-marking pending so the
 		// progress indicator does not reset.
 		const existingStage =
@@ -65,6 +68,7 @@ export function initInMemoryArticleCrawl(): {
 				? { status: "pending", stage: existingStage }
 				: { status: "pending" },
 		);
+		return { kind: "marked" };
 	};
 
 	const forceMarkCrawlPending: ForceMarkCrawlPending = async ({ url }) => {

@@ -14,6 +14,7 @@ import type {
 	FindArticleCrawlStatus,
 	FindArticleCrawlStatuses,
 	ForceMarkCrawlPending,
+	CrawlPendingMark,
 	MarkCrawlPending,
 } from "@packages/provider-contracts/article-crawl";
 
@@ -86,6 +87,16 @@ export function rowToArticleCrawl(
 // every returned item, so a strict schema would discard the whole batch on one
 // malformed row. Each row is re-validated strictly below, per row.
 const LooseArticleCrawlRow = z.looseObject({ url: z.string() });
+
+const RefusedCrawlPendingRow = z.object({
+	crawlStatus: z.object({ S: CrawlStatusSchema.extract(["pending", "ready"]) }),
+	meteredLegsDeferredSince: z.object({ S: z.string() }).optional(),
+});
+
+function refusedCrawlPendingMark(oldItem: unknown): CrawlPendingMark {
+	const row = RefusedCrawlPendingRow.parse(oldItem);
+	return { kind: "refused", crawlStatus: row.crawlStatus.S, carriedMarker: row.meteredLegsDeferredSince !== undefined };
+}
 
 export function initDynamoDbArticleCrawl(deps: {
 	client: DynamoDBDocumentClient;
@@ -174,6 +185,7 @@ export function initDynamoDbArticleCrawl(deps: {
 								":failed": "failed",
 								":unsupported": "unsupported",
 							},
+							ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 						}
 					: {
 							Key: { url: articleResourceUniqueId.value },
@@ -185,8 +197,10 @@ export function initDynamoDbArticleCrawl(deps: {
 								":pendingSince": pendingSince,
 								":ready": "ready",
 							},
+							ReturnValuesOnConditionCheckFailure: "ALL_OLD",
 						},
 			);
+			return { kind: "marked" };
 		} catch (err) {
 			if (!(err instanceof ConditionalCheckFailedException)) throw err;
 			if (meteredLegs === "run") {
@@ -195,6 +209,7 @@ export function initDynamoDbArticleCrawl(deps: {
 					UpdateExpression: "REMOVE meteredLegsDeferredSince",
 				});
 			}
+			return refusedCrawlPendingMark(err.Item);
 		}
 	};
 

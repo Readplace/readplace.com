@@ -32,6 +32,7 @@ function harness(crawl: ArticleCrawl | undefined, opts: { failFiling?: boolean }
 		markCrawlPending: async (input) => {
 			calls.push("crawl-pending");
 			crawlPendingMarks.push(input);
+			return { kind: "marked" };
 		},
 		markSummaryPending: async () => {
 			calls.push("summary-pending");
