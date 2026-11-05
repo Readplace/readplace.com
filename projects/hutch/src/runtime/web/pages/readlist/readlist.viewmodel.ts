@@ -117,6 +117,7 @@ export interface ReadlistArticleViewModel {
 	 * card waiting for something that may never land.
 	 */
 	isStalePending: boolean;
+	processingNotice?: string;
 }
 
 export interface ImportSkippedViewModel {
@@ -341,6 +342,7 @@ export function toReadlistArticleViewModel(params: {
 			contentVersion: computeArticleContentVersion({ article, crawl, summary }),
 		}),
 		isStalePending,
+		processingNotice: article.processingNotice,
 	};
 }
 

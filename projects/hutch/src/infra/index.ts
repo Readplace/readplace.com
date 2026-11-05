@@ -46,6 +46,7 @@ import {
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
 	LinkDequeuedEvent,
+	MediaProcessingFailedEvent,
 } from "@packages/hutch-infra-components";
 import { PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
@@ -1396,6 +1397,41 @@ eventBus.subscribe(LinkDequeuedEvent, mediaReleaseWithSQS, {
 	name: "hutch-media-release",
 	detail: { url: [{ prefix: `https://${PRIVATE_ITEM_HOST}/` }] },
 });
+
+const settleMediaFailureDynamodb = new HutchDynamoDBAccess("settle-media-failure-dynamodb", {
+	tables: [
+		{ arn: storage.articlesTable.arn, includeIndexes: false },
+		{ arn: storage.mediaUploadSessionsTable.arn, includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const settleMediaFailureQueue = new HutchSQS("settle-media-failure", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const settleMediaFailureLambda = new HutchLambda("settle-media-failure", {
+	entryPoint: "./src/runtime/settle-media-failure.main.ts",
+	outputDir: ".lib/settle-media-failure",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 60,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		DYNAMODB_MEDIA_UPLOAD_SESSIONS_TABLE: storage.mediaUploadSessionsTable.name,
+	},
+	policies: [...settleMediaFailureDynamodb.policies],
+});
+
+const settleMediaFailureWithSQS = new HutchSQSBackedLambda("settle-media-failure", {
+	lambda: settleMediaFailureLambda,
+	queue: settleMediaFailureQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(MediaProcessingFailedEvent, settleMediaFailureWithSQS);
 
 // --- Send First Inbox Email Notice ---
 

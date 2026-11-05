@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_failed_card_read" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_failed_card_read" name="failed-card-read" isExecutable="false">
+    <bpmn:dataStoreReference id="n_A" name="Articles table: processingNotice"></bpmn:dataStoreReference>
+    <bpmn:sendTask id="n_U1" name="Reader opens the readlist">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_RL" name="Readlist page">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_C" name="Card: notice + Upload again link to the upload page">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sendTask id="n_U2" name="Reader poll for the item">
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_RP" name="Reader slot">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_F" name="processing-failed state: notice + Upload again">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_U1" targetRef="n_RL" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_RL" targetRef="n_C" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_U2" targetRef="n_RP" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_RP" targetRef="n_F" />
+    <bpmn:association id="f_1" sourceRef="n_RL" targetRef="n_A" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_RP" targetRef="n_A" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_failed_card_read">
+    <bpmndi:BPMNPlane id="Plane_failed_card_read" bpmnElement="Process_failed_card_read">
+      <bpmndi:BPMNShape id="n_A_di" bpmnElement="n_A">
+        <dc:Bounds x="482.48" y="116" width="117.04" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_U1_di" bpmnElement="n_U1">
+        <dc:Bounds x="28" y="89.5" width="188.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RL_di" bpmnElement="n_RL">
+        <dc:Bounds x="274.75" y="89.5" width="110.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="443" y="28" width="196" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_U2_di" bpmnElement="n_U2">
+        <dc:Bounds x="32" y="173.5" width="180.75" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RP_di" bpmnElement="n_RP">
+        <dc:Bounds x="277.88" y="173.5" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_F_di" bpmnElement="n_F">
+        <dc:Bounds x="450.88" y="231" width="180.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="216.75" y="113.5" />
+        <di:waypoint x="274.75" y="113.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="385" y="113.5" />
+        <di:waypoint x="414" y="113.5" />
+        <di:waypoint x="414" y="54" />
+        <di:waypoint x="443" y="54" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="212.75" y="197.5" />
+        <di:waypoint x="277.88" y="197.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="381.88" y="197.5" />
+        <di:waypoint x="416.38" y="197.5" />
+        <di:waypoint x="416.38" y="257" />
+        <di:waypoint x="450.88" y="257" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="385" y="113.5" />
+        <di:waypoint x="433.74" y="113.5" />
+        <di:waypoint x="433.74" y="140" />
+        <di:waypoint x="482.48" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="381.88" y="197.5" />
+        <di:waypoint x="432.18" y="197.5" />
+        <di:waypoint x="432.18" y="140" />
+        <di:waypoint x="482.48" y="140" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

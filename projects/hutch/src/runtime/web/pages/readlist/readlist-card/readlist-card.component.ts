@@ -49,6 +49,7 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	statusTriggers: DesignCardTrigger[];
 	moveMenuHtml: string;
 	deleteMenuHtml: string;
+	uploadAgainUrl: string;
 }
 
 const STATUS_LOADER_HTML = renderInFlightDots("readlist-article__action-btn-loader in-flight-dots");
@@ -143,6 +144,7 @@ export function toReadlistCardDisplayModel(
 		statusTriggers: article.actions.flatMap(toTrigger),
 		moveMenuHtml: article.move === undefined ? "" : renderMoveMenuItems({ move: article.move }),
 		deleteMenuHtml: renderDeleteMenuItems({ deletion: article.deletion, surface: "queue-card" }),
+		uploadAgainUrl: withInternalTracking("/upload", { source: "queue-card", content: "failed-card" }),
 	};
 }
 
