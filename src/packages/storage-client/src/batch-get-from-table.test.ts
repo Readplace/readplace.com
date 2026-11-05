@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-	batchGetFromTable,
-	type DynamoDBDocumentClient,
-} from "@packages/storage-client";
+import { batchGetFromTable, type DynamoDBDocumentClient } from "./define-table";
 
 type SendFn = DynamoDBDocumentClient["send"];
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { assembleRowUpdate, dynamoField } from "@packages/storage-client";
+import { dynamoField } from "./dynamo-field";
+import { assembleRowUpdate } from "./row-update";
 
 const Row = z.object({
 	url: z.string(),
@@ -91,6 +92,19 @@ describe("assembleRowUpdate", () => {
 			UpdateExpression: "SET a = :a",
 			ExpressionAttributeValues: { ":a": "alpha" },
 		});
+	});
+
+	it("does not compile a column the schema does not declare", () => {
+		const update = assembleRowUpdate({
+			schema: Row,
+			// @ts-expect-error
+			set: { unknownColumn: "value" },
+			remove: [],
+			handWrittenSet: { clauses: [], values: {} },
+			condition: { kind: "upsert" },
+		});
+
+		assert.equal(update.UpdateExpression, "SET unknownColumn = :unknownColumn");
 	});
 
 	it("refuses a column that is both set and removed", () => {

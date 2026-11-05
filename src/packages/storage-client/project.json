@@ -2,7 +2,7 @@
   "name": "@packages/storage-client",
   "targets": {
     "check": {
-      "command": "pnpm lint",
+      "command": "pnpm lint && pnpm test-with-coverage",
       "options": { "cwd": "{projectRoot}" },
       "dependsOn": ["compile"]
     }

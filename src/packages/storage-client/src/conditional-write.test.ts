@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	TransactionCanceledException,
-	transactIfConditions,
-	writeIfCondition,
-} from "@packages/storage-client";
+} from "./index";
+import { transactIfConditions, writeIfCondition } from "./conditional-write";
 
 describe("writeIfCondition", () => {
 	it("returns the write's result when the write succeeds", async () => {
