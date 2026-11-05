@@ -752,6 +752,54 @@ describe("initMcpServer", () => {
 			});
 		});
 
+		it("points to the reader when the body's encoded response would cross the Lambda payload cap", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					getArticleContent: async () => ({ status: "ready", content: articleBody('"\n'.repeat(500_000)) }),
+				}),
+			);
+			const response = await call(server, 46, "get_article_content", { id: "x".repeat(32) });
+			expect(response).toEqual({
+				jsonrpc: "2.0",
+				id: 46,
+				result: {
+					content: [
+						{
+							type: "text",
+							text: "This article is too large to read through the assistant. Open it in the Readplace reader instead.",
+						},
+					],
+					structuredContent: { status: "too_large_for_mcp" },
+				},
+			});
+		});
+
+		it("returns a plain-text body of the same raw size, whose encoded response fits", async () => {
+			const body = "a".repeat(1_000_000);
+			const server = initMcpServer(
+				fakeDeps({ getArticleContent: async () => ({ status: "ready", content: articleBody(body) }) }),
+			);
+			const response = await call(server, 47, "get_article_content", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: body }],
+					structuredContent: { status: "ready", content: body },
+				},
+			});
+		});
+
+		it("points to the reader when a plain-text body carried twice leaves no room for the response envelope under the cap", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					getArticleContent: async () => ({ status: "ready", content: articleBody("a".repeat(2_999_500)) }),
+				}),
+			);
+			const response = await call(server, 48, "get_article_content", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { structuredContent: { status: "too_large_for_mcp" } },
+			});
+		});
+
 		it("reports that the reader view is still loading", async () => {
 			const server = initMcpServer(
 				fakeDeps({ getArticleContent: async () => ({ status: "pending" }) }),

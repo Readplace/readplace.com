@@ -389,6 +389,18 @@ function toolError(value: string): ToolResult {
 const NOT_AN_ARTICLE_REPLY =
 	"This link isn't an article, so there's no reader view — open the link itself.";
 
+const TOO_LARGE_FOR_MCP_REPLY =
+	"This article is too large to read through the assistant. Open it in the Readplace reader instead.";
+
+const MCP_RESPONSE_BYTE_LIMIT = 5_998_000;
+
+function fitOneMcpResponse(toolResult: ToolResult): ToolResult {
+	const encodedBytes = Buffer.byteLength(JSON.stringify(JSON.stringify(toolResult)));
+	return encodedBytes > MCP_RESPONSE_BYTE_LIMIT
+		? data(TOO_LARGE_FOR_MCP_REPLY, { status: "too_large_for_mcp" })
+		: toolResult;
+}
+
 function notFoundResult(id: string): ToolResult {
 	return data(`No saved article with id ${id} is in your readlist.`, {
 		found: false,
@@ -896,7 +908,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 						result,
 					);
 				case "ready":
-					return data(result.content, result);
+					return fitOneMcpResponse(data(result.content, result));
 			}
 		} catch (error) {
 			return unexpectedFailure(
