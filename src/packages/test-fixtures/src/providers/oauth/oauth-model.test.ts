@@ -363,7 +363,7 @@ describe("createOAuthModel", () => {
 		it("re-resolves a newly-verified user's standing on refresh", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps, {
-				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null }),
+				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 }),
 			});
 
 			const client = await model.getClient(TEST_CLIENT_ID, "");
@@ -382,7 +382,7 @@ describe("createOAuthModel", () => {
 		it("keeps a still-unverified user's refresh standing unverified", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps, {
-				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: false, displayName: undefined, signupOAuthClientId: null }),
+				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: false, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 }),
 			});
 
 			const client = await model.getClient(TEST_CLIENT_ID, "");
@@ -419,7 +419,7 @@ describe("createOAuthModel", () => {
 			const model = createOAuthModel(deps, {
 				findUserById: async (id) => {
 					lookups += 1;
-					return { userId: id, email: "user@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null };
+					return { userId: id, email: "user@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 };
 				},
 			});
 
@@ -440,7 +440,7 @@ describe("createOAuthModel", () => {
 		it("re-issues a verified access token after refresh so later requests carry the standing", async () => {
 			const deps = initInMemoryOAuthModel();
 			const model = createOAuthModel(deps, {
-				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null }),
+				findUserById: async (id) => ({ userId: id, email: "user@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0 }),
 			});
 
 			const client = await model.getClient(TEST_CLIENT_ID, "");

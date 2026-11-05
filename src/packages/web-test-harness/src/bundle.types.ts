@@ -90,6 +90,8 @@ import type {
 	ConversionEvent,
 	CountArticlesByUser,
 	CountEarlyIntentionalSave,
+	MarkActivationThresholdReached,
+	SetKeepOfferDismissed,
 	CountUsers,
 	CreateAppleUser,
 	CreateChargeReminderSchedule,
@@ -299,6 +301,8 @@ export interface AuthBundle {
 	markAccountDeleted: MarkAccountDeleted;
 	countUsers: CountUsers;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
+	markActivationThresholdReached: MarkActivationThresholdReached;
+	setKeepOfferDismissed: SetKeepOfferDismissed;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	setSessionReadlistFilter: SetSessionReadlistFilter;
@@ -326,6 +330,7 @@ export interface HostedCheckoutBundle {
 		id: CheckoutSessionId;
 		priceId: string;
 		customerEmail: string;
+		coupon: string | null;
 	}>;
 }
 

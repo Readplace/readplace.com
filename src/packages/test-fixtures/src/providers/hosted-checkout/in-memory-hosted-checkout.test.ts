@@ -13,6 +13,7 @@ describe("initInMemoryHostedCheckout", () => {
 			priceId: "price_test_yearly",
 			successUrl: "https://app.test/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "https://app.test/signup",
+			coupon: null,
 		});
 
 		expect(session.id).toMatch(/^cs_test_/);
@@ -29,6 +30,7 @@ describe("initInMemoryHostedCheckout", () => {
 			priceId: "price_test_yearly",
 			successUrl: "http://localhost:9999/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:9999/signup",
+			coupon: null,
 		});
 
 		expect(session.url).toContain("http://localhost:9999/e2e/stripe-checkout/");
@@ -42,6 +44,7 @@ describe("initInMemoryHostedCheckout", () => {
 			priceId: "price_test_yearly",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
+			coupon: null,
 		});
 
 		const before = await stripe.retrieveCheckoutSession(session.id);
@@ -70,6 +73,7 @@ describe("initInMemoryHostedCheckout", () => {
 			priceId: "price_test_yearly",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
+			coupon: null,
 		});
 
 		const retrieved = await stripe.retrieveCheckoutSession(session.id);
@@ -88,6 +92,7 @@ describe("initInMemoryHostedCheckout", () => {
 			priceId: "price_test_yearly",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
+			coupon: null,
 		});
 
 		const retrieved = await stripe.retrieveCheckoutSession(session.id);
@@ -104,6 +109,7 @@ describe("initInMemoryHostedCheckout", () => {
 			priceId: "price_test_yearly",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
+			coupon: null,
 		});
 
 		stripe.markExpired(session.id);
@@ -149,6 +155,7 @@ describe("initInMemoryHostedCheckout", () => {
 			priceId: "price_test_triennial",
 			successUrl: "https://app.test/ok",
 			cancelUrl: "https://app.test/cancel",
+			coupon: null,
 		});
 
 		expect(
@@ -159,4 +166,18 @@ describe("initInMemoryHostedCheckout", () => {
 		).toEqual([{ priceId: "price_test_triennial", customerEmail: "buyer@example.com" }]);
 	});
 
+	it("records the coupon each checkout session was created with", async () => {
+		const stripe = initInMemoryHostedCheckout(DEFAULT_OPTS);
+		const session = {
+			customerEmail: "buyer@example.com",
+			priceId: "price_test_yearly",
+			successUrl: "https://app.test/ok",
+			cancelUrl: "https://app.test/cancel",
+		};
+
+		await stripe.createCheckoutSession({ ...session, coupon: "coupon_test" });
+		await stripe.createCheckoutSession({ ...session, coupon: null });
+
+		expect(stripe.createdCheckoutSessions().map(({ coupon }) => coupon)).toEqual(["coupon_test", null]);
+	});
 });

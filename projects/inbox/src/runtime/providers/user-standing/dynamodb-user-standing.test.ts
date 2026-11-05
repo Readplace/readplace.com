@@ -65,11 +65,12 @@ describe("initDynamoDbUserStanding", () => {
 				emailVerified: true,
 				registeredAt: "2026-01-01T00:00:00.000Z",
 				signupOAuthClientId: null,
+				earlyIntentionalSaves: 0,
 			});
 			expect(captured.TableName).toBe(TABLES.users);
 			expect(captured.IndexName).toBe("userId-index");
 			expect(captured.ProjectionExpression).toBe(
-				"userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId",
+				"userId, email, emailVerified, registeredAt, appearance, displayName, signupOAuthClientId, activationThresholdReachedAt, keepOfferDismissedAt, earlyIntentionalSaves",
 			);
 			expect(captured.ExpressionAttributeValues).toEqual({ ":userId": USER_ID });
 		});
@@ -129,6 +130,29 @@ describe("initDynamoDbUserStanding", () => {
 
 			assert(user, "user must be returned");
 			expect(user.signupOAuthClientId).toBe("ios-app");
+		});
+
+		it("reads the reader's keep-offer state so the shared user shape stays whole", async () => {
+			const { findUserById } = initWithFake(() => ({
+				Items: [
+					{
+						userId: USER_ID,
+						email: "user@example.com",
+						emailVerified: true,
+						registeredAt: "2026-01-01T00:00:00.000Z",
+						activationThresholdReachedAt: "2026-01-03T00:00:00.000Z",
+						keepOfferDismissedAt: "2026-01-04T00:00:00.000Z",
+						earlyIntentionalSaves: 3,
+					},
+				],
+			}));
+
+			const user = await findUserById(USER_ID);
+
+			assert(user, "user must be returned");
+			expect(user.activationThresholdReachedAt).toBe("2026-01-03T00:00:00.000Z");
+			expect(user.keepOfferDismissedAt).toBe("2026-01-04T00:00:00.000Z");
+			expect(user.earlyIntentionalSaves).toBe(3);
 		});
 
 		it("reads an absent emailVerified attribute as false (legacy row)", async () => {

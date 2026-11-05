@@ -684,6 +684,26 @@ test.describe("Readplace holds its ink when the screen has only greys", () => {
 			);
 		});
 
+		test(`the keep panel keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+			const { email, userId } = await createEinkUser(
+				page,
+				`keep-offer-${theme}-${testInfo.workerIndex}-${Date.now()}`,
+			);
+			const trialing = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+				data: { userId, state: "trialing", at: "2099-03-01T12:00:00.000Z" },
+			});
+			assert.equal(trialing.status(), 201);
+			const crossed = await page.request.post(`${BASE_URL}/e2e/seed-keep-offer`, { data: { userId, saves: 2 } });
+			assert.equal(crossed.status(), 201);
+			await loginAs(page, email);
+			const panel = "[data-test-keep-offer]";
+			await expect(page.locator(panel)).toBeVisible();
+			await settle(page, panel);
+
+			await expect(page.locator(panel)).toHaveScreenshot(`eink-keep-offer-${theme}.png`, CONTRAST_SENSITIVE);
+		});
+
 		test(`the status toast keeps its contrast in greyscale (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
 			const { email, articleId } = await seedReaderAndReadlist(

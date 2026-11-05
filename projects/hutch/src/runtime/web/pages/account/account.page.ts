@@ -23,9 +23,11 @@ import type {
 	RevokeAllUserOAuthTokens,
 	RevokeUserOAuthClient,
 } from "@packages/provider-contracts/oauth";
+import type { initKeepOffer } from "../../../domain/engagement/keep-offer";
 import {
 	CHECKOUT_OFFERS,
 	type CheckoutOffer,
+	CheckoutOfferSchema,
 	type CheckoutSessionId,
 	type CreateCheckoutSession,
 	type SubscribePlansSource,
@@ -79,6 +81,9 @@ import { initLoadNextCharge } from "../../../domain/subscription/next-charge";
 import { CHECKOUT_VARIANTS, type CheckoutVariant } from "../../../observability/events";
 import {
 	ANALYTICS_EVENTS,
+	buildKeepOfferClickedEvent,
+	KEEP_OFFER_SURFACES,
+	type KeepOfferClickedEvent,
 	type PlansPageViewedEvent,
 	type RecordAudienceEvent,
 	STREAMS,
@@ -137,6 +142,7 @@ import {
 	ACCOUNT_ERROR_PAYMENT_METHOD_URL,
 	ACCOUNT_ERROR_SUBSCRIBE_FAILED_URL,
 	buildAccountUrl,
+	ACCOUNT_PLANS_URL,
 } from "./account.url";
 
 interface AccountDependencies {
@@ -181,7 +187,10 @@ interface AccountDependencies {
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 	recordSubscriptionEvent: RecordAudienceEvent<SubscriptionLogEvent>;
-	recordAnalyticsEvent: RecordAudienceEvent<PlansPageViewedEvent>;
+	recordAnalyticsEvent: RecordAudienceEvent<PlansPageViewedEvent | KeepOfferClickedEvent>;
+	salt: string;
+	keepOffer: ReturnType<typeof initKeepOffer>;
+	keepOfferCouponId: string;
 }
 
 export type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
@@ -794,6 +803,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			variant: CheckoutVariant;
 			plan: BillingPlan;
 			offer: CheckoutOffer;
+			coupon: string | null;
 		},
 	): Promise<{ id: CheckoutSessionId; url: string }> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -807,6 +817,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			successUrl: deps.buildCheckoutSuccessUrl("{CHECKOUT_SESSION_ID}"),
 			cancelUrl: `${deps.appOrigin}${buildAccountUrl()}`,
 			trialEndsAt: params.trialEndsAt,
+			coupon: params.coupon,
 		});
 
 		const entrySource = entrySourceOf(req);
@@ -868,16 +879,41 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			input: {
 				row: SubscriptionRecord | undefined;
 				chosenPlan: BillingPlan | undefined;
+				offer: CheckoutOffer | undefined;
 			},
 		) => Promise<void>
 	> = {
-		trialing: async (req, res, { row, chosenPlan }) => {
+		trialing: async (req, res, { row, chosenPlan, offer }) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
 			assert(row, "trialing branch requires a row");
-			const checkout = await startCheckout(req, {
+			const checkoutTerms = {
 				trialEndsAt: trialEndToPreserve({ row, now: deps.now() }),
 				variant: CHECKOUT_VARIANTS.trialCheckout,
 				plan: chosenPlan ?? DEFAULT_BILLING_PLAN,
-				offer: CHECKOUT_OFFERS.none,
+			};
+			if (offer !== CHECKOUT_OFFERS.firstYear49) {
+				const checkout = await startCheckout(req, { ...checkoutTerms, offer: CHECKOUT_OFFERS.none, coupon: null });
+				redirectFullPage(req, res, checkout.url);
+				return;
+			}
+			const eligibility = await deps.keepOffer.eligibility(req.userId);
+			if (!eligibility.shown || eligibility.offer !== CHECKOUT_OFFERS.firstYear49) {
+				res.redirect(303, `${ACCOUNT_PLANS_URL}?utm_source=keep-panel`);
+				return;
+			}
+			if (entrySourceOf(req) === "keep-panel") {
+				deps.recordAnalyticsEvent(
+					req,
+					buildKeepOfferClickedEvent(
+						{ now: deps.now, salt: deps.salt },
+						{ req, userId: req.userId, surface: KEEP_OFFER_SURFACES.readlistPanel, trialDay: eligibility.trialDay },
+					),
+				);
+			}
+			const checkout = await startCheckout(req, {
+				...checkoutTerms,
+				offer: CHECKOUT_OFFERS.firstYear49,
+				coupon: deps.keepOfferCouponId,
 			});
 			redirectFullPage(req, res, checkout.url);
 		},
@@ -896,6 +932,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					variant: CHECKOUT_VARIANTS.cancelledResubscribe,
 					plan,
 					offer: CHECKOUT_OFFERS.none,
+					coupon: null,
 				});
 				redirectFullPage(req, res, checkout.url);
 				return;
@@ -919,6 +956,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					variant: CHECKOUT_VARIANTS.cardDeclineFallback,
 					plan,
 					offer: CHECKOUT_OFFERS.none,
+					coupon: null,
 				});
 				redirectFullPage(req, res, checkout.url);
 				return;
@@ -943,7 +981,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	router.post("/subscribe", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const chosenPlan = z
-			.object({ plan: BillingPlanSchema.optional() })
+			.object({ plan: BillingPlanSchema.optional(), offer: CheckoutOfferSchema.optional() })
 			.safeParse(req.body ?? {});
 		if (!chosenPlan.success) {
 			res.status(400).send("Unknown subscription plan");
@@ -955,6 +993,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			await subscribeBranches[branch](req, res, {
 				row,
 				chosenPlan: chosenPlan.data.plan,
+				offer: chosenPlan.data.offer,
 			});
 		} catch (err) {
 			/** Single route-level catch keeps every branch resilient: Stripe

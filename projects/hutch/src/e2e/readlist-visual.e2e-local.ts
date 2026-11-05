@@ -19,6 +19,7 @@ import {
 } from "@packages/onboarding-extension-signal";
 import { requireEnv } from "@packages/require-env";
 import { PRICING_PLANS } from "@packages/web-shell";
+import { KEEP_OFFER_FIRST_YEAR_PRICE } from "../runtime/domain/engagement/keep-offer";
 import { encodeImportSkippedCookie, IMPORT_SKIPPED_COOKIE_NAME } from "../runtime/web/pages/import/import-skipped-cookie";
 import { SAVE_TIP_COOKIE_NAME, SAVE_TIP_SEEN } from "../runtime/web/shared/save-tip/save-tip-cookie";
 import {
@@ -126,6 +127,8 @@ const ALERT = '[data-test-alert="readlist"]';
 const ALERT_TITLE = `${ALERT} [data-test-alert-title]`;
 const SUBSCRIPTION_BANNER = "[data-test-subscription-banner]";
 const TRIAL_STATUS = "[data-test-trial-status]";
+const KEEP_OFFER = "[data-test-keep-offer]";
+const KEEP_OFFER_TRIAL_END = "2099-03-01T12:00:00.000Z";
 const SETUP_GUIDE = "[data-test-setup-guide]";
 const TOAST = "[data-test-toast]";
 const ONBOARDING_PROGRESS = "[data-test-onboarding-progress]";
@@ -231,6 +234,12 @@ async function seedSubscriptionState(
 		data: params,
 	});
 	assert.equal(response.status(), 201, "the subscription-state seed endpoint must answer 201");
+}
+
+async function seedKeepOffer(page: Page, params: { userId: string; saves: number }): Promise<void> {
+	await seedSubscriptionState(page, { userId: params.userId, state: "trialing", at: KEEP_OFFER_TRIAL_END });
+	const response = await page.request.post(`${BASE_URL}/e2e/seed-keep-offer`, { data: params });
+	assert.equal(response.status(), 201, "the keep-offer seed endpoint must answer 201");
 }
 
 async function loginAs(page: Page, email: string): Promise<void> {
@@ -955,6 +964,16 @@ async function subscriptionBannerAboveTheListing(page: Page): Promise<void> {
 	assert.ok(banner.y + banner.height <= guide.y, "the subscription notice must lead the setup guide on a phone");
 }
 
+async function keepOfferLeadsTheListing(page: Page): Promise<void> {
+	await phonePageGeometry(page);
+	const panel = await measuredBox(page, KEEP_OFFER);
+	const listing = await measuredBox(page, LISTING);
+	assert.ok(
+		panel.y + panel.height <= listing.y,
+		`the keep panel must stay above the article list on a phone, measured panel=${JSON.stringify(panel)} listing=${JSON.stringify(listing)}`,
+	);
+}
+
 async function subscriptionNoticeLeadsTheListing(page: Page): Promise<void> {
 	await subscriptionBannerAboveTheListing(page);
 	const banner = await measuredBox(page, SUBSCRIPTION_BANNER);
@@ -1341,6 +1360,18 @@ async function subscriptionTrialSettled(page: Page): Promise<void> {
 	await page.mouse.move(0, 0);
 }
 
+async function keepOfferSettled(page: Page): Promise<void> {
+	await waitForBrandFonts(page, ["Inter"]);
+	await neutralise(page);
+	await expect(page.locator(`${KEEP_OFFER} .readlist-keep-offer__title`)).toHaveText(
+		"You've kept 2 articles this week.",
+	);
+	await expect(page.locator("[data-test-keep-offer-body]")).toContainText(
+		`${KEEP_OFFER_FIRST_YEAR_PRICE} for your first year`,
+	);
+	await page.mouse.move(0, 0);
+}
+
 async function subscriptionTrialStatusSettled(page: Page): Promise<void> {
 	await waitForBrandFonts(page, ["Inter"]);
 	await neutralise(page);
@@ -1692,6 +1723,15 @@ const SUBSCRIPTION_TRIAL_STATUS: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const KEEP_OFFER_PANEL: VisualCheckpoint = {
+	name: "readlist-keep-offer",
+	settled: keepOfferSettled,
+	geometry: railBesideMainBesideSide,
+	target: KEEP_OFFER,
+	capture: "element",
+	pinnedText: [],
+};
+
 const SUBSCRIPTION_CANCELLATION: VisualCheckpoint = {
 	name: "readlist-subscription-cancellation",
 	settled: subscriptionCancellationSettled,
@@ -1787,6 +1827,15 @@ const SUBSCRIPTION_TRIAL_STATUS_PHONE: VisualCheckpoint = {
 	geometry: subscriptionBannerAboveTheListing,
 	target: MAIN,
 	capture: "page-from-top",
+	pinnedText: [],
+};
+
+const KEEP_OFFER_PANEL_PHONE: VisualCheckpoint = {
+	name: "readlist-keep-offer-phone",
+	settled: keepOfferSettled,
+	geometry: keepOfferLeadsTheListing,
+	target: KEEP_OFFER,
+	capture: "element",
 	pinnedText: [],
 };
 
@@ -2535,6 +2584,19 @@ test.describe("Readlist subscription banner", () => {
 	}
 
 	for (const theme of THEMES) {
+		test(`shows the keep panel to a trial reader who crossed the threshold (${theme})`, async ({ page }, testInfo) => {
+			await page.emulateMedia({ colorScheme: theme });
+			const email = `readlist-keep-offer-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
+			const userId = await createVerifiedUser(page, email);
+			await seedKeepOffer(page, { userId, saves: 2 });
+			await loginAs(page, email);
+			await gotoReadlistQueue(page, "");
+
+			await captureCheckpoint(page, withTheme(KEEP_OFFER_PANEL, theme));
+		});
+	}
+
+	for (const theme of THEMES) {
 		test(`shows the cancellation-scheduled banner (${theme})`, async ({ page }, testInfo) => {
 			await page.emulateMedia({ colorScheme: theme });
 			const email = `readlist-subscription-cancellation-${theme}-${testInfo.workerIndex}-${Date.now()}@example.com`;
@@ -2746,6 +2808,17 @@ test.describe("Readlist page on a phone", () => {
 		await gotoReadlistQueue(page, "");
 
 		await captureCheckpoint(page, SUBSCRIPTION_TRIAL_STATUS_PHONE);
+	});
+
+	test("keeps the keep panel above the article list", async ({ page }, testInfo) => {
+		const email = `readlist-phone-keep-offer-${testInfo.workerIndex}-${Date.now()}@example.com`;
+		const userId = await createVerifiedUser(page, email);
+		await seedTwoArticles(page, userId, email);
+		await seedKeepOffer(page, { userId, saves: 2 });
+		await loginAs(page, email);
+		await gotoReadlistQueue(page, "");
+
+		await captureCheckpoint(page, KEEP_OFFER_PANEL_PHONE);
 	});
 
 	test("asks for an article from All on a custom readlist without Add link", async ({ page }, testInfo) => {

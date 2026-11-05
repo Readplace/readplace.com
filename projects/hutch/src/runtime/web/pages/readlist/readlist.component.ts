@@ -77,6 +77,8 @@ import {
 	readlistCreateAction,
 	renderReadlistCreate,
 } from "./readlist-create.component";
+import type { KeepOfferEligibility } from "../../../domain/engagement/keep-offer";
+import { renderReadlistKeepOffer, toReadlistKeepOfferDisplayModel } from "./readlist-keep-offer.component";
 import {
 	renderReadlistSubscription,
 	toReadlistSubscriptionDisplayModel,
@@ -115,6 +117,7 @@ export interface ReadlistPageOptions {
 	saveTip: SaveTip;
 	saveUrl?: string;
 	onboarding: ReadlistOnboarding;
+	keepOffer: KeepOfferEligibility;
 	query: Record<string, unknown>;
 }
 
@@ -540,6 +543,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				})
 			: undefined,
 		currentPage: vm.currentPage,
+		keepOfferHtml: renderReadlistKeepOffer(toReadlistKeepOfferDisplayModel(options.keepOffer)),
 		subscriptionHtml: side.subscriptionHtml,
 		onboardingHtml: side.onboardingHtml,
 		readlistRenamesHtml: panels.renames,

@@ -508,6 +508,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 		FOUNDING_MEMBER_LIMIT: config.require("foundingMemberLimit"),
+		STRIPE_KEEP_OFFER_COUPON_ID: config.require("stripeKeepOfferCouponId"),
 	},
 	policies: [
 		...dynamodb.policies,

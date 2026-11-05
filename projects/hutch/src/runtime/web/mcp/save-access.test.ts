@@ -10,7 +10,7 @@ function findUser(
 	user: { emailVerified: boolean; registeredAt?: string } | null,
 ): FindUserById {
 	return async () =>
-		user ? { userId, email: "user@example.com", displayName: undefined, signupOAuthClientId: null, ...user } : null;
+		user ? { userId, email: "user@example.com", displayName: undefined, signupOAuthClientId: null, activationThresholdReachedAt: undefined, keepOfferDismissedAt: undefined, earlyIntentionalSaves: 0, ...user } : null;
 }
 
 describe("initResolveSaveAccess", () => {

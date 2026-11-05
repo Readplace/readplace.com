@@ -52,6 +52,8 @@ import type {
 	MarkSessionEmailVerified,
 	ObserveSession,
 	SaveAppleRefreshToken,
+	MarkActivationThresholdReached,
+	SetKeepOfferDismissed,
 	SetQueueDigestOptOut,
 	SetSessionReadlistFilter,
 	SetUserAppearance,
@@ -91,6 +93,8 @@ const UserRow = z.object({
 	signupOAuthClientId: dynamoField(OAuthClientIdSchema),
 	queueDigestOptOutAt: dynamoField(z.string()),
 	earlyIntentionalSaves: dynamoField(z.number()),
+	activationThresholdReachedAt: dynamoField(z.string()),
+	keepOfferDismissedAt: dynamoField(z.string()),
 });
 
 const EARLY_INTENTIONAL_SAVE_WINDOW_MS = 72 * 3_600_000;
@@ -143,6 +147,8 @@ export function initDynamoDbAuth(deps: {
 	setUserAppearance: SetUserAppearance;
 	setUserDisplayName: SetUserDisplayName;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
+	markActivationThresholdReached: MarkActivationThresholdReached;
+	setKeepOfferDismissed: SetKeepOfferDismissed;
 } {
 	const users = defineDynamoTable({
 		client: deps.client,
@@ -591,6 +597,9 @@ export function initDynamoDbAuth(deps: {
 			displayName: row.displayName,
 			signupOAuthClientId: row.signupOAuthClientId ?? null,
 			deletedAt: row.deletedAt,
+			activationThresholdReachedAt: row.activationThresholdReachedAt,
+			keepOfferDismissedAt: row.keepOfferDismissedAt,
+			earlyIntentionalSaves: row.earlyIntentionalSaves ?? 0,
 		};
 	};
 
@@ -691,6 +700,28 @@ export function initDynamoDbAuth(deps: {
 		});
 	};
 
+	const markActivationThresholdReached: MarkActivationThresholdReached = async ({ userId, at }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET activationThresholdReachedAt = :at",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":at": at.toISOString() },
+		});
+	};
+
+	const setKeepOfferDismissed: SetKeepOfferDismissed = async ({ userId, dismissedAt }) => {
+		const email = await findEmailByUserId(userId);
+		if (email === null) return;
+		await users.update({
+			Key: { email },
+			UpdateExpression: "SET keepOfferDismissedAt = :dismissedAt",
+			ConditionExpression: "attribute_exists(email)",
+			ExpressionAttributeValues: { ":dismissedAt": dismissedAt.toISOString() },
+		});
+	};
+
 	const updatePassword: UpdatePassword = async ({ email, password, updatedAt }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const passwordHash = await hashPassword(password);
@@ -735,6 +766,8 @@ export function initDynamoDbAuth(deps: {
 		setUserAppearance,
 		setUserDisplayName,
 		setQueueDigestOptOut,
+		markActivationThresholdReached,
+		setKeepOfferDismissed,
 	};
 }
 /* c8 ignore stop */

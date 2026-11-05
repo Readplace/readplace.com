@@ -2,6 +2,7 @@
 import assert from "node:assert";
 import { randomInt } from "node:crypto";
 import type { Express } from "express";
+import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import type { Logger } from "./domain/logger";
 import { hashPassword } from "@packages/domain/user";
 import { validateSaveableUrl } from "@packages/domain/article";
@@ -43,6 +44,8 @@ type AssemblyProvidedKeys =
 	| "analytics"
 	| "authDiagnosticsLogger"
 	| "salt"
+	| "keepOfferCouponId"
+	| "keepOfferEndsAt"
 	| "foundingAllocation"
 	| "newsletterCatalogSeed";
 export type ReadplaceProviders = Omit<Parameters<typeof createApp>[0], AssemblyProvidedKeys>;
@@ -71,7 +74,11 @@ export function assembleReadplaceApp(input: {
 	const salt = requireEnv("ANALYTICS_SALT");
 	const analyticsLogger = HutchLogger.fromJSON<AnalyticsEvent>();
 
+	const keepOfferCouponId = requireEnv("STRIPE_KEEP_OFFER_COUPON_ID");
+
 	const app = createApp({
+		keepOfferCouponId,
+		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
 		validateSaveableUrl: withUnwrapPreprocessing(
 			validateSaveableUrl,
 			unwrappedPreProcessors(readplaceUnwrapPreprocessor),

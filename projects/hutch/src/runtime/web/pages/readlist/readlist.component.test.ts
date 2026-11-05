@@ -98,6 +98,7 @@ function pageOptions(overrides: Partial<ReadlistPageOptions> = {}): ReadlistPage
 	return {
 		cspNonce: generateCspNonce(),
 		deviceClass: "desktop",
+		keepOffer: { shown: false, reason: "not-trial" },
 		readlistHoldsArticles: false,
 		tabHoldsRows: false,
 		rail: RAIL,

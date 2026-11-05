@@ -396,6 +396,72 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("markActivationThresholdReached", () => {
+		it("stores the crossing instant conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).markActivationThresholdReached({
+				userId: USER,
+				at: new Date("2026-12-08T10:00:00.000Z"),
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET activationThresholdReachedAt = :at",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":at": "2026-12-08T10:00:00.000Z" },
+			});
+		});
+
+		it("no-ops when the user row is already gone", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).markActivationThresholdReached({
+				userId: USER,
+				at: new Date("2026-12-08T10:00:00.000Z"),
+			});
+
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
+	});
+
+	describe("setKeepOfferDismissed", () => {
+		it("stores the dismissal instant conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { email: "user@example.com", userId: "abc123" },
+			});
+
+			await initAuth(client).setKeepOfferDismissed({
+				userId: USER,
+				dismissedAt: new Date("2026-12-09T10:00:00.000Z"),
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toStrictEqual({
+				TableName: "users",
+				Key: { email: "user@example.com" },
+				UpdateExpression: "SET keepOfferDismissedAt = :dismissedAt",
+				ConditionExpression: "attribute_exists(email)",
+				ExpressionAttributeValues: { ":dismissedAt": "2026-12-09T10:00:00.000Z" },
+			});
+		});
+
+		it("no-ops when the user row is already gone", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).setKeepOfferDismissed({
+				userId: USER,
+				dismissedAt: new Date("2026-12-09T10:00:00.000Z"),
+			});
+
+			expect(commands.map((c) => c.name)).toEqual(["QueryCommand"]);
+		});
+	});
+
 	describe("setUserDisplayName", () => {
 		it("sets the display name conditionally on the user's row, so a deleted account cannot be resurrected", async () => {
 			const { client, commands } = createQueryFakeClient({
@@ -541,8 +607,31 @@ describe("initDynamoDbAuth", () => {
 				emailVerified: true,
 				registeredAt: "2026-04-20T00:00:00.000Z",
 				signupOAuthClientId: null,
+				earlyIntentionalSaves: 0,
 			});
 			expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
+		});
+
+		it("carries the keep-offer state the row holds", async () => {
+			const { client } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					registeredAt: "2026-04-20T00:00:00.000Z",
+					activationThresholdReachedAt: "2026-04-21T00:00:00.000Z",
+					keepOfferDismissedAt: "2026-04-22T00:00:00.000Z",
+					earlyIntentionalSaves: 3,
+				},
+			});
+
+			const user = await initAuth(client).findUserById(USER);
+
+			expect(user).toMatchObject({
+				activationThresholdReachedAt: "2026-04-21T00:00:00.000Z",
+				keepOfferDismissedAt: "2026-04-22T00:00:00.000Z",
+				earlyIntentionalSaves: 3,
+			});
 		});
 
 		it("returns the OAuth client the user signed up through", async () => {
@@ -606,6 +695,7 @@ describe("initDynamoDbAuth", () => {
 				registeredAt: "2026-04-20T00:00:00.000Z",
 				displayName: "James Davis",
 				signupOAuthClientId: null,
+				earlyIntentionalSaves: 0,
 			});
 		});
 	});

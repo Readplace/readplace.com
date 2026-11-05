@@ -31,7 +31,7 @@ import type {
 import type { ReaderProvenance } from "../../shared/article-body/article-header/provenance-label";
 import type { UserId } from "@packages/domain/user";
 import { SaveAttemptIdSchema, newSaveAttemptId, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_UPLOAD_REQUEST_BYTES, ArticleStatusSchema } from "@packages/domain/article";
-import { buildSaveIntentEvent, classifyDeviceClass, classifyOsFamily, hashIp, isBotUserAgent, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
+import { buildKeepOfferShownEvent, buildSaveIntentEvent, KEEP_OFFER_SURFACES, classifyDeviceClass, classifyOsFamily, hashIp, isBotUserAgent, tagPageviewSortOrder, type AnalyticsEvent, type RecordAudienceEvent, type RecordUngatedEvent } from "@packages/web-analytics";
 import { viewerOf } from "@packages/viewer-identity";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import { appClientOf, saveClientOf } from "../../shared/save-client";
@@ -107,6 +107,7 @@ import type {
 	FindSessionReadlistFilter,
 	FindUserById,
 	SetSessionReadlistFilter,
+	SetKeepOfferDismissed,
 } from "@packages/provider-contracts/auth";
 import type {
 	ArticleCrawl,
@@ -329,6 +330,7 @@ import type {
 import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
 import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
+import type { initKeepOffer } from "../../../domain/engagement/keep-offer";
 
 /** Client devices dismiss the version of their applicable checklist. Accounts
  * eligible for Gmail include it in that version; other accounts retain their
@@ -561,6 +563,8 @@ interface ReadlistDependencies {
 	recordUngatedAnalyticsEvent: RecordUngatedEvent<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
+	keepOffer: ReturnType<typeof initKeepOffer>;
+	setKeepOfferDismissed: SetKeepOfferDismissed;
 }
 
 import type { ArticleDiscoveryQuery, ReadlistFilter, SavedArticle, ShownSummary } from "@packages/domain/article";
@@ -1899,7 +1903,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 	): Promise<void> => {
 		const effectiveAccessPromise = deps.getEffectiveAccess(input.userId);
 		const urls = input.result.articles.map((article) => article.url);
-		const [loadedSummaryByUrl, loadedCrawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl, readerProvenances] =
+		const [loadedSummaryByUrl, loadedCrawlByUrl, effectiveAccess, readlistHoldsArticles, tabHoldsRows, signals, nonEmptyReadlists, savesByUrl, readerProvenances, keepOffer] =
 			await Promise.all([
 				loadSummaries(deps.findGeneratedSummaries, input.result.articles, viewerFor(input.userId), deps.logError),
 				loadCrawls(deps.findArticleCrawlStatuses, input.result.articles, deps.logError),
@@ -1918,6 +1922,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				findNonEmptyReadlists({ userId: input.userId, readlists: input.context.readlists }),
 				savesAcrossReadlists({ userId: input.userId, context: input.context, urls }),
 				deps.resolveReaderProvenances(input.result.articles.map((article) => article.provenance)),
+				deps.keepOffer.eligibility(input.userId),
 			]);
 		const { crawlByUrl, summaryByUrl } = await resolveListedOnView(req, {
 			userId: input.userId,
@@ -1960,7 +1965,16 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
 		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, accessIsReadOnly: vm.accessIsReadOnly, offer: upgradeOffer, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
-		const page = ReadlistPage(vm, { ...pageOptions, query: req.query });
+		const page = ReadlistPage(vm, { ...pageOptions, keepOffer, query: req.query });
+		if (keepOffer.shown) {
+			deps.recordAnalyticsEvent(
+				req,
+				buildKeepOfferShownEvent(
+					{ now: deps.now, salt: deps.salt },
+					{ req, userId: input.userId, surface: KEEP_OFFER_SURFACES.readlistPanel, trialDay: keepOffer.trialDay },
+				),
+			);
+		}
 		res.vary("Cookie");
 		sendComponent(
 			req, res,
@@ -2226,6 +2240,12 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		res.cookie(DISMISS_COOKIE_NAME, version, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		const context = requestReadlistContext(req);
 		res.redirect(303, buildReadlistUrl(context.state));
+	});
+
+	router.post("/keep-offer/dismiss", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		await deps.setKeepOfferDismissed({ userId: req.userId, dismissedAt: deps.now() });
+		res.redirect(303, READLIST_PATH);
 	});
 
 	router.post("/onboarding/email/done", async (req: Request, res: Response) => {

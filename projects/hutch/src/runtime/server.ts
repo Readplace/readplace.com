@@ -1,4 +1,5 @@
 import type { RequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
+import { initKeepOffer } from "./domain/engagement/keep-offer";
 import { initRecordPersonalSaves } from "./domain/engagement/record-personal-saves";
 import type { ActivationThresholdReachedEvent } from "./observability/funnel-events";
 import { initEmitLifecycleEmailSent, type LifecycleEmailSentEvent } from "./observability/lifecycle-email-events";
@@ -41,6 +42,8 @@ import type {
 	FindSessionOAuthGrant,
 	SetSessionReadlistFilter,
 	SaveAppleRefreshToken,
+	MarkActivationThresholdReached,
+	SetKeepOfferDismissed,
 	SetQueueDigestOptOut,
 	SetUserAppearance,
 	SetUserDisplayName,
@@ -419,6 +422,10 @@ interface AppDependencies {
 	findSessionOAuthGrant: FindSessionOAuthGrant;
 	findUserById: FindUserById;
 	countEarlyIntentionalSave: CountEarlyIntentionalSave;
+	markActivationThresholdReached: MarkActivationThresholdReached;
+	setKeepOfferDismissed: SetKeepOfferDismissed;
+	keepOfferCouponId: string;
+	keepOfferEndsAt: Date;
 	findUserPasswordStatus: FindUserPasswordStatus;
 	setUserAppearance: SetUserAppearance;
 	setQueueDigestOptOut: SetQueueDigestOptOut;
@@ -1533,7 +1540,11 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	const readerProvenanceNewsletters = initCatalogNewsletterDetector({ readCatalog: deps.readNewsletterCatalog });
 
+	const keepOffer = initKeepOffer({ findUserById: deps.findUserById, getEffectiveAccess, now: deps.now, endsAt: deps.keepOfferEndsAt });
+
 	const queueRouter = initReadlistRoutes({
+		keepOffer,
+		setKeepOfferDismissed: deps.setKeepOfferDismissed,
 		setSessionReadlistFilter: deps.setSessionReadlistFilter,
 		findSessionReadlistFilter: deps.findSessionReadlistFilter,
 		validateSaveableUrl: deps.validateSaveableUrl,
@@ -1885,6 +1896,9 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	const accountRouter = initAccountRoutes({
+		keepOffer,
+		keepOfferCouponId: deps.keepOfferCouponId,
+		salt: deps.salt,
 		getEffectiveAccess,
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
 		upsertActiveSubscription: deps.subscriptionProviders.upsertActive,

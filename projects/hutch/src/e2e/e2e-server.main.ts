@@ -427,7 +427,7 @@ const { app: readplaceApp, auth, email } = createTestApp({
 		logError,
 		now: fixture.shared.now,
 	},
-})
+}, { keepOfferEndsAt: new Date('2099-01-01T00:00:00.000Z') })
 
 const server = express().use(images.router)
 
@@ -1263,6 +1263,20 @@ server.post('/e2e/seed-subscription-state', async (req, res) => {
 	if (invoices !== undefined) {
 		fixture.subscriptionBilling.seedInvoices({ customerId, invoices: e2eInvoices(invoices) })
 	}
+	res.status(201).json({ ok: true })
+})
+
+const SeedKeepOfferBody = z.object({
+	userId: UserIdSchema,
+	saves: z.number().int().positive(),
+})
+server.post('/e2e/seed-keep-offer', async (req, res) => {
+	const { userId, saves } = SeedKeepOfferBody.parse(req.body)
+	const at = fixture.shared.now()
+	for (let save = 0; save < saves; save += 1) {
+		await auth.countEarlyIntentionalSave({ userId, at })
+	}
+	await auth.markActivationThresholdReached({ userId, at })
 	res.status(201).json({ ok: true })
 })
 

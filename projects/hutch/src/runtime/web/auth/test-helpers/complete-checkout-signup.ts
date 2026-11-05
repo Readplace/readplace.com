@@ -17,6 +17,7 @@ interface HostedCheckoutLike {
 		priceId: string;
 		successUrl: string;
 		cancelUrl: string;
+		coupon: string | null;
 	}) => Promise<{ id: CheckoutSessionId; url: string }>;
 	markPaid: (id: CheckoutSessionId) => void;
 }
@@ -59,6 +60,7 @@ export async function completeCheckoutSignup(params: {
 		priceId: `price_test_${params.plan ?? "yearly"}`,
 		successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 		cancelUrl: "http://localhost:3000/signup",
+		coupon: null,
 	});
 	await params.pendingSignup.storePendingSignup({
 		checkoutSessionId: checkout.id,

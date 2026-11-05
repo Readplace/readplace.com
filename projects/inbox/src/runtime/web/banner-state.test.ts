@@ -165,6 +165,9 @@ describe("initBuildBannerState (signed-in user)", () => {
 				emailVerified: true,
 				displayName: DisplayNameSchema.parse("James Davis"),
 				signupOAuthClientId: null,
+				activationThresholdReachedAt: undefined,
+				keepOfferDismissedAt: undefined,
+				earlyIntentionalSaves: 0,
 			}),
 		});
 
@@ -186,6 +189,9 @@ describe("initBuildBannerState (signed-in appearance)", () => {
 				appearance: "dark",
 				displayName: undefined,
 				signupOAuthClientId: null,
+				activationThresholdReachedAt: undefined,
+				keepOfferDismissedAt: undefined,
+				earlyIntentionalSaves: 0,
 			}),
 		});
 

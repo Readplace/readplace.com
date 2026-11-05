@@ -114,6 +114,9 @@ export type FindUserByIdResult =
 			displayName: DisplayName | undefined;
 			signupOAuthClientId: OAuthClientId | null;
 			deletedAt?: string;
+			activationThresholdReachedAt: string | undefined;
+			keepOfferDismissedAt: string | undefined;
+			earlyIntentionalSaves: number;
 		}
 	| null;
 
@@ -133,6 +136,10 @@ export type SetQueueDigestOptOut = (input: {
 	userId: UserId;
 	optedOutAt: string | undefined;
 }) => Promise<void>;
+
+export type MarkActivationThresholdReached = (input: { userId: UserId; at: Date }) => Promise<void>;
+
+export type SetKeepOfferDismissed = (input: { userId: UserId; dismissedAt: Date }) => Promise<void>;
 
 export type SetUserDisplayName = (input: {
 	userId: UserId;

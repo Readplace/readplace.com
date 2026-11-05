@@ -1,4 +1,5 @@
 import { initRequestResolutionOnView } from "./domain/resolve-on-view/request-resolution-on-view";
+import { KEEP_OFFER_ENDS_AT } from "./domain/engagement/keep-offer";
 import express, { type Express } from "express";
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initRefreshWithSaveIdentity, initResolveCanonicalIdentity, initResolveSaveIdentity, neverResolveWrapperTarget, type ResolveSaveIdentity } from "@packages/save-article";
@@ -80,6 +81,7 @@ export type {
 } from "@packages/web-test-harness";
 
 export const TEST_EDGE_SECRET = "test-edge-secret";
+export const TEST_KEEP_OFFER_COUPON_ID = "coupon_test_keep_offer";
 export { loginAgent } from "@packages/web-test-harness";
 export { TEST_APP_ORIGIN } from "@packages/test-fixtures";
 import { BROWSER_USER_AGENT } from "@packages/web-test-harness";
@@ -89,6 +91,7 @@ interface TestAppOverrides {
 	getSessionUserId?: GetSessionUserId;
 	resolveCanonicalIdentity?: (url: string) => Promise<string>;
 	fetchFirefoxDownloadUrl?: FetchFirefoxDownloadUrl;
+	keepOfferEndsAt?: Date;
 }
 
 export const TEST_FIREFOX_XPI_FILENAME = "abc123-1.0.0.xpi";
@@ -186,6 +189,8 @@ function flattenFixtureToAppDependencies(
 		markAccountDeleted: fixture.auth.markAccountDeleted,
 		countUsers: fixture.auth.countUsers,
 		countEarlyIntentionalSave: fixture.auth.countEarlyIntentionalSave,
+		markActivationThresholdReached: fixture.auth.markActivationThresholdReached,
+		setKeepOfferDismissed: fixture.auth.setKeepOfferDismissed,
 		markEmailVerified: fixture.auth.markEmailVerified,
 		markSessionEmailVerified: fixture.auth.markSessionEmailVerified,
 		setSessionReadlistFilter: fixture.auth.setSessionReadlistFilter,
@@ -400,6 +405,8 @@ function flattenFixtureToAppDependencies(
 		analytics: analyticsBundle.logger,
 		authDiagnosticsLogger: noopLogger,
 		salt: "test-analytics-salt",
+		keepOfferCouponId: TEST_KEEP_OFFER_COUPON_ID,
+		keepOfferEndsAt: KEEP_OFFER_ENDS_AT,
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
 		}),
