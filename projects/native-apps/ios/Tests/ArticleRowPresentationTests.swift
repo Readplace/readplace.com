@@ -63,4 +63,88 @@ final class ArticleRowPresentationTests: XCTestCase {
 		)
 		XCTAssertEqual(ArticleRowPresentation.offlineBadgeLabel, "Saved offline")
 	}
+
+	private let received = Date(timeIntervalSince1970: 1_000)
+
+	private func processing(_ estimate: CrawlEstimate?, label: String = "Processing") -> ArticleProcessing {
+		ArticleProcessing(label: label, estimate: estimate, refreshHref: "/card?poll=1", refreshAfterSeconds: 3)
+	}
+
+	private func presentation(_ estimate: CrawlEstimate?, receivedAt: Date? = nil) -> ArticleRowPresentation {
+		ArticleRowPresentation(
+			isRead: false, readTimeLabel: "~6 min read", savedLabel: "3d ago", isAvailableOffline: false,
+			processing: processing(estimate), processingReceivedAt: receivedAt ?? received
+		)
+	}
+
+	private func later(_ seconds: TimeInterval) -> Date {
+		received.addingTimeInterval(seconds)
+	}
+
+	func testARowInProcessingHidesItsMetaAndShowsTheServerLabelVerbatim() {
+		let row = ArticleRowPresentation(
+			isRead: false, readTimeLabel: "~6 min read", savedLabel: "3d ago", isAvailableOffline: false,
+			processing: processing(nil, label: "Preparing your book…")
+		)
+
+		XCTAssertNil(row.metaText)
+		XCTAssertEqual(row.processingLabel, "Preparing your book…")
+	}
+
+	func testARowNotInProcessingHasNoLabelAndNoEstimate() {
+		let row = ArticleRowPresentation(isRead: false, readTimeLabel: "~6 min read", savedLabel: nil, isAvailableOffline: false)
+
+		XCTAssertEqual(row.metaText, "~6 min read")
+		XCTAssertNil(row.processingLabel)
+		XCTAssertNil(row.estimateText(now: received))
+	}
+
+	func testAQuietEstimateStaysSilentUntilItsRevealThenCountsFromReceipt() {
+		let row = presentation(.quiet(revealInSeconds: 5, seconds: 150))
+
+		XCTAssertNil(row.estimateText(now: later(4.9)))
+		XCTAssertEqual(row.estimateText(now: later(5)), "~145 s left")
+	}
+
+	func testACountingEstimateSubtractsWholeElapsedSeconds() {
+		let row = presentation(.counting(seconds: 121))
+
+		XCTAssertEqual(row.estimateText(now: received), "~121 s left")
+		XCTAssertEqual(row.estimateText(now: later(1.9)), "~120 s left")
+	}
+
+	func testAClockBehindTheReceiptCountsAsNoElapsedTime() {
+		XCTAssertEqual(presentation(.counting(seconds: 10)).estimateText(now: later(-30)), "~10 s left")
+	}
+
+	func testACountThatReachesZeroReadsAlmostThere() {
+		let row = presentation(.counting(seconds: 3))
+
+		XCTAssertEqual(row.estimateText(now: later(2)), "~1 s left")
+		XCTAssertEqual(row.estimateText(now: later(3)), "Almost there…")
+		XCTAssertEqual(row.estimateText(now: later(40)), "Almost there…")
+	}
+
+	func testTheAlmostThereKindReadsAlmostThereFromTheStart() {
+		XCTAssertEqual(presentation(.almostThere).estimateText(now: received), "Almost there…")
+	}
+
+	func testNoEstimateOrNoReceiptShowsNothing() {
+		let noEstimate = presentation(nil)
+		let noReceipt = ArticleRowPresentation(
+			isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: false,
+			processing: processing(.counting(seconds: 10))
+		)
+
+		XCTAssertNil(noEstimate.estimateText(now: received))
+		XCTAssertNil(noReceipt.estimateText(now: received))
+	}
+
+	func testTheNoticeIsCarriedVerbatim() {
+		let row = ArticleRowPresentation(
+			isRead: false, readTimeLabel: nil, savedLabel: nil, isAvailableOffline: false, notice: "This is taking a while."
+		)
+
+		XCTAssertEqual(row.noticeText, "This is taking a while.")
+	}
 }

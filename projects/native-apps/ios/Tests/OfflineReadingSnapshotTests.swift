@@ -140,7 +140,9 @@ final class OfflineReadingSnapshotTests: XCTestCase {
 			contentVersion: "v1",
 			actions: [],
 			links: [],
-			readHref: "/queue/\(id)/view"
+			readHref: "/queue/\(id)/view",
+			processing: nil,
+			notice: nil
 		)
 	}
 
@@ -150,7 +152,8 @@ final class OfflineReadingSnapshotTests: XCTestCase {
 				ArticleRow(
 					article: article,
 					edge: ListingPanelEdge(of: article, in: articles),
-					isAvailableOffline: offline.contains(article.id)
+					isAvailableOffline: offline.contains(article.id),
+					processingReceivedAt: nil
 				)
 			}
 		}

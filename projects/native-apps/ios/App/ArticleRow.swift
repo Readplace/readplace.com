@@ -4,6 +4,7 @@ struct ArticleRow: View {
 	let article: Article
 	let edge: ListingPanelEdge
 	let isAvailableOffline: Bool
+	let processingReceivedAt: Date?
 	@ScaledMetric(relativeTo: .caption) private var dotSize: CGFloat = 8
 
 	var body: some View {
@@ -11,7 +12,10 @@ struct ArticleRow: View {
 			isRead: article.isRead,
 			readTimeLabel: article.readTimeLabel,
 			savedLabel: article.savedAt.map { Self.relative.localizedString(for: $0, relativeTo: Date()) },
-			isAvailableOffline: isAvailableOffline
+			isAvailableOffline: isAvailableOffline,
+			processing: article.processing,
+			processingReceivedAt: processingReceivedAt,
+			notice: article.notice
 		)
 		VStack(alignment: .leading, spacing: 8) {
 			HStack(spacing: 8) {
@@ -22,6 +26,23 @@ struct ArticleRow: View {
 						.font(.caption)
 						.foregroundStyle(Color.brandTextSecondary)
 						.lineLimit(1)
+				}
+
+				if let processingLabel = presentation.processingLabel {
+					ProgressView()
+						.controlSize(.mini)
+					Text(processingLabel)
+						.font(.caption)
+						.foregroundStyle(Color.brandTextSecondary)
+						.lineLimit(1)
+					TimelineView(.periodic(from: .now, by: 1)) { context in
+						if let estimateText = presentation.estimateText(now: context.date) {
+							Text(estimateText)
+								.font(.caption)
+								.foregroundStyle(Color.brandTextSecondary)
+								.lineLimit(1)
+						}
+					}
 				}
 
 				if presentation.showsOfflineBadge {
@@ -46,6 +67,13 @@ struct ArticleRow: View {
 						.font(.subheadline.weight(.bold))
 						.foregroundStyle(presentation.titleColor)
 						.lineLimit(2)
+
+					if let noticeText = presentation.noticeText {
+						Text(noticeText)
+							.font(.caption)
+							.foregroundStyle(Color.brandTextSecondary)
+							.lineLimit(1)
+					}
 
 					if let excerpt = article.excerpt, !excerpt.isEmpty {
 						Text(excerpt)

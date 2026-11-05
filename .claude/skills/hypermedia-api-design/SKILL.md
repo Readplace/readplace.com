@@ -48,6 +48,7 @@ Why 303 over the entry point: the server decides where the collection lives; ren
 | Field semantics for those names (`url`, `status`, `label`, `readlists`) | Pagination / sort / filter links (`next`, `prev`, `self`) |
 | Link `rel`s it supports (`self`, `read`) | Entity URLs for reading or status changes |
 | Markdown media type (`text/markdown`) and the frontmatter keys it reads, for a client that uses an article's Markdown | Where that Markdown lives: the article's `read` link `href` |
+| The article's `processing` property and its keys, for a client that shows background work | Whether an item is in flight, its label and estimate, and where and when to fetch its next representation |
 
 Anything in the right column that the client hard-codes is a future breaking change waiting to happen.
 
@@ -83,7 +84,7 @@ Renaming an action is a breaking change — both sides must ship together. Renam
 
 When a breaking change is necessary, add the new capability alongside the old one, wait for clients to migrate, then remove the old. Versioned URLs (`/v2/queue`) are banned — they are a symptom of an API that doesn't evolve via the message format.
 
-[Server-owned state](references/server-owned-state.md) — read when a client keeps state, fills a form, shows a server message, or shows pagination, infinite scroll, status tabs, readlists, a count or a sort.
+[Server-owned state](references/server-owned-state.md) — read when a client keeps state, fills a form, shows a server message, or shows pagination, infinite scroll, status tabs, readlists, a count, a sort or an item's background processing.
 
 ## Entity-Level vs Collection-Level Actions
 

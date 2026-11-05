@@ -1,22 +1,57 @@
 import assert from "node:assert";
 import Handlebars from "handlebars";
 import { parseCrawlFailureReason } from "@packages/article-state-types";
-import { displayableReadTime, type SavedArticle } from "@packages/domain/article";
+import { displayableReadTime, isPrivateItemUrl, type SavedArticle } from "@packages/domain/article";
 import { DEFAULT_READLIST_SLUG, READLIST_MAX_PER_USER } from "@packages/domain/readlist";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
+import { MAX_POLLS, POLL_INTERVAL_SECONDS } from "@packages/web-shell";
 import { computeArticleContentVersion } from "../shared/article-content-version";
 import type { SirenEntity, SirenLink, SirenMessage, SirenSubEntity } from "./siren";
 import { type CollectionQueryParams, type ReadlistQueryKey, buildQueryString } from "./collection-query";
 import type { ReadlistOption } from "./readlist-list";
 import { readlistHref } from "./readlist-href";
 import type { AddToReadlistOffer } from "../pages/readlist/add-to-readlist-offer";
+import { cardKindOf } from "../pages/readlist/readlist-card/card-kind-label";
+import { type CardPhase, cardProcessingOf } from "../pages/readlist/readlist-card/card-processing";
+import { staleNoticeHtml } from "../pages/readlist/readlist-card/stale-notice";
 
 function needsBrowserCapture(crawl: ArticleCrawl | undefined): boolean {
 	if (crawl?.status !== "failed") return false;
 	const reason = parseCrawlFailureReason(crawl.reason);
 	if (reason?.kind !== "blocked") return false;
 	return reason.cause === "edge-block" || reason.cause === "rate-limited";
+}
+
+function itemMessages(params: { article: SavedArticle; phase: CardPhase }): SirenMessage[] {
+	const { article, phase } = params;
+	const stale: SirenMessage[] =
+		phase.kind === "stale"
+			? [
+					{
+						type: "warning",
+						content: {
+							type: "text/html",
+							body: staleNoticeHtml({
+								url: article.destinationUrl,
+								siteName: article.metadata.siteName,
+								hasOrigin: !isPrivateItemUrl(article.url),
+								kindNoun: cardKindOf(article)?.kind.noun,
+							}),
+						},
+					},
+				]
+			: [];
+	const upload: SirenMessage[] =
+		article.processingNotice === undefined
+			? []
+			: [
+					{
+						type: "warning",
+						content: { type: "text/html", body: Handlebars.Utils.escapeExpression(article.processingNotice) },
+					},
+				];
+	return [...stale, ...upload];
 }
 
 export function toArticleSubEntity(
@@ -26,6 +61,8 @@ export function toArticleSubEntity(
 		crawl?: ArticleCrawl;
 		summary?: GeneratedSummary;
 		collectionQuery?: CollectionQueryParams;
+		now: Date;
+		pollCount?: number;
 	},
 ): SirenSubEntity {
 	const id = article.id.value;
@@ -38,6 +75,15 @@ export function toArticleSubEntity(
 	const readTime = displayableReadTime(article);
 	const hrefQuery = options.collectionQuery ? buildQueryString(options.collectionQuery) : "";
 	const ownReadlist = options.collectionQuery?.readlist === DEFAULT_READLIST_SLUG ? undefined : options.collectionQuery?.readlist;
+	const { label, phase } = cardProcessingOf({
+		article,
+		crawl: options.crawl,
+		summary: options.summary,
+		now: options.now,
+		pollCount: options.pollCount ?? 1,
+		maxPolls: MAX_POLLS,
+	});
+	const messages = itemMessages({ article, phase });
 
 	return {
 		class: ["article"],
@@ -67,6 +113,19 @@ export function toArticleSubEntity(
 				crawl: options.crawl,
 				summary: options.summary,
 			}),
+			...(phase.kind === "processing"
+				? {
+						processing: {
+							label,
+							...(phase.estimate === undefined ? {} : { estimate: phase.estimate }),
+							refresh: {
+								href: `/queue/${id}/card${hrefQuery}${hrefQuery === "" ? "?" : "&"}poll=${phase.pollCursor}`,
+								afterSeconds: POLL_INTERVAL_SECONDS,
+							},
+						},
+					}
+				: {}),
+			...(messages.length === 0 ? {} : { messages }),
 		},
 		links,
 		actions: [
@@ -103,8 +162,8 @@ export function toArticleSubEntity(
 	};
 }
 
-export function toArticleEntity(article: SavedArticle): SirenEntity {
-	const { rel: _rel, ...entity } = toArticleSubEntity(article, { addToReadlist: "advertised" });
+export function toArticleEntity(article: SavedArticle, options: { now: Date }): SirenEntity {
+	const { rel: _rel, ...entity } = toArticleSubEntity(article, { addToReadlist: "advertised", now: options.now });
 	return entity;
 }
 
@@ -140,10 +199,11 @@ export function toSavedArticleEntity(params: {
 	resurfacedFromRead: boolean;
 	destination: SaveDestination;
 	readlistKey: ReadlistQueryKey;
+	now: Date;
 }): SirenEntity {
 	const [collectionReadlist] = params.destination.filedInto;
 	assert(collectionReadlist, "a save always lands in at least one readlist");
-	const entity = toArticleEntity(params.article);
+	const entity = toArticleEntity(params.article, { now: params.now });
 	const savedAfresh = params.createdUserArticle || params.resurfacedFromRead;
 	const messages: SirenMessage[] = savedAfresh
 		? [

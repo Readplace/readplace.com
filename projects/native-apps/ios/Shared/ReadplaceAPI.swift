@@ -420,6 +420,18 @@ final class ReadplaceAPI {
 		return SaveConfirmation(article: article, messages: messages)
 	}
 
+	func loadArticle(href: String) async throws -> Article {
+		var request = URLRequest(url: try absoluteURL(href))
+		request.httpMethod = "GET"
+		request.cachePolicy = .reloadIgnoringLocalCacheData
+		request.timeoutInterval = Self.listReadTimeout
+		let (data, http, _) = try await send(request)
+		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
+		let entity = try decodeSiren(SirenEntity.self, data: data, response: http)
+		guard let article = Article(entity: entity) else { throw APIError.decoding }
+		return article
+	}
+
 	func saveContent(action: SirenAction, form: MultipartForm) async throws {
 		try await saveContent(action: action, contentType: form.contentType, body: form.body)
 	}

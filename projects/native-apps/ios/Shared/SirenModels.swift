@@ -150,12 +150,13 @@ struct ArticleProperties: Decodable {
 	/// What the server asked the client to tell the reader about this response
 	/// (e.g. a save confirmation). Optional so an older server still decodes.
 	let messages: [ServerMessage]?
+	let processing: ProcessingProperty?
 }
 
 extension ArticleProperties {
 	private enum CodingKeys: String, CodingKey {
 		case id, url, title, siteName, excerpt, wordCount, imageUrl
-		case readTime, status, savedAt, readAt, isRead, contentVersion, messages
+		case readTime, status, savedAt, readAt, isRead, contentVersion, messages, processing
 	}
 
 	init(from decoder: Decoder) throws {
@@ -174,6 +175,54 @@ extension ArticleProperties {
 		isRead = try container.decodeIfPresent(Bool.self, forKey: .isRead)
 		contentVersion = try container.decodeIfPresent(String.self, forKey: .contentVersion)
 		messages = try container.decodeLossyArrayIfPresent(ServerMessage.self, forKey: .messages)
+		processing = try container.decodeLossyIfPresent(ProcessingProperty.self, forKey: .processing)
+	}
+}
+
+enum CrawlEstimate: Decodable, Hashable {
+	case quiet(revealInSeconds: Int, seconds: Int)
+	case counting(seconds: Int)
+	case almostThere
+
+	private enum CodingKeys: String, CodingKey { case kind, revealInSeconds, seconds }
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		switch try container.decode(String.self, forKey: .kind) {
+		case "quiet":
+			self = .quiet(
+				revealInSeconds: try container.decode(Int.self, forKey: .revealInSeconds),
+				seconds: try container.decode(Int.self, forKey: .seconds)
+			)
+		case "counting":
+			self = .counting(seconds: try container.decode(Int.self, forKey: .seconds))
+		case "almost-there":
+			self = .almostThere
+		default:
+			throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "unknown estimate kind")
+		}
+	}
+}
+
+struct ProcessingProperty: Decodable {
+	struct Refresh: Decodable {
+		let href: String
+		let afterSeconds: TimeInterval
+	}
+
+	let label: String
+	let estimate: CrawlEstimate?
+	let refresh: Refresh
+}
+
+extension ProcessingProperty {
+	private enum CodingKeys: String, CodingKey { case label, estimate, refresh }
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		label = try container.decode(String.self, forKey: .label)
+		estimate = try container.decodeLossyIfPresent(CrawlEstimate.self, forKey: .estimate)
+		refresh = try container.decode(Refresh.self, forKey: .refresh)
 	}
 }
 
@@ -405,6 +454,13 @@ struct SirenError: Decodable {
 
 // MARK: - Domain model for the UI
 
+struct ArticleProcessing: Hashable {
+	let label: String
+	let estimate: CrawlEstimate?
+	let refreshHref: String
+	let refreshAfterSeconds: TimeInterval
+}
+
 /// A saved article, flattened from a Siren entity for display and actions.
 struct Article: Identifiable, Hashable {
 	let id: String
@@ -432,9 +488,13 @@ struct Article: Identifiable, Hashable {
 	/// navigable `read` link (the row's primary tap target), distinct from the
 	/// action controls iterated above.
 	let readHref: String?
+	let processing: ArticleProcessing?
+	let notice: String?
 }
 
 extension Article {
+	var refreshHref: String? { processing?.refreshHref }
+
 	/// The item's action controls, one per advertised action the client can
 	/// invoke (an action with a usable href). Built by iterating — not by matching
 	/// a known name — so the loop renders whatever the server offered. The row also
@@ -466,6 +526,15 @@ extension Article {
 		actions = entity.actions ?? []
 		links = entity.links ?? []
 		readHref = links.first { $0.rel.contains("read") }?.href
+		processing = props.processing.map {
+			ArticleProcessing(
+				label: $0.label,
+				estimate: $0.estimate,
+				refreshHref: $0.refresh.href,
+				refreshAfterSeconds: $0.refresh.afterSeconds
+			)
+		}
+		notice = props.messages?.first { $0.isRenderable && ($0.type == "warning" || $0.type == "error") }?.plainText
 	}
 }
 

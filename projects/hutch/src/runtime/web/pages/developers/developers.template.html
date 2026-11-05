@@ -135,6 +135,7 @@ Location: COLLECTION_HREF</code></pre>
           <li class="developers__item"><code data-test-property>publishedOn</code>: the date the source published the article, as <code>YYYY-MM-DD</code>, or <code>null</code> when Readplace doesn't know it.</li>
           <li class="developers__item"><code data-test-property>needsBrowserCapture</code>: <code>true</code> when the site blocked Readplace's fetch, so a capture from the reader's browser through <code>save-content</code> would get the article.</li>
           <li class="developers__item"><code data-test-property>contentVersion</code>: changes when the article's content, metadata, crawl outcome or summary changes. Fetch the document again when it does.</li>
+          <li class="developers__item"><code data-test-property>processing</code>: present only while Readplace is still working on the article. <code>label</code> is display text, <code>estimate</code> is an optional time left, and <code>refresh</code> gives the <code>href</code> to fetch after <code>afterSeconds</code> for the article's next version. When the next version has no <code>processing</code>, the work has settled or Readplace has stopped waiting, and a <code>messages</code> warning may say why.</li>
         </ul>
         <p class="developers__text">Follow an article's <code>read</code> link with the token and the Markdown media type to get the article as a document:</p>
         <pre class="developers__code" data-test-sample="read"><code class="language-http">GET READ_HREF HTTP/1.1

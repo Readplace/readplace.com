@@ -36,6 +36,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -50,6 +51,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.IOException
 import java.net.URLDecoder
+import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -118,6 +120,8 @@ class ReadingListViewModelTest {
 		reportAutomaticCaptureFailure: (String) -> Unit = {},
 		drainUploadJobs: suspend () -> Unit = { throw AssertionError("no drain expected") },
 		onSessionExpired: () -> Unit = {},
+		now: () -> Instant = { Instant.EPOCH },
+		reportProcessingRefreshFailure: (String) -> Unit = {},
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 	): ReadingListViewModel =
 		ReadingListViewModel(
@@ -131,6 +135,8 @@ class ReadingListViewModelTest {
 			reportAutomaticCaptureFailure = reportAutomaticCaptureFailure,
 			drainUploadJobs = drainUploadJobs,
 			onSessionExpired = onSessionExpired,
+			now = now,
+			reportProcessingRefreshFailure = reportProcessingRefreshFailure,
 			scope = backgroundScope,
 		)
 
@@ -168,7 +174,7 @@ class ReadingListViewModelTest {
 		Article(
 			id = id, url = "https://example.com/x", title = "X", siteName = null, excerpt = null,
 			imageUrl = null, readTimeLabel = null, isRead = false, savedAt = null,
-			actions = emptyList(), links = emptyList(), readHref = readHref,
+			actions = emptyList(), links = emptyList(), readHref = readHref, processing = null, notice = null,
 		)
 
 	private val purgeAction = SirenAction(
@@ -4319,11 +4325,365 @@ class ReadingListViewModelTest {
 		assertEquals("/queue?status=read", viewModel.selectedTabHref)
 	}
 
+	private val Record.poll: String? get() = request.url.queryParameter("poll")
+
+	private fun cardPolls(id: String = "a1"): List<String?> = server.records("/queue/$id/card").map { it.poll }
+
+	private fun pendingRow(id: String = "a1", poll: Int = 1, afterSeconds: Int = 3, title: String = "A Title"): String =
+		Fixtures.article(id, title = title, processingJson = Fixtures.processing("/queue/$id/card?poll=$poll", afterSeconds))
+
+	private fun TestScope.advanceSeconds(seconds: Long) {
+		advanceTimeBy(seconds * 1_000)
+		runCurrent()
+	}
+
+	private fun oneRowCountingToReady(): (Record) -> Stub = { record ->
+		when (record.path) {
+			"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow())))
+			"/queue/a1/card" ->
+				if (record.poll == "1") {
+					Stub.json(200, pendingRow(poll = 2))
+				} else {
+					Stub.json(200, Fixtures.article("a1", title = "Ready"))
+				}
+			else -> Stub.json(404, "{}")
+		}
+	}
+
+	@Test
+	fun `a pending row is replaced by its polled representation`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow())))
+				"/queue/a1/card" -> Stub.json(200, Fixtures.article("a1", title = "Ready"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		assertEquals("precondition: the row is pending", "Processing", viewModel.state.value.articles[0].processing?.label)
+
+		advanceSeconds(3)
+
+		val row = viewModel.state.value.articles.single()
+		assertEquals("Ready", row.title)
+		assertNull(row.processing)
+		assertNull(viewModel.state.value.processingReceivedAt["a1"])
+	}
+
+	@Test
+	fun `a round waits the smallest advertised seconds before fetching every pending row`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow("a1", afterSeconds = 9), pendingRow("a2", afterSeconds = 7))))
+				"/queue/a1/card" -> Stub.json(200, Fixtures.article("a1"))
+				"/queue/a2/card" -> Stub.json(200, Fixtures.article("a2"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+
+		advanceSeconds(6)
+		assertTrue("nothing is fetched before the advertised wait", server.records("/queue/a2/card").isEmpty())
+
+		advanceSeconds(1)
+		assertEquals(1, server.records("/queue/a1/card").size)
+		assertEquals(1, server.records("/queue/a2/card").size)
+	}
+
+	@Test
+	fun `the loop follows each new href and ends when the server stops advertising one`() = runTest {
+		server.handle(oneRowCountingToReady())
+		val viewModel = viewModel()
+		viewModel.refresh()
+
+		advanceSeconds(3)
+		assertEquals(listOf<String?>("1"), cardPolls())
+		advanceSeconds(3)
+		assertEquals(listOf<String?>("1", "2"), cardPolls())
+		advanceSeconds(60)
+
+		assertEquals("a terminal answer ends the polling", listOf<String?>("1", "2"), cardPolls())
+		assertEquals(true, viewModel.processingRefresh?.isCompleted)
+	}
+
+	@Test
+	fun `a re-read restarts the row at the cursor the collection advertises`() = runTest {
+		server.handle(oneRowCountingToReady())
+		val viewModel = viewModel()
+		viewModel.refresh()
+		advanceSeconds(3)
+
+		viewModel.refresh()
+		advanceSeconds(3)
+
+		assertEquals(listOf<String?>("1", "1"), cardPolls())
+	}
+
+	@Test
+	fun `a failed poll keeps the row, stops polling it, and leaves its sibling polling`() = runTest {
+		val reports = mutableListOf<String>()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow("a1"), pendingRow("a2"))))
+				"/queue/a1/card" -> Stub.json(500, "{}")
+				"/queue/a2/card" -> if (record.poll == "1") Stub.json(200, pendingRow("a2", poll = 2)) else Stub.json(200, Fixtures.article("a2"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(reportProcessingRefreshFailure = { reports.add(it) })
+		viewModel.refresh()
+
+		advanceSeconds(3)
+		advanceSeconds(3)
+		advanceSeconds(30)
+
+		assertEquals("the failed href is not retried", listOf<String?>("1"), cardPolls("a1"))
+		assertEquals("the sibling keeps polling to its end", listOf<String?>("1", "2"), cardPolls("a2"))
+		assertEquals("Processing", viewModel.state.value.articles[0].processing?.label)
+		assertNull(viewModel.state.value.articles[1].processing)
+		assertEquals("only the error's type name is reported", listOf("Server"), reports)
+		assertNull(viewModel.state.value.errorText)
+		assertTrue(viewModel.state.value.messages.isEmpty())
+	}
+
+	@Test
+	fun `a polled entity with another id does not replace the row and stops that row's polling`() = runTest {
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow())))
+				"/queue/a1/card" -> Stub.json(200, Fixtures.article("other", title = "Other"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+
+		advanceSeconds(30)
+
+		assertEquals(listOf<String?>("1"), cardPolls())
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertEquals("A Title", viewModel.state.value.articles[0].title)
+	}
+
+	@Test
+	fun `leaving the foreground cancels the wait and no row is fetched`() = runTest {
+		server.handle(oneRowCountingToReady())
+		val viewModel = viewModel()
+		viewModel.refresh()
+		runCurrent()
+
+		viewModel.handleBackground()
+		advanceSeconds(60)
+
+		assertTrue(cardPolls().isEmpty())
+	}
+
+	@Test
+	fun `a collection adopted while in the background starts no polling`() = runTest {
+		server.handle(oneRowCountingToReady())
+		val viewModel = viewModel()
+
+		viewModel.handleBackground()
+		viewModel.refresh()
+		advanceSeconds(60)
+
+		assertEquals(listOf("a1"), viewModel.articleIds)
+		assertTrue(cardPolls().isEmpty())
+	}
+
+	@Test
+	fun `leaving the foreground drops an in-flight poll`() = runTest {
+		val gate = Gate()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow())))
+				"/queue/a1/card" -> gate.holding(Stub.json(200, Fixtures.article("a1", title = "Ready")))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val reports = mutableListOf<String>()
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO, reportProcessingRefreshFailure = { reports.add(it) })
+		viewModel.refresh()
+		advanceSeconds(3)
+		awaitArrival(gate)
+		val polling = checkNotNull(viewModel.processingRefresh)
+
+		viewModel.handleBackground()
+		gate.release()
+		polling.join()
+
+		assertEquals("A Title", viewModel.state.value.articles[0].title)
+		assertEquals("a cancelled fetch is not a failure", emptyList<String>(), reports)
+	}
+
+	@Test
+	fun `returning to the foreground resumes from the row's current href`() = runTest {
+		server.handle { record ->
+			when {
+				record.path == "/" ->
+					Stub.json(200, Fixtures.collection(listOf(pendingRow()), extraLinks = NEXT_LINK))
+				record.path == "/queue" && record.page == "2" ->
+					Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a2")), page = 2))
+				record.path == "/queue/a1/card" -> Stub.json(200, pendingRow(poll = 2))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel()
+		viewModel.refresh()
+		viewModel.loadMore()
+		advanceSeconds(3)
+		assertEquals("precondition: the row advanced to poll=2", listOf<String?>("1"), cardPolls())
+
+		viewModel.handleBackground()
+		advanceSeconds(30)
+		assertEquals("no poll while away", listOf<String?>("1"), cardPolls())
+
+		viewModel.handleForeground()
+		advanceSeconds(3)
+
+		assertEquals(listOf<String?>("1", "2"), cardPolls())
+	}
+
+	@Test
+	fun `a newer adoption is not clobbered by an in-flight poll`() = runTest {
+		val gate = Gate()
+		val reads = AtomicInteger()
+		server.handle { record ->
+			when (record.path) {
+				"/" ->
+					if (reads.incrementAndGet() == 1) {
+						Stub.json(200, Fixtures.collection(listOf(pendingRow())))
+					} else {
+						Stub.json(200, Fixtures.collection(listOf(Fixtures.article("a1", title = "Newer"))))
+					}
+				"/queue/a1/card" -> gate.holding(Stub.json(200, pendingRow(poll = 2, title = "Stale poll")))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO)
+		viewModel.refresh()
+		advanceSeconds(3)
+		awaitArrival(gate)
+		val polling = checkNotNull(viewModel.processingRefresh)
+
+		viewModel.refresh()
+		gate.release()
+		polling.join()
+
+		val row = viewModel.state.value.articles.single()
+		assertEquals("Newer", row.title)
+		assertNull(row.processing)
+	}
+
+	@Test
+	fun `a tab switch drops an in-flight poll and ends the loop`() = runTest {
+		val gate = Gate()
+		val reports = mutableListOf<String>()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow())))
+				"/queue/a1/card" -> gate.holding(Stub.json(500, "{}"))
+				else -> Stub.json(500, "{}")
+			}
+		}
+		val viewModel = viewModel(ioDispatcher = Dispatchers.IO, reportProcessingRefreshFailure = { reports.add(it) })
+		viewModel.refresh()
+		advanceSeconds(3)
+		awaitArrival(gate)
+		val polling = checkNotNull(viewModel.processingRefresh)
+
+		viewModel.selectTab("/queue?status=read")
+		gate.release()
+		polling.join()
+
+		assertTrue(viewModel.articleIds.isEmpty())
+		assertTrue(viewModel.state.value.processingReceivedAt.isEmpty())
+		assertEquals("the old context's answer is not reported", emptyList<String>(), reports)
+		assertEquals(listOf<String?>("1"), cardPolls())
+	}
+
+	@Test
+	fun `a poll answering 401 with a rejected refresh signs out once and ends the loop`() = runTest {
+		val expired = AtomicInteger()
+		val reports = mutableListOf<String>()
+		server.handle { record ->
+			when (record.path) {
+				"/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow("a1"), pendingRow("a2"))))
+				"/oauth/token" -> Stub.json(400, """{"error":"invalid_grant"}""")
+				else -> Stub.json(401, "{}")
+			}
+		}
+		val viewModel = viewModel(
+			onSessionExpired = { expired.incrementAndGet() },
+			reportProcessingRefreshFailure = { reports.add(it) },
+		)
+		viewModel.refresh()
+
+		advanceSeconds(3)
+		checkNotNull(viewModel.processingRefresh).join()
+		advanceSeconds(60)
+
+		assertEquals(1, expired.get())
+		assertEquals("a sign-out is no row failure", emptyList<String>(), reports)
+		assertEquals(listOf<String?>("1"), cardPolls("a1"))
+	}
+
+	@Test
+	fun `every adoption and every in-place replacement stamps when the estimate was received`() = runTest {
+		val start = Instant.parse("2026-08-25T10:00:00Z")
+		var current = start
+		server.handle { record ->
+			when {
+				record.path == "/" -> Stub.json(200, Fixtures.collection(listOf(pendingRow()), extraLinks = NEXT_LINK))
+				record.path == "/queue" && record.page == "2" ->
+					Stub.json(200, Fixtures.collection(listOf(pendingRow("a2")), page = 2))
+				record.path == "/queue/a1/card" -> Stub.json(200, pendingRow(poll = 2))
+				record.path == "/queue/a2/card" -> Stub.json(200, Fixtures.article("a2"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+		val viewModel = viewModel(now = { current })
+		fun received() = viewModel.state.value.processingReceivedAt
+
+		viewModel.refresh()
+		assertEquals(mapOf("a1" to start), received())
+
+		current = start.plusSeconds(10)
+		viewModel.refresh()
+		assertEquals("a re-read restamps", mapOf("a1" to start.plusSeconds(10)), received())
+
+		current = start.plusSeconds(20)
+		viewModel.loadMore()
+		assertEquals(
+			"an appended page stamps only its own rows",
+			mapOf("a1" to start.plusSeconds(10), "a2" to start.plusSeconds(20)),
+			received(),
+		)
+
+		current = start.plusSeconds(30)
+		advanceSeconds(3)
+		assertEquals(
+			"a polled row restamps, and a row that left processing loses its stamp",
+			mapOf("a1" to start.plusSeconds(30)),
+			received(),
+		)
+	}
+
 	private object Fixtures {
 		const val LOCKED_MESSAGE = "Your account is locked because your email was never verified. " +
 			"Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access."
 
-		fun article(id: String = "a1", url: String = "https://example.com/post"): String =
+		fun processing(href: String, afterSeconds: Int = 3): String =
+			"""{ "label": "Processing", "estimate": { "kind": "counting", "seconds": 100 }, "refresh": { "href": "$href", "afterSeconds": $afterSeconds } }"""
+
+		fun article(
+			id: String = "a1",
+			url: String = "https://example.com/post",
+			title: String = "A Title",
+			processingJson: String? = null,
+		): String =
 			"""
 				{
 					"class": ["article"],
@@ -4331,14 +4691,14 @@ class ReadingListViewModelTest {
 					"properties": {
 						"id": "$id",
 						"url": "$url",
-						"title": "A Title",
+						"title": "$title",
 						"siteName": "Example",
 						"excerpt": "An excerpt.",
 						"imageUrl": "https://example.com/img.png",
 						"readTime": { "value": "6", "label": "~6 min read" },
 						"status": "unread",
 						"savedAt": "2026-05-30T10:00:00.000Z",
-						"readAt": null
+						"readAt": null${if (processingJson != null) ", \"processing\": $processingJson" else ""}
 					},
 					"links": [{ "rel": ["read"], "href": "/queue/$id/view" }],
 					"actions": [

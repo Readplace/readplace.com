@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { ReadlistSlugSchema } from "@packages/domain/readlist";
 import { iconSvg } from "@packages/ui-icons";
+import { POLL_INTERVAL_SECONDS } from "@packages/web-shell";
 import type { DeviceClass } from "@packages/web-analytics";
 import { JSDOM } from "jsdom";
 import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmodel";
@@ -363,6 +364,16 @@ describe("renderReadlistCard", () => {
 		const link = hint.querySelector("a");
 		assert(link, "the hint must link to the source URL");
 		expect(link.getAttribute("href")).toBe("https://example.com/article");
+	});
+
+	it("polls a pending card at the cadence the Siren refresh advertises", () => {
+		const doc = parse(
+			renderReadlistCard(display(makeViewModel({ cardPollUrl: "/queue/abc123/card?poll=1" }), { isFirst: false })),
+		);
+
+		const card = doc.querySelector("[data-test-article]");
+		assert(card, "the card must render");
+		expect(card.getAttribute("hx-trigger")).toContain(`every ${POLL_INTERVAL_SECONDS}s`);
 	});
 
 	it("omits the stale-pending hint on the normal flow", () => {

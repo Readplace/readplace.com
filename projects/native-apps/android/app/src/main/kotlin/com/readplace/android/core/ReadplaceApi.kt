@@ -218,6 +218,12 @@ class ReadplaceApi(
 		return ReadlistPage(decodeSiren(answer, SirenDecoding::collection), chain = chain)
 	}
 
+	suspend fun loadArticle(href: String): Article {
+		val answer = send(Request.Builder().url(absoluteUrl(href)).get().build())
+		if (answer.status != 200) throw apiError(answer)
+		return Article.of(decodeSiren(answer, SirenDecoding::entity)) ?: throw ApiError.Decoding()
+	}
+
 	/**
 	 * Invokes a simple entity action via its own server-declared href, method and
 	 * type — the single generic path for actions whose body is a flat field set

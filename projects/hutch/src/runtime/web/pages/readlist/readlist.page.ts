@@ -184,7 +184,7 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { buildQueryString } from "../../api/collection-query";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
-import { toSavedArticleEntity } from "../../api/article-siren";
+import { toArticleSubEntity, toSavedArticleEntity } from "../../api/article-siren";
 import { readlistHref, readlistsAtHrefs } from "../../api/readlist-href";
 import { bytesToMb } from "../../shared/bytes-to-mb";
 import { toUploadSlotEntity } from "../../api/upload-slot-siren";
@@ -2065,6 +2065,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
+						now: deps.now(),
 						surfacePlatform: nativeSurfaceOf(req),
 						showSaveInProgressNotice: isNativeClient(req) && !hasBackgroundSaveContinuity(req),
 						appearance,
@@ -2226,6 +2227,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						tabs: READLIST_TAB_STATUSES,
 						readlists: context.readlists,
 						addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
+						now: deps.now(),
 						warning: { code: validation.error.code, message: validation.error.message },
 						surfacePlatform: nativeSurfaceOf(req),
 						crawlByUrl,
@@ -2298,6 +2300,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						readlists: context.readlists,
 					},
 					readlistKey: readlistQueryKeyOf(req),
+					now: deps.now(),
 				}),
 			);
 		} catch (error) {
@@ -2637,6 +2640,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 						resurfacedFromRead: result.resurfacedFromRead,
 						destination: { filedInto: [DEFAULT_READLIST], readlists: context.readlists },
 						readlistKey: readlistQueryKeyOf(req),
+						now: deps.now(),
 					}),
 				);
 			};
@@ -3310,7 +3314,37 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			: null;
 
 		if (!article) {
+			if (wantsSiren(req)) {
+				refuseOverSiren(res, UNKNOWN_ARTICLE_REFUSAL);
+				return;
+			}
 			res.status(404).type("html").send("");
+			return;
+		}
+
+		if (wantsSiren(req)) {
+			const [crawl, summary, context] = await Promise.all([
+				deps.findArticleCrawlStatus(article.url),
+				deps.findGeneratedSummary({ url: article.url, viewer: viewerFor(userId) }),
+				resolveReadlistContext(req, userId),
+			]);
+			const { state } = context;
+			const { rel: _rel, ...entity } = toArticleSubEntity(article, {
+				addToReadlist: addToReadlistOfferForClient(req.oauthClientId),
+				crawl,
+				summary,
+				collectionQuery: {
+					readlistKey: readlistQueryKeyOf(req),
+					readlist: state.readlist,
+					status: tabQuery(state.tab).status,
+					order: state.order,
+				},
+				now: deps.now(),
+				pollCount: parsePollParam(req.query.poll, MAX_POLLS) + 1,
+			});
+			res.set("Cache-Control", "private, no-cache");
+			res.vary("Accept, Authorization");
+			res.type(SIREN_MEDIA_TYPE).json(entity);
 			return;
 		}
 

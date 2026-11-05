@@ -31,6 +31,7 @@ export function toArticleCollectionEntity(
 		tabs: readonly StatusTab[];
 		readlists: readonly ReadlistOption[];
 		addToReadlist: AddToReadlistOffer;
+		now: Date;
 		warning?: CollectionWarning;
 		surfacePlatform?: NativeClientPlatform;
 		showSaveInProgressNotice?: boolean;
@@ -124,6 +125,7 @@ export function toArticleCollectionEntity(
 		entities: articles.map((article) =>
 			toArticleSubEntity(article, {
 				addToReadlist: options.addToReadlist,
+				now: options.now,
 				crawl: options.crawlByUrl?.get(article.url),
 				summary: options.summaryByUrl?.get(article.url),
 				collectionQuery: { readlistKey: queryParams.readlistKey, readlist: queryParams.readlist, status: queryParams.status, order: queryParams.order },

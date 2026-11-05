@@ -36,6 +36,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var appearance: String?
 	@Published private(set) var offlineDownload: OfflineDownloadProgress?
 	@Published private(set) var isOffline = false
+	@Published private(set) var processingReceivedAt: [String: Date] = [:]
 
 	private var nextHref: String?
 	private var rootHref: String?
@@ -55,6 +56,8 @@ final class ReadingListViewModel: ObservableObject {
 	private var isDrainingUploads = false
 	private var offlineDownloadTask: Task<Void, Never>?
 	private(set) var shareTargetReconciliation: Task<Void, Never>?
+	private(set) var processingRefresh: Task<Void, Never>?
+	private var isInForeground = true
 	private var pagesHeld = 0
 	/// Whether a collection has ever been applied. Gates the foreground refresh so
 	/// it never races the initial `.task` load with a second fetch at launch.
@@ -70,6 +73,9 @@ final class ReadingListViewModel: ObservableObject {
 	private let backgroundTime: BackgroundTimeKeeping
 	private let automaticCaptureAttempts: AutomaticCaptureAttempts
 	private let reportAutomaticCaptureFailure: (String) -> Void
+	private let now: () -> Date
+	private let pauseBeforeRefresh: (TimeInterval) async throws -> Void
+	private let reportProcessingRefreshFailure: (String) -> Void
 	private let onSessionExpired: () -> Void
 	private var manifestChanges: AnyCancellable?
 
@@ -98,6 +104,9 @@ final class ReadingListViewModel: ObservableObject {
 		backgroundTime: BackgroundTimeKeeping,
 		automaticCaptureAttempts: AutomaticCaptureAttempts,
 		reportAutomaticCaptureFailure: @escaping (String) -> Void,
+		now: @escaping () -> Date,
+		pauseBeforeRefresh: @escaping (TimeInterval) async throws -> Void,
+		reportProcessingRefreshFailure: @escaping (String) -> Void,
 		onSessionExpired: @escaping () -> Void
 	) {
 		self.api = api
@@ -110,6 +119,9 @@ final class ReadingListViewModel: ObservableObject {
 		self.backgroundTime = backgroundTime
 		self.automaticCaptureAttempts = automaticCaptureAttempts
 		self.reportAutomaticCaptureFailure = reportAutomaticCaptureFailure
+		self.now = now
+		self.pauseBeforeRefresh = pauseBeforeRefresh
+		self.reportProcessingRefreshFailure = reportProcessingRefreshFailure
 		self.onSessionExpired = onSessionExpired
 		// Append the same app-shell marker `open(link:)` puts on the account href, so
 		// the help page is served chromeless with a deep-link back to the native list.
@@ -186,6 +198,7 @@ final class ReadingListViewModel: ObservableObject {
 	}
 
 	private func restart(at href: String) {
+		processingRefresh?.cancel()
 		tabGeneration += 1
 		currentTabHref = href
 		articles = []
@@ -347,6 +360,8 @@ final class ReadingListViewModel: ObservableObject {
 	/// zero-network and holds the reader's position.
 	func handleForeground() async {
 		objectWillChange.send()
+		isInForeground = true
+		restartProcessingRefresh()
 		guard hasLoadedOnce, !isLoading else { return }
 		if pagesHeld > 1 {
 			guard unseenSave?.exists == true, !isLoadingMore else { return }
@@ -354,6 +369,76 @@ final class ReadingListViewModel: ObservableObject {
 		} else {
 			await reloadAndAdopt()
 		}
+	}
+
+	func handleBackground() {
+		isInForeground = false
+		processingRefresh?.cancel()
+	}
+
+	private func restartProcessingRefresh() {
+		processingRefresh?.cancel()
+		guard isInForeground, !isOffline else { return }
+		processingRefresh = Task { await refreshProcessingRows() }
+	}
+
+	private func refreshProcessingRows() async {
+		var stalled: Set<String> = []
+		while true {
+			let due = articles.compactMap(\.processing).filter { !stalled.contains($0.refreshHref) }
+			guard let wait = due.map(\.refreshAfterSeconds).min() else { return }
+			guard (try? await pauseBeforeRefresh(wait)) != nil else { return }
+			let answers = await fetchProcessingRows(hrefs: due.map(\.refreshHref))
+			guard !Task.isCancelled else { return }
+			for answer in answers {
+				switch answer.result {
+				case let .success(article):
+					if !replaceRow(with: article, fetchedFrom: answer.href) { stalled.insert(answer.href) }
+				case .failure(APIError.unauthorized), .failure(APIError.noToken):
+					return handle(APIError.unauthorized)
+				case let .failure(error):
+					stalled.insert(answer.href)
+					reportProcessingRefreshFailure(Self.failureName(error))
+				}
+			}
+		}
+	}
+
+	private func fetchProcessingRows(hrefs: [String]) async -> [(href: String, result: Result<Article, Error>)] {
+		let api = api
+		return await withTaskGroup(of: (href: String, result: Result<Article, Error>).self) { group in
+			for href in hrefs {
+				group.addTask {
+					do {
+						return (href, .success(try await api.loadArticle(href: href)))
+					} catch {
+						return (href, .failure(error))
+					}
+				}
+			}
+			var answers: [(href: String, result: Result<Article, Error>)] = []
+			for await answer in group { answers.append(answer) }
+			return answers
+		}
+	}
+
+	private func replaceRow(with article: Article, fetchedFrom href: String) -> Bool {
+		guard let index = articles.firstIndex(where: { $0.id == article.id && $0.refreshHref == href }) else {
+			return false
+		}
+		articles[index] = article
+		stampProcessing(of: [article])
+		return true
+	}
+
+	private func stampProcessing(of rows: [Article]) {
+		let stamp = now()
+		for row in rows where row.processing != nil { processingReceivedAt[row.id] = stamp }
+	}
+
+	private static func failureName(_ error: Error) -> String {
+		guard let apiError = error as? APIError else { return String(describing: type(of: error)) }
+		return String(String(describing: apiError).prefix { $0 != "(" })
 	}
 
 	/// Probes the server when the in-app web sheet closes, so a session the
@@ -587,6 +672,7 @@ final class ReadingListViewModel: ObservableObject {
 	private func apply(_ page: ReadlistPage, replacing: Bool) {
 		if replacing {
 			articles = page.articles
+			stampProcessing(of: page.articles)
 			pagesHeld = 1
 			// A fresh successful collection reconciles transient banners: a stale
 			// write-refusal (e.g. a since-verified locked account) or error is cleared
@@ -599,7 +685,9 @@ final class ReadingListViewModel: ObservableObject {
 			if !page.isStoredCopy { unseenSave?.clear() }
 		} else {
 			let existing = Set(articles.map(\.id))
-			articles += page.articles.filter { !existing.contains($0.id) }
+			let added = page.articles.filter { !existing.contains($0.id) }
+			articles += added
+			stampProcessing(of: added)
 			pagesHeld += 1
 		}
 		if page.isStoredCopy { errorText = OfflineReading.bannerText }
@@ -630,6 +718,7 @@ final class ReadingListViewModel: ObservableObject {
 			}
 		}
 		warningText = page.warning?.message
+		restartProcessingRefresh()
 	}
 
 	/// Derives the toolbar from a page's advertised affordances: a client-derived

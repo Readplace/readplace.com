@@ -665,4 +665,104 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(error.properties.code, "invalid-save-content")
 		XCTAssertEqual(error.properties.message, "Bad")
 	}
+
+	private func decodeArticle(processingJSON: String? = nil, messagesJSON: String? = nil) throws -> Article {
+		let entity = try decodeEntity(Fixtures.article(processingJSON: processingJSON, messagesJSON: messagesJSON))
+		return try XCTUnwrap(Article(entity: entity))
+	}
+
+	func testProcessingDecodesItsLabelEstimateAndRefresh() throws {
+		let article = try decodeArticle(processingJSON: Fixtures.processing(
+			label: "Preparing your book…",
+			estimateJSON: #"{ "kind": "counting", "seconds": 121 }"#,
+			href: "/queue/a1/card?poll=2&status=unread",
+			afterSeconds: 3
+		))
+
+		XCTAssertEqual(article.processing, ArticleProcessing(
+			label: "Preparing your book…",
+			estimate: .counting(seconds: 121),
+			refreshHref: "/queue/a1/card?poll=2&status=unread",
+			refreshAfterSeconds: 3
+		))
+		XCTAssertEqual(article.refreshHref, "/queue/a1/card?poll=2&status=unread")
+	}
+
+	func testProcessingDecodesEveryEstimateKind() throws {
+		let quiet = try decodeArticle(processingJSON: Fixtures.processing(
+			estimateJSON: #"{ "kind": "quiet", "revealInSeconds": 5, "seconds": 150 }"#
+		))
+		let almostThere = try decodeArticle(processingJSON: Fixtures.processing(estimateJSON: #"{ "kind": "almost-there" }"#))
+
+		XCTAssertEqual(quiet.processing?.estimate, .quiet(revealInSeconds: 5, seconds: 150))
+		XCTAssertEqual(almostThere.processing?.estimate, .almostThere)
+	}
+
+	func testAnUnknownOrMalformedEstimateKeepsProcessingWithoutAnEstimate() throws {
+		let unknown = try decodeArticle(processingJSON: Fixtures.processing(estimateJSON: #"{ "kind": "a-new-kind" }"#))
+		let malformed = try decodeArticle(processingJSON: Fixtures.processing(estimateJSON: #"{ "kind": "counting" }"#))
+		let absent = try decodeArticle(processingJSON: Fixtures.processing())
+
+		for article in [unknown, malformed, absent] {
+			XCTAssertEqual(article.processing?.label, "Processing")
+			XCTAssertNil(article.processing?.estimate)
+		}
+	}
+
+	func testProcessingWithoutARefreshIsNotProcessing() throws {
+		let article = try decodeArticle(processingJSON: #"{ "label": "Processing" }"#)
+
+		XCTAssertNil(article.processing)
+		XCTAssertNil(article.refreshHref)
+	}
+
+	func testAMalformedProcessingNeverFailsTheEntity() throws {
+		let notAnObject = try decodeArticle(processingJSON: #""Processing""#)
+		let noLabel = try decodeArticle(processingJSON: #"{ "refresh": { "href": "/x", "afterSeconds": 3 } }"#)
+		let noCadence = try decodeArticle(processingJSON: #"{ "label": "Processing", "refresh": { "href": "/x" } }"#)
+
+		for article in [notAnObject, noLabel, noCadence] {
+			XCTAssertEqual(article.id, "a1")
+			XCTAssertNil(article.processing)
+		}
+	}
+
+	func testAnArticleWithoutProcessingIsANormalRow() throws {
+		XCTAssertNil(try decodeArticle().processing)
+	}
+
+	func testAWarningOrErrorMessageBecomesAPlainTextNotice() throws {
+		let warning = try decodeArticle(messagesJSON: Fixtures.message(type: "warning", body: "<p>Taking &amp; waiting</p>"))
+		let error = try decodeArticle(messagesJSON: Fixtures.message(type: "error", body: "Upload failed"))
+
+		XCTAssertEqual(warning.notice, "Taking & waiting")
+		XCTAssertEqual(error.notice, "Upload failed")
+	}
+
+	func testANoticeIsTheFirstQualifyingMessage() throws {
+		let article = try decodeArticle(messagesJSON: [
+			Fixtures.message(type: "success", body: "Article saved"),
+			Fixtures.message(type: "warning", body: "First"),
+			Fixtures.message(type: "error", body: "Second"),
+		].joined(separator: ","))
+
+		XCTAssertEqual(article.notice, "First")
+	}
+
+	func testAMessageOfAnotherMediaTypeOrWireTypeIsNotANotice() throws {
+		let otherMedia = try decodeArticle(messagesJSON: Fixtures.message(type: "warning", mediaType: "text/plain", body: "No"))
+		let otherType = try decodeArticle(messagesJSON: Fixtures.message(type: "success", body: "Article saved"))
+
+		XCTAssertNil(otherMedia.notice)
+		XCTAssertNil(otherType.notice)
+		XCTAssertNil(try decodeArticle().notice)
+	}
+
+	func testATopLevelArticleEntityDecodesToTheSameArticleAsItsCollectionItem() throws {
+		let processing = Fixtures.processing(estimateJSON: #"{ "kind": "almost-there" }"#)
+		let item = try decodeArticle(processingJSON: processing)
+		let polled = try XCTUnwrap(Article(entity: try decodeEntity(Fixtures.polledArticle(processingJSON: processing))))
+
+		XCTAssertEqual(polled, item)
+	}
 }

@@ -134,6 +134,7 @@ export {
 	MAX_POLLS,
 	MAX_SAVE_SETTLE_POLLS,
 	parsePollParam,
+	POLL_INTERVAL_SECONDS,
 } from "./poll-protocol";
 export { QuerystringFeatureToggle } from "./feature-toggle";
 export type { FeatureToggleSource } from "./feature-toggle";

@@ -317,6 +317,9 @@ final class LoginFlowTests: XCTestCase {
 			backgroundTime: FakeBackgroundTime(),
 			automaticCaptureAttempts: AutomaticCaptureAttempts(defaults: defaults),
 			reportAutomaticCaptureFailure: { _ in },
+			now: { Date() },
+			pauseBeforeRefresh: { _ in },
+			reportProcessingRefreshFailure: { _ in },
 			onSessionExpired: {}
 		)
 		await viewModel.loadIfNeeded()

@@ -505,5 +505,7 @@ class AffordancePresentationTest {
 		actions = actions,
 		links = links,
 		readHref = links.firstOrNull { it.rel.contains("read") }?.href,
+		processing = null,
+		notice = null,
 	)
 }

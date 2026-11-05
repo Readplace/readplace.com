@@ -63,6 +63,19 @@ data class ReadTimeProperty(
 	val label: String,
 )
 
+sealed interface CrawlEstimate {
+	data class Quiet(val revealInSeconds: Int, val seconds: Int) : CrawlEstimate
+	data class Counting(val seconds: Int) : CrawlEstimate
+	data object AlmostThere : CrawlEstimate
+}
+
+data class ArticleProcessing(
+	val label: String,
+	val estimate: CrawlEstimate?,
+	val refreshHref: String,
+	val refreshAfterSeconds: Int,
+)
+
 /**
  * The properties of an article entity. Everything except `id`/`url` is optional so
  * a single malformed or evolving entity never fails the decode of the whole
@@ -85,6 +98,7 @@ data class ArticleProperties(
 	 * state from `status`/`readAt` only then. */
 	val isRead: Boolean?,
 	val messages: List<ServerMessage>?,
+	val processing: ArticleProcessing?,
 )
 
 data class SirenEntity(
@@ -356,7 +370,36 @@ object SirenDecoding {
 			readAt = string(obj["readAt"]),
 			isRead = boolean(obj["isRead"]),
 			messages = lossyList(obj["messages"], ::serverMessage),
+			processing = runCatching { processing(obj["processing"]) }.getOrNull(),
 		)
+	}
+
+	private fun processing(element: JsonElement?): ArticleProcessing? {
+		val obj = element as? JsonObject ?: return null
+		val label = string(obj["label"]) ?: return null
+		val refresh = obj["refresh"] as? JsonObject ?: return null
+		val href = string(refresh["href"]) ?: return null
+		val afterSeconds = int(refresh["afterSeconds"]) ?: return null
+		return ArticleProcessing(
+			label = label,
+			estimate = crawlEstimate(obj["estimate"]),
+			refreshHref = href,
+			refreshAfterSeconds = afterSeconds,
+		)
+	}
+
+	private fun crawlEstimate(element: JsonElement?): CrawlEstimate? {
+		val obj = element as? JsonObject ?: return null
+		val seconds = int(obj["seconds"])
+		return when (string(obj["kind"])) {
+			"quiet" -> {
+				val reveal = int(obj["revealInSeconds"])
+				if (reveal == null || seconds == null) null else CrawlEstimate.Quiet(revealInSeconds = reveal, seconds = seconds)
+			}
+			"counting" -> seconds?.let { CrawlEstimate.Counting(seconds = it) }
+			"almost-there" -> CrawlEstimate.AlmostThere
+			else -> null
+		}
 	}
 
 	private fun readTime(element: JsonElement?): ReadTimeProperty? {
@@ -426,6 +469,8 @@ data class Article(
 	/** The href of the server-declared link for reading this item, followed when the
 	 * row is tapped. Absent ⇒ the row is not openable. */
 	val readHref: String?,
+	val processing: ArticleProcessing?,
+	val notice: String?,
 ) {
 	/** The item's action controls, one per advertised action the client can invoke
 	 * (an action with a usable href). Built by iterating — not by matching a known
@@ -453,10 +498,14 @@ data class Article(
 				actions = entity.actions ?: emptyList(),
 				links = links,
 				readHref = links.firstOrNull { it.rel.contains("read") }?.href,
+				processing = props.processing,
+				notice = props.messages.orEmpty().firstOrNull { it.isRenderable && it.type in NOTICE_TYPES }?.plainText,
 			)
 		}
 	}
 }
+
+private val NOTICE_TYPES = setOf("warning", "error")
 
 /**
  * A status tab advertised on a readlist collection. `isCurrent` is the server's

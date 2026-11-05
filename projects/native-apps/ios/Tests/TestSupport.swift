@@ -219,7 +219,9 @@ enum Fixtures {
 		savedAt: String = "2026-05-30T10:00:00.000Z",
 		readAt: String? = nil,
 		isRead: Bool? = nil,
-		contentVersion: String? = nil
+		contentVersion: String? = nil,
+		processingJSON: String? = nil,
+		messagesJSON: String? = nil
 	) -> String {
 		func field(_ key: String, _ value: String?) -> String {
 			value.map { "\"\(key)\": \"\($0)\"" } ?? "\"\(key)\": null"
@@ -247,7 +249,7 @@ enum Fixtures {
 				\(readTimeField(readTime)),
 				"status": "\(status)",
 				"savedAt": "\(savedAt)",
-				\(field("readAt", readAt))\(boolField("isRead", isRead))\(contentVersion.map { ", \"contentVersion\": \"\($0)\"" } ?? "")
+				\(field("readAt", readAt))\(boolField("isRead", isRead))\(contentVersion.map { ", \"contentVersion\": \"\($0)\"" } ?? "")\(processingJSON.map { ", \"processing\": \($0)" } ?? "")\(messagesJSON.map { ", \"messages\": [\($0)]" } ?? "")
 			},
 			"links": [{ "rel": ["read"], "href": "/queue/\(id)/view" }],
 			"actions": [
@@ -255,6 +257,34 @@ enum Fixtures {
 				{ "name": "update-status", "href": "/queue/\(id)/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "read" }] }
 			]
 		}
+		"""
+	}
+
+	static func processing(
+		label: String = "Processing",
+		estimateJSON: String? = nil,
+		href: String = "/queue/a1/card?poll=1",
+		afterSeconds: Int = 3
+	) -> String {
+		let estimate = estimateJSON.map { "\"estimate\": \($0), " } ?? ""
+		return """
+		{ "label": "\(label)", \(estimate)"refresh": { "href": "\(href)", "afterSeconds": \(afterSeconds) } }
+		"""
+	}
+
+	static func polledArticle(
+		id: String = "a1",
+		title: String? = "A Title",
+		processingJSON: String? = nil,
+		messagesJSON: String? = nil
+	) -> String {
+		article(id: id, title: title, processingJSON: processingJSON, messagesJSON: messagesJSON)
+			.replacingOccurrences(of: "\"rel\": [\"item\"],", with: "")
+	}
+
+	static func message(type: String, mediaType: String = "text/html", body: String) -> String {
+		"""
+		{ "type": "\(type)", "content": { "type": "\(mediaType)", "body": "\(body)" } }
 		"""
 	}
 

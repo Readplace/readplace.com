@@ -4,6 +4,7 @@ import com.readplace.android.core.Affordance
 import com.readplace.android.core.ApiError
 import com.readplace.android.core.AppConfig
 import com.readplace.android.core.Article
+import com.readplace.android.core.ArticleProcessing
 import com.readplace.android.core.Href
 import com.readplace.android.core.LastViewedReadlist
 import com.readplace.android.core.Readlist
@@ -19,7 +20,11 @@ import com.readplace.android.core.UnseenSave
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +32,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
  * Everything the reading list renders, published as one value through
@@ -68,6 +74,7 @@ data class ReadingListState(
 	/** The extra readlists the reader chose as share destinations, mirrored from the
 	 * persisted choice so the menu badges and drop row reflect it without a fetch. */
 	val shareTargetHrefs: Set<String> = emptySet(),
+	val processingReceivedAt: Map<String, Instant> = emptyMap(),
 ) {
 	/** A switcher is offered only when the reader has more than one readlist. */
 	val offersReadlistSwitching: Boolean get() = readlists.size > 1
@@ -128,6 +135,8 @@ class ReadingListViewModel(
 	private val reportAutomaticCaptureFailure: (String) -> Unit,
 	private val drainUploadJobs: suspend () -> Unit,
 	private val onSessionExpired: () -> Unit,
+	private val now: () -> Instant,
+	private val reportProcessingRefreshFailure: (String) -> Unit,
 	private val scope: CoroutineScope,
 ) {
 	private val states = MutableStateFlow(ReadingListState(collectionAffordances = listOf(ADD_LINKS_HELP)))
@@ -194,6 +203,11 @@ class ReadingListViewModel(
 	var shareTargetReconciliation: Job? = null
 		private set
 
+	var processingRefresh: Job? = null
+		private set
+
+	private var isInForeground = true
+
 	/** Whether a collection has ever been applied. Gates the foreground refresh so
 	 * it never races the launch-time load with a second fetch. */
 	private var hasLoadedOnce = false
@@ -258,7 +272,7 @@ class ReadingListViewModel(
 		nextHref = null
 		pagesHeld = 0
 		isLoadingMore = false
-		mutate { it.copy(articles = emptyList(), hasMore = false) }
+		mutate { it.copy(articles = emptyList(), hasMore = false, processingReceivedAt = emptyMap()) }
 	}
 
 	/**
@@ -404,6 +418,8 @@ class ReadingListViewModel(
 	 * position.
 	 */
 	suspend fun handleForeground() {
+		isInForeground = true
+		restartProcessingRefresh()
 		// The reader may have answered the share question in the share target while
 		// away, so re-read the choice into visible state on every return — even the
 		// zero-network paths below where no collection is re-fetched.
@@ -418,6 +434,83 @@ class ReadingListViewModel(
 				reloadAndAdopt()
 			}
 		}
+	}
+
+	fun handleBackground() {
+		isInForeground = false
+		processingRefresh?.cancel()
+	}
+
+	private fun restartProcessingRefresh() {
+		processingRefresh?.cancel()
+		if (isInForeground) processingRefresh = scope.launch { refreshProcessingRows() }
+	}
+
+	private suspend fun refreshProcessingRows() {
+		val generation = tabGeneration
+		val stalled = mutableSetOf<String>()
+		while (true) {
+			val pending = states.value.articles.mapNotNull { row ->
+				row.processing?.takeIf { it.refreshHref !in stalled }?.let { PendingRow(row.id, it) }
+			}
+			if (pending.isEmpty()) return
+			delay(pending.minOf { it.processing.refreshAfterSeconds } * MILLIS_PER_SECOND)
+			val answers = coroutineScope {
+				pending.map { row -> async { fetchRow(row) } }.awaitAll()
+			}
+			if (!tabUnchanged(generation)) return
+			for (answer in answers) {
+				when (answer) {
+					is RowAnswer.Polled ->
+						if (answer.article.id == answer.row.id) {
+							replaceRow(answer)
+						} else {
+							stalled += answer.row.processing.refreshHref
+						}
+					is RowAnswer.Failed -> when (answer.error) {
+						is ApiError.Unauthorized, is ApiError.NoToken -> {
+							handle(answer.error)
+							return
+						}
+						else -> {
+							stalled += answer.row.processing.refreshHref
+							reportProcessingRefreshFailure(answer.error.javaClass.simpleName)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	private suspend fun fetchRow(row: PendingRow): RowAnswer =
+		try {
+			RowAnswer.Polled(row, api.loadArticle(row.processing.refreshHref))
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (error: Exception) {
+			RowAnswer.Failed(row, error)
+		}
+
+	private fun replaceRow(answer: RowAnswer.Polled) {
+		val polled = answer.article
+		val fetchedHref = answer.row.processing.refreshHref
+		val received = stamped(listOf(polled))
+		mutate { current ->
+			val holdsFetchedHref = current.articles.any { it.id == polled.id && it.processing?.refreshHref == fetchedHref }
+			if (holdsFetchedHref) {
+				current.copy(
+					articles = current.articles.map { if (it.id == polled.id) polled else it },
+					processingReceivedAt = current.processingReceivedAt - polled.id + received,
+				)
+			} else {
+				current
+			}
+		}
+	}
+
+	private fun stamped(articles: List<Article>): Map<String, Instant> {
+		val received = now()
+		return articles.filter { it.processing != null }.associate { it.id to received }
 	}
 
 	/**
@@ -719,15 +812,21 @@ class ReadingListViewModel(
 				selectedTabHref = page.currentTabHref ?: current.selectedTabHref,
 				selectedReadlistHref = page.currentReadlistHref ?: current.selectedReadlistHref,
 				shareTargetHrefs = shareTarget.hrefs,
+				processingReceivedAt = stamped(page.articles),
 			)
 		} else {
 			val existing = current.articles.map { it.id }.toSet()
-			reconciled = current.copy(articles = current.articles + page.articles.filter { it.id !in existing })
+			val appended = page.articles.filter { it.id !in existing }
+			reconciled = current.copy(
+				articles = current.articles + appended,
+				processingReceivedAt = current.processingReceivedAt + stamped(appended),
+			)
 			pagesHeld += 1
 		}
 		hasLoadedOnce = true
 		nextHref = page.nextHref
 		states.value = reconciled.copy(hasMore = page.nextHref != null, warningText = page.warning?.message)
+		restartProcessingRefresh()
 	}
 
 	/**
@@ -782,7 +881,18 @@ class ReadingListViewModel(
 		states.update(transform)
 	}
 
+	private class PendingRow(val id: String, val processing: ArticleProcessing)
+
+	private sealed interface RowAnswer {
+		val row: PendingRow
+
+		class Polled(override val row: PendingRow, val article: Article) : RowAnswer
+		class Failed(override val row: PendingRow, val error: Exception) : RowAnswer
+	}
+
 	private companion object {
+		const val MILLIS_PER_SECOND = 1_000L
+
 		/**
 		 * The reading list's client-side add (+) control: a navigable `add-links-help`
 		 * affordance the client injects itself rather than discovering from the server.

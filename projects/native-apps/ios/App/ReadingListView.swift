@@ -1,6 +1,8 @@
 import OSLog
 import SwiftUI
 
+private let processingRefreshLogger = Logger(subsystem: "com.readplace.app", category: "processing-refresh")
+
 struct ReadingListView: View {
 	@ObservedObject var session: AppSession
 	let onSignedOut: () -> Void
@@ -43,6 +45,11 @@ struct ReadingListView: View {
 			automaticCaptureAttempts: AutomaticCaptureAttempts(defaults: defaults),
 			reportAutomaticCaptureFailure: { failure in
 				readerLogger.info("automatic capture failed: \(failure, privacy: .public)")
+			},
+			now: Date.init,
+			pauseBeforeRefresh: { try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) },
+			reportProcessingRefreshFailure: { failure in
+				processingRefreshLogger.info("row refresh failed: \(failure, privacy: .private)")
 			},
 			onSessionExpired: { [weak session] in session?.reconcileSession() }
 		))
@@ -147,7 +154,7 @@ struct ReadingListView: View {
 				// land a save without the scene ever backgrounding, and the deliberate
 				// trade is a cheap shallow re-read over a stale list.
 				.onChange(of: scenePhase) { newPhase in
-					guard newPhase == .active else { return }
+					guard newPhase == .active else { return viewModel.handleBackground() }
 					Task { await viewModel.handleForeground() }
 					Task { await drainStagedUploads() }
 				}
@@ -368,7 +375,8 @@ struct ReadingListView: View {
 				ArticleRow(
 					article: article,
 					edge: ListingPanelEdge(of: article, in: viewModel.articles),
-					isAvailableOffline: viewModel.isAvailableOffline(article)
+					isAvailableOffline: viewModel.isAvailableOffline(article),
+					processingReceivedAt: viewModel.processingReceivedAt[article.id]
 				)
 					.contentShape(Rectangle())
 					.onTapGesture {

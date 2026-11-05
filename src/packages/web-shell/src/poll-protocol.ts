@@ -8,6 +8,8 @@ import { z } from "zod";
  */
 export const MAX_POLLS = 300;
 
+export const POLL_INTERVAL_SECONDS = 3;
+
 /**
  * The same cursor, budgeted for an on-device capture rather than the server
  * pipeline: the device render is a ~12s operation, so 20 × 3s = 60s covers it

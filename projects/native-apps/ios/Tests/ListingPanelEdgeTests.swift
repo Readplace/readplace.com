@@ -18,7 +18,9 @@ final class ListingPanelEdgeTests: XCTestCase {
 			contentVersion: nil,
 			actions: [],
 			links: [],
-			readHref: nil
+			readHref: nil,
+			processing: nil,
+			notice: nil
 		)
 	}
 

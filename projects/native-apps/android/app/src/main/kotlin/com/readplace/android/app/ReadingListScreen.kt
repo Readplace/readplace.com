@@ -49,6 +49,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -119,6 +120,10 @@ fun ReadingListScreen(
 	var isRefreshing by remember { mutableStateOf(false) }
 	var dropExplanation by remember { mutableStateOf<String?>(null) }
 
+	DisposableEffect(viewModel) {
+		onDispose { viewModel.handleBackground() }
+	}
+
 	LaunchedEffect(Unit) {
 		viewModel.loadIfNeeded()
 		viewModel.drainStagedUploads()
@@ -129,7 +134,10 @@ fun ReadingListScreen(
 	// without the activity ever stopping, and the deliberate trade is a cheap
 	// shallow re-read over a stale list.
 	LaunchedEffect(isForeground) {
-		if (!isForeground) return@LaunchedEffect
+		if (!isForeground) {
+			viewModel.handleBackground()
+			return@LaunchedEffect
+		}
 		launch { viewModel.handleForeground() }
 		launch { viewModel.drainStagedUploads() }
 	}
@@ -572,6 +580,7 @@ private fun ArticleList(
 				article = article,
 				edge = PanelEdge(isFirst = index == 0, isLast = index == state.articles.lastIndex),
 				clock = clock,
+				processingReceivedAt = state.processingReceivedAt[article.id],
 				onOpen = { onOpen(article) },
 				onActivate = onActivate,
 			)
@@ -606,6 +615,7 @@ private fun ArticleItem(
 	article: Article,
 	edge: PanelEdge,
 	clock: Clock,
+	processingReceivedAt: Instant?,
 	onOpen: () -> Unit,
 	onActivate: (Affordance) -> Unit,
 ) {
@@ -633,6 +643,7 @@ private fun ArticleItem(
 				ArticleRow(
 					article = article,
 					clock = clock,
+					processingReceivedAt = processingReceivedAt,
 					onOpen = onOpen,
 				)
 			}
@@ -675,6 +686,7 @@ private fun ArticleItem(
 				ArticleRow(
 					article = article,
 					clock = clock,
+					processingReceivedAt = processingReceivedAt,
 					onOpen = onOpen,
 					modifier = Modifier
 						.semantics {

@@ -11,6 +11,7 @@ import type { ArticleAction, ReadlistArticleViewModel } from "../readlist.viewmo
 import { renderCrawlEstimate } from "../../../shared/crawl-estimate/crawl-estimate.component";
 import { renderDeleteMenuItems } from "./delete-confirm.component";
 import { renderMoveMenuItems } from "./move-dialog.component";
+import { staleNoticeHtml } from "./stale-notice";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-card.template.html"), "utf-8");
 
@@ -52,6 +53,7 @@ export interface ReadlistCardDisplayModel extends ReadlistArticleViewModel {
 	moveMenuHtml: string;
 	deleteMenuHtml: string;
 	uploadAgainUrl: string;
+	staleNoticeHtml: string;
 }
 
 const STATUS_LOADER_HTML = renderInFlightDots("readlist-article__action-btn-loader in-flight-dots");
@@ -149,6 +151,12 @@ export function toReadlistCardDisplayModel(
 		moveMenuHtml: article.move === undefined ? "" : renderMoveMenuItems({ move: article.move }),
 		deleteMenuHtml: renderDeleteMenuItems({ deletion: article.deletion, surface: "queue-card" }),
 		uploadAgainUrl: withInternalTracking("/upload", { source: "queue-card", content: "failed-card" }),
+		staleNoticeHtml: staleNoticeHtml({
+			url: article.url,
+			siteName: article.siteName,
+			hasOrigin: article.hasOrigin,
+			kindNoun: article.kind?.noun,
+		}),
 	};
 }
 

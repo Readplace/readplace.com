@@ -1297,4 +1297,124 @@ class SirenModelsTest {
 		assertEquals("Work", Readlist.of(CollectionReadlistEntry("Work", "current", "/queue?queue=work")).label)
 		assertEquals("/queue?queue=work", Readlist.of(CollectionReadlistEntry("Work", "current", "/queue?queue=work")).href)
 	}
+
+	private fun articleWithProperties(extra: String): String =
+		"""
+			{
+				"class": ["article"],
+				"rel": ["item"],
+				"properties": { "id": "a1", "url": "https://example.com/a"$extra },
+				"links": [{ "rel": ["read"], "href": "/queue/a1/view" }]
+			}
+		"""
+
+	private fun processingOf(json: String): ArticleProcessing? =
+		decodedArticle(articleWithProperties(""", "processing": $json""")).processing
+
+	private fun estimateOf(json: String): CrawlEstimate? =
+		present(
+			processingOf("""{ "label": "Processing", "estimate": $json, "refresh": { "href": "/card?poll=1", "afterSeconds": 3 } }"""),
+			"the processing to decode",
+		).estimate
+
+	private fun noticeOf(messagesJson: String): String? =
+		decodedArticle(articleWithProperties(""", "messages": $messagesJson""")).notice
+
+	private fun messageJson(type: String, body: String, contentType: String = "text/html"): String =
+		"""{ "type": "$type", "content": { "type": "$contentType", "body": "$body" } }"""
+
+	@Test
+	fun `processing decodes its label, estimate, refresh href and cadence`() {
+		assertEquals(
+			ArticleProcessing(
+				label = "Processing",
+				estimate = CrawlEstimate.Counting(seconds = 121),
+				refreshHref = "/queue/abc/card?poll=2&status=unread",
+				refreshAfterSeconds = 3,
+			),
+			processingOf(
+				"""
+					{
+						"label": "Processing",
+						"estimate": { "kind": "counting", "seconds": 121 },
+						"refresh": { "href": "/queue/abc/card?poll=2&status=unread", "afterSeconds": 3 }
+					}
+				""",
+			),
+		)
+	}
+
+	@Test
+	fun `each estimate kind decodes`() {
+		assertEquals(
+			CrawlEstimate.Quiet(revealInSeconds = 5, seconds = 160),
+			estimateOf("""{ "kind": "quiet", "revealInSeconds": 5, "seconds": 160 }"""),
+		)
+		assertEquals(CrawlEstimate.Counting(seconds = 9), estimateOf("""{ "kind": "counting", "seconds": 9 }"""))
+		assertEquals(CrawlEstimate.AlmostThere, estimateOf("""{ "kind": "almost-there" }"""))
+	}
+
+	@Test
+	fun `an unknown or malformed estimate keeps processing without an estimate`() {
+		assertNull(estimateOf("""{ "kind": "future-kind", "seconds": 9 }"""))
+		assertNull(estimateOf("""{ "kind": "counting" }"""))
+		assertNull(estimateOf("""{ "kind": "quiet", "seconds": 9 }"""))
+		assertNull(estimateOf("""{ "kind": "quiet", "revealInSeconds": 5 }"""))
+		assertNull(estimateOf(""""soon""""))
+	}
+
+	@Test
+	fun `an absent estimate is label-only processing`() {
+		val processing = processingOf("""{ "label": "Processing", "refresh": { "href": "/card", "afterSeconds": 3 } }""")
+		assertEquals("Processing", processing?.label)
+		assertNull(processing?.estimate)
+	}
+
+	@Test
+	fun `processing without a label or a complete refresh is not processing`() {
+		assertNull(processingOf("""{ "refresh": { "href": "/card", "afterSeconds": 3 } }"""))
+		assertNull(processingOf("""{ "label": "Processing" }"""))
+		assertNull(processingOf("""{ "label": "Processing", "refresh": { "afterSeconds": 3 } }"""))
+		assertNull(processingOf("""{ "label": "Processing", "refresh": { "href": "/card" } }"""))
+	}
+
+	@Test
+	fun `malformed processing never fails the entity`() {
+		for (malformed in listOf(""""Processing"""", "[1, 2]", "null", """{ "label": 7, "refresh": "/card" }""")) {
+			val article = decodedArticle(articleWithProperties(""", "processing": $malformed"""))
+			assertEquals("a1", article.id)
+			assertNull(article.processing)
+		}
+	}
+
+	@Test
+	fun `an article with no processing is a normal row`() {
+		assertNull(decodedArticle(articleWithProperties("")).processing)
+	}
+
+	@Test
+	fun `a warning or error message becomes the plain-text notice`() {
+		assertEquals(
+			"Taking a while & more.",
+			noticeOf("[${messageJson("warning", "<strong>Taking</strong> a while &amp; more.")}]"),
+		)
+		assertEquals("Upload failed.", noticeOf("[${messageJson("error", "Upload failed.")}]"))
+	}
+
+	@Test
+	fun `the notice is the first message that qualifies`() {
+		assertEquals(
+			"Second.",
+			noticeOf(
+				"[${messageJson("info", "First.")}, ${messageJson("warning", "Second.")}, ${messageJson("error", "Third.")}]",
+			),
+		)
+	}
+
+	@Test
+	fun `a message of another media type or wire type is no notice`() {
+		assertNull(noticeOf("[${messageJson("warning", "Plain.", contentType = "text/plain")}]"))
+		assertNull(noticeOf("[${messageJson("info", "Note.")}]"))
+		assertNull(decodedArticle(articleWithProperties("")).notice)
+	}
 }

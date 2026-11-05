@@ -1,10 +1,6 @@
 import {
 	type CrawlRemainingEstimate,
-	DEFAULT_CRAWL_STAGE,
-	crawlProgressPct,
 	displayableReadTime,
-	estimateCrawlRemaining,
-	isNonArticleHost,
 	isPrivateItemUrl,
 	type DisplayableReadTime,
 	type SavedArticle,
@@ -50,7 +46,7 @@ import {
 	moveCreatePopoverId,
 	moveDialogPopoverId,
 } from "./readlist-card/move-dialog.component";
-import { isCardTerminal } from "./readlist-card/is-card-terminal";
+import { cardProcessingOf } from "./readlist-card/card-processing";
 import { type CardKind, cardKindOf } from "./readlist-card/card-kind-label";
 import { readlistCardVia } from "./readlist-card/readlist-card-via";
 import type {
@@ -280,20 +276,6 @@ function toArticleMove(input: {
 	};
 }
 
-function cardCrawlEstimate(params: {
-	crawl: ArticleCrawl | undefined;
-	now: Date;
-	isPolling: boolean;
-}): CrawlRemainingEstimate | undefined {
-	const { crawl } = params;
-	if (!params.isPolling || crawl?.status !== "pending") return undefined;
-	return estimateCrawlRemaining({
-		startedAt: crawl.startedAt,
-		now: params.now,
-		pct: crawlProgressPct({ stage: crawl.stage ?? DEFAULT_CRAWL_STAGE, parts: crawl.parts }),
-	});
-}
-
 function versionedReaderHref(input: {
 	articleId: string;
 	returnQuery: string;
@@ -323,12 +305,9 @@ export function toReadlistArticleViewModel(params: {
 	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
 	const pollCount = params.pollCount ?? 1;
 	const id = article.id.value;
-	const reachedTerminal = isNonArticleHost(article.url) || isCardTerminal(crawl, summary);
-	const cardPollUrl =
-		reachedTerminal || pollCount > maxPolls
-			? undefined
-			: buildCardPollUrl({ articleId: id, pollCount, filters });
-	const isStalePending = !reachedTerminal && pollCount > maxPolls;
+	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls });
+	const { phase } = processing;
+	const isProcessing = phase.kind === "processing";
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
@@ -361,18 +340,18 @@ export function toReadlistArticleViewModel(params: {
 		deletion,
 		markStatusConfirm,
 		move: toArticleMove({ articleId: id, from: filters.readlist, returnQuery, filing: params.filing }),
-		cardPollUrl,
+		cardPollUrl: isProcessing ? buildCardPollUrl({ articleId: id, pollCount: phase.pollCursor, filters }) : undefined,
 		readerHref: versionedReaderHref({
 			articleId: id,
 			returnQuery: readlistReturnQuery(filters),
 			contentVersion: computeArticleContentVersion({ article, crawl, summary }),
 		}),
-		isStalePending,
+		isStalePending: phase.kind === "stale",
 		processingNotice: article.processingNotice,
 		kind: cardKind?.kind,
 		kindLabel: cardKind?.kindLabel,
-		processingLabel: cardKind === undefined ? "Processing" : `Preparing your ${cardKind.kind.noun}…`,
-		crawlEstimate: cardCrawlEstimate({ crawl, now, isPolling: cardPollUrl !== undefined }),
+		processingLabel: processing.label,
+		crawlEstimate: isProcessing ? phase.estimate : undefined,
 		hasOrigin: !isPrivateItemUrl(article.url),
 	};
 }

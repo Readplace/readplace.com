@@ -19,8 +19,12 @@ final class ReadingListViewModelTests: XCTestCase {
 		offlineContainer: AppGroupContainer = AppGroupContainer(url: TestSupport.temporaryContainer()),
 		backgroundTime: BackgroundTimeKeeping? = nil,
 		reportAutomaticCaptureFailure: @escaping (String) -> Void = { _ in },
+		now: @escaping () -> Date = { Date() },
+		pause: FakeRefreshPause? = nil,
+		reportProcessingRefreshFailure: @escaping (String) -> Void = { _ in },
 		onSessionExpired: @escaping () -> Void = {}
 	) -> ReadingListViewModel {
+		let pause = pause ?? FakeRefreshPause(.immediate)
 		let api = ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL,
 			store: store,
@@ -38,6 +42,9 @@ final class ReadingListViewModelTests: XCTestCase {
 			backgroundTime: backgroundTime ?? FakeBackgroundTime(),
 			automaticCaptureAttempts: AutomaticCaptureAttempts(defaults: defaults),
 			reportAutomaticCaptureFailure: reportAutomaticCaptureFailure,
+			now: now,
+			pauseBeforeRefresh: { try await pause.pause($0) },
+			reportProcessingRefreshFailure: reportProcessingRefreshFailure,
 			onSessionExpired: onSessionExpired
 		)
 	}
@@ -2974,7 +2981,7 @@ final class ReadingListViewModelTests: XCTestCase {
 		Article(
 			id: id, url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
 			imageURL: nil, readTimeLabel: nil, isRead: false, savedAt: nil, contentVersion: nil,
-			actions: [], links: [], readHref: readHref
+			actions: [], links: [], readHref: readHref, processing: nil, notice: nil
 		)
 	}
 
@@ -3844,6 +3851,9 @@ final class ReadingListViewModelTests: XCTestCase {
 			backgroundTime: FakeBackgroundTime(),
 			automaticCaptureAttempts: AutomaticCaptureAttempts(defaults: defaults),
 			reportAutomaticCaptureFailure: { _ in },
+			now: { Date() },
+			pauseBeforeRefresh: { _ in },
+			reportProcessingRefreshFailure: { _ in },
 			onSessionExpired: { expired = true }
 		)
 		StubURLProtocol.setHandler { request, _ in
@@ -4253,5 +4263,370 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertTrue(viewModel.isAvailableOffline(row), "the downloaded row shows the Offline badge")
 		XCTAssertGreaterThan(changes, 0, "the list redraws as the manifest records each download")
+	}
+
+	private func pendingRow(id: String = "a1", poll: Int = 1, afterSeconds: Int = 3, title: String = "A Title") -> String {
+		Fixtures.article(id: id, title: title, processingJSON: Fixtures.processing(
+			href: "/queue/\(id)/card?poll=\(poll)", afterSeconds: afterSeconds
+		))
+	}
+
+	private func polledPending(id: String = "a1", poll: Int, afterSeconds: Int = 3) -> StubURLProtocol.Stub {
+		.json(200, Fixtures.polledArticle(id: id, processingJSON: Fixtures.processing(
+			href: "/queue/\(id)/card?poll=\(poll)", afterSeconds: afterSeconds
+		)))
+	}
+
+	private func serve(
+		rows: [String],
+		polls: [String: StubURLProtocol.Stub],
+		extraLinks: String = ""
+	) {
+		StubURLProtocol.setHandler { request, _ in
+			guard let url = request.url, url.path.hasSuffix("/card") else {
+				return .json(200, Fixtures.collection(entitiesJSON: rows, extraLinks: extraLinks))
+			}
+			return polls["\(url.path)?\(url.query ?? "")"] ?? .json(404, "{}")
+		}
+	}
+
+	private var pollsRequested: [String] {
+		StubURLProtocol.records.compactMap { record in
+			guard let url = record.request.url, url.path.hasSuffix("/card") else { return nil }
+			return "\(url.path)?\(url.query ?? "")"
+		}
+	}
+
+	func testAPendingRowIsReplacedByItsPolledRepresentation() async {
+		serve(rows: [pendingRow()], polls: ["/queue/a1/card?poll=1": .json(200, Fixtures.polledArticle(title: "Finished"))])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(viewModel.articles.map(\.title), ["Finished"])
+		XCTAssertNil(viewModel.articles.first?.processing)
+	}
+
+	func testEachRoundWaitsTheSecondsTheServerAdvertised() async {
+		serve(rows: [pendingRow(afterSeconds: 5)], polls: [
+			"/queue/a1/card?poll=1": polledPending(poll: 2, afterSeconds: 7),
+			"/queue/a1/card?poll=2": .json(200, Fixtures.polledArticle()),
+		])
+		let pause = FakeRefreshPause(.immediate)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(pause.durations, [5, 7])
+	}
+
+	func testARoundWaitsTheSmallestSecondsAcrossItsRows() async {
+		serve(rows: [pendingRow(id: "a1", afterSeconds: 5), pendingRow(id: "a2", afterSeconds: 2)], polls: [
+			"/queue/a1/card?poll=1": .json(200, Fixtures.polledArticle(id: "a1")),
+			"/queue/a2/card?poll=1": .json(200, Fixtures.polledArticle(id: "a2")),
+		])
+		let pause = FakeRefreshPause(.immediate)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(pause.durations, [2])
+	}
+
+	func testATerminalPollEndsTheLoop() async {
+		serve(rows: [pendingRow()], polls: ["/queue/a1/card?poll=1": .json(200, Fixtures.polledArticle())])
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(pollsRequested, ["/queue/a1/card?poll=1"])
+	}
+
+	func testARowWithoutProcessingIsNeverPolled() async {
+		serve(rows: [Fixtures.article(id: "a1")], polls: [:])
+		let pause = FakeRefreshPause(.immediate)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(pollsRequested, [])
+		XCTAssertEqual(pause.durations, [])
+	}
+
+	func testAFailedPollKeepsTheRowAndStopsPollingItWhileItsSiblingContinues() async {
+		serve(rows: [pendingRow(id: "a1"), pendingRow(id: "a2")], polls: [
+			"/queue/a1/card?poll=1": .json(500, "{}"),
+			"/queue/a2/card?poll=1": polledPending(id: "a2", poll: 2),
+			"/queue/a2/card?poll=2": .json(200, Fixtures.polledArticle(id: "a2", title: "Finished")),
+		])
+		var failures: [String] = []
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), reportProcessingRefreshFailure: { failures.append($0) })
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(pollsRequested.filter { $0.contains("a1") }, ["/queue/a1/card?poll=1"])
+		XCTAssertEqual(pollsRequested.filter { $0.contains("a2") }, ["/queue/a2/card?poll=1", "/queue/a2/card?poll=2"])
+		XCTAssertEqual(viewModel.articles.first?.refreshHref, "/queue/a1/card?poll=1")
+		XCTAssertEqual(viewModel.articles.last?.title, "Finished")
+		XCTAssertEqual(failures, ["server"], "the report names the failure's case and carries no status, href or copy")
+		XCTAssertNil(viewModel.errorText)
+		XCTAssertFalse(viewModel.isOffline)
+	}
+
+	func testATransportFailureOnAPollIsReportedWithoutItsURLAndRaisesNoBanner() async {
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path.hasSuffix("/card") == true { throw URLError(.timedOut) }
+			return .json(200, Fixtures.collection(entitiesJSON: [self.pendingRow()]))
+		}
+		var failures: [String] = []
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), reportProcessingRefreshFailure: { failures.append($0) })
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(failures.count, 1)
+		XCTAssertFalse(failures.joined().contains("card"), "a report never names the href")
+		XCTAssertNil(viewModel.errorText)
+		XCTAssertFalse(viewModel.isOffline)
+	}
+
+	func testAPollAnsweringAnotherArticleIsIgnoredAndNotPolledAgain() async {
+		serve(rows: [pendingRow()], polls: ["/queue/a1/card?poll=1": .json(200, Fixtures.polledArticle(id: "other"))])
+		var failures: [String] = []
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), reportProcessingRefreshFailure: { failures.append($0) })
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1"])
+		XCTAssertEqual(pollsRequested, ["/queue/a1/card?poll=1"])
+		XCTAssertEqual(failures, [])
+	}
+
+	func testGoingToTheBackgroundCancelsTheLoopBeforeItsNextRequest() async {
+		serve(rows: [pendingRow()], polls: [:])
+		let pause = FakeRefreshPause(.held)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+		await viewModel.refresh()
+		await pause.waitForPauses(1)
+
+		viewModel.handleBackground()
+		pause.release()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(pollsRequested, [])
+	}
+
+	func testAListAdoptedInTheBackgroundStartsNoLoop() async {
+		serve(rows: [pendingRow()], polls: [:])
+		let pause = FakeRefreshPause(.immediate)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+
+		viewModel.handleBackground()
+		await viewModel.refresh()
+
+		XCTAssertNil(viewModel.processingRefresh)
+		XCTAssertEqual(pause.durations, [])
+	}
+
+	func testReturningToTheForegroundRestartsFromTheRowsCurrentHref() async {
+		let next = #", { "rel": ["next"], "href": "/queue?page=2" }"#
+		serve(rows: [pendingRow()], polls: [
+			"/queue/a1/card?poll=1": polledPending(poll: 2),
+			"/queue/a1/card?poll=2": .json(200, Fixtures.polledArticle(title: "Finished")),
+		], extraLinks: next)
+		let pause = FakeRefreshPause(.held)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+		await viewModel.refresh()
+		await viewModel.loadMore()
+		await pause.waitForPauses(2)
+		pause.release()
+		await pause.waitForPauses(3)
+		viewModel.handleBackground()
+		pause.release()
+		await viewModel.processingRefresh?.value
+		XCTAssertEqual(pollsRequested, ["/queue/a1/card?poll=1"], "precondition: the row advanced to poll=2 before leaving")
+		let listReads = StubURLProtocol.records.count - pollsRequested.count
+
+		await viewModel.handleForeground()
+		await pause.waitForPauses(4)
+		pause.release()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(pollsRequested, ["/queue/a1/card?poll=1", "/queue/a1/card?poll=2"])
+		XCTAssertEqual(StubURLProtocol.records.count - pollsRequested.count, listReads, "a deep-scrolled return stays free of list reads")
+		XCTAssertEqual(viewModel.articles.map(\.title), ["Finished"])
+	}
+
+	func testANewerAdoptionIsNotClobberedByAnInFlightPoll() async {
+		let gate = DispatchSemaphore(value: 0)
+		defer { gate.signal() }
+		let polled = expectation(description: "the poll reached the server")
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path.hasSuffix("/card") == true {
+				polled.fulfill()
+				return StubURLProtocol.Stub.json(200, Fixtures.polledArticle(title: "Stale")).held(until: gate)
+			}
+			return .json(200, Fixtures.collection(entitiesJSON: [self.pendingRow()]))
+		}
+		let pause = FakeRefreshPause(.immediate)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+		await viewModel.refresh()
+		let inFlight = viewModel.processingRefresh
+		await fulfillment(of: [polled], timeout: 2)
+
+		pause.mode = .held
+		StubURLProtocol.setHandler { _, _ in
+			.json(200, Fixtures.collection(entitiesJSON: [self.pendingRow(poll: 5, title: "Newer")]))
+		}
+		await viewModel.refresh()
+		gate.signal()
+		await inFlight?.value
+
+		XCTAssertEqual(viewModel.articles.map(\.title), ["Newer"])
+		XCTAssertEqual(viewModel.articles.first?.refreshHref, "/queue/a1/card?poll=5")
+		viewModel.handleBackground()
+		pause.release()
+		await viewModel.processingRefresh?.value
+	}
+
+	func testSwitchingTabsDropsAnInFlightPoll() async {
+		let gate = DispatchSemaphore(value: 0)
+		defer { gate.signal() }
+		let polled = expectation(description: "the poll reached the server")
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path.hasSuffix("/card") == true {
+				polled.fulfill()
+				return StubURLProtocol.Stub.json(200, Fixtures.polledArticle(title: "Stale")).held(until: gate)
+			}
+			return .json(200, Fixtures.collection(entitiesJSON: [self.pendingRow()]))
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		let inFlight = viewModel.processingRefresh
+		await fulfillment(of: [polled], timeout: 2)
+
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "other")])) }
+		await viewModel.select(tabHref: "/queue?status=read")
+		gate.signal()
+		await inFlight?.value
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["other"])
+	}
+
+	func testAnUnauthorizedPollSignsOutAndEndsTheLoop() async {
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/oauth/token": return .json(400, "{\"error\":\"invalid_grant\"}")
+			case "/queue/a1/card": return .json(401, "{}")
+			default: return .json(200, Fixtures.collection(entitiesJSON: [self.pendingRow()]))
+			}
+		}
+		var expired = 0
+		var failures: [String] = []
+		let viewModel = makeViewModel(
+			store: TestSupport.loggedInStore(),
+			reportProcessingRefreshFailure: { failures.append($0) },
+			onSessionExpired: { expired += 1 }
+		)
+
+		await viewModel.refresh()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(expired, 1)
+		XCTAssertEqual(pollsRequested.count, 1)
+		XCTAssertEqual(failures, [], "a dead session is the session path, not a row failure")
+	}
+
+	func testAPollAfterTheTokensAreGoneSignsOutAndEndsTheLoop() async {
+		serve(rows: [pendingRow()], polls: [:])
+		let store = TestSupport.loggedInStore()
+		let pause = FakeRefreshPause(.held)
+		var expired = 0
+		let viewModel = makeViewModel(store: store, pause: pause, onSessionExpired: { expired += 1 })
+		await viewModel.refresh()
+		await pause.waitForPauses(1)
+
+		store.clear()
+		pause.release()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertEqual(expired, 1)
+		XCTAssertEqual(pollsRequested, [])
+	}
+
+	func testAStoredCopyIsNotPolled() async {
+		var online = true
+		StubURLProtocol.setHandler { _, _ in
+			guard online else { throw URLError(.notConnectedToInternet) }
+			return .json(200, Fixtures.collection(entitiesJSON: [self.pendingRow()]))
+		}
+		let pause = FakeRefreshPause(.held)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), pause: pause)
+		await viewModel.refresh()
+		await pause.waitForPauses(1)
+
+		online = false
+		await viewModel.refresh()
+		pause.release()
+		await viewModel.processingRefresh?.value
+
+		XCTAssertTrue(viewModel.isOffline)
+		XCTAssertNotNil(viewModel.articles.first?.processing, "precondition: the stored copy holds the pending row")
+		XCTAssertEqual(pause.durations.count, 1, "the stored copy started no second round")
+		XCTAssertEqual(pollsRequested, [])
+	}
+
+	func testEveryAdoptionAndAddedRowStampsTheReceipt() async {
+		let next = #", { "rel": ["next"], "href": "/queue?page=2" }"#
+		var clock = Date(timeIntervalSince1970: 100)
+		var rows = [pendingRow(id: "a1"), Fixtures.article(id: "settled")]
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.collection(entitiesJSON: rows, extraLinks: next)) }
+		let pause = FakeRefreshPause(.held)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), now: { clock }, pause: pause)
+
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.processingReceivedAt, ["a1": Date(timeIntervalSince1970: 100)])
+
+		clock = Date(timeIntervalSince1970: 200)
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.processingReceivedAt, ["a1": Date(timeIntervalSince1970: 200)])
+
+		clock = Date(timeIntervalSince1970: 300)
+		rows = [pendingRow(id: "a1"), pendingRow(id: "a2")]
+		await viewModel.loadMore()
+		XCTAssertEqual(viewModel.processingReceivedAt, [
+			"a1": Date(timeIntervalSince1970: 200),
+			"a2": Date(timeIntervalSince1970: 300),
+		], "a paginated page stamps only the rows it added")
+
+		viewModel.handleBackground()
+		pause.release()
+		await viewModel.processingRefresh?.value
+	}
+
+	func testAPolledRepresentationRestampsItsRow() async {
+		var clock = Date(timeIntervalSince1970: 100)
+		serve(rows: [pendingRow()], polls: ["/queue/a1/card?poll=1": polledPending(poll: 2)])
+		let pause = FakeRefreshPause(.held)
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore(), now: { clock }, pause: pause)
+		await viewModel.refresh()
+		await pause.waitForPauses(1)
+
+		clock = Date(timeIntervalSince1970: 200)
+		pause.release()
+		await pause.waitForPauses(2)
+
+		XCTAssertEqual(viewModel.articles.first?.refreshHref, "/queue/a1/card?poll=2")
+		XCTAssertEqual(viewModel.processingReceivedAt["a1"], Date(timeIntervalSince1970: 200))
+		viewModel.handleBackground()
+		pause.release()
+		await viewModel.processingRefresh?.value
 	}
 }

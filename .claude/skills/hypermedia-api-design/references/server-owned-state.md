@@ -169,3 +169,33 @@ This is a **published interface**: `total`, `sort`, `label`, `rel`, `order` and 
 - **A client asks for a sort by position across the popup–background boundary.** The extension's popup never holds an href: it names the entry by its index in the list it was shown, as it does for `pages`, and the background follows the href it kept.
 - **A collection not filtered by status carries neither `total` nor `sort`** (the invalid-URL save refusal lists every status), so a client hides its count and sort until the next listing.
 - **Presentation is the client's.** A toggle, a menu or a segmented control is a layout decision; `rel` and `order` are never used as style tokens.
+
+## Processing Is Server-Owned — `properties.processing`
+
+Saving starts background work, and whether an item is still in flight, what to call it, how long is left and when to look again are server policy. The web card and a native row must show the same numbers, so the arithmetic stays on the server. It rides article `properties` rather than a link: a key is inert on every shipped build, while a link would phantom-render on a build that predates the title rule in [Rendering & Invoking Affordances](client-rendering.md#rendering--invoking-affordances).
+
+```jsonc
+"properties": {
+  "processing": {
+    "label": "Processing",
+    "estimate": { "kind": "counting", "seconds": 121 },
+    "refresh": { "href": "/queue/abc/card?status=unread&poll=2", "afterSeconds": 3 }
+  }
+}
+```
+
+This is a **published interface**: `processing`, `label`, `estimate`, `kind`, `seconds`, `revealInSeconds`, `refresh`, `href` and `afterSeconds` are the contract, and renaming any of them is a breaking change. The key is present on an article entity exactly while the web card for that article polls.
+
+| Key | Rule | Why |
+|---|---|---|
+| `label` | Rendered verbatim, never parsed | It changes by item kind ("Preparing your book…") |
+| `estimate` | Optional. `quiet` shows nothing until `revealInSeconds` have passed, then counts down from `seconds`; `counting` counts down from `seconds`; `almost-there` has no number. A client ticks it once per second between answers, shows `~N s left`, and shows `Almost there…` at zero. An unknown `kind` means no estimate | The per-second tick must be on the client, as it is in the browser; the formula and its constants are not, and each answer replaces the client's count |
+| `refresh.href` | Opaque; resolved through the one href resolver | It carries the poll cursor and the tab, so the answer's actions land back on the tab the row came from |
+| `refresh.afterSeconds` | How long to wait before following `href` | The cadence is a server constant rather than a number in two app binaries |
+
+- **Following `href` answers a top-level `article` entity** on the same URL the web card polls, by content negotiation. A client replaces the row with it, as `hx-swap="outerHTML"` replaces the card, and ignores an answer whose `id` is not the row's.
+- **No `processing` on an answer means stop.** The work settled, or the server's poll budget ran out. Past the budget the entity carries a `messages` warning instead; an upload failure is a `messages` warning too. Both follow [Server-Driven Messages Are Trusted HTML](#server-driven-messages-are-trusted-html).
+- **A save's own `messages` stay the save confirmation**, so a just-saved item never shows a warning in place of "Article saved".
+- **The answer is `Cache-Control: private, no-cache`**, unlike the collection's discovery freshness, because a stale answer would freeze the countdown. The `href` changes on every answer, so a client that keeps a cache still fetches each one.
+- **Polling stops when the client leaves the foreground** and restarts from the rows' current hrefs when it returns. A collection read issues new hrefs, so the cursor restarts there, as a browser reload restarts it.
+- **Presentation is the client's.** A spinner, a line of text or a bar is a layout decision.

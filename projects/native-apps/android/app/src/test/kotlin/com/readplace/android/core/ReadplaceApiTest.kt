@@ -1665,6 +1665,75 @@ class ReadplaceApiTest {
 		assertEquals("the cancelled refresh still persisted the rotated pair", 1, coordinating.rotations)
 	}
 
+	@Test
+	fun `loadArticle reads the top-level article entity with the Siren accept and the bearer`() = runTest {
+		server.handle { Stub.json(200, Fixtures.article("a1")) }
+
+		val article = api().loadArticle("/queue/a1/card?poll=2&status=unread")
+
+		assertEquals("a1", article.id)
+		val request = server.records("/queue/a1/card").single()
+		assertEquals("GET", request.method)
+		assertEquals("2", request.request.url.queryParameter("poll"))
+		assertEquals(AppConfig.SIREN_MEDIA_TYPE, request.header("Accept"))
+		assertEquals("Bearer access-1", request.header("Authorization"))
+	}
+
+	@Test
+	fun `loadArticle rejects a body that is not Siren`() = runTest {
+		server.handle { Stub(200, headers = mapOf("Content-Type" to "text/html"), body = "<article></article>".toByteArray()) }
+
+		val error = failsWith<ApiError.UnsupportedMediaType> { api().loadArticle("/queue/a1/card") }
+
+		assertEquals("text/html", error.mediaType)
+	}
+
+	@Test
+	fun `loadArticle surfaces a non-200 status as the server's error`() = runTest {
+		server.handle { Stub.json(404, "{}") }
+
+		failsWith<ApiError.Server> { api().loadArticle("/queue/a1/card") }
+	}
+
+	@Test
+	fun `loadArticle refuses an entity with no usable properties`() = runTest {
+		server.handle { Stub.json(200, """{ "class": ["article"], "properties": { "id": "a1" } }""") }
+
+		failsWith<ApiError.Decoding> { api().loadArticle("/queue/a1/card") }
+	}
+
+	@Test
+	fun `loadArticle refreshes once and retries on a 401`() = runTest {
+		val store = loggedInStore(access = "stale", refresh = "r1")
+		val attempts = AtomicInteger()
+		server.handle { record ->
+			when (record.path) {
+				"/queue/a1/card" ->
+					if (attempts.incrementAndGet() == 1) Stub.json(401, "{}") else Stub.json(200, Fixtures.article("a1"))
+				"/oauth/token" -> Stub.json(200, Fixtures.tokenResponse(access = "fresh-access", refresh = "r2"))
+				else -> Stub.json(404, "{}")
+			}
+		}
+
+		val article = api(store).loadArticle("/queue/a1/card")
+
+		assertEquals("a1", article.id)
+		assertEquals(2, attempts.get())
+		assertEquals(1, server.records("/oauth/token").size)
+		assertEquals("Bearer fresh-access", server.records("/queue/a1/card").last().header("Authorization"))
+	}
+
+	@Test
+	fun `loadArticle is unauthorized when the refresh is rejected`() = runTest {
+		server.handle { record ->
+			if (record.path == "/oauth/token") Stub.json(400, """{"error":"invalid_grant"}""") else Stub.json(401, "{}")
+		}
+
+		failsWith<ApiError.Unauthorized> { api().loadArticle("/queue/a1/card") }
+
+		assertEquals(1, server.records("/queue/a1/card").size)
+	}
+
 	private object Fixtures {
 		fun article(
 			id: String = "a1",

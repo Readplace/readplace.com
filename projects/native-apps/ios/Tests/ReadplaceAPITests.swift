@@ -85,6 +85,93 @@ final class ReadplaceAPITests: XCTestCase {
 		StubURLProtocol.reset()
 	}
 
+	func testLoadArticleSendsSirenAcceptAndBearerAndIgnoresTheLocalCache() async throws {
+		StubURLProtocol.setHandler { _, _ in .json(200, Fixtures.polledArticle(id: "a1", title: "Polled")) }
+
+		let article = try await makeAPI(store: TestSupport.loggedInStore(access: "token"))
+			.loadArticle(href: "/queue/a1/card?poll=2&status=unread")
+
+		XCTAssertEqual(article.id, "a1")
+		XCTAssertEqual(article.title, "Polled")
+		let request = try XCTUnwrap(StubURLProtocol.records.first?.request)
+		XCTAssertEqual(request.httpMethod, "GET")
+		XCTAssertEqual(request.url?.path, "/queue/a1/card")
+		XCTAssertEqual(request.url?.query, "poll=2&status=unread")
+		XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
+		XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+		XCTAssertEqual(request.cachePolicy, .reloadIgnoringLocalCacheData)
+	}
+
+	func testLoadArticleRejectsANonSirenContentType() async {
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(status: 200, headers: ["Content-Type": "text/html"], body: Data("<article></article>".utf8))
+		}
+
+		do {
+			_ = try await makeAPI(store: TestSupport.loggedInStore()).loadArticle(href: "/queue/a1/card?poll=1")
+			XCTFail("Expected unsupportedMediaType")
+		} catch APIError.unsupportedMediaType(let contentType) {
+			XCTAssertEqual(contentType, "text/html")
+		} catch {
+			XCTFail("Expected unsupportedMediaType, got \(error)")
+		}
+	}
+
+	func testLoadArticleRefreshesOnceOn401() async throws {
+		let store = TestSupport.loggedInStore(access: "stale", refresh: "r1")
+		StubURLProtocol.setHandler { request, _ in
+			if request.url?.path == "/oauth/token" { return .json(200, Fixtures.tokenResponse(access: "fresh", refresh: "r2")) }
+			guard request.value(forHTTPHeaderField: "Authorization") == "Bearer fresh" else { return .json(401, "{}") }
+			return .json(200, Fixtures.polledArticle())
+		}
+
+		let article = try await makeAPI(store: store).loadArticle(href: "/queue/a1/card?poll=1")
+
+		XCTAssertEqual(article.id, "a1")
+		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue/a1/card").count, 2)
+	}
+
+	func testLoadArticleSurfacesUnauthorizedWhenTheRefreshFails() async {
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/oauth/token" ? .json(400, "{\"error\":\"invalid_grant\"}") : .json(401, "{}")
+		}
+
+		do {
+			_ = try await makeAPI(store: TestSupport.loggedInStore()).loadArticle(href: "/queue/a1/card?poll=1")
+			XCTFail("Expected unauthorized")
+		} catch APIError.unauthorized {
+			XCTAssertEqual(StubURLProtocol.records(path: "/queue/a1/card").count, 1)
+		} catch {
+			XCTFail("Expected unauthorized, got \(error)")
+		}
+	}
+
+	func testLoadArticleSurfacesAServerError() async {
+		StubURLProtocol.setHandler { _, _ in .json(500, "{}") }
+
+		do {
+			_ = try await makeAPI(store: TestSupport.loggedInStore()).loadArticle(href: "/queue/a1/card?poll=1")
+			XCTFail("Expected a server error")
+		} catch APIError.server(let status, _, _) {
+			XCTAssertEqual(status, 500)
+		} catch {
+			XCTFail("Expected a server error, got \(error)")
+		}
+	}
+
+	func testLoadArticleTreatsAnEntityWithoutPropertiesAsUndecodable() async {
+		StubURLProtocol.setHandler { _, _ in .json(200, "{ \"class\": [\"article\"] }") }
+
+		do {
+			_ = try await makeAPI(store: TestSupport.loggedInStore()).loadArticle(href: "/queue/a1/card?poll=1")
+			XCTFail("Expected decoding")
+		} catch APIError.decoding {
+		} catch {
+			XCTFail("Expected decoding, got \(error)")
+		}
+	}
+
 	private func makeAPI(store: TokenStore) -> ReadplaceAPI {
 		ReadplaceAPI(
 			baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: TestSupport.nativeUserAgent,

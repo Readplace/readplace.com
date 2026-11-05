@@ -1,7 +1,9 @@
 package com.readplace.android.app
 
 import com.readplace.android.core.Article
+import com.readplace.android.core.CrawlEstimate
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
@@ -25,15 +27,37 @@ data class ArticlePresentation(
 	/** The image to load for the thumbnail, or null when the article carries no
 	 * loadable URL. */
 	val thumbnailUrl: String?,
+	val processingLabel: String?,
+	val notice: String?,
+	private val estimate: CrawlEstimate?,
 ) {
+	fun estimateText(receivedAt: Instant?, now: Instant): String? {
+		if (receivedAt == null) return null
+		val elapsed = maxOf(0L, Duration.between(receivedAt, now).seconds)
+		return when (estimate) {
+			null -> null
+			is CrawlEstimate.Quiet ->
+				if (elapsed < estimate.revealInSeconds) null else remainingWording(estimate.seconds - elapsed)
+			is CrawlEstimate.Counting -> remainingWording(estimate.seconds - elapsed)
+			CrawlEstimate.AlmostThere -> ALMOST_THERE
+		}
+	}
+
 	companion object {
+		private const val ALMOST_THERE = "Almost there…"
+
+		private fun remainingWording(seconds: Long): String = if (seconds > 0) "~$seconds s left" else ALMOST_THERE
+
 		fun of(article: Article, clock: Clock): ArticlePresentation = ArticlePresentation(
 			title = article.title,
-			metaText = metaText(article, clock),
+			metaText = if (article.processing != null) null else metaText(article, clock),
 			excerpt = article.excerpt?.takeIf { it.isNotEmpty() },
 			isRead = article.isRead,
 			statusLabel = if (article.isRead) "Read" else "Unread",
 			thumbnailUrl = article.imageUrl?.takeIf { isWebUrl(it) },
+			processingLabel = article.processing?.label,
+			notice = article.notice,
+			estimate = article.processing?.estimate,
 		)
 
 		private fun metaText(article: Article, clock: Clock): String? {

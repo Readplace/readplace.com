@@ -13,10 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,12 +35,15 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import com.readplace.android.core.Article
+import kotlinx.coroutines.delay
 import java.time.Clock
+import java.time.Instant
 
 @Composable
 fun ArticleRow(
 	article: Article,
 	clock: Clock,
+	processingReceivedAt: Instant?,
 	onOpen: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -56,6 +62,11 @@ fun ArticleRow(
 			verticalAlignment = Alignment.CenterVertically,
 		) {
 			ReadMarker(isRead = presentation.isRead, statusLabel = presentation.statusLabel)
+
+			val processingLabel = presentation.processingLabel
+			if (processingLabel != null) {
+				ProcessingStatus(label = processingLabel, presentation = presentation, receivedAt = processingReceivedAt)
+			}
 
 			presentation.metaText?.let { metaText ->
 				Text(
@@ -81,6 +92,16 @@ fun ArticleRow(
 					overflow = TextOverflow.Ellipsis,
 				)
 
+				presentation.notice?.let { notice ->
+					Text(
+						text = notice,
+						style = MaterialTheme.typography.bodySmall,
+						color = brand.textSecondary,
+						maxLines = 1,
+						overflow = TextOverflow.Ellipsis,
+					)
+				}
+
 				presentation.excerpt?.let { excerpt ->
 					Text(
 						text = excerpt,
@@ -94,6 +115,37 @@ fun ArticleRow(
 
 			presentation.thumbnailUrl?.let { url -> Thumbnail(url = url) }
 		}
+	}
+}
+
+@Composable
+private fun ProcessingStatus(label: String, presentation: ArticlePresentation, receivedAt: Instant?) {
+	val brand = LocalBrandColors.current
+	val now by produceState(Instant.now(), receivedAt) {
+		while (true) {
+			delay(1_000)
+			value = Instant.now()
+		}
+	}
+	CircularProgressIndicator(
+		modifier = Modifier.size(12.dp),
+		color = brand.primaryText,
+		strokeWidth = 1.5.dp,
+	)
+	Text(
+		text = label,
+		style = MaterialTheme.typography.bodySmall,
+		color = brand.textSecondary,
+		maxLines = 1,
+		overflow = TextOverflow.Ellipsis,
+	)
+	presentation.estimateText(receivedAt, now)?.let { estimate ->
+		Text(
+			text = estimate,
+			style = MaterialTheme.typography.bodySmall,
+			color = brand.textSecondary,
+			maxLines = 1,
+		)
 	}
 }
 
