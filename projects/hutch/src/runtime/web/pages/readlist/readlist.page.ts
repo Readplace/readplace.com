@@ -43,7 +43,9 @@ import {
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
 import { ReaderArticleHashIdSchema, calculateReadTime, hostStubMetadata, isNonArticleHost, nextReadDismissalOf } from "@packages/domain/article";
 import { NEXT_READ_MINIMUM_SAVES, hasEnoughSavesForNextRead } from "@packages/domain/article";
-import { CaptureTriggerSchema, type CaptureTrigger, type Viewer, viewerFor } from "@packages/domain/article";
+import { CaptureTriggerSchema, type CaptureTrigger, type Viewer, mayReadItem, viewerFor } from "@packages/domain/article";
+import type { PresignMediaImage } from "@packages/domain";
+import { MediaImageFileSchema, PrivateItemUrlSchema, uploadIdOfPrivateItemUrl } from "@packages/media-contracts";
 import { articlesSavedAt } from "./articles-saved-at";
 import type { RefreshIdentifiedArticleIfStale, ResolvedFreshnessResult } from "@packages/provider-contracts/article-freshness";
 import type {
@@ -432,6 +434,7 @@ interface ReadlistDependencies {
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findItemOwner: FindItemOwner;
+	presignMediaImage: PresignMediaImage;
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlVersions: FindArticleCrawlVersions;
 	findArticleUrlById: FindArticleUrlById;
@@ -1356,6 +1359,28 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			contentVersion,
 		};
 	};
+
+	router.get("/:id/media/:file", noindexMiddleware, async (req: Request<{ id: string; file: string }>, res: Response) => {
+		const file = MediaImageFileSchema.safeParse(req.params.file);
+		const id = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		if (!file.success || !id.success) {
+			res.status(404).type("html").send("");
+			return;
+		}
+		const url = PrivateItemUrlSchema.safeParse(await deps.findArticleUrlById(id.data));
+		if (!url.success) {
+			res.status(404).type("html").send("");
+			return;
+		}
+		const ownerUserId = await deps.findItemOwner(url.data);
+		if (!mayReadItem({ url: url.data, viewer: viewerFor(req.userId), ownerUserId })) {
+			res.status(404).type("html").send("");
+			return;
+		}
+		const location = await deps.presignMediaImage({ uploadId: uploadIdOfPrivateItemUrl(url.data), file: file.data });
+		res.set("Cache-Control", "private, no-store");
+		res.redirect(302, location);
+	});
 
 	router.get(
 		"/:id/view",

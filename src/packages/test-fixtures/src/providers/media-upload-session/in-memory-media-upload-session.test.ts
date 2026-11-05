@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { SaveAttemptIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
-import { UploadIdSchema } from "@packages/media-contracts";
+import { MediaImageFileSchema, UploadIdSchema } from "@packages/media-contracts";
 import {
 	initInMemoryMediaPending,
 	initInMemoryMediaUploadCommitted,
 	initInMemoryMediaUploadSessions,
+	initInMemoryPresignMediaImage,
 } from "./in-memory-media-upload-session";
 import { mintPrivateItemUrl } from "@packages/media-contracts";
 
@@ -93,6 +94,18 @@ describe("initInMemoryMediaUploadSessions", () => {
 		const sessions = initInMemoryMediaUploadSessions();
 
 		assert.equal(await sessions.failMediaUpload({ uploadId: unknownUploadId }), "not-committed");
+	});
+});
+
+describe("initInMemoryPresignMediaImage", () => {
+	it("answers a media.test URL for the image and records the call", async () => {
+		const file = MediaImageFileSchema.parse(`${"ab".repeat(32)}.png`);
+		const { presignMediaImage, presignedMediaImages } = initInMemoryPresignMediaImage();
+
+		const url = await presignMediaImage({ uploadId, file });
+
+		assert.equal(url, `https://media.test/images/${uploadId}/${file}`);
+		assert.deepEqual(presignedMediaImages, [{ uploadId, file }]);
 	});
 });
 

@@ -543,6 +543,19 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 				],
 			}),
 		},
+		{
+			name: "web-media-images-read",
+			policy: JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Action: ["s3:GetObject"],
+						Resource: `arn:aws:s3:::${mediaBucketName}/images/*`,
+					},
+				],
+			}),
+		},
 		trialSchedulerManagePolicy,
 	],
 });

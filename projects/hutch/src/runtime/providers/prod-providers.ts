@@ -93,6 +93,7 @@ import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initDynamoDbImportSession } from "./import-session/dynamodb-import-session";
 import { initDynamoDbMediaUploadSessions } from "./media-upload-session/dynamodb-media-upload-sessions";
 import { initS3MediaPending } from "./media-pending/s3-media-pending";
+import { initS3PresignMediaImage } from "./media-image/s3-presign-media-image";
 import { initEventBridgeMediaUploadCommitted } from "./events/eventbridge-media-upload-committed";
 import { initDynamoDbPrivateItem } from "@packages/article-store";
 import { mintUploadId } from "@packages/media-contracts";
@@ -418,6 +419,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		client: new S3Client({}),
 		bucketName: requireEnv("MEDIA_BUCKET_NAME"),
 	});
+	const { presignMediaImage } = initS3PresignMediaImage({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
 	const { publishMediaUploadCommitted } = initEventBridgeMediaUploadCommitted({ publishEvent });
 	const importSessionStore = initDynamoDbImportSession({
 		client,
@@ -567,6 +569,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 		mintMediaPendingPost,
 		headMediaPendingOriginal,
 		readMediaPendingPrefix,
+		presignMediaImage,
 		publishMediaUploadCommitted,
 		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,

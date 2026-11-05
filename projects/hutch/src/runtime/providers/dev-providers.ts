@@ -124,6 +124,7 @@ import {
 	initInMemoryMediaPending,
 	initInMemoryMediaUploadCommitted,
 	initInMemoryMediaUploadSessions,
+	initInMemoryPresignMediaImage,
 } from "@packages/test-fixtures/providers/media-upload-session";
 import { mintUploadId } from "@packages/media-contracts";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
@@ -600,6 +601,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		savePrivateItem: articleStore.savePrivateItem,
 		...initInMemoryMediaUploadSessions(),
 		...initInMemoryMediaPending({ uploadBaseUrl: `${input.appOrigin}/e2e/s3-media` }),
+		presignMediaImage: initInMemoryPresignMediaImage().presignMediaImage,
 		publishMediaUploadCommitted: initInMemoryMediaUploadCommitted().publishMediaUploadCommitted,
 		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,

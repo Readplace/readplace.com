@@ -7,6 +7,7 @@ import type {
 	MarkMediaUploadCommitted,
 	MediaUploadSession,
 	MintMediaPendingPost,
+	PresignMediaImage,
 	PublishMediaUploadCommitted,
 	ReadMediaPendingPrefix,
 } from "@packages/domain";
@@ -77,6 +78,20 @@ export function initInMemoryMediaPending(deps: { uploadBaseUrl: string }): InMem
 		receivePendingOriginal: ({ uploadId, bytes }) => {
 			originals.set(uploadId, { bytes, etag: `"etag-${uploadId}"` });
 		},
+	};
+}
+
+export function initInMemoryPresignMediaImage(): {
+	presignMediaImage: PresignMediaImage;
+	presignedMediaImages: Parameters<PresignMediaImage>[0][];
+} {
+	const presignedMediaImages: Parameters<PresignMediaImage>[0][] = [];
+	return {
+		presignMediaImage: async (input) => {
+			presignedMediaImages.push(input);
+			return `https://media.test/images/${input.uploadId}/${input.file}`;
+		},
+		presignedMediaImages,
 	};
 }
 

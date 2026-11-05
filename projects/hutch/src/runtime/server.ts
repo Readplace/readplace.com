@@ -263,6 +263,7 @@ import type {
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
 	MintMediaPendingPost,
+	PresignMediaImage,
 	PublishMediaUploadCommitted,
 	ReadMediaPendingPrefix,
 } from "@packages/domain";
@@ -575,6 +576,7 @@ interface AppDependencies {
 	mintMediaPendingPost: MintMediaPendingPost;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
+	presignMediaImage: PresignMediaImage;
 	publishMediaUploadCommitted: PublishMediaUploadCommitted;
 	mintUploadId: () => UploadId;
 	provisionInboxAddress: (userId: UserId) => Promise<void>;
@@ -1543,6 +1545,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		countArticlesByUser: deps.countArticlesByUser,
 		findArticleById: deps.findArticleById,
 		findArticleByUrl: deps.findArticleByUrl,
+		presignMediaImage: deps.presignMediaImage,
 		findItemOwner: deps.findItemOwner,
 		findArticleFreshness: deps.findArticleFreshness,
 		findArticleCrawlVersions: deps.findArticleCrawlVersions,

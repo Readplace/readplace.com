@@ -66,6 +66,7 @@ import type {
 	MarkMediaUploadCommitted,
 	MediaUploadSession,
 	MintMediaPendingPost,
+	PresignMediaImage,
 	PublishMediaUploadCommitted,
 	ReadMediaPendingPrefix,
 } from "@packages/domain";
@@ -736,6 +737,8 @@ export interface MediaUploadBundle {
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
 	receivePendingOriginal: (params: { uploadId: MediaUploadSession["uploadId"]; bytes: Uint8Array }) => void;
+	presignMediaImage: PresignMediaImage;
+	presignedMediaImages: Parameters<PresignMediaImage>[0][];
 	publishMediaUploadCommitted: PublishMediaUploadCommitted;
 	publishedMediaUploadCommitted: Parameters<PublishMediaUploadCommitted>[0][];
 	mintUploadId: () => MediaUploadSession["uploadId"];
