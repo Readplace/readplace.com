@@ -23,7 +23,7 @@ describe("parseEpubPackage", () => {
 		const pkg = parseEpubPackage(buildTestEpub({ title: "A Book", authors: ["Ada", "Grace"], chapters: CHAPTERS }));
 
 		assert.notEqual(pkg, "not-an-epub");
-		assert.deepEqual(pkg, { title: "A Book", authors: ["Ada", "Grace"], spine: ["OEBPS/one.xhtml", "OEBPS/two.xhtml"], navPath: "OEBPS/nav.xhtml", ncxPath: undefined });
+		assert.deepEqual(pkg, { title: "A Book", authors: ["Ada", "Grace"], spine: ["OEBPS/one.xhtml", "OEBPS/two.xhtml"], navPath: "OEBPS/nav.xhtml", ncxPath: undefined, manifestMediaTypes: new Map([["OEBPS/one.xhtml", "application/xhtml+xml"], ["OEBPS/two.xhtml", "application/xhtml+xml"], ["OEBPS/nav.xhtml", "application/xhtml+xml"]]) });
 	});
 
 	it("names a book without a title", () => {
@@ -58,7 +58,7 @@ describe("readEpubChapters", () => {
 		const bytes = buildTestEpub({ title: "A Book", chapters: [...CHAPTERS, { file: "three.xhtml", title: "", body: "<p>c</p>" }] });
 		const chapters = readEpubChapters({
 			bytes,
-			pkg: { title: "A Book", authors: [], spine: ["OEBPS/one.xhtml", "OEBPS/three.xhtml", "OEBPS/gone.xhtml"], navPath: "OEBPS/gone-nav.xhtml", ncxPath: "OEBPS/gone.ncx" },
+			pkg: { title: "A Book", authors: [], spine: ["OEBPS/one.xhtml", "OEBPS/three.xhtml", "OEBPS/gone.xhtml"], navPath: "OEBPS/gone-nav.xhtml", ncxPath: "OEBPS/gone.ncx", manifestMediaTypes: new Map() },
 		});
 
 		assert.deepEqual(chapters.map((chapter) => chapter.title), ["Chapter 1", "Chapter 2"]);

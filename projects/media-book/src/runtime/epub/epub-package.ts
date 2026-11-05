@@ -7,6 +7,7 @@ export type EpubPackage = {
 	spine: string[];
 	navPath: string | undefined;
 	ncxPath: string | undefined;
+	manifestMediaTypes: ReadonlyMap<string, string>;
 };
 
 export function parseEpubPackage(bytes: Uint8Array): EpubPackage | "not-an-epub" {
@@ -23,6 +24,7 @@ export function parseEpubPackage(bytes: Uint8Array): EpubPackage | "not-an-epub"
 			{
 				path: resolveZipPath({ from: opfPath, href: attribute({ element: item, name: "href" }) }),
 				properties: attribute({ element: item, name: "properties" }).split(" "),
+				mediaType: attribute({ element: item, name: "media-type" }),
 			},
 		]),
 	);
@@ -39,5 +41,6 @@ export function parseEpubPackage(bytes: Uint8Array): EpubPackage | "not-an-epub"
 		spine,
 		navPath: [...manifest.values()].find((item) => item.properties.includes("nav"))?.path,
 		ncxPath: manifest.get(tocId)?.path,
+		manifestMediaTypes: new Map([...manifest.values()].map((item) => [item.path, item.mediaType])),
 	};
 }

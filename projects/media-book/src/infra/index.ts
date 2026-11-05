@@ -63,6 +63,13 @@ new HutchMediaProcessor(MEDIA_BOOK_DLQ_SOURCES.processBook, {
 					],
 				}),
 			},
+			{
+				name: "media-book-images-write",
+				policy: JSON.stringify({
+					Version: "2012-10-17",
+					Statement: [{ Effect: "Allow", Action: ["s3:PutObject"], Resource: `arn:aws:s3:::${mediaBucketName}/images/*` }],
+				}),
+			},
 			...HutchS3ReadWrite.readPoliciesForBucket("media-book-content-read", contentBucketName),
 			...HutchS3ReadWrite.writePoliciesForBucket("media-book-content-write", contentBucketName),
 			...articlesDynamodb.policies,

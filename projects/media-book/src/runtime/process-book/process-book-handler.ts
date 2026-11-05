@@ -14,6 +14,7 @@ import { parseEpubPackage } from "../epub/epub-package";
 import { listZipEntries } from "../epub/zip-entries";
 import type { DownloadStagedObject } from "../s3/download-staged-object";
 import { BOOK_FAILURES, type BookFailure } from "./book-failure-notices";
+import { readBookEntryFrom, type StoreBookImagesFor } from "./store-book-image";
 
 type RecordPrivateItemSections = ReturnType<typeof initDynamoDbPrivateItem>["recordPrivateItemSections"];
 
@@ -34,6 +35,7 @@ export function initProcessBookHandler(deps: {
 	downloadStagedObject: DownloadStagedObject;
 	recordPrivateItemSections: RecordPrivateItemSections;
 	putTierSource: PutTierSource;
+	storeBookImagesFor: StoreBookImagesFor;
 	publishEvent: PublishEvent;
 	readerBodyByteLimit: number;
 	logger: HutchLogger;
@@ -60,12 +62,19 @@ export function initProcessBookHandler(deps: {
 		if (isDrmProtected(staged.bytes)) return fail(detail, "drm-protected");
 		const pkg = parseEpubPackage(staged.bytes);
 		if (pkg === "not-an-epub") return fail(detail, "not-an-epub");
-		const body = buildBookBody(readEpubChapters({ bytes: staged.bytes, pkg }));
+		const storeImage = deps.storeBookImagesFor({ uploadId: detail.uploadId, itemUrl: detail.url, readEntry: readBookEntryFrom({ bytes: staged.bytes, pkg }) });
+		let imagesWritten = 0;
+		const resolveImage = (zipPath: string) =>
+			storeImage(zipPath).then((src) => {
+				if (src !== undefined) imagesWritten += 1;
+				return src;
+			});
+		const body = await buildBookBody({ chapters: readEpubChapters({ bytes: staged.bytes, pkg }), resolveImage });
 		if (Buffer.byteLength(body.html) > deps.readerBodyByteLimit) return fail(detail, "too-large-for-reader");
 
 		const recorded = await deps.recordPrivateItemSections({ url: detail.url, sectionCount: body.sectionCount });
 		if (recorded === "not-found") {
-			deps.logger.info("[process-book] item released while processing", { uploadId: detail.uploadId });
+			deps.logger.info("[process-book] item released while processing", { uploadId: detail.uploadId, imagesWritten });
 			return;
 		}
 

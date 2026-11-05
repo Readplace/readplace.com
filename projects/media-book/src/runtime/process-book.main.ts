@@ -7,11 +7,14 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "@packages/require-env";
 import { initPutTierSource } from "@packages/tier-source";
 import { initProcessBookHandler } from "./process-book/process-book-handler";
+import { initStoreBookImage } from "./process-book/store-book-image";
 import { initDownloadStagedObject } from "./s3/download-staged-object";
+import { initPutBookImage } from "./s3/put-book-image";
 
 const READER_BODY_BYTE_LIMIT = 5_789_589;
 
 const s3Client = new S3Client({});
+const mediaBucketName = requireEnv("MEDIA_BUCKET_NAME");
 
 const { recordPrivateItemSections } = initDynamoDbPrivateItem({
 	client: createDynamoDocumentClient(),
@@ -22,9 +25,10 @@ const { putTierSource } = initPutTierSource({ client: s3Client, bucketName: requ
 const { publishEvent } = initEventBridgePublisher({ client: new EventBridgeClient({}), eventBusName: requireEnv("EVENT_BUS_NAME") });
 
 export const handler = initProcessBookHandler({
-	downloadStagedObject: initDownloadStagedObject({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME"), tmpDir: tmpdir() }),
+	downloadStagedObject: initDownloadStagedObject({ client: s3Client, bucketName: mediaBucketName, tmpDir: tmpdir() }),
 	recordPrivateItemSections,
 	putTierSource,
+	storeBookImagesFor: initStoreBookImage({ putBookImage: initPutBookImage({ client: s3Client, bucketName: mediaBucketName }) }),
 	publishEvent,
 	readerBodyByteLimit: READER_BODY_BYTE_LIMIT,
 	logger: HutchLogger.from(consoleLogger),
