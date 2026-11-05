@@ -587,6 +587,26 @@ describe("saveArticleFromUrl", () => {
 		expect(linkSaves).toEqual([{ url: exampleUrl, captureUrl: trackerUrl, sourceOriginalUrl: exampleUrl }]);
 	});
 
+	it.each([
+		{ saveTrigger: "automatic" as const, meteredLegs: "deferred" as const },
+		{ saveTrigger: "manual" as const, meteredLegs: "run" as const },
+	])("marks the crawl pending with meteredLegs=$meteredLegs for a $saveTrigger save whose content source is a tracker, still handing the tracker to the crawl", async ({ saveTrigger: trigger, meteredLegs }) => {
+		const trackerUrl = "https://substack.com/redirect/abc-123?j=xyz";
+		const tracker = makeTracker();
+		const linkSaves: Array<{ url: string; captureUrl?: string }> = [];
+		const deps: SaveArticleFromUrlDependencies = {
+			...tracker.deps,
+			publishLinkSaved: async ({ url, captureUrl }) => {
+				linkSaves.push({ url, captureUrl });
+			},
+		};
+
+		await initSaveArticleFromUrl(deps)({ userId, url: exampleUrl, provenance, saveTrigger: trigger, savedAt: operationSavedAt, saveAttemptId, freshness: { action: "new", identity: { ...ownIdentity, contentSourceUrl: trackerUrl, sourceOriginalUrl: exampleUrl } } });
+
+		expect(tracker.crawlPendingMarks).toEqual([{ url: exampleUrl, measured: trigger === "manual", meteredLegs }]);
+		expect(linkSaves).toEqual([{ url: exampleUrl, captureUrl: trackerUrl }]);
+	});
+
 	it("pins nothing when the identity carries no content source", async () => {
 		const tracker = makeTracker();
 

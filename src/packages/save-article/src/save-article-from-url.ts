@@ -140,7 +140,7 @@ export function initSaveArticleFromUrl(
 			freshness: params.freshness,
 			written,
 			resurfacesEarlierSaves,
-			meteredLegs: params.saveTrigger === "automatic" && source === undefined ? "deferred" : "run",
+			meteredLegs: params.saveTrigger === "automatic" && (source === undefined || !isArchiveHost(source.contentSourceUrl)) ? "deferred" : "run",
 		});
 		// The row is committed, so the save is accepted on every freshness branch —
 		// including the skip that publishes no LinkSaved. Carries the submitted URL,
