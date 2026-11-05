@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { z } from "zod";
-import { ForwardableSenderSchema, pickerDeliveryMode } from "@packages/domain/gmail";
+import { ForwardableSenderSchema, gmailSenderPool, pickerDeliveryMode } from "@packages/domain/gmail";
 import type { DiscoveredGmailSender, ForwardableSender, GmailConnection, GmailDiscovery, GmailMapping } from "@packages/domain/gmail";
 import type { InboxAddress } from "@packages/domain/inbox";
 import { DEFAULT_READLIST_SLUG, readerReadlists } from "@packages/domain/readlist";
@@ -8,6 +8,7 @@ import type { UserId } from "@packages/domain/user";
 import type { MapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
 import type { GmailImportActions } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
+import { initSubmitNewsletterSenders } from "./gmail-submit-newsletter-senders";
 import { buildGmailUrl, GmailMarkChoiceSchema, type GmailPageError, type GmailPickerState, type GmailUrlParams, gmailSelectedReadlists, parseGmailPickerState } from "./gmail.url";
 
 const SendersBodySchema = z.object({
@@ -41,6 +42,7 @@ export function initSaveGmailSenders(deps: {
 	mapSenderToReadlist: MapSenderToReadlist;
 }): SaveGmailSenders {
 	const { gmail } = deps;
+	const submitNewsletterSenders = initSubmitNewsletterSenders(gmail);
 	return async ({ userId, body }) => {
 		const state = parseGmailPickerState(body);
 		const parsedSave = SaveBodySchema.safeParse(body);
@@ -65,11 +67,8 @@ export function initSaveGmailSenders(deps: {
 		]);
 		const existingFor = (sender: ForwardableSender) => mappings.find((mapping) => mapping.senderEmail === sender);
 		const sameMailbox = discoveryMatchesConnection(discovery, connection);
-		const known = (sender: ForwardableSender) =>
-			existingFor(sender)?.addedToFilterAt !== undefined
-			|| (sameMailbox && discovered.some((entry) => entry.email === sender))
-			|| observed.some((entry) => entry.email === sender);
-		if (!senders.every(known)) return invalid("sender_unknown");
+		const { known } = gmailSenderPool({ observed, discovered, sameMailbox, mappings });
+		if (!senders.every((sender) => known.has(sender))) return invalid("sender_unknown");
 		assert(accountEmail, "a sender this connection knows implies its Gmail account is recorded");
 		const choices = [...new Set(gmailSelectedReadlists(state))];
 		const readlists = readerReadlists(definitions);
@@ -97,12 +96,7 @@ export function initSaveGmailSenders(deps: {
 			saved.push({ sender, destinations, newMapping });
 		}
 		await gmail.publishRewriteGmailFilter({ userId, reason: "sender-added" });
-		const detection = await gmail.detectNewsletters(senders);
-		for (const sender of senders) {
-			if (detection.status === "unavailable" || detection.recognized.get(sender)?.match !== "exact") {
-				await gmail.publishSubmitNewsletterSender({ senderEmail: sender });
-			}
-		}
+		await submitNewsletterSenders(senders);
 		const savedNotice: GmailUrlParams = saved.length === 1
 			? { notice: saved.every((entry) => entry.newMapping) ? "sender_mapped" : "sender_remapped" }
 			: { notice: "senders_saved", saved: saved.length };

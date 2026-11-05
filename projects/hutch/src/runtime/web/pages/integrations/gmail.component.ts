@@ -8,6 +8,11 @@ import { GMAIL_PATH } from "./gmail.url";
 import type { GmailAddNewslettersAction, GmailForwardingState, GmailMappingDestination, GmailMappingRow, GmailMappingsViewModel } from "./gmail-mappings.viewmodel";
 import type { GmailPageViewModel, GmailPollViewModel } from "./gmail.viewmodel";
 import { toGmailPollViewModel } from "./gmail.viewmodel";
+import {
+	renderGmailSenderResultsHtml,
+	renderGmailSenderSelectionHtml,
+	renderGmailSenderStatusHtml,
+} from "./gmail-sender-widget.component";
 
 function template(name: string): string {
 	return readFileSync(join(__dirname, name), "utf-8");
@@ -15,10 +20,6 @@ function template(name: string): string {
 
 const GMAIL_TEMPLATE = template("gmail.template.html");
 const GMAIL_POLL_TEMPLATE = template("gmail-poll.template.html");
-const GMAIL_SENDER_RESULTS_TEMPLATE = template("gmail-sender-results.template.html");
-const GMAIL_SENDER_STATUS_TEMPLATE = template("gmail-sender-status.template.html");
-const GMAIL_SENDER_CHECKLIST_TEMPLATE = template("gmail-sender-checklist.template.html");
-const GMAIL_LOAD_BUTTON_TEMPLATE = template("gmail-load-button.template.html");
 const GMAIL_READLIST_PICKER_TEMPLATE = template("gmail-readlist-picker.template.html");
 const GMAIL_MAPPING_CHOICE_TEMPLATE = template("gmail-mapping-choice.template.html");
 const GMAIL_MAPPINGS_TEMPLATE = template("gmail-mappings.template.html");
@@ -26,7 +27,6 @@ const GMAIL_MAPPING_ROW_TEMPLATE = template("gmail-mapping-row.template.html");
 const GMAIL_IMPORT_CONSENT_TEMPLATE = template("gmail-import-consent.template.html");
 const GMAIL_DIALOG_TEMPLATE = template("gmail-dialog.template.html");
 const GMAIL_DIALOG_BODY_TEMPLATE = template("gmail-dialog-body.template.html");
-const GMAIL_SENDER_SELECTION_TEMPLATE = template("gmail-sender-selection.template.html");
 const GMAIL_ADD_NEWSLETTERS_TEMPLATE = template("gmail-add-newsletters.template.html");
 
 const DIALOG_AUTO_DISCOVER_TEMPLATE = '<div hidden data-background-request hx-post="{{action}}" hx-trigger="load" hx-target="#gmail-sender-status" hx-select="#gmail-sender-status" hx-select-oob="#gmail-load-senders-button:outerHTML" hx-swap="outerHTML show:none" hx-include="#gmail-sender-search-form, #gmail-sender-search" hx-indicator=".gmail__load" data-test-gmail-auto-load-senders="dialog"></div>';
@@ -73,17 +73,8 @@ export function renderGmailPoll(vm: GmailPollViewModel): string {
 	return render(GMAIL_POLL_TEMPLATE, vm);
 }
 
-function renderGmailLoadButton(vm: GmailPageViewModel, outOfBand: boolean): string {
-	return render(GMAIL_LOAD_BUTTON_TEMPLATE, { label: vm.status.loadButtonLabel, outOfBand });
-}
-
 export function renderGmailSenderStatus(vm: GmailPageViewModel, options: { outOfBandLoadButton: boolean }): string {
-	const status = render(GMAIL_SENDER_STATUS_TEMPLATE, vm.status);
-	return options.outOfBandLoadButton ? renderGmailLoadButton(vm, true) + status : status;
-}
-
-export function renderGmailSenderChecklist(vm: GmailPageViewModel): string {
-	return render(GMAIL_SENDER_CHECKLIST_TEMPLATE, vm.checklist);
+	return renderGmailSenderStatusHtml(vm.status, options);
 }
 
 function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string {
@@ -100,7 +91,7 @@ function renderMappingChoice(vm: GmailPageViewModel, outOfBand: boolean): string
 }
 
 export function renderGmailSenderResults(vm: GmailPageViewModel, options: { outOfBandState: boolean }): string {
-	const results = render(GMAIL_SENDER_RESULTS_TEMPLATE, vm.results);
+	const results = renderGmailSenderResultsHtml(vm.results);
 	if (!options.outOfBandState) return results;
 	return results + renderMappingChoice(vm, true) + renderMappings(vm.mappings, true);
 }
@@ -146,14 +137,7 @@ function renderAutoDiscover(vm: GmailPageViewModel, placement: "dialog" | "page"
 }
 
 const SENDER_SELECTION_BY_MODE: Record<Exclude<GmailPageViewModel["dialog"]["mode"], "none">, (vm: GmailPageViewModel) => string> = {
-	add: (vm) => render(GMAIL_SENDER_SELECTION_TEMPLATE, {
-		...vm,
-		autoDiscoverHtml: renderAutoDiscover(vm, "dialog"),
-		loadButton: renderGmailLoadButton(vm, false),
-		senderStatus: renderGmailSenderStatus(vm, { outOfBandLoadButton: false }),
-		senderChecklist: renderGmailSenderChecklist(vm),
-		senderResults: renderGmailSenderResults(vm, { outOfBandState: false }),
-	}),
+	add: (vm) => renderGmailSenderSelectionHtml({ ...vm, autoDiscoverHtml: renderAutoDiscover(vm, "dialog") }),
 	edit: () => "",
 };
 

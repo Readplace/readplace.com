@@ -749,6 +749,80 @@ const INBOX_UNAVAILABLE_LIGHT: VisualCheckpoint = {
 	pinnedText: [],
 };
 
+const GMAIL_SENDERS = "[data-test-readlist-gmail-senders]";
+const GMAIL_CONNECT = `${GMAIL_SENDERS} [data-test-action="connect-gmail"]`;
+const GMAIL_CHECKLIST_ROWS = `${GMAIL_SENDERS} [data-test-gmail-checklist-row]`;
+const GMAIL_SAVE = `${GMAIL_SENDERS} [data-test-action="save-gmail-newsletters"]`;
+
+async function gmailSendersIn(page: Page, state: "connect" | "picker"): Promise<void> {
+	await expect(page.locator(GMAIL_SENDERS)).toHaveAttribute("data-test-gmail-senders-state", state);
+	await waitForBrandFonts(page, ["Inter"]);
+}
+
+async function gmailConnectOffered(page: Page): Promise<void> {
+	await gmailSendersIn(page, "connect");
+	await expect(page.locator(GMAIL_CONNECT)).toBeVisible();
+}
+
+async function gmailPickerListed(page: Page): Promise<void> {
+	await gmailSendersIn(page, "picker");
+	await expect(page.locator("html")).toHaveAttribute("data-gmail-picker-attached", "");
+	await expect(page.locator(GMAIL_CHECKLIST_ROWS)).toHaveCount(2);
+	await expect(page.locator(GMAIL_SAVE)).toBeVisible();
+}
+
+async function gmailSendersFollowTheInboxes(page: Page): Promise<void> {
+	const [inboxes, gmail] = [await measuredBox(page, INBOXES), await measuredBox(page, GMAIL_SENDERS)];
+	assert.ok(gmail.y >= inboxes.y + inboxes.height, "the Gmail newsletters must sit under the inboxes");
+	assert.ok(Math.abs(gmail.x - inboxes.x) <= 1, "the Gmail newsletters must share the inboxes' left edge");
+	assert.ok(Math.abs(gmail.width - inboxes.width) <= 1, "the Gmail newsletters must span the inboxes' width");
+}
+
+const GMAIL_CONNECT_LIGHT: VisualCheckpoint = {
+	name: "readlist-preferences-gmail-connect-light",
+	settled: gmailConnectOffered,
+	geometry: gmailSendersFollowTheInboxes,
+	target: GMAIL_SENDERS,
+	capture: "element",
+	pinnedText: [],
+};
+
+const GMAIL_PICKER_LIGHT: VisualCheckpoint = {
+	name: "readlist-preferences-gmail-picker-light",
+	settled: gmailPickerListed,
+	geometry: gmailSendersFollowTheInboxes,
+	target: GMAIL_SENDERS,
+	capture: "element",
+	pinnedText: [],
+};
+
+const GMAIL_NEWSLETTERS = [
+	{ email: "dan@tldr.tech", name: "Dan at TLDR" },
+	{ email: "crew@morningbrew.com", name: "Brew Crew" },
+] as const;
+
+async function seedGmailSenders(page: Page, input: { userId: string; namespace: string }): Promise<void> {
+	await page.context().addCookies([{ name: "e2e_catalog_ns", value: input.namespace, url: BASE_URL }]);
+	const catalog = await page.request.post(`${BASE_URL}/e2e/seed-newsletter-catalog`, {
+		data: {
+			namespace: input.namespace,
+			records: GMAIL_NEWSLETTERS.map((newsletter) => ({
+				from: newsletter.email,
+				name: newsletter.name,
+				status: "approved",
+				evidence: [],
+				createdAt: "2026-09-01T00:00:00.000Z",
+				updatedAt: "2026-09-01T00:00:00.000Z",
+			})),
+		},
+	});
+	assert.equal(catalog.status(), 201, "the newsletter catalog seed must be accepted");
+	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-gmail-state`, {
+		data: { userId: input.userId, discoveredSenders: GMAIL_NEWSLETTERS },
+	});
+	assert.equal(seeded.status(), 201, "the Gmail seed must connect the reader's mailbox");
+}
+
 async function openListedInboxes(page: Page, stamp: string): Promise<readonly string[]> {
 	const { userId, slug } = await openPreferences(page, stamp);
 	const elsewhere = await createReadlistFromRail(page, "New Readlist 2");
@@ -982,5 +1056,26 @@ test.describe("Readlist preferences inboxes", () => {
 		);
 		await reopenPreferences(page, { slug, query: "?preferences_error=unknown-inbox" });
 		await captureCheckpoint(page, INBOX_UNAVAILABLE_LIGHT);
+	});
+});
+
+test.describe("Readlist preferences Gmail newsletters", () => {
+	test.use({ timezoneId: "UTC", viewport: DESKTOP_TALL });
+
+	test("offers to connect Gmail while the mailbox is not connected (light)", async ({ page }, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await openPreferences(page, `gmail-connect-light-${testInfo.workerIndex}-${Date.now()}`);
+		await captureCheckpoint(page, GMAIL_CONNECT_LIGHT);
+	});
+
+	test("lists the mailbox's senders to tick for this readlist once Gmail is connected (light)", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const stamp = `gmail-picker-light-${testInfo.workerIndex}-${Date.now()}`;
+		const { userId, slug } = await openPreferences(page, stamp);
+		await seedGmailSenders(page, { userId, namespace: `readlist-preferences-visual-${stamp}` });
+		await reopenPreferences(page, { slug });
+		await captureCheckpoint(page, GMAIL_PICKER_LIGHT);
 	});
 });

@@ -243,6 +243,34 @@ describe("every popup opens on its first decision", () => {
 		expect(dialogKeys(response.text)).toContain("gmail-connect-disclaimer");
 	});
 
+	it("holds on a readlist's Gmail connect disclaimer, and keeps its picker free of autofocus", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+		});
+		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const reader = await harness.auth.findUserByEmail("test@example.com");
+		assert(reader, "the logged-in reader must exist");
+		const userId = reader.userId;
+		const accountEmail = GmailAccountEmailSchema.parse("reader@gmail.com");
+		const slug = createdSlug((await agent.post("/queue/queues").type("form").send({ label: "Tech" })).headers.location);
+		const preferences = `/queue/queues/${slug}/preferences`;
+		const unconnected = await agent.get(preferences).set(BROWSER_REQUEST_HEADERS);
+		const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail });
+		await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: GMAIL_SCOPES });
+		const searched = parse((await agent.get(`${preferences}?gmail_selection=1&search=tldr`).set(BROWSER_REQUEST_HEADERS)).text);
+		const section = searched.querySelector("[data-test-readlist-gmail-senders]");
+		assert(section, "the connected readlist must render its Gmail newsletters section");
+
+		expect(gapsOn({ path: preferences, html: unconnected.text })).toEqual([]);
+		expect(dialogKeys(unconnected.text)).toContain("gmail-connect-disclaimer");
+		expect([section.getAttribute("data-test-gmail-senders-state"), autofocusCount(section)]).toEqual(["picker", 0]);
+	});
+
 	it("keeps autofocus off every inline copy and on the refused field of a 422", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);

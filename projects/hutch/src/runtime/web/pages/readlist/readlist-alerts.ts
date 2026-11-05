@@ -52,6 +52,18 @@ export const INBOX_UNAVAILABLE_ALERT: AlertContent = {
 	message: { text: "It may have been disabled. Pick another custom email." },
 };
 
+const GMAIL_SAVE_ALERT_TITLE = "Couldn't save the Gmail newsletters";
+
+export const GMAIL_SELECTION_ALERT: AlertContent = errorAlert({
+	title: GMAIL_SAVE_ALERT_TITLE,
+	body: "One of those senders can't be saved here. Check it on the Gmail newsletters page, then try again.",
+});
+
+export const GMAIL_UNAVAILABLE_ALERT: AlertContent = errorAlert({
+	title: GMAIL_SAVE_ALERT_TITLE,
+	body: "Gmail isn't ready to save newsletters right now. Nothing was changed.",
+});
+
 export function readlistAlertFor(query: Record<string, unknown>): AlertContent | undefined {
 	const code = typeof query.queue_error === "string" ? query.queue_error : undefined;
 	if (code === undefined) return undefined;

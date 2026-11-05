@@ -16,8 +16,11 @@ import { ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import { SUBSCRIBE_PLANS_STYLES } from "../../shared/subscribe-plans/subscribe-plans.component";
 import { WIZARD_STYLES, type WizardRender, renderWizard } from "../../shared/wizard/wizard.component";
 import type { WizardHeading } from "../../shared/wizard/wizard.types";
+import { GMAIL_SENDER_WIDGET_STYLES } from "../integrations/gmail.styles";
 import { readlistAlertFor } from "./readlist-alerts";
 import { type ReadlistFitChoices, renderReadlistFitChoices } from "./readlist-fit-choices.component";
+import { READLIST_GMAIL_SENDERS_STYLES, renderReadlistGmailSenders } from "./readlist-gmail-senders.component";
+import type { ReadlistGmailSendersViewModel } from "./readlist-gmail-senders.viewmodel";
 import { buildReadlistInboxes, renderReadlistInboxes } from "./readlist-inboxes.component";
 import {
 	buildReadlistNav,
@@ -205,7 +208,8 @@ export interface ReadlistPreferencesViewModel {
 	purposeError?: string;
 	inboxes: readonly InboxAddressEntry[];
 	choices: ReadlistFitChoices;
-	inboxAlert?: AlertContent;
+	alert?: AlertContent;
+	gmailSenders: ReadlistGmailSendersViewModel | undefined;
 	accessIsReadOnly: boolean;
 	subscriptionBanner: SubscriptionBannerState;
 	onboarding: ReadlistOnboarding;
@@ -243,7 +247,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				canCreate: vm.rail.canCreate,
 			}),
 		),
-		alertHtml: renderAlert({ key: "readlist", content: vm.inboxAlert ?? readlistAlertFor(vm.query) }),
+		alertHtml: renderAlert({ key: "readlist", content: vm.alert ?? readlistAlertFor(vm.query) }),
 		tabsHtml: renderReadlistTabs(
 			buildReadlistTabs({
 				activeTab: "preferences",
@@ -265,6 +269,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				readlists: vm.rail.readlists,
 			}),
 		),
+		gmailSendersHtml: vm.gmailSenders === undefined ? "" : renderReadlistGmailSenders(vm.gmailSenders),
 		choicesHtml: renderReadlistFitChoices({
 			readlist: vm.readlist,
 			choices: vm.choices,
@@ -293,6 +298,8 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 			READLIST_STYLES,
 			WIZARD_STYLES,
 			READLIST_PREFERENCES_STYLES,
+			GMAIL_SENDER_WIDGET_STYLES,
+			READLIST_GMAIL_SENDERS_STYLES,
 		].join("\n"),
 		bodyClass: READLIST_BODY_CLASS,
 		content: { html: content },

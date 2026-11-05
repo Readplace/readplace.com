@@ -37,6 +37,14 @@ export {
 } from "./gmail-delivery-mode";
 export type { GmailMapping, GmailMappingStore } from "./gmail-mapping.types";
 export type { DiscoveredGmailSender, GmailDiscovery, GmailDiscoveryStore } from "./gmail-discovery.types";
+export { gmailSenderPool, type GmailSenderPool } from "./gmail-sender-pool";
+export {
+	decideGmailReadlistSelection,
+	type GmailReadlistSelectionChange,
+	type GmailReadlistSelectionDecision,
+	type GmailReadlistSelectionRejection,
+	type GmailSenderRouting,
+} from "./decide-gmail-readlist-selection";
 export {
 	GmailHistoryImportJobIdSchema,
 	type GmailHistoryImportJobId,

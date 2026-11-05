@@ -335,6 +335,57 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		expect(pages.flatMap(([path, html]) => untrackedOn(path, html))).toEqual([]);
 	});
 
+	it("holds across a readlist's Gmail newsletters section while connecting, picking and revoked", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+		});
+		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const reader = await harness.auth.findUserByEmail("test@example.com");
+		assert(reader, "the logged-in reader must exist");
+		const userId = reader.userId;
+		const accountEmail = GmailAccountEmailSchema.parse("reader@gmail.com");
+		const slug = new URL(
+			(await agent.post("/queue/queues").type("form").send({ label: "Tech" })).headers.location,
+			TEST_APP_ORIGIN,
+		).searchParams.get("queue");
+		assert(slug, "creating a readlist must land on it");
+		const preferences = `/queue/queues/${slug}/preferences`;
+		const sectionStateOf = (html: string) =>
+			new JSDOM(html).window.document
+				.querySelector("[data-test-readlist-gmail-senders]")
+				?.getAttribute("data-test-gmail-senders-state");
+		const pages: [string, string][] = [[preferences, (await agent.get(preferences).set(BROWSER_REQUEST_HEADERS)).text]];
+		const gatewayAddress = await gmail.bundle.mintGatewayAddress({ userId });
+		await gmail.bundle.gmailConnectionStore.createConnection({ userId, gatewayAddress });
+		await gmail.bundle.gmailConnectionStore.recordAccountEmail({ userId, accountEmail });
+		await gmail.bundle.gmailConnectionStore.markForwardingConfirmed({ userId });
+		await gmail.bundle.gmailCredentialsStore.saveCredentials({ userId, refreshToken: "refresh", grantedScope: GMAIL_SCOPES });
+		await gmail.bundle.gmailDiscoveryStore.startDiscovery({ checkedMessageCount: 0, userId, accountEmail, gatewayAddress, generation: "initial", mode: "full", historyId: "100" });
+		await gmail.bundle.gmailDiscoveryStore.claimPage({ userId, generation: "initial", page: 0 });
+		const previous = await gmail.bundle.gmailDiscoveryStore.findDiscoveryByUserId(userId);
+		assert(previous, "the seeded discovery must exist");
+		await gmail.bundle.gmailDiscoveryStore.savePage({
+			previous,
+			senders: [{ email: ForwardableSenderSchema.parse("dan@tldr.tech"), name: "TLDR" }],
+			mode: "full",
+			pageToken: undefined,
+			historyId: "100",
+			state: "complete",
+			scannedMessages: 1,
+			estimatedTotalMessages: 1,
+			oldestScannedAt: undefined,
+		});
+		const picker = `${preferences}?gmail_selection=1&search=tldr`;
+		pages.push([picker, (await agent.get(picker).set(BROWSER_REQUEST_HEADERS)).text]);
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+		pages.push([preferences, (await agent.get(preferences).set(BROWSER_REQUEST_HEADERS)).text]);
+
+		expect(pages.map(([, html]) => sectionStateOf(html))).toEqual(["connect", "picker", "reconnect"]);
+		expect(pages.flatMap(([path, html]) => untrackedOn(path, html))).toEqual([]);
+	});
+
 	it("holds across homepage arm B, including its comparison signup link", async () => {
 		const harness = useArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS);

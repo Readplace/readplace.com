@@ -29,9 +29,10 @@ import { z } from "zod";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
-import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
+import { GMAIL_SELECTION_ALERT, GMAIL_UNAVAILABLE_ALERT, INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import type { ReadlistOnboarding } from "./readlist.component";
 import { readerReadlists } from "./readlist-context";
+import type { LoadReadlistGmailSenders } from "./readlist-gmail-senders.page";
 import type { FindNonEmptyReadlists } from "./readlist-holdings";
 import { answerReadlistNaming, type ReadlistNaming } from "./readlist-naming-answer";
 import { READLIST_PREFERENCES_WIZARD_ID } from "./readlist-preferences-wizard.component";
@@ -41,18 +42,20 @@ import { READLIST_ERROR_UNKNOWN_READLIST, READLIST_PURPOSE_INVALID_MESSAGE } fro
 import { buildReadlistUrl, readlistPreferencesPath } from "./readlist.url";
 import { toSubscriptionBannerState } from "./readlist.viewmodel";
 
-const PREFERENCES_ERROR_CODES = ["invalid-purpose", "unknown-inbox"] as const;
+const PREFERENCES_ERROR_CODES = ["invalid-purpose", "unknown-inbox", "gmail-selection", "gmail-unavailable"] as const;
 
 type PreferencesErrorCode = (typeof PREFERENCES_ERROR_CODES)[number];
 
 interface PreferencesError {
 	purposeError?: string;
-	inboxAlert?: AlertContent;
+	alert?: AlertContent;
 }
 
 const PREFERENCES_ERRORS: Record<PreferencesErrorCode, PreferencesError> = {
 	"invalid-purpose": { purposeError: READLIST_PURPOSE_INVALID_MESSAGE },
-	"unknown-inbox": { inboxAlert: INBOX_UNAVAILABLE_ALERT },
+	"unknown-inbox": { alert: INBOX_UNAVAILABLE_ALERT },
+	"gmail-selection": { alert: GMAIL_SELECTION_ALERT },
+	"gmail-unavailable": { alert: GMAIL_UNAVAILABLE_ALERT },
 };
 
 const PreferencesQuerySchema = z.object({
@@ -81,6 +84,7 @@ export function initReadlistPreferencesRoutes(deps: {
 	findNonEmptyReadlists: FindNonEmptyReadlists;
 	now: () => Date;
 	resolveOnboarding: (req: Request, userId: UserId, access: EffectiveAccess) => Promise<ReadlistOnboarding>;
+	loadGmailSenders: LoadReadlistGmailSenders | undefined;
 }): Router {
 	const router = express.Router();
 
@@ -110,13 +114,31 @@ export function initReadlistPreferencesRoutes(deps: {
 		const parsed = PreferencesQuerySchema.parse(req.query);
 		const readlists = readerReadlists(definitions);
 		const accessPromise = deps.getEffectiveAccess(userId);
-		const [access, onboarding, inboxes, nonEmptyReadlists, choices] = await Promise.all([
+		const { loadGmailSenders } = deps;
+		const [access, onboarding, inboxes, nonEmptyReadlists, choices, gmailSenders] = await Promise.all([
 			accessPromise,
 			accessPromise.then((resolved) => deps.resolveOnboarding(req, userId, resolved)),
 			deps.listInboxAddresses(userId),
 			deps.findNonEmptyReadlists({ userId, readlists }),
 			deps.listReadlistFitOverrides({ userId, readlist: definition.slug }),
+			loadGmailSenders === undefined
+				? undefined
+				: accessPromise.then(() =>
+					loadGmailSenders({
+						userId,
+						readlist: { slug: definition.slug, label: definition.label, purpose: definition.purpose },
+						readlists,
+						query: req.query,
+					}),
+				),
 		]);
+		if (gmailSenders?.commandApplied) {
+			if (req.get("HX-Request") !== "true") {
+				res.redirect(303, gmailSenders.pageUrl);
+				return;
+			}
+			res.set("HX-Push-Url", gmailSenders.pageUrl);
+		}
 		const accessIsReadOnly = access.access === "read-only";
 		const activeReadlist = { slug: definition.slug, label: definition.label };
 		const context = {
@@ -142,7 +164,8 @@ export function initReadlistPreferencesRoutes(deps: {
 					values: { purpose: draft ?? definition.purpose },
 					wizardOpen: draft !== undefined || error.purposeError !== undefined,
 					inboxes,
-					inboxAlert: error.inboxAlert,
+					alert: error.alert,
+					gmailSenders,
 					choices,
 					accessIsReadOnly,
 					subscriptionBanner: toSubscriptionBannerState(access, deps.now()),

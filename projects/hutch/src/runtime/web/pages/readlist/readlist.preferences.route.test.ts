@@ -13,7 +13,10 @@ import {
 	ReadlistSlugSchema,
 } from "@packages/domain/readlist";
 import { type UserId, UserIdSchema } from "@packages/domain/user";
+import { GMAIL_SCOPES } from "@packages/provider-contracts/gmail-oauth";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { initInMemoryGmailIntegration } from "@packages/test-fixtures/providers/gmail-integration";
+import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { z } from "zod";
@@ -222,6 +225,28 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const browse = main.querySelector(".readlist__browse");
 		assert(browse, "the column must browse the tabs, the panel and the inboxes");
 		const BROWSE_PARTS = ["[data-test-filters]", "[data-test-readlist-preferences]", "[data-test-readlist-inboxes]"];
+		expect(Array.from(browse.children, (child) => BROWSE_PARTS.find((part) => child.matches(part)))).toEqual(
+			BROWSE_PARTS,
+		);
+	});
+
+	it("follows the inboxes with the Gmail newsletters section when Gmail is wired", async () => {
+		const gmail = initInMemoryGmailIntegration({
+			grant: { ok: true, grant: { refreshToken: "refresh", accessToken: "access", grantedScope: GMAIL_SCOPES } },
+			addresses: initInMemoryInboxAddress({ now: () => new Date() }),
+		});
+		const harness = useApp({ ...createDefaultTestAppFixture(TEST_APP_ORIGIN), gmailIntegration: gmail.bundle });
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		const browse = doc.querySelector(".readlist__main .readlist__browse");
+		assert(browse, "the column must browse the tabs, the panel, the inboxes and the Gmail newsletters");
+		const BROWSE_PARTS = [
+			"[data-test-filters]",
+			"[data-test-readlist-preferences]",
+			"[data-test-readlist-inboxes]",
+			"[data-test-readlist-gmail-senders]",
+		];
 		expect(Array.from(browse.children, (child) => BROWSE_PARTS.find((part) => child.matches(part)))).toEqual(
 			BROWSE_PARTS,
 		);

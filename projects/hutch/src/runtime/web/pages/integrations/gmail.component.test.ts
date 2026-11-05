@@ -6,7 +6,8 @@ import { NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
 import { DEFAULT_READLIST, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import { parseHTML } from "linkedom";
-import { GmailPage, renderGmailSenderChecklist, renderGmailSenderResults, renderGmailSenderStatus } from "./gmail.component";
+import { GmailPage, renderGmailSenderResults, renderGmailSenderStatus } from "./gmail.component";
+import { renderGmailSenderChecklistHtml } from "./gmail-sender-widget.component";
 import type { GmailPageInput } from "./gmail.viewmodel";
 import { toGmailPageViewModel } from "./gmail.viewmodel";
 
@@ -143,7 +144,7 @@ describe("GMail Newsletters checklist markup", () => {
 	};
 
 	it("ties each row's checkbox to the mapping form and keeps an added sender's hidden field", () => {
-		const doc = fragmentDocument(renderGmailSenderChecklist(toGmailPageViewModel(input({ ...mailbox, state: { added: [BREW] } }))));
+		const doc = fragmentDocument(renderGmailSenderChecklistHtml(toGmailPageViewModel(input({ ...mailbox, state: { added: [BREW] } })).checklist));
 		const rows = Array.from(doc.querySelectorAll("[data-test-gmail-checklist-row]"), (row) => {
 			const box = row.querySelector("input[type=checkbox]");
 			assert(box);
@@ -163,7 +164,7 @@ describe("GMail Newsletters checklist markup", () => {
 	});
 
 	it("renders the toolbar toggle as a GET submit of the mapping form", () => {
-		const doc = fragmentDocument(renderGmailSenderChecklist(toGmailPageViewModel(input({ ...mailbox, state: { sender: [TLDR] } }))));
+		const doc = fragmentDocument(renderGmailSenderChecklistHtml(toGmailPageViewModel(input({ ...mailbox, state: { sender: [TLDR] } })).checklist));
 		const toggle = doc.querySelector('[data-test-gmail-checklist-action="select"]');
 		assert(toggle);
 		assert.deepEqual(["form", "formmethod", "name", "value"].map((name) => toggle.getAttribute(name)), ["gmail-readlist-selection", "get", "select", "none"]);
@@ -172,7 +173,7 @@ describe("GMail Newsletters checklist markup", () => {
 	});
 
 	it("renders Try again without a command name while the catalog is unavailable", () => {
-		const doc = fragmentDocument(renderGmailSenderChecklist(toGmailPageViewModel(input({ detection: { status: "unavailable" } }))));
+		const doc = fragmentDocument(renderGmailSenderChecklistHtml(toGmailPageViewModel(input({ detection: { status: "unavailable" } })).checklist));
 		const retry = doc.querySelector('[data-test-gmail-checklist-action="retry"]');
 		assert(retry);
 		assert.equal(retry.hasAttribute("name"), false);

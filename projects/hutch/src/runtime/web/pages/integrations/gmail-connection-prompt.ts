@@ -8,28 +8,36 @@ export interface GmailConnectionPrompt {
 	actions: GmailFormAction[];
 }
 
-export function gmailConnectionPrompt(input: {
+interface GmailConnectionPromptInput {
 	canConnectGmail: boolean;
 	message: string;
 	content: string;
 	label: string;
 	variant: GmailFormAction["variant"];
 	fields: FormField[];
-}): GmailConnectionPrompt {
+}
+
+export function gmailConnectionPrompt(input: GmailConnectionPromptInput): GmailConnectionPrompt {
+	return buildGmailConnectionPrompt({ ...input, track: ({ href, content }) => trackGmail(href, content) });
+}
+
+export function buildGmailConnectionPrompt(
+	input: GmailConnectionPromptInput & { track: (link: { href: string; content: string }) => string },
+): GmailConnectionPrompt {
 	if (input.canConnectGmail) {
 		return {
 			message: input.message,
 			actions: [{
 				key: input.content,
 				method: "POST",
-				action: trackGmail(GMAIL_CONNECT_PATH, input.content),
+				action: input.track({ href: GMAIL_CONNECT_PATH, content: input.content }),
 				label: input.label,
 				variant: input.variant,
 				fields: input.fields,
 			}],
 		};
 	}
-	const action = trackGmail(ACCOUNT_PLANS_URL, "upgrade-gmail");
+	const action = input.track({ href: ACCOUNT_PLANS_URL, content: "upgrade-gmail" });
 	return {
 		message: GMAIL_UPGRADE_MESSAGE,
 		actions: [{

@@ -32,7 +32,7 @@ function page(overrides: {
 	purposeError?: string;
 	inboxes?: readonly InboxAddressEntry[];
 	choices?: readonly ReadlistFitOverride[];
-	inboxAlert?: AlertContent;
+	alert?: AlertContent;
 	canEdit?: boolean;
 	canCreate?: boolean;
 	accessIsReadOnly?: boolean;
@@ -55,7 +55,8 @@ function page(overrides: {
 		purposeError: overrides.purposeError,
 		inboxes: overrides.inboxes ?? [],
 		choices: overrides.choices ?? [],
-		inboxAlert: overrides.inboxAlert,
+		alert: overrides.alert,
+		gmailSenders: undefined,
 		accessIsReadOnly: overrides.accessIsReadOnly ?? false,
 		subscriptionBanner: overrides.subscriptionBanner ?? { state: "none" },
 		onboarding: {
@@ -469,7 +470,7 @@ describe("ReadlistPreferencesPage", () => {
 	it("raises a refused inbox routing as the page's alert, ahead of any other", () => {
 		const doc = documentOf(
 			page({
-				inboxAlert: INBOX_UNAVAILABLE_ALERT,
+				alert: INBOX_UNAVAILABLE_ALERT,
 				query: { queue_error: "rename_invalid-name" },
 			}).content.html,
 		);

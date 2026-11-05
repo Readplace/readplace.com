@@ -409,6 +409,12 @@ form.htmx-request .gmail__submit-loader {
   color: var(--muted-foreground);
 }
 
+.gmail__checklist-note {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gmail__checklist-row {
     transition: none;

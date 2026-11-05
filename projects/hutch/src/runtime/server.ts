@@ -1626,6 +1626,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		recordEmailStepMarkedDone: deps.recordEmailStepMarkedDone,
 		recordGmailStepDismissed: deps.recordGmailStepDismissed,
 		findGmailConnectionByUserId: gmailIntegration?.gmailConnectionStore.findConnectionByUserId,
+		gmail: gmailIntegration,
 		recordOnboardingOutstandingVersion: deps.recordOnboardingOutstandingVersion,
 		recordMarkReadAcrossQueuesAcknowledged: deps.recordMarkReadAcrossQueuesAcknowledged,
 		recordDeleteArticleAcknowledged: deps.recordDeleteArticleAcknowledged,

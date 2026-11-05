@@ -238,6 +238,8 @@ import {
 	toReadlistCountsDisplayModel,
 } from "./readlist-counts.component";
 import { initFindNonEmptyReadlists } from "./readlist-holdings";
+import { initReadlistGmailSenders } from "./readlist-gmail-senders.page";
+import { initReadReadlistGmailSources, initSaveReadlistGmailSenders } from "./readlist-gmail-senders.save";
 import { initReadlistPreferencesRoutes } from "./readlist-preferences.page";
 import { buildReadlistRail } from "./readlist-rail";
 import { collectUtmParams } from "../../shared/utm";
@@ -277,7 +279,11 @@ import { offlineCopyRowScript } from "../../shared/article-body/article-history/
 import { safeReturnPath } from "../../shared/safe-return-path";
 import { GMAIL_ONBOARDING_VERSION, NO_CLIENT_ONBOARDING_VERSION, ONBOARDING_VERSION, hasOutstandingGmailStep, hasOutstandingStep, onboardingVersion } from "../../onboarding/onboarding.steps";
 import { gmailConnectionState, type GmailConnectionStore } from "@packages/domain/gmail";
+import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-mapping";
 import { canConnectGmail } from "../integrations/gmail-connection-access";
+import { initStartGmailDiscovery } from "../integrations/gmail-discovery-start";
+import type { GmailIntegrationDependencies } from "../integrations/gmail-integration.types";
+import { initSubmitNewsletterSenders } from "../integrations/gmail-submit-newsletter-senders";
 import { initRequireGmailConnectionAccess } from "../integrations/require-gmail-connection-access";
 import {
 	extensionInstallUrlIfMissing,
@@ -522,6 +528,7 @@ interface ReadlistDependencies {
 	recordEmailStepMarkedDone: RecordEmailStepMarkedDone;
 	recordGmailStepDismissed: RecordGmailStepDismissed;
 	findGmailConnectionByUserId: GmailConnectionStore["findConnectionByUserId"] | undefined;
+	gmail: GmailIntegrationDependencies | undefined;
 	recordOnboardingOutstandingVersion: RecordOnboardingOutstandingVersion;
 	recordMarkReadAcrossQueuesAcknowledged: RecordMarkReadAcrossQueuesAcknowledged;
 	recordDeleteArticleAcknowledged: RecordDeleteArticleAcknowledged;
@@ -1711,6 +1718,32 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		};
 	};
 
+	const { gmail } = deps;
+	const readlistGmail =
+		gmail === undefined
+			? undefined
+			: initReadlistGmailSenders({
+				gmail,
+				listReadlistDefinitions: deps.listReadlistDefinitions,
+				getEffectiveAccess: deps.getEffectiveAccess,
+				requireWriteAccess: deps.requireWriteAccess,
+				startGmailDiscovery: initStartGmailDiscovery({ gmail }),
+				save: initSaveReadlistGmailSenders({
+					gmail,
+					listReadlistDefinitions: deps.listReadlistDefinitions,
+					readSources: initReadReadlistGmailSources({ gmail, getEffectiveAccess: deps.getEffectiveAccess }),
+					mapSenderToReadlist: initMapSenderToReadlist({
+						mappings: gmail.gmailMappingStore,
+						getOrCreateReadlistAddress: gmail.getOrCreateReadlistAddress,
+						cancelGmailHistoryImports: gmail.cancelGmailHistoryImports,
+					}),
+					submitNewsletterSenders: initSubmitNewsletterSenders(gmail),
+				}),
+			});
+	if (readlistGmail !== undefined) {
+		router.use(readlistGmail.routes);
+	}
+
 	router.use(
 		initReadlistPreferencesRoutes({
 			listReadlistDefinitions: deps.listReadlistDefinitions,
@@ -1727,6 +1760,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			now: deps.now,
 			resolveOnboarding: async (req, userId, access) =>
 				(await resolveOnboardingSignals(req, userId, access)).onboarding,
+			loadGmailSenders: readlistGmail?.load,
 		}),
 	);
 

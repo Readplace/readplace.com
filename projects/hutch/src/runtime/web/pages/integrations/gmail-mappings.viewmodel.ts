@@ -518,9 +518,11 @@ const FILTER_ACTIONS_BY_STATE: Record<GmailFilterState, GmailFormAction[]> = {
 	none: [],
 };
 
+export const GMAIL_WAITING_CONFIRMATION_MESSAGE = "Forwarding starts once Gmail confirms the forwarding address.";
+
 const FILTER_MESSAGES: Record<Exclude<GmailFilterState, "failed" | "live">, string> = {
 	reconnect: "Reconnect Gmail to update the forwarding rule.",
-	"waiting-confirmation": "Forwarding starts once Gmail confirms the forwarding address.",
+	"waiting-confirmation": GMAIL_WAITING_CONFIRMATION_MESSAGE,
 	updating: "Gmail hasn't accepted the latest change yet. Refresh in a moment, or try again.",
 	none: "No forwarding rule in Gmail yet.",
 };
@@ -537,13 +539,23 @@ function filterTargetLabel(input: {
 	return resolveEntry(entry, input.readlists).label;
 }
 
+export function gmailFilterErrorMessage(input: {
+	error: GmailFilterError;
+	connection: GmailConnection;
+	destinations: ReadonlyMap<string, InboxAddressEntry>;
+	readlists: readonly ReadlistRef[];
+}): string {
+	const { error } = input;
+	if (error.code === "rejected") return `Gmail didn't accept the forwarding rule (${error.message}). Try again.`;
+	const label = filterTargetLabel({ ...input, error });
+	return `Gmail's forwarding rule for ${label} ran out of room at ${error.senderCapacity} of its ${error.senderCount} senders. Remove some newsletters, or move some to another readlist, then try again.`;
+}
+
 function filterMessage(input: GmailMappingsInput, state: GmailFilterState): string {
 	if (state === "failed") {
 		const error = input.connection.lastFilterError;
 		assert(error, "the failed filter state requires a stored filter error");
-		if (error.code === "rejected") return `Gmail didn't accept the forwarding rule (${error.message}). Try again.`;
-		const label = filterTargetLabel({ ...input, error });
-		return `Gmail's forwarding rule for ${label} ran out of room at ${error.senderCapacity} of its ${error.senderCount} senders. Remove some newsletters, or move some to another readlist, then try again.`;
+		return gmailFilterErrorMessage({ ...input, error });
 	}
 	if (state === "live") {
 		const senderCount = input.connection.filterSenderCount;

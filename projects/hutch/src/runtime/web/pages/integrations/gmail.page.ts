@@ -3,14 +3,13 @@ import type { Request, RequestHandler, Response, Router } from "express";
 import { z } from "zod";
 import { parsePollParam, sendComponent } from "@packages/web-shell";
 import {
-	ForwardableSenderSchema,
 	GMAIL_HISTORY_IMPORT_MAX_POLLS,
 	gmailConnectionState,
+	gmailSenderPool,
 	hasAnyGmailScope,
 	hasGmailScope,
 } from "@packages/domain/gmail";
-import type { ForwardableSender, GmailConnection } from "@packages/domain/gmail";
-import { type InboxAddress, InboxAddressSchema, isLiveAddress } from "@packages/domain/inbox";
+import { isLiveAddress } from "@packages/domain/inbox";
 import { READLIST_MAX_PER_USER, readerReadlists } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
@@ -33,15 +32,16 @@ import {
 } from "./gmail.url";
 import { gmailPollState, toGmailPageViewModel, toGmailPollViewModel } from "./gmail.viewmodel";
 import { buildIntegrationsUrl, INTEGRATIONS_PATH } from "./gmail-connect.url";
+import { parseGmailChecklistCommand } from "./gmail-checklist-command";
 import { canConnectGmail } from "./gmail-connection-access";
+import { destinationLookups } from "./gmail-destination-lookups";
+import { initStartGmailDiscovery } from "./gmail-discovery-start";
 import { initGmailImportActions } from "./gmail-import-actions";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
 import { registerGmailMappingRoutes } from "./gmail-mappings.page";
 import type { GmailOAuthConsent } from "./gmail-oauth-consent";
 import { discoveryMatchesConnection, initSaveGmailSenders } from "./gmail-save-senders";
 
-const SelectCommandSchema = z.enum(["all", "none"]);
-const ListedSchema = z.coerce.number().int().nonnegative();
 const SavedSchema = z.coerce.number().int().positive();
 
 export interface GmailPageContext {
@@ -57,15 +57,6 @@ export interface GmailPageContext {
 function queryValue(req: Request, key: string): string | undefined {
 	const value = req.query[key];
 	return typeof value === "string" ? value : undefined;
-}
-
-function destinationLookups(input: { connection: GmailConnection; mapped: readonly InboxAddress[] }): InboxAddress[] {
-	const addresses = [...input.mapped];
-	const filterError = input.connection.lastFilterError;
-	if (filterError?.code === "query-too-long" && filterError.forwardTo !== input.connection.gatewayAddress) {
-		addresses.push(InboxAddressSchema.parse(filterError.forwardTo));
-	}
-	return [...new Set(addresses)];
 }
 
 export function registerGmailPageRoutes(
@@ -90,6 +81,7 @@ export function registerGmailPageRoutes(
 		cancelGmailHistoryImports: gmail.cancelGmailHistoryImports,
 	});
 	const saveGmailSenders = initSaveGmailSenders({ gmail, imports, mapSenderToReadlist });
+	const startGmailDiscovery = initStartGmailDiscovery({ gmail });
 	const ownerOf = (req: Request): UserId => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		return UserIdSchema.parse(req.userId);
@@ -126,19 +118,12 @@ export function registerGmailPageRoutes(
 			gmail.gmailMarkBackfillStore.listBackfillsByUserId(userId),
 		]);
 		const sameMailbox = discoveryMatchesConnection(discovery, connection);
-		const discovered = [...new Map([...observedSenders, ...(sameMailbox ? discoveredSenders : [])].map((sender) => [sender.email, sender])).values()];
-		const candidates: ForwardableSender[] = [
-			...discovered.map((sender) => sender.email),
-			...senders.filter((sender) => sender.addedToFilterAt !== undefined).map((sender) => sender.senderEmail),
-		];
+		const pool = gmailSenderPool({ observed: observedSenders, discovered: discoveredSenders, sameMailbox, mappings: senders });
 		const [detection, entries] = await Promise.all([
-			gmail.detectNewsletters([...new Set(candidates)]),
+			gmail.detectNewsletters([...pool.known]),
 			Promise.all(destinationLookups({ connection, mapped: senders.flatMap((sender) => sender.mappedAddresses ?? []) }).map((address) => gmail.findInboxAddress(address))),
 		]);
-		const pick = ForwardableSenderSchema.safeParse(req.query.pick);
-		const select = SelectCommandSchema.safeParse(req.query.select);
-		const dismiss = ForwardableSenderSchema.safeParse(req.query.dismiss);
-		const listed = ListedSchema.safeParse(req.query.listed);
+		const { command, listed } = parseGmailChecklistCommand(req.query);
 		const saved = SavedSchema.safeParse(req.query.saved);
 		return toGmailPageViewModel({
 			userId,
@@ -152,7 +137,7 @@ export function registerGmailPageRoutes(
 			metadataScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_METADATA_SCOPE }),
 			readScopeGranted: hasAnyGmailScope({ grantedScope, scopes: GMAIL_MESSAGE_READ_SCOPES }),
 			modifyScopeGranted: hasGmailScope({ grantedScope, scope: GMAIL_MODIFY_SCOPE }),
-			discoveredSenders: discovered,
+			discoveredSenders: pool.senders,
 			discovery: discovery === undefined || !sameMailbox
 				? { state: "idle", mode: "profile", checkedMessageCount: 0 }
 				: discovery,
@@ -162,12 +147,8 @@ export function registerGmailPageRoutes(
 			state: queryValue(req, "confirm_readlists") === "1"
 				? confirmGmailReadlists(parseGmailPickerState(req.query))
 				: parseGmailPickerState(req.query),
-			command: {
-				pick: pick.success ? pick.data : undefined,
-				select: select.success ? select.data : undefined,
-				dismiss: dismiss.success ? dismiss.data : undefined,
-			},
-			listed: listed.success ? listed.data : undefined,
+			command,
+			listed,
 			discoveryStarted: queryValue(req, "discovery") === "started",
 			discoveryPending: queryValue(req, "discovery_after") === (discovery?.updatedAt ?? "none"),
 			pollCount: parsePollParam(req.query.poll, GMAIL_DISCOVERY_MAX_POLLS),
@@ -210,16 +191,13 @@ export function registerGmailPageRoutes(
 	});
 
 	router.post("/gmail/discovery/start", write, connected, async (req: Request, res: Response) => {
-		const userId = ownerOf(req);
-		const scope = await gmail.gmailCredentialsStore.findGrantedScopeByUserId(userId);
-		if (!hasGmailScope({ grantedScope: scope, scope: GMAIL_METADATA_SCOPE })) {
+		const started = await startGmailDiscovery(ownerOf(req));
+		if (!started.ok) {
 			res.redirect(303, buildGmailUrl({ error: "metadata_required" }));
 			return;
 		}
-		const previous = await gmail.gmailDiscoveryStore.findDiscoveryByUserId(userId);
-		await gmail.publishStartGmailSenderDiscovery({ userId });
 		const { discovery_after: _stale, ...state } = parseGmailPickerState(req.body);
-		res.redirect(303, buildGmailUrl({ ...state, discovery: "started", discovery_after: previous?.updatedAt ?? "none" }));
+		res.redirect(303, buildGmailUrl({ ...state, discovery: "started", discovery_after: started.discoveryAfter }));
 	});
 
 	router.get("/gmail/status", requireAuth, async (req: Request, res: Response) => {

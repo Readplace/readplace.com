@@ -1,0 +1,48 @@
+<section class="readlist-listing readlist-gmail {{sectionClass}}" id="{{sectionId}}" aria-labelledby="readlist-gmail-senders-title" data-test-readlist-gmail-senders data-test-gmail-senders-state="{{state}}">
+  <header class="readlist-gmail__header">
+    <h2 class="readlist-gmail__title" id="readlist-gmail-senders-title">Gmail newsletters</h2>
+    <p class="readlist-gmail__lede" data-test-gmail-senders-lede>{{lede}}</p>
+  </header>
+  <div class="readlist-gmail__body">
+    {{#each notes}}
+    <p class="readlist-gmail__note" data-test-gmail-senders-note>{{this}}</p>
+    {{/each}}
+    {{#each prompts}}
+    <p class="readlist-gmail__note" data-test-gmail-senders-prompt>{{message}}</p>
+    {{#each actions}}
+    <form class="readlist-gmail__action" method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+      {{#each fields}}
+      <input type="hidden" name="{{name}}" value="{{value}}">
+      {{/each}}
+      <button type="submit" class="btn btn--{{variant}} btn--m" data-test-action="{{key}}">{{label}}</button>
+    </form>
+    {{/each}}
+    {{/each}}
+    {{#each connects}}
+    <div class="readlist-gmail__action">
+      <button type="button" class="btn btn--primary btn--m" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="connect-gmail">{{label}}</button>
+    </div>
+    {{{disclaimerHtml}}}
+    {{/each}}
+    {{#each pickers}}
+    <form id="gmail-readlist-selection" class="readlist-gmail__selection" method="GET" action="{{pagePath}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+      <button type="submit" formmethod="get" hidden tabindex="-1"></button>
+      {{#each selectionFields}}
+      <input type="hidden" name="{{name}}" value="{{value}}">
+      {{/each}}
+    </form>
+    <div class="readlist-gmail__widget">
+      {{{widgetHtml}}}
+    </div>
+    <div class="readlist-gmail__save">
+      <button class="btn btn--primary gmail__submit" form="gmail-readlist-selection" type="submit" formmethod="post" formaction="{{saveAction}}" data-test-action="save-gmail-newsletters"><span class="gmail__submit-label">Save newsletters</span>{{{saveLoader}}}</button>
+    </div>
+    <script src="/client-dist/gmail-picker.client.js" defer></script>
+    {{/each}}
+    {{#each links}}
+    <div class="readlist-gmail__action">
+      <a class="btn btn--neutral btn--m" href="{{href}}" data-test-action="{{key}}">{{label}}</a>
+    </div>
+    {{/each}}
+  </div>
+</section>

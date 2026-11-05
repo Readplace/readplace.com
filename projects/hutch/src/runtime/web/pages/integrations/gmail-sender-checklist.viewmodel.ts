@@ -19,6 +19,7 @@ export interface GmailChecklistRow {
 	checked: boolean;
 	autofocus: boolean;
 	fields: FormField[];
+	notes: string[];
 }
 
 export interface GmailChecklistGroup {
@@ -50,7 +51,7 @@ export interface GmailSenderChecklist {
 const GMAIL_CHECKLIST_INTRO =
 	"These are the known newsletters in your Gmail. Tick the ones to send to your readlists. Looking for a sender that isn't listed? Search all your senders below and it joins this list.";
 
-const GMAIL_CHECKLIST_MESSAGES: Record<GmailChecklistState, string> = {
+export const GMAIL_CHECKLIST_MESSAGES: Record<GmailChecklistState, string> = {
 	listed: "",
 	"catalog-unavailable": "Newsletter suggestions are unavailable right now. Try again, or search all your senders below.",
 	"no-discovered-senders": "No senders discovered yet.",
@@ -64,21 +65,21 @@ const GMAIL_CHECKLIST_TITLES: Record<GmailChecklistGroup["key"], string> = {
 	added: "Senders you added",
 };
 
-const SELECT_TOGGLE: Record<GmailChecklistSelect, GmailChecklistAction> = {
+export const SELECT_TOGGLE: Record<GmailChecklistSelect, GmailChecklistAction> = {
 	all: { key: "select", name: "select", value: "all", label: "Select all" },
 	none: { key: "select", name: "select", value: "none", label: "Clear selection" },
 };
 
-const RETRY_ACTION: GmailChecklistAction = { key: "retry", name: undefined, value: "", label: "Try again" };
+export const RETRY_ACTION: GmailChecklistAction = { key: "retry", name: undefined, value: "", label: "Try again" };
 
-function chooseState(input: { candidates: readonly GmailSenderCandidate[]; catalogAvailable: boolean; known: readonly GmailSenderCandidate[] }): GmailChecklistState {
+export function chooseState(input: { candidates: readonly GmailSenderCandidate[]; catalogAvailable: boolean; known: readonly GmailSenderCandidate[] }): GmailChecklistState {
 	if (input.candidates.length === 0) return "no-discovered-senders";
 	if (!input.catalogAvailable) return "catalog-unavailable";
 	if (input.known.length > 0) return "listed";
 	return input.candidates.some((candidate) => candidate.recognized) ? "all-known-mapped" : "no-known-newsletters";
 }
 
-function tickedEmails(input: { requested: readonly string[]; select: GmailChecklistSelect | undefined; listed: readonly GmailSenderCandidate[] }): Set<string> {
+export function tickedEmails(input: { requested: readonly string[]; select: GmailChecklistSelect | undefined; listed: readonly GmailSenderCandidate[] }): Set<string> {
 	if (input.select === "all") return new Set(input.listed.map((candidate) => candidate.email));
 	if (input.select === "none") return new Set();
 	return new Set(input.requested);
@@ -105,6 +106,7 @@ export function toGmailSenderChecklist(input: {
 		checked: ticked.has(candidate.email),
 		autofocus: false,
 		fields: fields(candidate),
+		notes: [],
 	});
 	const groups: GmailChecklistGroup[] = [
 		{ key: "editing", title: GMAIL_CHECKLIST_TITLES.editing, rows: editing.map(row(() => [])), actions: [] },
