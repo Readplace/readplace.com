@@ -24,6 +24,10 @@ export const INBOX_DLQ_SOURCES = {
 	ingestGmailImport: "inbox-ingest-gmail-import",
 } as const;
 
+export const MEDIA_BOOK_DLQ_SOURCES = {
+	processBook: "media-book-process-book",
+} as const;
+
 export const GMAIL_HISTORY_IMPORT_DLQ_SOURCES = {
 	pages: "gmail-history-import",
 	outcomes: "gmail-history-import-outcomes",
@@ -60,6 +64,10 @@ export const INBOX_DLQ_SOURCE_QUEUES = {
 	confirmGmailForwarding: `${INBOX_DLQ_SOURCES.confirmGmailForwarding}-q`,
 	ingestGmailImport: `${INBOX_DLQ_SOURCES.ingestGmailImport}-q`,
 } as const satisfies QueueNamesFor<typeof INBOX_DLQ_SOURCES>;
+
+export const MEDIA_BOOK_DLQ_SOURCE_QUEUES = {
+	processBook: `${MEDIA_BOOK_DLQ_SOURCES.processBook}-q`,
+} as const satisfies QueueNamesFor<typeof MEDIA_BOOK_DLQ_SOURCES>;
 
 export const GMAIL_HISTORY_IMPORT_DLQ_SOURCE_QUEUES = {
 	pages: `${GMAIL_HISTORY_IMPORT_DLQ_SOURCES.pages}-q`,

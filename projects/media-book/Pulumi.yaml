@@ -1,0 +1,6 @@
+name: media-book
+description: Turns an uploaded EPUB into a private tier-0 source
+runtime:
+  name: nodejs
+  options:
+    typescript: true

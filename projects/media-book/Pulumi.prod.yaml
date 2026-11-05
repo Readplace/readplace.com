@@ -1,0 +1,12 @@
+config:
+  aws:region: ap-southeast-2
+  aws:allowedAccountIds:
+    - '278728209435'
+  media-book:platformStack: organization/platform/prod
+  media-book:alertEmail: readplace+devops@readplace.com
+  media-book:contentBucketName: hutch-article-content-prod
+  media-book:mediaBucketName: hutch-media-prod
+  media-book:articlesTableName: hutch-articles-cda0a08
+  media-book:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-articles-cda0a08
+  media-book:userArticlesTableName: hutch-user-articles-8226beb
+encryptionsalt: v1:3j8q6aqDqQ8=:v1:fMpBhHspek+NWlyV:gepcebtMztYwC9wwoSgKvFCHiiWiTA==

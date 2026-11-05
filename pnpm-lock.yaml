@@ -768,6 +768,79 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  projects/media-book:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1057.0
+        version: 3.1057.0
+      '@packages/article-store':
+        specifier: workspace:*
+        version: link:../../src/packages/article-store
+      '@packages/dead-letter-routing':
+        specifier: workspace:*
+        version: link:../../src/packages/dead-letter-routing
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../src/packages/domain
+      '@packages/hutch-infra-components':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-infra-components
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-logger
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-storage-client
+      '@packages/media-contracts':
+        specifier: workspace:*
+        version: link:../../src/packages/media-contracts
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../src/packages/require-env
+      '@packages/tier-source':
+        specifier: workspace:*
+        version: link:../../src/packages/tier-source
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../../src/packages/test-fixtures
+      '@packages/test-phase-runner':
+        specifier: workspace:*
+        version: link:../../src/packages/test-phase-runner
+      '@pulumi/pulumi':
+        specifier: 3.244.0
+        version: 3.244.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
+      '@types/aws-lambda':
+        specifier: 8.10.161
+        version: 8.10.161
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      '@types/node':
+        specifier: 22.19.19
+        version: 22.19.19
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   projects/platform:
     dependencies:
       '@packages/hutch-infra-components':

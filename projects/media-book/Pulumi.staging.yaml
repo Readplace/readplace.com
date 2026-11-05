@@ -1,0 +1,12 @@
+config:
+  aws:region: ap-southeast-2
+  aws:allowedAccountIds:
+    - '572337278115'
+  media-book:platformStack: organization/platform/staging
+  media-book:alertEmail: readplace+staging@readplace.com
+  media-book:contentBucketName: hutch-article-content-staging
+  media-book:mediaBucketName: hutch-media-staging
+  media-book:articlesTableName: hutch-articles-cda0a08
+  media-book:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:572337278115:table/hutch-articles-cda0a08
+  media-book:userArticlesTableName: hutch-user-articles-8226beb
+encryptionsalt: v1:45grXncAXNY=:v1:SzsPtmhVQlJojvof:yboPL2G9+vEThMbfja9+CXY6cBLFxQ==

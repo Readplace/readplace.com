@@ -1,0 +1,36 @@
+{
+  "name": "media-book",
+  "targets": {
+    "install-deps": {
+      "command": "test -d projects/media-book/node_modules || pnpm install --frozen-lockfile",
+      "options": { "cwd": "{workspaceRoot}" },
+      "cache": false
+    },
+    "compile": {
+      "dependsOn": ["install-deps", "^compile"],
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "deploy-infra": {
+      "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes) $([ \"$CI\" = true ] && [ \"$PULUMI_STACK\" = staging ] && echo --skip-preview)",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
+    },
+    "post-deploy": {
+      "command": "bash scripts/post-deploy.sh",
+      "options": { "cwd": "{projectRoot}" }
+    },
+    "check": {
+      "command": "true",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["lint", "test-with-coverage"]
+    },
+    "lint": {
+      "dependsOn": ["compile"]
+    },
+    "test-with-coverage": {
+      "dependsOn": ["compile"],
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "test": {}
+  }
+}
