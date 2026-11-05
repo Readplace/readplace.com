@@ -66,6 +66,7 @@ export function initLinkSummariser(deps: {
 	logger: HutchLogger;
 	cleanContent: (html: string) => string;
 	isTooShortToSummarize: (cleanedText: string) => boolean;
+	fitSummaryInput: (input: { html: string; maxChars: number }) => string;
 }): { summarizeArticle: SummarizeArticle } {
 	const summarizeArticle: SummarizeArticle = async (params) => {
 		await deps.markSummaryStage({ url: params.url, stage: "summary-started" });
@@ -87,7 +88,7 @@ export function initLinkSummariser(deps: {
 				role: "user",
 				content: [{
 					type: "document",
-					source: { type: "text", media_type: "text/plain", data: cleanedContent.slice(0, MAX_SUMMARY_INPUT_CHARS) },
+					source: { type: "text", media_type: "text/plain", data: deps.fitSummaryInput({ html: params.textContent, maxChars: MAX_SUMMARY_INPUT_CHARS }) },
 					title: "Article to summarize",
 					citations: { enabled: true },
 				}],

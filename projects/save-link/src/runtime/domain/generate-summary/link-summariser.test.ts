@@ -1,7 +1,8 @@
 import { ZodError } from "zod";
 import { noopLogger } from "@packages/hutch-logger";
 import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
-import { initLinkSummariser } from "./link-summariser";
+import assert from "node:assert/strict";
+import { initLinkSummariser, MAX_SUMMARY_INPUT_CHARS } from "./link-summariser";
 import type { CreateAiMessage } from "@packages/ai-message";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
 import { PaidLegPermitSchema } from "@packages/provider-contracts/metered-leg-ledger";
@@ -29,6 +30,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -56,6 +58,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => true,
 		});
 
@@ -79,6 +82,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -104,6 +108,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: { ...noopLogger, info },
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -134,6 +139,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: { ...noopLogger, warn },
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -163,6 +169,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: { ...noopLogger, warn },
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -188,6 +195,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -218,6 +226,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -248,6 +257,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -275,6 +285,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -298,6 +309,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: { ...noopLogger, info },
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -329,6 +341,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -350,6 +363,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -368,6 +382,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -384,6 +399,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -407,6 +423,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -430,6 +447,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 
@@ -443,6 +461,35 @@ describe("initLinkSummariser", () => {
 		expect(result.excerpt).toBe(`${"x".repeat(MAX_EXCERPT_LENGTH - 1)}…`);
 	});
 
+	it("sends the fitted summary input as the document's data", async () => {
+		const createMessage = jest.fn<ReturnType<CreateAiMessage>, Parameters<CreateAiMessage>>(async () => ({
+			content: [{ type: "text", text: JSON.stringify({ summary: "A summary.", excerpt: "Blurb." }) }],
+			usage: { input_tokens: 50, output_tokens: 10 },
+		}));
+		const fitSummaryInput = jest.fn((input: { html: string; maxChars: number }) => `fitted ${input.html} within ${input.maxChars}`);
+
+		const { summarizeArticle } = initLinkSummariser({
+			createMessage,
+			markSummaryStage: noopMarkStage,
+			logger: noopLogger,
+			cleanContent: () => "cleaned text",
+			fitSummaryInput,
+			isTooShortToSummarize: () => false,
+		});
+
+		await summarizeArticle({ permit,
+			url: "https://example.com/book",
+			textContent: "<h2>Chapter</h2>",
+		});
+
+		const [request] = createMessage.mock.calls[0];
+		const [message] = request.messages;
+		assert(Array.isArray(message.content));
+		const [document] = message.content;
+		assert(document.type === "document");
+		expect(document.source.data).toBe(`fitted <h2>Chapter</h2> within ${MAX_SUMMARY_INPUT_CHARS}`);
+	});
+
 	it("passes article content as a document block to createMessage", async () => {
 		const createMessage = jest.fn().mockResolvedValue({
 			content: [{ type: "text", text: JSON.stringify({ summary: "A summary.", excerpt: "Blurb." }) }],
@@ -454,6 +501,7 @@ describe("initLinkSummariser", () => {
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
+			fitSummaryInput: ({ html }) => html,
 			isTooShortToSummarize: () => false,
 		});
 

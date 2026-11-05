@@ -18,6 +18,7 @@ import { initCanonicalContentChangedHandler } from "../save-link/canonical-conte
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { initLinkSummariser, type SummarizeArticle } from "../generate-summary/link-summariser";
 import { stripHtml } from "../generate-summary/strip-html";
+import { sampleSectionsForSummary } from "../generate-summary/sample-sections";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import { candidateProvenance, type VerifiedTierSource } from "@packages/tier-source";
 import type { Handler, SQSBatchResponse, SQSEvent, SQSRecordAttributes } from "aws-lambda";
@@ -111,6 +112,7 @@ describe("summary recovery on canonical content change", () => {
 		}));
 		const { summarizeArticle } = initLinkSummariser({
 			createMessage, markSummaryStage: async () => {}, logger: noopLogger, cleanContent: stripHtml,
+			fitSummaryInput: (input) => sampleSectionsForSummary({ ...input, cleanContent: stripHtml }),
 			isTooShortToSummarize: (text) => text.replace(/\s/g, "").length <= MAX_SUMMARY_LENGTH * 3,
 		});
 		let summaryHandler: Handler<SQSEvent, SQSBatchResponse>;

@@ -18,6 +18,7 @@ import { initLinkSummariser } from "./domain/generate-summary/link-summariser";
 import { initRunMeteredLeg } from "./domain/metered-leg/run-metered-leg";
 import { MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import { stripHtml } from "./domain/generate-summary/strip-html";
+import { sampleSectionsForSummary } from "./domain/generate-summary/sample-sections";
 import { GENERATE_SUMMARY_TIMEOUTS } from "./domain/generate-summary/timeouts";
 import { requireEnv } from "@packages/require-env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
@@ -59,6 +60,7 @@ const { summarizeArticle } = initLinkSummariser({
 	createMessage,
 	logger: consoleLogger,
 	cleanContent: stripHtml,
+	fitSummaryInput: (input) => sampleSectionsForSummary({ ...input, cleanContent: stripHtml }),
 	isTooShortToSummarize: (cleanedText) => {
 		const visibleLength = cleanedText.replace(/\s/g, "").length;
 		return visibleLength <= MAX_SUMMARY_LENGTH * 3;
