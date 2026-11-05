@@ -104,6 +104,7 @@ describe("GET /admin/dashboards", () => {
 			["hn-experiment", "GET", "/admin/dashboards/hn-experiment", tracked("hn-experiment")],
 			["mcp", "GET", "/admin/dashboards/mcp", tracked("mcp")],
 			["login", "GET", "/admin/dashboards/login", tracked("login")],
+			["keep-engine", "GET", "/admin/dashboards/keep-engine", tracked("keep-engine")],
 		]);
 	});
 

@@ -1,11 +1,12 @@
 import { authDiagnosticsWidgets } from "../auth-diagnostics/dashboard";
 import type { ExcludedIdentities } from "./excluded-identities";
 import { hnStarterWidgets } from "./hn-starter-widgets";
+import { keepEngineWidgets } from "./keep-engine-widgets";
 import type { LogWidgetSpec } from "./log-widget-spec.types";
 import { mcpWidgets } from "./mcp-widgets";
 import { oauthTokenWidgets } from "./oauth-token-widgets";
 
-export const ADMIN_DASHBOARD_SLUGS = ["hn-experiment", "mcp", "login"] as const;
+export const ADMIN_DASHBOARD_SLUGS = ["hn-experiment", "mcp", "login", "keep-engine"] as const;
 
 export type AdminDashboardSlug = (typeof ADMIN_DASHBOARD_SLUGS)[number];
 
@@ -63,6 +64,24 @@ export function buildAdminDashboards(deps: {
 					oauth.tokenGrants,
 					oauth.revocationsPerDay,
 					...Object.values(authDiagnosticsWidgets({ logGroupName: deps.authDiagnosticsLogGroupName })),
+				];
+			},
+		},
+		"keep-engine": {
+			title: "Keep Readplace engine",
+			description: "Trials, threshold crossings, panel reach, lifecycle emails, plans views and checkouts, operator accounts excluded.",
+			usesExclusions: true,
+			widgets: (identities) => {
+				const keep = keepEngineWidgets({ analyticsLogGroupName, identities });
+				return [
+					keep.trialsByClient,
+					keep.panelReach,
+					keep.lifecycleSends,
+					keep.emailClicks,
+					keep.plansViews,
+					keep.checkoutsStarted,
+					keep.checkoutsCompleted,
+					keep.charges,
 				];
 			},
 		},

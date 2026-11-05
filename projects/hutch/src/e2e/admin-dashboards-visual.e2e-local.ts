@@ -30,6 +30,7 @@ const SCENARIOS = [
 	{ name: "hn-experiment", path: "/admin/dashboards/hn-experiment", target: 'main[data-test-admin-dashboard="hn-experiment"]' },
 	{ name: "mcp", path: "/admin/dashboards/mcp", target: 'main[data-test-admin-dashboard="mcp"]' },
 	{ name: "login", path: "/admin/dashboards/login", target: 'main[data-test-admin-dashboard="login"]' },
+	{ name: "keep-engine", path: "/admin/dashboards/keep-engine", target: 'main[data-test-admin-dashboard="keep-engine"]' },
 ] as const;
 
 async function settle(page: Page): Promise<void> {

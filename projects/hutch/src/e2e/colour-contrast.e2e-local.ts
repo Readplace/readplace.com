@@ -1383,7 +1383,7 @@ test.describe("Admin dashboard colour roles hold their WCAG contrast in both the
 			await page.waitForSelector("body.page-admin-dashboards");
 			await auditRoot(page, { root: "main.admin-dashboards", theme, view: "admin/dashboards" });
 
-			for (const slug of ["hn-experiment", "mcp", "login"] as const) {
+			for (const slug of ["hn-experiment", "mcp", "login", "keep-engine"] as const) {
 				await page.goto(`${BASE_URL}/admin/dashboards/${slug}`, { waitUntil: "domcontentloaded" });
 				await page.waitForSelector("body.page-admin-dashboard");
 				await auditRoot(page, { root: "main.admin-dashboard", theme, view: `admin/dashboards/${slug}` });

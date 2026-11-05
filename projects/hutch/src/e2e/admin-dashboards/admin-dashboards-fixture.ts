@@ -24,6 +24,8 @@ export function e2eDashboardAnswers(): { queryString: string; rows: readonly Log
 		dashboards["hn-experiment"].widgets(NO_EXCLUSIONS);
 	const [toolCalls, toolCallsPerDay, , , handshakes] = dashboards.mcp.widgets(NO_EXCLUSIONS);
 	const [tokenGrants, revocationsPerDay, authenticationFailures] = dashboards.login.widgets(NO_EXCLUSIONS);
+	const [trialsByClient, panelReach, lifecycleSends, emailClicks, plansViews, checkoutsStarted, checkoutsCompleted, charges] =
+		dashboards["keep-engine"].widgets(NO_EXCLUSIONS);
 
 	return [
 		{
@@ -108,6 +110,65 @@ export function e2eDashboardAnswers(): { queryString: string; rows: readonly Log
 			rows: [
 				row({ client: "ios", client_version: "94", event: "refresh_failed", reason: "invalid_grant", "count_distinct(event_id)": "14" }),
 			],
+		},
+		{
+			queryString: trialsByClient.query,
+			rows: [
+				row({ client: "web", trials: "11" }),
+				row({ client: "chatgpt", trials: "5" }),
+				row({ client: "readplace-ios", trials: "2" }),
+			],
+		},
+		{
+			queryString: panelReach.query,
+			rows: [
+				row({ event: "activation_threshold_reached", panel_surface: "-", events: "9", users: "9" }),
+				row({ event: "keep_offer_shown", panel_surface: "readlist-panel", events: "14", users: "7" }),
+				row({ event: "keep_offer_clicked", panel_surface: "readlist-panel", events: "3", users: "3" }),
+			],
+		},
+		{
+			queryString: lifecycleSends.query,
+			rows: [
+				row({ kind: "welcome", sends: "11", recipients: "11" }),
+				row({ kind: "welcome-chatgpt", sends: "5", recipients: "5" }),
+				row({ kind: "trial-day3", sends: "14", recipients: "14" }),
+				row({ kind: "trial-day7", sends: "9", recipients: "9" }),
+				row({ kind: "founder-note-day1", sends: "16", recipients: "16" }),
+			],
+		},
+		{
+			queryString: emailClicks.query,
+			rows: [
+				row({ source: "day3-email", campaign: "trial", clicks: "6", clickers: "4" }),
+				row({ source: "day7-email", campaign: "trial", clicks: "3", clickers: "2" }),
+			],
+		},
+		{
+			queryString: plansViews.query,
+			rows: [
+				row({ source: "(none)", tier: "trial", views: "21", users: "12" }),
+				row({ source: "day3-email", tier: "trial", views: "5", users: "4" }),
+				row({ source: "day7-email", tier: "trial", views: "2", users: "2" }),
+			],
+		},
+		{
+			queryString: checkoutsStarted.query,
+			rows: [
+				row({ source: "keep-panel", plan: "yearly", users: "3", events: "4" }),
+				row({ source: "(none)", plan: "monthly", users: "2", events: "3" }),
+			],
+		},
+		{
+			queryString: checkoutsCompleted.query,
+			rows: [
+				row({ source: "keep-panel", paid_now: "0", offer_applied: "first-year-49", users: "2" }),
+				row({ source: "(none)", paid_now: "1", offer_applied: "none", users: "1" }),
+			],
+		},
+		{
+			queryString: charges.query,
+			rows: [row({ payers: "2", first_charge: "2026-10-14 03:12:45.000" })],
 		},
 	];
 }
