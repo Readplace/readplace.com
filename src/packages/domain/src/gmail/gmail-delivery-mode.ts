@@ -1,23 +1,19 @@
-import { z } from "zod";
+import {
+	EMAIL_DELIVERY_FAN_OUT,
+	type EmailDeliveryMode,
+	EmailDeliveryModeSchema,
+	LEGACY_DELIVERY_MODE,
+} from "../inbox/email-delivery-mode";
 import type { GmailMapping } from "./gmail-mapping.types";
 
-export const GmailDeliveryModeSchema = z.enum(["links", "issue", "both"]);
-export type GmailDeliveryMode = z.infer<typeof GmailDeliveryModeSchema>;
+export const GmailDeliveryModeSchema = EmailDeliveryModeSchema;
+export type GmailDeliveryMode = EmailDeliveryMode;
 
 export const NEW_MAPPING_DELIVERY_MODE: GmailDeliveryMode = "issue";
 
-export const LEGACY_DELIVERY_MODE: GmailDeliveryMode = "links";
+export { LEGACY_DELIVERY_MODE };
 
-export interface GmailDeliveryFanOut {
-	links: boolean;
-	issue: boolean;
-}
-
-export const GMAIL_DELIVERY_FAN_OUT = {
-	links: { links: true, issue: false },
-	issue: { links: false, issue: true },
-	both: { links: true, issue: true },
-} satisfies Record<GmailDeliveryMode, GmailDeliveryFanOut>;
+export const GMAIL_DELIVERY_FAN_OUT = EMAIL_DELIVERY_FAN_OUT;
 
 export function resolveGmailDeliveryMode(sender: Pick<GmailMapping, "deliveryMode">): GmailDeliveryMode {
 	return sender.deliveryMode ?? LEGACY_DELIVERY_MODE;

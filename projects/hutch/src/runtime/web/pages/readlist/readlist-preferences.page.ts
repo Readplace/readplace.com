@@ -1,10 +1,12 @@
 import assert from "node:assert";
 import {
 	decideInboxRouting,
+	EmailDeliveryModeSchema,
 	type InboxAddressStore,
 	type InboxRoutingRejection,
 } from "@packages/domain/inbox";
 import {
+	DEFAULT_READLIST_SLUG,
 	ReadlistFitOverrideIdSchema,
 	ReadlistSlugSchema,
 	decideReadlistPurpose,
@@ -17,6 +19,7 @@ import type {
 	DeleteReadlistFitOverride,
 	ListReadlistDefinitions,
 	ListReadlistFitOverrides,
+	SetReadlistDefinitionEmailDelivery,
 	SetReadlistDefinitionPurpose,
 } from "@packages/provider-contracts/article-store";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
@@ -29,7 +32,12 @@ import { z } from "zod";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
-import { GMAIL_SELECTION_ALERT, GMAIL_UNAVAILABLE_ALERT, INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
+import {
+	EMAIL_DELIVERY_INVALID_ALERT,
+	GMAIL_SELECTION_ALERT,
+	GMAIL_UNAVAILABLE_ALERT,
+	INBOX_UNAVAILABLE_ALERT,
+} from "./readlist-alerts";
 import type { ReadlistOnboarding } from "./readlist.component";
 import { readerReadlists } from "./readlist-context";
 import type { LoadReadlistGmailSenders } from "./readlist-gmail-senders.page";
@@ -42,7 +50,13 @@ import { READLIST_ERROR_UNKNOWN_READLIST, READLIST_PURPOSE_INVALID_MESSAGE } fro
 import { buildReadlistUrl, readlistPreferencesPath } from "./readlist.url";
 import { toSubscriptionBannerState } from "./readlist.viewmodel";
 
-const PREFERENCES_ERROR_CODES = ["invalid-purpose", "unknown-inbox", "gmail-selection", "gmail-unavailable"] as const;
+const PREFERENCES_ERROR_CODES = [
+	"invalid-purpose",
+	"unknown-inbox",
+	"gmail-selection",
+	"gmail-unavailable",
+	"invalid-email-delivery",
+] as const;
 
 type PreferencesErrorCode = (typeof PREFERENCES_ERROR_CODES)[number];
 
@@ -56,6 +70,7 @@ const PREFERENCES_ERRORS: Record<PreferencesErrorCode, PreferencesError> = {
 	"unknown-inbox": { alert: INBOX_UNAVAILABLE_ALERT },
 	"gmail-selection": { alert: GMAIL_SELECTION_ALERT },
 	"gmail-unavailable": { alert: GMAIL_UNAVAILABLE_ALERT },
+	"invalid-email-delivery": { alert: EMAIL_DELIVERY_INVALID_ALERT },
 };
 
 const PreferencesQuerySchema = z.object({
@@ -70,9 +85,12 @@ const InboxRoutingBodySchema = z
 	})
 	.catch({ address: "", destination: "" });
 
+const EmailDeliveryBodySchema = z.object({ delivery: EmailDeliveryModeSchema });
+
 export function initReadlistPreferencesRoutes(deps: {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	listReadlistFitOverrides: ListReadlistFitOverrides;
 	deleteReadlistFitOverride: DeleteReadlistFitOverride;
@@ -155,7 +173,7 @@ export function initReadlistPreferencesRoutes(deps: {
 			res,
 			Base(
 				ReadlistPreferencesPage({
-					readlist: { ...activeReadlist, purpose: definition.purpose },
+					readlist: { ...activeReadlist, purpose: definition.purpose, emailDelivery: definition.emailDelivery },
 					rail: buildReadlistRail({
 						context,
 						accessIsReadOnly,
@@ -341,6 +359,37 @@ export function initReadlistPreferencesRoutes(deps: {
 				address: decision.address,
 				readlist: decision.readlist,
 			});
+			res.redirect(303, readlistPreferencesPath(slug));
+		},
+	);
+
+	router.post(
+		"/queues/:slug/preferences/email-delivery",
+		requireNotLocked,
+		deps.requireWriteAccess,
+		async (req: Request, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const requested = ReadlistSlugSchema.safeParse(req.params.slug);
+			if (!requested.success || requested.data === DEFAULT_READLIST_SLUG) {
+				unknownReadlist(res);
+				return;
+			}
+			const slug = requested.data;
+			const body = EmailDeliveryBodySchema.safeParse(req.body);
+			if (!body.success) {
+				res.redirect(303, `${readlistPreferencesPath(slug)}?preferences_error=invalid-email-delivery`);
+				return;
+			}
+			const { updated } = await deps.setReadlistDefinitionEmailDelivery({
+				userId,
+				slug,
+				emailDelivery: body.data.delivery,
+			});
+			if (!updated) {
+				unknownReadlist(res);
+				return;
+			}
 			res.redirect(303, readlistPreferencesPath(slug));
 		},
 	);

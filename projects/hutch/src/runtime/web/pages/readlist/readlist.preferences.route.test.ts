@@ -848,13 +848,13 @@ describe("POST /queue/queues/:slug/preferences/purpose/delete", () => {
 		await mintInbox(fixture, { userId: await readerId(harness), name: "news", readlist: slug });
 		await savePurpose(agent, slug, PURPOSE);
 		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
-			"Send a custom email here and every article each issue links to is saved to All. The ones that fit are also saved to New Readlist.",
+			"Send a custom email here and every article each email links to is saved to All. The ones that fit are also saved to New Readlist.",
 		);
 
 		await deletePurpose(agent, slug);
 
 		expect(inboxesDescription(parse((await agent.get(preferencesPath(slug))).text))).toBe(
-			"Send a custom email here and the articles each issue links to are saved to All and New Readlist.",
+			"Send a custom email here and the articles each email links to are saved to All and New Readlist.",
 		);
 	});
 });
@@ -1115,7 +1115,7 @@ describe("GET /queue/queues/:slug/preferences inboxes", () => {
 		const doc = parse((await agent.get(preferencesPath(slug))).text);
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and every article each issue links to is saved to All. The ones that fit are also saved to New Readlist.",
+			"Send a custom email here and every article each email links to is saved to All. The ones that fit are also saved to New Readlist.",
 		);
 	});
 
@@ -1401,6 +1401,149 @@ describe("POST /queue/queues/:slug/preferences/inboxes", () => {
 			.post(inboxesPath("a1b2c3d4"))
 			.type("form")
 			.send({ address: "news-a1b2c3@read.place", destination: "a1b2c3d4" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toContain("/login");
+	});
+});
+
+function emailDeliveryPath(slug: string): string {
+	return `${preferencesPath(slug)}/email-delivery`;
+}
+
+function setDelivery(agent: TestAgent, slug: string, body: { delivery?: string }) {
+	return agent.post(emailDeliveryPath(slug)).type("form").send(body);
+}
+
+async function deliveryOf(harness: TestHarness, slug: string): Promise<string | undefined> {
+	const definitions = await harness.articleStore.listReadlistDefinitions(await readerId(harness));
+	return definitions.find((definition) => definition.slug === slug)?.emailDelivery;
+}
+
+function deliveryOptions(doc: Document) {
+	return Array.from(doc.querySelectorAll<HTMLInputElement>("[data-test-email-delivery-option]"), (radio) => ({
+		value: radio.value,
+		checked: radio.checked,
+	}));
+}
+
+describe("GET /queue/queues/:slug/preferences email delivery", () => {
+	it("offers the email itself, the articles it links to, and both, with the articles checked for a readlist that never chose", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(deliveryOptions(doc)).toEqual([
+			{ value: "issue", checked: false },
+			{ value: "links", checked: true },
+			{ value: "both", checked: false },
+		]);
+	});
+
+	it("checks the choice the reader saved", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await setDelivery(agent, slug, { delivery: "issue" });
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(deliveryOptions(doc)).toEqual([
+			{ value: "issue", checked: true },
+			{ value: "links", checked: false },
+			{ value: "both", checked: false },
+		]);
+	});
+
+	it.each([
+		["issue", "Send a custom email here and each email is saved as one article to All and New Readlist."],
+		[
+			"both",
+			"Send a custom email here and each email is saved as one article, with the articles it links to, to All and New Readlist.",
+		],
+		["links", "Send a custom email here and the articles each email links to are saved to All and New Readlist."],
+	])("describes what a custom email sent here saves once the readlist chose %s", async (delivery, lede) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await setDelivery(agent, slug, { delivery });
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(inboxesDescription(doc)).toBe(lede);
+	});
+});
+
+describe("POST /queue/queues/:slug/preferences/email-delivery", () => {
+	it("stores the choice and returns the reader to the readlist's preferences", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await setDelivery(agent, slug, { delivery: "both" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(preferencesPath(slug));
+		expect(await deliveryOf(harness, slug)).toBe("both");
+	});
+
+	it.each([
+		["a readlist the reader does not have", "a1b2c3d4"],
+		["the built-in readlist, which receives no email", "default"],
+		["a malformed readlist id", "Not A Slug"],
+	])("refuses %s", async (_case, slug) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await setDelivery(agent, slug, { delivery: "issue" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?queue_error=unknown_readlist");
+	});
+
+	it.each([
+		["a choice Readplace does not offer", { delivery: "everything" }],
+		["no choice at all", {}],
+	])("sends back %s with an alert, keeping the stored choice", async (_case, body) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+
+		const response = await setDelivery(agent, slug, body);
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe(`${preferencesPath(slug)}?preferences_error=invalid-email-delivery`);
+		expect(await deliveryOf(harness, slug)).toBe("links");
+		const doc = parse((await agent.get(response.headers.location)).text);
+		expect(alertOf(doc)).toEqual({
+			visible: true,
+			title: "That choice isn't one Readplace offers",
+			body: "Pick what to save from each email and try again.",
+		});
+	});
+
+	it("turns a read-only reader away, keeping the stored choice", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await makeReadOnly(harness);
+
+		const response = await setDelivery(agent, slug, { delivery: "issue" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
+		expect(await deliveryOf(harness, slug)).toBe("links");
+	});
+
+	it("asks a signed-out visitor to log in", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server)
+			.post(emailDeliveryPath("a1b2c3d4"))
+			.type("form")
+			.send({ delivery: "issue" });
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toContain("/login");

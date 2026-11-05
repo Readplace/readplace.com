@@ -40,7 +40,7 @@ function page(overrides: {
 	query?: Record<string, unknown>;
 }) {
 	return ReadlistPreferencesPage({
-		readlist: { slug: WORK, label: "Work Reading", purpose: overrides.purpose },
+		readlist: { slug: WORK, label: "Work Reading", purpose: overrides.purpose, emailDelivery: "links" },
 		rail: {
 			readlists: [DEFAULT_READLIST, { slug: WORK, label: "Work Reading" }, { slug: LATER, label: "Later" }],
 			activeReadlist: { slug: WORK, label: "Work Reading" },

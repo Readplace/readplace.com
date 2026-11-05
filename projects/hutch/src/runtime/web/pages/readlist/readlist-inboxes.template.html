@@ -3,6 +3,18 @@
     <h2 class="readlist-inboxes__title" id="readlist-inboxes-title">Custom emails</h2>
     <p class="readlist-inboxes__lede" data-test-inboxes-description>{{description}}</p>
   </header>
+  <form class="readlist-inboxes__delivery" method="POST" action="{{deliveryAction}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-readlist-email-delivery>
+    <fieldset class="readlist-inboxes__delivery-fieldset">
+      <legend class="form-field__label readlist-inboxes__delivery-legend">What to save from each email</legend>
+      {{#each deliveryOptions}}
+      <label class="readlist-inboxes__delivery-option">
+        <input id="readlist-email-delivery-{{value}}" class="readlist-inboxes__delivery-radio" type="radio" name="delivery" value="{{value}}"{{#if checked}} checked{{/if}} data-test-email-delivery-option="{{value}}">
+        <span class="readlist-inboxes__delivery-text"><span class="readlist-inboxes__delivery-label">{{label}}</span><span class="readlist-inboxes__delivery-description">{{description}}</span></span>
+      </label>
+      {{/each}}
+    </fieldset>
+    <button class="btn btn--secondary btn--m" type="submit" data-test-action="set-email-delivery">Save</button>
+  </form>
   <ul class="readlist-inboxes__list">
     {{#each rows}}
     <li class="readlist-inboxes__row" data-test-preferences-inbox="{{address}}" data-test-inbox-routing="{{routing}}">

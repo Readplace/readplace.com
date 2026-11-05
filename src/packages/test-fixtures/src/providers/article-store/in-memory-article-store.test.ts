@@ -1952,6 +1952,33 @@ describe("initInMemoryArticleStore", () => {
 			]);
 		});
 
+		it("saves the links from a new readlist's emails until the reader chooses otherwise", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.emailDelivery)).toEqual(["links"]);
+		});
+
+		it("lists the delivery a reader chose for a readlist's emails", async () => {
+			const store = initInMemoryArticleStore();
+			const createdAt = new Date("2026-08-19T10:00:00.000Z");
+			await store.createReadlistDefinition({ userId: USER_A, slug: WORK, label: "Work", createdAt });
+
+			expect(
+				await store.setReadlistDefinitionEmailDelivery({ userId: USER_A, slug: WORK, emailDelivery: "both" }),
+			).toEqual({ updated: true });
+			expect((await store.listReadlistDefinitions(USER_A)).map((d) => d.emailDelivery)).toEqual(["both"]);
+		});
+
+		it("reports a readlist the reader does not hold as not updated when setting its delivery", async () => {
+			const store = initInMemoryArticleStore();
+
+			expect(
+				await store.setReadlistDefinitionEmailDelivery({ userId: USER_A, slug: WORK, emailDelivery: "issue" }),
+			).toEqual({ updated: false });
+		});
+
 		it("reports a readlist the reader does not hold as unrenamed", async () => {
 			const store = initInMemoryArticleStore();
 
@@ -2208,6 +2235,7 @@ describe("initInMemoryArticleStore", () => {
 					slug: HN_PICKS,
 					label: "Hacker News picks",
 					purpose: undefined,
+					emailDelivery: "links",
 					createdAt: new Date(SELECTED_AT),
 					starterCampaignId: "hn-starter-v1",
 				},

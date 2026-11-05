@@ -72,6 +72,7 @@ import type {
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetReadlistDefinitionEmailDelivery,
 	ClearReadlistDefinitionPurpose,
 	ListUserSavesForUrl,
 	ListUserSavesForUrls,
@@ -454,6 +455,7 @@ interface ReadlistDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	purgeReadlistFitOverrides: PurgeReadlistFitOverrides;
@@ -1748,6 +1750,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		initReadlistPreferencesRoutes({
 			listReadlistDefinitions: deps.listReadlistDefinitions,
 			setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+			setReadlistDefinitionEmailDelivery: deps.setReadlistDefinitionEmailDelivery,
 			clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 			listReadlistFitOverrides: deps.listReadlistFitOverrides,
 			deleteReadlistFitOverride: deps.deleteReadlistFitOverride,

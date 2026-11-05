@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	CUSTOM_EMAILS_PATH,
+	type EmailDeliveryMode,
 	type InboxAddressEntry,
 	isCappedAddress,
 	isLiveAddress,
@@ -13,8 +14,7 @@ import {
 	type ReadlistSlug,
 } from "@packages/domain/readlist";
 import { render, withInternalTracking } from "@packages/web-shell";
-import { readlistPreferencesInboxesPath } from "./readlist.url";
-
+import { readlistPreferencesEmailDeliveryPath, readlistPreferencesInboxesPath } from "./readlist.url";
 
 const TEMPLATE = readFileSync(join(__dirname, "readlist-inboxes.template.html"), "utf-8");
 
@@ -49,12 +49,50 @@ const ROUTING_ACTIONS: Record<
 	},
 };
 
-const DESCRIPTIONS: Record<"unset" | "set", (label: string) => string> = {
-	unset: (label) =>
-		`Send a custom email here and the articles each issue links to are saved to ${DEFAULT_READLIST_LABEL} and ${label}.`,
-	set: (label) =>
-		`Send a custom email here and every article each issue links to is saved to ${DEFAULT_READLIST_LABEL}. The ones that fit are also saved to ${label}.`,
+const EMAIL_DELIVERY_COPY: Record<EmailDeliveryMode, { label: string; description: string }> = {
+	issue: {
+		label: "The email itself",
+		description: "Each email lands in your readlist as one article. Save the links you want while you read it.",
+	},
+	links: {
+		label: "The articles it links to",
+		description: "The articles each email links to are saved one by one. The email stays on its inbox page.",
+	},
+	both: {
+		label: "Both",
+		description: "Each email lands as an article, and the articles it links to are saved beside it.",
+	},
 };
+
+const EMAIL_DELIVERY_ORDER: readonly EmailDeliveryMode[] = ["issue", "links", "both"];
+
+const DESCRIPTIONS: Record<EmailDeliveryMode, Record<"unset" | "set", (label: string) => string>> = {
+	links: {
+		unset: (label) =>
+			`Send a custom email here and the articles each email links to are saved to ${DEFAULT_READLIST_LABEL} and ${label}.`,
+		set: (label) =>
+			`Send a custom email here and every article each email links to is saved to ${DEFAULT_READLIST_LABEL}. The ones that fit are also saved to ${label}.`,
+	},
+	issue: {
+		unset: (label) =>
+			`Send a custom email here and each email is saved as one article to ${DEFAULT_READLIST_LABEL} and ${label}.`,
+		set: (label) =>
+			`Send a custom email here and each email is saved as one article to ${DEFAULT_READLIST_LABEL} and ${label}.`,
+	},
+	both: {
+		unset: (label) =>
+			`Send a custom email here and each email is saved as one article, with the articles it links to, to ${DEFAULT_READLIST_LABEL} and ${label}.`,
+		set: (label) =>
+			`Send a custom email here and each email is saved as one article to ${DEFAULT_READLIST_LABEL} and ${label}, and the articles it links to are saved to ${DEFAULT_READLIST_LABEL}, with the ones that fit also saved to ${label}.`,
+	},
+};
+
+export interface ReadlistEmailDeliveryOption {
+	value: EmailDeliveryMode;
+	label: string;
+	description: string;
+	checked: boolean;
+}
 
 export interface ReadlistInboxRow {
 	nameId: string;
@@ -72,13 +110,15 @@ export interface ReadlistInboxesDisplayModel {
 	sectionClass: string;
 	state: InboxesState;
 	description: string;
+	deliveryAction: string;
+	deliveryOptions: readonly ReadlistEmailDeliveryOption[];
 	rows: readonly ReadlistInboxRow[];
 	createInboxHref: string;
 	manageInboxesHref: string;
 }
 
 export function buildReadlistInboxes(input: {
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
+	readlist: { slug: ReadlistSlug; label: string; purpose?: string; emailDelivery: EmailDeliveryMode };
 	inboxes: readonly InboxAddressEntry[];
 	readlists: readonly ReadlistRef[];
 }): ReadlistInboxesDisplayModel {
@@ -115,9 +155,18 @@ export function buildReadlistInboxes(input: {
 	return {
 		sectionClass: SECTION_CLASS[state],
 		state,
-		description: DESCRIPTIONS[input.readlist.purpose === undefined ? "unset" : "set"](
+		description: DESCRIPTIONS[input.readlist.emailDelivery][input.readlist.purpose === undefined ? "unset" : "set"](
 			input.readlist.label,
 		),
+		deliveryAction: withInternalTracking(readlistPreferencesEmailDeliveryPath(input.readlist.slug), {
+			source: INBOXES_SOURCE,
+			content: "set-email-delivery",
+		}),
+		deliveryOptions: EMAIL_DELIVERY_ORDER.map((value) => ({
+			value,
+			...EMAIL_DELIVERY_COPY[value],
+			checked: value === input.readlist.emailDelivery,
+		})),
 		rows,
 		createInboxHref: withInternalTracking(CUSTOM_EMAILS_PATH, {
 			source: INBOXES_SOURCE,

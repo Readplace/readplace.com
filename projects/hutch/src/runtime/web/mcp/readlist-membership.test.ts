@@ -10,8 +10,8 @@ describe("initResolveReadlistMembership", () => {
 		const orphan = ReadlistSlugSchema.parse("deleted");
 		const urls = ["https://example.com/a", "https://example.com/b", "https://example.com/c"];
 		const listReadlistDefinitions = jest.fn(async () => [
-			{ slug: work, label: "Work", createdAt: new Date("2026-01-01") },
-			{ slug: weekend, label: "Weekend", createdAt: new Date("2026-01-02") },
+			{ slug: work, label: "Work", emailDelivery: "links" as const, createdAt: new Date("2026-01-01") },
+			{ slug: weekend, label: "Weekend", emailDelivery: "links" as const, createdAt: new Date("2026-01-02") },
 		]);
 		const listUserSavesForUrls = jest.fn(async () => new Map([
 			[urls[0], [{ readlist: weekend }, {}, { readlist: work }, { readlist: orphan }]],

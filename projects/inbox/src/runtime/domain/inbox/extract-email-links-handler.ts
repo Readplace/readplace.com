@@ -291,7 +291,6 @@ export function initExtractEmailLinksHandler(deps: {
 				const anchors = collectEmailAnchors(sanitizedHtml);
 				const canSubmit =
 					SUBMITTING_ORIGINS[origin] && userId !== UNROUTED_USER_ID;
-				const fanOut = resolveEmailFanOut(routing);
 				const writeAccess = canSubmit
 					? resolveWriteAccess(await findSubscriptionByUserId(userId), now())
 					: undefined;
@@ -334,7 +333,7 @@ export function initExtractEmailLinksHandler(deps: {
 				};
 
 				const routedReadlist =
-					writeAccess === "full" && routing.kind === "inbox"
+					canSubmit && routing.kind === "inbox"
 						? await findRoutedReadlist({
 								userId,
 								address: InboxAddressSchema.parse(recipientAddress),
@@ -352,6 +351,15 @@ export function initExtractEmailLinksHandler(deps: {
 				} else if (routedReadlist !== undefined) {
 					customReadlists.add(routedReadlist);
 				}
+				const definitions =
+					customReadlists.size > 0
+						? await listReadlistDefinitions(userId)
+						: [];
+				const inboxDefinition =
+					routing.kind === "inbox"
+						? definitions.find((definition) => definition.slug === routedReadlist)
+						: undefined;
+				const fanOut = resolveEmailFanOut({ routing, inboxReadlist: inboxDefinition });
 				const triagedLinks: {
 					ordinal: EmailLinkOrdinal;
 					url: string;
@@ -364,7 +372,7 @@ export function initExtractEmailLinksHandler(deps: {
 				let eligibleForAll = 0;
 				let noticePublished = false;
 				let firstInboxNoticePublished = false;
-				const saveIssue = (emailOutput: EmailOutputCorrelation) =>
+				const saveIssue = (emailOutput: EmailOutputCorrelation | undefined) =>
 					publishSaveEmailIssue({
 						userId,
 						saveAttemptId: newSaveAttemptId(),
@@ -389,6 +397,15 @@ export function initExtractEmailLinksHandler(deps: {
 				if (canSubmit && fanOut.issue && writeAccess !== "full") {
 					noticePublished = true;
 					await publishSaveHeldNotice({
+						userId,
+						receivedAtMessageId,
+						inboxAddress: recipientAddress,
+					});
+				}
+				if (canSubmit && routing.kind === "inbox" && fanOut.issue && writeAccess === "full") {
+					await saveIssue(undefined);
+					firstInboxNoticePublished = true;
+					await publishFirstInboxEmailNotice({
 						userId,
 						receivedAtMessageId,
 						inboxAddress: recipientAddress,
@@ -538,10 +555,6 @@ export function initExtractEmailLinksHandler(deps: {
 				}
 
 				const decidingReadlists = writeAccess === "full" && fanOut.links ? [...customReadlists] : [];
-				const definitions =
-					customReadlists.size > 0
-						? await listReadlistDefinitions(userId)
-						: [];
 				const selectedReadlists = [...customReadlists].map((readlist) => ({
 					readlist,
 					label:
@@ -578,7 +591,7 @@ export function initExtractEmailLinksHandler(deps: {
 						extractionFailed: false,
 						...(routing.kind === "gmail" && canSubmit && fanOut.links
 							? { selectedReadlists, eligibleArticleCount: triagedLinks.length, savesHeld: writeAccess !== "full" }
-							: routing.kind === "inbox" && canSubmit
+							: routing.kind === "inbox" && canSubmit && fanOut.links
 								? { selectedReadlists, eligibleArticleCount: customReadlists.size > 0 ? triagedLinks.length : eligibleForAll, savesHeld: writeAccess !== "full" }
 								: {}),
 						...(canSubmit && fanOut.issue

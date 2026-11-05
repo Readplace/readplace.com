@@ -15,7 +15,7 @@ export type GmailSenderRouting =
 			kind: "routed";
 			readlists: ReadlistSlug[];
 			deliveryMode: GmailDeliveryMode;
-	  }
+		}
 	| { kind: "unresolved" };
 
 export interface GmailReadlistSelectionChange {

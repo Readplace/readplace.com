@@ -31,6 +31,7 @@ import {
 	type ReadlistSlug,
 	readlistFitOverrideId,
 } from "@packages/domain/readlist";
+import { type EmailDeliveryMode, LEGACY_DELIVERY_MODE } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type {
 	AllocateSavedAt,
@@ -56,6 +57,7 @@ import type {
 	ReadlistFitOverride,
 	RecordReadlistFitOverride,
 	RenameReadlistDefinition,
+	SetReadlistDefinitionEmailDelivery,
 	SetReadlistDefinitionPurpose,
 	ListUserArticleUrls,
 	ListUserSavesForUrl,
@@ -243,6 +245,7 @@ export function initInMemoryArticleStore(): {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	/** Test-only accessor for the latest TL;DR open/close stamps, so route tests
 	 * can assert the beacon reached the row. */
@@ -299,6 +302,7 @@ export function initInMemoryArticleStore(): {
 			slug: ReadlistSlug;
 			label: string;
 			purpose?: string;
+			emailDelivery: EmailDeliveryMode;
 			createdAt: Date;
 			starterCampaignId?: string;
 		}
@@ -332,6 +336,7 @@ export function initInMemoryArticleStore(): {
 			userId,
 			slug: pack.readlist,
 			label: pack.readlistLabel,
+			emailDelivery: LEGACY_DELIVERY_MODE,
 			starterCampaignId: pack.campaignId,
 			createdAt: new Date(pack.selectedAt),
 		});
@@ -879,6 +884,7 @@ export function initInMemoryArticleStore(): {
 			userId: params.userId,
 			slug: params.slug,
 			label: params.label,
+			emailDelivery: LEGACY_DELIVERY_MODE,
 			createdAt: params.createdAt,
 		});
 		return { created: true, ownedCount: owned.length + 1 };
@@ -897,6 +903,14 @@ export function initInMemoryArticleStore(): {
 		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
 		if (!definition) return { updated: false };
 		definition.purpose = params.purpose;
+		return { updated: true };
+	};
+
+	const setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		const definition = readlistDefinitions.get(readlistDefinitionKey(params.userId, params.slug));
+		if (!definition) return { updated: false };
+		definition.emailDelivery = params.emailDelivery;
 		return { updated: true };
 	};
 
@@ -954,10 +968,11 @@ export function initInMemoryArticleStore(): {
 	const listReadlistDefinitions: ListReadlistDefinitions = async (userId) =>
 		[...readlistDefinitions.values()]
 			.filter((definition) => definition.userId === userId)
-			.map(({ slug, label, purpose, createdAt, starterCampaignId }) => ({
+			.map(({ slug, label, purpose, emailDelivery, createdAt, starterCampaignId }) => ({
 				slug,
 				label,
 				purpose,
+				emailDelivery,
 				createdAt,
 				...(starterCampaignId === undefined ? {} : { starterCampaignId }),
 			}))
@@ -1314,6 +1329,7 @@ export function initInMemoryArticleStore(): {
 		listReadlistDefinitions,
 		renameReadlistDefinition,
 		setReadlistDefinitionPurpose,
+		setReadlistDefinitionEmailDelivery,
 		clearReadlistDefinitionPurpose,
 		getSummaryToggleState,
 		readContent,

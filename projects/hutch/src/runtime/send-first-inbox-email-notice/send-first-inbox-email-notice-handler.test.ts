@@ -24,7 +24,7 @@ const EXPECTED_INBOX_URL =
 
 const EXPECTED_TEXT = [
 	"The first email to your custom email in-3f9a2c@read.place just came through.",
-	"From here on, every email sent to that custom email shows up in your Inbox, and Readplace pulls the article links out of it and adds them to All, your main readlist, so you can read them later.",
+	"From here on, every email sent to that custom email shows up in your Inbox, and Readplace saves the articles it links to — or the email itself, when its readlist asks for that — to All, your main readlist, so you can read them later.",
 	`See it in your Inbox: ${EXPECTED_INBOX_URL}`,
 	"If you have any questions, please reply to this email",
 	"— Fayner Brack, Founder & CEO",

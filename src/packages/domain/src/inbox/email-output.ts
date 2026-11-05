@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GmailDeliveryMode } from "../gmail/gmail-delivery-mode";
+import type { EmailDeliveryMode } from "./email-delivery-mode";
 import { type GmailMessageOrigin, gmailMessageOriginKey } from "../gmail/gmail-message-update";
 import type { UserId } from "../user";
 import type { InboxAddress } from "./inbox-address.schema";
@@ -52,7 +52,7 @@ export interface EmailImportCandidate extends EmailImportCompletion {
 	senderEmail: string;
 	status: InboxEmailStatus;
 	gmailDestinationAddresses: InboxAddress[] | undefined;
-	gmailDeliveryMode: GmailDeliveryMode | undefined;
+	gmailDeliveryMode: EmailDeliveryMode | undefined;
 }
 
 export interface EmailImportCompletionStore {

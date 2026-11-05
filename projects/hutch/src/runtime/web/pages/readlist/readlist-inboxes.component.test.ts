@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
 	AliasNameSchema,
+	type EmailDeliveryMode,
 	type InboxAddressEntry,
 	type InboxAddressPurpose,
 	InboxAddressSchema,
@@ -38,11 +39,17 @@ function inbox(input: {
 function renderInboxes(input: {
 	inboxes: readonly InboxAddressEntry[];
 	purpose?: string;
+	emailDelivery?: EmailDeliveryMode;
 }): Document {
 	return new JSDOM(
 		`<main>${renderReadlistInboxes(
 			buildReadlistInboxes({
-				readlist: { slug: WORK, label: "Work Reading", purpose: input.purpose },
+				readlist: {
+					slug: WORK,
+					label: "Work Reading",
+					purpose: input.purpose,
+					emailDelivery: input.emailDelivery ?? "links",
+				},
 				inboxes: input.inboxes,
 				readlists: [
 					DEFAULT_READLIST,
@@ -219,11 +226,11 @@ describe("buildReadlistInboxes", () => {
 		expect(described).toEqual(["news", "tech"]);
 	});
 
-	it("says a custom email sent here saves the articles its issues link to into All and here", () => {
+	it("says a custom email sent here saves the articles each email links to into All and here", () => {
 		const doc = renderInboxes({ inboxes: [] });
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and the articles each issue links to are saved to All and Work Reading.",
+			"Send a custom email here and the articles each email links to are saved to All and Work Reading.",
 		);
 	});
 
@@ -231,8 +238,82 @@ describe("buildReadlistInboxes", () => {
 		const doc = renderInboxes({ inboxes: [], purpose: "Essays on how teams ship." });
 
 		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
-			"Send a custom email here and every article each issue links to is saved to All. The ones that fit are also saved to Work Reading.",
+			"Send a custom email here and every article each email links to is saved to All. The ones that fit are also saved to Work Reading.",
 		);
+	});
+
+	it("says each email is saved as one article to All and here when the readlist saves the email itself", () => {
+		const doc = renderInboxes({ inboxes: [], emailDelivery: "issue" });
+
+		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
+			"Send a custom email here and each email is saved as one article to All and Work Reading.",
+		);
+	});
+
+	it("keeps saving the email itself to here whatever the purpose, since the email skips the fit check", () => {
+		const doc = renderInboxes({ inboxes: [], emailDelivery: "issue", purpose: "Essays on how teams ship." });
+
+		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
+			"Send a custom email here and each email is saved as one article to All and Work Reading.",
+		);
+	});
+
+	it("says each email and the articles it links to are saved to All and here when the readlist saves both", () => {
+		const doc = renderInboxes({ inboxes: [], emailDelivery: "both" });
+
+		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
+			"Send a custom email here and each email is saved as one article, with the articles it links to, to All and Work Reading.",
+		);
+	});
+
+	it("adds that only linked articles that fit join the email here when the readlist saves both and has a purpose", () => {
+		const doc = renderInboxes({ inboxes: [], emailDelivery: "both", purpose: "Essays on how teams ship." });
+
+		expect(doc.querySelector("[data-test-inboxes-description]")?.textContent).toBe(
+			"Send a custom email here and each email is saved as one article to All and Work Reading, and the articles it links to are saved to All, with the ones that fit also saved to Work Reading.",
+		);
+	});
+
+	it("posts the email delivery choice to this readlist's preferences, tagged as setting it", () => {
+		const doc = renderInboxes({ inboxes: [] });
+		const form = doc.querySelector("[data-test-readlist-email-delivery]");
+		assert(form, "the email delivery form must render even with no custom emails");
+
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe(
+			`/queue/queues/${WORK}/preferences/email-delivery?utm_source=queue-preferences&utm_medium=internal&utm_content=set-email-delivery`,
+		);
+	});
+
+	it("offers the email itself, the articles it links to, and both, checking the readlist's choice", () => {
+		const doc = renderInboxes({ inboxes: [inbox({ name: "news", token: "a7b2c9" })], emailDelivery: "both" });
+
+		const options = Array.from(doc.querySelectorAll<HTMLInputElement>("[data-test-email-delivery-option]"), (radio) => ({
+			value: radio.value,
+			name: radio.name,
+			checked: radio.checked,
+			text: radio.closest("label")?.textContent?.trim(),
+		}));
+		expect(options).toEqual([
+			{
+				value: "issue",
+				name: "delivery",
+				checked: false,
+				text: "The email itselfEach email lands in your readlist as one article. Save the links you want while you read it.",
+			},
+			{
+				value: "links",
+				name: "delivery",
+				checked: false,
+				text: "The articles it links toThe articles each email links to are saved one by one. The email stays on its inbox page.",
+			},
+			{
+				value: "both",
+				name: "delivery",
+				checked: true,
+				text: "BothEach email lands as an article, and the articles it links to are saved beside it.",
+			},
+		]);
 	});
 
 	it("shows the empty state, with a tracked way to create an inbox, when the reader has none", () => {

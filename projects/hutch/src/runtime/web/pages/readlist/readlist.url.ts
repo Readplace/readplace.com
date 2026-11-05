@@ -158,6 +158,10 @@ export function readlistPreferencesInboxesPath(readlist: ReadlistSlug): string {
 	return `${readlistPreferencesPath(readlist)}/inboxes`;
 }
 
+export function readlistPreferencesEmailDeliveryPath(readlist: ReadlistSlug): string {
+	return `${readlistPreferencesPath(readlist)}/email-delivery`;
+}
+
 export function readlistPurposeDeletePath(readlist: ReadlistSlug): string {
 	return `${readlistPreferencesPath(readlist)}/purpose/delete`;
 }

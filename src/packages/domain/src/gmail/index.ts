@@ -32,7 +32,6 @@ export {
 	NEW_MAPPING_DELIVERY_MODE,
 	pickerDeliveryMode,
 	resolveGmailDeliveryMode,
-	type GmailDeliveryFanOut,
 	type GmailDeliveryMode,
 } from "./gmail-delivery-mode";
 export type { GmailMapping, GmailMappingStore } from "./gmail-mapping.types";

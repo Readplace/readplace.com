@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { InboxAddressEntry } from "@packages/domain/inbox";
+import type { EmailDeliveryMode, InboxAddressEntry } from "@packages/domain/inbox";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import type { IconName } from "@packages/ui-icons";
 import {
@@ -201,7 +201,7 @@ export function renderReadlistPurposeWizard(input: {
 }
 
 export interface ReadlistPreferencesViewModel {
-	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
+	readlist: { slug: ReadlistSlug; label: string; purpose?: string; emailDelivery: EmailDeliveryMode };
 	rail: ReadlistRailViewModel;
 	values: Partial<ReadlistPreferencesWizardViewModel>;
 	wizardOpen: boolean;

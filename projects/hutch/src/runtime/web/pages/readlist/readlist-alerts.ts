@@ -52,6 +52,11 @@ export const INBOX_UNAVAILABLE_ALERT: AlertContent = {
 	message: { text: "It may have been disabled. Pick another custom email." },
 };
 
+export const EMAIL_DELIVERY_INVALID_ALERT: AlertContent = errorAlert({
+	title: "That choice isn't one Readplace offers",
+	body: "Pick what to save from each email and try again.",
+});
+
 const GMAIL_SAVE_ALERT_TITLE = "Couldn't save the Gmail newsletters";
 
 export const GMAIL_SELECTION_ALERT: AlertContent = errorAlert({

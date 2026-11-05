@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { EmailDeliveryModeSchema, LEGACY_DELIVERY_MODE } from "@packages/domain/inbox";
 import {
 	DEFAULT_READLIST_SLUG,
 	READLIST_MAX_PER_USER,
@@ -17,6 +18,7 @@ import type {
 	DeleteReadlistDefinition,
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
+	SetReadlistDefinitionEmailDelivery,
 	SetReadlistDefinitionPurpose,
 } from "@packages/provider-contracts/article-store";
 import { z } from "zod";
@@ -26,6 +28,7 @@ const ReadlistDefinitionRow = z.object({
 	queueSlug: ReadlistSlugSchema,
 	queueLabel: z.string(),
 	queuePurpose: z.string().optional(),
+	queueEmailDelivery: EmailDeliveryModeSchema.optional(),
 	starterCampaignId: z.string().optional(),
 	createdAt: z.string(),
 });
@@ -39,6 +42,7 @@ export function initDynamoDbReadlistDefinitions(deps: {
 	deleteReadlistDefinition: DeleteReadlistDefinition;
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
+	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
 } {
 	const readlistDefinitions = defineDynamoTable({
@@ -69,6 +73,7 @@ export function initDynamoDbReadlistDefinitions(deps: {
 				slug: row.queueSlug,
 				label: row.queueLabel,
 				purpose: row.queuePurpose,
+				emailDelivery: row.queueEmailDelivery ?? LEGACY_DELIVERY_MODE,
 				...(row.starterCampaignId === undefined
 					? {}
 					: { starterCampaignId: row.starterCampaignId }),
@@ -141,6 +146,23 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		}
 	};
 
+	const setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery = async (params) => {
+		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
+		try {
+			await readlistDefinitions.update({
+				Key: { userId: params.userId, url: readlistDefinitionKey(params.slug) },
+				UpdateExpression: "SET #emailDelivery = :emailDelivery",
+				ConditionExpression: "attribute_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url", "#emailDelivery": "queueEmailDelivery" },
+				ExpressionAttributeValues: { ":emailDelivery": params.emailDelivery },
+			});
+			return { updated: true };
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return { updated: false };
+			throw error;
+		}
+	};
+
 	const clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose = async (params) => {
 		assert(params.slug !== DEFAULT_READLIST_SLUG, "the default readlist is implicit and holds no definition row");
 		try {
@@ -178,6 +200,7 @@ export function initDynamoDbReadlistDefinitions(deps: {
 		deleteReadlistDefinition,
 		listReadlistDefinitions,
 		renameReadlistDefinition,
+		setReadlistDefinitionEmailDelivery,
 		setReadlistDefinitionPurpose,
 	};
 }

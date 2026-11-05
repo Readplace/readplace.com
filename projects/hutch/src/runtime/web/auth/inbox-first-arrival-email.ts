@@ -20,7 +20,7 @@ const OPENING_BEFORE = "The first email to your custom email ";
 const OPENING_AFTER = " just came through.";
 
 const PARAGRAPH =
-	"From here on, every email sent to that custom email shows up in your Inbox, and Readplace pulls the article links out of it and adds them to All, your main readlist, so you can read them later.";
+	"From here on, every email sent to that custom email shows up in your Inbox, and Readplace saves the articles it links to — or the email itself, when its readlist asks for that — to All, your main readlist, so you can read them later.";
 
 interface InboxFirstArrivalEmailParams {
 	founderAvatarUrl: string;

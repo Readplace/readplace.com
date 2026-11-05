@@ -136,6 +136,7 @@ import type {
 	ListReadlistDefinitions,
 	RenameReadlistDefinition,
 	SetReadlistDefinitionPurpose,
+	SetReadlistDefinitionEmailDelivery,
 	ClearReadlistDefinitionPurpose,
 	CreateReadlistDefinition,
 	DeleteReadlistDefinition,
@@ -473,6 +474,7 @@ interface AppDependencies {
 	listReadlistDefinitions: ListReadlistDefinitions;
 	renameReadlistDefinition: RenameReadlistDefinition;
 	setReadlistDefinitionPurpose: SetReadlistDefinitionPurpose;
+	setReadlistDefinitionEmailDelivery: SetReadlistDefinitionEmailDelivery;
 	clearReadlistDefinitionPurpose: ClearReadlistDefinitionPurpose;
 	createReadlistDefinition: CreateReadlistDefinition;
 	deleteReadlistDefinition: DeleteReadlistDefinition;
@@ -1566,6 +1568,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		listReadlistDefinitions: deps.listReadlistDefinitions,
 		renameReadlistDefinition: deps.renameReadlistDefinition,
 		setReadlistDefinitionPurpose: deps.setReadlistDefinitionPurpose,
+		setReadlistDefinitionEmailDelivery: deps.setReadlistDefinitionEmailDelivery,
 		clearReadlistDefinitionPurpose: deps.clearReadlistDefinitionPurpose,
 		deleteReadlistDefinition,
 		purgeReadlistFitOverrides: deps.purgeReadlistFitOverrides,

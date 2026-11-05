@@ -23,6 +23,7 @@ import {
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import { type EmailReceivedDetail, EmailLinksFilteredEvent } from "@packages/hutch-infra-components";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import type { ReadlistDefinitionData } from "@packages/provider-contracts/article-store";
 import type { SubscriptionRecord } from "@packages/provider-contracts/subscription-providers";
 import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
@@ -139,7 +140,9 @@ function makeHarness(opts?: {
 	failMeta?: boolean;
 	failCustomPublish?: boolean;
 	frozenSelection?: EmailOutputSelection;
+	readlistDefinitions?: ReadlistDefinitionData[];
 }) {
+	const definitionReads: UserId[] = [];
 	let storedSelection = opts?.frozenSelection;
 	const selectionWrites: EmailOutputSelection[] = [];
 	const outputsSelected: { userId: UserId; receivedAtMessageId: string; outputCount: number }[] = [];
@@ -265,14 +268,18 @@ function makeHarness(opts?: {
 				addressReads.push(address);
 				return opts?.inboxAddress ?? makeInboxAddress();
 			}),
-		listReadlistDefinitions: async () => [
-			{ slug: WORK, label: "Work", createdAt: new Date(NOW) },
-			{
-				slug: ReadlistSlugSchema.parse("science"),
-				label: "Science",
-				createdAt: new Date(NOW),
-			},
-		],
+		listReadlistDefinitions: async (userId) => {
+			definitionReads.push(userId);
+			return opts?.readlistDefinitions ?? [
+				{ slug: WORK, label: "Work", emailDelivery: "links", createdAt: new Date(NOW) },
+				{
+					slug: ReadlistSlugSchema.parse("science"),
+					label: "Science",
+					emailDelivery: "links",
+					createdAt: new Date(NOW),
+				},
+			];
+		},
 		now: () => new Date(NOW),
 		triageEmailLinks: opts?.triageEmailLinks ?? everythingIsAnArticle,
 		logger: HutchLogger.from(noopLogger),
@@ -306,6 +313,7 @@ function makeHarness(opts?: {
 		selectionWrites,
 		outputsSelected,
 		correlations,
+		definitionReads,
 		run,
 	};
 }
@@ -1351,7 +1359,7 @@ describe("initExtractEmailLinksHandler", () => {
 			).toEqual([["0000"], ["0000"]]);
 		});
 
-		it("saves to All as today for a read-only reader, holding every save", async () => {
+		it("holds every save for a read-only reader and names the readlist it would have filled", async () => {
 			const harness = makeHarness({
 				derivedHtml: "https://a.test/x",
 				inboxAddress: routedInbox,
@@ -1360,7 +1368,7 @@ describe("initExtractEmailLinksHandler", () => {
 
 			await harness.run(eventBody());
 
-			expect(harness.addressReads).toEqual([]);
+			expect(harness.addressReads).toEqual(["in-3f9a2c@read.place"]);
 			expect(harness.triaged).toEqual([]);
 			expect(harness.heldNotices).toHaveLength(1);
 			const { meta } = await harness.linkStore.listLinksByEmail({
@@ -1370,7 +1378,7 @@ describe("initExtractEmailLinksHandler", () => {
 			expect(meta).toEqual({
 				truncated: false,
 				extractionFailed: false,
-				selectedReadlists: [],
+				selectedReadlists: [{ readlist: WORK, label: "Work" }],
 				eligibleArticleCount: 1,
 				savesHeld: true,
 				readlistOutcomes: [],
@@ -1458,6 +1466,173 @@ describe("initExtractEmailLinksHandler", () => {
 			expect(result.batchItemFailures).toEqual([{ itemIdentifier: "rec-1" }]);
 			expect(harness.triaged).toEqual([]);
 		});
+	});
+});
+
+describe("an inbox routed to a readlist that keeps the email itself", () => {
+	const routedInbox = makeInboxAddress({ readlist: WORK });
+	const workKeeps = (emailDelivery: ReadlistDefinitionData["emailDelivery"]): ReadlistDefinitionData[] => [
+		{ slug: WORK, label: "Work", emailDelivery, createdAt: new Date(NOW) },
+	];
+	const savedIssue = {
+		userId: USER,
+		saveAttemptId: expect.any(String),
+		receivedAtMessageId: RAM,
+		subject: "Digest",
+		senderEmail: "news@example.com",
+		senderName: "Example News",
+		issueUrl: "https://readplace.com/inbox/2026-06-24T09%3A00%3A00.000Z%23%3Cm%40x%3E",
+		readlists: [WORK],
+	};
+
+	it("saves the email filed into the readlist, submits none of its links and still previews them", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+			inboxAddress: routedInbox,
+			readlistDefinitions: workKeeps("issue"),
+		});
+
+		const result = await harness.run(eventBody());
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(harness.issues).toEqual([savedIssue]);
+		expect(harness.correlations).toEqual([]);
+		expect([harness.submitted, harness.triaged]).toEqual([[], []]);
+		expect(harness.published.map(({ url }) => url)).toEqual(["https://a.test/x", "https://b.test/y"]);
+		expect(harness.firstInboxNotices).toEqual([
+			{ userId: USER, receivedAtMessageId: RAM, inboxAddress: "in-3f9a2c@read.place" },
+		]);
+		expect(harness.publishOrder).toEqual(["issue", "first-notice", "preview", "preview"]);
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta).toEqual({
+			truncated: false,
+			extractionFailed: false,
+			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: false },
+		});
+	});
+
+	it("saves the email and its links, and asks the readlist to choose among the links, when it keeps both", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x https://b.test/y",
+			inboxAddress: routedInbox,
+			readlistDefinitions: workKeeps("both"),
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.issues).toEqual([savedIssue]);
+		expect(harness.submitted.map(({ url }) => url)).toEqual(["https://a.test/x", "https://b.test/y"]);
+		expect(harness.triaged.map(({ readlist, links }) => ({ readlist, count: links.length }))).toEqual([
+			{ readlist: WORK, count: 2 },
+		]);
+		expect(harness.firstInboxNotices).toHaveLength(1);
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta).toEqual({
+			truncated: false,
+			extractionFailed: false,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+			eligibleArticleCount: 2,
+			savesHeld: false,
+			readlistOutcomes: [],
+			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: false },
+		});
+	});
+
+	it("holds the email for a read-only reader with one notice, naming the readlist", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: routedInbox,
+			readlistDefinitions: workKeeps("issue"),
+			subscription: READ_ONLY_SUBSCRIPTION,
+		});
+
+		await harness.run(eventBody());
+
+		expect([harness.issues, harness.submitted, harness.triaged, harness.firstInboxNotices]).toEqual([[], [], [], []]);
+		expect(harness.heldNotices).toHaveLength(1);
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta).toEqual({
+			truncated: false,
+			extractionFailed: false,
+			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: true },
+		});
+	});
+
+	it("holds both the email and its links for a read-only reader with one notice, when the readlist keeps both", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: routedInbox,
+			readlistDefinitions: workKeeps("both"),
+			subscription: READ_ONLY_SUBSCRIPTION,
+		});
+
+		await harness.run(eventBody());
+
+		expect([harness.issues, harness.submitted, harness.triaged, harness.firstInboxNotices]).toEqual([[], [], [], []]);
+		expect(harness.heldNotices).toHaveLength(1);
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta).toEqual({
+			truncated: false,
+			extractionFailed: false,
+			selectedReadlists: [{ readlist: WORK, label: "Work" }],
+			eligibleArticleCount: 1,
+			savesHeld: true,
+			readlistOutcomes: [],
+			issueSave: { readlists: [{ readlist: WORK, label: "Work" }], held: true },
+		});
+	});
+
+	it("saves only the links of an address routed to All, whatever a readlist keeps", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			readlistDefinitions: workKeeps("issue"),
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.issues).toEqual([]);
+		expect(harness.submitted.map(({ url }) => url)).toEqual(["https://a.test/x"]);
+		expect(harness.definitionReads).toEqual([]);
+	});
+
+	it("saves only the links when the routed readlist's definition is gone", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: routedInbox,
+			readlistDefinitions: [],
+		});
+
+		await harness.run(eventBody());
+
+		expect(harness.issues).toEqual([]);
+		expect(harness.submitted.map(({ url }) => url)).toEqual(["https://a.test/x"]);
+		const { meta } = await harness.linkStore.listLinksByEmail({ userId: USER, receivedAtMessageId: RAM });
+		expect(meta?.selectedReadlists).toEqual([{ readlist: WORK, label: "Deleted readlist" }]);
+	});
+
+	it("publishes the email again on redelivery, for the save to converge on the same article", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: routedInbox,
+			readlistDefinitions: workKeeps("issue"),
+		});
+
+		await harness.run(eventBody());
+		await harness.run(eventBody());
+
+		expect(harness.issues).toEqual([savedIssue, savedIssue]);
+	});
+
+	it("reads no readlist definition for a backfill replay", async () => {
+		const harness = makeHarness({
+			derivedHtml: "https://a.test/x",
+			inboxAddress: routedInbox,
+			readlistDefinitions: workKeeps("issue"),
+		});
+
+		await harness.run(eventBody({ origin: "backfill" }));
+
+		expect([harness.definitionReads, harness.issues, harness.submitted]).toEqual([[], [], []]);
 	});
 });
 
