@@ -24,9 +24,9 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { ReaderProvenance } from "../article-body/article-header/provenance-label";
 import type { LocalTime } from "@packages/web-shell/local-time.format";
-import type { ReaderFailedVariant } from "@packages/article-state-types";
 import type { CaptureWatch } from "./capture-watch";
 import type { RequestResolutionOnView } from "../../../domain/resolve-on-view/request-resolution-on-view";
+import type { ReaderView } from "./reader-view";
 
 export type ReaderViewFailure = { readerContentUnavailable: boolean };
 
@@ -112,9 +112,7 @@ export interface ReaderState {
 	 * is the canonical/current version.
 	 */
 	crawlVersions: ArticleVersion[];
-	readerViewFailed: boolean;
-	readerContentUnavailable: boolean;
-	notice: ReaderFailedVariant | undefined;
+	readerView: ReaderView;
 }
 
 export interface ResolveReaderStateParams {

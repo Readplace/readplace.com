@@ -4,7 +4,7 @@ import type {
 	ListReadlistDefinitions,
 	ListUserSavesForUrls,
 } from "@packages/provider-contracts/article-store";
-import type { McpReadlist } from "./mcp-server";
+import type { McpReadlist } from "./mcp-ports.types";
 
 export type ResolveReadlistMembership = (params: {
 	userId: AuthenticatedUserId;

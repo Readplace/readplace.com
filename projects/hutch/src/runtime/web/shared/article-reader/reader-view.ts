@@ -1,0 +1,20 @@
+import type { ReaderFailedVariant } from "@packages/article-state-types";
+import { NOT_AN_ARTICLE } from "./article-reader";
+
+export type ReaderView =
+	| { kind: "not-an-article" }
+	| { kind: "loading" }
+	| { kind: "succeeded" }
+	| { kind: "failed"; contentUnavailable: boolean };
+
+export function offersSaveTip(view: ReaderView): boolean {
+	return view.kind === "failed";
+}
+
+export function readerContentUnavailable(view: ReaderView): boolean {
+	return view.kind === "not-an-article" || (view.kind === "failed" && view.contentUnavailable);
+}
+
+export function readerNoticeOf(view: ReaderView): ReaderFailedVariant | undefined {
+	return view.kind === "not-an-article" ? NOT_AN_ARTICLE : undefined;
+}

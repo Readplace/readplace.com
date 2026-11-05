@@ -8,7 +8,7 @@ import {
 	type RecordUngatedEvent,
 	SAVE_OUTCOMES,
 } from "@packages/web-analytics";
-import type { RecordMcpHandshake, RecordMcpToolCall } from "./mcp-server";
+import type { RecordMcpHandshake, RecordMcpToolCall } from "./mcp-ports.types";
 import { SAVE_LINK_TOOL } from "./tool-definitions";
 
 const MCP_SAVE_INTENT_PATH = "/mcp";

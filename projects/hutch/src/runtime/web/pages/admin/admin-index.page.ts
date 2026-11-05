@@ -1,13 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { NextFunction, Request, RequestHandler, Response } from "express";
+import type { RequestHandler } from "express";
 import { render, sendComponent } from "@packages/web-shell";
-import type { FindUserByEmail } from "@packages/provider-contracts/auth";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { ADMIN_INDEX_STYLES } from "./admin-index.styles";
-import { initRefuseAdminAccess } from "./admin-forbidden.page";
-import { initRequireAdmin } from "./require-admin.middleware";
 
 const TEMPLATE = readFileSync(join(__dirname, "admin-index.template.html"), "utf-8");
 
@@ -47,17 +44,10 @@ const ADMIN_LINKS = [
 ];
 
 export interface AdminIndexDependencies {
-	findUserByEmail: FindUserByEmail;
-	adminEmails: readonly string[];
 	buildBannerState: BuildBannerState;
 }
 
-function noStore(_req: Request, res: Response, next: NextFunction): void {
-	res.setHeader("Cache-Control", "no-store");
-	next();
-}
-
-export function initAdminIndexHandlers(deps: AdminIndexDependencies): RequestHandler[] {
+export function initAdminIndexHandler(deps: AdminIndexDependencies): RequestHandler {
 	const links = ADMIN_LINKS.map((link) => ({
 		key: link.key,
 		label: link.label,
@@ -90,14 +80,5 @@ export function initAdminIndexHandlers(deps: AdminIndexDependencies): RequestHan
 			),
 		);
 	};
-	return [
-		noStore,
-		initRequireAdmin({
-			findUserByEmail: deps.findUserByEmail,
-			adminEmails: deps.adminEmails,
-			serviceToken: "",
-			refuse: initRefuseAdminAccess({ buildBannerState: deps.buildBannerState }),
-		}),
-		renderIndex,
-	];
+	return renderIndex;
 }

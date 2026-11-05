@@ -34,7 +34,7 @@ function resolve(row: SubscriptionRecord | undefined) {
 		findSubscriptionByUserId,
 		now: () => NOW,
 	});
-	return initResolveToolAccess({ getEffectiveAccess })(userId);
+	return initResolveToolAccess({ getEffectiveAccess, appOrigin: "https://readplace.test" })(userId);
 }
 
 describe("initResolveToolAccess", () => {
@@ -84,7 +84,7 @@ describe("initResolveToolAccess", () => {
 		expect(access).toEqual({
 			state: "inactive",
 			message:
-				"Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.com/account.",
+				"Saving new links is paused because this Readplace subscription isn't active. Everything already saved stays readable and exportable, and the subscription can be reactivated at https://readplace.test/account.",
 		});
 	});
 

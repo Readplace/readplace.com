@@ -34,7 +34,7 @@ export function mainlineReadlistContext(query: Record<string, unknown>): Readlis
 	};
 }
 
-interface ReadlistRequest {
+export interface ReadlistRequest {
 	query: Record<string, unknown>;
 	headers: { cookie?: string; authorization?: string };
 }

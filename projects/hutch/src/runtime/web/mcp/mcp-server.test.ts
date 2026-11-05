@@ -1,17 +1,12 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { DEFAULT_READLIST_SLUG, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { MCP_UA_CLIENTS } from "@packages/web-analytics";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { decodeReadlistCursor, encodeReadlistCursor } from "./cursor";
-import {
-	initMcpServer,
-	type McpArticle,
-	type CreateReadlistResult,
-	type AddToReadlistResult,
-	type McpHandshakeRecord,
-	type McpServerDeps,
-	type McpToolCallRecord,
-} from "./mcp-server";
+import { initMcpServer } from "./mcp-server";
+import type { McpArticle, CreateReadlistResult, AddToReadlistResult, McpHandshakeRecord, McpServerDeps, McpToolCallRecord } from "./mcp-ports.types";
 import {
 	GET_ARTICLE_SUMMARY_LEGACY_NAME,
 	GET_RELATED_ARTICLES_LEGACY_NAME,
@@ -177,6 +172,12 @@ describe("initMcpServer", () => {
 		).toMatchObject({
 			result: { content: [{ text: "No related saves are available for that article." }] },
 		});
+	});
+
+	it("answers tools/list with exactly the pinned catalogue", async () => {
+		const server = initMcpServer(fakeDeps());
+		const response = await server.handle({ jsonrpc: "2.0", id: 2, method: "tools/list" }, context);
+		expect(`${JSON.stringify(response, null, 2)}\n`).toBe(readFileSync(join(__dirname, "tools-list.pinned.json"), "utf-8"));
 	});
 
 	it("returns no response for a notification (a message without an id)", async () => {
@@ -1268,6 +1269,18 @@ describe("initMcpServer", () => {
 				});
 			},
 		);
+
+		it("points the deletion steps at the readlist on the app's own origin", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 62, "get_article_deletion_steps");
+			expect(response).toMatchObject({
+				id: 62,
+				result: {
+					content: [{ text: expect.stringContaining("Open your readlist at https://readplace.test/queue to delete an article.") }],
+					structuredContent: { completeInApp: "https://readplace.test/queue" },
+				},
+			});
+		});
 	});
 
 	describe("subscription gating", () => {
@@ -1442,6 +1455,16 @@ describe("initMcpServer", () => {
 				result: { tools: TOOL_DEFINITIONS.map(({ name }) => ({ name })) },
 			});
 			expect(resolveToolAccess).toHaveBeenCalledTimes(0);
+		});
+
+		it("answers an unknown tool with the unknown-tool error, not the upsell, when inactive", async () => {
+			const server = initMcpServer(fakeDeps({ resolveToolAccess: inactive }));
+			const response = await call(server, 78, "delete_everything");
+			expect(response).toEqual({
+				jsonrpc: "2.0",
+				id: 78,
+				error: { code: -32602, message: "Unknown tool: delete_everything" },
+			});
 		});
 	});
 

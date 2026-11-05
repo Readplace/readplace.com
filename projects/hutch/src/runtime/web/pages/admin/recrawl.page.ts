@@ -16,7 +16,6 @@ import type {
 	FindGeneratedSummary,
 } from "@packages/provider-contracts/article-summary";
 import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
-import type { FindUserByEmail } from "@packages/provider-contracts/auth";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";
@@ -31,8 +30,6 @@ import { cleanWrapperTarget, type ResolveWrapperTarget } from "@packages/save-ar
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
 import { AdminRecrawlPage, formatRecrawlDocumentTitle, recrawlPathFor } from "./recrawl.component";
-import { initRefuseAdminAccess } from "./admin-forbidden.page";
-import { initRequireAdmin } from "./require-admin.middleware";
 import { ADMIN_INDEX_STYLES } from "./admin-index.styles";
 
 const RecrawlUrlSchema = z.url();
@@ -54,9 +51,6 @@ export interface AdminRecrawlDependencies {
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
-	findUserByEmail: FindUserByEmail;
-	adminEmails: readonly string[];
-	serviceToken: string;
 	buildBannerState: BuildBannerState;
 }
 
@@ -68,11 +62,6 @@ function pollUrlBuilderFor(articleUrl: string, section: ReaderSectionRequest): P
 		reader: (n) =>
 			`/admin/recrawl/reader?url=${encodeURIComponent(articleUrl)}&poll=${n}${sectionSuffix}`,
 	};
-}
-
-function noStore(_req: Request, res: Response, next: NextFunction): void {
-	res.setHeader("Cache-Control", "no-store");
-	next();
 }
 
 async function renderNotFound(
@@ -367,13 +356,6 @@ function handleReaderPoll(
 
 export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 	const router = express.Router();
-	const requireAdmin = initRequireAdmin({
-		findUserByEmail: deps.findUserByEmail,
-		adminEmails: deps.adminEmails,
-		serviceToken: deps.serviceToken,
-		refuse: initRefuseAdminAccess({ buildBannerState: deps.buildBannerState }),
-	});
-
 	const reader = initArticleReader({
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		findGeneratedSummary: deps.findGeneratedSummary,
@@ -393,9 +375,6 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		resolveCanonicalIdentity: deps.resolveCanonicalIdentity,
 		findArticleByUrl: deps.findArticleByUrl,
 	});
-
-	router.use(noStore);
-	router.use(requireAdmin);
 
 	const refusePrivateItem = refusePrivateItemRecrawl(deps);
 

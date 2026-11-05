@@ -4,7 +4,7 @@ import type { ListReadlistDefinitions } from "@packages/provider-contracts/artic
 import type { AddArticleToReadlist, UpsertReadlist } from "@packages/save-article";
 import type { ResolveOwnedArticle } from "./article-lookup";
 import { toMcpArticle } from "./article-operations";
-import type { McpReadlist, McpServerDeps } from "./mcp-server";
+import type { McpReadlist, McpServerDeps } from "./mcp-ports.types";
 import type { ResolveReadlistMembership } from "./readlist-membership";
 
 export function initMcpReadlistOperations(deps: {

@@ -11,7 +11,8 @@ import {
 	type ShownSummary,
 	type StoredArticleBody,
 } from "@packages/domain/article";
-import type { ReaderFailedVariant } from "@packages/article-state-types";
+import { type CrawlStatus, type ReaderFailedVariant, type SummaryStatus, deriveReaderViewStatus } from "@packages/article-state-types";
+import type { ReaderView } from "./reader-view";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type {
@@ -303,7 +304,7 @@ function resolveCrawlVersions(
 	return [];
 }
 
-const NOT_AN_ARTICLE: ReaderFailedVariant = "not-an-article";
+export const NOT_AN_ARTICLE: ReaderFailedVariant = "not-an-article";
 
 const GATED_READER_STATE: ReaderState = {
 	content: undefined,
@@ -313,10 +314,21 @@ const GATED_READER_STATE: ReaderState = {
 	summaryPollUrl: undefined,
 	capturePollUrls: undefined,
 	crawlVersions: [],
-	readerViewFailed: false,
-	readerContentUnavailable: true,
-	notice: NOT_AN_ARTICLE,
+	readerView: { kind: "not-an-article" },
 };
+
+function readerViewOf(input: {
+	crawlStatus: CrawlStatus | undefined;
+	summaryStatus: SummaryStatus | undefined;
+}): ReaderView {
+	const status = deriveReaderViewStatus({
+		crawl: input.crawlStatus ?? "pending",
+		summary: input.summaryStatus ?? "pending",
+	});
+	return status === "failed"
+		? { kind: "failed", contentUnavailable: isReaderContentUnavailable({ crawlStatus: input.crawlStatus }) }
+		: { kind: status };
+}
 
 export function initArticleReader(deps: ArticleReaderDeps): {
 	resolveReaderState: (params: ResolveReaderStateParams) => Promise<ReaderState>;
@@ -360,12 +372,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryPollUrl,
 			capturePollUrls: capturePollUrlsFor(crawl, pollUrlBuilder),
 			crawlVersions: resolveCrawlVersions(versions, freshness?.contentFetchedAt),
-			readerViewFailed: isReaderViewFailed({
-				crawlStatus: crawl?.status,
-				summaryStatus: summary?.status,
-			}),
-			readerContentUnavailable: isReaderContentUnavailable({ crawlStatus: crawl?.status }),
-			notice: undefined,
+			readerView: readerViewOf({ crawlStatus: crawl?.status, summaryStatus: summary?.status }),
 		};
 	}
 

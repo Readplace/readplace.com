@@ -1,0 +1,275 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "save_link",
+        "title": "Save a link to Readplace",
+        "description": "Save a web page (article, blog post, or PDF) to the user's Readplace reading list so they can read it later. The page's title, excerpt, and reader view are fetched in the background after saving. A successful save returns its private reader URL. Pass `readlists` — ids from list_readlists — to file the save into those readlists as well as All. Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The absolute http(s) URL of the page to save."
+            },
+            "readlists": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 7,
+              "description": "Readlist ids from a list_readlists result to file the save into, as well as All."
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "list_readlists",
+        "title": "List the user's readlists",
+        "description": "List the user's Readplace readlists. Each entry carries an opaque `id` and the `name` the user gave it, and the first is All, the built-in readlist that receives every save. An article removed from All can still belong to another readlist. Pass an `id` to list_readlist_articles to list only that readlist, to save_link to file a new save into it, or to add_to_readlist to file an article that is already saved. Read the id from here rather than deriving one from a name.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "list_readlist_articles",
+        "title": "List saved articles",
+        "description": "List the pages the user has saved to their Readplace reading list. With no `readlist`, returns every saved page once, combined across every readlist the user owns — a page filed into several readlists appears a single time. Pass a `readlist` id from list_readlists — including All, the built-in readlist that receives every save — to list only that one. Optionally filter to unread or already-read items. Each item includes an `id` you can pass to get_article or get_article_content, and the readlists it sits in. Use `limit` and the `nextCursor` from a previous result to page through a long list. Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "readlist": {
+              "type": "string",
+              "description": "A readlist id from a list_readlists result — including All — to list only that readlist. Omit to list every saved article once, combined across all your readlists."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "unread",
+                "read"
+              ],
+              "description": "Filter to only unread or only read items. Omit to list everything."
+            },
+            "sort": {
+              "type": "string",
+              "enum": [
+                "saved",
+                "read"
+              ],
+              "description": "Sort by date saved (default) or date read. \"read\" requires status \"read\"."
+            },
+            "order": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "description": "Sort direction. Defaults to newest first (desc)."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Maximum items to return per page (default 20)."
+            },
+            "cursor": {
+              "type": "string",
+              "description": "An opaque nextCursor from a previous list_readlist_articles result, to fetch the following page."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "get_article",
+        "title": "Get a saved article",
+        "description": "Return the full metadata (title, site, excerpt, word count, estimated read time, status, saved/read dates, and the readlists it sits in) for one saved article, looked up by the id from a list_readlist_articles result. Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The article's id from a list_readlist_articles result (a 32-character hex string)."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "get_article_content",
+        "title": "Get a saved article's reader view",
+        "description": "Return the cleaned, readable HTML of one saved article, looked up by id. If the reader view is still being fetched, reports that it is not ready yet rather than failing. Use get_article when the user wants a link to open: its `url` opens the private Readplace reader.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The article's id from a list_readlist_articles result (a 32-character hex string)."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "create_readlist",
+        "title": "Create a readlist",
+        "description": "Create a readlist in the user's Readplace account under a name they choose, and return its opaque id for the other tools. A name a readlist already carries returns that readlist rather than making a second one, so calling this twice with the same name is safe. A user can keep up to 7 named readlists beside All; past that, creating one is refused and nothing changes.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name the user chose for the readlist, 1–24 characters after trimming."
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "add_to_readlist",
+        "title": "Add a saved article to a readlist",
+        "description": "File one already-saved article into one of the user's readlists, looked up by the id from a list_readlist_articles result. Pass either `readlist` — an id from list_readlists — or `create_name`, a name to file it under, which is created when no readlist carries it yet and reused when one does. Pass exactly one of the two. The article stays everywhere it already is; this adds it, it does not move it. Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The article's id from a list_readlist_articles result (a 32-character hex string)."
+            },
+            "readlist": {
+              "type": "string",
+              "description": "A readlist id from a list_readlists result. Pass exactly one of readlist or create_name."
+            },
+            "create_name": {
+              "type": "string",
+              "description": "A readlist name to file under, 1–24 characters after trimming, created when no readlist carries it. Pass exactly one of readlist or create_name."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "mark_as_read",
+        "title": "Mark a saved article read",
+        "description": "Mark one saved article read in the user's Readplace readlist, looked up by the id from a list_readlist_articles result. The article stays in the readlist and leaves the unread list. An article the user filed into more than one readlist is marked read in every one of them, not just the first. Marking an already-read article read again changes nothing. Do this when the user has read the piece or asks you to — a summary you produced is not the same as the user reading it. Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The article's id from a list_readlist_articles result (a 32-character hex string)."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "mark_as_unread",
+        "title": "Mark a saved article unread",
+        "description": "Mark one saved article unread in the user's Readplace readlist, looked up by the id from a list_readlist_articles result. It returns to the unread list and its read date is cleared, in every readlist the user filed it into. This is the undo for mark_as_read. Saved-article results expose `url` for the user's private Readplace reader. Always link `url` when showing or recommending an article.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The article's id from a list_readlist_articles result (a 32-character hex string)."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "get_article_deletion_steps",
+        "title": "Get the steps to delete a saved article in the Readplace app",
+        "description": "Return the steps for the user to delete a saved article themselves in the Readplace app, with a link to their readlist. Use this when the user asks you to delete or remove a saved article. Calling it changes nothing: deleting is done by the user in the app, never by the assistant.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    ]
+  }
+}
