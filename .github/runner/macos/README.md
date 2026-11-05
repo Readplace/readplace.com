@@ -43,6 +43,8 @@ The verification prompt defines clipping as an edge cutting through the letters 
 
 The wording is fragile, so measure any change before shipping it. The 4-bit model only just confirmed genuine clipping under the old prompt. A first stricter definition ("visible glyphs cut off … complete text that is blurred is not clipped") rejected the false positive, but it also rejected both genuine clipping claims as the reviewer words them, in 20 of 20 replays. The shipped wording came from measuring about 250 variants. Its sentence order (definition, claim, dialog rule, question) and its plain "visible" rather than "clearly visible" are what keep genuine clipping confirmed.
 
+The sentence saying that text with empty space after its last character is complete came from the readlist-save flow. The reviewer kept claiming that "folder" is cut off at the end of the verify banner, although "spam folder." renders in full with about 240 px of banner to its right. Without the sentence the verifier confirmed 16 of 103 such claims, and the review failed for all 4 CI frame sets measured and 6 of 16 local captures. Shortening the page's email address did not help: the claim came back on 7 of 8 captures in which the address was fully visible. A related wording ("text that stops short of the edge, leaving a gap") made it worse, at 29 of 103, and a sentence placed after the claim rejected genuine clipping in the banner.
+
 Known gaps:
 - These need a precisely worded claim to be confirmed: a vaguely worded clip inside the dialog, and template text such as `undefined` on the page behind an open dialog. The old prompt missed the first too, but it caught the second.
 - Overlapping elements, and text clipped at a container's bottom edge, are rejected under both prompts.
@@ -51,7 +53,7 @@ None of these changes a review outcome today, because the reviewer never reports
 
 ### Replaying the fixtures
 
-[fixtures/](fixtures) holds the frames of the CI run behind review 40077996187 (`valid-frames-from-false-positive-run-40076890263`, which must review clean) and four flows rendered from the real app with a planted defect (`genuine-defects`, each of which must fail). To replay a set, copy it to a scratch `frames/` directory, because the reviewer deletes what it reads. Then run `review-frames.mjs` with `FRAMES_DIR`, `VLM_MODEL`, `VLM_PYTHON` and `REVIEW_RUN_URL` set as in the workflow. Measured with the shipped prompt, 20 runs per set:
+[fixtures/](fixtures) holds the frames of the CI run behind review 40077996187 (`valid-frames-from-false-positive-run-40076890263`, which must review clean) and four flows rendered from the real app with a planted defect (`genuine-defects`, each of which must fail). To replay a set, copy it to a scratch `frames/` directory, because the reviewer deletes what it reads. Then run `review-frames.mjs` with `FRAMES_DIR`, `VLM_MODEL`, `VLM_PYTHON` and `REVIEW_RUN_URL` set as in the workflow. Measured with the prompt before the empty-space sentence, 20 runs per set:
 
 | Set | Expected | Result |
 |---|---|---|
@@ -63,6 +65,8 @@ None of these changes a review outcome today, because the reviewer never reports
 
 Under the first stricter definition, both clipping sets reviewed clean 20/20.
 
+With the shipped prompt, two full replays gave the same verdict on every set in that table. A single replay of 20 readlist-save frame sets (16 local captures and 4 from CI) rejected all 88 claims.
+
 The valid set needed 21 runs to get 20 verdicts. One run hung: the model server produced no token for 600 s and timed out, because a CI-triggered review loaded a second copy of the model at the same time. Replay only while both self-hosted runners are idle (`gh api repos/{owner}/{repo}/actions/runners`). Two resident servers on one machine can starve each other.
 
 The model remains a heuristic: these numbers measure repeatability on known frames, not a guarantee. The text-fit assertions in hutch's `verify-banner-nav-visual.e2e-local.ts` cover deterministically that the banner's text fits its box and the viewport, on desktop and mobile, light and dark, and with the dialog open and closed.
@@ -71,7 +75,9 @@ A review that fails keeps its frames as evidence: confirmed defects, an unparsea
 
 ## One model server per host
 
-The reviewer refuses to start while any process whose command line contains `mlx_vlm.server` is running: it fails within seconds, names each such process (PID and command line) in the job log, and leaves the frames on disk, so re-running the review from the Actions UI once that process is gone reviews them. A review that gives up on loading its own server stops that server before it fails, so a timed-out review leaves no second copy behind. Two resident copies of the model have stalled together: review 40108828635 attempt 1 began 3 s after a local fixture replay had started its server and loaded its own copy 15 s later; from then on neither produced another token, and the job ran into its 10-minute limit — reported by the API as `cancelled` — instead of ending with the cause. Attempt 3 passed twelve hours later on the frames the first two had left in place.
+The reviewer refuses to start while a process running `python -m mlx_vlm.server` is up: it fails within seconds, names each such process (PID and command line) in the job log, and leaves the frames on disk, so re-running the review from the Actions UI once that process is gone reviews them. A review that gives up on loading its own server stops that server before it fails, so a timed-out review leaves no second copy behind. Two resident copies of the model have stalled together: review 40108828635 attempt 1 began 3 s after a local fixture replay had started its server and loaded its own copy 15 s later; from then on neither produced another token, and the job ran into its 10-minute limit — reported by the API as `cancelled` — instead of ending with the cause. Attempt 3 passed twelve hours later on the frames the first two had left in place.
+
+The check matches the interpreter and its `-m` argument, not the text alone, because a shell whose command merely mentions the server is not a server: review 42022272486 was refused over a local shell waiting on `pgrep -f mlx_vlm.server`.
 
 It is a refusal, not a wait or a lock: a `concurrency:` group cannot see a local process, and a review that waited would spend its job budget on someone else's replay. The reverse therefore holds too: any local `mlx_vlm.server` — a fixture replay, a prompt harness, a stub — fails the CI review that arrives while it runs. Start one only while both self-hosted runners are idle and no CI or Visual Review run is queued or in progress (`gh api repos/{owner}/{repo}/actions/runners`; `gh run list --workflow ci.yml --status in_progress`, `--status queued`, and the same for `visual-review.yml`), and after `pgrep -fl mlx_vlm.server` finds nothing. Do not re-run a CI run or a Visual Review from the Actions UI while a local server runs: a re-run of a single CI job completed in 1.4 minutes and its review loaded the model 1.8 minutes after the re-run started (run 38394552205, attempt 2). A review this refusal failed is re-run after the local server has exited.
 

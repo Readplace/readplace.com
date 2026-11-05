@@ -34,7 +34,7 @@ function reviewPrompt(frameCount) {
 function verifyPrompt(finding) {
   return [
     "Look only at this single UI screenshot.",
-    "Text is clipped when it runs right up to the edge of its container or of the screen and that edge cuts through its letters.",
+    "Text is clipped when it runs right up to the edge of its container or of the screen and that edge cuts through its letters. Text with empty space between its last character and the edge is complete, not clipped.",
     `A reviewer claims this defect: "${finding.defect}" at "${finding.location}".`,
     "If a modal dialog is open, ignore the blur and dimming of the page behind it: that is intentional, and blurred text there is complete, not clipped. Judge the dialog itself normally, including text its edge cuts through.",
     "Is the claim visible in this image? Answer with ONLY the word true or false.",
@@ -106,7 +106,7 @@ function freePort() {
 }
 
 async function assertNoOtherModelServer() {
-  const { stdout } = await promisify(execFile)("/usr/bin/pgrep", ["-fl", "mlx_vlm\\.server"]).catch((error) => {
+  const { stdout } = await promisify(execFile)("/usr/bin/pgrep", ["-fl", "^[^ ]+ -m mlx_vlm\\.server"]).catch((error) => {
     if (error.code === 1) {
       return { stdout: "" };
     }
