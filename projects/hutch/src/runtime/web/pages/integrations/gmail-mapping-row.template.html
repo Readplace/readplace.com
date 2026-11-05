@@ -37,6 +37,11 @@
                   <button class="btn btn--{{variant}} btn--s" type="submit" data-test-gmail-mapping-action="{{key}}">{{label}}</button>
                 </form>
                 {{/each}}
+                {{#each mark.promptLocks}}
+                <div class="gmail-mappings__mark-detail">
+                  {{{this}}}
+                </div>
+                {{/each}}
                 {{#if mark.backfill}}
                 <div class="gmail-mappings__import gmail-mappings__mark-detail" data-test-gmail-mark-backfill="{{mark.backfill.state}}">
                   <p class="gmail-mappings__import-message" role="status">{{mark.backfill.message}}</p>

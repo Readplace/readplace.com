@@ -7,15 +7,18 @@ import {
 	type NavItem,
 	type NavItemKey,
 	type SignedInUser,
+	type UpgradeTarget,
 } from "./banner-state";
 import { type ClickSurface, withClickSurface } from "./internal-link-tracking";
 import { NAV_TEMPLATE } from "./nav.template";
+import { renderNeedsUpgrade } from "./shared/needs-upgrade/needs-upgrade.component";
 import { initialsFor } from "./user-initials";
 
 export interface NavProps {
 	variant: "default" | "transparent";
 	isAuthenticated: boolean;
 	accessIsReadOnly: boolean;
+	upgrade?: UpgradeTarget;
 	currentPath?: string;
 	clickSurface?: ClickSurface;
 	signedInUser?: SignedInUser;
@@ -27,10 +30,20 @@ interface NavUserMenu {
 	ariaLabel: string;
 }
 
-type NavItemDisplayModel = NavItem & {
+type NavLinkDisplayModel = NavItem & {
 	ariaCurrent: "page" | undefined;
 	iconVariant: IconVariant;
 };
+
+interface NavLockDisplayModel {
+	key: NavItemKey;
+	html: string;
+}
+
+interface NavItemDisplayModel {
+	links: NavLinkDisplayModel[];
+	locks: NavLockDisplayModel[];
+}
 
 type NavGroupDisplayModel = Omit<NavGroup, "items"> & {
 	items: NavItemDisplayModel[];
@@ -90,19 +103,42 @@ function displayItem(
 	item: NavItem,
 	context: { surface: ClickSurface | undefined; currentKey: NavItemKey | undefined },
 ): NavItemDisplayModel {
+	const href = withClickSurface(item.href, context.surface);
+	if (item.lock !== undefined) {
+		return {
+			links: [],
+			locks: [
+				{
+					key: item.key,
+					html: renderNeedsUpgrade({
+						key: item.key,
+						label: item.label,
+						controlClass: item.linkClass,
+						popoverId: item.lock.popoverId,
+						fallbackHref: href,
+					}),
+				},
+			],
+		};
+	}
 	const isCurrent = item.key === context.currentKey;
 	return {
-		...item,
-		href: withClickSurface(item.href, context.surface),
-		trackTerm: context.surface,
-		ariaCurrent: isCurrent ? "page" : undefined,
-		iconVariant: isCurrent ? currentIconVariant(item.iconName) : "stroke",
+		links: [
+			{
+				...item,
+				href,
+				trackTerm: context.surface,
+				ariaCurrent: isCurrent ? "page" : undefined,
+				iconVariant: isCurrent ? currentIconVariant(item.iconName) : "stroke",
+			},
+		],
+		locks: [],
 	};
 }
 
 export function GlobalNav(props: NavProps): string {
 	const groups = props.isAuthenticated
-		? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly })
+		? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly, upgrade: props.upgrade })
 		: buildGuestNavGroups();
 	const context = { surface: props.clickSurface, currentKey: currentNavKey(props.currentPath) };
 	return render(NAV_TEMPLATE, {

@@ -9,6 +9,8 @@ const USER_ID = UserIdSchema.parse("user-1");
 
 const CSP_NONCE = generateCspNonce();
 
+const WEB = { query: {}, get: () => undefined };
+
 const noUser: FindUserById = async () => null;
 
 describe("initBuildBannerState", () => {
@@ -19,7 +21,7 @@ describe("initBuildBannerState", () => {
 			findUserById: noUser,
 		});
 
-		const result = await buildBannerState({ cspNonce: CSP_NONCE });
+		const result = await buildBannerState({ ...WEB, cspNonce: CSP_NONCE });
 
 		expect(result).toEqual({
 			isAuthenticated: false,
@@ -30,7 +32,7 @@ describe("initBuildBannerState", () => {
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
 
-	it("hands a trialing user's header no trial countdown: the state carries only the shell fields and access", async () => {
+	it("hands a trialing user's header no trial countdown: the state carries the shell fields, access and the upgrade offer", async () => {
 		const access: EffectiveAccess = {
 			tier: "trial",
 			access: "full",
@@ -42,7 +44,7 @@ describe("initBuildBannerState", () => {
 			findUserById: noUser,
 		});
 
-		const result = await buildBannerState({ userId: USER_ID, cspNonce: CSP_NONCE });
+		const result = await buildBannerState({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
 
 		expect(result).toEqual({
 			isAuthenticated: true,
@@ -50,6 +52,8 @@ describe("initBuildBannerState", () => {
 			changelogBanner: FETCH_CHANGELOG_BANNER_IN_BROWSER,
 			cspNonce: CSP_NONCE,
 			accessIsReadOnly: false,
+			upgrade: { popoverId: "subscribe-plans", plansPath: "/account/plans" },
+			siteDialog: { html: expect.stringContaining('id="subscribe-plans"'), styles: expect.any(String) },
 		});
 	});
 
@@ -77,8 +81,8 @@ describe("initBuildBannerState", () => {
 			findUserById: noUser,
 		});
 
-		expect((await buildExpired({ userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(true);
-		expect((await buildCancelled({ userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(true);
+		expect((await buildExpired({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(true);
+		expect((await buildCancelled({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(true);
 	});
 
 	it("keeps full access for founding members, paid users, and a user inside the cancellation window", async () => {
@@ -104,7 +108,7 @@ describe("initBuildBannerState", () => {
 				getEffectiveAccess: async () => access,
 				findUserById: noUser,
 			});
-			expect((await build({ userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(false);
+			expect((await build({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE })).accessIsReadOnly).toBe(false);
 		}
 	});
 
@@ -122,7 +126,7 @@ describe("initBuildBannerState", () => {
 		});
 
 		const result = await buildBannerState(
-			{ userId: USER_ID, cspNonce: CSP_NONCE },
+			{ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE },
 			{ preFetchedAccess },
 		);
 
@@ -137,7 +141,7 @@ describe("initBuildBannerState", () => {
 			findUserById: noUser,
 		});
 
-		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
+		const result = await build({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
 
 		expect(result.changelogBanner).toBe(FETCH_CHANGELOG_BANNER_IN_BROWSER);
 	});
@@ -148,7 +152,7 @@ describe("initBuildBannerState", () => {
 			findUserById: noUser,
 		});
 
-		const result = await build({ originalUrl: "/queue?filter=unread", cspNonce: CSP_NONCE });
+		const result = await build({ ...WEB, originalUrl: "/queue?filter=unread", cspNonce: CSP_NONCE });
 
 		expect(result.currentPath).toBe("/queue?filter=unread");
 	});
@@ -160,7 +164,7 @@ describe("initBuildBannerState", () => {
 			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "dark", displayName: undefined, signupOAuthClientId: null }),
 		});
 
-		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
+		const result = await build({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
 
 		expect(result.appearance).toBe("dark");
 	});
@@ -170,6 +174,7 @@ describe("initBuildBannerState", () => {
 		const build = initBuildBannerState({
 			getEffectiveAccess: async () => access,
 			findUserById: async () => ({
+				...WEB,
 				userId: USER_ID,
 				email: "james.davis@example.com",
 				emailVerified: true,
@@ -178,7 +183,7 @@ describe("initBuildBannerState", () => {
 			}),
 		});
 
-		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
+		const result = await build({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
 
 		expect(result.signedInUser).toEqual({ email: "james.davis@example.com", displayName: "James Davis" });
 	});
@@ -189,7 +194,7 @@ describe("initBuildBannerState", () => {
 			findUserById: noUser,
 		});
 
-		const result = await build({ cspNonce: CSP_NONCE });
+		const result = await build({ ...WEB, cspNonce: CSP_NONCE });
 
 		expect(result.signedInUser).toBeUndefined();
 	});
@@ -201,7 +206,7 @@ describe("initBuildBannerState", () => {
 			findUserById: async () => ({ userId: USER_ID, email: "james.davis@example.com", emailVerified: true, displayName: undefined, signupOAuthClientId: null }),
 		});
 
-		const result = await build({ userId: USER_ID, cspNonce: CSP_NONCE });
+		const result = await build({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
 
 		expect(result.appearance).toBeUndefined();
 	});
@@ -215,11 +220,60 @@ describe("initBuildBannerState", () => {
 		});
 
 		const result = await build(
-			{ userId: USER_ID, cspNonce: CSP_NONCE },
+			{ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE },
 			{ preFetchedAccess: access, preFetchedUser: { userId: USER_ID, email: "james.davis@example.com", emailVerified: true, appearance: "light", displayName: undefined, signupOAuthClientId: null } },
 		);
 
 		expect(result.appearance).toBe("light");
 		expect(findUserById).not.toHaveBeenCalled();
+	});
+
+	describe("the upgrade offer", () => {
+		const READ_ONLY: EffectiveAccess = {
+			tier: "inactive",
+			access: "read-only",
+			banner: "inactive",
+			reason: "trial-expired",
+		};
+
+		function buildFor(access: EffectiveAccess) {
+			return initBuildBannerState({ getEffectiveAccess: async () => access, findUserById: noUser });
+		}
+
+		it("gives a read-only web reader the plan chooser, attributed to the header by default", async () => {
+			const result = await buildFor(READ_ONLY)({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
+
+			expect(result.upgrade).toEqual({ popoverId: "subscribe-plans", plansPath: "/account/plans" });
+			expect(result.siteDialog?.html).toContain("utm_source&#x3D;header-nav");
+		});
+
+		it("attributes the plan chooser to the page that names a source", async () => {
+			const result = await buildFor(READ_ONLY)(
+				{ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE },
+				{ upgradeSource: "account" },
+			);
+
+			expect(result.siteDialog?.html).toContain("utm_source&#x3D;account");
+		});
+
+		it.each([{ platform: "ios" }, { shell: "app" }])(
+			"offers no upgrade on the app surface for the query %j",
+			async (query) => {
+				const result = await buildFor(READ_ONLY)({ ...WEB, query, userId: USER_ID, cspNonce: CSP_NONCE });
+
+				expect(result.upgrade).toBeUndefined();
+				expect(result.siteDialog).toBeUndefined();
+			},
+		);
+
+		it.each<EffectiveAccess>([
+			{ tier: "founding", access: "full", banner: "none" },
+			{ tier: "paid", access: "full", banner: "none" },
+		])("offers no upgrade to a $tier reader", async (access) => {
+			const result = await buildFor(access)({ ...WEB, userId: USER_ID, cspNonce: CSP_NONCE });
+
+			expect(result.upgrade).toBeUndefined();
+			expect(result.siteDialog).toBeUndefined();
+		});
 	});
 });

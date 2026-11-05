@@ -3,6 +3,7 @@ import { READLIST_LABEL_MAX_LENGTH, ReadlistSlugSchema } from "@packages/domain/
 import { iconSvg } from "@packages/ui-icons";
 import { JSDOM } from "jsdom";
 import { READLIST_KIND_ICON } from "../../shared/readlist-kind-icon";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { readlistDeleteConfirmPopoverId } from "./readlist-delete-confirm.component";
 import { DEFAULT_READLIST, type Readlist } from "./readlist.nav";
 import { buildReadlistNav, renderReadlistNav } from "./readlist-nav.component";
@@ -15,6 +16,7 @@ import { READLIST_CREATE_POPOVER_ID } from "./readlist-create.component";
 
 const WORK: Readlist = { slug: ReadlistSlugSchema.parse("work"), label: "Work Reading" };
 const READLISTS: readonly Readlist[] = [DEFAULT_READLIST, WORK];
+const OFFER: UpgradeOffer = { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" };
 
 function renderNav(overrides: Partial<Parameters<typeof buildReadlistNav>[0]> = {}): Document {
 	const input = {
@@ -24,6 +26,7 @@ function renderNav(overrides: Partial<Parameters<typeof buildReadlistNav>[0]> = 
 		limitAlertHref: "/queue?queue_error=limit",
 		canEdit: true,
 		canCreate: true,
+		offer: undefined,
 		...overrides,
 	};
 	return new JSDOM(`<main>${renderReadlistNav(buildReadlistNav(input))}</main>`).window.document;
@@ -346,5 +349,65 @@ describe("buildReadlistNav", () => {
 		expect(
 			Array.from(menu.querySelectorAll("[data-test-action]"), (el) => el.getAttribute("data-test-action")),
 		).toEqual(["readlist-menu", "readlist-rename", "readlist-rename-fallback", "readlist-delete", "readlist-delete-fallback"]);
+	});
+});
+
+function lockKeys(scope: Document | Element): (string | null)[] {
+	return Array.from(scope.querySelectorAll('[data-test-action="upgrade-open"]'), (el) =>
+		el.getAttribute("data-test-needs-upgrade"),
+	);
+}
+
+describe("readlist rail by upgrade standing", () => {
+	it("open: a reader who can write gets the real create row and menu, and no lock, even when an upgrade is on offer", () => {
+		const doc = renderNav({ offer: OFFER });
+
+		expect(createRowActions(doc)).toEqual(["new-readlist", "readlist-create-fallback"]);
+		expect(readlistsWithMenu(doc)).toEqual([WORK.slug]);
+		expect(lockKeys(doc)).toEqual([]);
+	});
+
+	it("needs-upgrade: the create row is a lock that opens the plan chooser, without the naming form", () => {
+		const doc = renderNav({ canEdit: false, canCreate: false, offer: OFFER });
+
+		const row = doc.querySelector(".readlist-row.readlist-nav__new-row");
+		assert(row, "the create row must stay visible");
+		const trigger = row.querySelector('[data-test-action="upgrade-open"]');
+		const fallback = row.querySelector('[data-test-action="upgrade-fallback"]');
+		assert(trigger, "the create row must carry the lock's trigger");
+		assert(fallback, "the create row must carry the lock's fallback");
+		expect(trigger.getAttribute("data-test-needs-upgrade")).toBe("create-readlist");
+		expect(trigger.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(trigger.classList.contains("readlist-nav__new")).toBe(true);
+		expect(row.querySelector(".needs-upgrade__label")?.textContent).toBe("Create a readlist");
+		expect(fallback.getAttribute("href")).toBe(
+			"/account/plans?utm_source=queue-nav&utm_medium=internal&utm_content=upgrade-create-readlist",
+		);
+		expect(doc.querySelectorAll('[data-test-form="readlist-create-fallback"]')).toHaveLength(0);
+	});
+
+	it("needs-upgrade: a custom readlist keeps a locked menu holding Edit and Delete, and All has none", () => {
+		const doc = renderNav({ canEdit: false, canCreate: false, offer: OFFER });
+
+		expect(readlistsWithMenu(doc)).toEqual([WORK.slug]);
+		const menu = doc.querySelector(`[data-test-readlist-menu="${WORK.slug}"]`);
+		assert(menu, "the custom readlist must keep its menu");
+		expect(menu.getAttribute("data-test-menu-standing")).toBe("locked");
+		expect(menu.classList.contains("readlist-nav__menu")).toBe(true);
+		expect(lockKeys(menu)).toEqual(["rename-readlist", "delete-readlist"]);
+		expect(Array.from(menu.querySelectorAll('[data-test-action="upgrade-fallback"]'), (el) => el.getAttribute("href"))).toEqual([
+			"/account/plans?utm_source=queue-nav&utm_medium=internal&utm_content=upgrade-rename-readlist",
+			"/account/plans?utm_source=queue-nav&utm_medium=internal&utm_content=upgrade-delete-readlist",
+		]);
+		expect(menu.querySelector(".sr-only")?.textContent).toBe(`Options for ${WORK.label}`);
+		expect(menu.querySelectorAll('[data-test-action="readlist-rename"]')).toHaveLength(0);
+	});
+
+	it("withheld: a reader with nothing on offer keeps today's bare rail", () => {
+		const doc = renderNav({ canEdit: false, canCreate: false, offer: undefined });
+
+		expect(lockKeys(doc)).toEqual([]);
+		expect(readlistsWithMenu(doc)).toEqual([]);
+		expect(doc.querySelectorAll(".readlist-nav__new-row")).toHaveLength(0);
 	});
 });

@@ -19,6 +19,7 @@ import { initMapSenderToReadlist } from "../../../domain/gmail/resolve-readlist-
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
+import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { GmailPage, renderGmailPoll, renderGmailSenderResults, renderGmailSenderStatus } from "./gmail.component";
 import {
 	buildGmailUrl,
@@ -128,6 +129,7 @@ export function registerGmailPageRoutes(
 		return toGmailPageViewModel({
 			userId,
 			canConnectGmail: canConnectGmail(access),
+			offer: upgradeOfferFor({ req, access }),
 			connection,
 			senders,
 			destinations: new Map(entries.flatMap((entry) => (entry === undefined ? [] : [[entry.address, entry] as const]))),
@@ -172,14 +174,14 @@ export function registerGmailPageRoutes(
 			}
 			res.set("HX-Push-Url", vm.pageUrl);
 		}
-		sendComponent(req, res, Base(GmailPage(vm), await context.buildBannerState(req)));
+		sendComponent(req, res, Base(GmailPage(vm), await context.buildBannerState(req, { upgradeSource: "connectors" })));
 	});
 
 	router.get("/gmail/senders", requireAuth, connected, async (req: Request, res: Response) => {
 		const vm = await readPage(req);
 		res.set("Cache-Control", "private, no-store");
 		if (req.get("HX-Request") !== "true") {
-			sendComponent(req, res, Base(GmailPage(vm), await context.buildBannerState(req)));
+			sendComponent(req, res, Base(GmailPage(vm), await context.buildBannerState(req, { upgradeSource: "connectors" })));
 			return;
 		}
 		if (queryValue(req, "poll") !== undefined) {

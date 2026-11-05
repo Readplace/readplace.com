@@ -326,6 +326,7 @@ import type {
 } from "@packages/provider-contracts/onboarding-signals";
 import type { InstallableClientOnboarding, OnboardingContext, Platform } from "../../onboarding/onboarding.types";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
+import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 
 /** Client devices dismiss the version of their applicable checklist. Accounts
  * eligible for Gmail include it in that version; other accounts retain their
@@ -1912,6 +1913,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			savesByUrl,
 			acknowledgedAt: signals.markReadAcrossQueuesAckedAt,
 		});
+		const upgradeOffer = upgradeOfferFor({ req, access: effectiveAccess });
 		const vm = toReadlistViewModel(input.result, input.context.state, {
 			errors: input.saveError ? [{ message: input.saveError }] : undefined,
 			saveErrorCode: input.saveErrorCode,
@@ -1922,6 +1924,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			crawlByUrl,
 			readerProvenanceByUrl,
 			effectiveAccess,
+			upgradeOffer,
 			now: deps.now(),
 			confirmReadlistsByUrl,
 			deleteAcknowledged: signals.deleteArticleAckedAt !== undefined,
@@ -1931,7 +1934,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 		});
 		const onboarding = signals.onboarding;
 		const cspNonce = requireCspNonce(req);
-		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, accessIsReadOnly: vm.accessIsReadOnly, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
+		const pageOptions = { onboarding, cspNonce, readlistHoldsArticles, tabHoldsRows, saveUrl: input.saveUrl, deviceClass: classifyDeviceClass(req.get("user-agent")), rail: buildReadlistRail({ context: input.context, accessIsReadOnly: vm.accessIsReadOnly, offer: upgradeOffer, nonEmptyReadlists }), saveTip: buildSaveTip(req, { kind: "article", mode: "advisory" }) };
 		const page = ReadlistPage(vm, { ...pageOptions, query: req.query });
 		res.vary("Cookie");
 		sendComponent(
@@ -1939,7 +1942,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 			FreshForComponent(
 				Base(
 					page,
-					await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+					await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess, upgradeSource: "queue-banner" }),
 				),
 				{ ifNoneMatch: req.get("If-None-Match"), cspNonce, cacheControl: "private, max-age=5" },
 			),
@@ -3442,6 +3445,7 @@ export function initReadlistRoutes(deps: ReadlistDependencies): Router {
 				readlists: context.readlists,
 				saves: savesByUrl?.get(article.url),
 				accessIsReadOnly: access.access === "read-only",
+				offer: upgradeOfferFor({ req, access }),
 			},
 		});
 		const cardOptions = { isFirst: false, deviceClass: classifyDeviceClass(req.get("user-agent")) };

@@ -331,7 +331,8 @@ describe("GET /newsletters", () => {
 			updatedAt: new Date().toISOString(),
 		});
 
-		const doc = load((await agent.get("/newsletters")).text);
+		const doc = load((await agent.get("/newsletters?platform=ios")).text);
+		expect(doc.querySelectorAll("[data-test-needs-upgrade], #subscribe-plans")).toHaveLength(0);
 		expect(integrationActions(doc)).toEqual(["upgrade-gmail"]);
 		const row = doc.querySelector('[data-test-integration="gmail"]');
 		assert(row, "the Gmail row must render");
@@ -358,6 +359,36 @@ describe("GET /newsletters", () => {
 		expect(harness.analytics.events.filter((event) => event.event === "click")).toEqual([
 			expect.objectContaining({ path: "/account/plans", utm_source: "integrations", utm_medium: "internal", utm_content: "upgrade-gmail" }),
 		]);
+	});
+
+	it.each(["trial", "expired", "cancelled"])("locks Connect Gmail for a %s reader on the web, opening the page's one plan chooser", async (state) => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the signed-in reader must exist");
+		harness.subscriptionProviders.seedRow({
+			userId: user.userId,
+			provider: "stripe",
+			status: state === "cancelled" ? "cancelled" : "trialing",
+			trialEndsAt: new Date(Date.now() + (state === "trial" ? 86_400_000 : -86_400_000)).toISOString(),
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const doc = load((await agent.get("/newsletters")).text);
+
+		expect(integrationActions(doc)).toEqual([]);
+		const row = doc.querySelector('[data-test-integration="gmail"]');
+		assert(row, "the Gmail row must render");
+		expect(row.querySelector(".integrations__description")?.textContent).toBe("Gmail integration is only available with an active paid subscription.");
+		const lock = row.querySelector('[data-test-action="upgrade-open"]');
+		assert(lock, "the Gmail row must carry the lock");
+		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("connect-gmail");
+		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(row.querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href")).toBe(
+			"/account/plans?utm_source=connectors&utm_medium=internal&utm_content=upgrade-connect-gmail",
+		);
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
 	});
 
 	it("routes a connected-but-unconfirmed reader to finish setup on the Gmail page", async () => {

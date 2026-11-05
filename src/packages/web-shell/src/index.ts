@@ -3,7 +3,7 @@ export {
 	PRICING_PANELS,
 	PRICING_PLANS,
 	STATED_PRICING_PANELS,
-	SUBSCRIBE_CTA_LABEL,
+	UPGRADE_CTA_LABEL,
 } from "./pricing";
 export type { PricingPanel, PricingPlan } from "./pricing";
 export { CLICK_SURFACES, isClickSurface, withClickSurface, withInternalTracking } from "./internal-link-tracking";
@@ -104,6 +104,11 @@ export type { IllustrationName } from "./shared/illustrations/illustrations";
 export { renderToast } from "./shared/toast/toast.component";
 export type { ToastAction, ToastViewModel } from "./shared/toast/toast.component";
 export { renderExtensionSuggestionBannerOob } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
+export {
+	NEEDS_UPGRADE_STYLES,
+	renderNeedsUpgrade,
+} from "./shared/needs-upgrade/needs-upgrade.component";
+export type { NeedsUpgradeControl } from "./shared/needs-upgrade/needs-upgrade.component";
 export {
 	CONFIRM_POPOVER_STYLES,
 	renderConfirmPopover,

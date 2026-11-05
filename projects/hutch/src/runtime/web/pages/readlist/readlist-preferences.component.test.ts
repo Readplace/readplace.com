@@ -18,6 +18,7 @@ import { generateCspNonce } from "@packages/web-shell";
 import type { AlertContent } from "@packages/web-shell";
 import { INBOX_UNAVAILABLE_ALERT } from "./readlist-alerts";
 import { readlistRenamePopoverId } from "./readlist-rename.component";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { ReadlistPreferencesPage } from "./readlist-preferences.component";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
@@ -25,6 +26,7 @@ import type { SubscriptionBannerState } from "./readlist.viewmodel";
 const WORK: ReadlistSlug = ReadlistSlugSchema.parse("a1b2c3d4");
 const LATER: ReadlistSlug = ReadlistSlugSchema.parse("e5f6a7b8");
 const NONCE = generateCspNonce();
+const OFFER: UpgradeOffer = { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" };
 
 function page(overrides: {
 	purpose?: string;
@@ -36,6 +38,7 @@ function page(overrides: {
 	canEdit?: boolean;
 	canCreate?: boolean;
 	accessIsReadOnly?: boolean;
+	offer?: UpgradeOffer;
 	subscriptionBanner?: SubscriptionBannerState;
 	query?: Record<string, unknown>;
 }) {
@@ -48,6 +51,7 @@ function page(overrides: {
 			limitAlertHref: `/queue?queue=${WORK}&queue_error=limit`,
 			canEdit: overrides.canEdit ?? true,
 			canCreate: overrides.canCreate ?? true,
+			offer: overrides.offer,
 			nonEmptyReadlists: [],
 		},
 		values: { purpose: overrides.purpose },
@@ -374,26 +378,6 @@ describe("ReadlistPreferencesPage", () => {
 		expect(side.querySelectorAll("[data-test-onboarding]")).toHaveLength(1);
 	});
 
-	it("attributes a subscribe choice made from this page to the preferences banner", () => {
-		const doc = documentOf(
-			page({
-				subscriptionBanner: {
-					state: "trial-countdown",
-					daysLeft: 2,
-					daysLeftWord: "days",
-					remaining: { days: 2, hours: 0, minutes: 0, seconds: 0, totalMs: 0 },
-					checkedPlan: "yearly",
-				},
-			}).content.html,
-		);
-		const form = doc.querySelector('#subscribe-plans form[data-test-form="subscribe-plans"]');
-		assert(form, "a trial countdown must offer the subscribe-plans popover");
-
-		expect(new URL(form.getAttribute("action") ?? "", "https://readplace.test").searchParams.get("utm_source")).toBe(
-			"queue-preferences-banner",
-		);
-	});
-
 	it("shows a read-only reader what they wrote, with nothing to change it with", () => {
 		const doc = documentOf(
 			page({
@@ -424,6 +408,69 @@ describe("ReadlistPreferencesPage", () => {
 		);
 		expect(panel.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
 		expect(panel.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
+	});
+
+	it("locks Set up readlist for a read-only reader who can upgrade, with no wizard behind it", () => {
+		const doc = documentOf(page({ accessIsReadOnly: true, offer: OFFER }).content.html);
+		const panel = purposePanel(doc);
+
+		expect(panel.className).toBe(
+			"readlist-listing readlist-preferences readlist-preferences--unset readlist-preferences--read-only",
+		);
+		const lock = panel.querySelector('.readlist-preferences__unset [data-test-action="upgrade-open"]');
+		assert(lock, "the unset card must carry the lock");
+		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("set-up-readlist");
+		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(lock.querySelector(".needs-upgrade__label")?.textContent).toBe("Set up readlist");
+		expect(lock.classList.contains("readlist-empty__cta")).toBe(true);
+		const fallback = panel.querySelector('.readlist-preferences__unset [data-test-action="upgrade-fallback"]');
+		expect(fallback?.getAttribute("href")).toBe(
+			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-set-up-readlist",
+		);
+		expect(
+			doc.querySelectorAll(
+				'[data-test-action="readlist-preferences-setup"], [data-test-preferences-menu], [data-test-wizard], .readlist-preferences__fallback',
+			),
+		).toHaveLength(0);
+	});
+
+	it("locks Edit and Delete in the options menu of a set purpose for a read-only reader who can upgrade", () => {
+		const doc = documentOf(page({ purpose: "Shipping essays.", accessIsReadOnly: true, offer: OFFER }).content.html);
+		const menu = purposePanel(doc).querySelector('[data-test-preferences-menu][data-test-menu-standing="locked"]');
+		assert(menu, "a set purpose must carry the locked menu");
+
+		expect(menu.classList.contains("readlist-preferences__menu")).toBe(true);
+		expect(
+			Array.from(menu.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => [
+				lock.getAttribute("data-test-needs-upgrade"),
+				lock.querySelector(".needs-upgrade__label")?.textContent,
+				lock.classList.contains("menu__item"),
+			]),
+		).toEqual([
+			["edit-purpose", "Edit", true],
+			["delete-purpose", "Delete", true],
+		]);
+		expect(
+			Array.from(menu.querySelectorAll('[data-test-action="upgrade-fallback"]'), (link) => link.getAttribute("href")),
+		).toEqual([
+			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-edit-purpose",
+			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-delete-purpose",
+		]);
+		expect(
+			doc.querySelectorAll(
+				'[data-test-action="readlist-preferences-edit"], [data-test-action="readlist-preferences-delete"], [data-test-action="readlist-preferences-delete-fallback"], [data-test-confirm-popover="readlist-purpose-delete"], [data-test-wizard]',
+			),
+		).toHaveLength(0);
+	});
+
+	it.each([
+		["an unset purpose", undefined],
+		["a set purpose", "Shipping essays."],
+	])("shows no lock on %s when the reader can write, even with an offer", (_case, purpose) => {
+		const panel = purposePanel(documentOf(page({ purpose, offer: OFFER }).content.html));
+
+		expect(panel.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
+		expect(panel.querySelectorAll('[data-test-menu-standing="locked"]')).toHaveLength(0);
 	});
 
 	it("stacks the readlist's inboxes under its purpose panel", () => {

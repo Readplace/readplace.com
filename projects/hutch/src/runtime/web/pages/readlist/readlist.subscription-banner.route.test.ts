@@ -76,7 +76,7 @@ describe("Readlist page banner state", () => {
 		expect(confirmPopoverKeys(doc)).toEqual(["readlist-create", "add-link", "save-tip"]);
 	});
 
-	it("renders only the quiet status line, with no plan chooser, for a trial with 12 days left", async () => {
+	it("renders only the quiet status line, with no plan-chooser action, for a trial with 12 days left", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "fresh-trial@example.com");
@@ -94,7 +94,7 @@ describe("Readlist page banner state", () => {
 			`Trial · 12 days left · then ${PRICING_PLANS.yearly.totalDisplay} a year or ${PRICING_PLANS.monthly.totalDisplay} a month`,
 		);
 		assert(doc.querySelector("[data-test-trial-status]"), "the status line must carry its test hook");
-		expect(subscribePlanKeys(doc)).toEqual([]);
+		expect(banner.querySelector('[data-test-action="subscribe-plans-open"]')).toBeNull();
 	});
 
 	it("renders the readlist aside trial-countdown banner for a trialing user", async () => {
@@ -114,10 +114,10 @@ describe("Readlist page banner state", () => {
 		assert(banner.querySelector("[data-test-trial-tiles]"), "the countdown must show its tiles with 2 days left");
 
 		const { trigger, fallback } = subscribeCtaPair(banner, "subscribe");
-		expect(trigger.textContent).toBe("Subscribe");
+		expect(trigger.textContent).toBe("Upgrade");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
 		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
-		expect(fallback.textContent).toBe("Subscribe");
+		expect(fallback.textContent).toBe("Upgrade");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
 		expect(fallback.getAttribute("href")).toContain("utm_content=subscribe");
 		expect(pricingLines(banner)).toEqual({
@@ -127,7 +127,7 @@ describe("Readlist page banner state", () => {
 		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly"]);
 	});
 
-	it("disables the save form after the trial window ends", async () => {
+	it("locks Add link after the trial window ends", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "expired-trial@example.com");
@@ -138,24 +138,19 @@ describe("Readlist page banner state", () => {
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
-		const saveForm = doc.querySelector('[data-test-form="save-article"]');
-		assert(saveForm, "save form must still be rendered");
-		const saveInput = saveForm.querySelector<HTMLInputElement>("input[name='url']");
-		assert(saveInput, "save input must be rendered inside the save form");
-		expect(saveInput.disabled).toBe(true);
-		const submitButton = saveForm.querySelector("button[type='submit']");
-		assert(submitButton, "save button must still be rendered");
-		expect(submitButton.hasAttribute("disabled")).toBe(true);
+		const lock = doc.querySelector('[data-test-add-link] [data-test-action="upgrade-open"]');
+		assert(lock, "the Add link slot must hold the lock");
+		expect(lock.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "readlist banner aside must be rendered");
 		expect(banner.classList.contains("readlist-subscription--inactive")).toBe(true);
 		// Trial expiry is how the entire churned cohort reaches the inactive
 		// state, so the re-subscribe CTA must be present on this path too.
 		const { trigger, fallback } = subscribeCtaPair(banner, "resubscribe");
-		expect(trigger.textContent).toBe("Subscribe");
+		expect(trigger.textContent).toBe("Upgrade");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
 		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
-		expect(fallback.textContent).toBe("Subscribe");
+		expect(fallback.textContent).toBe("Upgrade");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
 		const ctaHref = fallback.getAttribute("href");
 		assert(ctaHref, "resubscribe CTA must have an href");
@@ -227,13 +222,13 @@ describe("Readlist page banner state", () => {
 		const message = banner.querySelector("[data-test-banner-message]");
 		assert(message, "inactive banner must render its message");
 		expect(message.textContent?.replace(/\s+/g, " ").trim()).toBe(
-			"Your saved articles are still here. Subscribe again to regain full access to Readplace.",
+			"Your saved articles are still here. Upgrade to regain full access to Readplace.",
 		);
 		// An expired/cancelled user must be able to re-subscribe from the readlist
 		// itself, not be dead-ended into hunting for /account.
 		const { trigger, fallback } = subscribeCtaPair(banner, "resubscribe");
-		expect(trigger.textContent).toBe("Subscribe");
-		expect(fallback.textContent).toBe("Subscribe");
+		expect(trigger.textContent).toBe("Upgrade");
+		expect(fallback.textContent).toBe("Upgrade");
 		const ctaHref = fallback.getAttribute("href");
 		assert(ctaHref, "inactive banner CTA must have an href");
 		expect(ctaHref).toContain("/account");
@@ -258,6 +253,41 @@ describe("Readlist page banner state", () => {
 
 		expect(checkedSubscribePlanKeys(new JSDOM(response.text).window.document)).toEqual(["monthly"]);
 	});
+
+	it("attributes a plan chosen on the readlist page to the queue banner", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "cancelled-attribution@example.com");
+		await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_c", customerId: "cus_c" });
+		await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+		const response = await agent.get("/queue");
+		const form = new JSDOM(response.text).window.document.querySelector(
+			`#${SUBSCRIBE_PLANS_POPOVER_ID} [data-test-form="subscribe-plans"]`,
+		);
+
+		assert(form, "the page must carry the plan chooser");
+		expect(form.getAttribute("action")).toContain("utm_source=queue-banner");
+	});
+
+	it.each(["/queue?platform=ios", "/queue?shell=app"])(
+		"shows an inactive reader at %s no plan chooser and no action that opens one",
+		async (path) => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { agent, userId } = await loginUser(harness, "cancelled-native@example.com");
+			await harness.subscriptionProviders.upsertActive({ userId, subscriptionId: "sub_n", customerId: "cus_n" });
+			await harness.subscriptionProviders.markCancelledByUserId({ userId });
+
+			const response = await agent.get(path);
+			const doc = new JSDOM(response.text).window.document;
+			const banner = doc.querySelector("[data-test-subscription-banner]");
+
+			assert(banner, "readlist banner aside must be rendered");
+			expect(banner.classList.contains("readlist-subscription--inactive")).toBe(true);
+			expect(doc.querySelector(`#${SUBSCRIBE_PLANS_POPOVER_ID}`)).toBeNull();
+			expect(doc.querySelector(".subscribe-plans__trigger")).toBeNull();
+			expect(doc.querySelector(".subscribe-plans__fallback")).toBeNull();
+		},
+	);
 });
 
 describe("POST /queue/save read-only gating", () => {

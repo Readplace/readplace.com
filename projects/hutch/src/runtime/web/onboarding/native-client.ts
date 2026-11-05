@@ -31,7 +31,7 @@ function isNativeClientPlatform(value: unknown): value is NativeClientPlatform {
 /** Which native app sent this request, or undefined for anything else. An absent
  * or unrecognised header reads as non-native, so older shipped app builds and the
  * browser extensions — which never send it — are tolerated as non-native. */
-export function nativeClientOf(req: Request): NativeClientPlatform | undefined {
+export function nativeClientOf(req: Pick<Request, "get">): NativeClientPlatform | undefined {
 	const value = req.get(NATIVE_CLIENT_HEADER);
 	return isNativeClientPlatform(value) ? value : undefined;
 }
@@ -84,7 +84,7 @@ export function nativeSurfaceOf(req: Request): NativeClientPlatform | undefined 
 /** True when a request should render a native app surface at all. The app shell
  * implies one without the app having to carry both markers, which is what keeps a
  * shipped build that sends only `?shell=app` on the app surface. */
-export function isNativeSurface(req: Request): boolean {
+export function isNativeSurface(req: Pick<Request, "query" | "get">): boolean {
 	return (
 		isNativeSurfaceMarked({ platform: req.query[PLATFORM_QUERY], shell: req.query[APP_SHELL_QUERY] }) ||
 		nativeClientOf(req) !== undefined

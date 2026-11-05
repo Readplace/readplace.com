@@ -70,6 +70,20 @@ function catalogOf(entries: readonly [ForwardableSender, string | undefined][]):
 	});
 }
 
+function expectGmailLock(scope: Element, label: string): void {
+	const lock = scope.querySelector('[data-test-action="upgrade-open"]');
+	assert(lock, `${label} must be locked`);
+	expect([
+		lock.getAttribute("data-test-needs-upgrade"),
+		lock.getAttribute("popovertarget"),
+		lock.querySelector(".needs-upgrade__label")?.textContent,
+	]).toEqual(["connect-gmail", "subscribe-plans", label]);
+	expect(scope.querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href")).toBe(
+		"/account/plans?utm_source=connectors&utm_medium=internal&utm_content=upgrade-connect-gmail",
+	);
+	expect(scope.querySelectorAll('[data-test-gmail-connection-action="upgrade-gmail"], [data-test-gmail-mapping-action="upgrade-gmail"]')).toHaveLength(0);
+}
+
 function load(text: string): Document {
 	return new JSDOM(text).window.document;
 }
@@ -2314,7 +2328,7 @@ describe("Mark imported emails as read", () => {
 		const { agent, userId, harness, mapSender } = await connectedAgent();
 		await mapSender(TLDR, "default");
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
-		const mapped = row(load((await agent.get(GMAIL)).text), TLDR);
+		const mapped = row(load((await agent.get(`${GMAIL}?platform=ios`)).text), TLDR);
 		expect(markBox(mapped)).toEqual({ state: "off", checked: false, disabled: true, key: "mark-read-start", hint: UPGRADE, prompt: ["upgrade-gmail"], backfill: null });
 		expect(markPrompt(mapped, "upgrade-gmail").getAttribute("action")).toBe("/account/plans?utm_source=integrations-gmail&utm_medium=internal&utm_content=upgrade-gmail");
 	});
@@ -2360,7 +2374,7 @@ describe("Mark imported emails as read", () => {
 	it("keeps a ticked box enabled and offers an upgrade when permission was lost and the reader has no Gmail access", async () => {
 		const { agent, gmail, userId, harness, ref } = await markedAgent({ scope: GMAIL_SCOPES });
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
-		const mapped = row(load((await agent.get(GMAIL)).text), TLDR);
+		const mapped = row(load((await agent.get(`${GMAIL}?platform=ios`)).text), TLDR);
 		expect(markBox(mapped)).toEqual({ state: "permission-lost", checked: true, disabled: false, key: "mark-read-stop", hint: UPGRADE, prompt: ["upgrade-gmail"], backfill: null });
 		expect(markPrompt(mapped, "upgrade-gmail").getAttribute("action")).toBe("/account/plans?utm_source=integrations-gmail&utm_medium=internal&utm_content=upgrade-gmail");
 		expect((await agent.post(MARK_STOP).type("form").send({ sender: TLDR })).headers.location).toBe(`${GMAIL}?notice=mark_off&discovery=started`);
@@ -2695,7 +2709,7 @@ describe("Read-only and locked readers", () => {
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + trialDays * ONE_DAY_MS).toISOString() });
 		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
 
-		const response = await agent.get(GMAIL).set("HX-Request", "true");
+		const response = await agent.get(`${GMAIL}?platform=ios`).set("HX-Request", "true");
 		expect(response.status).toBe(200);
 		const doc = load(response.text);
 		const reconnect = doc.querySelector("[data-test-gmail-reconnect]");
@@ -2717,7 +2731,7 @@ describe("Read-only and locked readers", () => {
 	it("offers upgrade for missing metadata permission and in a discovery reconnect fragment", async () => {
 		const { agent, gmail, userId, harness, gatewayAddress } = await connectedAgent({ scope: GMAIL_SETTINGS_SCOPE });
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString() });
-		const doc = load((await agent.get(GMAIL)).text);
+		const doc = load((await agent.get(`${GMAIL}?platform=ios`)).text);
 		const metadata = doc.querySelector("[data-test-gmail-metadata-reconnect]");
 		assert(metadata);
 		expect(metadata.querySelector(".gmail__step-copy")?.textContent).toBe("Gmail integration is only available with an active paid subscription.");
@@ -2728,7 +2742,7 @@ describe("Read-only and locked readers", () => {
 
 		await seedDiscovery({ gmail, userId, gatewayAddress, senders: [], generation: "upgrade-reconnect", state: "running" });
 		await gmail.bundle.gmailDiscoveryStore.failDiscovery({ userId, generation: "upgrade-reconnect", error: "invalid_grant", requiresReconnect: true });
-		const fragment = load((await agent.get(`${GMAIL}/senders?discovery=started&poll=1`).set("HX-Request", "true")).text);
+		const fragment = load((await agent.get(`${GMAIL}/senders?discovery=started&poll=1&platform=ios`).set("HX-Request", "true")).text);
 		expect(fragment.querySelector("[data-test-gmail-discovery-status]")?.textContent).toBe("Gmail integration is only available with an active paid subscription.");
 		const reconnect = senderStatus(fragment).querySelector('[data-test-gmail-connection-action="upgrade-gmail"]')?.closest("form");
 		assert(reconnect);
@@ -2741,8 +2755,8 @@ describe("Read-only and locked readers", () => {
 		const destination = await mapSender(TLDR, "default");
 		await seedJob({ sender: TLDR, destination, state: "awaiting-permission" });
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + trialDays * ONE_DAY_MS).toISOString() });
-		const page = await agent.get(GMAIL);
-		const fragment = await agent.get(`${GMAIL}/senders?search=dan`).set("HX-Request", "true");
+		const page = await agent.get(`${GMAIL}?platform=ios`);
+		const fragment = await agent.get(`${GMAIL}/senders?search=dan&platform=ios`).set("HX-Request", "true");
 		for (const response of [page, fragment]) {
 			expect(response.status).toBe(200);
 			const mapping = row(load(response.text), TLDR);
@@ -2756,6 +2770,63 @@ describe("Read-only and locked readers", () => {
 			expect(hiddenFields(form)).toEqual({ utm_source: "integrations-gmail", utm_medium: "internal", utm_content: "upgrade-gmail" });
 			expect(rowActionKeys(mapping)).toEqual(["edit", "cancel-import", "remove"]);
 		}
+	});
+
+	it.each([1, -1])("locks Reconnect Gmail on a revoked connection, keeping Disconnect, when the trial ends in %s days", async (trialDays) => {
+		const { agent, gmail, userId, harness } = await connectedAgent();
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + trialDays * ONE_DAY_MS).toISOString() });
+		await gmail.bundle.gmailConnectionStore.markRevoked({ userId, reason: "invalid-grant" });
+
+		const doc = load((await agent.get(GMAIL)).text);
+
+		const reconnect = doc.querySelector("[data-test-gmail-reconnect]");
+		assert(reconnect);
+		expect(reconnect.querySelector(".gmail__step-copy")?.textContent).toBe("Gmail integration is only available with an active paid subscription.");
+		expectGmailLock(reconnect, "Reconnect Gmail");
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+		expect(doc.querySelector("[data-test-gmail-disconnect]")?.closest("form")?.getAttribute("method")).toBe("POST");
+	});
+
+	it("locks Reconnect Gmail for missing metadata permission and in a discovery reconnect fragment", async () => {
+		const { agent, gmail, userId, harness, gatewayAddress } = await connectedAgent({ scope: GMAIL_SETTINGS_SCOPE });
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString() });
+		const doc = load((await agent.get(GMAIL)).text);
+		const metadata = doc.querySelector("[data-test-gmail-metadata-reconnect]");
+		assert(metadata);
+		expectGmailLock(metadata, "Reconnect Gmail");
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+
+		await seedDiscovery({ gmail, userId, gatewayAddress, senders: [], generation: "locked-reconnect", state: "running" });
+		await gmail.bundle.gmailDiscoveryStore.failDiscovery({ userId, generation: "locked-reconnect", error: "invalid_grant", requiresReconnect: true });
+		const fragment = load((await agent.get(`${GMAIL}/senders?discovery=started&poll=1`).set("HX-Request", "true")).text);
+		expectGmailLock(senderStatus(fragment), "Reconnect Gmail");
+	});
+
+	it("locks Grant permission on a mapping that waits for import permission", async () => {
+		const { agent, harness, userId, mapSender, seedJob } = await connectedAgent();
+		const destination = await mapSender(TLDR, "default");
+		await seedJob({ sender: TLDR, destination, state: "awaiting-permission" });
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString() });
+
+		const mapping = row(load((await agent.get(GMAIL)).text), TLDR);
+
+		const consent = mapping.querySelector("[data-test-gmail-import-consent]");
+		assert(consent);
+		expectGmailLock(consent, "Grant permission");
+		expect(rowActionKeys(mapping)).toEqual(["edit", "cancel-import", "remove"]);
+	});
+
+	it("locks Allow in Gmail under a mark checkbox the reader has no access to change", async () => {
+		const { agent, userId, harness, mapSender } = await connectedAgent();
+		await mapSender(TLDR, "default");
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString() });
+
+		const mapped = row(load((await agent.get(GMAIL)).text), TLDR);
+
+		const mark = mapped.querySelector("[data-test-gmail-mark-state]");
+		assert(mark);
+		expectGmailLock(mark, "Allow in Gmail");
+		expect(mark.querySelector<HTMLInputElement>('[data-test-gmail-mark-checkbox="card"]')?.disabled).toBe(true);
 	});
 
 	it("keeps paid readers' reconnect action available", async () => {

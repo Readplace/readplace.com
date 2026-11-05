@@ -15,7 +15,7 @@ import type { IconName } from "@packages/ui-icons";
 import {
 	type LocalTime,
 	PRICING_PLANS,
-	SUBSCRIBE_CTA_LABEL,
+	UPGRADE_CTA_LABEL,
 	initialsFor,
 	parsePollParam,
 	toAbsoluteDate,
@@ -28,10 +28,8 @@ import {
 	PLATFORM_QUERY,
 } from "../../onboarding/native-client";
 import type { NativeClientPlatform } from "../../onboarding/native-client";
-import {
-	SUBSCRIBE_PLANS_POPOVER_ID,
-	planChargedWithoutChoice,
-} from "../../shared/subscribe-plans/subscribe-plans.component";
+import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
+import { TIER_CAN_UPGRADE, type UpgradeOffer, renderedLockFor } from "../../shared/upgrade-offer/upgrade-offer";
 import {
 	ACCOUNT_APPEARANCE_URL,
 	ACCOUNT_CANCEL_URL,
@@ -219,7 +217,6 @@ export interface AccountViewModel {
 	stateIsErrorPaymentMethod: boolean;
 	stateIsErrorSubscribeFailed: boolean;
 	actions: AccountAction[];
-	checkedPlan: BillingPlan;
 	/** The irreversible "delete account" control. Kept out of the state-dependent
 	 * `actions` array so the danger zone renders in every subscription state. */
 	dangerAction: AccountAction;
@@ -326,7 +323,7 @@ function getAction(input: ActionInput & { fields: AccountHiddenField[] }): Accou
 
 const SUBSCRIBE_ACTION = postAction({
 	key: "subscribe",
-	name: SUBSCRIBE_CTA_LABEL,
+	name: UPGRADE_CTA_LABEL,
 	variant: "primary",
 	href: ACCOUNT_SUBSCRIBE_URL,
 	leadingIcon: undefined,
@@ -661,7 +658,6 @@ function planPrice(plan: BillingPlan | undefined): PriceViewModel {
 type AccountCardBase = Omit<
 	AccountViewModel,
 	| "dangerConfirmation"
-	| "checkedPlan"
 	| "statusLine"
 	| "statusDate"
 	| "statusDateTail"
@@ -705,7 +701,6 @@ export function toAccountViewModel(input: {
 }): AccountViewModel {
 	return {
 		...stateViewModel(input),
-		checkedPlan: planChargedWithoutChoice(input.access),
 		dangerConfirmation: {
 			phrase: DELETE_ACCOUNT_CONFIRMATION_PHRASE,
 			pattern: DELETE_CONFIRMATION_PATTERN,
@@ -749,7 +744,7 @@ function stateViewModel(input: {
 	now: Date;
 	nextCharge: SubscriptionNextCharge | undefined;
 	plan: BillingPlan | undefined;
-}): Omit<AccountViewModel, "dangerConfirmation" | "checkedPlan" | "payment" | "billingHistory"> {
+}): Omit<AccountViewModel, "dangerConfirmation" | "payment" | "billingHistory"> {
 	const { access, queryState, now, nextCharge, plan } = input;
 	// Payment-method error takes priority over every underlying state — the user
 	// just bounced off Stripe's create-subscription endpoint.
@@ -767,7 +762,7 @@ function stateViewModel(input: {
 				state: "error-subscribe-failed",
 				title: "Subscription",
 				chips: [],
-				actions: [SUBSCRIBE_ACTION],
+				actions: TIER_CAN_UPGRADE[access.tier] ? [SUBSCRIBE_ACTION] : [],
 			}),
 			statusLine: "",
 			stateIsErrorSubscribeFailed: true,
@@ -999,8 +994,13 @@ export function buildSecuritySection(input: {
 	};
 }
 
-export interface AccountImportLink {
+interface AccountImportLink {
 	href: string;
+}
+
+export interface AccountImportRow {
+	links: readonly AccountImportLink[];
+	locks: readonly string[];
 }
 
 const IMPORT_LINKS: Record<EffectiveAccess["access"], readonly AccountImportLink[]> = {
@@ -1008,8 +1008,17 @@ const IMPORT_LINKS: Record<EffectiveAccess["access"], readonly AccountImportLink
 	"read-only": [],
 };
 
-export function buildImportLinks(input: { access: EffectiveAccess }): readonly AccountImportLink[] {
-	return IMPORT_LINKS[input.access.access];
+export function buildImportLinks(input: { access: EffectiveAccess; offer: UpgradeOffer | undefined }): readonly AccountImportRow[] {
+	const links = IMPORT_LINKS[input.access.access];
+	const locks = renderedLockFor({
+		offer: input.offer,
+		gated: input.access.access === "read-only",
+		key: "import",
+		label: "Import links",
+		controlClass: "btn btn--neutral btn--m",
+		source: ACCOUNT_SOURCE,
+	});
+	return links.length + locks.length === 0 ? [] : [{ links, locks }];
 }
 
 /** Rewrites the account view model for the app's in-app web surface: strips

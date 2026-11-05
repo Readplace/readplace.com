@@ -39,6 +39,9 @@
         {{#if showReconnect}}
         <section class="gmail__reconnect" data-test-gmail-reconnect>
           <p class="gmail__step-copy">{{reconnect.message}}</p>
+          {{#each reconnect.locks}}
+          {{{this}}}
+          {{/each}}
           {{#each reconnect.actions}}
           <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
             {{#each fields}}
@@ -53,6 +56,9 @@
         {{#if showMetadataReconnect}}
         <section class="gmail__reconnect" data-test-gmail-metadata-reconnect>
           <p class="gmail__step-copy">{{metadataReconnect.message}}</p>
+          {{#each metadataReconnect.locks}}
+          {{{this}}}
+          {{/each}}
           {{#each metadataReconnect.actions}}
           <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
             {{#each fields}}

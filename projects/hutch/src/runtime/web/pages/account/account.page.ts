@@ -95,6 +95,7 @@ import { ACCOUNT_LOGOUT_HREF, APP_BACK_LINK } from "../../shared/native-app-link
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { requireCspNonce, sendComponent } from "@packages/web-shell";
 import type { EffectiveAccess, GetEffectiveAccess } from "@packages/subscription-access";
+import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { AccountPage, renderAccountCard } from "./account.component";
 import { buildConnectedAppsSection } from "./account-connected-apps.view-model";
 import { AccountInvoicesPage } from "./account-invoices.component";
@@ -274,7 +275,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			appShell: isAppShell(req),
 			platform: nativeSurfaceOf(req),
 		});
-		const importLinks = buildImportLinks({ access: input.access });
+		const importLinks = buildImportLinks({ access: input.access, offer: upgradeOfferFor({ req, access: input.access }) });
 		const webVm = toAccountViewModel({
 			access: input.access,
 			queryState,
@@ -314,6 +315,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		const bannerState = await deps.buildBannerState(req, {
 			preFetchedAccess: input.access,
 			preFetchedUser: user,
+			upgradeSource: "account",
 		});
 		sendComponent(
 			req,

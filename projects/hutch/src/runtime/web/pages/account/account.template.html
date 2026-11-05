@@ -74,7 +74,12 @@
                 <p class="account-row__description">Paste a page link or upload a bookmarks file.</p>
               </div>
               <div class="account-row__actions">
+                {{#each links}}
                 <a class="btn btn--neutral btn--m" href="{{href}}" data-test-account-import-link>{{icon "file-down"}}Import links</a>
+                {{/each}}
+                {{#each locks}}
+                {{{this}}}
+                {{/each}}
               </div>
             </div>
             {{/each}}
@@ -98,5 +103,4 @@
           {{{danger.dialogHtml}}}
         </section>
       </div>
-      {{{subscribePlansHtml}}}
     </main>

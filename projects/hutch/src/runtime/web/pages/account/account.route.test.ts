@@ -284,7 +284,7 @@ describe("GET /account?manage=subscription", () => {
 		expect(done.querySelector("button")?.className).toBe("btn btn--neutral btn--m");
 	});
 
-	it("leaves the panel shut for a trialing reader, whose card keeps Subscribe as its one action", async () => {
+	it("leaves the panel shut for a trialing reader, whose card keeps Upgrade as its one action", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent, userId } = await loginUser(harness, "manage-subscription-trial@example.com");
 		await harness.subscriptionProviders.upsertTrialing({
@@ -734,7 +734,7 @@ describe("GET /account (headed sections)", () => {
 });
 
 describe("GET /account?platform=ios (iOS app surface — Guideline 3.1.1)", () => {
-	it("hides the Subscribe CTA, the payment section and billing history for a trialing user, keeping status + danger zone", async () => {
+	it("hides the Upgrade CTA, the payment section and billing history for a trialing user, keeping status + danger zone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "ios-trial@example.com");
@@ -1059,7 +1059,7 @@ describe("GET /account?error=subscribe_failed", () => {
 				el.getAttribute("data-test-account-action"),
 			),
 		).toContain("subscribe");
-		expect(confirmPopoverKeys(doc)).toEqual(["account-profile", "delete-account", "subscribe-plans"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["subscribe-plans", "account-profile", "delete-account"]);
 	});
 });
 
@@ -1104,7 +1104,7 @@ describe("GET /account?error=payment_method", () => {
 });
 
 describe("GET /account (trialing inside trial window)", () => {
-	it("renders the trial card with days-left text and a Subscribe form — no Cancel button while on trial", async () => {
+	it("renders the trial card with days-left text and an Upgrade form — no Cancel button while on trial", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trial@example.com");
@@ -1132,7 +1132,7 @@ describe("GET /account (trialing inside trial window)", () => {
 });
 
 describe("GET /account (inactive — trial expired vs cancelled render identical DOM)", () => {
-	it("renders the inactive card with a Subscribe form", async () => {
+	it("renders the inactive card with an Upgrade form", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "expired@example.com");
@@ -1193,7 +1193,7 @@ describe("GET /account (plan-chooser popover wiring)", () => {
 		expect(trigger.classList.contains("subscribe-plans__trigger")).toBe(true);
 		const fallback = findAction(doc, "subscribe");
 		expect(fallback.classList.contains("subscribe-plans__fallback")).toBe(true);
-		expect(confirmPopoverKeys(doc)).toEqual(["account-profile", "delete-account", "subscribe-plans"]);
+		expect(confirmPopoverKeys(doc)).toEqual(["subscribe-plans", "account-profile", "delete-account"]);
 		expect(subscribePlanKeys(doc)).toEqual(["yearly", "monthly"]);
 	}
 
@@ -2039,7 +2039,7 @@ describe("POST /account/subscribe", () => {
 		);
 	});
 
-	it("emits the checkout_started when a signed-in account submits the Subscribe form under a crawler User-Agent, so paid-conversion reporting keeps the reader it can identify", async () => {
+	it("emits the checkout_started when a signed-in account submits the Upgrade form under a crawler User-Agent, so paid-conversion reporting keeps the reader it can identify", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "crawler-subscribe@example.com");
@@ -2236,8 +2236,16 @@ describe("POST /account/subscribe (which plan gets charged)", () => {
 });
 
 describe("POST /account/subscribe (where the plan was chosen)", () => {
+	function accountPopoverAction(html: string): string {
+		const form = new JSDOM(html).window.document.querySelector('#subscribe-plans [data-test-form="subscribe-plans"]');
+		assert(form, "the page must offer the plans through the popover form");
+		const action = form.getAttribute("action");
+		assert(action, "the popover form must carry an action");
+		return action;
+	}
+
 	function planFormAction(html: string): string {
-		const form = new JSDOM(html).window.document.querySelector('[data-test-form="subscribe-plans"]');
+		const form = new JSDOM(html).window.document.querySelector('[data-test-plans-page] [data-test-form="subscribe-plans"]');
 		assert(form, "the page must offer the plans through the plan form");
 		const action = form.getAttribute("action");
 		assert(action, "the plan form must carry an action");
@@ -2268,6 +2276,16 @@ describe("POST /account/subscribe (where the plan was chosen)", () => {
 		expect(entrySources()).toEqual(["plans-page"]);
 	});
 
+	it.each(["header-nav", "connectors"])("records %s as the checkout's entry source when the plans link came from that surface", async (source) => {
+		const { agent, entrySources } = await trialingReader(`entry-${source}@example.com`);
+
+		const page = await agent.get(`/account/plans?utm_source=${source}`);
+		const response = await agent.post(planFormAction(page.text)).type("form").send({ plan: "yearly" });
+
+		expect(response.status).toBe(303);
+		expect(entrySources()).toEqual([source]);
+	});
+
 	it("records the plans link's source as the checkout's entry source when the reader arrived from a known campaign", async () => {
 		const { agent, entrySources } = await trialingReader("entry-founder-note@example.com");
 
@@ -2282,7 +2300,7 @@ describe("POST /account/subscribe (where the plan was chosen)", () => {
 		const { agent, entrySources } = await trialingReader("entry-account@example.com");
 
 		const page = await agent.get("/account");
-		const response = await agent.post(planFormAction(page.text)).type("form").send({ plan: "yearly" });
+		const response = await agent.post(accountPopoverAction(page.text)).type("form").send({ plan: "yearly" });
 
 		expect(response.status).toBe(303);
 		expect(entrySources()).toEqual(["account"]);
@@ -3993,10 +4011,30 @@ describe("GET /account (import)", () => {
 		expect(dataCardLinks(doc)).toEqual([EXPORT, IMPORT]);
 	});
 
-	it("offers only Export to a read-only user, since committing an import saves links and saving is a write", async () => {
+	it.each([
+		["the in-app browser sheet", "/account?platform=ios"],
+		["the app shell", "/account?platform=ios&shell=app"],
+	])("offers only Export to a read-only user on %s, where nothing may sell an upgrade", async (_surface, path) => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "import-expired@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get(path);
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(dataCardLinks(doc)).toEqual([EXPORT]);
+		expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(0);
+	});
+
+	it("locks Import links for a read-only user on the web, opening the page's one plan chooser", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "import-locked@example.com");
 		await subscriptionProviders.upsertTrialing({
 			userId,
 			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
@@ -4006,6 +4044,33 @@ describe("GET /account (import)", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(dataCardLinks(doc)).toEqual([EXPORT]);
+		const section = doc.querySelector('[data-test-account-section="data"]');
+		assert(section, "the data section must render");
+		const lock = section.querySelector('[data-test-action="upgrade-open"]');
+		assert(lock, "the import row must carry the lock");
+		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("import");
+		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(lock.querySelector(".needs-upgrade__label")?.textContent).toBe("Import links");
+		expect(section.querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href")).toBe(
+			"/account/plans?utm_source=account&utm_medium=internal&utm_content=upgrade-import",
+		);
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+	});
+
+	it("keeps the Import link for a reader on an active trial", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "import-trial@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/account");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(dataCardLinks(doc)).toEqual([EXPORT, IMPORT]);
+		expect(doc.querySelectorAll('[data-test-account-section="data"] [data-test-needs-upgrade]')).toHaveLength(0);
 	});
 });
 

@@ -55,7 +55,7 @@ const SUBSCRIBE_PLANS_FORM_TEMPLATE = `<form class="confirm-popover__actions sub
 		{{#each dismissControls}}
 		<button class="btn btn--neutral" type="button" popovertarget="{{popoverId}}" popovertargetaction="hide" data-test-action="subscribe-plans-dismiss">Cancel</button>
 		{{/each}}
-		<button class="btn btn--primary" type="submit"{{#if commitAutofocus}} autofocus{{/if}} data-test-action="subscribe-plans-submit">Subscribe now</button>
+		<button class="btn btn--primary" type="submit"{{#if commitAutofocus}} autofocus{{/if}} data-test-action="subscribe-plans-submit">Upgrade now</button>
 	</div>
 </form>`;
 

@@ -21,7 +21,6 @@ import {
 	toRelativeOrDate,
 } from "@packages/web-shell";
 import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
-import type { BillingPlan } from "@packages/provider-contracts/subscription-providers";
 import {
 	type PickedExcerpt,
 	pickExcerpt,
@@ -30,8 +29,8 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { ComponentError } from "../../shared/component-error.types";
 import { TRIAL_COUNTDOWN_LEAD_DAYS } from "../../../domain/stripe/stripe-trial-config";
-import { planChargedWithoutChoice } from "../../shared/subscribe-plans/subscribe-plans.component";
-import { MAX_POLLS } from "@packages/web-shell";
+import { type UpgradeOffer, lockFor } from "../../shared/upgrade-offer/upgrade-offer";
+import { MAX_POLLS, type NeedsUpgradeControl } from "@packages/web-shell";
 import { buildCardPollUrl } from "./readlist-card/readlist-card-poll-url";
 import {
 	type ArticleDeletion,
@@ -45,6 +44,7 @@ import {
 	type ArticleMoveViewModel,
 	moveCreatePopoverId,
 	moveDialogPopoverId,
+	moveItemLabel,
 } from "./readlist-card/move-dialog.component";
 import { cardProcessingOf } from "./readlist-card/card-processing";
 import { type CardKind, cardKindOf } from "./readlist-card/card-kind-label";
@@ -67,10 +67,10 @@ export type SubscriptionBannerState =
 			daysLeft: number;
 			daysLeftWord: "day" | "days";
 			remaining: TrialRemaining;
-			checkedPlan: BillingPlan;
+			upgradeOffer: UpgradeOffer | undefined;
 		}
 	| { state: "cancellation-scheduled"; cancellationEffectiveAt: LocalTime }
-	| { state: "inactive"; checkedPlan: BillingPlan };
+	| { state: "inactive"; upgradeOffer: UpgradeOffer | undefined };
 
 export interface ArticleActionField {
 	name: string;
@@ -103,6 +103,7 @@ export interface ReadlistArticleViewModel {
 	deletion: ArticleDeletion;
 	markStatusConfirm?: MarkStatusConfirmViewModel;
 	move?: ArticleMoveViewModel;
+	moveLocks: readonly NeedsUpgradeControl[];
 	/**
 	 * Set when the row's crawl/summary state machines are still in flight.
 	 * The card renders an htmx poll against this URL every 3s; once both
@@ -166,7 +167,11 @@ function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number
 	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
 }
 
-export function toSubscriptionBannerState(access: EffectiveAccess, now: Date): SubscriptionBannerState {
+export function toSubscriptionBannerState(
+	access: EffectiveAccess,
+	now: Date,
+	upgradeOffer: UpgradeOffer | undefined,
+): SubscriptionBannerState {
 	switch (access.banner) {
 		case "none":
 			return { state: "none" };
@@ -180,7 +185,7 @@ export function toSubscriptionBannerState(access: EffectiveAccess, now: Date): S
 				daysLeft,
 				daysLeftWord,
 				remaining: formatTrialRemaining(access.trialEndsAt, now),
-				checkedPlan: planChargedWithoutChoice(access),
+				upgradeOffer,
 			};
 		}
 		case "cancellation-scheduled":
@@ -189,7 +194,7 @@ export function toSubscriptionBannerState(access: EffectiveAccess, now: Date): S
 				cancellationEffectiveAt: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
 			};
 		case "inactive":
-			return { state: "inactive", checkedPlan: planChargedWithoutChoice(access) };
+			return { state: "inactive", upgradeOffer };
 	}
 }
 
@@ -240,16 +245,16 @@ interface ArticleFiling {
 	readlists: readonly ReadlistRef[];
 	saves: readonly { readlist?: ReadlistSlug }[] | undefined;
 	accessIsReadOnly: boolean;
+	offer: UpgradeOffer | undefined;
 }
 
-function toArticleMove(input: {
+function articleMoveOf(input: {
 	articleId: string;
 	from: ReadlistSlug;
 	returnQuery: string;
-	filing: ArticleFiling | undefined;
+	filing: ArticleFiling;
 }): ArticleMoveViewModel | undefined {
 	const { filing } = input;
-	if (filing === undefined || filing.accessIsReadOnly) return undefined;
 	const custom = filing.readlists.filter((readlist) => readlist.slug !== DEFAULT_READLIST_SLUG);
 	const holders = new Set(
 		readlistsHoldingArticle({ saves: filing.saves ?? [], readlists: filing.readlists }).map(
@@ -274,6 +279,34 @@ function toArticleMove(input: {
 		...(create === undefined ? {} : { create }),
 		opens,
 	};
+}
+
+interface ArticleMoveInput {
+	articleId: string;
+	from: ReadlistSlug;
+	returnQuery: string;
+	filing: ArticleFiling | undefined;
+}
+
+function toArticleMove(input: ArticleMoveInput): ArticleMoveViewModel | undefined {
+	const { filing } = input;
+	if (filing === undefined || filing.accessIsReadOnly) return undefined;
+	return articleMoveOf({ ...input, filing });
+}
+
+function toArticleMoveLock(input: ArticleMoveInput): NeedsUpgradeControl | undefined {
+	const { filing } = input;
+	if (filing === undefined || !filing.accessIsReadOnly) return undefined;
+	const move = articleMoveOf({ ...input, filing });
+	if (move === undefined) return undefined;
+	return lockFor({
+		offer: filing.offer,
+		gated: true,
+		key: "move-article",
+		label: moveItemLabel(move.mode),
+		controlClass: "menu__item",
+		source: "queue-card",
+	});
 }
 
 function versionedReaderHref(input: {
@@ -308,6 +341,8 @@ export function toReadlistArticleViewModel(params: {
 	const processing = cardProcessingOf({ article, crawl, summary, now, pollCount, maxPolls });
 	const { phase } = processing;
 	const isProcessing = phase.kind === "processing";
+	const moveInput = { articleId: id, from: filters.readlist, returnQuery, filing: params.filing };
+	const moveLock = toArticleMoveLock(moveInput);
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
 	const cardKind = cardKindOf(article);
@@ -339,7 +374,8 @@ export function toReadlistArticleViewModel(params: {
 		actions: toStatusActions({ id, status: article.status }, returnQuery, markStatusConfirm?.popoverId),
 		deletion,
 		markStatusConfirm,
-		move: toArticleMove({ articleId: id, from: filters.readlist, returnQuery, filing: params.filing }),
+		move: toArticleMove(moveInput),
+		moveLocks: moveLock === undefined ? [] : [moveLock],
 		cardPollUrl: isProcessing ? buildCardPollUrl({ articleId: id, pollCount: phase.pollCursor, filters }) : undefined,
 		readerHref: versionedReaderHref({
 			articleId: id,
@@ -370,6 +406,7 @@ export function toReadlistViewModel(
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		readerProvenanceByUrl?: ReadonlyMap<string, ReaderProvenance | undefined>;
 		effectiveAccess?: EffectiveAccess;
+		upgradeOffer?: UpgradeOffer;
 		confirmReadlistsByUrl?: ReadonlyMap<string, readonly ReadlistRef[]>;
 		deleteAcknowledged?: boolean;
 		readlists?: readonly ReadlistRef[];
@@ -411,6 +448,7 @@ export function toReadlistViewModel(
 								readlists: options.readlists,
 								saves: options.savesByUrl?.get(a.url),
 								accessIsReadOnly: access.access === "read-only",
+								offer: options.upgradeOffer,
 							},
 			}),
 		),
@@ -445,7 +483,7 @@ export function toReadlistViewModel(
 					undoFields: { from: options.moveFlash.undoFrom, to: options.moveFlash.undoTo },
 				}
 			: undefined,
-		subscriptionBanner: toSubscriptionBannerState(access, now),
+		subscriptionBanner: toSubscriptionBannerState(access, now, options?.upgradeOffer),
 		accessIsReadOnly: access.access === "read-only",
 	};
 }

@@ -29,6 +29,7 @@ function realCard(overrides?: Partial<ReadlistArticleViewModel>): string {
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
 		deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
+		moveLocks: [],
 		readerHref: READER_HREF,
 		isStalePending: false,
 		kind: undefined,

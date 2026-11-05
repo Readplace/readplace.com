@@ -26,31 +26,46 @@
           </div>
         </details>
         {{/if}}
+        {{#each lockedMenus}}
+        <details class="menu readlist-nav__menu readlist-row__trailing" data-test-readlist-menu="{{name}}" data-test-menu-standing="locked">
+          <summary class="menu__toggle" data-test-action="readlist-menu">{{icon "ellipsis-vertical"}}<span class="sr-only">Options for {{title}}</span></summary>
+          <div class="menu__panel">
+            {{#each menuLocks}}
+            {{{this}}}
+            {{/each}}
+          </div>
+        </details>
+        {{/each}}
       </li>
       {{/each}}
     </ul>
-    {{#if canCreate}}
+    {{#each createForms}}
     <div class="readlist-row readlist-nav__new-row">
-      <button class="readlist-row__main readlist-nav__new readlist-nav__confirm-trigger" type="button" popovertarget="{{createPopoverId}}" aria-haspopup="dialog" data-test-action="new-readlist">{{icon "plus"}}<span class="readlist-row__label">Create a readlist</span></button>
+      <button class="readlist-row__main readlist-nav__new readlist-nav__confirm-trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="new-readlist">{{icon "plus"}}<span class="readlist-row__label">Create a readlist</span></button>
       <details class="readlist-nav__create-fallback">
         <summary class="readlist-row__main readlist-nav__new">{{icon "plus"}}<span class="readlist-row__label">Create a readlist</span></summary>
-        <form class="readlist-nav__create-form" method="POST" action="{{createAction}}" hx-boost="false" data-test-form="readlist-create-fallback">
+        <form class="readlist-nav__create-form" method="POST" action="{{action}}" hx-boost="false" data-test-form="readlist-create-fallback">
           <label class="form-field__label" for="readlist-create-fallback-name">{{nameLabel}}</label>
           <input class="form-input" id="readlist-create-fallback-name" type="text" name="{{nameField}}" placeholder="{{namePlaceholder}}" maxlength="{{nameMaxLength}}" required autocomplete="off">
           <button class="btn btn--primary" type="submit" data-test-action="readlist-create-fallback">Create readlist</button>
         </form>
       </details>
     </div>
-    {{/if}}
-    {{#if limitForm}}
+    {{/each}}
+    {{#each createLocks}}
     <div class="readlist-row readlist-nav__new-row">
-      <form class="readlist-nav__limit-form" method="GET" action="{{limitForm.action}}" hx-swap="outerHTML show:none scroll:html:top" data-test-form="readlist-limit">
-        {{#each limitForm.fields}}
+      {{{this}}}
+    </div>
+    {{/each}}
+    {{#each limitForms}}
+    <div class="readlist-row readlist-nav__new-row">
+      <form class="readlist-nav__limit-form" method="GET" action="{{action}}" hx-swap="outerHTML show:none scroll:html:top" data-test-form="readlist-limit">
+        {{#each fields}}
         <input type="hidden" name="{{name}}" value="{{value}}">
         {{/each}}
         <button class="readlist-row__main readlist-nav__new" type="submit" data-test-action="readlist-limit">{{icon "plus"}}<span class="readlist-row__label">Create a readlist</span></button>
       </form>
     </div>
-    {{/if}}
+    {{/each}}
   </details>
 </nav>

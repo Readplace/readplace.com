@@ -23,6 +23,7 @@ import { type InboxAddressEntry, isLiveAddress } from "@packages/domain/inbox";
 import { DEFAULT_READLIST, DEFAULT_READLIST_SLUG, type ReadlistRef } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { buildReadlistUrl } from "../readlist/readlist.url";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, type GmailFormAction, gmailBodyFields, gmailGetFields, gmailLinkFields, trackGmail } from "./gmail-form-fields";
@@ -84,6 +85,7 @@ export interface GmailMarkViewModel {
 	disabled: boolean;
 	hint: string | undefined;
 	prompt: GmailFormAction[];
+	promptLocks: readonly string[];
 	backfill: GmailMarkBackfillViewModel | undefined;
 }
 
@@ -137,6 +139,7 @@ export interface GmailMappingsViewModel {
 export interface GmailMappingsInput {
 	userId: UserId;
 	canConnectGmail: boolean;
+	offer: UpgradeOffer | undefined;
 	connection: GmailConnection;
 	senders: readonly GmailMapping[];
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
@@ -326,6 +329,7 @@ function rowActions(input: {
 function consentFor(input: {
 	sender: ForwardableSender;
 	canConnectGmail: boolean;
+	offer: UpgradeOffer | undefined;
 	importable: boolean;
 	importState: GmailImportState;
 	readScopeGranted: boolean;
@@ -343,6 +347,7 @@ function consentFor(input: {
 		label: "Grant permission",
 		variant: "neutral",
 		fields: [...gmailBodyFields(listState), { name: "intent", value: "import" }, { name: "sender", value: input.sender }],
+		lock: { offer: input.offer, controlClass: "btn btn--neutral btn--s" },
 	});
 }
 
@@ -404,6 +409,7 @@ function markFor(input: {
 	destination: GmailMappingDestination;
 	connection: GmailConnection;
 	canConnectGmail: boolean;
+	offer: UpgradeOffer | undefined;
 	modifyScopeGranted: boolean;
 	metadataScopeGranted: boolean;
 	backfills: readonly GmailMarkBackfillJob[];
@@ -425,8 +431,9 @@ function markFor(input: {
 			label: "Allow in Gmail",
 			variant: "neutral",
 			fields: [...gmailBodyFields(listState), { name: "intent", value: "mark" }, { name: "sender", value: input.sender.senderEmail }],
+			lock: { offer: input.offer, controlClass: "btn btn--neutral btn--s" },
 		})
-		: { message: undefined, actions: [] };
+		: { message: undefined, actions: [], locks: [] };
 	const key = checked ? "mark-read-stop" : "mark-read-start";
 	const job = input.backfills.find((candidate) =>
 		candidate.senderEmail === input.sender.senderEmail
@@ -442,6 +449,7 @@ function markFor(input: {
 		disabled: !checked && (revoked || unavailable || !input.metadataScopeGranted),
 		hint: consent.message,
 		prompt: revoked ? [] : consent.actions,
+		promptLocks: revoked ? [] : consent.locks,
 		backfill: state === "on" ? markBackfill({ job, revoked, senderFields }) : undefined,
 	};
 }
@@ -471,6 +479,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHis
 		consent: consentFor({
 			sender: input.sender.senderEmail,
 			canConnectGmail: input.canConnectGmail,
+			offer: input.offer,
 			importable,
 			importState,
 			readScopeGranted: input.readScopeGranted,
@@ -482,6 +491,7 @@ function toRow(input: GmailMappingsInput & { sender: GmailMapping; job: GmailHis
 			destination,
 			connection: input.connection,
 			canConnectGmail: input.canConnectGmail,
+			offer: input.offer,
 			modifyScopeGranted: input.modifyScopeGranted,
 			metadataScopeGranted: input.metadataScopeGranted,
 			backfills: input.backfills,

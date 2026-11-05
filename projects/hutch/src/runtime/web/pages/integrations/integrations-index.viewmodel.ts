@@ -11,6 +11,7 @@ import { AI_ASSISTANTS_OR } from "../../shared/client-enumerations";
 import { ACCOUNT_PLANS_URL } from "../account/account.url";
 import { GMAIL_CONNECT_PATH } from "./gmail-connect.url";
 import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
+import { type UpgradeOffer, type UpgradeStanding, renderedLockFor, standingOf } from "../../shared/upgrade-offer/upgrade-offer";
 import { GMAIL_PATH } from "./gmail.url";
 
 export interface IntegrationActionViewModel {
@@ -57,6 +58,7 @@ export interface IntegrationRowViewModel {
 	statusLabel: string;
 	statusModifier: string;
 	actions: IntegrationActionViewModel[];
+	locks: readonly string[];
 }
 
 export interface IntegrationsAlertViewModel {
@@ -204,28 +206,44 @@ function gmailRow(connection: GmailConnection | undefined): IntegrationRowViewMo
 		statusKey: state,
 		statusLabel: STATUS_LABELS[state],
 		statusModifier: `integrations__status--${state}`,
+		locks: [],
 		actions: GMAIL_ACTIONS[state].map(trackedAction),
 	};
 }
 
-function gmailUpgradeRow(connection: GmailConnection | undefined): IntegrationRowViewModel {
-	const row = gmailRow(connection);
+const GMAIL_UPGRADE_ACTIONS: Record<UpgradeStanding, IntegrationActionViewModel[]> = {
+	open: [],
+	"needs-upgrade": [],
+	withheld: [trackedAction({
+		key: "upgrade-gmail",
+		method: "GET",
+		href: ACCOUNT_PLANS_URL,
+		label: "Upgrade",
+		variant: "primary",
+		fields: [],
+		boost: true,
+	})],
+};
+
+function gmailUpgradeRow(input: { connection: GmailConnection | undefined; offer: UpgradeOffer | undefined }): IntegrationRowViewModel {
+	const row = gmailRow(input.connection);
+	const locks = renderedLockFor({
+		offer: input.offer,
+		gated: true,
+		key: "connect-gmail",
+		label: "Connect Gmail",
+		controlClass: "btn btn--primary btn--s",
+		source: "connectors",
+	});
 	const managementActions = row.statusKey === "revoked"
 		? GMAIL_ACTIONS["ready-to-filter"].map(trackedAction)
 		: row.actions.filter((action) => action.method === "GET");
 	return {
 		...row,
 		description: GMAIL_UPGRADE_MESSAGE,
+		locks,
 		actions: [
-			trackedAction({
-				key: "upgrade-gmail",
-				method: "GET",
-				href: ACCOUNT_PLANS_URL,
-				label: "Upgrade",
-				variant: "primary",
-				fields: [],
-				boost: true,
-			}),
+			...GMAIL_UPGRADE_ACTIONS[standingOf({ gated: true, offer: input.offer })],
 			...managementActions.map((action): IntegrationActionViewModel => ({ ...action, variant: "secondary" })),
 		],
 	};
@@ -243,6 +261,7 @@ function customEmailsRow(activeCount: number): IntegrationRowViewModel {
 		statusKey: state,
 		statusLabel: state === "active" ? `${activeCount} active` : "Not set up",
 		statusModifier: `integrations__status--${state}`,
+		locks: [],
 		actions: [trackedAction({
 			key: "custom-emails",
 			method: "GET",
@@ -289,11 +308,13 @@ function aiAssistantRow(connectedClientIds: readonly OAuthClientId[]): Integrati
 		statusKey: state,
 		statusLabel: state === "active" ? `${connectedCount} connected` : "Not set up",
 		statusModifier: `integrations__status--${state}`,
+		locks: [],
 		actions: [trackedAction(AI_ASSISTANT_ACTIONS[state])],
 	};
 }
 
 export function toIntegrationsIndexViewModel(input: {
+	offer: UpgradeOffer | undefined;
 	connection: GmailConnection | undefined;
 	activeCustomEmailCount: number;
 	connectedClientIds: readonly OAuthClientId[];
@@ -305,7 +326,7 @@ export function toIntegrationsIndexViewModel(input: {
 	const notices = noticesFor(input.notice);
 	return {
 		services: [
-			input.canConnectGmail ? gmailRow(input.connection) : gmailUpgradeRow(input.connection),
+			input.canConnectGmail ? gmailRow(input.connection) : gmailUpgradeRow({ connection: input.connection, offer: input.offer }),
 			customEmailsRow(input.activeCustomEmailCount),
 			aiAssistantRow(input.connectedClientIds),
 		],

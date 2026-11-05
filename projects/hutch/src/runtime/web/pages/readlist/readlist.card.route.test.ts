@@ -396,7 +396,7 @@ describe("GET /queue/:id/card — the move item", () => {
 		).toHaveLength(0);
 	});
 
-	it("renders no move item for a read-only account", async () => {
+	it("renders the move lock instead of the move item for a read-only account", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		await createReadlist(agent, "Finance");
@@ -412,7 +412,7 @@ describe("GET /queue/:id/card — the move item", () => {
 
 		const polled = parse((await agent.get(`/queue/${articleId}/card?poll=2`)).text);
 
-		expect(menuControls(polled)).toEqual(["delete-fallback", "delete"]);
+		expect(menuControls(polled)).toEqual(["upgrade-open", "upgrade-fallback", "delete-fallback", "delete"]);
 	});
 
 	it("builds the move item from the memberships the article holds now", async () => {

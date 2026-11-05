@@ -19,6 +19,9 @@
                   {{#each setupActions}}
                   <button class="btn btn--neutral readlist-empty__cta" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="readlist-preferences-setup">Set up readlist</button>
                   {{/each}}
+                  {{#each setupLocks}}
+                  {{{this}}}
+                  {{/each}}
                 </div>
               </div>
               <div class="readlist-preferences__set">
@@ -34,6 +37,19 @@
                     <form class="readlist-preferences__menu-fallback" method="POST" action="{{url}}" hx-boost="false">
                       <button class="menu__item" type="submit" data-test-action="{{testAction}}">{{icon iconName}}<span>{{text}}</span></button>
                     </form>
+                    {{/each}}
+                  </div>
+                </details>
+                {{/each}}
+                {{#each lockedMenus}}
+                <details class="menu readlist-preferences__menu" data-test-preferences-menu data-test-menu-standing="locked">
+                  <summary class="menu__toggle" data-test-action="readlist-preferences-menu">
+                    {{icon "ellipsis"}}
+                    <span class="sr-only">More options for this purpose</span>
+                  </summary>
+                  <div class="menu__panel">
+                    {{#each menuLocks}}
+                    {{{this}}}
                     {{/each}}
                   </div>
                 </details>
@@ -60,5 +76,4 @@
       {{{readlistDeleteConfirmHtml}}}
       {{{wizardPopoverHtml}}}
       {{{purposeDeleteConfirmHtml}}}
-      {{{subscribePlansHtml}}}
     </main>

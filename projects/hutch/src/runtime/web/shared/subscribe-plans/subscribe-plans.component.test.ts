@@ -168,7 +168,7 @@ describe("renderSubscribePlansPopover", () => {
 				action: submit.getAttribute("data-test-action"),
 				label: submit.textContent,
 			})),
-		).toEqual([{ action: "subscribe-plans-submit", label: "Subscribe now" }]);
+		).toEqual([{ action: "subscribe-plans-submit", label: "Upgrade now" }]);
 	});
 
 	it("spends the one primary button on the commit", () => {
@@ -311,7 +311,7 @@ function focusTargets(scope: ParentNode): (string | null)[] {
 }
 
 describe("subscribe plans opening focus", () => {
-	it("opens the popover on Subscribe now, since a plan is already chosen", () => {
+	it("opens the popover on Upgrade now, since a plan is already chosen", () => {
 		const panel = panelFor().querySelector(`#${SUBSCRIBE_PLANS_POPOVER_ID}`);
 		assert(panel, "the plans popover must render");
 

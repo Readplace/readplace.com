@@ -1,0 +1,3 @@
+const NEEDS_UPGRADE_INNER = `{{icon "lock"}}<span class="needs-upgrade__label">{{label}}</span><span class="chip chip--badge needs-upgrade__chip">{{chipLabel}}</span>`;
+
+export const NEEDS_UPGRADE_TEMPLATE = `<button type="button" class="{{controlClass}} needs-upgrade needs-upgrade__trigger" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="upgrade-open" data-test-needs-upgrade="{{key}}">${NEEDS_UPGRADE_INNER}</button><a class="{{controlClass}} needs-upgrade needs-upgrade__fallback" href="{{fallbackHref}}" hx-boost="false" data-test-action="upgrade-fallback" data-test-needs-upgrade="{{key}}">${NEEDS_UPGRADE_INNER}</a>`;

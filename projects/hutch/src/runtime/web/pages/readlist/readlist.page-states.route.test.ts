@@ -441,7 +441,7 @@ describe("the subscription card", () => {
 		expect(reactivate.textContent).toBe("Reactivate subscription");
 	});
 
-	it("shows the inactive state and disables the save input for a cancelled user", async () => {
+	it("shows the inactive state and locks Add link for a cancelled user", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const userId = await loggedInUserId(harness);
@@ -457,9 +457,9 @@ describe("the subscription card", () => {
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "the subscription card must always be rendered");
 		expect(banner.classList.contains("readlist-subscription--inactive")).toBe(true);
-		const input = doc.querySelector('[data-test-form="save-article"] input[name="url"]');
-		assert(input, "the save input must always be rendered");
-		expect(input.hasAttribute("disabled")).toBe(true);
+		const lock = doc.querySelector('[data-test-add-link] [data-test-action="upgrade-open"]');
+		assert(lock, "the Add link slot must hold the lock");
+		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("add-link");
 	});
 
 	it("shows the none state for a founding member with no subscription row", async () => {

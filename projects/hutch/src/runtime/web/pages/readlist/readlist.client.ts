@@ -101,19 +101,19 @@ export function initReadlist(deps: ReadlistDeps): void {
 				hostField.focus({ preventScroll: true });
 				return;
 			}
-			const menus = deps.document.querySelectorAll(MENU_SELECTOR);
-			for (let i = 0; i < menus.length; i++) {
-				if (menus[i].querySelector(`[popovertarget="${dialog.id}"]`) === null) continue;
-				const summary = menus[i].querySelector<HTMLElement>("summary");
-				assert(summary, "every menu opens from its summary");
-				summary.focus({ preventScroll: true });
-				return;
-			}
 			const opener = openers.get(dialog.id);
 			const invoker = opener?.isConnected
 				? opener
 				: deps.document.querySelector<HTMLElement>(`[popovertarget="${dialog.id}"]`);
-			if (invoker !== null) invoker.focus({ preventScroll: true });
+			if (invoker === null) return;
+			const menu = invoker.closest(MENU_SELECTOR);
+			if (menu === null) {
+				invoker.focus({ preventScroll: true });
+				return;
+			}
+			const summary = menu.querySelector<HTMLElement>("summary");
+			assert(summary, "every menu opens from its summary");
+			summary.focus({ preventScroll: true });
 		},
 		true,
 	);

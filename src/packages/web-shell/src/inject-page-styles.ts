@@ -14,6 +14,12 @@ import type { CspNonce } from "./csp-nonce.middleware";
  * tool only for untrusted markup crossing a network boundary; this is trusted
  * server markup whose escaping must survive byte-for-byte. Do not restore parseHTML.
  */
+export function injectSiteDialogIntoMain(input: { content: string; html: string }): string {
+	const updated = input.content.replace(/<main(?=[\s/>])[^>]*>/i, (mainTag) => mainTag + input.html);
+	assert(updated !== input.content, "PageBody.content must contain a <main> element when a site dialog is provided");
+	return updated;
+}
+
 export function injectPageStylesIntoMain(input: {
 	content: string;
 	styles: string;

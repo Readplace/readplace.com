@@ -1,10 +1,24 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SaveableUrlErrorCode } from "@packages/domain/article";
-import { type AlertContent, render, renderAlert, renderConfirmPopover, withInternalTracking } from "@packages/web-shell";
+import {
+	type AlertContent,
+	render,
+	renderAlert,
+	renderConfirmPopover,
+	renderNeedsUpgrade,
+	withInternalTracking,
+} from "@packages/web-shell";
 import type { SaveTipState } from "../../shared/save-tip/save-tip";
 import type { SaveTip } from "../../shared/save-tip/save-tip.component";
 import type { ComponentError } from "../../shared/component-error.types";
+import {
+	type UpgradeOffer,
+	type UpgradeStanding,
+	lockFor,
+	standingOf,
+} from "../../shared/upgrade-offer/upgrade-offer";
 import { DEFAULT_READLIST } from "./readlist.nav";
 import { READLIST_SAVE_PATH, readlistReturnQuery, type ReadlistUrlState } from "./readlist.url";
 import type { ImportSkippedViewModel } from "./readlist.viewmodel";
@@ -75,6 +89,7 @@ export const NO_ADD_LINK: ReadlistAddLink = { controlHtml: "", dialogHtml: "", p
 export function renderReadlistAddLink(input: {
 	filters: ReadlistUrlState;
 	accessIsReadOnly: boolean;
+	offer: UpgradeOffer | undefined;
 	saveTip: SaveTip;
 	saveUrl?: string;
 }): ReadlistAddLink {
@@ -97,8 +112,11 @@ export function renderReadlistAddLink(input: {
 			}),
 		};
 	}
-	return {
-		controlHtml: render(CONTROL_TEMPLATE, { action, accessIsReadOnly: input.accessIsReadOnly }),
+	const formControl = (): ReadlistAddLink => ({
+		controlHtml: render(CONTROL_TEMPLATE, {
+			locks: [],
+			forms: [{ action, accessIsReadOnly: input.accessIsReadOnly }],
+		}),
 		dialogHtml: renderConfirmPopover({
 			id: ADD_LINK_POPOVER_ID,
 			key: ADD_LINK_POPOVER_ID,
@@ -107,7 +125,28 @@ export function renderReadlistAddLink(input: {
 			actionsHtml: `${form({ value: "", autoSubmit: false, autofocus: true })}\n${input.saveTip.html}`,
 		}),
 		pendingHtml: "",
+	});
+	const controlByStanding: Record<UpgradeStanding, () => ReadlistAddLink> = {
+		open: formControl,
+		withheld: formControl,
+		"needs-upgrade": () => {
+			const lock = lockFor({
+				offer: input.offer,
+				gated: input.accessIsReadOnly,
+				key: "add-link",
+				label: ADD_LINK_TITLE,
+				controlClass: "btn btn--neutral btn--s",
+				source: "queue-add-link",
+			});
+			assert(lock, "a reader who needs an upgrade must be offered the Add link lock");
+			return {
+				controlHtml: render(CONTROL_TEMPLATE, { locks: [renderNeedsUpgrade(lock)], forms: [] }),
+				dialogHtml: "",
+				pendingHtml: "",
+			};
+		},
 	};
+	return controlByStanding[standingOf({ gated: input.accessIsReadOnly, offer: input.offer })]();
 }
 
 interface FeedbackItem {

@@ -9,6 +9,9 @@
     {{/each}}
     {{#each prompts}}
     <p class="readlist-gmail__note" data-test-gmail-senders-prompt>{{message}}</p>
+    {{#each locks}}
+    <div class="readlist-gmail__action">{{{this}}}</div>
+    {{/each}}
     {{#each actions}}
     <form class="readlist-gmail__action" method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
       {{#each fields}}

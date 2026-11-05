@@ -23,6 +23,7 @@ import {
 } from "@packages/domain/readlist";
 import type { UserId } from "@packages/domain/user";
 import { INTEGRATIONS_PATH } from "./gmail-connect.url";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { type GmailConnectionPrompt, gmailConnectionPrompt } from "./gmail-connection-prompt";
 import { GMAIL_DELIVERY_COPY } from "./gmail-delivery-copy";
 import { type FormField, gmailBodyFields, gmailGetFields, trackGmail } from "./gmail-form-fields";
@@ -61,6 +62,7 @@ export interface GmailNoticeViewModel extends GmailBannerViewModel { variant: Al
 export interface GmailPageInput {
 	userId: UserId;
 	canConnectGmail: boolean;
+	offer: UpgradeOffer | undefined;
 	connection: GmailConnection;
 	senders: readonly GmailMapping[];
 	destinations: ReadonlyMap<string, InboxAddressEntry>;
@@ -576,11 +578,13 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 			canConnectGmail: input.canConnectGmail,
 			message: "Google ended the connection. Reconnect to keep forwarding newsletters.",
 			content: "reconnect", label: "Reconnect Gmail", variant: "primary", fields: [],
+			lock: { offer: input.offer, controlClass: "btn btn--primary" },
 		}),
 		metadataReconnect: gmailConnectionPrompt({
 			canConnectGmail: input.canConnectGmail,
 			message: "Reconnect Gmail to choose senders from your mailbox. The newsletters you set up stay in place.",
 			content: "grant-sender-access", label: "Reconnect Gmail", variant: commitVariant, fields: [],
+			lock: { offer: input.offer, controlClass: `btn btn--${commitVariant}` },
 		}),
 		showStep,
 		showSenders,
@@ -594,6 +598,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		notificationSender: notified,
 		status: toGmailSenderStatus({
 			canConnectGmail: input.canConnectGmail,
+			offer: input.offer,
 			discovery: input.discovery,
 			discoveredCount: input.discoveredSenders.length,
 			discoveryStarted: input.discoveryStarted,
@@ -618,6 +623,7 @@ export function toGmailPageViewModel(input: GmailPageInput): GmailPageViewModel 
 		mappings: toGmailMappingsViewModel({
 			userId: input.userId,
 			canConnectGmail: input.canConnectGmail,
+			offer: input.offer,
 			connection: input.connection,
 			senders: input.senders,
 			destinations: input.destinations,

@@ -140,15 +140,20 @@
   background: var(--muted);
 }
 
-.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn {
+.integrations__item .needs-upgrade {
+  position: relative;
+  z-index: 1;
+}
+
+.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn:not(.needs-upgrade) {
   position: static;
 }
 
-.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn::before {
+.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn:not(.needs-upgrade)::before {
   display: none;
 }
 
-.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn::after {
+.integrations__item:not(:has(.integrations__action ~ .integrations__action)) .btn:not(.needs-upgrade)::after {
   content: "";
   position: absolute;
   inset: 0;

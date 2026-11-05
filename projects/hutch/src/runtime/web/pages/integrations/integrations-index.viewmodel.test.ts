@@ -1,3 +1,4 @@
+import { parseHTML } from "linkedom";
 import assert from "node:assert/strict";
 import type { GmailConnection } from "@packages/domain/gmail";
 import { CUSTOM_EMAILS_PATH, InboxAddressSchema } from "@packages/domain/inbox";
@@ -31,16 +32,17 @@ function connection(overrides: Partial<GmailConnection> = {}): GmailConnection {
 
 type IndexInput = Parameters<typeof toIntegrationsIndexViewModel>[0];
 
-type GmailIndexInput = Omit<IndexInput, "activeCustomEmailCount" | "canConnectGmail" | "connectedClientIds"> & { canConnectGmail?: boolean };
+type GmailIndexInput = Omit<IndexInput, "activeCustomEmailCount" | "canConnectGmail" | "connectedClientIds" | "offer"> & { canConnectGmail?: boolean; offer?: IndexInput["offer"] };
 
 function indexViewModel(input: GmailIndexInput) {
-	return toIntegrationsIndexViewModel({ canConnectGmail: true, ...input, activeCustomEmailCount: 0, connectedClientIds: [] });
+	return toIntegrationsIndexViewModel({ offer: undefined, canConnectGmail: true, ...input, activeCustomEmailCount: 0, connectedClientIds: [] });
 }
 
 function aiAssistantRow(connectedClientIds: string[]) {
 	const row = toIntegrationsIndexViewModel({
 		connection: undefined,
 		activeCustomEmailCount: 0,
+		offer: undefined,
 		canConnectGmail: true,
 		connectedClientIds: connectedClientIds.map((id) => OAuthClientIdSchema.parse(id)),
 	}).services.find((s) => s.key === "ai-assistant");
@@ -121,7 +123,7 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it("counts the active custom emails and links to manage them", () => {
-		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 2, canConnectGmail: true, connectedClientIds: [] })
+		const customEmails = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 2, canConnectGmail: true, connectedClientIds: [] })
 			.services.find((s) => s.key === "custom-emails");
 		assert(customEmails, "the Custom Emails row is always present");
 
@@ -141,7 +143,7 @@ describe("toIntegrationsIndexViewModel", () => {
 	});
 
 	it("shows custom emails as not set up while none is active", () => {
-		const customEmails = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0, canConnectGmail: true, connectedClientIds: [] })
+		const customEmails = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 0, canConnectGmail: true, connectedClientIds: [] })
 			.services.find((s) => s.key === "custom-emails");
 		assert(customEmails, "the Custom Emails row is always present");
 
@@ -170,7 +172,7 @@ describe("toIntegrationsIndexViewModel", () => {
 		["a reader who may connect", true],
 		["a reader who must upgrade first", false],
 	])("tags Gmail as beta and Custom Emails as not for %s", (_reader, canConnectGmail) => {
-		const vm = toIntegrationsIndexViewModel({ connection: undefined, activeCustomEmailCount: 0, canConnectGmail, connectedClientIds: [] });
+		const vm = toIntegrationsIndexViewModel({ offer: undefined, connection: undefined, activeCustomEmailCount: 0, canConnectGmail, connectedClientIds: [] });
 
 		assert.deepEqual(
 			vm.services.map((s) => [s.key, s.beta]),
@@ -200,6 +202,47 @@ describe("toIntegrationsIndexViewModel", () => {
 			trackContent: "upgrade-gmail",
 		});
 		assert.deepEqual(gmail.actions.slice(1).map((action) => action.variant), actions.slice(1).map(() => "secondary"));
+	});
+
+	it.each([
+		[undefined, []],
+		[connection({ revokedAt: "2026-08-27T01:00:00.000Z", revokedReason: "invalid-grant" }), ["manage"]],
+		[connection(), ["finish-setup"]],
+		[connection({ forwardingConfirmedAt: "2026-08-27T00:05:00.000Z" }), ["manage"]],
+	])("locks Connect Gmail for a reader who can upgrade, keeping setup and management for connection %j", (existing, actions) => {
+		const gmail = gmailRow({
+			connection: existing,
+			canConnectGmail: false,
+			offer: { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" },
+		});
+
+		assert.equal(gmail.description, "Gmail integration is only available with an active paid subscription.");
+		assert.deepEqual(gmail.actions.map((action) => [action.key, action.variant]), actions.map((key) => [key, "secondary"]));
+		assert.equal(gmail.locks.length, 1);
+		const lock = parseHTML(`<div>${gmail.locks[0]}</div>`).document;
+		const trigger = lock.querySelector('[data-test-action="upgrade-open"]');
+		assert(trigger);
+		assert.equal(trigger.getAttribute("data-test-needs-upgrade"), "connect-gmail");
+		assert.equal(trigger.getAttribute("popovertarget"), "subscribe-plans");
+		assert.equal(trigger.querySelector(".needs-upgrade__label")?.textContent, "Connect Gmail");
+		assert.equal(trigger.classList.contains("btn--primary"), true);
+		assert.equal(trigger.classList.contains("btn--s"), true);
+		assert.equal(
+			lock.querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href"),
+			"/account/plans?utm_source=connectors&utm_medium=internal&utm_content=upgrade-connect-gmail",
+		);
+	});
+
+	it("carries no lock on a row the reader may act on", () => {
+		const vm = toIntegrationsIndexViewModel({
+			connection: undefined,
+			activeCustomEmailCount: 0,
+			connectedClientIds: [],
+			canConnectGmail: true,
+			offer: { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" },
+		});
+
+		assert.deepEqual(vm.services.map((service) => service.locks), [[], [], []]);
 	});
 
 	it("sends an unconfirmed connection to step 2 as the pressing action", () => {

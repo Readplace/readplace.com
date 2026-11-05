@@ -4,7 +4,7 @@ import {
 	PRICING_PANELS,
 	PRICING_PLANS,
 	STATED_PRICING_PANELS,
-	SUBSCRIBE_CTA_LABEL,
+	UPGRADE_CTA_LABEL,
 } from "./pricing";
 
 describe("PRICING_PLANS", () => {
@@ -144,8 +144,8 @@ describe("STATED_PRICING_PANELS", () => {
 	});
 });
 
-describe("SUBSCRIBE_CTA_LABEL", () => {
+describe("UPGRADE_CTA_LABEL", () => {
 	it("names the action and leaves the price to the sentence beside it", () => {
-		expect(SUBSCRIBE_CTA_LABEL).toBe("Subscribe");
+		expect(UPGRADE_CTA_LABEL).toBe("Upgrade");
 	});
 });

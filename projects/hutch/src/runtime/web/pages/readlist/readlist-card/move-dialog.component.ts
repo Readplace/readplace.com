@@ -97,6 +97,10 @@ function moveAction(move: ArticleMoveViewModel): string {
 	return withInternalTracking(move.url, { source: "queue-card", content: "move" });
 }
 
+export function moveItemLabel(mode: ArticleMoveViewModel["mode"]): string {
+	return MOVE_COPY[mode].itemLabel;
+}
+
 function renderMoveDialog(move: ArticleMoveViewModel, title: string): string {
 	const copy = MOVE_COPY[move.mode];
 	return renderConfirmPopover({

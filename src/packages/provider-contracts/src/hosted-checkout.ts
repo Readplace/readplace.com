@@ -41,6 +41,8 @@ export const SUBSCRIBE_PLANS_SOURCES = [
 	"keep-panel",
 	"day3-email",
 	"day7-email",
+	"header-nav",
+	"connectors",
 ] as const;
 
 export const SubscribePlansSourceSchema = z.enum(SUBSCRIBE_PLANS_SOURCES);

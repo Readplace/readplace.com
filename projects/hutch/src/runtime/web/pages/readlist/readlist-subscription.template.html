@@ -13,8 +13,10 @@
     {{/each}}
   </dl>
   <span class="sr-only" data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</span>
-  <button class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
-  <a class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{subscribeCtaLabel}}</a>
+  {{#each upgradeCtas}}
+  <button class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{label}}</button>
+  <a class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='subscribe'}}" data-test-action="subscribe">{{label}}</a>
+  {{/each}}
   <p class="readlist-subscription__note" data-test-price-statement>{{priceStatement}} Cancel anytime.</p>
   <p class="readlist-subscription__note" data-test-saves-stay>{{savesStayStatement}}</p>
   {{/if}}
@@ -27,10 +29,12 @@
   {{#if isInactive}}
   <span class="chip chip--status chip--error" data-test-subscription-chip="inactive">Subscription inactive</span>
   <h2 class="readlist-subscription__title">Your subscription has ended</h2>
-  <p class="readlist-subscription__body" data-test-banner-message>Your saved articles are still here. Subscribe again to regain full access to Readplace.</p>
+  <p class="readlist-subscription__body" data-test-banner-message>Your saved articles are still here. Upgrade to regain full access to Readplace.</p>
   <p class="readlist-subscription__note readlist-subscription__note--start" data-test-price-statement>{{renewalPrices}}</p>
   <p class="readlist-subscription__note readlist-subscription__note--start" data-test-saves-stay>{{savesStayStatement}}</p>
-  <button class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{subscribePlansPopoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{subscribeCtaLabel}}</button>
-  <a class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{subscribeCtaLabel}}</a>
+  {{#each upgradeCtas}}
+  <button class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__trigger" type="button" popovertarget="{{popoverId}}" aria-haspopup="dialog" data-test-action="subscribe-plans-open">{{label}}</button>
+  <a class="btn btn--primary btn--m readlist-subscription__cta subscribe-plans__fallback" href="{{track '/account' source='queue-banner' content='resubscribe'}}" data-test-action="resubscribe">{{label}}</a>
+  {{/each}}
   {{/if}}
 </aside>

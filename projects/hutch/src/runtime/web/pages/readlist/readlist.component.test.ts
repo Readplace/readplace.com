@@ -24,6 +24,7 @@ const RAIL: ReadlistRailViewModel = {
 	limitAlertHref: "/queue?queue_error=limit",
 	canEdit: true,
 	canCreate: true,
+	offer: undefined,
 	nonEmptyReadlists: [],
 };
 const DEFAULT_FILTERS: ReadlistUrlState = { readlist: DEFAULT_READLIST_SLUG, tab: "queue", page: 1 };
@@ -40,6 +41,7 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
 	deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
+	moveLocks: [],
 	markStatusConfirm: {
 		articleId: "abc123",
 		popoverId: markStatusConfirmPopoverId("abc123"),
@@ -68,6 +70,7 @@ const PLAIN_ARTICLE: ReadlistArticleViewModel = {
 	saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 	actions: [],
 	deletion: buildArticleDeletion({ articleId: "def456", query: "", acknowledged: true }),
+	moveLocks: [],
 	readerHref: "/queue/def456/view",
 	isStalePending: false,
 	kind: undefined,
@@ -800,49 +803,6 @@ describe("ReadlistPage", () => {
 		const pager = doc.querySelector("[data-test-pagination]");
 		assert(pager, "the pager must always render");
 		expect(pager.classList.contains("pagination--hidden")).toBe(true);
-	});
-
-	it("offers the subscribe-plans popover during a trial countdown", () => {
-		const doc = pageDoc({
-			subscriptionBanner: {
-				state: "trial-countdown",
-				daysLeft: 2,
-				daysLeftWord: "days",
-				remaining: { days: 2, hours: 0, minutes: 0, seconds: 0, totalMs: 0 },
-				checkedPlan: "yearly",
-			},
-		});
-
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
-	});
-
-	it("withholds the subscribe-plans popover while the trial shows only its status line", () => {
-		const doc = pageDoc({ subscriptionBanner: { state: "trial-status", daysLeft: 12, daysLeftWord: "days" } });
-
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(0);
-	});
-
-	it("offers the subscribe-plans popover once the subscription has gone inactive", () => {
-		const doc = pageDoc({ subscriptionBanner: { state: "inactive", checkedPlan: "yearly" } });
-
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
-	});
-
-	it("withholds the subscribe-plans popover during a scheduled cancellation", () => {
-		const doc = pageDoc({
-			subscriptionBanner: {
-				state: "cancellation-scheduled",
-				cancellationEffectiveAt: { iso: "2026-01-15T00:00:00.000Z", label: "Jan 15, 2026", mode: "date" },
-			},
-		});
-
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(0);
-	});
-
-	it("withholds the subscribe-plans popover when the subscription needs no attention", () => {
-		const doc = pageDoc({ subscriptionBanner: { state: "none" } });
-
-		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(0);
 	});
 
 	it("illustrates the article delete confirmation and the readlist delete confirmation with the trash can", () => {

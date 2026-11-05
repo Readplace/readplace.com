@@ -3,6 +3,7 @@ import { PRICING_PLANS, toAbsoluteDate } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import { PRICE_STATEMENT, RENEWAL_PRICES, SAVES_STAY_STATEMENT } from "../../price-statement";
 import { SUBSCRIBE_PLANS_POPOVER_ID } from "../../shared/subscribe-plans/subscribe-plans.component";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import type { SubscriptionBannerState } from "./readlist.viewmodel";
 import {
 	renderReadlistSubscription,
@@ -11,12 +12,17 @@ import {
 
 const CANCELLATION_EFFECTIVE_AT = toAbsoluteDate({ iso: "2026-01-15T00:00:00.000Z" });
 
+const OFFER: UpgradeOffer = {
+	popoverId: SUBSCRIBE_PLANS_POPOVER_ID,
+	plansPath: "/account/plans",
+	checkedPlan: "yearly",
+};
 const TRIAL_BANNER: SubscriptionBannerState = {
 	state: "trial-countdown",
 	daysLeft: 3,
 	daysLeftWord: "days",
 	remaining: { days: 3, hours: 4, minutes: 5, seconds: 6, totalMs: 271_506_000 },
-	checkedPlan: "yearly",
+	upgradeOffer: OFFER,
 };
 const TRIAL_STATUS_BANNER: SubscriptionBannerState = {
 	state: "trial-status",
@@ -27,7 +33,7 @@ const CANCELLATION_BANNER: SubscriptionBannerState = {
 	state: "cancellation-scheduled",
 	cancellationEffectiveAt: CANCELLATION_EFFECTIVE_AT,
 };
-const INACTIVE_BANNER: SubscriptionBannerState = { state: "inactive", checkedPlan: "yearly" };
+const INACTIVE_BANNER: SubscriptionBannerState = { state: "inactive", upgradeOffer: OFFER };
 const NONE_BANNER: SubscriptionBannerState = { state: "none" };
 
 function display(banner: SubscriptionBannerState): Document {
@@ -105,9 +111,19 @@ describe("toReadlistSubscriptionDisplayModel / renderReadlistSubscription", () =
 		assert(trigger, "the subscribe-plans trigger must render during a trial countdown");
 		assert(fallback, "the plain-link fallback must render during a trial countdown");
 		expect(trigger.getAttribute("popovertarget")).toBe(SUBSCRIBE_PLANS_POPOVER_ID);
-		expect(trigger.textContent).toBe("Subscribe");
-		expect(fallback.textContent).toBe("Subscribe");
+		expect(trigger.textContent).toBe("Upgrade");
+		expect(fallback.textContent).toBe("Upgrade");
 		expect(fallback.getAttribute("href")).toContain("/account");
+	});
+
+	it.each([
+		{ state: "trial countdown", noOffer: { ...TRIAL_BANNER, upgradeOffer: undefined } },
+		{ state: "inactive", noOffer: { ...INACTIVE_BANNER, upgradeOffer: undefined } },
+	])("renders no plan-chooser action on the $state banner where no offer may be shown", ({ noOffer }) => {
+		const doc = display(noOffer);
+
+		expect(doc.querySelector('[data-test-action="subscribe-plans-open"]')).toBeNull();
+		expect(doc.querySelector(".subscribe-plans__fallback")).toBeNull();
 	});
 
 	it("classes the banner for a scheduled cancellation and shows the effective date as a chip and in the body", () => {

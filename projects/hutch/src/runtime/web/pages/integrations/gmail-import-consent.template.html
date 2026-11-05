@@ -1,5 +1,8 @@
 <div class="gmail-mappings__consent" data-test-gmail-import-consent>
                   <p class="gmail-mappings__consent-copy">{{message}}</p>
+                  {{#each locks}}
+                  {{{this}}}
+                  {{/each}}
                   {{#each actions}}
                   <form method="{{method}}" action="{{action}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
                     {{#each fields}}

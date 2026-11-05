@@ -102,4 +102,4 @@ export const STATED_PRICING_PANELS: readonly PricingPanel[] = PRICING_PANELS.fil
 	(panel) => panel.key !== "triennial",
 );
 
-export const SUBSCRIBE_CTA_LABEL = "Subscribe";
+export const UPGRADE_CTA_LABEL = "Upgrade";

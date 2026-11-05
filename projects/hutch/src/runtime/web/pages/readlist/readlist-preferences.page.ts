@@ -48,6 +48,7 @@ import { ReadlistPreferencesPage, renderReadlistPurposeWizard } from "./readlist
 import { buildReadlistRail } from "./readlist-rail";
 import { READLIST_ERROR_UNKNOWN_READLIST, READLIST_PURPOSE_INVALID_MESSAGE } from "./readlist.error";
 import { buildReadlistUrl, readlistPreferencesPath } from "./readlist.url";
+import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { toSubscriptionBannerState } from "./readlist.viewmodel";
 
 const PREFERENCES_ERROR_CODES = [
@@ -141,12 +142,13 @@ export function initReadlistPreferencesRoutes(deps: {
 			deps.listReadlistFitOverrides({ userId, readlist: definition.slug }),
 			loadGmailSenders === undefined
 				? undefined
-				: accessPromise.then(() =>
+				: accessPromise.then((resolved) =>
 					loadGmailSenders({
 						userId,
 						readlist: { slug: definition.slug, label: definition.label, purpose: definition.purpose },
 						readlists,
 						query: req.query,
+						offer: upgradeOfferFor({ req, access: resolved }),
 					}),
 				),
 		]);
@@ -168,6 +170,8 @@ export function initReadlistPreferencesRoutes(deps: {
 		const error: PreferencesError =
 			parsed.preferences_error === undefined ? {} : PREFERENCES_ERRORS[parsed.preferences_error];
 
+		const offer = upgradeOfferFor({ req, access });
+
 		sendComponent(
 			req,
 			res,
@@ -177,6 +181,7 @@ export function initReadlistPreferencesRoutes(deps: {
 					rail: buildReadlistRail({
 						context,
 						accessIsReadOnly,
+						offer,
 						nonEmptyReadlists,
 					}),
 					values: { purpose: draft ?? definition.purpose },
@@ -186,13 +191,13 @@ export function initReadlistPreferencesRoutes(deps: {
 					gmailSenders,
 					choices,
 					accessIsReadOnly,
-					subscriptionBanner: toSubscriptionBannerState(access, deps.now()),
+					subscriptionBanner: toSubscriptionBannerState(access, deps.now(), offer),
 					onboarding,
 					query: req.query,
 					purposeError: error.purposeError,
 					cspNonce: requireCspNonce(req),
 				}),
-				await deps.buildBannerState(req, { preFetchedAccess: access }),
+				await deps.buildBannerState(req, { preFetchedAccess: access, upgradeSource: "queue-preferences-banner" }),
 			),
 		);
 	});

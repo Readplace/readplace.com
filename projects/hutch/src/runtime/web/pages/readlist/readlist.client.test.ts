@@ -24,6 +24,15 @@ function dialogsMarkup(): string {
 	`;
 }
 
+function lockedMenusMarkup(): string {
+	return `
+		<details class="menu readlist-nav__menu" data-test-readlist-menu="first"><summary class="menu__toggle">Options</summary><div class="menu__panel"><button class="menu__item" type="button" popovertarget="subscribe-plans">Rename</button></div></details>
+		<details class="menu readlist-nav__menu" open data-test-readlist-menu="second"><summary class="menu__toggle">Options</summary><div class="menu__panel"><button class="menu__item" type="button" popovertarget="subscribe-plans" data-test-menu-lock>Rename</button></div></details>
+		<button type="button" popovertarget="subscribe-plans" data-test-page-lock>Add link</button>
+		<div id="subscribe-plans" popover data-test-dialog="plans"><button type="button">Cancel</button></div>
+	`;
+}
+
 const LIVE_REGION = `<div id="toast-live-region" role="status" aria-live="polite"></div>`;
 
 function renameDialogMarkup(): string {
@@ -475,6 +484,30 @@ describe("initReadlist", () => {
 		app.closeDialog("row");
 
 		expect(app.activeElement()).toBe(second);
+	});
+
+	it("returns focus to a trigger outside every menu when locked menus hold triggers for the same dialog", () => {
+		const app = init(lockedMenusMarkup());
+		const trigger = app.document.querySelector<HTMLElement>("[data-test-page-lock]");
+		assert(trigger, "the trigger outside the menus must render");
+
+		trigger.click();
+		app.closeDialog("plans");
+
+		expect(app.activeElement()).toBe(trigger);
+	});
+
+	it("returns focus to the summary of the menu whose locked item opened the dialog, not the first menu holding one", () => {
+		const app = init(lockedMenusMarkup());
+		const trigger = app.document.querySelector<HTMLElement>("[data-test-menu-lock]");
+		const summary = app.document.querySelector<HTMLElement>('[data-test-readlist-menu="second"] summary');
+		assert(trigger, "the locked menu item must render");
+		assert(summary, "the second menu must open from its summary");
+
+		trigger.click();
+		app.closeDialog("plans");
+
+		expect(app.activeElement()).toBe(summary);
 	});
 
 	it("falls back to the first trigger when the one that opened the dialog has left the page", () => {

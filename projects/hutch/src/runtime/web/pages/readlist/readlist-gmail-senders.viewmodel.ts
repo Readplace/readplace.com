@@ -22,7 +22,7 @@ import type { UserId } from "@packages/domain/user";
 import { withInternalTracking } from "@packages/web-shell";
 import type { GmailConnectDisclaimerAction } from "../integrations/gmail-connect-disclaimer.component";
 import { GMAIL_CONNECT_PATH } from "../integrations/gmail-connect.url";
-import { buildGmailConnectionPrompt, type GmailConnectionPrompt } from "../integrations/gmail-connection-prompt";
+import { buildLockableGmailConnectionPrompt, type GmailConnectionPrompt } from "../integrations/gmail-connection-prompt";
 import type { FormField } from "../integrations/gmail-form-fields";
 import {
 	GMAIL_WAITING_CONFIRMATION_MESSAGE,
@@ -51,6 +51,7 @@ import type { GmailChecklistView, GmailSenderWidgetViewModel } from "../integrat
 import { GMAIL_PATH } from "../integrations/gmail.url";
 import { GMAIL_CONFIRM_FAILED_MESSAGES } from "../integrations/gmail.viewmodel";
 import { GMAIL_CONNECT_DISCLAIMER_ID } from "../integrations/integrations-index.viewmodel";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import {
 	buildReadlistGmailUrl,
 	READLIST_GMAIL_SELECTION_PARAM,
@@ -83,6 +84,7 @@ export interface ReadlistGmailSectionStateInput {
 
 export interface ReadlistGmailSendersInput extends ReadlistGmailSectionStateInput {
 	userId: UserId;
+	offer: UpgradeOffer | undefined;
 	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	readlists: readonly ReadlistRef[];
 	discoveredSenders: readonly DiscoveredGmailSender[];
@@ -347,6 +349,7 @@ function toPicker(input: ReadlistGmailSendersInput): ReadlistGmailPickerViewMode
 		senderPicker: { open: input.selection.search !== "", searchAutofocus: false },
 		search: input.selection.search,
 		status: toGmailSenderStatus({
+			offer: input.offer,
 			canConnectGmail: input.canConnectGmail,
 			discovery: sameMailboxDiscovery({ discovery: input.discovery, connection }) ?? IDLE_DISCOVERY,
 			discoveredCount: input.discoveredSenders.length,
@@ -394,10 +397,14 @@ function connectedOf(input: ReadlistGmailSendersInput): GmailConnection {
 	return input.connection;
 }
 
+function promptLock(input: ReadlistGmailSendersInput): { offer: UpgradeOffer | undefined; controlClass: string } {
+	return { offer: input.offer, controlClass: "btn btn--primary btn--m" };
+}
+
 const SECTION_VIEW: Record<ReadlistGmailSectionState, (input: ReadlistGmailSendersInput) => SectionView> = {
-	upgrade: () => ({
+	upgrade: (input) => ({
 		...NO_VIEW,
-		prompt: buildGmailConnectionPrompt({ canConnectGmail: false, message: "", content: "connect-gmail", label: "Connect Gmail", variant: "primary", fields: [], track }),
+		prompt: buildLockableGmailConnectionPrompt({ canConnectGmail: false, message: "", content: "connect-gmail", label: "Connect Gmail", variant: "primary", fields: [], track, lock: promptLock(input) }),
 	}),
 	connect: () => ({
 		...NO_VIEW,
@@ -410,15 +417,15 @@ const SECTION_VIEW: Record<ReadlistGmailSectionState, (input: ReadlistGmailSende
 	reconnect: (input) => ({
 		...NO_VIEW,
 		prompt: connectedOf(input).revokedAt === undefined
-			? buildGmailConnectionPrompt({
+			? buildLockableGmailConnectionPrompt({
 				canConnectGmail: input.canConnectGmail,
 				message: "Reconnect Gmail to choose senders from your mailbox. The newsletters you set up stay in place.",
-				content: "grant-sender-access", label: "Reconnect Gmail", variant: "primary", fields: [], track,
+				content: "grant-sender-access", label: "Reconnect Gmail", variant: "primary", fields: [], track, lock: promptLock(input),
 			})
-			: buildGmailConnectionPrompt({
+			: buildLockableGmailConnectionPrompt({
 				canConnectGmail: input.canConnectGmail,
 				message: "Google ended the connection. Reconnect to keep forwarding newsletters.",
-				content: "reconnect", label: "Reconnect Gmail", variant: "primary", fields: [], track,
+				content: "reconnect", label: "Reconnect Gmail", variant: "primary", fields: [], track, lock: promptLock(input),
 			}),
 	}),
 	awaiting: (input) => {

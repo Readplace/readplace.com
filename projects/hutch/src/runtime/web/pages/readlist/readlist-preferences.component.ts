@@ -13,7 +13,7 @@ import {
 import type { AlertContent, CspNonce, PageBody } from "@packages/web-shell";
 
 import { ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
-import { SUBSCRIBE_PLANS_STYLES } from "../../shared/subscribe-plans/subscribe-plans.component";
+import { type UpgradeOffer, renderedLockFor, standingOf } from "../../shared/upgrade-offer/upgrade-offer";
 import { WIZARD_STYLES, type WizardRender, renderWizard } from "../../shared/wizard/wizard.component";
 import type { WizardHeading } from "../../shared/wizard/wizard.types";
 import { GMAIL_SENDER_WIDGET_STYLES } from "../integrations/gmail.styles";
@@ -105,12 +105,16 @@ interface PanelControls {
 	inlineWizards: readonly string[];
 	wizardPopoverHtml: string;
 	purposeDeleteConfirmHtml: string;
+	setupLocks: readonly string[];
+	lockedMenus: readonly { menuLocks: readonly string[] }[];
 }
 
 interface PanelControlsInput {
 	readlist: { slug: ReadlistSlug; label: string };
 	wizard: WizardRender;
 	wizardOpenClasses: readonly string[];
+	state: PurposeState;
+	offer: UpgradeOffer | undefined;
 }
 
 function purposeMenu(input: PanelControlsInput): PurposeMenu {
@@ -143,7 +147,30 @@ function purposeMenu(input: PanelControlsInput): PurposeMenu {
 	};
 }
 
-const PANEL_CONTROLS: Record<PurposeState | "read-only", (input: PanelControlsInput) => PanelControls> = {
+const PURPOSE_LOCKS: Record<PurposeState, (offer: UpgradeOffer | undefined) => Pick<PanelControls, "setupLocks" | "lockedMenus">> = {
+	unset: (offer) => ({
+		setupLocks: renderedLockFor({
+			offer,
+			gated: true,
+			key: "set-up-readlist",
+			label: "Set up readlist",
+			controlClass: "btn btn--neutral readlist-empty__cta",
+			source: PREFERENCES_SOURCE,
+		}),
+		lockedMenus: [],
+	}),
+	set: (offer) => ({
+		setupLocks: [],
+		lockedMenus: [{
+			menuLocks: [
+				...renderedLockFor({ offer, gated: true, key: "edit-purpose", label: "Edit", controlClass: "menu__item", source: PREFERENCES_SOURCE }),
+				...renderedLockFor({ offer, gated: true, key: "delete-purpose", label: "Delete", controlClass: "menu__item", source: PREFERENCES_SOURCE }),
+			],
+		}],
+	}),
+};
+
+const PANEL_CONTROLS: Record<PurposeState | "needs-upgrade" | "withheld", (input: PanelControlsInput) => PanelControls> = {
 	unset: (input) => ({
 		modifierClasses: input.wizardOpenClasses,
 		setupActions: [{ popoverId: READLIST_PREFERENCES_WIZARD_ID }],
@@ -151,6 +178,8 @@ const PANEL_CONTROLS: Record<PurposeState | "read-only", (input: PanelControlsIn
 		inlineWizards: [input.wizard.inlineHtml],
 		wizardPopoverHtml: input.wizard.popoverHtml,
 		purposeDeleteConfirmHtml: "",
+		setupLocks: [],
+		lockedMenus: [],
 	}),
 	set: (input) => ({
 		modifierClasses: input.wizardOpenClasses,
@@ -165,14 +194,27 @@ const PANEL_CONTROLS: Record<PurposeState | "read-only", (input: PanelControlsIn
 				{ source: PREFERENCES_SOURCE, content: "delete-purpose" },
 			),
 		}),
+		setupLocks: [],
+		lockedMenus: [],
 	}),
-	"read-only": () => ({
+	"needs-upgrade": (input) => ({
 		modifierClasses: [READ_ONLY_CLASS],
 		setupActions: [],
 		menus: [],
 		inlineWizards: [],
 		wizardPopoverHtml: "",
 		purposeDeleteConfirmHtml: "",
+		...PURPOSE_LOCKS[input.state](input.offer),
+	}),
+	withheld: () => ({
+		modifierClasses: [READ_ONLY_CLASS],
+		setupActions: [],
+		menus: [],
+		inlineWizards: [],
+		wizardPopoverHtml: "",
+		purposeDeleteConfirmHtml: "",
+		setupLocks: [],
+		lockedMenus: [],
 	}),
 };
 
@@ -219,7 +261,10 @@ export interface ReadlistPreferencesViewModel {
 
 export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageBody {
 	const state = purposeStateOf(vm.readlist);
-	const controls = PANEL_CONTROLS[vm.accessIsReadOnly ? "read-only" : state]({
+	const standing = standingOf({ gated: vm.accessIsReadOnly, offer: vm.rail.offer });
+	const controls = PANEL_CONTROLS[standing === "open" ? state : standing]({
+		state,
+		offer: vm.rail.offer,
 		readlist: vm.readlist,
 		wizard: renderReadlistPurposeWizard({
 			readlist: vm.readlist,
@@ -233,7 +278,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		banner: vm.subscriptionBanner,
 		onboarding: vm.onboarding,
 		returnQuery: readlistReturnQuery({ readlist: vm.readlist.slug }),
-		subscribeSource: "queue-preferences-banner",
 	});
 
 	const content = render(TEMPLATE, {
@@ -245,6 +289,7 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 				limitAlertHref: vm.rail.limitAlertHref,
 				canEdit: vm.rail.canEdit,
 				canCreate: vm.rail.canCreate,
+				offer: vm.rail.offer,
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: vm.alert ?? readlistAlertFor(vm.query) }),
@@ -259,8 +304,10 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		readlistLabel: vm.readlist.label,
 		setupIllustrationHtml: renderIllustration("book-lightbulb"),
 		setupActions: controls.setupActions,
+		setupLocks: controls.setupLocks,
 		purposeText: vm.readlist.purpose,
 		menus: controls.menus,
+		lockedMenus: controls.lockedMenus,
 		inlineWizards: controls.inlineWizards,
 		inboxesHtml: renderReadlistInboxes(
 			buildReadlistInboxes({
@@ -281,7 +328,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		readlistDeleteConfirmHtml: panels.deleteConfirms,
 		wizardPopoverHtml: controls.wizardPopoverHtml,
 		purposeDeleteConfirmHtml: controls.purposeDeleteConfirmHtml,
-		subscribePlansHtml: side.subscribePlansHtml,
 	});
 
 	return {
@@ -293,7 +339,6 @@ export function ReadlistPreferencesPage(vm: ReadlistPreferencesViewModel): PageB
 		},
 		styles: [
 			CONFIRM_POPOVER_STYLES,
-			SUBSCRIBE_PLANS_STYLES,
 			ONBOARDING_STYLES,
 			READLIST_STYLES,
 			WIZARD_STYLES,

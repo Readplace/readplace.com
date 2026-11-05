@@ -5,6 +5,7 @@ import { AliasNameSchema, type InboxAddressEntry, InboxAddressSchema, InboxToken
 import { NewsletterNameSchema } from "@packages/domain/newsletter-catalog";
 import { DEFAULT_READLIST, ReadlistSlugSchema } from "@packages/domain/readlist";
 import { UserIdSchema } from "@packages/domain/user";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { parseReadlistGmailSelection } from "./readlist-gmail-senders.url";
 import {
 	gmailSenderRoutingFor,
@@ -14,6 +15,7 @@ import {
 } from "./readlist-gmail-senders.viewmodel";
 
 const USER = UserIdSchema.parse("00000000000000000000000000000001");
+const OFFER: UpgradeOffer = { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "yearly" };
 const GATEWAY = InboxAddressSchema.parse("gmail-a7b2c9@read.place");
 const ALL_ADDRESS = InboxAddressSchema.parse("gmail-b8c3d0@read.place");
 const DESIGN_ADDRESS = InboxAddressSchema.parse("gmail-c9d4e1@read.place");
@@ -80,6 +82,7 @@ function recognised(entries: [typeof TLDR, string][]): ReadlistGmailSendersInput
 function input(overrides: Partial<ReadlistGmailSendersInput> = {}): ReadlistGmailSendersInput {
 	return {
 		userId: USER,
+		offer: undefined,
 		readlist: DESIGN,
 		readlists: [DEFAULT_READLIST, DESIGN, TECH],
 		canConnectGmail: true,
@@ -140,6 +143,24 @@ describe("toReadlistGmailSenders section copy", () => {
 		assert.equal(vm.sectionClass, "readlist-gmail--upgrade");
 		assert.equal(vm.picker, undefined);
 		assert.equal(vm.prompt?.actions.length, 1);
+	});
+
+	it("keeps the Upgrade link for a reader on a surface with no offer", () => {
+		const vm = toReadlistGmailSenders(input({ connection: undefined, canConnectGmail: false }));
+		assert.deepEqual(vm.prompt?.locks, []);
+		assert.deepEqual(vm.prompt?.actions.map((action) => [action.key, action.method]), [["upgrade-gmail", "GET"]]);
+	});
+
+	it.each([
+		["disconnected", { connection: undefined }, "Connect Gmail"],
+		["revoked", { connection: connection({ revokedAt: "2026-08-27T01:00:00.000Z", revokedReason: "invalid-grant" }) }, "Reconnect Gmail"],
+		["missing sender access", { metadataScopeGranted: false }, "Reconnect Gmail"],
+	] as const)("shows the connect-gmail lock in place of the Upgrade link when %s", (_state, overrides, label) => {
+		const vm = toReadlistGmailSenders(input({ ...overrides, canConnectGmail: false, offer: OFFER }));
+		assert.deepEqual(vm.prompt?.actions, []);
+		assert.equal(vm.prompt?.locks.length, 1);
+		assert.match(String(vm.prompt?.locks[0]), /data-test-needs-upgrade="connect-gmail"/);
+		assert.match(String(vm.prompt?.locks[0]), new RegExp(label));
 	});
 
 	it("offers Connect Gmail behind the disclaimer", () => {

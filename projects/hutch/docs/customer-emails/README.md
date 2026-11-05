@@ -855,7 +855,7 @@ Not sent when:
 > - The copy always says the trial ends in 2 days, but the handler only checks that the end is still ahead. A late delivery, such as an SQS redrive or EventBridge Scheduler's default retries for up to 24 hours (from AWS docs, unverified in code), overstates the time left `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:283`
 > - A permanent Resend rejection (a 4xx, such as an invalid address) is retried like any other error. After 3 receives it lands in the DLQ and emails the alert address `projects/hutch/src/runtime/send-trial-feedback-email/send-trial-feedback-email-handler.ts:99`
 > - The trial-ending digest's claim (payDigestEmailSentAt) is set before that digest is sent and is released only on a Resend 4xx. After a 5xx or network failure, the reminder is skipped even if the trial-ending digest never arrived `projects/hutch/src/runtime/send-queue-digest/send-queue-digest-handler.ts:224`
-> - The wording for the same email varies. The subject says "ends in 2 days", the HTML title says "Your Readplace trial ends soon", the button reads "Keep using Readplace", and the text part labels the same link "Subscribe:" `projects/hutch/src/runtime/web/auth/trial-reminder-email.template.html:36`
+> - The wording for the same email varies. The subject says "ends in 2 days", the HTML title says "Your Readplace trial ends soon", the button reads "Keep using Readplace", and the text part labels the same link "Upgrade:" `projects/hutch/src/runtime/web/auth/trial-reminder-email.template.html:36`
 > - Staging deploys the same Lambda and its own scheduler group, hutch-trial-end-staging, so staging trialists with real addresses may also get it through Resend (unverified: depends on staging's RESEND_API_KEY) `projects/hutch/Pulumi.staging.yaml:56`
 
 ### Message
@@ -868,7 +868,7 @@ Not sent when:
 | Reply-To | `fayner@readplace.com` |
 | Subject | your Readplace trial ends in 2 days |
 | Headers | none |
-| Plain-text part | Yes. It has the same four paragraphs, then "Subscribe: <account link>" and the signoff, where the HTML shows a "Keep using Readplace" button instead. |
+| Plain-text part | Yes. It has the same four paragraphs, then "Upgrade: <account link>" and the signoff, where the HTML shows a "Keep using Readplace" button instead. |
 | Idempotency key | none |
 
 Content variants:
@@ -1227,7 +1227,7 @@ Content variants:
 
 | Variant | Shown when |
 |---|---|
-| yearly | row.plan is yearly (the default plan). Paragraph 1: "Your free trial ends on {chargeDate}. You added a card when you subscribed, so your membership starts on its own — $60 charged to the card on file on {chargeDate}, then once a year after that." |
+| yearly | row.plan is yearly (the default plan). Paragraph 1: "Your free trial ends on {chargeDate}. You added a card when you upgraded, so your membership starts on its own — $60 charged to the card on file on {chargeDate}, then once a year after that." |
 | monthly | row.plan is monthly. Paragraph 1 quotes "$10 charged to the card on file on {chargeDate}, then once a month after that." |
 | triennial-late-card | row.plan is triennial. Paragraph 1 quotes "$108 charged to the card on file on {chargeDate}, then once every 3 years after that." The capture also shows a card added with less than 7 days 5 minutes left, which changes only when the email is sent, not its copy. |
 | plan-unknown | row.plan is missing or not a recognised plan. Paragraph 1 ends "— the plan you are on is charged to the card on file on {chargeDate}, then renews automatically at the end of each billing period." with no amount. |

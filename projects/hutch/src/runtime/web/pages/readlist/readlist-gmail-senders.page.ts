@@ -15,6 +15,7 @@ import { renderGmailSenderResultsHtml, renderGmailSenderStatusHtml } from "../in
 import { GMAIL_DISCOVERY_MAX_POLLS } from "../integrations/gmail.url";
 import { initReadReadlistGmailSources, type SaveReadlistGmailSenders, type SaveReadlistGmailSendersRejection } from "./readlist-gmail-senders.save";
 import { buildReadlistGmailUrl, parseReadlistGmailSelection } from "./readlist-gmail-senders.url";
+import { type UpgradeOffer, upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { type ReadlistGmailSendersViewModel, readlistGmailPickerVisible, toReadlistGmailSenders } from "./readlist-gmail-senders.viewmodel";
 import { READLIST_ERROR_UNKNOWN_READLIST } from "./readlist.error";
 import { buildReadlistUrl, readlistPreferencesPath } from "./readlist.url";
@@ -24,6 +25,7 @@ export type LoadReadlistGmailSenders = (input: {
 	readlist: { slug: ReadlistSlug; label: string; purpose?: string };
 	readlists: readonly ReadlistRef[];
 	query: Record<string, unknown>;
+	offer: UpgradeOffer | undefined;
 }) => Promise<ReadlistGmailSendersViewModel>;
 
 export function initReadlistGmailSenders(deps: {
@@ -37,12 +39,13 @@ export function initReadlistGmailSenders(deps: {
 	const { gmail } = deps;
 	const readSources = initReadReadlistGmailSources({ gmail, getEffectiveAccess: deps.getEffectiveAccess });
 
-	const load: LoadReadlistGmailSenders = async ({ userId, readlist, readlists, query }) => {
+	const load: LoadReadlistGmailSenders = async ({ userId, readlist, readlists, query, offer }) => {
 		const sources = await readSources(userId);
 		const { command, listed } = parseGmailChecklistCommand(query);
 		return toReadlistGmailSenders({
 			...sources,
 			userId,
+			offer,
 			readlist,
 			readlists,
 			discoveredSenders: sources.pool.senders,
@@ -90,6 +93,7 @@ export function initReadlistGmailSenders(deps: {
 			readlist: { slug: definition.slug, label: definition.label, purpose: definition.purpose },
 			readlists,
 			query: req.query,
+			offer: upgradeOfferFor({ req, access: await deps.getEffectiveAccess(userId) }),
 		});
 		if (vm.picker === undefined) {
 			sendComponent(req, res, HxRedirectPage(readlistPreferencesPath(definition.slug)));

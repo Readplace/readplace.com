@@ -31,6 +31,55 @@ const GUEST: NavProps = {
 };
 
 describe("GlobalNav component", () => {
+	describe("a read-only user who can be offered an upgrade", () => {
+		const LOCKED: NavProps = {
+			...SIGNED_IN,
+			accessIsReadOnly: true,
+			upgrade: { popoverId: "subscribe-plans", plansPath: "/account/plans" },
+		};
+
+		it("renders Inbox as a lock inside its list item, in place of the link's form", () => {
+			const doc = parse(GlobalNav(LOCKED));
+			const item = doc.querySelector('[data-test-nav-item="inbox"]');
+			assert(item, "the locked Inbox must keep its nav marker");
+			expect(item.tagName).toBe("LI");
+			expect(item.querySelector("form")).toBeNull();
+			const trigger = item.querySelector('button[data-test-needs-upgrade="inbox"]');
+			assert(trigger, "the lock's trigger must render");
+			expect(trigger.getAttribute("popovertarget")).toBe("subscribe-plans");
+			expect(trigger.classList.contains("nav__link")).toBe(true);
+			expect(trigger.querySelector(".needs-upgrade__label")?.textContent).toBe("Inbox");
+		});
+
+		it("carries the click surface on the lock's fallback link", () => {
+			const doc = parse(GlobalNav({ ...LOCKED, clickSurface: "reader-public" }));
+			const fallback = doc.querySelector('a[data-test-needs-upgrade="inbox"]');
+			assert(fallback, "the lock's fallback must render");
+			expect(fallback.getAttribute("href")).toBe(
+				"/account/plans?utm_source=header-nav&utm_medium=internal&utm_content=upgrade-inbox&utm_term=reader-public",
+			);
+		});
+
+		it("leaves every other item a link", () => {
+			const doc = parse(GlobalNav(LOCKED));
+			expect(doc.querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(2);
+			const queue = doc.querySelector('button[data-test-nav-item="queue"]');
+			assert(queue, "Readlist must stay a link");
+			expect(queue.closest("li")?.hasAttribute("data-test-nav-item")).toBe(false);
+		});
+
+		it("marks no lock as the current page", () => {
+			const html = GlobalNav({ ...LOCKED, currentPath: "/inbox" });
+			expect(currentItemKeys(html)).toEqual([]);
+		});
+	});
+
+	it("omits Inbox for a read-only user who cannot be offered an upgrade", () => {
+		const doc = parse(GlobalNav({ ...SIGNED_IN, accessIsReadOnly: true }));
+		expect(doc.querySelector('[data-test-nav-item="inbox"]')).toBeNull();
+		expect(doc.querySelector("[data-test-needs-upgrade]")).toBeNull();
+	});
+
 	it("renders authenticated nav items (queue, install, inbox, integrations, account, blog, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			GlobalNav({

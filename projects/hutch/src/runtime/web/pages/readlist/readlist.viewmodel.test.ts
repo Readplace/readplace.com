@@ -60,6 +60,7 @@ describe("toSubscriptionBannerState — trial lead", () => {
 				trialEndsAt: new Date(NOW.getTime() + remainingMs).toISOString(),
 			},
 			NOW,
+			undefined,
 		);
 	}
 
@@ -668,6 +669,84 @@ describe("toReadlistViewModel — move", () => {
 		});
 
 		expect(vm.articles[0].move?.destinations).toEqual([finance, weekend]);
+	});
+
+	describe("by upgrade standing", () => {
+		const offer = { popoverId: "subscribe-plans", plansPath: "/account/plans", checkedPlan: "monthly" as const };
+		const readOnly = { tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" } as const;
+
+		it("open: a reader who can write gets the move and no lock, even when an upgrade is on offer", () => {
+			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, { now: NOW, readlists, upgradeOffer: offer });
+
+			expect(vm.articles[0].move?.mode).toBe("move");
+			expect(vm.articles[0].moveLocks).toEqual([]);
+		});
+
+		it("needs-upgrade: a read-only reader gets a lock named for the move on a custom readlist", () => {
+			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
+				now: NOW,
+				readlists,
+				effectiveAccess: readOnly,
+				upgradeOffer: offer,
+			});
+
+			expect(vm.articles[0].move).toBeUndefined();
+			expect(vm.articles[0].moveLocks).toEqual([
+				{
+					key: "move-article",
+					label: "Move to readlist",
+					controlClass: "menu__item",
+					popoverId: "subscribe-plans",
+					fallbackHref: "/account/plans?utm_source=queue-card&utm_medium=internal&utm_content=upgrade-move-article",
+				},
+			]);
+		});
+
+		it("needs-upgrade: a read-only reader gets a lock named for the add on All", () => {
+			const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+				now: NOW,
+				readlists,
+				effectiveAccess: readOnly,
+				upgradeOffer: offer,
+			});
+
+			expect(vm.articles[0].moveLocks.map((lock) => lock.label)).toEqual(["Add to readlist"]);
+		});
+
+		it("needs-upgrade: no lock appears where upgrading would still leave nowhere to file the article", () => {
+			const shelves = customReadlists(7);
+			const vm = toReadlistViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+				now: NOW,
+				readlists: [DEFAULT_READLIST, ...shelves],
+				savesByUrl: new Map([[ARTICLE_URL, shelves.map((shelf) => ({ readlist: shelf.slug }))]]),
+				effectiveAccess: readOnly,
+				upgradeOffer: offer,
+			});
+
+			expect(vm.articles[0].moveLocks).toEqual([]);
+		});
+
+		it("withheld: a read-only reader with nothing on offer gets neither", () => {
+			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
+				now: NOW,
+				readlists,
+				effectiveAccess: readOnly,
+				upgradeOffer: undefined,
+			});
+
+			expect(vm.articles[0].move).toBeUndefined();
+			expect(vm.articles[0].moveLocks).toEqual([]);
+		});
+
+		it("draws no lock on a render path that carries no readlists", () => {
+			const vm = toReadlistViewModel(makeResult([makeArticle()]), onWork, {
+				now: NOW,
+				effectiveAccess: readOnly,
+				upgradeOffer: offer,
+			});
+
+			expect(vm.articles[0].moveLocks).toEqual([]);
+		});
 	});
 
 	it("opens the create dialog straight from the item for a reader whose only readlist is All", () => {

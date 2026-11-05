@@ -28,8 +28,13 @@ const GMAIL_MAIN = "main.gmail";
 const INTEGRATIONS_MAIN = "main.integrations";
 const CONFIRMATION_EXHAUSTED_POLL = "100";
 const UPGRADE_COPY = "Gmail integration is only available with an active paid subscription.";
-const INTEGRATION_UPGRADE = '[data-test-integration="gmail"] [data-test-integration-action="upgrade-gmail"]';
-const GMAIL_UPGRADE = '[data-test-gmail-connection-action="upgrade-gmail"]';
+const GMAIL_LOCK = '[data-test-needs-upgrade="connect-gmail"]';
+const LOCK_TRIGGER = `${GMAIL_LOCK}[data-test-action="upgrade-open"]`;
+const LOCK_FALLBACK = `${GMAIL_LOCK}[data-test-action="upgrade-fallback"]`;
+const INTEGRATION_ROW = '[data-test-integration="gmail"]';
+const RECONNECT_SECTION = "[data-test-gmail-reconnect]";
+const METADATA_RECONNECT_SECTION = "[data-test-gmail-metadata-reconnect]";
+const PLAN_CHOOSER_OPEN = '[data-test-confirm-popover="subscribe-plans"]:popover-open';
 const CONNECT_GMAIL = '[data-test-integration="gmail"] [data-test-integration-action="connect"]';
 const CONNECT_DISCLAIMER = '[data-test-confirm-popover="gmail-connect-disclaimer"]';
 const CONNECT_DISCLAIMER_OK = `${CONNECT_DISCLAIMER} [data-test-action="gmail-connect-ok"]`;
@@ -105,6 +110,18 @@ async function exhaustConfirmationPolls(page: Page): Promise<void> {
 	});
 }
 
+async function lockOpensPlanChooser(page: Page, scope: string): Promise<void> {
+	await page.locator(`${scope} ${LOCK_TRIGGER}`).click();
+	await expect(page.locator(PLAN_CHOOSER_OPEN)).toBeVisible();
+	const fallback = await page.locator(`${scope} ${LOCK_FALLBACK}`).getAttribute("href");
+	assert(fallback, "the lock must keep its plain plans link for a legacy engine");
+	expect(Object.fromEntries(new URL(fallback, BASE_URL).searchParams)).toEqual({
+		utm_source: "connectors",
+		utm_medium: "internal",
+		utm_content: "upgrade-connect-gmail",
+	});
+}
+
 async function openGmailPage(page: Page, path: string): Promise<void> {
 	await serveGmailStepScreenshots(page);
 	await page.goto(`${BASE_URL}${path}`, { waitUntil: "domcontentloaded" });
@@ -163,7 +180,7 @@ const SCENARIOS: readonly Scenario[] = [
 		settled: async (page) => {
 			await integrationStatusShown(page, "disconnected");
 			await expect(page.locator('[data-test-integration="gmail"]')).toContainText(UPGRADE_COPY);
-			await expect(page.locator(INTEGRATION_UPGRADE)).toHaveText("Upgrade");
+			await expect(page.locator(`${INTEGRATION_ROW} ${LOCK_TRIGGER}`)).toContainText("Connect Gmail");
 		},
 		pinnedText: [],
 	},
@@ -177,7 +194,8 @@ const SCENARIOS: readonly Scenario[] = [
 		settled: async (page) => {
 			await integrationStatusShown(page, "filtering");
 			await expect(page.locator('[data-test-integration="gmail"]')).toContainText(UPGRADE_COPY);
-			await expect(page.locator('[data-test-integration="gmail"] [data-test-integration-action]')).toHaveText(["Upgrade", "Manage"]);
+			await expect(page.locator(`${INTEGRATION_ROW} ${LOCK_TRIGGER}`)).toContainText("Connect Gmail");
+			await expect(page.locator('[data-test-integration="gmail"] [data-test-integration-action]')).toHaveText(["Manage"]);
 		},
 		pinnedText: [],
 	},
@@ -190,8 +208,8 @@ const SCENARIOS: readonly Scenario[] = [
 		},
 		settled: async (page) => {
 			await gmailStateShown(page, "revoked");
-			await expect(page.locator("[data-test-gmail-reconnect]")).toContainText(UPGRADE_COPY);
-			await expect(page.locator(GMAIL_UPGRADE)).toHaveText("Upgrade");
+			await expect(page.locator(RECONNECT_SECTION)).toContainText(UPGRADE_COPY);
+			await expect(page.locator(`${RECONNECT_SECTION} ${LOCK_TRIGGER}`)).toContainText("Reconnect Gmail");
 		},
 		pinnedText: [],
 	},
@@ -204,8 +222,8 @@ const SCENARIOS: readonly Scenario[] = [
 		},
 		settled: async (page) => {
 			await gmailStateShown(page, "filtering");
-			await expect(page.locator("[data-test-gmail-metadata-reconnect]")).toContainText(UPGRADE_COPY);
-			await expect(page.locator(GMAIL_UPGRADE)).toHaveText("Upgrade");
+			await expect(page.locator(METADATA_RECONNECT_SECTION)).toContainText(UPGRADE_COPY);
+			await expect(page.locator(`${METADATA_RECONNECT_SECTION} ${LOCK_TRIGGER}`)).toContainText("Reconnect Gmail");
 		},
 		pinnedText: [],
 	},
@@ -459,25 +477,19 @@ test.describe("Gmail upgrades without JavaScript", () => {
 			subscription: "inactive",
 		});
 		await openIntegrations(page);
-		await expect(page.locator('[data-test-integration="gmail"] [data-test-integration-action]')).toHaveText(["Upgrade", "Manage"]);
+		await expect(page.locator('[data-test-integration="gmail"] [data-test-integration-action]')).toHaveText(["Manage"]);
 
-		await clickAndWaitForPageReload(page, page.locator(INTEGRATION_UPGRADE));
+		await lockOpensPlanChooser(page, INTEGRATION_ROW);
 
-		await expect(page.locator("body.page-plans")).toHaveCount(1);
-		expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({
-			utm_source: "integrations",
-			utm_medium: "internal",
-			utm_content: "upgrade-gmail",
-		});
-
-		await openIntegrations(page);
+		await page.keyboard.press("Escape");
+		await expect(page.locator(PLAN_CHOOSER_OPEN)).toBeHidden();
 		await clickAndWaitForPageReload(page, page.locator('[data-test-integration="gmail"] [data-test-integration-action="manage"]'));
 
 		await expect(page.locator("body.page-integrations-gmail")).toHaveCount(1);
 		await expect(page.locator('[data-test-gmail-state="filtering"]')).toBeVisible();
 	});
 
-	test("opens plan selection with Gmail tracking when reconnect needs a paid subscription", async ({ page }, testInfo) => {
+	test("opens plan selection with lock tracking when reconnect needs a paid subscription", async ({ page }, testInfo) => {
 		await signInWithGmail(page, {
 			stamp: `upgrade-reconnect-${testInfo.workerIndex}-${Date.now()}`,
 			seed: { ...CONNECTED_SEED, connection: "revoked" },
@@ -485,13 +497,6 @@ test.describe("Gmail upgrades without JavaScript", () => {
 		});
 		await openGmailPage(page, "/newsletters/gmail?discovery=started");
 
-		await clickAndWaitForPageReload(page, page.locator(GMAIL_UPGRADE));
-
-		await expect(page.locator("body.page-plans")).toHaveCount(1);
-		expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({
-			utm_source: "integrations-gmail",
-			utm_medium: "internal",
-			utm_content: "upgrade-gmail",
-		});
+		await lockOpensPlanChooser(page, RECONNECT_SECTION);
 	});
 });

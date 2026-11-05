@@ -11,10 +11,6 @@ import {
 } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
-import {
-	SUBSCRIBE_PLANS_STYLES,
-	renderSubscribePlansPopover,
-} from "../../shared/subscribe-plans/subscribe-plans.component";
 import { CHANGE_PASSWORD_CLIENT_SCRIPT } from "../../auth/auth.component";
 import { renderConnectedApps } from "./account-connected-apps.component";
 import type { ConnectedAppsSectionViewModel } from "./account-connected-apps.view-model";
@@ -25,7 +21,7 @@ import { ACCOUNT_EXPORT_URL } from "./account.url";
 import type {
 	AccountAction,
 	AccountActionKey,
-	AccountImportLink,
+	AccountImportRow,
 	AccountViewModel,
 	AppearanceSectionViewModel,
 	BillingHistoryViewModel,
@@ -318,7 +314,7 @@ export function AccountPage(
 		security: SecuritySectionViewModel;
 		appearance: AppearanceSectionViewModel;
 		connectedApps: ConnectedAppsSectionViewModel;
-		importLinks: readonly AccountImportLink[];
+		importLinks: readonly AccountImportRow[];
 		surface?: AccountSurface;
 	},
 ): PageBody {
@@ -330,16 +326,13 @@ export function AccountPage(
 			canonicalUrl: "/account",
 			robots: "noindex, nofollow",
 		},
-		styles: `${ACCOUNT_STYLES}\n${CONFIRM_POPOVER_STYLES}\n${SUBSCRIBE_PLANS_STYLES}`,
+		styles: `${ACCOUNT_STYLES}\n${CONFIRM_POPOVER_STYLES}`,
 		bodyClass: surface ? "page-account page-account--chromeless" : "page-account",
 		content: {
 			html: render(ACCOUNT_TEMPLATE, {
 				...vm,
 				cardHtml: renderAccountCard(vm),
 				billingHtml: renderBillingSections(vm),
-				subscribePlansHtml: vm.actions.some((action) => action.popoverTarget !== undefined)
-					? renderSubscribePlansPopover({ source: "account", checkedPlan: vm.checkedPlan })
-					: "",
 				profile: {
 					...page.profile,
 					lines: page.profile.lines.map((line) => ({ ...line, className: PROFILE_LINE_CLASS[line.role] })),

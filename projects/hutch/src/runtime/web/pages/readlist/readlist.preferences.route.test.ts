@@ -204,6 +204,19 @@ function alertOf(doc: Document): { visible: boolean; title: string | undefined; 
 }
 
 describe("GET /queue/queues/:slug/preferences", () => {
+	it("attributes a plan chosen on this page to the preferences banner", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "Attribution");
+		await makeReadOnly(harness);
+
+		const response = await agent.get(preferencesPath(slug));
+		const form = parse(response.text).querySelector('#subscribe-plans [data-test-form="subscribe-plans"]');
+
+		assert(form, "the page must carry the plan chooser");
+		expect(form.getAttribute("action")).toContain("utm_source=queue-preferences-banner");
+	});
+
 	it("interleaves its column with the setup guide on phones, the way the listing does", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -406,7 +419,7 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		await savePurpose(agent, slug, PURPOSE);
 		await makeReadOnly(harness);
 
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		const doc = parse((await agent.get(`${preferencesPath(slug)}?platform=ios`)).text);
 
 		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
 		expect(panel(doc).classList.contains("readlist-preferences--read-only")).toBe(true);
@@ -423,12 +436,73 @@ describe("GET /queue/queues/:slug/preferences", () => {
 		const slug = await createReadlist(agent, "New Readlist");
 		await makeReadOnly(harness);
 
-		const doc = parse((await agent.get(preferencesPath(slug))).text);
+		const doc = parse((await agent.get(`${preferencesPath(slug)}?platform=ios`)).text);
 
 		const empty = panel(doc).querySelector("[data-test-preferences-empty]");
 		assert(empty, "a read-only reader still sees the unset card");
 		expect(empty.querySelector(".readlist-empty__title")?.textContent).toBe("Set up your readlist");
 		expect(empty.querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(0);
+	});
+
+	it("locks Set up readlist for a read-only reader on the web, opening the page's one plan chooser", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await makeReadOnly(harness);
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		const lock = panel(doc).querySelector('[data-test-action="upgrade-open"]');
+		assert(lock, "the unset card must carry the lock");
+		expect(lock.getAttribute("data-test-needs-upgrade")).toBe("set-up-readlist");
+		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(panel(doc).querySelector('[data-test-action="upgrade-fallback"]')?.getAttribute("href")).toBe(
+			"/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-set-up-readlist",
+		);
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+		expect(doc.querySelectorAll('[data-test-action="readlist-preferences-setup"], [data-test-wizard]')).toHaveLength(0);
+	});
+
+	it("locks the set purpose's Edit and Delete for a read-only reader on the web", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		await savePurpose(agent, slug, PURPOSE);
+		await makeReadOnly(harness);
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(doc.querySelector("[data-test-preferences-purpose]")?.textContent).toBe(PURPOSE);
+		const menu = panel(doc).querySelector('[data-test-preferences-menu][data-test-menu-standing="locked"]');
+		assert(menu, "a set purpose must carry the locked menu");
+		expect(
+			Array.from(menu.querySelectorAll('[data-test-action="upgrade-open"]'), (lock) => [
+				lock.getAttribute("data-test-needs-upgrade"),
+				lock.getAttribute("popovertarget"),
+			]),
+		).toEqual([
+			["edit-purpose", "subscribe-plans"],
+			["delete-purpose", "subscribe-plans"],
+		]);
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+		expect(doc.querySelectorAll('[data-test-wizard], [data-test-confirm-popover="readlist-purpose-delete"]')).toHaveLength(0);
+	});
+
+	it("shows an active trial reader today's purpose controls, with no lock on them", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const slug = await createReadlist(agent, "New Readlist");
+		const user = await harness.auth.findUserByEmail("test@example.com");
+		assert(user, "the logged-in test user must exist");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId: user.userId,
+			trialEndsAt: new Date(Date.now() + 86_400_000).toISOString(),
+		});
+
+		const doc = parse((await agent.get(preferencesPath(slug))).text);
+
+		expect(panel(doc).querySelectorAll("[data-test-needs-upgrade]")).toHaveLength(0);
+		expect(panel(doc).querySelectorAll('[data-test-action="readlist-preferences-setup"]')).toHaveLength(1);
 	});
 
 	it("offers the move-or-delete choice from the preferences page too", async () => {

@@ -34,7 +34,7 @@ function chargeDateLabel(chargeAt: string): string {
 }
 
 function chargeSentence(input: { chargeDate: string; plan: BillingPlan | undefined }): string {
-	const opening = `Your free trial ends on ${input.chargeDate}. You added a card when you subscribed, so your membership starts on its own`;
+	const opening = `Your free trial ends on ${input.chargeDate}. You added a card when you upgraded, so your membership starts on its own`;
 	const plan = input.plan;
 	if (plan === undefined) {
 		return `${opening} — the plan you are on is charged to the card on file on ${input.chargeDate}, then renews automatically at the end of each billing period.`;

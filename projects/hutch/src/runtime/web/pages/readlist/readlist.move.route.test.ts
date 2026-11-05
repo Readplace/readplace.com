@@ -859,7 +859,7 @@ describe("POST /queue/:id/move", () => {
 			expect(moveDialogIds(doc)).toEqual([]);
 		});
 
-		it("offers only Delete to a read-only account", async () => {
+		it("offers the move as a lock beside Delete to a read-only account", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await createReadlist(agent, "Finance");
@@ -868,7 +868,7 @@ describe("POST /queue/:id/move", () => {
 
 			const doc = await listing(agent, "/queue");
 
-			expect(cardMenuControls(doc, articleId)).toEqual(["delete-fallback", "delete"]);
+			expect(cardMenuControls(doc, articleId)).toEqual(["upgrade-open", "upgrade-fallback", "delete-fallback", "delete"]);
 			expect(moveDialogIds(doc)).toEqual([]);
 		});
 	});

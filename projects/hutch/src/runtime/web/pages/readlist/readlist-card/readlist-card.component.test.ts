@@ -26,6 +26,7 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		actions: [],
 		deletion: CONFIRMED_DELETION,
+		moveLocks: [],
 		readerHref: "/queue/abc123/view",
 		isStalePending: false,
 		kind: undefined,
@@ -69,6 +70,13 @@ const CONFIRMED_MARK_READ_ACTION: ArticleAction = {
 };
 const CONFIRMED_DELETION = buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false });
 const UNCONFIRMED_DELETION = buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: true });
+const MOVE_LOCK = {
+	key: "move-article",
+	label: "Add to readlist",
+	controlClass: "menu__item",
+	popoverId: "subscribe-plans",
+	fallbackHref: "/account/plans?utm_source=queue-card&utm_medium=internal&utm_content=upgrade-move-article",
+};
 const MOVE: ArticleMoveViewModel = {
 	articleId: "abc123",
 	popoverId: moveDialogPopoverId("abc123"),
@@ -570,5 +578,30 @@ describe("renderReadlistCard", () => {
 		expect(titleParams.get("utm_term")).toBe("mobile_ios");
 		expect(excerptParams.get("utm_content")).toBe("open-article-excerpt");
 		expect(excerptParams.get("utm_term")).toBe("mobile_ios");
+	});
+});
+
+describe("readlist card move by upgrade standing", () => {
+	it("open: the real move item renders and no lock does", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel({ move: MOVE }), { isFirst: false })));
+
+		expect(menuControls(doc)).toEqual(["move-fallback", "move", "delete-fallback", "delete"]);
+	});
+
+	it("needs-upgrade: the lock takes the move item's place, ahead of Delete", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel({ moveLocks: [MOVE_LOCK] }), { isFirst: false })));
+
+		expect(menuControls(doc)).toEqual(["upgrade-open", "upgrade-fallback", "delete-fallback", "delete"]);
+		const lock = menuPanel(doc).querySelector('[data-test-action="upgrade-open"]');
+		assert(lock, "the move lock must be in the menu");
+		expect(lock.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(lock.classList.contains("menu__item")).toBe(true);
+		expect(lock.querySelector(".needs-upgrade__label")?.textContent).toBe("Add to readlist");
+	});
+
+	it("withheld: neither the move item nor a lock renders", () => {
+		const doc = parse(renderReadlistCard(display(makeViewModel(), { isFirst: false })));
+
+		expect(menuControls(doc)).toEqual(["delete-fallback", "delete"]);
 	});
 });

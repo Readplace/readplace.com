@@ -98,6 +98,8 @@ describe("buildGuestNavGroups", () => {
 	});
 });
 
+const UPGRADE = { popoverId: "subscribe-plans", plansPath: "/account/plans" };
+
 describe("buildNavGroups", () => {
 	it("groups full-access items into Library (queue, install, inbox, integrations) and Account (account, blog, privacy, terms, sign out)", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: false });
@@ -114,6 +116,26 @@ describe("buildNavGroups", () => {
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "install", "integrations"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["account", "blog", "privacy", "terms", "logout"]);
+	});
+
+	it("offers Inbox as a lock on the plan chooser to a read-only user who can be offered an upgrade", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: true, upgrade: UPGRADE });
+		const [library] = groups;
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "install", "inbox", "integrations"]);
+		const inbox = library?.items.find((i) => i.key === "inbox");
+		assert(inbox, "library nav must include the locked inbox item");
+		expect(inbox.iconName).toBe("lock");
+		expect(inbox.href).toBe("/account/plans?utm_source=header-nav&utm_medium=internal&utm_content=upgrade-inbox");
+		expect(inbox.lock?.popoverId).toBe("subscribe-plans");
+	});
+
+	it("leaves Inbox a plain link for a full-access user even when an upgrade could be offered", () => {
+		const inbox = buildNavGroups({ accessIsReadOnly: false, upgrade: UPGRADE })
+			.flatMap((g) => g.items)
+			.find((i) => i.key === "inbox");
+		assert(inbox, "library nav must include an inbox item");
+		expect(inbox.iconName).toBe("inbox");
+		expect(inbox.lock).toBeUndefined();
 	});
 
 	it("links the signed-in Blog item to the blog from the account menu", () => {
@@ -180,6 +202,7 @@ describe("header nav internal-click tagging across every access level", () => {
 	const navs = flagMatrix.flatMap((flags) => [
 		{ name: `guest ${JSON.stringify(flags)}`, groups: buildGuestNavGroups() },
 		{ name: `authenticated ${JSON.stringify(flags)}`, groups: buildNavGroups(flags) },
+		{ name: `authenticated with an upgrade ${JSON.stringify(flags)}`, groups: buildNavGroups({ ...flags, upgrade: UPGRADE }) },
 	]);
 
 	it.each(navs)("tags every $name item with source, internal medium and content on both the href and the hidden inputs", ({ groups }) => {
@@ -187,8 +210,14 @@ describe("header nav internal-click tagging across every access level", () => {
 			const url = new URL(item.href, "https://readplace.com");
 			expect([item.key, url.searchParams.get("utm_source")]).toEqual([item.key, "header-nav"]);
 			expect([item.key, url.searchParams.get("utm_medium")]).toEqual([item.key, "internal"]);
-			expect([item.key, url.searchParams.get("utm_content")]).toEqual([item.key, item.key]);
-			expect([item.key, item.trackSource, item.trackContent]).toEqual([item.key, "header-nav", item.key]);
+			expect([item.key, url.searchParams.get("utm_content")]).toEqual([item.key, item.trackContent]);
+			expect([item.key, item.trackSource]).toEqual([item.key, "header-nav"]);
+		}
+	});
+
+	it.each(navs)("names every $name item's utm_content after its key, with upgrade- leading a locked item's", ({ groups }) => {
+		for (const item of groups.flatMap((g) => g.items)) {
+			expect(item.trackContent).toBe(`${item.lock === undefined ? "" : "upgrade-"}${item.key}`);
 		}
 	});
 

@@ -200,11 +200,27 @@ describe("Readlist Gmail newsletters section", () => {
 		expect(hiddenFields(ok)).toEqual({});
 	});
 
-	it("offers an upgrade to a reader who cannot connect Gmail", async () => {
+	it("shows a web reader who cannot connect Gmail the same lock as the newsletters page", async () => {
 		const { agent, harness, userId } = await readerAgent({ connected: false });
 		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString() });
 		const doc = load((await agent.get(PREFERENCES)).text);
 		expect(sectionState(doc)).toBe("upgrade");
+		expect(section(doc).querySelector('[data-test-action="upgrade-gmail"]')).toBeNull();
+		const trigger = section(doc).querySelector('[data-test-needs-upgrade="connect-gmail"][data-test-action="upgrade-open"]');
+		assert(trigger, "the connect-gmail lock must render its trigger");
+		expect(trigger.getAttribute("popovertarget")).toBe("subscribe-plans");
+		expect(doc.querySelectorAll("#subscribe-plans")).toHaveLength(1);
+		const fallback = section(doc).querySelector('[data-test-needs-upgrade="connect-gmail"][data-test-action="upgrade-fallback"]');
+		assert(fallback, "the connect-gmail lock must render its fallback link");
+		expect(fallback.getAttribute("href")).toBe("/account/plans?utm_source=connectors&utm_medium=internal&utm_content=upgrade-connect-gmail");
+	});
+
+	it("keeps the Upgrade link for a reader on the in-app surface who cannot connect Gmail", async () => {
+		const { agent, harness, userId } = await readerAgent({ connected: false });
+		await harness.subscriptionProviders.upsertTrialing({ userId, trialEndsAt: new Date(Date.now() + ONE_DAY_MS).toISOString() });
+		const doc = load((await agent.get(`${PREFERENCES}?platform=ios`)).text);
+		expect(sectionState(doc)).toBe("upgrade");
+		expect(section(doc).querySelector("[data-test-needs-upgrade]")).toBeNull();
 		const form = section(doc).querySelector('[data-test-action="upgrade-gmail"]')?.closest("form");
 		assert(form, "the upgrade action must render a form");
 		expect([form.getAttribute("method"), form.getAttribute("action")]).toEqual(["GET", "/account/plans?utm_source=queue-preferences&utm_medium=internal&utm_content=upgrade-gmail"]);

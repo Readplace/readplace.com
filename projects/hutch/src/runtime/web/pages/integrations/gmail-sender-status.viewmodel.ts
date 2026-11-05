@@ -1,6 +1,7 @@
 import type { GmailDiscovery } from "@packages/domain/gmail";
 import { GMAIL_UPGRADE_MESSAGE } from "./gmail-connection-access";
-import { buildGmailConnectionPrompt } from "./gmail-connection-prompt";
+import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
+import { buildLockableGmailConnectionPrompt } from "./gmail-connection-prompt";
 import type { GmailFormAction } from "./gmail-form-fields";
 import { GMAIL_DISCOVERY_FAST_POLLS, GMAIL_DISCOVERY_MAX_POLLS } from "./gmail.url";
 
@@ -11,6 +12,7 @@ export interface GmailSenderStatusViewModel {
 	checkedLabel: string | undefined;
 	loadButtonLabel: string;
 	reconnectActions: GmailFormAction[];
+	reconnectLocks: readonly string[];
 	refreshActions: { label: string }[];
 	pollUrl: string | undefined;
 	pollTrigger: string | undefined;
@@ -25,6 +27,7 @@ export interface GmailSenderDiscoveryProgress {
 
 export interface GmailSenderStatusInput {
 	canConnectGmail: boolean;
+	offer: UpgradeOffer | undefined;
 	discovery: GmailSenderDiscoveryProgress;
 	discoveredCount: number;
 	discoveryStarted: boolean;
@@ -81,18 +84,21 @@ export function toGmailSenderStatus(input: GmailSenderStatusInput): GmailSenderS
 	const discovering = input.discoveryPending || input.discovery.state === "running" || (input.discoveryStarted && input.discovery.state === "idle");
 	const polling = discovering && input.pollCount < GMAIL_DISCOVERY_MAX_POLLS;
 	const status = discoveryStatus(input, discovering);
+	const reconnect = input.discovery.requiresReconnect ? buildLockableGmailConnectionPrompt({
+		canConnectGmail: input.canConnectGmail,
+		message: status.lead,
+		content: "reconnect-sender-access", label: "Reconnect Gmail", variant: "neutral", fields: [],
+		track: input.track,
+		lock: { offer: input.offer, controlClass: "btn btn--neutral" },
+	}) : { actions: [], locks: [] };
 	return {
 		discoveryState: input.discovery.state,
 		discoveryAfter: input.discoveryAfter,
 		statusLead: status.lead,
 		checkedLabel: status.checked,
 		loadButtonLabel: polling ? (checkingForNewMessages(input) ? "Checking for new messages…" : "Checking…") : "Load senders",
-		reconnectActions: input.discovery.requiresReconnect ? buildGmailConnectionPrompt({
-			canConnectGmail: input.canConnectGmail,
-			message: status.lead,
-			content: "reconnect-sender-access", label: "Reconnect Gmail", variant: "neutral", fields: [],
-			track: input.track,
-		}).actions : [],
+		reconnectActions: reconnect.actions,
+		reconnectLocks: reconnect.locks,
 		refreshActions: refreshActions({ listed: input.listed, knownCount: input.knownCount }),
 		pollUrl: polling ? input.pollUrl(input.pollCount + 1) : undefined,
 		pollTrigger: polling ? discoveryPollTrigger(input.pollCount + 1) : undefined,

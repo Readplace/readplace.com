@@ -11,6 +11,8 @@ const PASSWORD = "Sup3r-Secret-Pw!";
 const CONTENT_FETCHED_AT = "2026-04-27T08:00:00.000Z";
 const SETTLE_MS = 45000;
 
+const PLANS_PAGE = "body.page-plans [data-test-plans-page]";
+
 const CreatedUser = z.object({ ok: z.literal(true), userId: z.string() });
 
 test.describe("The readlist is whole without client JavaScript", () => {
@@ -308,6 +310,36 @@ test.describe("The readlist is whole without client JavaScript", () => {
 			"?utm_source=queue-banner&utm_medium=internal&utm_content=choose-plan",
 		);
 		expect(subscribe.postData()).toBe("plan=monthly");
+	});
+
+	test("a read-only reader's locks are links to the plans page, tracked per control", async ({ page }, testInfo) => {
+		const email = `readlist-no-js-${testInfo.workerIndex}-${Date.now()}-locks@example.com`;
+		const created = await page.request.post(`${BASE_URL}/e2e/users`, {
+			data: { email, password: PASSWORD, verified: true },
+		});
+		assert.equal(created.status(), 201, "the e2e user fixture must create the reader");
+		const { userId } = CreatedUser.parse(await created.json());
+		const inactive = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
+			data: { userId, state: "inactive" },
+		});
+		assert.equal(inactive.status(), 201, "the subscription-state seed endpoint must answer 201");
+		await loginAs(page, email);
+
+		for (const { key, search } of [
+			{ key: "create-readlist", search: "?utm_source=queue-nav&utm_medium=internal&utm_content=upgrade-create-readlist" },
+			{ key: "inbox", search: "?utm_source=header-nav&utm_medium=internal&utm_content=upgrade-inbox" },
+		]) {
+			await page.goto(`${BASE_URL}/queue`, { waitUntil: "domcontentloaded" });
+			const href = await page
+				.locator(`[data-test-action="upgrade-fallback"][data-test-needs-upgrade="${key}"]`)
+				.getAttribute("href");
+			assert(href, `the ${key} lock must fall back to a link`);
+			const destination = new URL(href, BASE_URL);
+			expect(destination.search).toBe(search);
+
+			await page.goto(destination.toString(), { waitUntil: "domcontentloaded" });
+			await expect(page.locator(PLANS_PAGE)).toBeVisible();
+		}
 	});
 
 	test("a purpose is set and deleted as plain form submits", async ({ page }, testInfo) => {

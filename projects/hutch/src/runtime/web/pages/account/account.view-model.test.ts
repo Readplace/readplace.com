@@ -496,7 +496,16 @@ describe("toAccountViewModel — actions", () => {
 
 		assert.equal(vm.state, "error-subscribe-failed");
 		assert.deepEqual(vm.actions.map((a) => a.popoverTarget), ["subscribe-plans"]);
-		assert.equal(vm.checkedPlan, "triennial");
+	});
+
+	it.each([
+		["founding", FOUNDING],
+		["paid", ACTIVE],
+	] as const)("offers a %s reader on the subscribe-failed page no action, because no plan chooser opens for them", (_tier, access) => {
+		const vm = accountVm({ access, now, queryState: { ...BASE_QUERY, errorSubscribeFailed: true } });
+
+		assert.equal(vm.state, "error-subscribe-failed");
+		assert.deepEqual(vm.actions, []);
 	});
 });
 

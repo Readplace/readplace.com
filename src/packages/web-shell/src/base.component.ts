@@ -27,7 +27,7 @@ import type { Component, ParsedComponent } from "./component.types";
 import type { CspNonce } from "./csp-nonce.middleware";
 import { HtmlPage } from "./html-page";
 import type { HtmxDelivery } from "./htmx-script";
-import { injectPageStylesIntoMain } from "./inject-page-styles";
+import { injectPageStylesIntoMain, injectSiteDialogIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
@@ -40,6 +40,7 @@ import {
 	renderExtensionSuggestionBanner,
 } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
 import { EXTENSION_SUGGESTION_BANNER_STYLES } from "./shared/extension-suggestion-banner/extension-suggestion-banner.styles";
+import { NEEDS_UPGRADE_STYLES } from "./shared/needs-upgrade/needs-upgrade.component";
 import { renderVerifyBanner } from "./shared/verify-banner/verify-banner.component";
 import { TOAST_STYLES } from "./shared/toast/toast.styles";
 
@@ -322,6 +323,19 @@ function headMetas(seo: SeoMetadata, robots: string): HeadMeta[] {
 	return metas;
 }
 
+function renderMainContent(body: PageBody, state: BannerState): string {
+	const dialogs = state.siteDialog === undefined ? [] : [state.siteDialog];
+	const upgradeStyles = state.upgrade === undefined ? [] : [NEEDS_UPGRADE_STYLES];
+	return injectPageStylesIntoMain({
+		content: dialogs.reduce(
+			(content, dialog) => injectSiteDialogIntoMain({ content, html: dialog.html }),
+			body.content.html,
+		),
+		styles: [body.styles, ...dialogs.map((dialog) => dialog.styles), ...upgradeStyles].join(""),
+		cspNonce: state.cspNonce,
+	});
+}
+
 export function initBase(config: BaseConfig): RenderBase {
 	const liveReloadScript = config.liveReload
 		? `\n<script src="http://localhost:35729/livereload.js?snipver=1"></script>`
@@ -395,15 +409,12 @@ export function initBase(config: BaseConfig): RenderBase {
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
+				upgrade: state.upgrade,
 				currentPath: state.currentPath,
 				clickSurface: body.clickSurface,
 				signedInUser: state.signedInUser,
 			}),
-			content: injectPageStylesIntoMain({
-				content: body.content.html,
-				styles: body.styles,
-				cspNonce: state.cspNonce,
-			}),
+			content: renderMainContent(body, state),
 			footer: state.isAuthenticated ? "" : renderFooter(body.clickSurface),
 			navScript: navScript(state.cspNonce),
 			offlineScript: offlineIndicatorScript(state.cspNonce),

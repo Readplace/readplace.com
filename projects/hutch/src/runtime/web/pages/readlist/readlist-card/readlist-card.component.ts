@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, renderInFlightDots, withInternalTracking } from "@packages/web-shell";
+import { render, renderInFlightDots, renderNeedsUpgrade, withInternalTracking } from "@packages/web-shell";
 import type { DeviceClass } from "@packages/web-analytics";
 
 import {
@@ -148,7 +148,10 @@ export function toReadlistCardDisplayModel(
 		...toViaDisplay(article),
 		statusActions: article.actions.map(toAction),
 		statusTriggers: article.actions.flatMap(toTrigger),
-		moveMenuHtml: article.move === undefined ? "" : renderMoveMenuItems({ move: article.move }),
+		moveMenuHtml: [
+			...(article.move === undefined ? [] : [renderMoveMenuItems({ move: article.move })]),
+			...article.moveLocks.map(renderNeedsUpgrade),
+		].join(""),
 		deleteMenuHtml: renderDeleteMenuItems({ deletion: article.deletion, surface: "queue-card" }),
 		uploadAgainUrl: withInternalTracking("/upload", { source: "queue-card", content: "failed-card" }),
 		staleNoticeHtml: staleNoticeHtml({

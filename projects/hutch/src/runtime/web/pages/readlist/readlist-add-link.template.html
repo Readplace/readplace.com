@@ -1,4 +1,8 @@
 <div class="readlist-add-link" data-test-add-link>
+              {{#each locks}}
+              {{{this}}}
+              {{/each}}
+              {{#each forms}}
               <button class="btn btn--neutral btn--s readlist-add-link__trigger" type="button" popovertarget="add-link" aria-haspopup="dialog" data-test-action="add-link">{{icon "plus"}}<span>Add link</span></button>
               <details class="readlist-add-link__fallback" data-test-add-link-fallback>
                 <summary class="btn btn--neutral btn--s readlist-add-link__summary">{{icon "plus"}}<span>Add link</span></summary>
@@ -8,4 +12,5 @@
                   <button class="btn btn--primary" type="submit" data-test-action="add-link-fallback-save"{{#if accessIsReadOnly}} disabled{{/if}}>Save</button>
                 </form>
               </details>
+              {{/each}}
             </div>

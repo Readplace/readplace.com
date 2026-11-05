@@ -126,12 +126,14 @@ describe("GET /queue save skeleton", () => {
 		});
 		await subscriptionProviders.markCancelledByUserId({ userId: user.userId });
 
-		const response = await agent.get("/queue");
+		const webResponse = await agent.get("/queue");
+		const response = await agent.get("/queue?platform=ios");
 
+		expect(skeletonOf(webResponse.text).classList.contains("readlist-save-skeleton--inert")).toBe(true);
 		const doc = documentOf(response.text);
 		expect(skeletonOf(response.text).classList.contains("readlist-save-skeleton--inert")).toBe(true);
 		const input = doc.querySelector<HTMLInputElement>('[data-test-form="save-article"] input[name="url"]');
-		assert(input, "the save input renders disabled for a read-only reader");
+		assert(input, "the save input renders disabled for a read-only reader with no upgrade on offer");
 		expect(input.disabled).toBe(true);
 	});
 });

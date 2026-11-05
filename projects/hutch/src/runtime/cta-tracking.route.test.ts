@@ -386,6 +386,60 @@ describe("every same-origin CTA carries its own utm_source", () => {
 		expect(pages.flatMap(([path, html]) => untrackedOn(path, html))).toEqual([]);
 	});
 
+	it("holds across every lock's fallback link and the plans page they lead a read-only reader to", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const reader = await harness.auth.findUserByEmail("test@example.com");
+		assert(reader, "the logged-in reader must exist");
+		await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+		const slug = new URL(
+			(await agent.post("/queue/queues").type("form").send({ label: "Tech" })).headers.location,
+			TEST_APP_ORIGIN,
+		).searchParams.get("queue");
+		assert(slug, "creating a readlist must land on it");
+		const readerHref = new JSDOM((await agent.get("/queue").set(BROWSER_REQUEST_HEADERS)).text).window.document
+			.querySelector("[data-test-article-title]")
+			?.getAttribute("href");
+		assert(readerHref, "the saved article must link to its reader");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId: reader.userId,
+			trialEndsAt: new Date(Date.now() - 86_400_000).toISOString(),
+		});
+
+		const untracked: string[] = [];
+		const lockKeys = new Set<string>();
+		for (const path of [
+			"/queue",
+			`/queue?queue=${slug}`,
+			`/queue/queues/${slug}/preferences`,
+			"/account",
+			"/account/plans",
+			"/install?client=chrome",
+			"/import",
+			"/newsletters",
+			readerHref,
+		]) {
+			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
+			untracked.push(...untrackedOn(path, response.text));
+			for (const lock of new JSDOM(response.text).window.document.querySelectorAll("[data-test-needs-upgrade]")) {
+				lockKeys.add(lock.getAttribute("data-test-needs-upgrade") ?? "");
+			}
+		}
+
+		expect(untracked).toEqual([]);
+		expect([...lockKeys].sort()).toEqual([
+			"add-link",
+			"connect-gmail",
+			"create-readlist",
+			"delete-readlist",
+			"import",
+			"inbox",
+			"move-article",
+			"rename-readlist",
+			"set-up-readlist",
+		]);
+	});
+
 	it("holds across homepage arm B, including its comparison signup link", async () => {
 		const harness = useArmB(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/").set(BROWSER_REQUEST_HEADERS);

@@ -92,6 +92,7 @@ export interface NavItem {
 	trackSource: string;
 	trackContent: string;
 	trackTerm?: ClickSurface;
+	lock?: { popoverId: string };
 }
 
 const NAV_SOURCE = "header-nav";
@@ -129,6 +130,11 @@ export interface NavGroup {
 	items: NavItem[];
 }
 
+export interface UpgradeTarget {
+	popoverId: string;
+	plansPath: string;
+}
+
 export interface SignedInUser {
 	email: string;
 	displayName: string | undefined;
@@ -155,6 +161,8 @@ export interface BannerState {
 	 * the banner state synchronously (without an access lookup);
 	 * `buildNavGroups` treats undefined as full access. */
 	accessIsReadOnly?: boolean;
+	upgrade?: UpgradeTarget;
+	siteDialog?: { html: string; styles: string };
 	signedInUser?: SignedInUser;
 	/** The latest feature announcement to surface site-wide. */
 	changelogBanner?: ChangelogBanner | typeof FETCH_CHANGELOG_BANNER_IN_BROWSER;
@@ -193,6 +201,24 @@ const NAV_LOGIN: NavItem = {
 	linkClass: `${NAV_LINK_CLASS} btn btn--primary btn--m`,
 };
 
+type NavStanding = "open" | "needs-upgrade" | "withheld";
+
+function navStandingOf(input: { accessIsReadOnly: boolean; upgrade?: UpgradeTarget }): NavStanding {
+	if (!input.accessIsReadOnly) return "open";
+	return input.upgrade === undefined ? "withheld" : "needs-upgrade";
+}
+
+function lockedInbox(upgrade: UpgradeTarget): NavItem {
+	const trackContent = "upgrade-inbox";
+	return {
+		...NAV_INBOX,
+		iconName: "lock",
+		href: withInternalTracking(upgrade.plansPath, { source: NAV_SOURCE, content: trackContent }),
+		trackContent,
+		lock: { popoverId: upgrade.popoverId },
+	};
+}
+
 /** Import sits before the login entry so a logged-out visitor can start a
  * migration from the menu; the import flow defers account creation until they
  * commit their selection. */
@@ -208,14 +234,16 @@ export function buildGuestNavGroups(): NavGroup[] {
  * Adding a destination means pushing a NavItem into the right group here, not
  * editing the template.
  * Export is deliberately absent: it lives on the account page instead. */
-export function buildNavGroups(input: { accessIsReadOnly: boolean }): NavGroup[] {
-	const library: NavItem[] = [NAV_READLIST, NAV_INSTALL];
-	if (!input.accessIsReadOnly) {
-		library.push(NAV_INBOX);
-	}
-	library.push(NAV_INTEGRATIONS);
+export function buildNavGroups(input: { accessIsReadOnly: boolean; upgrade?: UpgradeTarget }): NavGroup[] {
+	const upgrades = input.upgrade === undefined ? [] : [input.upgrade];
+	const inboxByStanding: Record<NavStanding, NavItem[]> = {
+		open: [NAV_INBOX],
+		"needs-upgrade": upgrades.map(lockedInbox),
+		withheld: [],
+	};
+	const inbox = inboxByStanding[navStandingOf(input)];
 	return [
-		{ key: "library", label: "Library", items: library },
+		{ key: "library", label: "Library", items: [NAV_READLIST, NAV_INSTALL, ...inbox, NAV_INTEGRATIONS] },
 		{ key: "account", label: "Account", items: [NAV_ACCOUNT, NAV_BLOG, NAV_PRIVACY, NAV_TERMS, NAV_LOGOUT] },
 	];
 }

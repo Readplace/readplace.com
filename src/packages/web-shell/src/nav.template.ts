@@ -14,7 +14,8 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 				<div id="nav-menu" class="nav__menu" data-test-nav-variant="{{navVariant}}">
 					{{#*inline "navItems"}}
 					{{#each items}}
-					<li>
+					<li{{#each locks}} data-test-nav-item="{{key}}"{{/each}}>
+						{{#each links}}
 						<form method="{{method}}" action="{{href}}">
 							<input type="hidden" name="utm_source" value="{{trackSource}}">
 							<input type="hidden" name="utm_medium" value="internal">
@@ -22,6 +23,8 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
 							{{#if trackTerm}}<input type="hidden" name="utm_term" value="{{trackTerm}}">{{/if}}
 							<button type="submit" class="{{linkClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-nav-item="{{key}}"><span class="nav__icon-wrap"><span class="nav__icon">{{icon iconName variant=iconVariant}}</span></span><span class="nav__label">{{label}}</span></button>
 						</form>
+						{{/each}}
+						{{#each locks}}{{{html}}}{{/each}}
 					</li>
 					{{/each}}
 					{{/inline}}

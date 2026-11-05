@@ -16,6 +16,9 @@
               <span class="{{accountClass}}" data-test-integration-account data-integration-account-state="{{accountState}}">{{accountEmail}}</span>
             </span>
             <span class="integrations__status {{statusModifier}}" data-test-integration-status="{{statusKey}}">{{statusLabel}}</span>
+            {{#each locks}}
+            {{{this}}}
+            {{/each}}
             {{#each actions}}
             {{#if confirmPopoverId}}
             <button type="button" class="btn btn--{{variant}} btn--s" popovertarget="{{confirmPopoverId}}" aria-haspopup="dialog" data-test-integration-action="{{key}}">{{label}}</button>

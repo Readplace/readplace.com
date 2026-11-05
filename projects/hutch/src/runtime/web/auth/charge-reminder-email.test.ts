@@ -29,7 +29,7 @@ describe("ChargeReminderEmail", () => {
 		it("states the charge the chosen plan actually makes, the charge date, and how often it repeats", () => {
 			const text = ChargeReminderEmail({ ...baseParams, plan: "yearly" }).to("text/plain");
 			expect(text).toContain("$60 charged to the card on file on Jul 24, 2026");
-			expect(text).toContain("Your free trial ends on Jul 24, 2026");
+			expect(text).toContain("Your free trial ends on Jul 24, 2026. You added a card when you upgraded, so");
 			expect(text).toContain("once a year after that");
 		});
 

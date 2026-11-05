@@ -30,9 +30,10 @@ describe("TrialReminderEmail", () => {
 			expect(text).not.toMatch(/\bwe\b/i);
 		});
 
-		it("includes the subscribe CTA URL with the utm attribution", () => {
+		it("includes the upgrade CTA URL with the utm attribution", () => {
 			const text = TrialReminderEmail(baseParams).to("text/plain");
-			expect(text).toContain(`Subscribe: ${CTA_URL}`);
+			expect(text).toContain(`Upgrade: ${CTA_URL}`);
+			expect(text).toContain("you can upgrade from your account page");
 			expect(text).toContain("utm_source=trial-reminder");
 		});
 

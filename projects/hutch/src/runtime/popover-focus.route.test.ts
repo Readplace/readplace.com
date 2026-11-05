@@ -16,6 +16,7 @@ import { BROWSER_REQUEST_HEADERS, loginAgent, useTestServer } from "./test-app";
 const useApp = useTestServer();
 
 const ARTICLE_URL = "https://example.com/article";
+const ONE_DAY_MS = 86_400_000;
 
 function createdSlug(location: string): string {
 	const slug = new URL(location, TEST_APP_ORIGIN).searchParams.get("queue");
@@ -76,6 +77,30 @@ function dialogKeys(html: string): string[] {
 
 function autofocusCount(scope: ParentNode): number {
 	return scope.querySelectorAll("[autofocus]").length;
+}
+
+function lockKeys(html: string): string[] {
+	const keys = Array.from(parse(html).querySelectorAll("[data-test-needs-upgrade]"), (lock) =>
+		lock.getAttribute("data-test-needs-upgrade") ?? "",
+	);
+	return [...new Set(keys)];
+}
+
+async function readOnlyReader() {
+	const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	const agent = await loginAgent(harness.server, harness.auth);
+	const reader = await harness.auth.findUserByEmail("test@example.com");
+	assert(reader, "the logged-in reader must exist");
+	await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
+	const slug = createdSlug((await agent.post("/queue/queues").type("form").send({ label: "Tech" })).headers.location);
+	const queue = parse((await agent.get("/queue").set(BROWSER_REQUEST_HEADERS)).text);
+	const readerHref = queue.querySelector("[data-test-article-title]")?.getAttribute("href");
+	assert(readerHref, "the saved article must link to its reader");
+	await harness.subscriptionProviders.upsertTrialing({
+		userId: reader.userId,
+		trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+	});
+	return { agent, slug, readerHref };
 }
 
 describe("every popup opens on its first decision", () => {
@@ -271,6 +296,52 @@ describe("every popup opens on its first decision", () => {
 		expect([section.getAttribute("data-test-gmail-senders-state"), autofocusCount(section)]).toEqual(["picker", 0]);
 	});
 
+	it("holds with one plan chooser on every page a read-only reader can meet a lock on", async () => {
+		const { agent, slug, readerHref } = await readOnlyReader();
+		const gaps: string[] = [];
+		const keys = new Set<string>();
+		const choosers: { path: string; count: number }[] = [];
+		const paths = [
+			"/queue",
+			`/queue?queue=${slug}`,
+			`/queue/queues/${slug}/preferences`,
+			"/account",
+			"/install?client=chrome",
+			"/import",
+			"/newsletters",
+			readerHref,
+		];
+		for (const path of paths) {
+			const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
+			expect({ path, status: response.status }).toEqual({ path, status: 200 });
+			gaps.push(...gapsOn({ path, html: response.text }));
+			for (const key of dialogKeys(response.text)) keys.add(key);
+			choosers.push({ path, count: parse(response.text).querySelectorAll("#subscribe-plans").length });
+		}
+
+		expect(gaps).toEqual([]);
+		expect(keys.has("subscribe-plans")).toBe(true);
+		expect(choosers).toEqual(paths.map((path) => ({ path, count: 1 })));
+	}, 30000);
+
+	it("holds on the Connectors page of an active trial, whose one lock is Connect Gmail", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const reader = await harness.auth.findUserByEmail("test@example.com");
+		assert(reader, "the logged-in reader must exist");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId: reader.userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.get("/newsletters").set(BROWSER_REQUEST_HEADERS);
+
+		expect(gapsOn({ path: "/newsletters", html: response.text })).toEqual([]);
+		expect(dialogKeys(response.text)).toContain("subscribe-plans");
+		expect(parse(response.text).querySelectorAll("#subscribe-plans").length).toBe(1);
+		expect(lockKeys(response.text)).toEqual(["connect-gmail"]);
+	});
+
 	it("keeps autofocus off every inline copy and on the refused field of a 422", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
@@ -302,5 +373,24 @@ describe("every popup opens on its first decision", () => {
 		]);
 		expect(refused.status).toBe(422);
 		expect(refusedTargets).toEqual([true]);
+	});
+});
+
+describe("the in-app surface offers no upgrade to a read-only reader", () => {
+	it.each([
+		{ path: "/queue?platform=ios", marker: '#add-link input[name="url"][disabled]' },
+		{ path: "/account?platform=ios", marker: 'form[action*="/account/delete"][action*="platform=ios"]' },
+		{ path: "/account?shell=app", marker: "[data-test-account-back-link]" },
+		{ path: "/newsletters?platform=ios", marker: '[data-test-integration-action="upgrade-gmail"]' },
+	])("$path keeps today's rendering with no lock and no plan chooser", async ({ path, marker }) => {
+		const { agent } = await readOnlyReader();
+
+		const response = await agent.get(path).set(BROWSER_REQUEST_HEADERS);
+		const doc = parse(response.text);
+
+		expect(response.status).toBe(200);
+		expect(lockKeys(response.text)).toEqual([]);
+		expect(doc.querySelectorAll('#subscribe-plans, [popovertarget="subscribe-plans"]').length).toBe(0);
+		expect(doc.querySelector(marker)).not.toBeNull();
 	});
 });

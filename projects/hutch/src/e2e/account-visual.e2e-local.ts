@@ -473,7 +473,7 @@ test.describe("Account page at the design width", () => {
 		await openAccount(page);
 		await captureCheckpoint(
 			page,
-			mainCheckpoint({ name: "account-inactive-light", geometry: (settled) => designWidthGeometry(settled, { rows: 7, dataCardHeight: 98 }) }),
+			mainCheckpoint({ name: "account-inactive-light", geometry: (settled) => designWidthGeometry(settled, { rows: 8, dataCardHeight: 195 }) }),
 		);
 	});
 

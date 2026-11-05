@@ -24,11 +24,6 @@ import {
 import type { OnboardingContext } from "../../onboarding/onboarding.types";
 import { buildExtensionInstallUrl, type PitchablePlatform } from "../../onboarding/extension-install";
 import { SAVE_TIP_SCRIPT, type SaveTip } from "../../shared/save-tip/save-tip.component";
-import {
-	SUBSCRIBE_PLANS_STYLES,
-	type SubscribePlansSource,
-	renderSubscribePlansPopover,
-} from "../../shared/subscribe-plans/subscribe-plans.component";
 import { UPLOAD_ENTRY_HREFS } from "../upload/upload-entry-ctas";
 import { renderMarkStatusConfirm } from "./mark-status-confirm.component";
 import { renderDeleteConfirm } from "./readlist-card/delete-confirm.component";
@@ -355,8 +350,7 @@ export function readlistSideColumn(input: {
 	banner: SubscriptionBannerState;
 	onboarding: ReadlistOnboarding;
 	returnQuery: string;
-	subscribeSource: SubscribePlansSource;
-}): { subscriptionHtml: string; onboardingHtml: string; subscribePlansHtml: string } {
+}): { subscriptionHtml: string; onboardingHtml: string } {
 	const { banner, onboarding } = input;
 	return {
 		subscriptionHtml: renderReadlistSubscription(toReadlistSubscriptionDisplayModel(banner)),
@@ -366,10 +360,6 @@ export function readlistSideColumn(input: {
 			completionUnearned: onboarding.completionUnearned,
 			returnQuery: input.returnQuery,
 		}),
-		subscribePlansHtml:
-			banner.state === "trial-countdown" || banner.state === "inactive"
-				? renderSubscribePlansPopover({ source: input.subscribeSource, checkedPlan: banner.checkedPlan })
-				: "",
 	};
 }
 
@@ -425,7 +415,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		banner: vm.subscriptionBanner,
 		onboarding: options.onboarding,
 		returnQuery: readlistReturnQuery(filters),
-		subscribeSource: "queue-banner",
 	});
 	const empty = emptyState({
 		tab: filters.tab,
@@ -454,6 +443,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 		? renderReadlistAddLink({
 				filters,
 				accessIsReadOnly: vm.accessIsReadOnly,
+				offer: options.rail.offer,
 				saveTip: options.saveTip,
 				saveUrl: options.saveUrl,
 			})
@@ -468,6 +458,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 				limitAlertHref: options.rail.limitAlertHref,
 				canEdit: options.rail.canEdit,
 				canCreate: options.rail.canCreate,
+				offer: options.rail.offer,
 			}),
 		),
 		alertHtml: renderAlert({ key: "readlist", content: alert }),
@@ -586,7 +577,6 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 						],
 			)
 			.join("\n"),
-		subscribePlansHtml: side.subscribePlansHtml,
 		filtersDrawerHtml: renderReadlistFiltersDrawer(discovery),
 		readerSkeletonHtml: renderReaderSkeleton({ cspNonce: options.cspNonce }),
 	});
@@ -601,7 +591,7 @@ export function ReadlistPage(vm: ReadlistViewModel, options: ReadlistPageOptions
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${CONFIRM_POPOVER_STYLES}\n${SUBSCRIBE_PLANS_STYLES}\n${ONBOARDING_STYLES}\n${READLIST_STYLES}\n${READLIST_DISCOVERY_STYLES}`,
+		styles: `${CONFIRM_POPOVER_STYLES}\n${ONBOARDING_STYLES}\n${READLIST_STYLES}\n${READLIST_DISCOVERY_STYLES}`,
 		bodyClass: READLIST_BODY_CLASS,
 		content: { html: content },
 		scripts: scripts.join("\n"),

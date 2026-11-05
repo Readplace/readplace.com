@@ -9,6 +9,7 @@ import type { GetEffectiveAccess } from "@packages/subscription-access";
 import type { ListConnectedOAuthClients } from "../../../domain/oauth/connected-oauth-clients";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
+import { upgradeOfferFor } from "../../shared/upgrade-offer/upgrade-offer";
 import { type GmailConnectContext, registerGmailConnectRoutes } from "./gmail-connect.page";
 import { canConnectGmail } from "./gmail-connection-access";
 import type { GmailIntegrationDependencies } from "./gmail-integration.types";
@@ -81,12 +82,13 @@ export function initIntegrationsRoutes(deps: IntegrationsDependencies): {
 		const vm = toIntegrationsIndexViewModel({
 			connection,
 			canConnectGmail: canConnectGmail(access),
+			offer: upgradeOfferFor({ req, access }),
 			activeCustomEmailCount: countLiveCappedAddresses(addresses),
 			connectedClientIds: connectedClients.map((row) => row.client.id),
 			error: typeof req.query.error === "string" ? req.query.error : undefined,
 			notice: typeof req.query.notice === "string" ? req.query.notice : undefined,
 		});
-		sendComponent(req, res, Base(IntegrationsIndexPage(vm), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(IntegrationsIndexPage(vm), await deps.buildBannerState(req, { preFetchedAccess: access, upgradeSource: "connectors" })));
 	});
 
 	return { newsletters: router, gmailCallback: callbackRouter };

@@ -20,6 +20,7 @@ const PASSWORD = "password123";
 const PANEL = '[data-test-confirm-popover="subscribe-plans"]';
 const PLANS_PAGE = "[data-test-plans-page]";
 const OPEN_TRIGGER = '[data-test-action="subscribe-plans-open"]';
+const NAV_LOCK = '[data-test-nav-item="inbox"] [data-test-action="upgrade-open"]';
 const DISMISS = '[data-test-action="subscribe-plans-dismiss"]';
 const SUBMIT = '[data-test-action="subscribe-plans-submit"]';
 const PLAN_KEYS = ["yearly", "monthly", "triennial"] as const;
@@ -58,14 +59,21 @@ interface PanelRelativeBoxes {
 }
 
 async function signInTrialingReader(page: Page, stamp: string): Promise<void> {
-	const email = `subscribe-plans-visual-${stamp}@example.com`;
+	await signInSeededReader(page, { stamp, seed: { state: "trialing", at: trialEndShowingTiles() } });
+}
+
+async function signInSeededReader(
+	page: Page,
+	input: { stamp: string; seed: { state: "trialing"; at: string } | { state: "inactive" } },
+): Promise<void> {
+	const email = `subscribe-plans-visual-${input.stamp}@example.com`;
 	const created = await page.request.post(`${BASE_URL}/e2e/users`, {
 		data: { email, password: PASSWORD, verified: true },
 	});
 	assert.equal(created.status(), 201, "the e2e user fixture must answer the create request");
 	const { userId } = CreatedUser.parse(await created.json());
 	const seeded = await page.request.post(`${BASE_URL}/e2e/seed-subscription-state`, {
-		data: { userId, state: "trialing", at: trialEndShowingTiles() },
+		data: { userId, ...input.seed },
 	});
 	assert.equal(seeded.status(), 201, "the subscription-state seed endpoint must answer 201");
 
@@ -147,7 +155,7 @@ function submitIsFlushWithTheRows(boxes: PlanFormBoxes): void {
 	const { submit } = boxes;
 	assert.ok(
 		Math.abs(submit.x + submit.width - (row.x + row.width)) <= 0.5,
-		`Subscribe now ends at x ${submit.x + submit.width}, the rows at ${row.x + row.width}`,
+		`Upgrade now ends at x ${submit.x + submit.width}, the rows at ${row.x + row.width}`,
 	);
 }
 
@@ -180,8 +188,8 @@ async function desktopDialogGeometry(page: Page): Promise<PanelRelativeBoxes> {
 	for (const row of boxes.rows) {
 		assert.ok(Math.abs(row.height - DESIGNED_ROW_HEIGHT) <= 1, `a plan row is ${row.height}px tall`);
 	}
-	assert.ok(Math.abs(dismiss.y - boxes.submit.y) <= 0.5, "Cancel and Subscribe now must share one row");
-	assert.ok(dismiss.x + dismiss.width < boxes.submit.x, "Cancel must sit left of Subscribe now");
+	assert.ok(Math.abs(dismiss.y - boxes.submit.y) <= 0.5, "Cancel and Upgrade now must share one row");
+	assert.ok(dismiss.x + dismiss.width < boxes.submit.x, "Cancel must sit left of Upgrade now");
 	submitIsFlushWithTheRows(boxes);
 	partsSitInsidePanel(panel, [...boxes.rows, boxes.badge, dismiss, boxes.submit]);
 
@@ -204,7 +212,7 @@ async function stackedDialogGeometry(page: Page): Promise<{
 	rowsStackInOneColumn(boxes.rows);
 	tabSitsOnFeaturedRow(boxes);
 	pricesSitUnderTheirBilledLines(boxes);
-	assert.ok(boxes.submit.y + boxes.submit.height <= dismiss.y, "Subscribe now must sit above Cancel");
+	assert.ok(boxes.submit.y + boxes.submit.height <= dismiss.y, "Upgrade now must sit above Cancel");
 
 	return {
 		panel,
@@ -313,6 +321,28 @@ test.describe("Subscribe plans dialog", () => {
 		await page.goto(`${BASE_URL}/account/plans`, { waitUntil: "domcontentloaded" });
 		await page.waitForSelector("body.page-plans");
 		expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+	});
+
+	test("opens from the header's locked Inbox on a page with no banner, and attributes the chooser to the header", async ({
+		page,
+	}, testInfo) => {
+		await page.emulateMedia({ colorScheme: "light" });
+		await signInSeededReader(page, {
+			stamp: `nav-lock-${testInfo.workerIndex}-${Date.now()}`,
+			seed: { state: "inactive" },
+		});
+
+		await page.goto(`${BASE_URL}/install?client=chrome`, { waitUntil: "domcontentloaded" });
+		await page.waitForSelector("body.page-install");
+		await expect(page.locator(PANEL)).toHaveCount(1);
+		await page.click(NAV_LOCK);
+		await dialogOpen(page);
+
+		await expect(page.locator(`${PANEL} ${SUBMIT}`)).toBeFocused();
+		await desktopDialogGeometry(page);
+		const action = await page.locator(`${PANEL} form`).getAttribute("action");
+		assert(action, "the plan chooser must post somewhere");
+		assert.equal(new URL(action, BASE_URL).searchParams.get("utm_source"), "header-nav");
 	});
 });
 
