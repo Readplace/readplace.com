@@ -14,17 +14,17 @@ class NativeRefreshRecoveryTest {
 	@Test fun `bounded journal retains a coalesced dropped event checkpoint without losing recovery`() {
 		val records = records(); records.replace(old); val operation = records.prepare(old)
 		val client = recovery(records)
-		repeat(513) { client.record("context_started") }
+		repeat(513) { client.record(AuthEvent.CONTEXT_STARTED) }
 		assertEquals(512, records.read().diagnostics.size)
 		assertEquals(operation, records.read().pending)
-		assertEquals("journal_health", records.read().diagnostics.last().event.event)
+		assertEquals(AuthEvent.JOURNAL_HEALTH, records.read().diagnostics.last().event.event)
 		assertEquals(2, records.read().diagnostics.last().event.dropped_events)
-		client.record("context_started")
-		assertEquals(1, records.read().diagnostics.count { it.event.event == "journal_health" })
+		client.record(AuthEvent.CONTEXT_STARTED)
+		assertEquals(1, records.read().diagnostics.count { it.event.event == AuthEvent.JOURNAL_HEALTH })
 		assertEquals(3, records.read().diagnostics.last().event.dropped_events)
 	}
 	@Test fun `minimal diagnostic event omits absent optional values`() {
-		val event = NativeAuthEvent(UUID.randomUUID().toString(), "context_started", "2026-10-16T00:00:00Z", "android", "app", UUID.randomUUID().toString(), "117")
+		val event = NativeAuthEvent(UUID.randomUUID().toString(), AuthEvent.CONTEXT_STARTED, "2026-10-16T00:00:00Z", "android", AuthSurface.APP, UUID.randomUUID().toString(), "117")
 		val encoded = Json.encodeToJsonElement(event).jsonObject
 		assertEquals(setOf("event_id", "event", "occurred_at", "client", "surface", "context_id", "client_version"), encoded.keys)
 	}
@@ -46,7 +46,7 @@ class NativeRefreshRecoveryTest {
 	}
 	private fun records(storage: Storage = Storage(), legacy: Legacy = Legacy()) = NativeAuthRecords(storage, legacy)
 	private fun recovery(records: NativeAuthRecords, proof: NativeProof = NativeProof { "test-proof" }) = NativeRefreshRecovery(
-		server.url("/").toString().removeSuffix("/"), records, OkHttpClient(), proof, "117", "app")
+		ServerEndpoints(server.url("/").toString().removeSuffix("/")), records, OkHttpClient(), proof, "117", AuthSurface.APP)
 	private val old = OAuthTokens(AccessToken("old-access"), RefreshToken("old-refresh"))
 	private fun enabled() = MockResponse.Builder().code(200).body("{\"readplace_refresh_protocols_supported\":[1],\"readplace_refresh_enrollment_enabled\":true}").build()
 	private fun success(operation: String, expiry: String = "2099-01-01T00:00:00Z", permit: String? = null) = MockResponse.Builder().code(200).body(buildJsonObject {
@@ -117,6 +117,17 @@ class NativeRefreshRecoveryTest {
 		}
 	}
 
+	@Test fun `terminal refusal records the reason the server gave`() = runTest {
+		for ((wire, reason) in listOf("revoked" to AuthReason.REVOKED, "expired" to AuthReason.EXPIRED, "superseded" to AuthReason.SUPERSEDED)) {
+			val records = records(); records.replace(old); records.prepare(old)
+			server.enqueue(MockResponse.Builder().code(400).body("{\"error\":\"invalid_grant\",\"readplace_reason\":\"$wire\"}").build())
+			assertTrue(runCatching { recovery(records).refresh(old) }.exceptionOrNull() is OAuthError.NoRefreshToken)
+			val cleared = records.read().diagnostics.single { it.event.event == AuthEvent.CREDENTIALS_CLEARED }.event
+			assertEquals(AuthOutcome.FAILURE, cleared.outcome)
+			assertEquals(reason, cleared.reason)
+		}
+	}
+
 	@Test fun `unsupported discovery does not bind or rotate`() = runTest {
 		val records = records(); records.replace(old)
 		server.enqueue(MockResponse.Builder().code(200).body("{}").build())
@@ -132,28 +143,28 @@ class NativeRefreshRecoveryTest {
 		assertTrue(runCatching { recovery(records).refresh(old) }.isFailure)
 		assertEquals(operation, records.read().pending)
 		assertEquals(old, records.read().tokens)
-		assertEquals("storage_write_failed", records.read().diagnostics.last().event.reason)
+		assertEquals(AuthReason.STORAGE_WRITE_FAILED, records.read().diagnostics.last().event.reason)
 	}
 
 	@Test fun `diagnostics stay associated with original permit across logout and account change`() = runTest {
 		val records = records(); records.replace(old)
 		val recovery = recovery(records)
 		val operation = records.prepare(old)
-		recovery.record("refresh_prepared", operation = operation.id)
+		recovery.record(AuthEvent.REFRESH_PREPARED, operation = operation.id)
 		records.commit(old, operation, "old-permit")
 		val owned = records.prepare(old)
 		records.replace(null)
-		recovery.record("logout_completed")
+		recovery.record(AuthEvent.LOGOUT_COMPLETED)
 		records.update { it.diagnosticIdentity = UUID.randomUUID().toString(); it.diagnosticsPermit = null }
-		recovery.record("login_started")
-		recovery.record("refresh_response_received", operation = owned.id, owner = owned)
+		recovery.record(AuthEvent.LOGIN_STARTED)
+		recovery.record(AuthEvent.REFRESH_RESPONSE_RECEIVED, operation = owned.id, owner = owned)
 		val retained = records.read().diagnostics
 		val ids = retained.filter { it.permit == "old-permit" }.map { it.event.event_id }
 		server.enqueue(MockResponse.Builder().code(202).body(buildJsonObject { put("accepted_event_ids", JsonArray(ids.map(::JsonPrimitive))) }.toString()).build())
 		recovery.flush()
 		val request = server.takeRequest()
 		assertEquals("Bearer old-permit", request.headers["Authorization"])
-		assertEquals(listOf("login_started"), records.read().diagnostics.map { it.event.event })
+		assertEquals(listOf(AuthEvent.LOGIN_STARTED), records.read().diagnostics.map { it.event.event })
 	}
 
 	@Test fun `OAuth coordinator wires bound refresh logout and a generation fenced login`() = runTest {
@@ -161,10 +172,10 @@ class NativeRefreshRecoveryTest {
 		val store = TokenStore(legacy, records)
 		val operation = records.prepare(old)
 		val recovery = recovery(records)
-		val oauth = OAuth(server.url("/").toString().removeSuffix("/"), store, OkHttpClient(), "Readplace/117", recovery)
+		val oauth = OAuth(ServerEndpoints(server.url("/").toString().removeSuffix("/")), store, OkHttpClient(), "Readplace/117", recovery)
 		server.enqueue(success(operation.id))
 		assertEquals("new-access", oauth.refresh(requireNotNull(oauth.snapshot())).tokens.accessToken.raw)
-		oauth.recordAuthEvent("login_prompt_shown", reason = "no_credentials")
+		oauth.recordAuthEvent(AuthEvent.LOGIN_PROMPT_SHOWN, reason = AuthReason.NO_CREDENTIALS)
 		server.enqueue(MockResponse.Builder().code(200).body("{}").build())
 		oauth.revoke()
 		assertNull(store.tokens)
@@ -172,7 +183,7 @@ class NativeRefreshRecoveryTest {
 		val revoked = server.takeRequest()
 		assertEquals("/oauth/revoke", revoked.url.encodedPath)
 		assertEquals("new-refresh", Json.parseToJsonElement(requireNotNull(revoked.body).utf8()).jsonObject["token"]?.jsonPrimitive?.content)
-		oauth.recordAuthEvent("login_started")
+		oauth.recordAuthEvent(AuthEvent.LOGIN_STARTED)
 		server.enqueue(MockResponse.Builder().code(200).body("{\"access_token\":\"signed-in\",\"refresh_token\":\"signed-in-r\",\"diagnostics_permit\":\"login-permit\"}").build())
 		server.enqueue(MockResponse.Builder().code(503).body("{}").build())
 		assertEquals("signed-in", oauth.exchangeCode("code", "verifier", "readplace://oauth-callback/android").accessToken.raw)
@@ -190,7 +201,7 @@ class NativeRefreshRecoveryTest {
 	@Test fun `transport failure keeps parent and prepared operation`() = runTest {
 		val records = records(); records.replace(old); val operation = records.prepare(old)
 		val http = OkHttpClient.Builder().addInterceptor { throw java.io.IOException("connection lost") }.build()
-		val recovery = NativeRefreshRecovery("https://readplace.com", records, http, NativeProof { "signed" }, "117", "share")
+		val recovery = NativeRefreshRecovery(ServerEndpoints("https://readplace.com"), records, http, NativeProof { "signed" }, "117", AuthSurface.SHARE)
 		assertTrue(runCatching { recovery.refresh(old) }.exceptionOrNull() is java.io.IOException)
 		assertEquals(operation, records.read().pending)
 		assertEquals(old, records.read().tokens)
@@ -201,7 +212,7 @@ class NativeRefreshRecoveryTest {
 		val other = OAuthTokens(AccessToken("other"), RefreshToken("other"))
 		val http = OkHttpClient.Builder().addInterceptor { chain -> chain.proceed(chain.request()).also { records.replace(other) } }.build()
 		server.enqueue(success(operation.id))
-		val recovery = NativeRefreshRecovery(server.url("/").toString().removeSuffix("/"), records, http, NativeProof { "signed" }, "117", "app")
+		val recovery = NativeRefreshRecovery(ServerEndpoints(server.url("/").toString().removeSuffix("/")), records, http, NativeProof { "signed" }, "117", AuthSurface.APP)
 		assertEquals(other, recovery.refresh(old))
 		assertEquals(other, records.read().tokens)
 	}
@@ -225,7 +236,7 @@ class NativeRefreshRecoveryTest {
 
 	@Test fun `old requests cannot adopt another account while legacy rollout still commits safely`() = runTest {
 		val legacy = Legacy(); val records = records(legacy = legacy); records.replace(old)
-		val oauth = OAuth(server.url("/").toString().removeSuffix("/"), TokenStore(legacy, records), OkHttpClient(), "Readplace/117")
+		val oauth = OAuth(ServerEndpoints(server.url("/").toString().removeSuffix("/")), TokenStore(legacy, records), OkHttpClient(), "Readplace/117")
 		val original = requireNotNull(oauth.snapshot())
 		server.enqueue(MockResponse.Builder().code(200).body("{\"access_token\":\"rotated\",\"refresh_token\":\"rotated\"}").build())
 		assertEquals("rotated", oauth.refresh(original).tokens.accessToken.raw)
@@ -244,7 +255,7 @@ class NativeRefreshRecoveryTest {
 		val records = records(); records.replace(old); records.prepare(old)
 		val http = OkHttpClient.Builder().addInterceptor { chain -> chain.proceed(chain.request()).also { records.replace(null) } }.build()
 		server.enqueue(MockResponse.Builder().code(400).addHeader("DPoP-Nonce", "nonce").body("{\"error\":\"use_dpop_nonce\"}").build())
-		val client = NativeRefreshRecovery(server.url("/").toString().removeSuffix("/"), records, http, NativeProof { "signed" }, "117", "app")
+		val client = NativeRefreshRecovery(ServerEndpoints(server.url("/").toString().removeSuffix("/")), records, http, NativeProof { "signed" }, "117", AuthSurface.APP)
 		assertTrue(runCatching { client.refresh(old) }.exceptionOrNull() is OAuthError.SessionChanged)
 		assertEquals(1, server.requestCount)
 		records.replace(old); records.prepare(old)

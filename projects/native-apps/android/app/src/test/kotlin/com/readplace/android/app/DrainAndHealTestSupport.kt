@@ -10,6 +10,7 @@ import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.RefreshToken
+import com.readplace.android.core.ServerEndpoints
 import com.readplace.android.core.TokenKey
 import com.readplace.android.core.TokenStorage
 import com.readplace.android.core.TokenStore
@@ -67,7 +68,7 @@ object DrainAndHealTestSupport {
 		baseUrl: String = server.baseUrl,
 	): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
-		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
+		val oauth = OAuth(endpoints = ServerEndpoints(server.baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT)
 		return ReadplaceApi(baseUrl, client, oauth, USER_AGENT, ioDispatcher)
 	}
 

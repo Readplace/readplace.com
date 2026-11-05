@@ -3,10 +3,10 @@ import UIKit
 @MainActor
 final class ShareViewController: UIViewController {
 	private static let sharedStore = TokenStore()
-	private static let oauth = OAuthService(baseURL: AppConfig.serverBaseURL,
+	private static let oauth = OAuthService(endpoints: AppConfig.serverEndpoints,
 		store: sharedStore, nativeUserAgent: processNativeUserAgent(),
-		recovery: NativeRefreshRecovery(baseURL: AppConfig.serverBaseURL, records: sharedStore.authRecords,
-			configuration: .default, surface: "share", version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"))
+		recovery: NativeRefreshRecovery(endpoints: AppConfig.serverEndpoints, records: sharedStore.authRecords,
+			configuration: .default, surface: .share, version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"))
 	private let store = ShareViewController.sharedStore
 	private let haptics = UINotificationFeedbackGenerator()
 
@@ -27,8 +27,8 @@ final class ShareViewController: UIViewController {
 	}
 
 	private func run() async {
-		await Self.oauth.recordAuthEvent("context_started")
-		if !store.isLoggedIn { await Self.oauth.recordAuthEvent("login_prompt_shown", reason: "no_credentials") }
+		await Self.oauth.recordAuthEvent(.contextStarted)
+		if !store.isLoggedIn { await Self.oauth.recordAuthEvent(.loginPromptShown, reason: .noCredentials) }
 		setStatus("Saving…")
 		haptics.prepare()
 		let shared = await ShareURLExtractor.extract(from: extensionContext)
@@ -41,7 +41,7 @@ final class ShareViewController: UIViewController {
 			api: ReadplaceAPI(
 				baseURL: AppConfig.serverBaseURL,
 				oauth: Self.oauth,
-				nativeUserAgent: ShareViewController.processNativeUserAgent(),
+				nativeUserAgent: processNativeUserAgent(),
 				sessionConfiguration: DiscoveryHTTPCache.configuration(containerURL: appGroup?.url)
 			),
 			captor: captor,
@@ -77,18 +77,6 @@ final class ShareViewController: UIViewController {
 		}
 		await hold.untilSettledAndRead(settled)
 		extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
-	}
-
-	private static func processNativeUserAgent(
-		bundle: Bundle = .main,
-		osVersion: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
-	) -> String {
-		guard let product = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
-			let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-		else {
-			preconditionFailure("Info.plist must carry CFBundleName and CFBundleVersion")
-		}
-		return AppConfig.nativeUserAgent(product: product, build: build, osVersion: osVersion)
 	}
 
 	@objc private func backdropTapped() {

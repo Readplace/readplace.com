@@ -4,7 +4,7 @@ import XCTest
 extension ReadplaceAPITests {
 	func testDelayed401RetriesWithCredentialsAnotherRequestRefreshed() async throws {
 		let store = TestSupport.loggedInStore(access: "old", refresh: "old-r")
-		let oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store,
+		let oauth = OAuthService(endpoints: AppConfig.serverEndpoints, store: store,
 			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: TestSupport.stubbedConfiguration())
 		let api = ReadplaceAPI(baseURL: AppConfig.serverBaseURL, oauth: oauth,
 			nativeUserAgent: TestSupport.nativeUserAgent, sessionConfiguration: TestSupport.stubbedConfiguration())
@@ -40,7 +40,7 @@ extension ReadplaceAPITests {
 		let store = TestSupport.loggedInStore(access: "old", refresh: "old-r")
 		func api(process: String) -> ReadplaceAPI {
 			ReadplaceAPI(baseURL: AppConfig.serverBaseURL,
-				oauth: OAuthService(baseURL: AppConfig.serverBaseURL, store: store, nativeUserAgent: process,
+				oauth: OAuthService(endpoints: AppConfig.serverEndpoints, store: store, nativeUserAgent: process,
 					sessionConfiguration: TestSupport.stubbedConfiguration()),
 				nativeUserAgent: process, sessionConfiguration: TestSupport.stubbedConfiguration())
 		}
@@ -68,7 +68,7 @@ extension ReadplaceAPITests {
 		gate.signal()
 		let recovered = try await loser.value
 		XCTAssertEqual(recovered.articles.map(\.id), ["readable"])
-		XCTAssertEqual(store.tokens, OAuthTokens(accessToken: "winner", refreshToken: "winner-r"))
+		XCTAssertEqual(store.tokens, OAuthTokens(accessToken: AccessToken(raw: "winner"), refreshToken: RefreshToken(raw: "winner-r")))
 		let retry = try XCTUnwrap(StubURLProtocol.records(path: "/app-retry").last)
 		XCTAssertEqual(retry.request.value(forHTTPHeaderField: "Authorization"), "Bearer winner")
 		XCTAssertEqual(retry.request.value(forHTTPHeaderField: "X-Readplace-Refresh-Recovery"), "exact-refusal-proof")
@@ -428,7 +428,7 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(page.articles.map(\.id), ["fresh"])
 		XCTAssertEqual(entryAttempts, 2, "should retry exactly once after a refresh")
 		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1, "refresh should happen exactly once")
-		XCTAssertEqual(store.tokens?.accessToken, "fresh-access")
+		XCTAssertEqual(store.tokens?.accessToken.raw, "fresh-access")
 		let retried = StubURLProtocol.records(path: "/").last?.request
 		XCTAssertEqual(retried?.value(forHTTPHeaderField: "Authorization"), "Bearer fresh-access")
 	}
@@ -1140,7 +1140,7 @@ final class ReadplaceAPITests: XCTestCase {
 
 		XCTAssertEqual(cookies.first?.value, "fresh-sess")
 		XCTAssertEqual(sessionAttempts, 2, "should retry once after refreshing the bearer")
-		XCTAssertEqual(store.tokens?.accessToken, "fresh-access")
+		XCTAssertEqual(store.tokens?.accessToken.raw, "fresh-access")
 	}
 
 	func testBootstrapSessionKeepsTheCookieOutOfTheSharedJar() async throws {

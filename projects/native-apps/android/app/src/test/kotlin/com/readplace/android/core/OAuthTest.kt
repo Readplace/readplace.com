@@ -59,7 +59,7 @@ class OAuthTest {
 
 	private fun oauth(): OAuth =
 		OAuth(
-			baseUrl = server.url("/").toString().removeSuffix("/"),
+			endpoints = ServerEndpoints(server.url("/").toString().removeSuffix("/")),
 			store = store,
 			http = OkHttpClient(),
 			nativeUserAgent = nativeUserAgent,
@@ -593,7 +593,7 @@ class OAuthTest {
 		// transport failure must land in the same place a 500 does: locally signed out.
 		signedInWith(refreshToken = "rt-1")
 		val unreachable = OAuth(
-			baseUrl = "http://127.0.0.1:${unusedPort()}",
+			endpoints = ServerEndpoints("http://127.0.0.1:${unusedPort()}"),
 			store = store,
 			http = OkHttpClient(),
 			nativeUserAgent = nativeUserAgent,
@@ -639,7 +639,7 @@ class OAuthTest {
 					.build(),
 			)
 			val oauth = OAuth(
-				baseUrl = "http://localhost:${target.port}",
+				endpoints = ServerEndpoints("http://localhost:${target.port}"),
 				store = store,
 				http = interceptingClient("localhost"),
 				nativeUserAgent = nativeUserAgent,
@@ -674,7 +674,7 @@ class OAuthTest {
 					.build(),
 			)
 			val oauth = OAuth(
-				baseUrl = "http://localhost:${target.port}",
+				endpoints = ServerEndpoints("http://localhost:${target.port}"),
 				store = store,
 				http = interceptingClient("localhost"),
 				nativeUserAgent = nativeUserAgent,

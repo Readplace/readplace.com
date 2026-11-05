@@ -4,11 +4,13 @@ import android.content.Context
 import android.os.Build
 import com.readplace.android.BuildConfig
 import com.readplace.android.core.AppConfig
+import com.readplace.android.core.AuthSurface
 import com.readplace.android.core.NativeCleartextPolicy
 import com.readplace.android.core.OAuth
 import com.readplace.android.core.TokenStore
 import com.readplace.android.core.NativeAuthRecords
 import com.readplace.android.core.NativeRefreshRecovery
+import com.readplace.android.core.ServerEndpoints
 import okhttp3.OkHttpClient
 
 class ProcessCredentials private constructor(
@@ -30,13 +32,14 @@ class ProcessCredentials private constructor(
 			val http = OkHttpClient.Builder()
 				.addNetworkInterceptor(NativeCleartextPolicy.forEnvironment(AppConfig.serverEnvironment))
 				.build()
+			val endpoints = ServerEndpoints(AppConfig.serverBaseUrl)
 			val oauth = OAuth(
-				baseUrl = AppConfig.serverBaseUrl,
+				endpoints = endpoints,
 				store = store,
 				http = http,
 				nativeUserAgent = nativeUserAgent,
-				recovery = NativeRefreshRecovery(AppConfig.serverBaseUrl, records, http, KeystoreRefreshProof(),
-					BuildConfig.VERSION_CODE.toString(), "app"),
+				recovery = NativeRefreshRecovery(endpoints, records, http, KeystoreRefreshProof(),
+					BuildConfig.VERSION_CODE.toString(), AuthSurface.APP),
 			)
 			return ProcessCredentials(store, oauth)
 		}

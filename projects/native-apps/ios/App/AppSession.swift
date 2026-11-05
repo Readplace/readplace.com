@@ -37,7 +37,7 @@ final class AppSession: ObservableObject {
 	// `wipeReaderWebStore` defaults to the real WebKit deletion; it's the
 	// OS-boundary seam tests replace with a spy.
 	init(
-		store: TokenStore = TokenStore(),
+		store: TokenStore,
 		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration,
 		recovery: NativeRefreshRecovery? = nil,
@@ -46,7 +46,7 @@ final class AppSession: ObservableObject {
 		forgetReaderChoices: @escaping () -> Void = AppSession.removeReaderChoices,
 		forgetOfflineCopies: @escaping () -> Void = AppSession.removeOfflineCopies
 	) {
-		self.oauth = OAuthService(baseURL: AppConfig.serverBaseURL, store: store,
+		self.oauth = OAuthService(endpoints: AppConfig.serverEndpoints, store: store,
 			nativeUserAgent: nativeUserAgent, sessionConfiguration: sessionConfiguration, recovery: recovery)
 		self.store = store
 		self.nativeUserAgent = nativeUserAgent
@@ -73,7 +73,7 @@ final class AppSession: ObservableObject {
 		expectedState: String,
 		redirectURI: String
 	) async -> Result<Void, Error> {
-		await oauth.recordAuthEvent("login_callback_received")
+		await oauth.recordAuthEvent(.loginCallbackReceived)
 		let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
 		func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
 
@@ -166,18 +166,6 @@ final class AppSession: ObservableObject {
 
 	private static func removeReaderChoices() {
 		ShareArtifacts.forgetReaderChoices(appGroupId: TokenStore.resolvedAppGroupId)
-	}
-
-	nonisolated static func processNativeUserAgent(
-		bundle: Bundle = .main,
-		osVersion: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
-	) -> String {
-		guard let product = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
-			let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-		else {
-			preconditionFailure("Info.plist must carry CFBundleName and CFBundleVersion")
-		}
-		return AppConfig.nativeUserAgent(product: product, build: build, osVersion: osVersion)
 	}
 
 	func makeAPI() -> ReadplaceAPI {

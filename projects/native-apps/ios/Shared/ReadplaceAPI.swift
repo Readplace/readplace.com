@@ -290,7 +290,7 @@ final class ReadplaceAPI {
 		}
 		let cookies = sessionCookies(from: http, url: url, excluding: priorCookies)
 		guard !cookies.isEmpty else { throw APIError.decoding }
-		await oauth.recordAuthEvent("session_bridge_completed", outcome: "success", reason: "oauth_bridge")
+		await oauth.recordAuthEvent(.sessionBridgeCompleted, outcome: .success, reason: .oauthBridge)
 		return cookies
 	}
 
@@ -309,7 +309,7 @@ final class ReadplaceAPI {
 		guard let minted = try? JSONDecoder().decode(BrowserHandoffCode.self, from: data), !minted.code.isEmpty else {
 			throw APIError.decoding
 		}
-		await oauth.recordAuthEvent("session_bridge_completed", outcome: "success", reason: "browser_handoff")
+		await oauth.recordAuthEvent(.sessionBridgeCompleted, outcome: .success, reason: .browserHandoff)
 		return minted.code
 	}
 
@@ -454,7 +454,7 @@ final class ReadplaceAPI {
 		do { credentials = try await oauth.snapshot() }
 		catch OAuthError.noRefreshToken { throw APIError.noToken }
 		if let refreshed, credentials != refreshed.snapshot { throw OAuthError.sessionChanged }
-		let token = credentials.tokens.accessToken
+		let token = credentials.tokens.accessToken.raw
 		var authed = request
 		if let proof = refreshed?.recoveryProof,
 			let origin = URL(string: baseURL), let url = request.url,

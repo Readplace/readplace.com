@@ -31,7 +31,7 @@ struct AuthorizationRequest {
 /// Drives the OAuth 2.0 Authorization Code + PKCE flow against the server,
 /// mirroring the browser extension's `initOAuthAuth`.
 actor OAuthService {
-	let baseURL: String
+	let endpoints: ServerEndpoints
 	let store: TokenStore
 	private let nativeUserAgent: String
 	private let session: URLSession
@@ -75,21 +75,18 @@ actor OAuthService {
 	}
 
 	init(
-		baseURL: String,
+		endpoints: ServerEndpoints,
 		store: TokenStore,
 		nativeUserAgent: String,
 		sessionConfiguration: URLSessionConfiguration = .default,
 		recovery: NativeRefreshRecovery? = nil
 	) {
-		self.baseURL = baseURL
+		self.endpoints = endpoints
 		self.store = store
 		self.nativeUserAgent = nativeUserAgent
 		self.session = URLSession(configuration: sessionConfiguration)
 		self.recovery = recovery
 	}
-
-	private var tokenEndpoint: URL { URL(string: "\(baseURL)/oauth/token")! }
-	private var revokeEndpoint: URL { URL(string: "\(baseURL)/oauth/revoke")! }
 
 	/// The custom-scheme redirect used by the auth flow (both Login and Sign up),
 	/// which the in-app auth session captures to end the web flow.
@@ -116,7 +113,6 @@ actor OAuthService {
 		let challenge = PKCE.challenge(for: verifier)
 		let state = PKCE.makeState()
 
-		var components = URLComponents(string: "\(baseURL)/oauth/authorize")!
 		var items = [
 			URLQueryItem(name: "client_id", value: AppConfig.clientId),
 			URLQueryItem(name: "redirect_uri", value: redirectURI),
@@ -126,9 +122,8 @@ actor OAuthService {
 			URLQueryItem(name: "state", value: state),
 		]
 		if let screenHint { items.append(URLQueryItem(name: "screen_hint", value: screenHint)) }
-		components.queryItems = items
 		return AuthorizationRequest(
-			url: components.url!,
+			url: endpoints.authorize.appending(queryItems: items),
 			redirectURI: redirectURI,
 			codeVerifier: verifier,
 			state: state
@@ -152,7 +147,7 @@ actor OAuthService {
 			record.diagnosticIdentity = diagnosticIdentity; record.diagnosticsPermit = nil
 			return record.generation
 		}
-		await recovery?.record("login_started")
+		await recovery?.record(.loginStarted)
 		let body = formBody([
 			"grant_type": "authorization_code",
 			"code": code,
@@ -181,14 +176,14 @@ actor OAuthService {
 				}
 			}
 		}
-		await recovery?.record("login_completed", outcome: "success")
+		await recovery?.record(.loginCompleted, outcome: .success)
 		Task { await recovery?.flush() }
 		return tokens
 	}
 
 	@discardableResult
 	func refresh() async throws -> String {
-		try await refresh(after: snapshot()).snapshot.tokens.accessToken
+		try await refresh(after: snapshot()).snapshot.tokens.accessToken.raw
 	}
 
 	func refresh(after failed: Snapshot) async throws -> RefreshResult {
@@ -214,7 +209,7 @@ actor OAuthService {
 		}
 		let body = formBody([
 			"grant_type": "refresh_token",
-			"refresh_token": failed.tokens.refreshToken,
+			"refresh_token": failed.tokens.refreshToken.raw,
 			"client_id": AppConfig.clientId,
 		])
 		var request = tokenRequest(body)
@@ -259,9 +254,9 @@ actor OAuthService {
 
 	func revoke() async {
 		let previous = try? store.authRecords.read()
-		let refresh = store.tokens?.refreshToken
+		let refresh = store.tokens?.refreshToken.raw
 		let cleared = clear()
-		await recovery?.record("logout_started", reason: "user_requested")
+		await recovery?.record(.logoutStarted, reason: .userRequested)
 		if let recovery, let previous, previous.bound || previous.pending != nil {
 			try? await recovery.revoke(previous)
 			await recordLogout(cleared)
@@ -269,7 +264,7 @@ actor OAuthService {
 			return
 		}
 		if let refresh {
-			var request = URLRequest(url: revokeEndpoint)
+			var request = URLRequest(url: endpoints.revoke)
 			request.httpMethod = "POST"
 			request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 			request.setValue(nativeUserAgent, forHTTPHeaderField: "User-Agent")
@@ -280,11 +275,11 @@ actor OAuthService {
 		await recovery?.flush()
 	}
 
-	func recordAuthEvent(_ event: String, outcome: String? = nil, reason: String? = nil) async {
-		if event == "login_started" {
+	func recordAuthEvent(_ event: AuthEvent, outcome: AuthOutcome? = nil, reason: AuthReason? = nil) async {
+		if event == .loginStarted {
 			let identity = UUID().uuidString.lowercased()
 			try? store.authRecords.update { record in
-				for index in record.diagnostics.indices where record.diagnostics[index].identity == record.diagnosticIdentity && record.diagnostics[index].permit == nil && record.diagnostics[index].event.event == "login_prompt_shown" {
+				for index in record.diagnostics.indices where record.diagnostics[index].identity == record.diagnosticIdentity && record.diagnostics[index].permit == nil && record.diagnostics[index].event.event == .loginPromptShown {
 					record.diagnostics[index] = NativeAuthJournalEntry(event: record.diagnostics[index].event, identity: identity, permit: nil)
 				}
 				record.diagnosticIdentity = identity; record.diagnosticsPermit = nil
@@ -297,16 +292,16 @@ actor OAuthService {
 
 	private func recordLogout(_ result: Result<Void, Error>) async {
 		switch result {
-		case .success: await recovery?.record("logout_completed", outcome: "success")
+		case .success: await recovery?.record(.logoutCompleted, outcome: .success)
 		case .failure(let error):
-			await recovery?.record("logout_completed", outcome: "failure", reason: "storage_write_failed", storageStatus: (error as? KeychainError)?.status)
+			await recovery?.record(.logoutCompleted, outcome: .failure, reason: .storageWriteFailed, storageStatus: (error as? KeychainError)?.status)
 		}
 	}
 
 	// MARK: - Helpers
 
 	private func tokenRequest(_ body: Data) -> URLRequest {
-		var request = URLRequest(url: tokenEndpoint)
+		var request = URLRequest(url: endpoints.token)
 		request.httpMethod = "POST"
 		request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 		request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -315,7 +310,7 @@ actor OAuthService {
 		return request
 	}
 
-	private func parseTokens(_ data: Data, fallbackRefresh: String?) throws -> OAuthTokens {
+	private func parseTokens(_ data: Data, fallbackRefresh: RefreshToken?) throws -> OAuthTokens {
 		struct TokenResponse: Decodable {
 			let access_token: String
 			let refresh_token: String?
@@ -323,10 +318,10 @@ actor OAuthService {
 		guard let parsed = try? JSONDecoder().decode(TokenResponse.self, from: data) else {
 			throw OAuthError.malformedResponse
 		}
-		guard !parsed.access_token.isEmpty, let refresh = parsed.refresh_token ?? fallbackRefresh, !refresh.isEmpty else {
+		guard !parsed.access_token.isEmpty, let refresh = parsed.refresh_token ?? fallbackRefresh?.raw, !refresh.isEmpty else {
 			throw OAuthError.malformedResponse
 		}
-		return OAuthTokens(accessToken: parsed.access_token, refreshToken: refresh)
+		return OAuthTokens(accessToken: AccessToken(raw: parsed.access_token), refreshToken: RefreshToken(raw: refresh))
 	}
 
 	private func formBody(_ params: [String: String]) -> Data {

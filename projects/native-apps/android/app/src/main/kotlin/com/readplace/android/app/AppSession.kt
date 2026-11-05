@@ -1,6 +1,9 @@
 package com.readplace.android.app
 
+import com.readplace.android.core.AuthEvent
 import com.readplace.android.core.AuthFlowError
+import com.readplace.android.core.AuthOutcome
+import com.readplace.android.core.AuthReason
 import com.readplace.android.core.AuthorizationRequest
 import com.readplace.android.core.EphemeralCookieJar
 import com.readplace.android.core.OAuth
@@ -116,10 +119,10 @@ class AppSession(
 	/** Runs one attempt; the flow answers `null` when the user dismissed the
 	 * sign-in page. */
 	private suspend fun authenticate(request: AuthorizationRequest): Result<Unit>? {
-		oauth.recordAuthEvent("login_started")
+		oauth.recordAuthEvent(AuthEvent.LOGIN_STARTED)
 		val outcome = makeWebAuthFlow(oauth).start(request)
-		if (outcome == null) oauth.recordAuthEvent("login_cancelled", "cancelled", "user_cancelled")
-		if (outcome?.isFailure == true) oauth.recordAuthEvent("login_failed", "failure", "unknown")
+		if (outcome == null) oauth.recordAuthEvent(AuthEvent.LOGIN_CANCELLED, AuthOutcome.CANCELLED, AuthReason.USER_CANCELLED)
+		if (outcome?.isFailure == true) oauth.recordAuthEvent(AuthEvent.LOGIN_FAILED, AuthOutcome.FAILURE, AuthReason.UNKNOWN)
 		refreshLoginState()
 		return outcome
 	}
@@ -137,7 +140,7 @@ class AppSession(
 		expectedState: String,
 		redirectUri: String,
 	): Result<Unit> {
-		oauth.recordAuthEvent("login_callback_received")
+		oauth.recordAuthEvent(AuthEvent.LOGIN_CALLBACK_RECEIVED)
 		val query = queryOf(callbackUrl)
 		fun value(name: String): String? = query.queryParameter(name)
 

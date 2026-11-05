@@ -15,14 +15,14 @@ final class TokenStoreTests: XCTestCase {
 
 	func testSaveAndReadTokens() {
 		let store = makeStore()
-		store.save(OAuthTokens(accessToken: "a", refreshToken: "r"))
-		XCTAssertEqual(store.tokens, OAuthTokens(accessToken: "a", refreshToken: "r"))
+		store.save(OAuthTokens(accessToken: AccessToken(raw: "a"), refreshToken: RefreshToken(raw: "r")))
+		XCTAssertEqual(store.tokens, OAuthTokens(accessToken: AccessToken(raw: "a"), refreshToken: RefreshToken(raw: "r")))
 		XCTAssertTrue(store.isLoggedIn)
 	}
 
 	func testClearRemovesTokens() {
 		let store = makeStore()
-		store.save(OAuthTokens(accessToken: "a", refreshToken: "r"))
+		store.save(OAuthTokens(accessToken: AccessToken(raw: "a"), refreshToken: RefreshToken(raw: "r")))
 		store.clear()
 		XCTAssertNil(store.tokens)
 		XCTAssertFalse(store.isLoggedIn)
@@ -39,8 +39,8 @@ final class TokenStoreTests: XCTestCase {
 
 	func testLoadTokensReturnsThePairWhenBothPresent() {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		store.save(OAuthTokens(accessToken: "a", refreshToken: "r"))
-		XCTAssertEqual(store.loadTokens(), .success(OAuthTokens(accessToken: "a", refreshToken: "r")))
+		store.save(OAuthTokens(accessToken: AccessToken(raw: "a"), refreshToken: RefreshToken(raw: "r")))
+		XCTAssertEqual(store.loadTokens(), .success(OAuthTokens(accessToken: AccessToken(raw: "a"), refreshToken: RefreshToken(raw: "r"))))
 	}
 
 	func testLoadTokensIsSignedOutWhenEmpty() {

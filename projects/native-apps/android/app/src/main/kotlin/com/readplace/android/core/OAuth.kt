@@ -50,7 +50,7 @@ data class AuthorizationRequest(
  * mirroring the browser extension's `initOAuthAuth`.
  */
 class OAuth(
-	private val baseUrl: String,
+	private val endpoints: ServerEndpoints,
 	private val store: TokenStore,
 	private val http: OkHttpClient,
 	private val nativeUserAgent: String,
@@ -109,7 +109,7 @@ class OAuth(
 				it.generation
 			}
 		}
-		recovery?.record("login_started")
+		recovery?.record(AuthEvent.LOGIN_STARTED)
 		val form = FormBody.Builder()
 			.add("grant_type", "authorization_code")
 			.add("code", code)
@@ -132,7 +132,7 @@ class OAuth(
 				it.diagnostics = it.diagnostics.map { entry -> if (entry.identity == it.diagnosticIdentity && entry.permit == null) entry.copy(permit = permit) else entry }
 			}
 		} else store.save(minted)
-		recovery?.record("login_completed", "success")
+		recovery?.record(AuthEvent.LOGIN_COMPLETED, AuthOutcome.SUCCESS)
 		refreshScope.launch { recovery?.flush() }
 		return minted
 	}
@@ -209,17 +209,17 @@ class OAuth(
 		val previous = store.authRecords?.read()
 		val stored = store.tokens?.refreshToken
 		endSession()
-		recovery?.record("logout_started", reason = "user_requested")
+		recovery?.record(AuthEvent.LOGOUT_STARTED, reason = AuthReason.USER_REQUESTED)
 		if (recovery != null && previous != null && (previous.bound || previous.pending != null)) {
 			runCatching { recovery?.revoke(previous) }
-			recovery.record("logout_completed")
+			recovery.record(AuthEvent.LOGOUT_COMPLETED)
 			refreshScope.launch { recovery?.flush() }
 			return
 		}
 		if (stored != null) {
 			val payload = JsonObject(mapOf("token" to JsonPrimitive(stored.raw))).toString()
 			val request = Request.Builder()
-				.url("$baseUrl/oauth/revoke")
+				.url(endpoints.revoke)
 				.post(payload.toByteArray(Charsets.UTF_8).toRequestBody(JSON_MEDIA_TYPE))
 				.header("User-Agent", nativeUserAgent)
 				.build()
@@ -228,16 +228,16 @@ class OAuth(
 			} catch (_: IOException) {
 			}
 		}
-		recovery?.record("logout_completed")
+		recovery?.record(AuthEvent.LOGOUT_COMPLETED)
 		refreshScope.launch { recovery?.flush() }
 	}
 
-	fun recordAuthEvent(event: String, outcome: String? = null, reason: String? = null) {
-		if (event == "login_started") synchronized(this) {
+	fun recordAuthEvent(event: AuthEvent, outcome: AuthOutcome? = null, reason: AuthReason? = null) {
+		if (event == AuthEvent.LOGIN_STARTED) synchronized(this) {
 			val identity = java.util.UUID.randomUUID().toString()
 			runCatching { store.authRecords?.update { state ->
 				state.diagnostics = state.diagnostics.map {
-					if (it.identity == state.diagnosticIdentity && it.permit == null && it.event.event == "login_prompt_shown") it.copy(identity = identity) else it
+					if (it.identity == state.diagnosticIdentity && it.permit == null && it.event.event == AuthEvent.LOGIN_PROMPT_SHOWN) it.copy(identity = identity) else it
 				}
 				state.diagnosticIdentity = identity; state.diagnosticsPermit = null
 			} }
@@ -252,7 +252,7 @@ class OAuth(
 	private fun makeAuthorizationRequest(screenHint: String): AuthorizationRequest {
 		val verifier = Pkce.makeCodeVerifier()
 		val state = Pkce.makeState()
-		val url = "$baseUrl/oauth/authorize".toHttpUrl().newBuilder()
+		val url = endpoints.authorize.toHttpUrl().newBuilder()
 			.addQueryParameter("client_id", AppConfig.CLIENT_ID)
 			.addQueryParameter("redirect_uri", nativeRedirectUri)
 			.addQueryParameter("response_type", "code")
@@ -271,7 +271,7 @@ class OAuth(
 
 	private fun tokenRequest(form: FormBody): Request =
 		Request.Builder()
-			.url("$baseUrl/oauth/token")
+			.url(endpoints.token)
 			.post(form)
 			.header("Accept", "application/json")
 			.header("User-Agent", nativeUserAgent)

@@ -12,6 +12,7 @@ import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.Readlist
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.RefreshToken
+import com.readplace.android.core.ServerEndpoints
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.ShareTarget
 import com.readplace.android.core.SharedArticlesDrop
@@ -130,7 +131,7 @@ class SaveSharedPageTest {
 			client = OkHttpClient.Builder().followRedirects(false)
 				.apply { if (cache != null) cache(cache) }
 				.build(),
-			oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
+			oauth = OAuth(endpoints = ServerEndpoints(server.baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = USER_AGENT),
 			nativeUserAgent = USER_AGENT,
 			ioDispatcher = ioDispatcher,
 		)

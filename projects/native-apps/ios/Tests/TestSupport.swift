@@ -115,7 +115,7 @@ enum TestSupport {
 		refresh: String = "refresh-1"
 	) -> TokenStore {
 		let store = TokenStore(defaults: ephemeralDefaults())
-		store.save(OAuthTokens(accessToken: access, refreshToken: refresh))
+		store.save(OAuthTokens(accessToken: AccessToken(raw: access), refreshToken: RefreshToken(raw: refresh)))
 		return store
 	}
 
@@ -393,7 +393,7 @@ extension ReadplaceAPI {
 		maxExternalContentBytes: Int = ReadplaceAPI.defaultMaxExternalContentBytes
 	) {
 		self.init(baseURL: baseURL,
-			oauth: OAuthService(baseURL: baseURL, store: store, nativeUserAgent: nativeUserAgent,
+			oauth: OAuthService(endpoints: ServerEndpoints(origin: URL(string: baseURL)!), store: store, nativeUserAgent: nativeUserAgent,
 				sessionConfiguration: sessionConfiguration),
 			nativeUserAgent: nativeUserAgent, sessionConfiguration: sessionConfiguration,
 			maxExternalContentBytes: maxExternalContentBytes)

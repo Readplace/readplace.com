@@ -15,6 +15,7 @@ import com.readplace.android.core.OAuth
 import com.readplace.android.core.OAuthTokens
 import com.readplace.android.core.ReadplaceApi
 import com.readplace.android.core.RefreshToken
+import com.readplace.android.core.ServerEndpoints
 import com.readplace.android.core.ServerMessage
 import com.readplace.android.core.ShareTarget
 import com.readplace.android.core.SharedArticlesDrop
@@ -94,7 +95,7 @@ class ReadingListViewModelTest {
 
 	private fun TestScope.api(store: TokenStore, ioDispatcher: CoroutineDispatcher): ReadplaceApi {
 		val client = OkHttpClient.Builder().cookieJar(EphemeralCookieJar()).followRedirects(false).build()
-		val oauth = OAuth(baseUrl = server.baseUrl, store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
+		val oauth = OAuth(endpoints = ServerEndpoints(server.baseUrl), store = store, http = OkHttpClient(), nativeUserAgent = "Readplace/1 Android/16")
 		return ReadplaceApi(server.baseUrl, client, oauth, "Readplace/1 Android/16", ioDispatcher)
 	}
 

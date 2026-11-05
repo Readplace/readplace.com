@@ -94,7 +94,7 @@ final class NativeAuthRecords {
 		let access = try storage.readValue(for: .accessToken).get()
 		let refresh = try storage.readValue(for: .refreshToken).get()
 		var record = NativeAuthRecord()
-		if let access, let refresh { record.tokens = OAuthTokens(accessToken: access, refreshToken: refresh) }
+		if let access, let refresh { record.tokens = OAuthTokens(accessToken: AccessToken(raw: access), refreshToken: RefreshToken(raw: refresh)) }
 		return record
 	}
 
