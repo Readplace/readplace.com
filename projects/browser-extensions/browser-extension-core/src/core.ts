@@ -1,6 +1,6 @@
 import type { ReadingListItemId } from "./domain/reading-list-item.types";
 import type { Auth, GuardedResult } from "./auth/auth.types";
-import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, LoadSort } from "./reading-list/reading-list.types";
+import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetItems, LoadPage, LoadPageResult, LoadSort, CollectionPage } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Logger } from "@packages/logger";
 import { createEventBus } from "./event-bus";
@@ -19,37 +19,34 @@ export interface ReadingList {
 	loadSort: LoadSort;
 }
 
-
-export type ResultCallbacks<T> = {
-	success: (value: T) => void;
-	failure: (error: CoreError) => void;
-};
-
-export type CoreError =
-	| { reason: "not-logged-in" }
-	| { reason: "error"; error: Error };
+export type LoginReply = { ok: true } | { ok: false; reason: "error"; error: Error };
 
 export interface Core {
 	init(): void;
 
-	login(): void;
+	login(): Promise<LoginReply>;
 	logout(): void;
-	save(resource: "current-tab", data: { url: string; title: string; tabId?: number }): void;
-	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): void;
-	fetch(resource: "reading-list", data?: { page: number } | { sort: number }): void;
+	save(resource: "current-tab", data: { url: string; title: string; tabId?: number }): Promise<GuardedResult<SaveUrlResult>>;
+	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): Promise<GuardedResult<InvokeActionResult>>;
+	fetch(resource: "reading-list"): Promise<GuardedResult<CollectionPage>>;
+	fetch(resource: "reading-list", data: { page: number } | { sort: number }): Promise<GuardedResult<LoadPageResult>>;
 
-	on(event: "pre-init", handler: () => void): void;
-	on(event: "post-init", handler: () => void): void;
-	on(event: "logged-in", handler: ResultCallbacks<void>): void;
-	on(event: "logged-out", handler: () => void): void;
-	on(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
-	on(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
-	on(event: "fetched-reading-list", handler: ResultCallbacks<LoadPageResult>): void;
+	on(event: "pre-init" | "post-init" | "logged-out", handler: () => void): void;
+}
 
-	once(event: "logged-in", handler: ResultCallbacks<void>): void;
-	once(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
-	once(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
-	once(event: "fetched-reading-list", handler: ResultCallbacks<LoadPageResult>): void;
+function toError(err: unknown): Error {
+	return err instanceof Error ? err : new Error(String(err));
+}
+
+function settle<T>(guarded: GuardedResult<T>): Promise<GuardedResult<Awaited<T>>> {
+	if (!guarded.ok) return Promise.resolve(guarded);
+	return Promise.resolve(guarded.value).then(
+		(value): GuardedResult<Awaited<T>> => ({ ok: true, value }),
+		(err: unknown): GuardedResult<Awaited<T>> =>
+			err instanceof UnauthorizedError
+				? { ok: false, reason: "not-logged-in" }
+				: { ok: false, reason: "error", error: toError(err) },
+	);
 }
 
 export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; logger: Logger; readingList: ReadingList }): Core {
@@ -67,31 +64,6 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 	const getShortcutTarget = initGetShortcutTarget({
 		queryActiveTabs: shell.queryActiveTabs,
 	});
-
-	function emitResult<T>(event: string, guardedResult: GuardedResult<T>): void;
-	function emitResult<T>(event: string, guardedResult: GuardedResult<Promise<T>>): void;
-	function emitResult<T>(event: string, guardedResult: GuardedResult<T | Promise<T>>): void {
-		if (!guardedResult.ok) {
-			const { ok: _ok, ...failure } = guardedResult;
-			eventBus.emit(event, "failure", failure satisfies CoreError);
-			return;
-		}
-		const value = guardedResult.value;
-		if (value instanceof Promise) {
-			value
-				.then((resolved) => eventBus.emit(event, "success", resolved))
-				.catch((err: unknown) => {
-					if (err instanceof UnauthorizedError) {
-						eventBus.emit(event, "failure", { reason: "not-logged-in" } satisfies CoreError);
-						return;
-					}
-					const error = err instanceof Error ? err : new Error(String(err));
-					eventBus.emit(event, "failure", { reason: "error", error } satisfies CoreError);
-				});
-		} else {
-			eventBus.emit(event, "success", value);
-		}
-	}
 
 	async function updateActiveTabIcon() {
 		const tab = await shell.getActiveTab();
@@ -121,6 +93,20 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			.catch((error) => logger.warn("Failed to mint web session for reader links", error));
 	}
 
+	function fetchReadingList(resource: "reading-list"): Promise<GuardedResult<CollectionPage>>;
+	function fetchReadingList(resource: "reading-list", data: { page: number } | { sort: number }): Promise<GuardedResult<LoadPageResult>>;
+	function fetchReadingList(_resource: "reading-list", data?: { page: number } | { sort: number }): Promise<GuardedResult<LoadPageResult>> {
+		const guarded = auth.whenLoggedIn((): Promise<LoadPageResult> => {
+			if (!data) return readingList.getItems();
+			return "sort" in data
+				? readingList.loadSort({ index: data.sort })
+				: readingList.loadPage({ index: data.page });
+		});
+		const settled = settle(guarded);
+		if (guarded.ok) establishWebSession();
+		return settled;
+	}
+
 	return {
 		init() {
 			eventBus.emit("pre-init");
@@ -141,7 +127,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 						if (!target) return;
 						shell.openPopup(target);
 					})
-					.catch((err) => logger.error(err));
+					.catch((err) => logger.error("Failed to open the popup for the shortcut target", { error: err }));
 			});
 
 			shell.onTabActivated((tabId, url) => {
@@ -160,15 +146,13 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		},
 
 		login() {
-			auth.login()
-				.then(() => {
-					eventBus.emit("logged-in", "success", undefined);
+			return auth.login().then(
+				(): LoginReply => {
 					updateActiveTabIcon().catch(() => {});
-				})
-				.catch((err: unknown) => {
-					const error = err instanceof Error ? err : new Error(String(err));
-					eventBus.emit("logged-in", "failure", { reason: "error", error } satisfies CoreError);
-				});
+					return { ok: true };
+				},
+				(err: unknown): LoginReply => ({ ok: false, reason: "error", error: toError(err) }),
+			);
 		},
 
 		logout() {
@@ -184,7 +168,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			const guarded = auth.whenLoggedIn(() =>
 				saveCurrentTab({ url: data.url, title: data.title }),
 			);
-			emitResult("saved-current-tab", guarded);
+			const settled = settle(guarded);
 			if (guarded.ok) {
 				const { tabId } = data;
 				guarded.value
@@ -203,13 +187,14 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 					})
 					.catch((err) => logger.error("Failed to update icon after save", { error: err }));
 			}
+			return settled;
 		},
 
 		invoke(_resource, data) {
 			const guarded = auth.whenLoggedIn(() =>
 				readingList.invokeAction({ id: data.id, name: data.name }),
 			);
-			emitResult("invoked-item-action", guarded);
+			const settled = settle(guarded);
 			if (guarded.ok) {
 				guarded.value
 					.then(async (result) => {
@@ -217,43 +202,13 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 					})
 					.catch(() => {});
 			}
+			return settled;
 		},
 
-		fetch(_resource, data) {
-			const guarded = auth.whenLoggedIn(() => {
-				if (!data) return readingList.getItems();
-				return "sort" in data
-					? readingList.loadSort({ index: data.sort })
-					: readingList.loadPage({ index: data.page });
-			});
-			emitResult("fetched-reading-list", guarded);
-			if (guarded.ok) establishWebSession();
-		},
+		fetch: fetchReadingList,
 
-		// biome-ignore lint/suspicious/noExplicitAny: implementation signature must accept all overloaded handler shapes
-		on(event: string, handler: any) {
-			if (typeof handler === "function") {
-				eventBus.on(event, handler);
-			} else {
-				eventBus.on(event, (type: unknown, value: unknown) => {
-					if (type === "success") {
-						handler.success(value);
-					} else if (type === "failure") {
-						handler.failure(value);
-					}
-				});
-			}
-		},
-
-		// biome-ignore lint/suspicious/noExplicitAny: implementation signature must accept all overloaded handler shapes
-		once(event: string, handler: any) {
-			eventBus.once(event, (type: unknown, value: unknown) => {
-				if (type === "success") {
-					handler.success(value);
-				} else if (type === "failure") {
-					handler.failure(value);
-				}
-			});
+		on(event, handler) {
+			eventBus.on(event, handler);
 		},
 	};
 }

@@ -7,7 +7,7 @@ import { type PassReport, initBulkSaveQueue } from "../bulk-save-queue/bulk-save
 import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { WindowIdSchema } from "../domain/window-id";
 import type { BulkSavePage, SaveUrlResult, TabContent } from "../reading-list/reading-list.types";
-import type { BulkChunkSummary, BulkSaveSession } from "../reading-list/siren-reading-list";
+import type { BulkChunkSummary, BulkSaveSession } from "../reading-list/bulk-save-packing";
 import { BULK_SAVE_RUNS_KEY, type BulkSaveRun, BulkSaveRunIdSchema, parseBulkSaveRuns } from "./bulk-save-run";
 import { initBulkSaveRunRecord } from "./bulk-save-run-record";
 import { type SaveAllStart, SaveAllMessageSchema } from "./save-all-messages";

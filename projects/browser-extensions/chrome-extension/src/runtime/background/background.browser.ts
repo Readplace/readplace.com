@@ -14,6 +14,8 @@ import {
 	initBulkSaveRunRecord,
 	initSaveAllRuns,
 	SaveAllMessageSchema,
+	PopupMessageSchema,
+	initAnswerPopupMessage,
 	initSyncContextMenus,
 	initUploadQueue,
 	initOpenHiddenTab,
@@ -30,17 +32,12 @@ import {
 	commandBindingsFromGetAll,
 	type AdvertisedCapabilityStore,
 	type BrowserShell,
-	type PopupMessage,
-	type LoadPageResult,
 	captureActiveTabBytes,
-	type SaveUrlResult,
-	type InvokeActionResult,
 	type ReaderRescueAnswer,
 	type ReaderRescueEnded,
 	type RescueAttemptStore,
 	type Timers,
 	type UploadJobStore,
-	type UploadQueue,
 	type WakeScheduler,
 } from "browser-extension-core";
 import { initCreateContextMenus } from "./create-context-menus";
@@ -146,7 +143,7 @@ const shell: BrowserShell = {
 		void browser.storage.session.set({ pendingTarget: { url, title, tabId } });
 		browser.action.openPopup().catch(async (err) => {
 			await browser.storage.session.remove("pendingTarget").catch(() => {});
-			logger.error(err);
+			logger.error("Failed to open the popup", { error: err });
 		});
 	},
 
@@ -156,7 +153,7 @@ const shell: BrowserShell = {
 		void browser.storage.session.set({ pendingBulkSave: true });
 		browser.action.openPopup().catch(async (err) => {
 			await browser.storage.session.remove("pendingBulkSave").catch(() => {});
-			logger.error(err);
+			logger.error("Failed to open the save-all popup", { error: err });
 		});
 	},
 
@@ -341,7 +338,15 @@ async function initCore() {
 
 	core.init();
 
-	return { core, uploadQueue, runs, auth, readerRescue };
+	const answerPopupMessage = initAnswerPopupMessage({
+		core,
+		reportLoginPrompt: auth.reportLoginPrompt,
+		uploadQueue,
+		forgetRuns: runs.forget,
+		keepAlive: withServiceWorkerKeepalive,
+	});
+
+	return { answerPopupMessage, uploadQueue, runs, auth, readerRescue };
 }
 
 const appPromise = initCore();
@@ -386,17 +391,6 @@ refreshCommandBindings();
 browser.commands.onCommand.addListener((command) => {
 	if (command === SAVE_ALL_TABS_COMMAND) shell.openSaveAllTabsPopup();
 });
-
-/** The job carries the tab URL verbatim: substituting anything else (a canonical
- * URL, a redirect target) would land the bytes on a different article than the one
- * the user just saw appear. The popup's response is already on its way, so the
- * worker is held open for the capture and upload that follow it. */
-function readlistContentUpload(
-	uploadQueue: UploadQueue,
-	target: { url: string; title: string; tabId?: number },
-): void {
-	void withServiceWorkerKeepalive(uploadQueue.enqueue(target));
-}
 
 const CAPTURE_HTML_TIMEOUT_MS = 5000;
 const RESCUE_LOAD_TIMEOUT_MS = 30_000;
@@ -455,8 +449,8 @@ function showBulkSaveNotification(notification: {
 }
 
 browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
-	if ((raw as { type: string }).type === "shortcut-pressed") {
-		browser.action.openPopup().catch((err) => logger.error(err));
+	if (hasStringType(raw) && raw.type === "shortcut-pressed") {
+		browser.action.openPopup().catch((err) => logger.error("Failed to open the popup from the shortcut", { error: err }));
 		return;
 	}
 
@@ -496,90 +490,13 @@ browser.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 		return true;
 	}
 
-	const message = raw as PopupMessage;
+	const popup = PopupMessageSchema.safeParse(raw);
+	if (!popup.success) return;
 
 	appPromise
-		.then(({ core, uploadQueue, runs, auth }) => {
-			switch (message.type) {
-				case "login-prompt-shown": {
-					auth.reportLoginPrompt().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
-					break;
-				}
-				case "login": {
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("logged-in", {
-							success: () => resolve({ ok: true }),
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					core.login();
-					pending.then(sendResponse);
-					break;
-				}
-				case "logout": {
-					/** Page bytes captured for a signed-in reader must not outlive the
-					 * session that authorised capturing them, so the worker is held open
-					 * until the purge lands and the popup is answered only then. */
-					const purged = withServiceWorkerKeepalive(
-						Promise.all([uploadQueue.purge(), runs.forget()]),
-					);
-					core.logout();
-					purged.then(() => sendResponse({ ok: true }));
-					break;
-				}
-				case "save-current-tab": {
-					const target = {
-						url: message.url,
-						title: message.title,
-						tabId: message.tabId,
-					};
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("saved-current-tab", {
-							success: (value: SaveUrlResult) => {
-								if (value.ok) readlistContentUpload(uploadQueue, target);
-								resolve({ ok: true, value });
-							},
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					core.save("current-tab", target);
-					withServiceWorkerKeepalive(pending).then(sendResponse);
-					break;
-				}
-				case "invoke-action": {
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("invoked-item-action", {
-							success: (value: InvokeActionResult) =>
-								resolve({ ok: true, value }),
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					core.invoke("item-action", { id: message.id, name: message.name });
-					pending.then(sendResponse);
-					break;
-				}
-				case "get-all-items":
-				case "load-page":
-				case "load-sort": {
-					const pending = new Promise<unknown>((resolve) => {
-						core.once("fetched-reading-list", {
-							success: (value: LoadPageResult) =>
-								resolve({ ok: true, value }),
-							failure: (err) => resolve({ ok: false, ...err }),
-						});
-					});
-					if (message.type === "load-page") {
-						core.fetch("reading-list", { page: message.index });
-					} else if (message.type === "load-sort") {
-						core.fetch("reading-list", { sort: message.index });
-					} else {
-						core.fetch("reading-list");
-					}
-					pending.then(sendResponse);
-					break;
-				}
-			}
-		});
+		.then(({ answerPopupMessage }) => answerPopupMessage(popup.data))
+		.then(sendResponse)
+		.catch((error) => logger.error("Failed to answer a popup message", { error }));
 
 	return true;
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Logger, noopLogger } from "@packages/logger";
 import type { BulkSavePage } from "../reading-list/reading-list.types";
-import type { BulkChunkSummary, BulkSaveSession } from "../reading-list/siren-reading-list";
+import type { BulkChunkSummary, BulkSaveSession } from "../reading-list/bulk-save-packing";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import {
 	type AdmittedJob,

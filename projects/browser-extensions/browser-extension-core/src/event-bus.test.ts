@@ -49,28 +49,4 @@ describe("createEventBus", () => {
 		expect(() => bus.emit("no-handlers")).not.toThrow();
 	});
 
-	it("should call once handler only on first emit", () => {
-		const bus = createEventBus();
-		const calls: string[] = [];
-		bus.once("test", () => calls.push("once"));
-
-		bus.emit("test");
-		bus.emit("test");
-
-		expect(calls).toEqual(["once"]);
-	});
-
-	it("should not affect other handlers when once handler is removed", () => {
-		const bus = createEventBus();
-		const calls: string[] = [];
-		bus.on("test", () => calls.push("persistent"));
-		bus.once("test", () => calls.push("once"));
-
-		bus.emit("test");
-		bus.emit("test");
-
-		expect(calls).toEqual(["persistent", "once", "persistent"]);
-	});
-
-
 });

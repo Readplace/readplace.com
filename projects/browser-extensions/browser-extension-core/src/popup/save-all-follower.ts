@@ -32,7 +32,7 @@ export function initSaveAllFollower(deps: {
 		deps.paint(run);
 		if (isActive(run) || marked.has(run.id)) return;
 		marked.add(run.id);
-		deps.sendAcknowledge(runId).catch((error) => deps.logger.error("Failed to acknowledge the save-all outcome:", { error: error }));
+		deps.sendAcknowledge(runId).catch((error) => deps.logger.error("Failed to acknowledge the save-all outcome", { error: error }));
 		deps.mark();
 	}
 

@@ -1,12 +1,10 @@
 import baseConfig from "../../../knip.config.base";
 import type { KnipConfig } from "knip";
 
-const { workspaces: _workspaces, ...base } = baseConfig;
-
 export default {
-	...base,
+	...baseConfig,
 	ignore: [
-		...(base.ignore ?? []),
+		...(baseConfig.ignore ?? []),
 		// CLI scripts (not entry points)
 		"scripts/install-chrome-for-testing.js",
 		"scripts/submit-to-chrome-web-store.js",
@@ -19,7 +17,7 @@ export default {
 		"@packages/supported-clients",
 	],
 	ignoreBinaries: [
-		...(base.ignoreBinaries ?? []),
+		...(baseConfig.ignoreBinaries ?? []),
 		// Used via check script to delegate to Nx
 		"nx",
 	],

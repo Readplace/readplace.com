@@ -7,7 +7,7 @@ import {
 	packRequests,
 	type BulkSaveSession,
 	type OpenBulkSaveSession,
-} from "../reading-list/siren-reading-list";
+} from "../reading-list/bulk-save-packing";
 import type { BulkPayloadStore, WakeScheduler } from "../upload-queue/upload-queue.types";
 import { type BulkSaveJob, type BulkSaveJobId, BulkSaveJobIdSchema, parseBulkSaveJobs } from "./bulk-save-job";
 
