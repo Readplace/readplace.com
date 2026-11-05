@@ -224,6 +224,8 @@ const releasePrivateItems = initReleasePrivateItems({
 			purgeArticleContent,
 			deleteMediaObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") })
 				.deleteContentObjects,
+			listMediaKeys: initS3ListContentKeys({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") })
+				.listContentKeys,
 			deleteArticleRow: initDeleteArticleRow({ client: dynamoClient, tableName: articlesTableName }).deleteArticleRow,
 			deleteUserArticleLinks: initDeleteUserArticleLinks({
 				client: dynamoClient,

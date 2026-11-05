@@ -32,6 +32,7 @@ async function buildSubject(overrides: { failRowDelete?: boolean } = {}) {
 		deleteMediaObjects: async (keys) => {
 			calls.push(`media:${keys.join(",")}`);
 		},
+		listMediaKeys: async (prefix) => [`${prefix}cover.png`, `${prefix}figure-1.jpg`],
 		deleteArticleRow: async (url) => {
 			if (overrides.failRowDelete) throw new Error("DeleteItem failed");
 			calls.push(`row:${url}`);
@@ -52,7 +53,7 @@ function dequeued(userId: string) {
 }
 
 describe("initMediaReleaseHandler", () => {
-	it("releases the owner's item: content, pending original, row, then links", async () => {
+	it("releases the owner's item: content, pending original, book images, row, then links", async () => {
 		const { calls, handler } = await buildSubject();
 
 		const result = await handler(dequeued(OWNER), buildLambdaContext(), () => {});
@@ -61,6 +62,7 @@ describe("initMediaReleaseHandler", () => {
 		assert.deepEqual(calls, [
 			`content:${PRIVATE_URL}`,
 			`media:pending/${UPLOAD_ID}/original`,
+			`media:images/${UPLOAD_ID}/cover.png,images/${UPLOAD_ID}/figure-1.jpg`,
 			`row:${PRIVATE_URL}`,
 			`links:${PRIVATE_URL}`,
 		]);
@@ -81,6 +83,10 @@ describe("initMediaReleaseHandler", () => {
 		const result = await handler(dequeued(OWNER), buildLambdaContext(), () => {});
 
 		assert.deepEqual(result, { batchItemFailures: [{ itemIdentifier: "m1" }] });
-		assert.deepEqual(calls, [`content:${PRIVATE_URL}`, `media:pending/${UPLOAD_ID}/original`]);
+		assert.deepEqual(calls, [
+			`content:${PRIVATE_URL}`,
+			`media:pending/${UPLOAD_ID}/original`,
+			`media:images/${UPLOAD_ID}/cover.png,images/${UPLOAD_ID}/figure-1.jpg`,
+		]);
 	});
 });

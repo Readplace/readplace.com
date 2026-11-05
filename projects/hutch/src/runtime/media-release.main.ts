@@ -31,6 +31,7 @@ const releasePrivateItem = initReleasePrivateItem({
 	steps: initPrivateItemReleaseSteps({
 		purgeArticleContent,
 		deleteMediaObjects: initS3DeleteContentObjects({ client: s3Client, bucketName: mediaBucketName }).deleteContentObjects,
+		listMediaKeys: initS3ListContentKeys({ client: s3Client, bucketName: mediaBucketName }).listContentKeys,
 		deleteArticleRow: initDeleteArticleRow({ client: dynamoClient, tableName: articlesTable }).deleteArticleRow,
 		deleteUserArticleLinks: initDeleteUserArticleLinks({ client: dynamoClient, tableName: userArticlesTable })
 			.deleteUserArticleLinks,

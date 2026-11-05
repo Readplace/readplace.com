@@ -794,7 +794,12 @@ const userDataJobsMediaPendingDeletePolicy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [`arn:aws:s3:::${mediaBucketName}/pending/*`],
+				Resource: [`arn:aws:s3:::${mediaBucketName}/pending/*`, `arn:aws:s3:::${mediaBucketName}/images/*`],
+			},
+			{
+				Effect: "Allow",
+				Action: ["s3:ListBucket"],
+				Resource: [`arn:aws:s3:::${mediaBucketName}`],
 			},
 		],
 	}),
@@ -1389,12 +1394,16 @@ const mediaReleaseS3Policy = {
 			{
 				Effect: "Allow",
 				Action: ["s3:DeleteObject"],
-				Resource: [`arn:aws:s3:::${contentBucketName}/*`, `arn:aws:s3:::${mediaBucketName}/pending/*`],
+				Resource: [
+					`arn:aws:s3:::${contentBucketName}/*`,
+					`arn:aws:s3:::${mediaBucketName}/pending/*`,
+					`arn:aws:s3:::${mediaBucketName}/images/*`,
+				],
 			},
 			{
 				Effect: "Allow",
 				Action: ["s3:ListBucket"],
-				Resource: [`arn:aws:s3:::${contentBucketName}`],
+				Resource: [`arn:aws:s3:::${contentBucketName}`, `arn:aws:s3:::${mediaBucketName}`],
 			},
 		],
 	}),
