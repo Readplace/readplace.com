@@ -49,6 +49,10 @@ const CONFIRMED_ARTICLE: ReadlistArticleViewModel = {
 	},
 	readerHref: "/queue/abc123/view",
 	isStalePending: false,
+	kind: undefined,
+	kindLabel: undefined,
+	processingLabel: "Processing",
+	hasOrigin: true,
 };
 
 const PLAIN_ARTICLE: ReadlistArticleViewModel = {
@@ -65,6 +69,10 @@ const PLAIN_ARTICLE: ReadlistArticleViewModel = {
 	deletion: buildArticleDeletion({ articleId: "def456", query: "", acknowledged: true }),
 	readerHref: "/queue/def456/view",
 	isStalePending: false,
+	kind: undefined,
+	kindLabel: undefined,
+	processingLabel: "Processing",
+	hasOrigin: true,
 };
 
 function baseViewModel(overrides: Partial<ReadlistViewModel> = {}): ReadlistViewModel {

@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Handlebars from "handlebars";
-import type {
-	ArticleDestinationUrl,
-	DisplayableReadTime,
-	SiteLabel,
+import {
+	type ArticleDestinationUrl,
+	type DisplayableReadTime,
+	isPrivateItemUrl,
+	type SiteLabel,
 } from "@packages/domain/article";
 import type { ReadlistSlug } from "@packages/domain/readlist";
 import { render } from "@packages/web-shell";
@@ -58,6 +59,7 @@ function renderMeta(input: ArticleHeaderMetadataInput, oob: boolean): string {
 		readTimeLabel: input.readTime?.label ?? "",
 		readTimeEmptyClass: input.readTime ? "" : " article-body__read-time--empty",
 		url: input.url,
+		hasOrigin: !isPrivateItemUrl(input.url),
 		provenanceLabel: provenance?.label,
 		provenanceIconSvg: provenance?.iconSvg,
 		provenanceTitle: provenance === undefined ? undefined : provenanceTitle(provenance),

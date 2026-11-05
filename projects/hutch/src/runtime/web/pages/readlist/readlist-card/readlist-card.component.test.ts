@@ -27,6 +27,10 @@ function makeViewModel(overrides?: Partial<ReadlistArticleViewModel>): ReadlistA
 		deletion: CONFIRMED_DELETION,
 		readerHref: "/queue/abc123/view",
 		isStalePending: false,
+		kind: undefined,
+		kindLabel: undefined,
+		processingLabel: "Processing",
+		hasOrigin: true,
 		...overrides,
 	};
 }

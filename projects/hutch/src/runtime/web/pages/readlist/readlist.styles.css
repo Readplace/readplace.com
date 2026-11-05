@@ -640,6 +640,11 @@
   color: var(--ink-meta);
 }
 
+.readlist-article__kind {
+  font-size: var(--text-sm);
+  color: var(--ink-meta);
+}
+
 .readlist-article__meta--hidden {
   display: none;
 }
@@ -647,7 +652,8 @@
 .readlist-article__site,
 .readlist-article__saved,
 .readlist-article__read-time,
-.readlist-article__via {
+.readlist-article__via,
+.readlist-article__kind {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -670,7 +676,8 @@
 }
 
 .readlist-article__saved,
-.readlist-article__read-time {
+.readlist-article__read-time,
+.readlist-article__kind {
   flex: 0 0 auto;
   white-space: nowrap;
 }
@@ -683,6 +690,7 @@
 .readlist-article__saved svg,
 .readlist-article__read-time svg,
 .readlist-article__via svg,
+.readlist-article__kind svg,
 .readlist-article__processing svg {
   flex: 0 0 auto;
   width: 1rem;

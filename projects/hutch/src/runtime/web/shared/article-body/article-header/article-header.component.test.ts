@@ -86,6 +86,22 @@ describe("renderArticleHeader (inline)", () => {
 		]);
 	});
 
+	it("leaves out the Original link for a private upload, which has no origin to open", () => {
+		const doc = parse(
+			renderArticleHeader({
+				...baseInput,
+				siteName: siteLabel("Book"),
+				url: destinationUrl("https://uploads.readplace.invalid/0123456789abcdef0123456789abcdef"),
+			}),
+		);
+
+		expect(facts(doc)).toEqual([
+			["site", "Book"],
+			["read-time", "3 min read"],
+		]);
+		expect(doc.querySelector("[data-test-original-link]")).toBeNull();
+	});
+
 	it("opens Original on the article's own page in a new tab", () => {
 		const doc = parse(renderArticleHeader(baseInput));
 

@@ -154,6 +154,18 @@ describe("toArticleSubEntity", () => {
 		expect(subEntity.properties?.readTime).toEqual({ value: "3", label: "3 min read" });
 	});
 
+	it("exposes a book's chapter count beside its read time", () => {
+		const book = makeArticle({
+			media: { kind: "book", fileName: "dune.epub", routeId: ReaderArticleHashId.from(ARTICLE_URL), sectionCount: 23 },
+		});
+
+		expect(toArticleSubEntity(book, { addToReadlist: "advertised" }).properties?.sectionCount).toBe(23);
+	});
+
+	it("carries no chapter count for an ordinary article", () => {
+		expect(toArticleSubEntity(makeArticle(), { addToReadlist: "advertised" }).properties).not.toHaveProperty("sectionCount");
+	});
+
 	it("does not advertise a delete action — deletion is website-only", () => {
 		const subEntity = toArticleSubEntity(makeArticle(), { addToReadlist: "advertised" });
 		const deleteAction = subEntity.actions?.find((a) => a.name === "delete");

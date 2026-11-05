@@ -10,13 +10,14 @@
     </details>
   </div>
   {{#if excerpt}}<a class="readlist-article__excerpt{{excerptClampClass}}" href="{{excerptLinkUrl}}" tabindex="-1" data-test-article-excerpt hx-boost="true" hx-push-url="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-opens-reader>{{excerpt}}</a>{{/if}}
-  {{#if isStalePending}}<p class="readlist-article__stale" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
+  {{#if isStalePending}}<p class="readlist-article__stale" data-test-stale-pending>Taking a while — {{#if hasOrigin}}<a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a>{{else}}we're still preparing this {{kind.noun}}.{{/if}}</p>{{/if}}
   {{#if processingNotice}}<p class="readlist-article__stale" data-test-card-processing-notice>{{processingNotice}} <a href="{{uploadAgainUrl}}" data-test-card-upload-again>Upload again</a></p>{{/if}}
   <p class="readlist-article__suggestion{{suggestionHiddenClass}}" data-test-suggestion-label>{{suggestionLabel}}</p>
   <div class="readlist-article__foot">
-    <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>Processing</span></p>
+    {{#if kind}}<span class="readlist-article__kind" data-test-article-kind="{{kind.name}}">{{icon kind.icon}}<span>{{kind.label}}</span></span>{{/if}}
+    <p class="readlist-article__processing{{processingHiddenClass}}" data-test-processing>{{icon "loader"}}<span>{{processingLabel}}</span></p>
     <div class="readlist-article__meta{{metaHiddenClass}}">
-      <a class="readlist-article__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" title="{{siteName}}" data-test-article-url data-reader-field="site">{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></a>
+      {{#if hasOrigin}}<a class="readlist-article__site{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" title="{{siteName}}" data-test-article-url data-reader-field="site">{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></a>{{else}}<span class="readlist-article__site{{urlEmptyClass}}" title="{{siteName}}" data-reader-field="site" data-test-article-site-text>{{icon "globe"}}<span class="readlist-article__site-name">{{siteName}}</span></span>{{/if}}
       <span class="readlist-article__saved">{{icon "clock"}}<time class="readlist-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}" data-reader-field="saved">{{saved.label}}</time></span>
       <span class="readlist-article__read-time{{readTimeEmptyClass}}" data-test-read-time data-reader-field="read-time">{{icon "eye"}}<span>{{readTimeLabel}}</span></span>
       <span class="readlist-article__via{{viaEmptyClass}}{{viaFallbackClass}}" title="{{viaTitle}}" data-test-article-via-fallback{{#unless viaSender}} data-test-article-via{{/unless}}>{{icon "envelope"}}<span class="readlist-article__via-label">{{viaLabel}}</span></span>

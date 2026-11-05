@@ -124,6 +124,7 @@ export function toReadlistCardDisplayModel(
 			term: options.deviceClass,
 		});
 	const toAction = (action: ArticleAction) => toDesignAction(action, { isProcessing, articleId: article.id });
+	const readTimeLabel = article.kindLabel ?? article.readTime?.label ?? "";
 	return {
 		...article,
 		suggestionHiddenClass:
@@ -137,8 +138,8 @@ export function toReadlistCardDisplayModel(
 		processingHiddenClass: isProcessing ? "" : " readlist-article__processing--hidden",
 		metaHiddenClass: isProcessing ? " readlist-article__meta--hidden" : "",
 		urlEmptyClass: article.siteName ? "" : " readlist-article__site--empty",
-		readTimeLabel: article.readTime?.label ?? "",
-		readTimeEmptyClass: article.readTime ? "" : " readlist-article__read-time--empty",
+		readTimeLabel,
+		readTimeEmptyClass: readTimeLabel ? "" : " readlist-article__read-time--empty",
 		...toViaDisplay(article),
 		statusActions: article.actions.map(toAction),
 		statusTriggers: article.actions.flatMap(toTrigger),

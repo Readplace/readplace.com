@@ -1,6 +1,7 @@
 import {
 	displayableReadTime,
 	isNonArticleHost,
+	isPrivateItemUrl,
 	type DisplayableReadTime,
 	type SavedArticle,
 	type SaveableUrlErrorCode,
@@ -46,6 +47,7 @@ import {
 	moveDialogPopoverId,
 } from "./readlist-card/move-dialog.component";
 import { isCardTerminal } from "./readlist-card/is-card-terminal";
+import { type CardKind, cardKindOf } from "./readlist-card/card-kind-label";
 import { readlistCardVia } from "./readlist-card/readlist-card-via";
 import type {
 	ProvenanceLabel,
@@ -118,6 +120,10 @@ export interface ReadlistArticleViewModel {
 	 */
 	isStalePending: boolean;
 	processingNotice?: string;
+	kind: CardKind | undefined;
+	kindLabel: string | undefined;
+	processingLabel: string;
+	hasOrigin: boolean;
 }
 
 export interface ImportSkippedViewModel {
@@ -306,6 +312,7 @@ export function toReadlistArticleViewModel(params: {
 	const isStalePending = !reachedTerminal && pollCount > maxPolls;
 	const deletion = buildArticleDeletion({ articleId: id, query: returnQuery, acknowledged: params.deleteAcknowledged });
 	const excerpt = pickExcerpt(summary, article.metadata.excerpt);
+	const cardKind = cardKindOf(article);
 	const markStatusConfirm =
 		params.confirmReadlists === undefined
 			? undefined
@@ -343,6 +350,10 @@ export function toReadlistArticleViewModel(params: {
 		}),
 		isStalePending,
 		processingNotice: article.processingNotice,
+		kind: cardKind?.kind,
+		kindLabel: cardKind?.kindLabel,
+		processingLabel: cardKind === undefined ? "Processing" : `Preparing your ${cardKind.kind.noun}…`,
+		hasOrigin: !isPrivateItemUrl(article.url),
 	};
 }
 

@@ -52,6 +52,7 @@ export function toArticleSubEntity(
 			excerpt: article.metadata.excerpt,
 			imageUrl: article.metadata.imageUrl ?? null,
 			readTime: readTime ?? null,
+			...(article.media?.sectionCount === undefined ? {} : { sectionCount: article.media.sectionCount }),
 			status: article.status,
 			savedAt: article.savedAt.toISOString(),
 			publishedOn: article.metadata.publishedOn ?? null,

@@ -31,6 +31,10 @@ function realCard(overrides?: Partial<ReadlistArticleViewModel>): string {
 		deletion: buildArticleDeletion({ articleId: "abc123", query: "", acknowledged: false }),
 		readerHref: READER_HREF,
 		isStalePending: false,
+		kind: undefined,
+		kindLabel: undefined,
+		processingLabel: "Processing",
+		hasOrigin: true,
 		...overrides,
 	};
 	return renderReadlistCard(toReadlistCardDisplayModel(vm, { isFirst: false, deviceClass: "desktop" }));
