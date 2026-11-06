@@ -342,7 +342,7 @@ describe("Owner reader Markdown (GET /queue/:id/view with Accept: text/markdown)
 		fixture.engagementStarter.recordEngagementActivity = async (input) => {
 			activity.push(input);
 		};
-		const harness = useApp({ ...fixture, summary: createFakeSummaryProvider() });
+		const harness = useApp({ ...fixture, summary: createFakeSummaryProvider({ findItemOwner: async () => undefined }) });
 		const { agent, userId, token } = await loggedInOwner(harness);
 		const url = "https://example.com/post";
 		const id = ReaderArticleHashId.from(url).value;
