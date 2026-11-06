@@ -4,6 +4,7 @@ import type { UpgradeOffer } from "../../shared/upgrade-offer/upgrade-offer";
 import { buildLockableGmailConnectionPrompt } from "./gmail-connection-prompt";
 import type { GmailFormAction } from "./gmail-form-fields";
 import { GMAIL_DISCOVERY_FAST_POLLS, GMAIL_DISCOVERY_MAX_POLLS } from "./gmail.url";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 export interface GmailSenderStatusViewModel {
 	discoveryState: string;
