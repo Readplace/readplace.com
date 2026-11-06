@@ -124,6 +124,7 @@ import { initInMemoryImportSession } from "@packages/test-fixtures/providers/imp
 import {
 	initInMemoryMediaPending,
 	initInMemoryMediaUploadCommitted,
+	initInMemoryMediaUploadStaged,
 	initInMemoryMediaUploadSessions,
 	initInMemoryPresignMediaImage,
 } from "@packages/test-fixtures/providers/media-upload-session";
@@ -608,6 +609,7 @@ export function initDevProviders(input: { appOrigin: string; putImageObject: Put
 		...initInMemoryMediaPending({ uploadBaseUrl: `${input.appOrigin}/e2e/s3-media` }),
 		presignMediaImage: initInMemoryPresignMediaImage().presignMediaImage,
 		publishMediaUploadCommitted: initInMemoryMediaUploadCommitted().publishMediaUploadCommitted,
+		publishMediaUploadStaged: initInMemoryMediaUploadStaged().publishMediaUploadStaged,
 		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,
 		provisionInboxAddress: async (userId: UserId) => {

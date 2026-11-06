@@ -92,11 +92,13 @@ import { createPresignerClient } from "./pending-upload/mint-upload-url";
 import { UPLOAD_SLOT_TTL_SECONDS } from "../web/pages/readlist/upload-slot-ttl";
 import { initDynamoDbImportSession } from "./import-session/dynamodb-import-session";
 import { initDynamoDbMediaUploadSessions } from "./media-upload-session/dynamodb-media-upload-sessions";
+import { initDynamoDbAnonymousMediaUpload } from "./media-upload-session/dynamodb-anonymous-media-upload";
 import { initS3MediaPending } from "./media-pending/s3-media-pending";
 import { initS3PresignMediaImage } from "./media-image/s3-presign-media-image";
 import { initS3ReadMediaImage } from "./media-image/s3-read-media-image";
 import { initReadArticleImageByIdentity } from "./read-article-image-by-identity";
 import { initEventBridgeMediaUploadCommitted } from "./events/eventbridge-media-upload-committed";
+import { initEventBridgeMediaUploadStaged } from "./events/eventbridge-media-upload-staged";
 import { initDynamoDbPrivateItem } from "@packages/article-store";
 import { mintUploadId } from "@packages/media-contracts";
 import { initExchangeGoogleCode } from "./google-auth/google-token";
@@ -422,6 +424,11 @@ export function initProdProviders(input: { appOrigin: string }) {
 	});
 	const { createMediaUploadSession, findMediaUploadSession, markMediaUploadCommitted } =
 		initDynamoDbMediaUploadSessions({ client, tableName: tables.mediaUploadSessions, now: () => new Date() });
+	const anonymousMediaUpload = initDynamoDbAnonymousMediaUpload({
+		client,
+		tableName: tables.mediaUploadSessions,
+		now: () => new Date(),
+	});
 	const { mintMediaPendingPost, headMediaPendingOriginal, readMediaPendingPrefix } = initS3MediaPending({
 		presignerClient: createPresignerClient(),
 		client: new S3Client({}),
@@ -429,6 +436,7 @@ export function initProdProviders(input: { appOrigin: string }) {
 	});
 	const { presignMediaImage } = initS3PresignMediaImage({ client: s3Client, bucketName: requireEnv("MEDIA_BUCKET_NAME") });
 	const { publishMediaUploadCommitted } = initEventBridgeMediaUploadCommitted({ publishEvent });
+	const { publishMediaUploadStaged } = initEventBridgeMediaUploadStaged({ publishEvent });
 	const importSessionStore = initDynamoDbImportSession({
 		client,
 		tableName: importSessionsTable,
@@ -574,11 +582,13 @@ export function initProdProviders(input: { appOrigin: string }) {
 		createMediaUploadSession,
 		findMediaUploadSession,
 		markMediaUploadCommitted,
+		...anonymousMediaUpload,
 		mintMediaPendingPost,
 		headMediaPendingOriginal,
 		readMediaPendingPrefix,
 		presignMediaImage,
 		publishMediaUploadCommitted,
+		publishMediaUploadStaged,
 		mintUploadId: () => mintUploadId(randomBytes),
 		extractLinksFromPageUrl,
 		provisionInboxAddress: async (userId: UserId) => {

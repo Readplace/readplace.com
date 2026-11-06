@@ -60,16 +60,22 @@ import type {
 } from "@packages/provider-contracts/related-articles";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type {
+	ClaimMediaUpload,
+	CreateAnyMediaUploadSession,
 	CreateMediaUploadSession,
 	FailMediaUpload,
+	FindMediaUploadByCapability,
 	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
+	MarkMediaUploadInspecting,
 	MediaUploadSession,
 	MintMediaPendingPost,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,
+	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
+	RecordMediaInspection,
 } from "@packages/domain";
 import type {
 	InboxAddressStore,
@@ -739,6 +745,11 @@ export interface MediaUploadBundle {
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	failMediaUpload: FailMediaUpload;
+	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
+	markMediaUploadInspecting: MarkMediaUploadInspecting;
+	recordMediaInspection: RecordMediaInspection;
+	claimMediaUpload: ClaimMediaUpload;
+	findMediaUploadByCapability: FindMediaUploadByCapability;
 	mintMediaPendingPost: MintMediaPendingPost;
 	headMediaPendingOriginal: HeadMediaPendingOriginal;
 	readMediaPendingPrefix: ReadMediaPendingPrefix;
@@ -747,6 +758,8 @@ export interface MediaUploadBundle {
 	presignedMediaImages: Parameters<PresignMediaImage>[0][];
 	publishMediaUploadCommitted: PublishMediaUploadCommitted;
 	publishedMediaUploadCommitted: Parameters<PublishMediaUploadCommitted>[0][];
+	publishMediaUploadStaged: PublishMediaUploadStaged;
+	publishedMediaUploadStaged: Parameters<PublishMediaUploadStaged>[0][];
 	mintUploadId: () => MediaUploadSession["uploadId"];
 }
 

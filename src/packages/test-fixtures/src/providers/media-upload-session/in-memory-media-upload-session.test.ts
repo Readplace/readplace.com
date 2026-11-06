@@ -6,6 +6,7 @@ import {
 	initInMemoryMediaPending,
 	initInMemoryMediaUploadCommitted,
 	initInMemoryMediaUploadSessions,
+	initInMemoryMediaUploadStaged,
 	initInMemoryPresignMediaImage,
 } from "./in-memory-media-upload-session";
 import { mintPrivateItemUrl } from "@packages/media-contracts";
@@ -153,5 +154,84 @@ describe("initInMemoryMediaUploadCommitted", () => {
 		await committed.publishMediaUploadCommitted(detail);
 
 		assert.deepEqual(committed.publishedMediaUploadCommitted, [detail]);
+	});
+});
+
+describe("initInMemoryMediaUploadSessions for a guest upload", () => {
+	const guest = {
+		uploadId,
+		userId: undefined,
+		kind: "book" as const,
+		fileName: "novel.epub",
+		saveAttemptId: SaveAttemptIdSchema.parse("attempt-1"),
+	};
+	const facts = { kind: "book" as const, title: "Novel", authors: [], sectionTitles: ["One"] };
+
+	it("inspects, records and lets its reader claim the upload, which S01's ports then see", async () => {
+		const sessions = initInMemoryMediaUploadSessions();
+		await sessions.createAnyMediaUploadSession(guest);
+		assert.equal(await sessions.findMediaUploadSession({ uploadId, userId: owner }), undefined);
+		assert.equal(await sessions.markMediaUploadInspecting({ uploadId, etag: '"e"' }), "inspecting");
+		assert.equal(
+			await sessions.recordMediaInspection({ uploadId, inspection: { verdict: "inspected", facts } }),
+			"ready",
+		);
+
+		const claimed = await sessions.claimMediaUpload({ uploadId, userId: owner });
+
+		assert(claimed !== "not-claimable");
+		assert.equal(claimed.etag, '"e"');
+		assert.equal(await sessions.claimMediaUpload({ uploadId, userId: otherUser }), "not-claimable");
+		assert.equal(await sessions.markMediaUploadCommitted({ uploadId, userId: owner }), "committed");
+		assert.equal((await sessions.findMediaUploadByCapability({ uploadId, userId: otherUser })), undefined);
+	});
+
+	it("records a rejection and refuses each transition from the wrong state", async () => {
+		const sessions = initInMemoryMediaUploadSessions();
+		await sessions.createAnyMediaUploadSession(guest);
+		await assert.rejects(sessions.createAnyMediaUploadSession(guest));
+		assert.equal(
+			await sessions.recordMediaInspection({ uploadId, inspection: { verdict: "inspected", facts } }),
+			"not-inspecting",
+		);
+		assert.equal(await sessions.claimMediaUpload({ uploadId, userId: owner }), "not-claimable");
+		await sessions.markMediaUploadInspecting({ uploadId, etag: '"e"' });
+		assert.equal(await sessions.markMediaUploadInspecting({ uploadId, etag: '"e"' }), "not-staged");
+
+		const outcome = await sessions.recordMediaInspection({
+			uploadId,
+			inspection: { verdict: "rejected", reason: "unreadable", notice: "Unreadable." },
+		});
+
+		assert.equal(outcome, "rejected");
+		const found = await sessions.findMediaUploadByCapability({ uploadId, userId: undefined });
+		assert.equal(found && found.userId === undefined ? found.notice : undefined, "Unreadable.");
+		assert.equal(await sessions.findMediaUploadByCapability({ uploadId: unknownUploadId, userId: owner }), undefined);
+	});
+
+	it("creates a signed-in session through the widened create", async () => {
+		const sessions = initInMemoryMediaUploadSessions();
+
+		const created = await sessions.createAnyMediaUploadSession({ ...guest, userId: owner });
+
+		assert.equal(created.userId, owner);
+		assert.equal((await sessions.findMediaUploadSession({ uploadId, userId: owner }))?.status, "staged");
+	});
+});
+
+describe("initInMemoryMediaUploadStaged", () => {
+	it("records each published event", async () => {
+		const staged = initInMemoryMediaUploadStaged();
+		const detail = {
+			uploadId,
+			kind: "book" as const,
+			mediaType: "application/epub+zip",
+			fileName: "novel.epub",
+			size: 4,
+			etag: '"e"',
+			stagedAt: "2026-11-06T00:00:00.000Z",
+		};
+		await staged.publishMediaUploadStaged(detail);
+		assert.deepEqual(staged.publishedMediaUploadStaged, [detail]);
 	});
 });

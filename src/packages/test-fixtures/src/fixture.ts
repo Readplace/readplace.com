@@ -27,6 +27,7 @@ import { initInMemoryPendingUpload } from "./providers/pending-upload/in-memory-
 import {
 	initInMemoryMediaPending,
 	initInMemoryMediaUploadCommitted,
+	initInMemoryMediaUploadStaged,
 	initInMemoryMediaUploadSessions,
 	initInMemoryPresignMediaImage,
 } from "./providers/media-upload-session/in-memory-media-upload-session";
@@ -602,6 +603,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			...initInMemoryMediaPending({ uploadBaseUrl: `${appOrigin}/e2e/s3-media` }),
 			...initInMemoryPresignMediaImage(),
 			...initInMemoryMediaUploadCommitted(),
+			...initInMemoryMediaUploadStaged(),
 			mintUploadId: () => mintUploadId(randomBytes),
 		},
 		importSession: {

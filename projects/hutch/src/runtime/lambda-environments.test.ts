@@ -18,6 +18,7 @@ import { SEND_USER_DIGEST_ENV } from "./send-user-digest.env";
 import { DIGEST_SCAN_ENV } from "./digest-scan.env";
 import { MEDIA_RELEASE_ENV } from "./media-release.env";
 import { SETTLE_MEDIA_FAILURE_ENV } from "./settle-media-failure.env";
+import { RECORD_MEDIA_INSPECTION_ENV } from "./record-media-inspection.env";
 import { SUBSCRIPTION_EVENTS_ENV } from "./subscription-events.env";
 import { SEND_TRIAL_FEEDBACK_EMAIL_ENV } from "./send-trial-feedback-email.env";
 import { SEND_FIRST_INBOX_EMAIL_NOTICE_ENV } from "./send-first-inbox-email-notice.env";
@@ -45,6 +46,7 @@ const tuples = {
 	DIGEST_SCAN_ENV,
 	MEDIA_RELEASE_ENV,
 	SETTLE_MEDIA_FAILURE_ENV,
+	RECORD_MEDIA_INSPECTION_ENV,
 	SUBSCRIPTION_EVENTS_ENV,
 	SEND_TRIAL_FEEDBACK_EMAIL_ENV,
 	SEND_FIRST_INBOX_EMAIL_NOTICE_ENV,

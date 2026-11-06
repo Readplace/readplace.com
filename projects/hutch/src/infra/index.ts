@@ -46,7 +46,9 @@ import {
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
 	LinkDequeuedEvent,
+	MediaInspectedEvent,
 	MediaProcessingFailedEvent,
+	MediaRejectedEvent,
 } from "@packages/infra-components";
 import { PRIVATE_ITEM_HOST } from "@packages/media-contracts";
 import { CLIENT_DIST_MOUNT_PATH } from "../runtime/web/static-asset-paths";
@@ -83,6 +85,7 @@ import { GMAIL_MESSAGE_UPDATE_ENV } from "../runtime/gmail-message-update.env";
 import { GMAIL_MARK_BACKFILL_ENV } from "../runtime/gmail-mark-backfill.env";
 import { GMAIL_HISTORY_IMPORT_DLQ_ENV } from "../runtime/gmail-history-import-dlq.env";
 import { HUTCH_HANDLER_ENV } from "../runtime/lambda.env";
+import { RECORD_MEDIA_INSPECTION_ENV } from "../runtime/record-media-inspection.env";
 import { USER_DATA_JOBS_ENV } from "../runtime/user-data-jobs.env";
 import { SEND_USER_DIGEST_ENV } from "../runtime/send-user-digest.env";
 import { DIGEST_SCAN_ENV } from "../runtime/digest-scan.env";
@@ -290,7 +293,6 @@ const ssrEdgeSecret = ssrEdgeSecretFromPlatformStack(config);
 // refresh), whose last-resort leg spawns curl_chrome131 from this layer; without
 // it a crawl that falls through to curl dies on `spawn curl_chrome131 ENOENT`.
 const curlImpersonateLayerArn = curlImpersonateLayerArnFromPlatformStack(config);
-
 
 const oauthOutcomes = new aws.dynamodb.Table("oauth-refresh-outcomes", {
 	name: config.require("dynamodbOAuthOutcomesTable"),
@@ -1508,6 +1510,39 @@ const settleMediaFailureWithSQS = new SqsBackedLambda("settle-media-failure", {
 
 eventBus.subscribe(MediaProcessingFailedEvent, settleMediaFailureWithSQS);
 
+const recordMediaInspectionDynamodb = new DynamoDBAccess("record-media-inspection-dynamodb", {
+	tables: [{ arn: storage.mediaUploadSessionsTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
+const recordMediaInspectionQueue = new Sqs("record-media-inspection", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const recordMediaInspectionLambda = new Lambda("record-media-inspection", {
+	entryPoint: "./src/runtime/record-media-inspection.main.ts",
+	outputDir: ".lib/record-media-inspection",
+	assetDir: "./src/runtime",
+	memorySize: 256,
+	timeout: 30,
+	environmentNames: RECORD_MEDIA_INSPECTION_ENV,
+	environment: {
+		DYNAMODB_MEDIA_UPLOAD_SESSIONS_TABLE: storage.mediaUploadSessionsTable.name,
+	},
+	policies: [...recordMediaInspectionDynamodb.policies],
+});
+
+const recordMediaInspectionWithSQS = new SqsBackedLambda("record-media-inspection", {
+	lambda: recordMediaInspectionLambda,
+	queue: recordMediaInspectionQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribeAll([MediaInspectedEvent, MediaRejectedEvent], recordMediaInspectionWithSQS, {
+	name: "hutch-record-media-inspection",
+});
+
 // --- Send First Inbox Email Notice ---
 
 const sendFirstInboxEmailNoticeDynamodb = new DynamoDBAccess(
@@ -2552,7 +2587,6 @@ new aws.cloudwatch.Dashboard("readplace-related-past-reads", {
 	),
 }, { dependsOn: [analyticsLogGroup] });
 
-
 // --- Exports ---
 
 export const apiUrl: pulumi.Input<string> = canonicalDomain ? `https://${canonicalDomain}` : gateway.apiUrl;
@@ -2562,7 +2596,6 @@ export const apiGatewayId = gateway.apiGatewayId;
 export const apiGatewayExecutionArn = gateway.apiGatewayExecutionArn;
 export const staticBaseUrl = staticAssets.baseUrl;
 export const _dependencies = [gateway.defaultRoute];
-
 
 const evaluateRefreshQueue = new Sqs("evaluate-oauth-refresh", { visibilityTimeoutSeconds: 180 });
 const evaluateRefreshRead = new DynamoDBAccess("evaluate-oauth-refresh-read", {

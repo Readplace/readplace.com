@@ -1,15 +1,23 @@
 import assert from "node:assert";
 import type {
+	AnyMediaUploadSession,
+	ClaimMediaUpload,
+	ClaimedMediaUpload,
+	CreateAnyMediaUploadSession,
 	CreateMediaUploadSession,
 	FailMediaUpload,
+	FindMediaUploadByCapability,
 	FindMediaUploadSession,
 	HeadMediaPendingOriginal,
 	MarkMediaUploadCommitted,
+	MarkMediaUploadInspecting,
 	MediaUploadSession,
 	MintMediaPendingPost,
 	PresignMediaImage,
 	PublishMediaUploadCommitted,
+	PublishMediaUploadStaged,
 	ReadMediaPendingPrefix,
+	RecordMediaInspection,
 } from "@packages/domain";
 
 export interface InMemoryMediaUploadSessions {
@@ -17,10 +25,25 @@ export interface InMemoryMediaUploadSessions {
 	findMediaUploadSession: FindMediaUploadSession;
 	markMediaUploadCommitted: MarkMediaUploadCommitted;
 	failMediaUpload: FailMediaUpload;
+	createAnyMediaUploadSession: CreateAnyMediaUploadSession;
+	markMediaUploadInspecting: MarkMediaUploadInspecting;
+	recordMediaInspection: RecordMediaInspection;
+	claimMediaUpload: ClaimMediaUpload;
+	findMediaUploadByCapability: FindMediaUploadByCapability;
 }
 
+type StoredMediaUploadSession = AnyMediaUploadSession & { readonly etag?: string };
+
 export function initInMemoryMediaUploadSessions(): InMemoryMediaUploadSessions {
-	const sessions = new Map<string, MediaUploadSession>();
+	const sessions = new Map<string, StoredMediaUploadSession>();
+	const signedIn = (uploadId: string) => {
+		const session = sessions.get(uploadId);
+		return session?.userId === undefined ? undefined : session;
+	};
+	const anonymous = (uploadId: string) => {
+		const session = sessions.get(uploadId);
+		return session?.userId === undefined ? session : undefined;
+	};
 
 	return {
 		createMediaUploadSession: async (params) => {
@@ -29,20 +52,67 @@ export function initInMemoryMediaUploadSessions(): InMemoryMediaUploadSessions {
 			return session;
 		},
 		findMediaUploadSession: async ({ uploadId, userId }) => {
-			const session = sessions.get(uploadId);
+			const session = signedIn(uploadId);
 			return session?.userId === userId ? session : undefined;
 		},
 		markMediaUploadCommitted: async ({ uploadId, userId }) => {
-			const session = sessions.get(uploadId);
+			const session = signedIn(uploadId);
 			if (session?.userId !== userId || session.status !== "staged") return "not-staged";
 			sessions.set(uploadId, { ...session, status: "committed" });
 			return "committed";
 		},
 		failMediaUpload: async ({ uploadId }) => {
-			const session = sessions.get(uploadId);
+			const session = signedIn(uploadId);
 			if (session?.status !== "committed") return "not-committed";
 			sessions.set(uploadId, { ...session, status: "failed" });
 			return "failed";
+		},
+		createAnyMediaUploadSession: async ({ userId, ...params }) => {
+			assert(!sessions.has(params.uploadId), `upload ${params.uploadId} already exists`);
+			const session: AnyMediaUploadSession =
+				userId === undefined ? { ...params, status: "staged" } : { ...params, userId, status: "staged" };
+			sessions.set(session.uploadId, session);
+			return session;
+		},
+		markMediaUploadInspecting: async ({ uploadId, etag }) => {
+			const session = anonymous(uploadId);
+			if (session?.status !== "staged") return "not-staged";
+			sessions.set(uploadId, { ...session, status: "inspecting", etag });
+			return "inspecting";
+		},
+		recordMediaInspection: async ({ uploadId, inspection }) => {
+			const session = anonymous(uploadId);
+			if (session?.status !== "inspecting") return "not-inspecting";
+			if (inspection.verdict === "inspected") {
+				sessions.set(uploadId, { ...session, status: "ready", facts: inspection.facts });
+				return "ready";
+			}
+			sessions.set(uploadId, { ...session, status: "rejected", reason: inspection.reason, notice: inspection.notice });
+			return "rejected";
+		},
+		claimMediaUpload: async ({ uploadId, userId }) => {
+			const session = sessions.get(uploadId);
+			if (session?.etag === undefined) return "not-claimable";
+			const unclaimedReady = session.userId === undefined && session.status === "ready";
+			const sameReaderAgain = session.userId === userId && session.status === "staged";
+			if (!unclaimedReady && !sameReaderAgain) return "not-claimable";
+			const claimed: ClaimedMediaUpload = {
+				uploadId: session.uploadId,
+				userId,
+				kind: session.kind,
+				fileName: session.fileName,
+				byteLength: session.byteLength,
+				saveAttemptId: session.saveAttemptId,
+				status: "staged",
+				etag: session.etag,
+			};
+			sessions.set(uploadId, { ...session, ...claimed });
+			return claimed;
+		},
+		findMediaUploadByCapability: async ({ uploadId, userId }) => {
+			const session = sessions.get(uploadId);
+			if (session === undefined) return undefined;
+			return session.userId === undefined || session.userId === userId ? session : undefined;
 		},
 	};
 }
@@ -105,5 +175,18 @@ export function initInMemoryMediaUploadCommitted(): {
 			publishedMediaUploadCommitted.push(params);
 		},
 		publishedMediaUploadCommitted,
+	};
+}
+
+export function initInMemoryMediaUploadStaged(): {
+	publishMediaUploadStaged: PublishMediaUploadStaged;
+	publishedMediaUploadStaged: Parameters<PublishMediaUploadStaged>[0][];
+} {
+	const publishedMediaUploadStaged: Parameters<PublishMediaUploadStaged>[0][] = [];
+	return {
+		publishMediaUploadStaged: async (detail) => {
+			publishedMediaUploadStaged.push(detail);
+		},
+		publishedMediaUploadStaged,
 	};
 }
