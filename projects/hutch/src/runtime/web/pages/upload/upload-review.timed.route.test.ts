@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import type { ReadTimedDuration } from "@packages/domain";
-import { AUDIO, UploadIdSchema } from "@packages/media-contracts";
+import { AUDIO, MEDIA_KINDS, UploadIdSchema, defineMediaKind } from "@packages/media-contracts";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { findUntrackedCtas } from "@packages/web-test-harness";
 import { loginAgent, useTestServer } from "../../../test-app";
@@ -120,5 +120,31 @@ describe("Guest audio review", () => {
 		expect(commit.status).toBe(303);
 		expect(commit.headers.location).toBe("/upload?features=transcripts&refused=transcript-quota");
 		expect(harness.mediaUpload.publishedMediaUploadCommitted).toHaveLength(2);
+	});
+});
+
+describe("Guest timed review refused by the kind's own judgement", () => {
+	const SILENT = defineMediaKind({ ...AUDIO, refuseTimedFacts: () => "no-audio-track" as const });
+	const useSilentApp = useTestServer({
+		mediaKinds: new Map([...MEDIA_KINDS, ["audio", SILENT]]),
+		readDurationByMeter: new Map([["transcript-seconds" as const, readDuration]]),
+	});
+
+	it("rejects the guest's upload before signup with the kind's refusal", async () => {
+		const harness = useSilentApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { uploadId, received } = await stageAudio({
+			harness,
+			agent: request.agent(harness.server),
+			startPath: "/upload?features=transcripts",
+		});
+
+		expect(received.status).toBe(303);
+		expect(received.headers.location).toBe(`/upload/${uploadId}`);
+		const { doc } = await reviewOf(harness, uploadId);
+		expect(doc.querySelector("#upload-status")?.getAttribute("data-upload-status")).toBe("rejected");
+		expect(doc.querySelector("[data-test-upload-notice]")?.textContent).toBe(
+			"This video has no audio track, so there is nothing to transcribe. Upload a video with sound.",
+		);
+		expect(doc.querySelector("[data-test-upload-commit-form]")).toBeNull();
 	});
 });

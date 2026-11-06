@@ -1,4 +1,5 @@
 import { defineMediaKind } from "../media-kind";
+import { isPlayableAudio } from "../playable-audio";
 
 const ID3_TAG = Buffer.from("ID3", "ascii");
 const FTYP_BOX = Buffer.from("ftyp", "ascii");
@@ -40,6 +41,7 @@ export const AUDIO = defineMediaKind({
 	ceilingLabel: "256 MB",
 	meter: "transcript-seconds",
 	listenTime: listenMinutes,
+	refuseTimedFacts: (facts) => (isPlayableAudio(facts) ? undefined : "unreadable-audio"),
 	sniff: (firstBytes) => {
 		const bytes = Buffer.from(firstBytes);
 		return (

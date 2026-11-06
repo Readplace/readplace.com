@@ -72,4 +72,16 @@ describe("AUDIO", () => {
 		assert.equal(AUDIO.meter, "transcript-seconds");
 		assert.deepEqual([AUDIO.listenTime?.(2820), AUDIO.listenTime?.(2821)], [47, 48]);
 	});
+
+	it("accepts the timed facts of playable audio", () => {
+		assert.equal(AUDIO.refuseTimedFacts({ durationSeconds: 60, hasAudio: true, hasVideo: false }), undefined);
+	});
+
+	it.each([
+		{ name: "no audio", facts: { durationSeconds: 60, hasAudio: false, hasVideo: false } },
+		{ name: "a video track", facts: { durationSeconds: 60, hasAudio: true, hasVideo: true } },
+		{ name: "under a second", facts: { durationSeconds: 0.5, hasAudio: true, hasVideo: false } },
+	])("refuses timed facts with $name as unreadable audio", ({ facts }) => {
+		assert.equal(AUDIO.refuseTimedFacts(facts), "unreadable-audio");
+	});
 });

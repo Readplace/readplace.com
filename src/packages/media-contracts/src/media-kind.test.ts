@@ -18,11 +18,12 @@ describe("defineMediaKind", () => {
 		assert.equal(Object.isFrozen(kind), true);
 	});
 
-	it("keeps a metered kind's meter and listen time", () => {
+	it("keeps a metered kind's meter, listen time and timed facts judgement", () => {
 		const listenTime = (seconds: number) => seconds;
-		const kind = defineMediaKind({ ...MANIFEST, meter: "transcript-seconds", listenTime });
+		const refuseTimedFacts = () => undefined;
+		const kind = defineMediaKind({ ...MANIFEST, meter: "transcript-seconds", listenTime, refuseTimedFacts });
 
-		assert.deepEqual(kind, { ...MANIFEST, meter: "transcript-seconds", listenTime });
+		assert.deepEqual(kind, { ...MANIFEST, meter: "transcript-seconds", listenTime, refuseTimedFacts });
 	});
 
 	it("gives an unmetered kind no meter or listen time key", () => {

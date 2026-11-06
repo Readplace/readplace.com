@@ -128,6 +128,7 @@ export const UPLOAD_OUTCOME_HTML: UploadOutcomeWriters = {
 	"transcript-quota": refusalWriter("transcript-quota"),
 	"transcript-too-long": refusalWriter("transcript-too-long"),
 	"unreadable-audio": refusalWriter("unreadable-audio"),
+	"no-audio-track": refusalWriter("no-audio-track"),
 };
 
 export interface UploadRouteDependencies {

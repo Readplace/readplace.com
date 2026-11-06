@@ -3,12 +3,13 @@ import type {
 	AnonymousMediaUploadSession,
 	AnyMediaUploadSession,
 	MarkMediaUploadInspecting,
+	MediaInspectionVerdict,
 	MediaUploadSession,
 	PublishMediaUploadStaged,
 	ReadTimedDuration,
 	RecordTimedMediaFacts,
 } from "@packages/domain";
-import { type MediaKindManifest, type Meter, isPlayableAudio } from "@packages/media-contracts";
+import type { MediaKindManifest, Meter, TimedFactsRefusal } from "@packages/media-contracts";
 import { defaultFileNameOf, type SettleAnyReceivedUpload, type SettleReceivedUpload } from "./commit-received-upload";
 import type { UploadOutcome } from "./upload.outcome";
 import { UPLOAD_REFUSAL_COPY } from "./upload.refusal";
@@ -19,6 +20,16 @@ export type StageForReview = (params: {
 	etag: string;
 	size: number;
 }) => Promise<UploadOutcome<"staged-for-review">>;
+
+function rejectedAs(refusal: TimedFactsRefusal): MediaInspectionVerdict {
+	return { verdict: "rejected", reason: "unreadable", notice: UPLOAD_REFUSAL_COPY[refusal] };
+}
+
+function timedInspection(params: { refusal: TimedFactsRefusal | undefined; durationSeconds: number }): MediaInspectionVerdict {
+	return params.refusal === undefined
+		? { verdict: "inspected", facts: { kind: "audio", shape: "timed", durationSeconds: params.durationSeconds } }
+		: rejectedAs(params.refusal);
+}
 
 export function initStageForReview(deps: {
 	markMediaUploadInspecting: MarkMediaUploadInspecting;
@@ -38,9 +49,9 @@ export function initStageForReview(deps: {
 				etag,
 				kind: kind.name,
 				inspection:
-					"unreadable" in facts || !isPlayableAudio(facts)
-						? { verdict: "rejected", reason: "unreadable", notice: UPLOAD_REFUSAL_COPY["unreadable-audio"] }
-						: { verdict: "inspected", facts: { kind: "audio", shape: "timed", durationSeconds: facts.durationSeconds } },
+					"unreadable" in facts
+						? rejectedAs("unreadable-audio")
+						: timedInspection({ refusal: kind.refuseTimedFacts(facts), durationSeconds: facts.durationSeconds }),
 			});
 			return { outcome: "staged-for-review", uploadId };
 		}

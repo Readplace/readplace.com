@@ -7,7 +7,7 @@ export const MediaKindNameSchema = z.enum(["book", "audio"]);
 export type MediaKindName = z.infer<typeof MediaKindNameSchema>;
 
 export const MEDIA_KINDS: ReadonlyMap<MediaKindName, MediaKindManifest> =
-	new Map([
+	new Map<MediaKindName, MediaKindManifest>([
 		["book", BOOK],
 		["audio", AUDIO],
 	]);

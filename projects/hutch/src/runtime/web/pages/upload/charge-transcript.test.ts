@@ -112,6 +112,18 @@ describe("initChargeTranscript", () => {
 		assert.deepEqual(quota.calls, []);
 	});
 
+	it("refuses with the reason the kind's own timed facts judgement gives, without charging", async () => {
+		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
+		const charge = chargeWith({ read: readingSeconds(600), quota: quota.chargeTranscriptQuota });
+		const silent = defineMediaKind({ ...METERED_AUDIO, refuseTimedFacts: () => "no-audio-track" as const });
+
+		assert.deepEqual(await charge({ session, kind: silent, etag: '"e1"' }), {
+			kind: "refuse",
+			reason: "no-audio-track",
+		});
+		assert.deepEqual(quota.calls, []);
+	});
+
 	it("does not read or charge an unflagged upload or a kind without a meter", async () => {
 		const quota = chargeAnswering({ outcome: "charged", day: "2026-11-07" });
 		const read: ReadTimedDuration = async () => assert.fail("an unmetered upload is never read");

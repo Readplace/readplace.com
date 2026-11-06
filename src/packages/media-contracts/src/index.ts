@@ -9,7 +9,7 @@ export {
 } from "./private-item";
 export { MediaImageFileSchema, type MediaImageFile, mediaImageFileOf } from "./media-image-file";
 export type { MediaFacts } from "./media-facts.types";
-export { defineMediaKind, type MediaKindManifest, type Meter } from "./media-kind";
+export { defineMediaKind, type MediaKindManifest, type Meter, type TimedFactsRefusal } from "./media-kind";
 export { isPlayableAudio, type TimedMediaFacts } from "./playable-audio";
 export { AUDIO } from "./kinds/audio";
 export { BOOK } from "./kinds/book";

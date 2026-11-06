@@ -36,7 +36,7 @@ async function signedIn() {
 }
 
 async function uploadAndReceive(params: {
-	signed: Awaited<ReturnType<typeof signedIn>>;
+	signed: Pick<Awaited<ReturnType<typeof signedIn>>, "harness" | "agent">;
 	startPath: string;
 	bytes: Uint8Array;
 }) {
@@ -131,5 +131,42 @@ describe("Metered upload commit", () => {
 		const [published] = signed.harness.mediaUpload.publishedMediaUploadCommitted;
 		expect(published).toEqual(expect.objectContaining({ uploadId, kind: "audio" }));
 		expect(published).not.toHaveProperty("chargedSeconds");
+	});
+});
+
+describe("Metered upload commit refused by the kind's own judgement", () => {
+	const reads: Parameters<ReadTimedDuration>[0][] = [];
+	const readSilently: ReadTimedDuration = async (params) => {
+		reads.push(params);
+		return { durationSeconds: 600, hasAudio: false, hasVideo: true };
+	};
+	const SILENT = defineMediaKind({ ...METERED_AUDIO, refuseTimedFacts: () => "no-audio-track" as const });
+	const useSilentApp = useTestServer({
+		mediaKinds: new Map([...MEDIA_KINDS, ["audio", SILENT]]),
+		readDurationByMeter: new Map([["transcript-seconds" as const, readSilently]]),
+	});
+
+	beforeEach(() => {
+		reads.splice(0);
+	});
+
+	it("redirects to the no-audio-track refusal without a charge or a commit", async () => {
+		const harness = useSilentApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const { uploadId, received } = await uploadAndReceive({
+			signed: { harness, agent },
+			startPath: "/upload?features=transcripts",
+			bytes: mp3Prefix(),
+		});
+
+		expect(received.status).toBe(303);
+		expect(received.headers.location).toBe("/upload?features=transcripts&refused=no-audio-track");
+		expect(reads).toEqual([{ uploadId, etag: expect.any(String) }]);
+		expect(harness.mediaUpload.publishedMediaUploadCommitted).toEqual([]);
+		const page = await agent.get("/upload?refused=no-audio-track");
+		expect(
+			documentOf(page.text).querySelector('[data-test-alert="upload-refusal"] [data-test-alert-message]')?.textContent,
+		).toBe("This video has no audio track, so there is nothing to transcribe. Upload a video with sound.");
 	});
 });
