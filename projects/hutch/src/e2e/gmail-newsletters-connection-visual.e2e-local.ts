@@ -194,7 +194,7 @@ const SCENARIOS: readonly Scenario[] = [
 		settled: async (page) => {
 			await integrationStatusShown(page, "filtering");
 			await expect(page.locator('[data-test-integration="gmail"]')).toContainText(UPGRADE_COPY);
-			await expect(page.locator(`${INTEGRATION_ROW} ${LOCK_TRIGGER}`)).toContainText("Connect Gmail");
+			await expect(page.locator(`${INTEGRATION_ROW} ${LOCK_TRIGGER}`)).toContainText("Keep Gmail connected");
 			await expect(page.locator('[data-test-integration="gmail"] [data-test-integration-action]')).toHaveText(["Manage"]);
 		},
 		pinnedText: [],
