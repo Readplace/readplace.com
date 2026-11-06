@@ -1,0 +1,156 @@
+{
+  "name": "@packages/translations",
+  "version": "1.0.0",
+  "description": "Every user-facing string for the web deployables and browser extensions, one module per surface and locale",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./locale": {
+      "types": "./dist/locale.d.ts",
+      "default": "./dist/locale.js"
+    },
+    "./web-catalog": {
+      "types": "./dist/web-catalog.d.ts",
+      "default": "./dist/web-catalog.js"
+    },
+    "./common": {
+      "types": "./dist/surfaces/common/index.d.ts",
+      "default": "./dist/surfaces/common/index.js"
+    },
+    "./shell": {
+      "types": "./dist/surfaces/shell/index.d.ts",
+      "default": "./dist/surfaces/shell/index.js"
+    },
+    "./hutch-auth": {
+      "types": "./dist/surfaces/hutch-auth/index.d.ts",
+      "default": "./dist/surfaces/hutch-auth/index.js"
+    },
+    "./hutch-readlist": {
+      "types": "./dist/surfaces/hutch-readlist/index.d.ts",
+      "default": "./dist/surfaces/hutch-readlist/index.js"
+    },
+    "./hutch-reader": {
+      "types": "./dist/surfaces/hutch-reader/index.d.ts",
+      "default": "./dist/surfaces/hutch-reader/index.js"
+    },
+    "./hutch-account": {
+      "types": "./dist/surfaces/hutch-account/index.d.ts",
+      "default": "./dist/surfaces/hutch-account/index.js"
+    },
+    "./hutch-integrations": {
+      "types": "./dist/surfaces/hutch-integrations/index.d.ts",
+      "default": "./dist/surfaces/hutch-integrations/index.js"
+    },
+    "./hutch-emails": {
+      "types": "./dist/surfaces/hutch-emails/index.d.ts",
+      "default": "./dist/surfaces/hutch-emails/index.js"
+    },
+    "./hutch-api": {
+      "types": "./dist/surfaces/hutch-api/index.d.ts",
+      "default": "./dist/surfaces/hutch-api/index.js"
+    },
+    "./hutch-stored": {
+      "types": "./dist/surfaces/hutch-stored/index.d.ts",
+      "default": "./dist/surfaces/hutch-stored/index.js"
+    },
+    "./inbox": {
+      "types": "./dist/surfaces/inbox/index.d.ts",
+      "default": "./dist/surfaces/inbox/index.js"
+    },
+    "./blog-site": {
+      "types": "./dist/surfaces/blog-site/index.d.ts",
+      "default": "./dist/surfaces/blog-site/index.js"
+    },
+    "./web-embed": {
+      "types": "./dist/surfaces/web-embed/index.d.ts",
+      "default": "./dist/surfaces/web-embed/index.js"
+    },
+    "./browser-extension": {
+      "types": "./dist/surfaces/browser-extension/index.d.ts",
+      "default": "./dist/surfaces/browser-extension/index.js"
+    },
+    "./copy-checker": {
+      "types": "./dist/copy-checker.d.ts",
+      "default": "./dist/copy-checker.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "locale": [
+        "./dist/locale.d.ts"
+      ],
+      "web-catalog": [
+        "./dist/web-catalog.d.ts"
+      ],
+      "common": [
+        "./dist/surfaces/common/index.d.ts"
+      ],
+      "shell": [
+        "./dist/surfaces/shell/index.d.ts"
+      ],
+      "hutch-auth": [
+        "./dist/surfaces/hutch-auth/index.d.ts"
+      ],
+      "hutch-readlist": [
+        "./dist/surfaces/hutch-readlist/index.d.ts"
+      ],
+      "hutch-reader": [
+        "./dist/surfaces/hutch-reader/index.d.ts"
+      ],
+      "hutch-account": [
+        "./dist/surfaces/hutch-account/index.d.ts"
+      ],
+      "hutch-integrations": [
+        "./dist/surfaces/hutch-integrations/index.d.ts"
+      ],
+      "hutch-emails": [
+        "./dist/surfaces/hutch-emails/index.d.ts"
+      ],
+      "hutch-api": [
+        "./dist/surfaces/hutch-api/index.d.ts"
+      ],
+      "hutch-stored": [
+        "./dist/surfaces/hutch-stored/index.d.ts"
+      ],
+      "inbox": [
+        "./dist/surfaces/inbox/index.d.ts"
+      ],
+      "blog-site": [
+        "./dist/surfaces/blog-site/index.d.ts"
+      ],
+      "web-embed": [
+        "./dist/surfaces/web-embed/index.d.ts"
+      ],
+      "browser-extension": [
+        "./dist/surfaces/browser-extension/index.d.ts"
+      ],
+      "copy-checker": [
+        "./dist/copy-checker.d.ts"
+      ]
+    }
+  },
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "test": "jest --testMatch='**/dist/**/*.test.js'",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "check": "nx run @packages/translations:check",
+    "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "dependencies": {
+    "handlebars": "4.7.9",
+    "linkedom": "0.18.12"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "c8": "11.0.0",
+    "concurrently": "10.0.0",
+    "jest": "30.4.2",
+    "typescript": "6.0.3"
+  }
+}

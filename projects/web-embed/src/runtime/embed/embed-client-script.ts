@@ -1,4 +1,5 @@
 import { PAGE_URL_PLACEHOLDER } from "./snippet.component";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 /** Copy-to-clipboard + live PAGE_URL substitution for the embed builder page.
  * Referenced with `<script src>` rather than inlined because inline scripts
@@ -19,7 +20,7 @@ export const EMBED_CLIENT_JS = `(function() {
 				var text = code.getAttribute('data-snippet-template').split(PLACEHOLDER).join(pageUrl);
 				code.textContent = text;
 				var bytes = document.querySelector('[data-snippet-bytes="' + code.id + '"]');
-				if (bytes) bytes.textContent = new Blob([text]).size.toLocaleString('en-US') + ' bytes';
+				if (bytes) bytes.textContent = new Blob([text]).size.toLocaleString('${DEFAULT_LOCALE}') + ' bytes';
 			}
 		});
 	}

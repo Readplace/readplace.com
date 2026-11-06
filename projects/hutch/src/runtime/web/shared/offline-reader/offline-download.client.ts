@@ -7,6 +7,7 @@ import {
 	withoutCampaignParams,
 } from "./offline-cache";
 import { initOfflineOwnership } from "./offline-owner";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 export { offlineOwnerMarker, stampOfflineCopy } from "./offline-cache";
 
@@ -108,7 +109,7 @@ function attribute(element: Element, name: string): string {
 }
 
 function count(value: number): string {
-	return value.toLocaleString("en-US");
+	return value.toLocaleString(DEFAULT_LOCALE);
 }
 
 function finishedStatus(input: { total: number; notReady: number }): string {

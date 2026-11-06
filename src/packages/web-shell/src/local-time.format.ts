@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
+
 /**
  * Pure, browser-and-node-safe instant formatting shared by the SSR view-models
  * and the client-side enhancer. The server renders a UTC-labelled
@@ -17,7 +19,7 @@ export interface LocalTime {
 
 export type LocalTimeStyle = "datetime" | "date" | "time";
 
-const LOCALE = "en-US";
+const LOCALE = DEFAULT_LOCALE;
 
 export const SERVER_TIME_ZONE = "UTC";
 

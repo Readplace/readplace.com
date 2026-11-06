@@ -13,6 +13,7 @@ import {
 	renderCanonicalSnippet,
 	renderLiveSnippet,
 } from "./snippet.component";
+import { DEFAULT_LOCALE } from "@packages/translations/locale";
 
 const EMBED_TEMPLATE = readFileSync(join(__dirname, "embed.template.html"), "utf-8");
 
@@ -86,7 +87,7 @@ function pageUrlView(pageUrl: EmbedPageUrl): PageUrlView {
 }
 
 function bytesLabel(source: string): string {
-	return `${byteLength(source).toLocaleString("en-US")} bytes`;
+	return `${byteLength(source).toLocaleString(DEFAULT_LOCALE)} bytes`;
 }
 
 export interface EmbedPageInput {
