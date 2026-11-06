@@ -28,12 +28,22 @@ const ILLUSTRATED_BOOK = buildTestEpub({
 	images: [{ file: "images/a.png", mediaType: "image/png", bytes: new Uint8Array([137, 80, 78, 71]) }],
 });
 const BOOK = buildTestEpub({ title: "A Book", authors: ["Ada"], chapters: [{ file: "one.xhtml", title: "One", body: "<p>hello world</p>" }] });
+const LONG_BOOK = buildTestEpub({
+	title: "Long",
+	chapters: [
+		{ file: "one.xhtml", title: "One", body: `<p>${"a".repeat(1_000)}</p>` },
+		{ file: "two.xhtml", title: "Two", body: `<p>${"b".repeat(1_000)}</p>` },
+	],
+});
+const TOO_LARGE_NOTICE = "This book is too large to read or export. Split it into smaller EPUB files and upload each one.";
 
 function sqsEvent(body: unknown) {
 	return buildSqsEvent([{ messageId: "m-1", body: JSON.stringify(body) }]);
 }
 
-function setUp(overrides: { download?: DownloadStagedObject; sections?: "recorded" | "not-found"; limit?: number } = {}) {
+type Limits = { readerBodyByteLimit?: number; wholeBodyByteLimit?: number; largestSectionByteLimit?: number };
+
+function setUp(overrides: { download?: DownloadStagedObject; sections?: "recorded" | "not-found"; limits?: Limits } = {}) {
 	const published: { event: string; detail: unknown }[] = [];
 	const tierSources: Parameters<PutTierSource>[0][] = [];
 	const sectionWrites: { url: string; sectionCount: number }[] = [];
@@ -57,7 +67,10 @@ function setUp(overrides: { download?: DownloadStagedObject; sections?: "recorde
 			},
 		}),
 		publishEvent,
-		readerBodyByteLimit: overrides.limit ?? 1_000_000,
+		readerBodyByteLimit: 1_000_000,
+		wholeBodyByteLimit: 2_000_000,
+		largestSectionByteLimit: 1_000_000,
+		...overrides.limits,
 		logger: HutchLogger.from({ ...noopLogger, info: (...args: unknown[]) => infoLines.push(args) }),
 	});
 	const run = (body: unknown = { time: TIME, detail: DETAIL }) => handler(sqsEvent(body), buildLambdaContext(), () => {});
@@ -139,7 +152,13 @@ describe("initProcessBookHandler", () => {
 			"unreadable",
 			"This book is protected by DRM, so we can't open it. Upload a DRM-free copy.",
 		],
-		["the body is over the reader limit", { limit: 10 }, "too-large-for-reader", "This book is too large to show in the reader."],
+		["the body is over the whole-body limit", { limits: { wholeBodyByteLimit: 10 } }, "too-large-for-reader", TOO_LARGE_NOTICE],
+		[
+			"the body is over one reader page and its largest page cannot fit on one",
+			{ download: async () => ({ bytes: LONG_BOOK, sha256: "sha" }), limits: { readerBodyByteLimit: 1_500, largestSectionByteLimit: 1_000 } },
+			"too-large-for-reader",
+			TOO_LARGE_NOTICE,
+		],
 	])("publishes the failure when %s, and writes no source", async (_, overrides, reason, notice) => {
 		const { run, published, tierSources, sectionWrites } = setUp(overrides);
 
@@ -148,6 +167,18 @@ describe("initProcessBookHandler", () => {
 		assert.deepEqual(failureOf(published), expectedFailure(reason, notice));
 		assert.deepEqual(tierSources, []);
 		assert.deepEqual(sectionWrites, []);
+	});
+
+	it.each([
+		["over one reader page whose every chapter fits on a page", { download: async () => ({ bytes: LONG_BOOK, sha256: "sha" }), limits: { readerBodyByteLimit: 1_500, largestSectionByteLimit: 1_500 } }],
+		["within one reader page even when that page is over the page limit", { limits: { largestSectionByteLimit: 10 } }],
+	])("accepts a body %s", async (_, overrides) => {
+		const { run, published, tierSources } = setUp(overrides);
+
+		assert.deepEqual(await run(), { batchItemFailures: [] });
+
+		assert.equal(tierSources.length, 1);
+		assert.deepEqual(published.map(({ event }) => event), ["TierContentExtracted"]);
 	});
 
 	it("fails the record for a malformed message so the queue retries it", async () => {

@@ -8,6 +8,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { candidateProvenance, KIND_BY_TIER, type PutTierSource } from "@packages/tier-source";
 import { z } from "zod";
 import { buildBookBody } from "../epub/book-body";
+import { largestReaderPageBytes } from "../epub/book-pages";
 import { readEpubChapters } from "../epub/epub-chapters";
 import { isDrmProtected } from "../epub/epub-encryption";
 import { parseEpubPackage } from "../epub/epub-package";
@@ -38,6 +39,8 @@ export function initProcessBookHandler(deps: {
 	storeBookImagesFor: StoreBookImagesFor;
 	publishEvent: PublishEvent;
 	readerBodyByteLimit: number;
+	wholeBodyByteLimit: number;
+	largestSectionByteLimit: number;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const fail = async (detail: MediaUploadCommittedDetail, failure: BookFailure) => {
@@ -70,7 +73,9 @@ export function initProcessBookHandler(deps: {
 				return src;
 			});
 		const body = await buildBookBody({ chapters: readEpubChapters({ bytes: staged.bytes, pkg }), resolveImage });
-		if (Buffer.byteLength(body.html) > deps.readerBodyByteLimit) return fail(detail, "too-large-for-reader");
+		const bodyBytes = Buffer.byteLength(body.html);
+		if (bodyBytes > deps.wholeBodyByteLimit) return fail(detail, "too-large-for-reader");
+		if (bodyBytes > deps.readerBodyByteLimit && largestReaderPageBytes(body) > deps.largestSectionByteLimit) return fail(detail, "too-large-for-reader");
 
 		const recorded = await deps.recordPrivateItemSections({ url: detail.url, sectionCount: body.sectionCount });
 		if (recorded === "not-found") {
@@ -106,7 +111,7 @@ export function initProcessBookHandler(deps: {
 		deps.logger.info("[process-book] book processed", {
 			uploadId: detail.uploadId,
 			sectionCount: body.sectionCount,
-			bodyBytes: Buffer.byteLength(body.html),
+			bodyBytes,
 			sha256: staged.sha256,
 			contentHash: createHash("sha256").update(body.html).digest("hex"),
 		});

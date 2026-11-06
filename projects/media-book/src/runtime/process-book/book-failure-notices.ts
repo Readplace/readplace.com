@@ -17,6 +17,6 @@ export const BOOK_FAILURES: Record<BookFailure, { reason: MediaFailureReason; no
 	},
 	"too-large-for-reader": {
 		reason: "too-large-for-reader",
-		notice: "This book is too large to show in the reader.",
+		notice: "This book is too large to read or export. Split it into smaller EPUB files and upload each one.",
 	},
 };

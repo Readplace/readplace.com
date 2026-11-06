@@ -12,6 +12,8 @@ import { initDownloadStagedObject } from "./s3/download-staged-object";
 import { initPutBookImage } from "./s3/put-book-image";
 
 const READER_BODY_BYTE_LIMIT = 5_789_589;
+const WHOLE_BODY_BYTE_LIMIT = 6_130_000;
+const LARGEST_SECTION_BYTE_LIMIT = 5_430_060;
 
 const s3Client = new S3Client({});
 const mediaBucketName = requireEnv("MEDIA_BUCKET_NAME");
@@ -31,5 +33,7 @@ export const handler = initProcessBookHandler({
 	storeBookImagesFor: initStoreBookImage({ putBookImage: initPutBookImage({ client: s3Client, bucketName: mediaBucketName }) }),
 	publishEvent,
 	readerBodyByteLimit: READER_BODY_BYTE_LIMIT,
+	wholeBodyByteLimit: WHOLE_BODY_BYTE_LIMIT,
+	largestSectionByteLimit: LARGEST_SECTION_BYTE_LIMIT,
 	logger: HutchLogger.from(consoleLogger),
 });
